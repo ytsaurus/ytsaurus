@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -15,9 +14,12 @@ get_built_tool_path(
 )
 
 add_library(cpp-mapreduce-util)
+
+
 target_compile_options(cpp-mapreduce-util PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-mapreduce-util PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,14 +28,22 @@ target_link_libraries(cpp-mapreduce-util PUBLIC
   cpp-mapreduce-common
   cpp-mapreduce-interface
 )
+
 target_sources(cpp-mapreduce-util PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
 )
+
+
+
 generate_enum_serilization(cpp-mapreduce-util
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/util/wait_for_tablets_state.h
 )
+
+
+
+

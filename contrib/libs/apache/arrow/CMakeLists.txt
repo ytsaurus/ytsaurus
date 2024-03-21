@@ -5,6 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_flatc_bin
+  TOOL_flatc_dependency
+  contrib/tools/flatc
+  flatc
+)
 
 get_built_tool_path(
   TOOL_flatc_bin
@@ -12,30 +18,28 @@ get_built_tool_path(
   contrib/tools/flatc
   flatc
 )
+
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
   contrib/tools/flatc
   flatc
 )
+
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
   contrib/tools/flatc
   flatc
 )
+
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
   contrib/tools/flatc
   flatc
 )
-get_built_tool_path(
-  TOOL_flatc_bin
-  TOOL_flatc_dependency
-  contrib/tools/flatc
-  flatc
-)
+
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
@@ -44,6 +48,8 @@ get_built_tool_path(
 )
 
 add_library(libs-apache-arrow)
+
+
 target_compile_options(libs-apache-arrow PUBLIC
   -DARROW_STATIC
   -DPARQUET_STATIC
@@ -65,6 +71,7 @@ target_compile_options(libs-apache-arrow PRIVATE
   -DHAVE_NETINET_IN_H
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-apache-arrow PUBLIC
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src
@@ -79,6 +86,7 @@ target_include_directories(libs-apache-arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
+
 target_link_libraries(libs-apache-arrow PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -99,6 +107,7 @@ target_link_libraries(libs-apache-arrow PUBLIC
   contrib-restricted-uriparser
   contrib-libs-flatbuffers
 )
+
 target_sources(libs-apache-arrow PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs.h
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.iter.fbs.h
@@ -325,6 +334,9 @@ target_sources(libs-apache-arrow PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs.cpp
   ${PROJECT_BINARY_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs.cpp
 )
+
+
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/File.fbs
@@ -334,6 +346,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Message.fbs
@@ -343,6 +356,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Schema.fbs
@@ -352,6 +366,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/SparseTensor.fbs
@@ -361,6 +376,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/Tensor.fbs
@@ -370,6 +386,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
 target_fbs_source(libs-apache-arrow
   PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/arrow/cpp/src/generated/feather.fbs
@@ -379,3 +396,7 @@ target_fbs_source(libs-apache-arrow
   -I
   ${PROJECT_SOURCE_DIR}
 )
+
+
+
+

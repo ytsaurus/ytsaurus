@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-http-proxy)
+
+
 target_compile_options(unittester-http-proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-http-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(unittester-http-proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(unittester-http-proxy PUBLIC
   cpp-testing-gtest_main
   yt-server-http_proxy
 )
+
 target_link_options(unittester-http-proxy PRIVATE
   -ldl
   -lrt
@@ -34,16 +37,20 @@ target_link_options(unittester-http-proxy PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-http-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/unittests/http_proxy_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-http-proxy
   COMMAND
   unittester-http-proxy
 )
+
 set_property(
   TEST
   unittester-http-proxy
@@ -51,6 +58,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-http-proxy
@@ -58,14 +66,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-http-proxy
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-http-proxy
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-http-proxy)
+
+
+
+

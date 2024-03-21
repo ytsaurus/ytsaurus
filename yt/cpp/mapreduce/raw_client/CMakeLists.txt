@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(ut)
-
 add_library(cpp-mapreduce-raw_client)
+
+
 target_compile_options(cpp-mapreduce-raw_client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-mapreduce-raw_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,8 +23,15 @@ target_link_libraries(cpp-mapreduce-raw_client PUBLIC
   mapreduce-interface-logging
   cpp-yson-node
 )
+
 target_sources(cpp-mapreduce-raw_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_batch_request.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_requests.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/rpc_parameters_serialization.cpp
 )
+
+
+
+
+
+

@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-CodeGen-MIRParser)
+
+
 target_compile_options(lib-CodeGen-MIRParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-CodeGen-MIRParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser
 )
+
 target_link_libraries(lib-CodeGen-MIRParser PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,8 +29,15 @@ target_link_libraries(lib-CodeGen-MIRParser PUBLIC
   llvm16-lib-Support
   llvm16-lib-Target
 )
+
 target_sources(lib-CodeGen-MIRParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser/MILexer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser/MIParser.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/MIRParser/MIRParser.cpp
 )
+
+
+
+
+
+

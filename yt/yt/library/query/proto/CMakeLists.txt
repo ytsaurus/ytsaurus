@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,30 +25,21 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -44,12 +48,16 @@ get_built_tool_path(
 )
 
 add_library(library-query-proto)
+
+
 target_compile_options(library-query-proto PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-proto PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(library-query-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -57,16 +65,21 @@ target_link_libraries(library-query-proto PUBLIC
   yt-yt-client
   contrib-libs-protobuf
 )
+
 target_proto_messages(library-query-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/proto/query.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/proto/query_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/proto/functions_cache.proto
 )
+
 target_sources(library-query-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/query.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/query_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/proto/functions_cache.pb.h
 )
+
+
+
 target_proto_addincls(library-query-proto
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -78,7 +91,12 @@ target_proto_addincls(library-query-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(library-query-proto
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

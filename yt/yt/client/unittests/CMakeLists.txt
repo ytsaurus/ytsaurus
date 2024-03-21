@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(mock)
 get_built_tool_path(
   TOOL_rescompiler_bin
@@ -15,9 +14,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-client)
+
+
 target_compile_options(unittester-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,6 +37,7 @@ target_link_libraries(unittester-client PUBLIC
   yt_proto-yt-formats
   library-cpp-resource
 )
+
 target_link_options(unittester-client PRIVATE
   -ldl
   -lrt
@@ -46,6 +49,7 @@ target_link_options(unittester-client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/check_schema_compatibility_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/check_type_compatibility_ut.cpp
@@ -79,12 +83,15 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_protocol_ut.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
+
+
 add_test(
   NAME
   unittester-client
   COMMAND
   unittester-client
 )
+
 set_property(
   TEST
   unittester-client
@@ -92,6 +99,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-client
@@ -99,12 +107,15 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-client
   PROPERTY
   ENVIRONMENT
 )
+
+
 resources(unittester-client
   ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
   INPUTS
@@ -114,7 +125,13 @@ resources(unittester-client
   /types/good
   /types/bad
 )
+
 target_allocator(unittester-client
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-client)
+
+
+
+

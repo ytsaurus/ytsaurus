@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-testing-gmock_in_unittest)
+
+
 target_link_libraries(cpp-testing-gmock_in_unittest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,11 +17,18 @@ target_link_libraries(cpp-testing-gmock_in_unittest PUBLIC
   cpp-testing-gtest_extensions
   cpp-testing-unittest
 )
+
 target_sources(cpp-testing-gmock_in_unittest PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gmock_in_unittest/events.cpp
 )
 
-add_global_library_for(cpp-testing-gmock_in_unittest.global cpp-testing-gmock_in_unittest)
+
+
+
+add_global_library_for(cpp-testing-gmock_in_unittest.global
+  cpp-testing-gmock_in_unittest)
+
+
 target_link_libraries(cpp-testing-gmock_in_unittest.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,6 +38,13 @@ target_link_libraries(cpp-testing-gmock_in_unittest.global PUBLIC
   cpp-testing-gtest_extensions
   cpp-testing-unittest
 )
+
 target_sources(cpp-testing-gmock_in_unittest.global PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gmock_in_unittest/registration.cpp
 )
+
+
+
+
+
+

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(server-lib-logging)
+
+
 target_compile_options(server-lib-logging PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-logging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,7 +22,14 @@ target_link_libraries(server-lib-logging PUBLIC
   yt-yt-core
   yt-library-program
 )
+
 target_sources(server-lib-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/logging/category_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/logging/program_describe_structured_logs_mixin.cpp
 )
+
+
+
+
+
+

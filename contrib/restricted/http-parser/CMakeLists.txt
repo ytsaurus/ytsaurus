@@ -5,20 +5,29 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-http-parser)
+
+
 target_compile_options(contrib-restricted-http-parser PRIVATE
   -DHTTP_MAX_HEADER_SIZE=0x7fffffff
   -DHTTP_PARSER_STRICT=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-restricted-http-parser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/http-parser
 )
+
 target_link_libraries(contrib-restricted-http-parser PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-restricted-http-parser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/http-parser/http_parser.c
 )
+
+
+
+
+
+

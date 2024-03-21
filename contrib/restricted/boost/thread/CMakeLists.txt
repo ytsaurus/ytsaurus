@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-thread)
+
+
 target_compile_options(restricted-boost-thread PUBLIC
   -DBOOST_THREAD_USE_LIB
   -DBOOST_THREAD_POSIX
@@ -17,9 +17,11 @@ target_compile_options(restricted-boost-thread PRIVATE
   -DBOOST_THREAD_DONT_USE_CHRONO
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-thread PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/thread/include
 )
+
 target_link_libraries(restricted-boost-thread PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -49,8 +51,15 @@ target_link_libraries(restricted-boost-thread PUBLIC
   restricted-boost-utility
   restricted-boost-winapi
 )
+
 target_sources(restricted-boost-thread PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/thread/src/future.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/thread/src/pthread/once.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/thread/src/pthread/thread.cpp
 )
+
+
+
+
+
+

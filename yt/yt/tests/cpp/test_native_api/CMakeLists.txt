@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cpp-integration-test-native-api)
+
+
 target_compile_options(cpp-integration-test-native-api PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-integration-test-native-api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(cpp-integration-test-native-api PUBLIC
   yt-core-test_framework
   yt-library-named_value
 )
+
 target_link_options(cpp-integration-test-native-api PRIVATE
   -ldl
   -lrt
@@ -35,6 +37,7 @@ target_link_options(cpp-integration-test-native-api PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(cpp-integration-test-native-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_native_api/test_native_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
@@ -42,12 +45,15 @@ target_sources(cpp-integration-test-native-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_queues.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/modify_rows_test.cpp
 )
+
+
 add_test(
   NAME
   cpp-integration-test-native-api
   COMMAND
   cpp-integration-test-native-api
 )
+
 set_property(
   TEST
   cpp-integration-test-native-api
@@ -55,6 +61,7 @@ set_property(
   LABELS
   LARGE
 )
+
 set_property(
   TEST
   cpp-integration-test-native-api
@@ -62,13 +69,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   cpp-integration-test-native-api
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(cpp-integration-test-native-api
   cpp-ytalloc-impl
 )
+
 vcs_info(cpp-integration-test-native-api)
+
+
+
+

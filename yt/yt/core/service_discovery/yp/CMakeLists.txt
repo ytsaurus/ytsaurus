@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(core-service_discovery-yp)
+
+
 target_compile_options(core-service_discovery-yp PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(core-service_discovery-yp PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(core-service_discovery-yp PUBLIC
   yt-yt-core
   core-rpc-grpc
 )
+
 target_sources(core-service_discovery-yp PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/service_discovery/yp/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/service_discovery/yp/service_discovery_dummy.cpp
 )
+
+
+
+
+
+

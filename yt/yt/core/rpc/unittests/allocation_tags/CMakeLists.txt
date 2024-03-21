@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(core-rpc-allocation-tags)
+
+
 target_compile_options(core-rpc-allocation-tags PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(core-rpc-allocation-tags PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +27,7 @@ target_link_libraries(core-rpc-allocation-tags PUBLIC
   yt-core-test_framework
   cpp-testing-common
 )
+
 target_link_options(core-rpc-allocation-tags PRIVATE
   -ldl
   -lrt
@@ -37,15 +39,19 @@ target_link_options(core-rpc-allocation-tags PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(core-rpc-allocation-tags PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/rpc_allocation_tags_ut.cpp
 )
+
+
 add_test(
   NAME
   core-rpc-allocation-tags
   COMMAND
   core-rpc-allocation-tags
 )
+
 set_property(
   TEST
   core-rpc-allocation-tags
@@ -53,6 +59,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   core-rpc-allocation-tags
@@ -60,14 +67,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   core-rpc-allocation-tags
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(core-rpc-allocation-tags
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc
 )
+
 vcs_info(core-rpc-allocation-tags)
+
+
+
+

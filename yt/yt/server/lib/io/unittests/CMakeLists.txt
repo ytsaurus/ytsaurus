@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-server-lib-io)
+
+
 target_compile_options(unittester-server-lib-io PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-server-lib-io PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-server-lib-io PUBLIC
   yt-yt-build
   server-lib-io
 )
+
 target_link_options(unittester-server-lib-io PRIVATE
   -ldl
   -lrt
@@ -32,6 +34,7 @@ target_link_options(unittester-server-lib-io PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/erasure_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/gentle_loader_ut.cpp
@@ -42,12 +45,15 @@ target_sources(unittester-server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_request_slicer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/unittests/io_workload_model_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-server-lib-io
   COMMAND
   unittester-server-lib-io
 )
+
 set_property(
   TEST
   unittester-server-lib-io
@@ -55,6 +61,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-server-lib-io
@@ -62,14 +69,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-server-lib-io
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-server-lib-io
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-server-lib-io)
+
+
+
+

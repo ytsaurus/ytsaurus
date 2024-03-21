@@ -5,15 +5,16 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(bin)
 add_subdirectory(proto)
 add_subdirectory(unittests)
-
 add_library(yt-systest)
+
+
 target_compile_options(yt-systest PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-systest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +31,7 @@ target_link_libraries(yt-systest PUBLIC
   library-profiling-solomon
   yt_proto-yt-client
 )
+
 target_sources(yt-systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/bootstrap_dataset.cpp
   ${PROJECT_SOURCE_DIR}/yt/systest/config.cpp
@@ -57,3 +59,9 @@ target_sources(yt-systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/validator_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/systest/worker_set.cpp
 )
+
+
+
+
+
+

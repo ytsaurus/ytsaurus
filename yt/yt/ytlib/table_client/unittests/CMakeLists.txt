@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-ytlib-table-client)
+
+
 target_compile_options(unittester-ytlib-table-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-ytlib-table-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(unittester-ytlib-table-client PUBLIC
   yt-core-test_framework
   yt-yt-ytlib
 )
+
 target_link_options(unittester-ytlib-table-client PRIVATE
   -ldl
   -lrt
@@ -34,6 +36,7 @@ target_link_options(unittester-ytlib-table-client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-ytlib-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/table_schema_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/value_consumer_ut.cpp
@@ -54,12 +57,15 @@ target_sources(unittester-ytlib-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/timestamp_column_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_index_read_controller_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-ytlib-table-client
   COMMAND
   unittester-ytlib-table-client
 )
+
 set_property(
   TEST
   unittester-ytlib-table-client
@@ -67,6 +73,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-ytlib-table-client
@@ -74,14 +81,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-ytlib-table-client
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-ytlib-table-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-ytlib-table-client)
+
+
+
+

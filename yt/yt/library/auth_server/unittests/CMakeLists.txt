@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-auth_server)
+
+
 target_link_libraries(unittester-library-auth_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +21,7 @@ target_link_libraries(unittester-library-auth_server PUBLIC
   tvm-service-mock
   cpp-http-server
 )
+
 target_link_options(unittester-library-auth_server PRIVATE
   -ldl
   -lrt
@@ -32,17 +33,21 @@ target_link_options(unittester-library-auth_server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-auth_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/blackbox_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/mock_http_server.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth_server/unittests/secret_vault_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-auth_server
   COMMAND
   unittester-library-auth_server
 )
+
 set_property(
   TEST
   unittester-library-auth_server
@@ -50,6 +55,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-library-auth_server
@@ -57,13 +63,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-auth_server
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-auth_server
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-auth_server)
+
+
+
+

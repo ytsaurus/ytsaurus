@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-locale)
+
+
 target_compile_options(restricted-boost-locale PRIVATE
   -DBOOST_LOCALE_WITH_ICU
   -DBOOST_LOCALE_NO_WINAPI_BACKEND
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-locale PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/include
 )
 target_include_directories(restricted-boost-locale PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src
 )
+
 target_link_libraries(restricted-boost-locale PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,6 +33,7 @@ target_link_libraries(restricted-boost-locale PUBLIC
   restricted-boost-thread
   restricted-boost-utility
 )
+
 target_sources(restricted-boost-locale PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src/boost/locale/posix/codecvt.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src/boost/locale/posix/collate.cpp
@@ -69,3 +72,9 @@ target_sources(restricted-boost-locale PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src/boost/locale/util/info.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/locale/src/boost/locale/util/locale_data.cpp
 )
+
+
+
+
+
+

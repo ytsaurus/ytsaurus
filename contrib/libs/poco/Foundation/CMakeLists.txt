@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Foundation)
+
+
 target_compile_options(libs-poco-Foundation PRIVATE
   -DHAVE_PTHREAD_SETAFFINITY_NP
   -DHAVE_THREE_PARAM_SCHED_SETAFFINITY
@@ -20,6 +20,7 @@ target_compile_options(libs-poco-Foundation PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Foundation PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
 )
@@ -28,6 +29,7 @@ target_include_directories(libs-poco-Foundation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pcre
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src
 )
+
 target_link_libraries(libs-poco-Foundation PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,6 +37,7 @@ target_link_libraries(libs-poco-Foundation PUBLIC
   contrib-libs-pcre
   contrib-libs-zlib
 )
+
 target_sources(libs-poco-Foundation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src/ASCIIEncoding.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src/AbstractObserver.cpp
@@ -190,3 +193,9 @@ target_sources(libs-poco-Foundation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src/Windows1252Encoding.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/src/SyslogChannel.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-core-https)
+
+
 target_compile_options(yt-core-https PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-core-https PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,8 +20,15 @@ target_link_libraries(yt-core-https PUBLIC
   yt-core-http
   cpp-http-io
 )
+
 target_sources(yt-core-https PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/https/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/https/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/https/server.cpp
 )
+
+
+
+
+
+

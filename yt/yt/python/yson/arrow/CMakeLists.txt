@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED COMPONENTS Development)
-
 add_library(python-yson-arrow INTERFACE)
+
+
 target_include_directories(python-yson-arrow INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(python-yson-arrow INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,16 +23,24 @@ target_link_libraries(python-yson-arrow INTERFACE
   Python3::Module
 )
 
-add_global_library_for(python-yson-arrow.global python-yson-arrow)
+
+
+
+add_global_library_for(python-yson-arrow.global
+  python-yson-arrow)
+
+
 target_compile_options(python-yson-arrow.global PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
+
 target_include_directories(python-yson-arrow.global PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(python-yson-arrow.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -41,7 +50,14 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   libs-apache-arrow
   Python3::Module
 )
+
 target_sources(python-yson-arrow.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/parquet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow/arrow_raw_iterator.cpp
 )
+
+
+
+
+
+

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(arithmetic_expression)
 add_subdirectory(bus_echo_client)
 add_subdirectory(bus_echo_server)
@@ -36,3 +35,5 @@ add_subdirectory(throttler)
 add_subdirectory(uring)
 add_subdirectory(value_dictionary_compression)
 add_subdirectory(ytserver_dummy)
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(clickhouse-base-base)
+
+
 target_compile_options(clickhouse-base-base PUBLIC
   -DOS_LINUX
 )
@@ -24,6 +24,7 @@ target_compile_options(clickhouse-base-base PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(clickhouse-base-base PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
@@ -32,6 +33,7 @@ target_include_directories(clickhouse-base-base PUBLIC
 target_include_directories(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/cityhash-1.0.2
 )
+
 target_link_libraries(clickhouse-base-base PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -42,6 +44,7 @@ target_link_libraries(clickhouse-base-base PUBLIC
   contrib-restricted-cityhash-1.0.2
   cpp-sanitizer-include
 )
+
 target_sources(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/JSON.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/StringRef.cpp
@@ -63,3 +66,9 @@ target_sources(clickhouse-base-base PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/terminalColors.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/base/base/throwError.cpp
 )
+
+
+
+
+
+

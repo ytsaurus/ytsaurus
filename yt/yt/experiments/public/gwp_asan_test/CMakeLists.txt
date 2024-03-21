@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(gwp_asan_test)
+
+
 target_compile_options(gwp_asan_test PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(gwp_asan_test PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(gwp_asan_test PUBLIC
   yt-library-program
   library-cpp-getopt
 )
+
 target_link_options(gwp_asan_test PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(gwp_asan_test PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(gwp_asan_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/gwp_asan_test/main.cpp
 )
+
+
+
 target_allocator(gwp_asan_test
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(gwp_asan_test)
+
+
+
+

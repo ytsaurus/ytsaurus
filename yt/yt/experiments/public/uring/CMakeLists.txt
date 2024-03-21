@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(uring)
+
+
 target_compile_options(uring PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(uring PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(uring PUBLIC
   library-cpp-cpuid_check
   contrib-libs-liburing
 )
+
 target_link_options(uring PRIVATE
   -ldl
   -lrt
@@ -28,10 +30,19 @@ target_link_options(uring PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(uring PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/uring/main.cpp
 )
+
+
+
 target_allocator(uring
   cpp-ytalloc-impl
 )
+
 vcs_info(uring)
+
+
+
+

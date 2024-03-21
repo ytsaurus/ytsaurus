@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-MongoDB)
+
+
 target_compile_options(libs-poco-MongoDB PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-MongoDB PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-MongoDB PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/include
 )
@@ -25,12 +26,14 @@ target_include_directories(libs-poco-MongoDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
 )
+
 target_link_libraries(libs-poco-MongoDB PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-poco-Foundation
   libs-poco-Net
 )
+
 target_sources(libs-poco-MongoDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Array.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/Binary.cpp
@@ -54,3 +57,9 @@ target_sources(libs-poco-MongoDB PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/ResponseMessage.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/MongoDB/src/UpdateRequest.cpp
 )
+
+
+
+
+
+

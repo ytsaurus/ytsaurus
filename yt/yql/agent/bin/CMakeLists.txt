@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(ytserver-yql-agent)
+
+
 target_compile_options(ytserver-yql-agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(ytserver-yql-agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(ytserver-yql-agent PUBLIC
   library-cpp-cpuid_check
   yt-yql-agent
 )
+
 target_link_options(ytserver-yql-agent PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(ytserver-yql-agent PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(ytserver-yql-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/bin/main.cpp
 )
+
+
+
 target_allocator(ytserver-yql-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(ytserver-yql-agent)
+
+
+
+

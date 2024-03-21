@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(in_memory_nbd_server)
+
+
 target_link_libraries(in_memory_nbd_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(in_memory_nbd_server PUBLIC
   library-cpp-cpuid_check
   server-lib-nbd
 )
+
 target_link_options(in_memory_nbd_server PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(in_memory_nbd_server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(in_memory_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/in_memory_nbd_server/main.cpp
 )
+
+
+
 target_allocator(in_memory_nbd_server
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(in_memory_nbd_server)
+
+
+
+

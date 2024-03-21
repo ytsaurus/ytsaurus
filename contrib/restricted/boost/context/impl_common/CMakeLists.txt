@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(boost-context-impl_common)
+
+
 target_compile_options(boost-context-impl_common PRIVATE
   -DBOOST_CONTEXT_SOURCE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(boost-context-impl_common PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/context/include
 )
+
 target_link_libraries(boost-context-impl_common PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,13 @@ target_link_libraries(boost-context-impl_common PUBLIC
   restricted-boost-predef
   restricted-boost-smart_ptr
 )
+
 target_sources(boost-context-impl_common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/context/src/posix/stack_traits.cpp
 )
+
+
+
+
+
+

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(server-lib-lsm)
+
+
 target_compile_options(server-lib-lsm PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-lsm PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(server-lib-lsm PUBLIC
   yt-yt-client
   server-lib-tablet_node
 )
+
 target_sources(server-lib-lsm PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/lsm_backend.cpp
@@ -29,3 +31,9 @@ target_sources(server-lib-lsm PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/store_rotator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/tablet.cpp
 )
+
+
+
+
+
+

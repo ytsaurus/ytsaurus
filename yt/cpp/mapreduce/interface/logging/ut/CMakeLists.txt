@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(yt-cpp-mapreduce-interface-logging-ut)
+
+
 target_include_directories(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging
 )
+
 target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
   cpp-testing-unittest_main
   mapreduce-interface-logging
 )
+
 target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   -ldl
   -lrt
@@ -29,9 +31,12 @@ target_link_options(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(yt-cpp-mapreduce-interface-logging-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/log_ut.cpp
 )
+
+
 set_property(
   TARGET
   yt-cpp-mapreduce-interface-logging-ut
@@ -39,6 +44,7 @@ set_property(
   SPLIT_FACTOR
   1
 )
+
 add_yunittest(
   NAME
   yt-cpp-mapreduce-interface-logging-ut
@@ -51,6 +57,7 @@ add_yunittest(
   --print-times
   --show-fails
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-logging-ut
@@ -58,6 +65,7 @@ set_yunittest_property(
   LABELS
   SMALL
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-logging-ut
@@ -65,14 +73,22 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-logging-ut
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-cpp-mapreduce-interface-logging-ut
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(yt-cpp-mapreduce-interface-logging-ut)
+
+
+
+

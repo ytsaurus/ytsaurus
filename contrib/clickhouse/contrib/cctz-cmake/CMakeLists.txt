@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(clickhouse-contrib-cctz-cmake)
+
+
 target_compile_options(clickhouse-contrib-cctz-cmake PUBLIC
   -DOS_LINUX
 )
@@ -17,14 +17,23 @@ target_compile_options(clickhouse-contrib-cctz-cmake PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(clickhouse-contrib-cctz-cmake PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
 )
+
 target_link_libraries(clickhouse-contrib-cctz-cmake PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   cpp-clickhouse_deps-incbin_stub
 )
+
 target_sources(clickhouse-contrib-cctz-cmake PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/cctz-cmake/TimeZones.generated.cpp
 )
+
+
+
+
+
+

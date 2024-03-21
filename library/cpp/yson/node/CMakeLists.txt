@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_library(cpp-yson-node)
+
+
 target_link_libraries(cpp-yson-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(cpp-yson-node PUBLIC
   library-cpp-yson
   cpp-yson-json
 )
+
 target_sources(cpp-yson-node PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/node.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/node_io.cpp
@@ -29,8 +31,15 @@ target_sources(cpp-yson-node PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/node_visitor.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/serialize.cpp
 )
+
+
+
 generate_enum_serilization(cpp-yson-node
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/node/node.h
   INCLUDE_HEADERS
   library/cpp/yson/node/node.h
 )
+
+
+
+

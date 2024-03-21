@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-federated-client)
+
+
 target_link_libraries(unittester-federated-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +23,7 @@ target_link_libraries(unittester-federated-client PUBLIC
   yt-client-federated
   client-unittests-mock
 )
+
 target_link_options(unittester-federated-client PRIVATE
   -ldl
   -lrt
@@ -34,17 +35,21 @@ target_link_options(unittester-federated-client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-federated-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/client_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/connection_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/unittests/cache_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-federated-client
   COMMAND
   unittester-federated-client
 )
+
 set_property(
   TEST
   unittester-federated-client
@@ -52,6 +57,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-federated-client
@@ -59,14 +65,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-federated-client
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-federated-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-federated-client)
+
+
+
+

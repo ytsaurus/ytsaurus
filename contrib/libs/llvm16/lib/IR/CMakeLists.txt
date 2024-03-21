@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(llvm16-lib-IR)
+
+
 target_compile_options(llvm16-lib-IR PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-IR PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR
 )
+
 target_link_libraries(llvm16-lib-IR PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(llvm16-lib-IR PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(llvm16-lib-IR PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR/AbstractCallSite.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR/AsmWriter.cpp
@@ -92,3 +95,9 @@ target_sources(llvm16-lib-IR PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR/VectorBuilder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/IR/Verifier.cpp
 )
+
+
+
+
+
+

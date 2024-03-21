@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-ytlib)
+
+
 target_compile_options(unittester-ytlib PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(unittester-ytlib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +32,7 @@ target_link_libraries(unittester-ytlib PUBLIC
   contrib-libs-sparsehash
   cpp-http-server
 )
+
 target_link_options(unittester-ytlib PRIVATE
   -ldl
   -lrt
@@ -41,6 +44,7 @@ target_link_options(unittester-ytlib PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
@@ -63,12 +67,15 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-ytlib
   COMMAND
   unittester-ytlib
 )
+
 set_property(
   TEST
   unittester-ytlib
@@ -76,6 +83,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-ytlib
@@ -83,13 +91,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-ytlib
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-ytlib
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-ytlib)
+
+
+
+

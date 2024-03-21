@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(crypto)
-
 add_library(contrib-libs-openssl)
+
+
 target_compile_options(contrib-libs-openssl PRIVATE
   -DAESNI_ASM
   -DOPENSSL_BN_ASM_MONT
@@ -34,16 +34,19 @@ target_compile_options(contrib-libs-openssl PRIVATE
   -DVPAES_ASM
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-openssl PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/include
 )
 target_include_directories(contrib-libs-openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl
 )
+
 target_link_libraries(contrib-libs-openssl PUBLIC
   contrib-libs-linux-headers
   libs-openssl-crypto
 )
+
 target_sources(contrib-libs-openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/engines/e_capi.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/engines/e_padlock.c
@@ -94,3 +97,9 @@ target_sources(contrib-libs-openssl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/engines/e_afalg.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/asm/linux/engines/e_padlock-x86_64.s
 )
+
+
+
+
+
+

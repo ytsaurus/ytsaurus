@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-client-hedging)
+
+
 target_compile_options(yt-client-hedging PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-client-hedging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(yt-client-hedging PUBLIC
   yt-client-hedging-proto
   library-cpp-iterator
 )
+
 target_sources(yt-client-hedging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/counter.cpp
@@ -31,3 +33,9 @@ target_sources(yt-client-hedging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/logger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/hedging/penalty_provider.cpp
 )
+
+
+
+
+
+

@@ -5,23 +5,32 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-fmt)
+
+
 target_compile_options(contrib-libs-fmt PUBLIC
   -DFMT_EXPORT
 )
 target_compile_options(contrib-libs-fmt PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-fmt PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/fmt/include
 )
+
 target_link_libraries(contrib-libs-fmt PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(contrib-libs-fmt PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/fmt/src/format.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/fmt/src/os.cc
 )
+
+
+
+
+
+

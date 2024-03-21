@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,54 +25,49 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -68,6 +76,8 @@ get_built_tool_path(
 )
 
 add_library(yt-systest-proto)
+
+
 target_link_libraries(yt-systest-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -75,6 +85,7 @@ target_link_libraries(yt-systest-proto PUBLIC
   yt_proto-yt-client
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt-systest-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/proto/operation.proto
   ${PROJECT_SOURCE_DIR}/yt/systest/proto/run_spec.proto
@@ -82,6 +93,7 @@ target_proto_messages(yt-systest-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/proto/table.proto
   ${PROJECT_SOURCE_DIR}/yt/systest/proto/validator.proto
 )
+
 target_sources(yt-systest-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/systest/proto/operation.pb.h
   ${PROJECT_BINARY_DIR}/yt/systest/proto/run_spec.pb.h
@@ -89,6 +101,9 @@ target_sources(yt-systest-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/systest/proto/table.pb.h
   ${PROJECT_BINARY_DIR}/yt/systest/proto/validator.pb.h
 )
+
+
+
 target_proto_addincls(yt-systest-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -99,7 +114,12 @@ target_proto_addincls(yt-systest-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-systest-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(distributed_throttler)
+
+
 target_link_libraries(distributed_throttler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +19,7 @@ target_link_libraries(distributed_throttler PUBLIC
   server-lib-discovery_server
   discovery_server-unittests-mock
 )
+
 target_link_options(distributed_throttler PRIVATE
   -ldl
   -lrt
@@ -30,11 +31,20 @@ target_link_options(distributed_throttler PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(distributed_throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/distributed_throttler/main.cpp
 )
+
+
+
 target_allocator(distributed_throttler
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(distributed_throttler)
+
+
+
+

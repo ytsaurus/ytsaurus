@@ -5,8 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(examples)
 add_subdirectory(interface)
 add_subdirectory(library)
 add_subdirectory(yt)
+
+

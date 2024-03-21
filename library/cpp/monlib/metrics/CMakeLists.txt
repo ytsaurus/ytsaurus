@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,12 +13,15 @@ get_built_tool_path(
 )
 
 add_library(cpp-monlib-metrics)
+
+
 target_link_libraries(cpp-monlib-metrics PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(cpp-monlib-metrics PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/monlib/metrics/metric_value_type.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/ewma.cpp
@@ -37,6 +39,9 @@ target_sources(cpp-monlib-metrics PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/summary_collector.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/summary_snapshot.cpp
 )
+
+
+
 generate_enum_serilization(cpp-monlib-metrics
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/metrics/metric_value_type.h
   GEN_HEADER
@@ -44,3 +49,7 @@ generate_enum_serilization(cpp-monlib-metrics
   INCLUDE_HEADERS
   library/cpp/monlib/metrics/metric_value_type.h
 )
+
+
+
+

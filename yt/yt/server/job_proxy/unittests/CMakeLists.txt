@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-job-proxy)
+
+
 target_compile_options(unittester-job-proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-job-proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-job-proxy PUBLIC
   cpp-testing-gtest_main
   yt-server-job_proxy
 )
+
 target_link_options(unittester-job-proxy PRIVATE
   -ldl
   -lrt
@@ -31,15 +33,19 @@ target_link_options(unittester-job-proxy PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-job-proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/unittests/asan_warning_filter_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-job-proxy
   COMMAND
   unittester-job-proxy
 )
+
 set_property(
   TEST
   unittester-job-proxy
@@ -47,6 +53,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-job-proxy
@@ -54,14 +61,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-job-proxy
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-job-proxy
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-job-proxy)
+
+
+
+

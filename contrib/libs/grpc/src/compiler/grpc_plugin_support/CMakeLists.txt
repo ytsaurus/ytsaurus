@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(src-compiler-grpc_plugin_support)
+
+
 target_compile_options(src-compiler-grpc_plugin_support PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(src-compiler-grpc_plugin_support PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/include
 )
@@ -19,6 +20,7 @@ target_include_directories(src-compiler-grpc_plugin_support PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
 )
+
 target_link_libraries(src-compiler-grpc_plugin_support PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(src-compiler-grpc_plugin_support PUBLIC
   contrib-libs-protobuf
   contrib-libs-protoc
 )
+
 target_sources(src-compiler-grpc_plugin_support PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/cpp_generator.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/csharp_generator.cc
@@ -36,3 +39,9 @@ target_sources(src-compiler-grpc_plugin_support PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/python_generator.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/compiler/ruby_generator.cc
 )
+
+
+
+
+
+

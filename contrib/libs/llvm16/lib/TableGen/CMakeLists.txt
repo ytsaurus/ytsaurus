@@ -5,21 +5,24 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(llvm16-lib-TableGen)
+
+
 target_compile_options(llvm16-lib-TableGen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm16-lib-TableGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen
 )
+
 target_link_libraries(llvm16-lib-TableGen PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-Support
 )
+
 target_sources(llvm16-lib-TableGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/DetailedRecordsBackend.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/Error.cpp
@@ -34,3 +37,9 @@ target_sources(llvm16-lib-TableGen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackend.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/TableGen/TableGenBackendSkeleton.cpp
 )
+
+
+
+
+
+

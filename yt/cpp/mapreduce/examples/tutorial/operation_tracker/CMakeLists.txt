@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(operation_tracker)
+
+
 target_compile_options(operation_tracker PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(operation_tracker PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(operation_tracker PUBLIC
   cpp-mapreduce-client
   mapreduce-library-operation_tracker
 )
+
 target_link_options(operation_tracker PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(operation_tracker PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(operation_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/operation_tracker/main.cpp
 )
+
+
+
 target_allocator(operation_tracker
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(operation_tracker)
+
+
+
+

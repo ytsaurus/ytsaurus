@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-openssl-init)
+
+
 target_link_libraries(cpp-openssl-init PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl
 )
+
 target_sources(cpp-openssl-init PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/openssl/init/init.cpp
 )
+
+
+
+
+
+

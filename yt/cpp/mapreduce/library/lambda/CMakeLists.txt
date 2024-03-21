@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(mapreduce-library-lambda)
+
+
 target_compile_options(mapreduce-library-lambda PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-library-lambda PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,8 +19,15 @@ target_link_libraries(mapreduce-library-lambda PUBLIC
   cpp-mapreduce-interface
   mapreduce-library-table_schema
 )
+
 target_sources(mapreduce-library-lambda PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/yt_lambda.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/field_copier.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lambda/wrappers.cpp
 )
+
+
+
+
+
+

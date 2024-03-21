@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(concurrent_cache)
+
+
 target_link_libraries(concurrent_cache PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(concurrent_cache PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(concurrent_cache PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(concurrent_cache PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(concurrent_cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/concurrent_cache/main.cpp
 )
+
+
+
 target_allocator(concurrent_cache
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(concurrent_cache)
+
+
+
+

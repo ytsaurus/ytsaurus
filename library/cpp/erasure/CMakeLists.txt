@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_library(library-cpp-erasure)
+
+
 target_link_libraries(library-cpp-erasure PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(library-cpp-erasure PUBLIC
   cpp-yt-assert
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(library-cpp-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/public.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/codec.cpp
@@ -33,8 +35,15 @@ target_sources(library-cpp-erasure PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/lrc.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/lrc_isa.cpp
 )
+
+
+
 generate_enum_serilization(library-cpp-erasure
   ${PROJECT_SOURCE_DIR}/library/cpp/erasure/public.h
   INCLUDE_HEADERS
   library/cpp/erasure/public.h
 )
+
+
+
+

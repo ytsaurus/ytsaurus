@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-yson-json)
+
+
 target_link_libraries(cpp-yson-json PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-json
 )
+
 target_sources(cpp-yson-json PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/json/json_writer.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/json/yson2json_adapter.cpp
 )
+
+
+
+
+
+

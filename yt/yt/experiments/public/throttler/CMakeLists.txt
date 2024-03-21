@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(throttler)
+
+
 target_compile_options(throttler PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(throttler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(throttler PUBLIC
   yt-yt-core
   cpp-getopt-small
 )
+
 target_link_options(throttler PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(throttler PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(throttler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/throttler/main.cpp
 )
+
+
+
 target_allocator(throttler
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(throttler)
+
+
+
+

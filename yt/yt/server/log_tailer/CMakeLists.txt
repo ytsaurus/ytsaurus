@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(bin)
-
 add_library(yt-server-log_tailer)
+
+
 target_compile_options(yt-server-log_tailer PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-log_tailer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(yt-server-log_tailer PUBLIC
   ytserver
   cpp-getopt-small
 )
+
 target_sources(yt-server-log_tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_reader.cpp
@@ -29,3 +31,9 @@ target_sources(yt-server-log_tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_tailer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/log_writer_liveness_checker.cpp
 )
+
+
+
+
+
+

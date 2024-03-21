@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-job_agent)
+
+
 target_compile_options(server-lib-job_agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-job_agent PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-job_agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,8 +25,15 @@ target_link_libraries(server-lib-job_agent PUBLIC
   server-lib-job_proxy
   server-lib-misc
 )
+
 target_sources(server-lib-job_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/estimate_size_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/job_agent/structs.cpp
 )
+
+
+
+
+
+

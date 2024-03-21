@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(helpers)
-
 add_executable(unittester-client-table-client)
+
+
 target_compile_options(unittester-client-table-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-client-table-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +26,7 @@ target_link_libraries(unittester-client-table-client PUBLIC
   client-unittests-mock
   yt-core-test_framework
 )
+
 target_link_options(unittester-client-table-client PRIVATE
   -ldl
   -lrt
@@ -36,18 +38,22 @@ target_link_options(unittester-client-table-client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-client-table-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/columnar_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/serialization_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unittests/unversioned_row_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-client-table-client
   COMMAND
   unittester-client-table-client
 )
+
 set_property(
   TEST
   unittester-client-table-client
@@ -55,6 +61,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-client-table-client
@@ -62,13 +69,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-client-table-client
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-client-table-client
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-client-table-client)
+
+
+
+

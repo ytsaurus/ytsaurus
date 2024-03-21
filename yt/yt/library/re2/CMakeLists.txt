@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-re2)
+
+
 target_compile_options(yt-library-re2 PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-re2 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(yt-library-re2 PUBLIC
   yt-yt-core
   contrib-libs-re2
 )
+
 target_sources(yt-library-re2 PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/re2/re2.cpp
 )
+
+
+
+
+
+

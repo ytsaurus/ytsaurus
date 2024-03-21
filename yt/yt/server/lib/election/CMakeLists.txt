@@ -5,19 +5,21 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(server-lib-election)
+
+
 target_compile_options(server-lib-election PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-election PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
+
 target_sources(server-lib-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/distributed_election_manager.cpp
@@ -26,3 +28,9 @@ target_sources(server-lib-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/alien_cell_peer_channel_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/public.cpp
 )
+
+
+
+
+
+

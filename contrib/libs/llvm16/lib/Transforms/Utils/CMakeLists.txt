@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-Utils)
+
+
 target_compile_options(lib-Transforms-Utils PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-Utils PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Utils
 )
+
 target_link_libraries(lib-Transforms-Utils PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(lib-Transforms-Utils PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(lib-Transforms-Utils PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Utils/AMDGPUEmitPrintf.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Utils/ASanStackFrameLayout.cpp
@@ -108,3 +111,9 @@ target_sources(lib-Transforms-Utils PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Utils/VNCoercion.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Utils/ValueMapper.cpp
 )
+
+
+
+
+
+

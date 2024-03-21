@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED COMPONENTS Development)
 add_subdirectory(arrow)
-
 add_library(yt-python-yson)
+
+
 target_compile_options(yt-python-yson PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
+
 target_include_directories(yt-python-yson PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(yt-python-yson PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +32,7 @@ target_link_libraries(yt-python-yson PUBLIC
   library-cpp-skiff
   Python3::Module
 )
+
 target_sources(yt-python-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/arrow.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/error.cpp
@@ -56,16 +59,24 @@ target_sources(yt-python-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/skiff/switch.cpp
 )
 
-add_global_library_for(yt-python-yson.global yt-python-yson)
+
+
+
+add_global_library_for(yt-python-yson.global
+  yt-python-yson)
+
+
 target_compile_options(yt-python-yson.global PRIVATE
   -DPYCXX_PYTHON_2TO3
   -DPYCXX_6_2_COMPATIBILITY
   -DPy_LIMITED_API=0x03040000
   -Wno-register
 )
+
 target_include_directories(yt-python-yson.global PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(yt-python-yson.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -77,6 +88,13 @@ target_link_libraries(yt-python-yson.global PUBLIC
   library-cpp-skiff
   Python3::Module
 )
+
 target_sources(yt-python-yson.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/python/yson/yson.cpp
 )
+
+
+
+
+
+

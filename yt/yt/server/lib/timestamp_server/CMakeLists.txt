@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,12 +20,16 @@ get_built_tool_path(
 )
 
 add_library(server-lib-timestamp_server)
+
+
 target_compile_options(server-lib-timestamp_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-timestamp_server PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-timestamp_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,14 +37,19 @@ target_link_libraries(server-lib-timestamp_server PUBLIC
   yt-yt-ytlib
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-timestamp_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.proto
 )
+
 target_sources(server-lib-timestamp_server PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/timestamp_server/proto/timestamp_manager.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/timestamp_server/timestamp_manager.cpp
 )
+
+
+
 target_proto_addincls(server-lib-timestamp_server
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -53,7 +62,12 @@ target_proto_addincls(server-lib-timestamp_server
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-timestamp_server
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

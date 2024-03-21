@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-testing-gtest_main)
+
+
 target_link_libraries(cpp-testing-gtest_main PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-testing-gtest
 )
+
 target_sources(cpp-testing-gtest_main PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/testing/gtest_main/main.cpp
 )
+
+
+
+
+
+

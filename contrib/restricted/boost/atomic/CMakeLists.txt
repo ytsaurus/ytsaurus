@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-atomic)
+
+
 target_compile_options(restricted-boost-atomic PRIVATE
   -DBOOST_ATOMIC_SOURCE
   -DBOOST_ATOMIC_USE_SSE41
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-atomic PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/include
 )
 target_include_directories(restricted-boost-atomic PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src
 )
+
 target_link_libraries(restricted-boost-atomic PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,8 +32,15 @@ target_link_libraries(restricted-boost-atomic PUBLIC
   restricted-boost-type_traits
   restricted-boost-winapi
 )
+
 target_sources(restricted-boost-atomic PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse2.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/lock_pool.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/atomic/src/find_address_sse41.cpp
 )
+
+
+
+
+
+

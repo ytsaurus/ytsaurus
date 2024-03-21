@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(ytserver-dummy)
+
+
 target_compile_options(ytserver-dummy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(ytserver-dummy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
 )
+
 target_link_options(ytserver-dummy PRIVATE
   -ldl
   -lrt
@@ -27,10 +29,19 @@ target_link_options(ytserver-dummy PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(ytserver-dummy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/ytserver_dummy/main.cpp
 )
+
+
+
 target_allocator(ytserver-dummy
   cpp-ytalloc-impl
 )
+
 vcs_info(ytserver-dummy)
+
+
+
+

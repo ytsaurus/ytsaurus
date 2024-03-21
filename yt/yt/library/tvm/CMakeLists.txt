@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(service)
-
 add_library(yt-library-tvm)
+
+
 target_compile_options(yt-library-tvm PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-tvm PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-memory
 )
+
 target_sources(yt-library-tvm PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/tvm_base.cpp
 )
+
+
+
+
+
+

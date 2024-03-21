@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-hydra-mock)
+
+
 target_compile_options(lib-hydra-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(lib-hydra-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   server-lib-hydra
 )
+
 target_sources(lib-hydra-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/mock/simple_hydra_manager_mock.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(profiling-example)
+
+
 target_compile_options(profiling-example PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(profiling-example PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(profiling-example PUBLIC
   library-profiling-tcmalloc
   library-profiling-perf
 )
+
 target_link_options(profiling-example PRIVATE
   -ldl
   -lrt
@@ -31,11 +33,20 @@ target_link_options(profiling-example PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(profiling-example PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/example/main.cpp
 )
+
+
+
 target_allocator(profiling-example
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc
 )
+
 vcs_info(profiling-example)
+
+
+
+

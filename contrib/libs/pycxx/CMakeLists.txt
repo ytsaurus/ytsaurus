@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED COMPONENTS Development)
-
 add_library(contrib-libs-pycxx)
+
+
 target_compile_options(contrib-libs-pycxx PRIVATE
   -DY_PYCXX_BUILD=1
   -DPYCXX_PYTHON_2TO3
@@ -16,14 +16,17 @@ target_compile_options(contrib-libs-pycxx PRIVATE
   -DPy_LIMITED_API=0x03040000
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-pycxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
 )
+
 target_link_libraries(contrib-libs-pycxx PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   Python3::Module
 )
+
 target_sources(contrib-libs-pycxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/IndirectPythonInterface.cxx
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_exceptions.cxx
@@ -31,3 +34,9 @@ target_sources(contrib-libs-pycxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
 )
+
+
+
+
+
+

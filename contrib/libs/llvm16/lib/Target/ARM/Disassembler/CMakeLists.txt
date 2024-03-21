@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-ARM-Disassembler)
+
+
 target_compile_options(Target-ARM-Disassembler PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-ARM-Disassembler PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/Disassembler
 )
+
 target_link_libraries(Target-ARM-Disassembler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,13 @@ target_link_libraries(Target-ARM-Disassembler PUBLIC
   Target-ARM-TargetInfo
   Target-ARM-Utils
 )
+
 target_sources(Target-ARM-Disassembler PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/ARM/Disassembler/ARMDisassembler.cpp
 )
+
+
+
+
+
+

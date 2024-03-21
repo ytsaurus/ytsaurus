@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,9 +13,12 @@ get_built_tool_path(
 )
 
 add_library(cpp-mapreduce-client)
+
+
 target_compile_options(cpp-mapreduce-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-mapreduce-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -37,6 +39,7 @@ target_link_libraries(cpp-mapreduce-client PUBLIC
   yt-core-http
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(cpp-mapreduce-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/abortable_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/batch_request_impl.cpp
@@ -66,8 +69,15 @@ target_sources(cpp-mapreduce-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/yt_poller.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/dummy_job_profiler.cpp
 )
+
+
+
 generate_enum_serilization(cpp-mapreduce-client
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/client/structured_table_formats.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/client/structured_table_formats.h
 )
+
+
+
+

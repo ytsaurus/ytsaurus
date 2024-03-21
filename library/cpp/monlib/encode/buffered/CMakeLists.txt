@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(monlib-encode-buffered)
+
+
 target_link_libraries(monlib-encode-buffered PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,7 +15,14 @@ target_link_libraries(monlib-encode-buffered PUBLIC
   cpp-monlib-encode
   cpp-monlib-metrics
 )
+
 target_sources(monlib-encode-buffered PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/buffered/buffered_encoder_base.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/buffered/string_pool.cpp
 )
+
+
+
+
+
+

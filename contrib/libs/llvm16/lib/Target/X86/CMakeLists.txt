@@ -5,20 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
-
 add_library(lib-Target-X86)
+
+
 target_compile_options(lib-Target-X86 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-X86 PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/X86
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86
 )
+
 target_link_libraries(lib-Target-X86 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -41,6 +43,7 @@ target_link_libraries(lib-Target-X86 PUBLIC
   lib-Transforms-Instrumentation
   lib-Transforms-Utils
 )
+
 target_sources(lib-Target-X86 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/X86AsmPrinter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/X86AvoidStoreForwardingBlocks.cpp
@@ -105,3 +108,9 @@ target_sources(lib-Target-X86 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/X86VZeroUpper.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/X86/X86WinEHState.cpp
 )
+
+
+
+
+
+

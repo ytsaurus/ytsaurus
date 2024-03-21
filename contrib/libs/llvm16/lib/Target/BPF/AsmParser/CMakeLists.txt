@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-BPF-AsmParser)
+
+
 target_compile_options(Target-BPF-AsmParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-BPF-AsmParser PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/AsmParser
 )
+
 target_link_libraries(Target-BPF-AsmParser PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,6 +29,13 @@ target_link_libraries(Target-BPF-AsmParser PUBLIC
   Target-BPF-MCTargetDesc
   Target-BPF-TargetInfo
 )
+
 target_sources(Target-BPF-AsmParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/AsmParser/BPFAsmParser.cpp
 )
+
+
+
+
+
+

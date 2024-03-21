@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-thrift)
+
+
 target_compile_options(contrib-restricted-thrift PRIVATE
   -Wno-deprecated-declarations
   -Wno-unused-function
@@ -16,9 +16,11 @@ target_compile_options(contrib-restricted-thrift PRIVATE
   -Wno-unused-variable
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-restricted-thrift PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift
 )
+
 target_link_libraries(contrib-restricted-thrift PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,6 +33,7 @@ target_link_libraries(contrib-restricted-thrift PUBLIC
   restricted-boost-system
   restricted-boost-thread
 )
+
 target_sources(contrib-restricted-thrift PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift/thrift/TApplicationException.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift/thrift/TOutput.cpp
@@ -81,3 +84,9 @@ target_sources(contrib-restricted-thrift PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift/thrift/transport/TTransportUtils.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/thrift/thrift/transport/TZlibTransport.cpp
 )
+
+
+
+
+
+

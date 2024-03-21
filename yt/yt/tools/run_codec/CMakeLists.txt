@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(run_codec)
+
+
 target_link_libraries(run_codec PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(run_codec PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(run_codec PRIVATE
   -ldl
   -lrt
@@ -26,10 +27,19 @@ target_link_options(run_codec PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(run_codec PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/run_codec/main.cpp
 )
+
+
+
 target_allocator(run_codec
   cpp-lfalloc-yt
 )
+
 vcs_info(run_codec)
+
+
+
+

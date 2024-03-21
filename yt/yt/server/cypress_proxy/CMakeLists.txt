@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-cypress_proxy)
+
+
 target_compile_options(yt-server-cypress_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-cypress_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   server-lib-misc
   server-lib-cypress_registrar
 )
+
 target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/action_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/bootstrap.cpp
@@ -37,3 +39,9 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/sequoia_tree_visitor.cpp
 )
+
+
+
+
+
+

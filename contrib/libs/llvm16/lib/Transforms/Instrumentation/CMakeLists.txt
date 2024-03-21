@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-Instrumentation)
+
+
 target_compile_options(lib-Transforms-Instrumentation PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-Instrumentation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation
 )
+
 target_link_libraries(lib-Transforms-Instrumentation PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(lib-Transforms-Instrumentation PUBLIC
   llvm16-lib-TargetParser
   lib-Transforms-Utils
 )
+
 target_sources(lib-Transforms-Instrumentation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation/AddressSanitizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation/BoundsChecking.cpp
@@ -51,3 +54,9 @@ target_sources(lib-Transforms-Instrumentation PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation/ThreadSanitizer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/Instrumentation/ValueProfileCollector.cpp
 )
+
+
+
+
+
+

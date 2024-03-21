@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(fastops-fastops-avx2)
+
+
 target_compile_options(fastops-fastops-avx2 PRIVATE
   -mavx
   -mavx2
@@ -18,12 +18,20 @@ target_compile_options(fastops-fastops-avx2 PRIVATE
   -Wno-unknown-pragmas
   -Wno-unused-local-typedef
 )
+
 target_link_libraries(fastops-fastops-avx2 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   fastops-fastops-core
 )
+
 target_sources(fastops-fastops-avx2 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx2/ops_avx2.h
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops/fastops/avx2/ops_avx2.cpp
 )
+
+
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(value_dictionary_compression)
+
+
 target_link_libraries(value_dictionary_compression PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +19,7 @@ target_link_libraries(value_dictionary_compression PUBLIC
   yt-yt-core
   library-cpp-getopt
 )
+
 target_link_options(value_dictionary_compression PRIVATE
   -ldl
   -lrt
@@ -30,11 +31,20 @@ target_link_options(value_dictionary_compression PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(value_dictionary_compression PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/value_dictionary_compression/main.cpp
 )
+
+
+
 target_allocator(value_dictionary_compression
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(value_dictionary_compression)
+
+
+
+

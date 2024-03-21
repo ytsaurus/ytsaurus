@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(mpsc_sharded_queue)
+
+
 target_compile_options(mpsc_sharded_queue PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mpsc_sharded_queue PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(mpsc_sharded_queue PUBLIC
   library-cpp-getopt
   yt-yt-core
 )
+
 target_link_options(mpsc_sharded_queue PRIVATE
   -ldl
   -lrt
@@ -30,10 +32,19 @@ target_link_options(mpsc_sharded_queue PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(mpsc_sharded_queue PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/mpsc_sharded_queue/main.cpp
 )
+
+
+
 target_allocator(mpsc_sharded_queue
   cpp-ytalloc-impl
 )
+
 vcs_info(mpsc_sharded_queue)
+
+
+
+

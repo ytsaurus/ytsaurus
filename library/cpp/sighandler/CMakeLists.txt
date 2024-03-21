@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-cpp-sighandler)
+
+
 target_link_libraries(library-cpp-sighandler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
+
 target_sources(library-cpp-sighandler PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.h
   ${PROJECT_SOURCE_DIR}/library/cpp/sighandler/async_signals_handler.cpp
 )
+
+
+
+
+
+

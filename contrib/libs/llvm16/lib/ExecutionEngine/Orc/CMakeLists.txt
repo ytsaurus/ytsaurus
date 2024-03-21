@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(Shared)
 add_subdirectory(TargetProcess)
-
 add_library(lib-ExecutionEngine-Orc)
+
+
 target_compile_options(lib-ExecutionEngine-Orc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-ExecutionEngine-Orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc
 )
+
 target_link_libraries(lib-ExecutionEngine-Orc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -40,6 +42,7 @@ target_link_libraries(lib-ExecutionEngine-Orc PUBLIC
   lib-Transforms-Utils
   llvm16-lib-WindowsDriver
 )
+
 target_sources(lib-ExecutionEngine-Orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFPlatform.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/COFFVCRuntimeSupport.cpp
@@ -83,3 +86,9 @@ target_sources(lib-ExecutionEngine-Orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/TaskDispatch.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/Orc/ThreadSafeModule.cpp
 )
+
+
+
+
+
+

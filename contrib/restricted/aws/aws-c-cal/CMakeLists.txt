@@ -5,23 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-cal)
+
+
 target_compile_options(restricted-aws-aws-c-cal PRIVATE
   -DAWS_CAL_USE_IMPORT_EXPORT
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DHAVE_SYSCONF
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-cal PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/include
 )
+
 target_link_libraries(restricted-aws-aws-c-cal PUBLIC
   contrib-libs-linux-headers
   contrib-libs-openssl
   restricted-aws-aws-c-common
 )
+
 target_sources(restricted-aws-aws-c-cal PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/cal.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/der.c
@@ -35,3 +38,9 @@ target_sources(restricted-aws-aws-c-cal PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_hash.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-cal/source/unix/opensslcrypto_hmac.c
 )
+
+
+
+
+
+

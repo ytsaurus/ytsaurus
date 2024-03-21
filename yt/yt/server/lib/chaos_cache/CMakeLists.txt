@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-chaos_cache)
+
+
 target_compile_options(server-lib-chaos_cache PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-chaos_cache PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt_proto-yt-client
 )
+
 target_sources(server-lib-chaos_cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/chaos_cache/config.cpp
 )
+
+
+
+
+
+

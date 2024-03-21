@@ -5,9 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(01_par_do)
 add_subdirectory(02_group_by_key)
 add_subdirectory(03_combine_by_key)
 add_subdirectory(04_par_do_multiple_outputs)
 add_subdirectory(05_co_group_by_key)
+
+

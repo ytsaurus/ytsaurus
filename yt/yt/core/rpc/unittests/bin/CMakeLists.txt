@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(bin)
+
+
 target_compile_options(bin PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(bin PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(bin PUBLIC
   library-cpp-cpuid_check
   rpc-unittests-lib
 )
+
 target_link_options(bin PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(bin PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(bin PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
 )
+
+
+
 target_allocator(bin
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(bin)
+
+
+
+

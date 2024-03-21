@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-XML)
+
+
 target_compile_options(libs-poco-XML PRIVATE
   -DHAVE_EXPAT_CONFIG_H
   -DPOCO_ENABLE_CPP11
@@ -20,6 +20,7 @@ target_compile_options(libs-poco-XML PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-XML PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/expat
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
@@ -28,12 +29,14 @@ target_include_directories(libs-poco-XML PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src
 )
+
 target_link_libraries(libs-poco-XML PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-expat
   libs-poco-Foundation
 )
+
 target_sources(libs-poco-XML PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src/AbstractContainerNode.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src/AbstractNode.cpp
@@ -107,3 +110,9 @@ target_sources(libs-poco-XML PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src/XMLString.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/src/XMLWriter.cpp
 )
+
+
+
+
+
+

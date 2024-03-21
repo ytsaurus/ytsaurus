@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,21 +20,29 @@ get_built_tool_path(
 )
 
 add_library(yt-contrib-gogoproto)
+
+
 target_include_directories(yt-contrib-gogoproto PUBLIC
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
 )
+
 target_link_libraries(yt-contrib-gogoproto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt-contrib-gogoproto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.proto
 )
+
 target_sources(yt-contrib-gogoproto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto/github.com/gogo/protobuf/gogoproto/gogo.pb.h
 )
+
+
+
 target_proto_addincls(yt-contrib-gogoproto
   ./yt/yt/contrib/gogoproto
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/gogoproto
@@ -45,7 +53,12 @@ target_proto_addincls(yt-contrib-gogoproto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-contrib-gogoproto
   --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/gogoproto
 )
+
+
+
+

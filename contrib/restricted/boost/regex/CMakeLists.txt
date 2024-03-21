@@ -5,17 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-regex)
+
+
 target_compile_options(restricted-boost-regex PRIVATE
   -DBOOST_HAS_ICU
   -DBOOST_NO_CXX98_BINDERS
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-regex PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/include
 )
+
 target_link_libraries(restricted-boost-regex PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,6 +35,7 @@ target_link_libraries(restricted-boost-regex PUBLIC
   restricted-boost-throw_exception
   restricted-boost-type_traits
 )
+
 target_sources(restricted-boost-regex PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/posix_api.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/regex.cpp
@@ -40,3 +43,9 @@ target_sources(restricted-boost-regex PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/static_mutex.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/regex/src/wide_posix_api.cpp
 )
+
+
+
+
+
+

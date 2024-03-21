@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-yt-library-numeric)
+
+
 target_compile_options(unittester-yt-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-yt-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize
 )
+
 target_link_libraries(unittester-yt-library-numeric PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(unittester-yt-library-numeric PUBLIC
   cpp-testing-gtest_main
   library-numeric-serialize
 )
+
 target_link_options(unittester-yt-library-numeric PRIVATE
   -ldl
   -lrt
@@ -34,15 +37,19 @@ target_link_options(unittester-yt-library-numeric PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-yt-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/serialize/unittests/double_array_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-yt-library-numeric
   COMMAND
   unittester-yt-library-numeric
 )
+
 set_property(
   TEST
   unittester-yt-library-numeric
@@ -50,6 +57,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-yt-library-numeric
@@ -57,14 +65,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-yt-library-numeric
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-yt-library-numeric
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-yt-library-numeric)
+
+
+
+

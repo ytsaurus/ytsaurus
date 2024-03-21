@@ -5,13 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-predef INTERFACE)
+
+
 target_include_directories(restricted-boost-predef INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/predef/include
 )
+
 target_link_libraries(restricted-boost-predef INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
+
+
+
+
+

@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Bitcode-Writer)
+
+
 target_compile_options(lib-Bitcode-Writer PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Bitcode-Writer PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer
 )
+
 target_link_libraries(lib-Bitcode-Writer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,9 +28,16 @@ target_link_libraries(lib-Bitcode-Writer PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(lib-Bitcode-Writer PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/BitcodeWriterPass.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Bitcode/Writer/ValueEnumerator.cpp
 )
+
+
+
+
+
+

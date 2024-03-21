@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-query-engine_api)
+
+
 target_compile_options(library-query-engine_api PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(library-query-engine_api PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
 target_include_directories(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(library-query-engine_api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,6 +32,7 @@ target_link_libraries(library-query-engine_api PUBLIC
   cpp-yt-memory
   contrib-libs-sparsehash
 )
+
 target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/append_function_implementation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/builtin_function_profiler.cpp
@@ -44,3 +47,9 @@ target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
 )
+
+
+
+
+
+

@@ -5,25 +5,29 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 find_package(Python3 REQUIRED)
-
 add_library(yt-ytlib-query_tracker_client)
+
+
 target_compile_options(yt-ytlib-query_tracker_client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
 )
+
 target_sources(yt-ytlib-query_tracker_client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
 )
+
+
 add_custom_command(
   OUTPUT
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
@@ -54,3 +58,8 @@ add_custom_command(
   --output-include
   yt/yt/core/misc/error.h
 )
+
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(monlib-encode-spack)
+
+
 target_link_libraries(monlib-encode-spack PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,9 +19,16 @@ target_link_libraries(monlib-encode-spack PUBLIC
   contrib-libs-zlib
   contrib-libs-zstd
 )
+
 target_sources(monlib-encode-spack PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/spack/spack_v1_decoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/spack/spack_v1_encoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/spack/varint.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/spack/compression.cpp
 )
+
+
+
+
+
+

@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,30 +25,21 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -44,9 +48,12 @@ get_built_tool_path(
 )
 
 add_executable(yt-cpp-mapreduce-interface-ut)
+
+
 target_include_directories(yt-cpp-mapreduce-interface-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface
 )
+
 target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -58,6 +65,7 @@ target_link_libraries(yt-cpp-mapreduce-interface-ut PUBLIC
   cpp-testing-unittest
   yt_proto-yt-formats
 )
+
 target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -ldl
   -lrt
@@ -69,11 +77,13 @@ target_link_options(yt-cpp-mapreduce-interface-ut PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(yt-cpp-mapreduce-interface-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/proto3_ut.proto
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.proto
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.proto
 )
+
 target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
   ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/proto3_ut.pb.h
   ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/interface/protobuf_table_schema_ut.pb.h
@@ -89,6 +99,8 @@ target_sources(yt-cpp-mapreduce-interface-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/protobuf_file_options_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/serialize_ut.cpp
 )
+
+
 set_property(
   TARGET
   yt-cpp-mapreduce-interface-ut
@@ -96,6 +108,7 @@ set_property(
   SPLIT_FACTOR
   1
 )
+
 add_yunittest(
   NAME
   yt-cpp-mapreduce-interface-ut
@@ -108,6 +121,7 @@ add_yunittest(
   --print-times
   --show-fails
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-ut
@@ -115,6 +129,7 @@ set_yunittest_property(
   LABELS
   SMALL
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-ut
@@ -122,16 +137,20 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-interface-ut
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-cpp-mapreduce-interface-ut
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 target_proto_addincls(yt-cpp-mapreduce-interface-ut
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -142,8 +161,14 @@ target_proto_addincls(yt-cpp-mapreduce-interface-ut
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-cpp-mapreduce-interface-ut
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
 vcs_info(yt-cpp-mapreduce-interface-ut)
+
+
+
+

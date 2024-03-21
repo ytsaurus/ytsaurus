@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-error_skeleton INTERFACE)
+
+
 target_link_libraries(yt-library-error_skeleton INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,10 +17,17 @@ target_link_libraries(yt-library-error_skeleton INTERFACE
   contrib-libs-re2
 )
 
-add_global_library_for(yt-library-error_skeleton.global yt-library-error_skeleton)
+
+
+
+add_global_library_for(yt-library-error_skeleton.global
+  yt-library-error_skeleton)
+
+
 target_compile_options(yt-library-error_skeleton.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-error_skeleton.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +35,13 @@ target_link_libraries(yt-library-error_skeleton.global PUBLIC
   yt-yt-core
   contrib-libs-re2
 )
+
 target_sources(yt-library-error_skeleton.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/error_skeleton/skeleton.cpp
 )
+
+
+
+
+
+

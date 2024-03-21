@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(dynamic_table_nbd_server)
+
+
 target_link_libraries(dynamic_table_nbd_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +19,7 @@ target_link_libraries(dynamic_table_nbd_server PUBLIC
   library-query-engine
   server-lib-nbd
 )
+
 target_link_options(dynamic_table_nbd_server PRIVATE
   -ldl
   -lrt
@@ -30,11 +31,20 @@ target_link_options(dynamic_table_nbd_server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(dynamic_table_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/dynamic_table_nbd_server/main.cpp
 )
+
+
+
 target_allocator(dynamic_table_nbd_server
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(dynamic_table_nbd_server)
+
+
+
+

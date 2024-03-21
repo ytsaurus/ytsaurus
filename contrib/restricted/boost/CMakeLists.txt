@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(algorithm)
 add_subdirectory(align)
 add_subdirectory(any)
@@ -88,3 +87,5 @@ add_subdirectory(utility)
 add_subdirectory(variant)
 add_subdirectory(variant2)
 add_subdirectory(winapi)
+
+

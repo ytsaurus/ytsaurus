@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(deps)
+
+
 target_compile_options(deps PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(deps PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(deps PUBLIC
   library-cpp-cpuid_check
   yt-library-profiling
 )
+
 target_link_options(deps PRIVATE
   -ldl
   -lrt
@@ -28,11 +30,20 @@ target_link_options(deps PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(deps PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/unittests/deps/main.cpp
 )
+
+
+
 target_allocator(deps
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(deps)
+
+
+
+

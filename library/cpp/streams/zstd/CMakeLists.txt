@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-streams-zstd)
+
+
 target_link_libraries(cpp-streams-zstd PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-zstd
 )
+
 target_sources(cpp-streams-zstd PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/streams/zstd/zstd.cpp
 )
+
+
+
+
+
+

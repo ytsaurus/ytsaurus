@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-MC-MCParser)
+
+
 target_compile_options(lib-MC-MCParser PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-MC-MCParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser
 )
+
 target_link_libraries(lib-MC-MCParser PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,7 @@ target_link_libraries(lib-MC-MCParser PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(lib-MC-MCParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser/AsmLexer.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser/AsmParser.cpp
@@ -38,3 +41,9 @@ target_sources(lib-MC-MCParser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser/WasmAsmParser.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/MC/MCParser/XCOFFAsmParser.cpp
 )
+
+
+
+
+
+

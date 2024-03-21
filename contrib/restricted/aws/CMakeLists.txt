@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(aws-c-auth)
 add_subdirectory(aws-c-cal)
 add_subdirectory(aws-c-common)
@@ -19,3 +18,5 @@ add_subdirectory(aws-c-sdkutils)
 add_subdirectory(aws-checksums)
 add_subdirectory(aws-crt-cpp)
 add_subdirectory(s2n)
+
+

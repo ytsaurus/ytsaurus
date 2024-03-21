@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Util)
+
+
 target_compile_options(libs-poco-Util PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-Util PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Util PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/include
 )
@@ -27,6 +28,7 @@ target_include_directories(libs-poco-Util PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/XML/include
 )
+
 target_link_libraries(libs-poco-Util PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -35,6 +37,7 @@ target_link_libraries(libs-poco-Util PUBLIC
   libs-poco-JSON
   libs-poco-XML
 )
+
 target_sources(libs-poco-Util PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src/AbstractConfiguration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src/Application.cpp
@@ -64,3 +67,9 @@ target_sources(libs-poco-Util PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src/Validator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Util/src/XMLConfiguration.cpp
 )
+
+
+
+
+
+

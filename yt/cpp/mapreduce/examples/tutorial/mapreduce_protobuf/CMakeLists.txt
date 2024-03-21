@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_executable(mapreduce_protobuf)
+
+
 target_compile_options(mapreduce_protobuf PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce_protobuf PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,6 +34,7 @@ target_link_libraries(mapreduce_protobuf PUBLIC
   cpp-mapreduce-client
   contrib-libs-protobuf
 )
+
 target_link_options(mapreduce_protobuf PRIVATE
   -ldl
   -lrt
@@ -42,17 +46,23 @@ target_link_options(mapreduce_protobuf PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(mapreduce_protobuf PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.proto
 )
+
 target_sources(mapreduce_protobuf PRIVATE
   ${PROJECT_BINARY_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/data.pb.h
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/mapreduce_protobuf/main.cpp
 )
+
+
+
 target_allocator(mapreduce_protobuf
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 target_proto_addincls(mapreduce_protobuf
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -63,8 +73,14 @@ target_proto_addincls(mapreduce_protobuf
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(mapreduce_protobuf
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
 vcs_info(mapreduce_protobuf)
+
+
+
+

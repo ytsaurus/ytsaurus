@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-wavm-Lib)
+
+
 target_compile_options(restricted-wavm-Lib PRIVATE
   -DHAS_FUTIMENS
   -DHAS_UTIMENSAT
@@ -15,12 +15,14 @@ target_compile_options(restricted-wavm-Lib PRIVATE
   -DWAVM_API=
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-wavm-Lib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libunwind/include
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/include
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Include
 )
+
 target_link_libraries(restricted-wavm-Lib PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -104,6 +106,7 @@ target_link_libraries(restricted-wavm-Lib PUBLIC
   lib-Transforms-Vectorize
   cpp-sanitizer-include
 )
+
 target_sources(restricted-wavm-Lib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Emscripten/Emscripten.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/Emscripten/EmscriptenThreads.cpp
@@ -180,3 +183,9 @@ target_sources(restricted-wavm-Lib PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/WASTPrint/Print.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/wavm/Lib/wavm-c/wavm-c.cpp
 )
+
+
+
+
+
+

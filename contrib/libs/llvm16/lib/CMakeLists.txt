@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(Analysis)
 add_subdirectory(AsmParser)
 add_subdirectory(BinaryFormat)
@@ -33,3 +32,5 @@ add_subdirectory(TargetParser)
 add_subdirectory(TextAPI)
 add_subdirectory(Transforms)
 add_subdirectory(WindowsDriver)
+
+

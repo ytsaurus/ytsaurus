@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(benchmarks)
 add_subdirectory(build)
 add_subdirectory(client)
@@ -20,3 +19,5 @@ add_subdirectory(server)
 add_subdirectory(tests)
 add_subdirectory(tools)
 add_subdirectory(ytlib)
+
+

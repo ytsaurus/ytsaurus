@@ -5,9 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(brotli)
 add_subdirectory(bzip2)
 add_subdirectory(lz)
 add_subdirectory(lzma)
 add_subdirectory(zstd)
+
+

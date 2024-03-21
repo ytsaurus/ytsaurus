@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(yt-cpp-mapreduce-raw_client-ut)
+
+
 target_include_directories(yt-cpp-mapreduce-raw_client-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client
 )
+
 target_link_libraries(yt-cpp-mapreduce-raw_client-ut PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(yt-cpp-mapreduce-raw_client-ut PUBLIC
   cpp-testing-unittest_main
   cpp-mapreduce-raw_client
 )
+
 target_link_options(yt-cpp-mapreduce-raw_client-ut PRIVATE
   -ldl
   -lrt
@@ -30,10 +32,13 @@ target_link_options(yt-cpp-mapreduce-raw_client-ut PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(yt-cpp-mapreduce-raw_client-ut PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_batch_request_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/raw_client/raw_requests_ut.cpp
 )
+
+
 set_property(
   TARGET
   yt-cpp-mapreduce-raw_client-ut
@@ -41,6 +46,7 @@ set_property(
   SPLIT_FACTOR
   1
 )
+
 add_yunittest(
   NAME
   yt-cpp-mapreduce-raw_client-ut
@@ -53,6 +59,7 @@ add_yunittest(
   --print-times
   --show-fails
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
@@ -60,6 +67,7 @@ set_yunittest_property(
   LABELS
   SMALL
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
@@ -67,14 +75,22 @@ set_yunittest_property(
   PROCESSORS
   1
 )
+
 set_yunittest_property(
   TEST
   yt-cpp-mapreduce-raw_client-ut
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(yt-cpp-mapreduce-raw_client-ut
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(yt-cpp-mapreduce-raw_client-ut)
+
+
+
+

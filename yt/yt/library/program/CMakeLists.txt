@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-program)
+
+
 target_compile_options(yt-library-program PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-program PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +29,7 @@ target_link_libraries(yt-library-program PUBLIC
   cpp-yt-string
   cpp-getopt-small
 )
+
 target_sources(yt-library-program PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/program/build_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/program/config.cpp
@@ -37,3 +39,9 @@ target_sources(yt-library-program PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/program/program_pdeathsig_mixin.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/program/program_setsid_mixin.cpp
 )
+
+
+
+
+
+

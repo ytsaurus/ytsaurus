@@ -5,17 +5,24 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(fcontext_impl)
 add_subdirectory(impl_common)
-
 add_library(restricted-boost-context INTERFACE)
+
+
 target_include_directories(restricted-boost-context INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/context/include
 )
+
 target_link_libraries(restricted-boost-context INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   boost-context-fcontext_impl
 )
+
+
+
+
+
+

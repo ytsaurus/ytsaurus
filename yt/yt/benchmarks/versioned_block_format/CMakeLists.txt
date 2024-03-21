@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(versioned_block_format)
+
+
 target_compile_options(versioned_block_format PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(versioned_block_format PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(versioned_block_format PUBLIC
   yt-yt-core
   library-cpp-getopt
 )
+
 target_link_options(versioned_block_format PRIVATE
   -ldl
   -lrt
@@ -33,15 +35,19 @@ target_link_options(versioned_block_format PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(versioned_block_format PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/versioned_block_format/main.cpp
 )
+
+
 add_test(
   NAME
   versioned_block_format
   COMMAND
   versioned_block_format
 )
+
 set_property(
   TEST
   versioned_block_format
@@ -49,6 +55,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   versioned_block_format
@@ -56,8 +63,15 @@ set_property(
   PROCESSORS
   1
 )
+
+
 target_allocator(versioned_block_format
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(versioned_block_format)
+
+
+
+

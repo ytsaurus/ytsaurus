@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-client-driver)
+
+
 target_compile_options(yt-client-driver PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-client-driver PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(yt-client-driver PUBLIC
   yt-yt-client
   yt-library-formats
 )
+
 target_sources(yt-client-driver PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/admin_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/authentication_commands.cpp
@@ -40,3 +42,9 @@ target_sources(yt-client-driver PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/internal_commands.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/driver/flow_commands.cpp
 )
+
+
+
+
+
+

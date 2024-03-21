@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-core-test_framework)
+
+
 target_compile_options(yt-core-test_framework PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-core-test_framework PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,14 +23,22 @@ target_link_libraries(yt-core-test_framework PUBLIC
   yt-core-http
   library-profiling-solomon
 )
+
 target_sources(yt-core-test_framework PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
 )
 
-add_global_library_for(yt-core-test_framework.global yt-core-test_framework)
+
+
+
+add_global_library_for(yt-core-test_framework.global
+  yt-core-test_framework)
+
+
 target_compile_options(yt-core-test_framework.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-core-test_framework.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -41,6 +50,13 @@ target_link_libraries(yt-core-test_framework.global PUBLIC
   yt-core-http
   library-profiling-solomon
 )
+
 target_sources(yt-core-test_framework.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/framework.cpp
 )
+
+
+
+
+
+

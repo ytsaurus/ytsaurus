@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(read_arrow)
+
+
 target_compile_options(read_arrow PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(read_arrow PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(read_arrow PUBLIC
   yt-library-program
   library-cpp-getopt
 )
+
 target_link_options(read_arrow PRIVATE
   -ldl
   -lrt
@@ -31,11 +33,20 @@ target_link_options(read_arrow PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(read_arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/read_arrow/main.cpp
 )
+
+
+
 target_allocator(read_arrow
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(read_arrow)
+
+
+
+

@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-cypress_registrar)
+
+
 target_compile_options(server-lib-cypress_registrar PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-cypress_registrar PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
+
 target_sources(server-lib-cypress_registrar PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/cypress_registrar/cypress_registrar.cpp
 )
+
+
+
+
+
+

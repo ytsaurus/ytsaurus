@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -14,9 +13,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-all)
+
+
 target_compile_options(unittester-all PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-all PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -41,6 +43,7 @@ target_link_libraries(unittester-all PUBLIC
   yt-server-timestamp_provider
   yt-server-tools
 )
+
 target_link_options(unittester-all PRIVATE
   -ldl
   -lrt
@@ -52,16 +55,20 @@ target_link_options(unittester-all PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-all PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/unittests/config_ut.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
 )
+
+
 add_test(
   NAME
   unittester-all
   COMMAND
   unittester-all
 )
+
 set_property(
   TEST
   unittester-all
@@ -69,6 +76,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-all
@@ -76,12 +84,15 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-all
   PROPERTY
   ENVIRONMENT
 )
+
+
 resources(unittester-all
   ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
   INPUTS
@@ -109,8 +120,14 @@ resources(unittester-all
   /configs/sort_spec.yson
   /configs/vanilla_spec.yson
 )
+
 target_allocator(unittester-all
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-all)
+
+
+
+

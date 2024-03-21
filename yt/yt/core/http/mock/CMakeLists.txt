@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(core-http-mock)
+
+
 target_compile_options(core-http-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(core-http-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,7 +19,14 @@ target_link_libraries(core-http-mock PUBLIC
   cpp-testing-gtest
   yt-core-http
 )
+
 target_sources(core-http-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/mock/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/mock/http.cpp
 )
+
+
+
+
+
+

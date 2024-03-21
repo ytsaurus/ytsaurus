@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-openssl-method)
+
+
 target_link_libraries(cpp-openssl-method PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,13 @@ target_link_libraries(cpp-openssl-method PUBLIC
   contrib-libs-openssl
   cpp-openssl-holders
 )
+
 target_sources(cpp-openssl-method PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/openssl/method/io.cpp
 )
+
+
+
+
+
+

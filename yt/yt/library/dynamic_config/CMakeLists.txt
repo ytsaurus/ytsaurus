@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-dynamic_config)
+
+
 target_compile_options(yt-library-dynamic_config PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-dynamic_config PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
 )
+
 target_sources(yt-library-dynamic_config PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dynamic_config/config.cpp
 )
+
+
+
+
+
+

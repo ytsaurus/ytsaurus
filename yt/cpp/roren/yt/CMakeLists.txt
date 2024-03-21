@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(proto)
-
 add_library(cpp-roren-yt)
+
+
 target_link_libraries(cpp-roren-yt PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +20,7 @@ target_link_libraries(cpp-roren-yt PUBLIC
   cpp-mapreduce-client
   cpp-mapreduce-util
 )
+
 target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/base_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/dependency_runner.cpp
@@ -35,3 +36,9 @@ target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_proto_io.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_write.cpp
 )
+
+
+
+
+
+

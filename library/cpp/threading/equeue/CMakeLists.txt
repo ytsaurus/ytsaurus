@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-threading-equeue)
+
+
 target_link_libraries(cpp-threading-equeue PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-deprecated-atomic
 )
+
 target_sources(cpp-threading-equeue PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/equeue/equeue.h
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/equeue/equeue.cpp
 )
+
+
+
+
+
+

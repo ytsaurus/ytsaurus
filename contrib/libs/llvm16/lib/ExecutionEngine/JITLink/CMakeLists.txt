@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-ExecutionEngine-JITLink)
+
+
 target_compile_options(lib-ExecutionEngine-JITLink PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-ExecutionEngine-JITLink PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink
 )
+
 target_link_libraries(lib-ExecutionEngine-JITLink PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(lib-ExecutionEngine-JITLink PUBLIC
   llvm16-lib-Support
   llvm16-lib-TargetParser
 )
+
 target_sources(lib-ExecutionEngine-JITLink PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFF.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/COFFDirectiveParser.cpp
@@ -55,3 +58,9 @@ target_sources(lib-ExecutionEngine-JITLink PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/riscv.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/ExecutionEngine/JITLink/x86_64.cpp
 )
+
+
+
+
+
+

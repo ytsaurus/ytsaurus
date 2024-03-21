@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-yql-agent)
+
+
 target_compile_options(unittester-yql-agent PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-yql-agent PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-yql-agent PUBLIC
   yt-yql-agent
   yt-library-named_value
 )
+
 target_link_options(unittester-yql-agent PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-yql-agent PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-yql-agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/agent/unittests/yql_agent_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-yql-agent
   COMMAND
   unittester-yql-agent
 )
+
 set_property(
   TEST
   unittester-yql-agent
@@ -48,6 +54,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-yql-agent
@@ -55,14 +62,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-yql-agent
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-yql-agent
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-yql-agent)
+
+
+
+

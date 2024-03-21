@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(04_par_do_multiple_outputs)
+
+
 target_link_libraries(04_par_do_multiple_outputs PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,6 +16,7 @@ target_link_libraries(04_par_do_multiple_outputs PUBLIC
   cpp-roren-interface
   cpp-roren-yt
 )
+
 target_link_options(04_par_do_multiple_outputs PRIVATE
   -ldl
   -lrt
@@ -27,11 +28,20 @@ target_link_options(04_par_do_multiple_outputs PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(04_par_do_multiple_outputs PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/examples/04_par_do_multiple_outputs/main.cpp
 )
+
+
+
 target_allocator(04_par_do_multiple_outputs
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(04_par_do_multiple_outputs)
+
+
+
+

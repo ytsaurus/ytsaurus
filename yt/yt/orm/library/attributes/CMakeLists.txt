@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(orm-library-attributes)
+
+
 target_compile_options(orm-library-attributes PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(orm-library-attributes PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(orm-library-attributes PUBLIC
   yt-yt-core
   yt-yt-client
 )
+
 target_sources(orm-library-attributes PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/attribute_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/helpers.cpp
@@ -26,3 +28,9 @@ target_sources(orm-library-attributes PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/unwrapping_consumer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/attributes/ytree.cpp
 )
+
+
+
+
+
+

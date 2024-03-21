@@ -5,19 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_grpc_cpp_bin
   TOOL_grpc_cpp_dependency
   contrib/tools/protoc/plugins/grpc_cpp
   grpc_cpp
 )
+
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -26,15 +27,18 @@ get_built_tool_path(
 )
 
 add_library(yt-contrib-cri-api)
+
 set_property(TARGET yt-contrib-cri-api PROPERTY
   PROTOC_EXTRA_OUTS .grpc.pb.cc .grpc.pb.h
 )
 set_property(TARGET yt-contrib-cri-api PROPERTY
   PROTO_NAMESPACE yt/yt/contrib/cri-api
 )
+
 target_include_directories(yt-contrib-cri-api PUBLIC
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
 )
+
 target_link_libraries(yt-contrib-cri-api PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -43,13 +47,18 @@ target_link_libraries(yt-contrib-cri-api PUBLIC
   yt-contrib-gogoproto
   contrib-libs-protobuf
 )
+
 target_proto_messages(yt-contrib-cri-api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.proto
 )
+
 target_sources(yt-contrib-cri-api PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.grpc.pb.h
 )
+
+
+
 target_proto_addincls(yt-contrib-cri-api
   ./yt/yt/contrib/cri-api
   ${PROJECT_SOURCE_DIR}/yt/yt/contrib/cri-api
@@ -61,11 +70,17 @@ target_proto_addincls(yt-contrib-cri-api
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(yt-contrib-cri-api
   --cpp_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api
 )
+
 target_proto_plugin(yt-contrib-cri-api
   grpc_cpp
   grpc_cpp
 )
+
+
+
+

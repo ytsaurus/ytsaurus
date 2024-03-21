@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(changelog_surgeon)
+
+
 target_link_libraries(changelog_surgeon PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +19,7 @@ target_link_libraries(changelog_surgeon PUBLIC
   server-lib-hydra
   cpp-getopt-small
 )
+
 target_link_options(changelog_surgeon PRIVATE
   -ldl
   -lrt
@@ -30,10 +31,19 @@ target_link_options(changelog_surgeon PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(changelog_surgeon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/changelog_surgeon/main.cpp
 )
+
+
+
 target_allocator(changelog_surgeon
   cpp-ytalloc-impl
 )
+
 vcs_info(changelog_surgeon)
+
+
+
+

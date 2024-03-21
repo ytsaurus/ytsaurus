@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-yt-threading)
+
+
 target_compile_options(cpp-yt-threading PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-yt-threading PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(cpp-yt-threading PUBLIC
   cpp-yt-system
   cpp-yt-memory
 )
+
 target_sources(cpp-yt-threading PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/at_fork.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/count_down_latch.cpp
@@ -37,3 +39,9 @@ target_sources(cpp-yt-threading PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/spin_wait.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/threading/spin_wait_hook.cpp
 )
+
+
+
+
+
+

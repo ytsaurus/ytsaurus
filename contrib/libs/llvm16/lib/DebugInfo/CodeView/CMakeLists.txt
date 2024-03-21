@@ -5,21 +5,24 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-DebugInfo-CodeView)
+
+
 target_compile_options(lib-DebugInfo-CodeView PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-DebugInfo-CodeView PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView
 )
+
 target_link_libraries(lib-DebugInfo-CodeView PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-Support
 )
+
 target_sources(lib-DebugInfo-CodeView PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView/AppendingTypeTableBuilder.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView/CVSymbolVisitor.cpp
@@ -62,3 +65,9 @@ target_sources(lib-DebugInfo-CodeView PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView/TypeStreamMerger.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/DebugInfo/CodeView/TypeTableCollection.cpp
 )
+
+
+
+
+
+

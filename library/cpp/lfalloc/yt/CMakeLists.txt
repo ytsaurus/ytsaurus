@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-lfalloc-yt)
+
+
 target_compile_options(cpp-lfalloc-yt PRIVATE
   -DLFALLOC_YT
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(cpp-lfalloc-yt PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   cpp-malloc-api
 )
+
 target_sources(cpp-lfalloc-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/lfalloc/lf_allocX64.cpp
 )
+
+
+
+
+
+

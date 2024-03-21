@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-ytlib-discovery_client)
+
+
 target_compile_options(yt-ytlib-discovery_client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-ytlib-discovery_client PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(yt-ytlib-discovery_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,7 @@ target_link_libraries(yt-ytlib-discovery_client PUBLIC
   yt-yt-core
   yt-yt-client
 )
+
 target_sources(yt-ytlib-discovery_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/discovery_client.cpp
@@ -30,3 +33,9 @@ target_sources(yt-ytlib-discovery_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/discovery_client/request_session.cpp
 )
+
+
+
+
+
+

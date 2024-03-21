@@ -5,17 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(allocation_tag_profiler)
 add_subdirectory(api)
 add_subdirectory(http)
 add_subdirectory(proto)
-
 add_library(yt-library-ytprof)
+
+
 target_compile_options(yt-library-ytprof PRIVATE
   -Wdeprecated-this-capture
   -DYTPROF_BUILD_TYPE="RELEASE"
 )
+
 target_link_libraries(yt-library-ytprof PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +33,7 @@ target_link_libraries(yt-library-ytprof PUBLIC
   library-cpp-svnversion
   yt-yt-core
 )
+
 target_sources(yt-library-ytprof PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/signal_safe_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/cpu_profiler.cpp
@@ -42,3 +44,9 @@ target_sources(yt-library-ytprof PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/external_pprof.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/symbolize.cpp
 )
+
+
+
+
+
+

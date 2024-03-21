@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-interprocess INTERFACE)
+
+
 target_include_directories(restricted-boost-interprocess INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/interprocess/include
 )
+
 target_link_libraries(restricted-boost-interprocess INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,3 +27,9 @@ target_link_libraries(restricted-boost-interprocess INTERFACE
   restricted-boost-unordered
   restricted-boost-winapi
 )
+
+
+
+
+
+

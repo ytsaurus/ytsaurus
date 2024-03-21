@@ -5,19 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-h3)
+
+
 target_compile_options(contrib-libs-h3 PRIVATE
   -DH3_PREFIX=
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-h3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/include
 )
+
 target_link_libraries(contrib-libs-h3 PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-h3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/algos.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/baseCells.c
@@ -36,3 +39,9 @@ target_sources(contrib-libs-h3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertex.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/h3/h3lib/lib/vertexGraph.c
 )
+
+
+
+
+
+

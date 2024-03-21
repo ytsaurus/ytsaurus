@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-client-formats)
+
+
 target_compile_options(yt-client-formats PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-client-formats PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(yt-client-formats PUBLIC
   yt_proto-yt-formats
   cpp-string_utils-base64
 )
+
 target_sources(yt-client-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/format.cpp
@@ -27,3 +29,9 @@ target_sources(yt-client-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/schemaful_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/formats/versioned_writer.cpp
 )
+
+
+
+
+
+

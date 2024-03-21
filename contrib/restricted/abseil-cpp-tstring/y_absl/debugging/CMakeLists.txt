@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(abseil-cpp-tstring-y_absl-debugging)
+
+
 target_compile_options(abseil-cpp-tstring-y_absl-debugging PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(abseil-cpp-tstring-y_absl-debugging PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
 )
+
 target_link_libraries(abseil-cpp-tstring-y_absl-debugging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +23,7 @@ target_link_libraries(abseil-cpp-tstring-y_absl-debugging PUBLIC
   abseil-cpp-tstring-y_absl-base
   cpp-sanitizer-include
 )
+
 target_sources(abseil-cpp-tstring-y_absl-debugging PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/failure_signal_handler.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/internal/address_is_readable.cc
@@ -32,3 +35,9 @@ target_sources(abseil-cpp-tstring-y_absl-debugging PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/stacktrace.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/debugging/symbolize.cc
 )
+
+
+
+
+
+

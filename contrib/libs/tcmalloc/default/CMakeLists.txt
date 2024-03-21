@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-tcmalloc-default INTERFACE)
+
+
 target_link_libraries(libs-tcmalloc-default INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,16 +15,24 @@ target_link_libraries(libs-tcmalloc-default INTERFACE
   libs-tcmalloc-malloc_extension
 )
 
-add_global_library_for(libs-tcmalloc-default.global libs-tcmalloc-default)
+
+
+
+add_global_library_for(libs-tcmalloc-default.global
+  libs-tcmalloc-default)
+
+
 target_compile_options(libs-tcmalloc-default.global PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(libs-tcmalloc-default.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension
 )
+
 target_sources(libs-tcmalloc-default.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/tcmalloc.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/arena.cc
@@ -69,3 +77,9 @@ target_sources(libs-tcmalloc-default.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/internal/util.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/tcmalloc/tcmalloc/want_hpaa_subrelease.cc
 )
+
+
+
+
+
+

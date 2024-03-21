@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-auth)
+
+
 target_compile_options(unittester-library-auth PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-auth PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(unittester-library-auth PUBLIC
   yt-core-test_framework
   yt-library-auth
 )
+
 target_link_options(unittester-library-auth PRIVATE
   -ldl
   -lrt
@@ -34,15 +36,19 @@ target_link_options(unittester-library-auth PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-auth PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/auth/unittests/auth_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-auth
   COMMAND
   unittester-library-auth
 )
+
 set_property(
   TEST
   unittester-library-auth
@@ -50,6 +56,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-library-auth
@@ -57,13 +64,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-auth
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-auth
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-auth)
+
+
+
+

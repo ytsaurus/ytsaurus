@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-numeric)
+
+
 target_compile_options(unittester-library-numeric PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric
 )
+
 target_link_libraries(unittester-library-numeric PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +25,7 @@ target_link_libraries(unittester-library-numeric PUBLIC
   cpp-testing-gtest_main
   yt-library-numeric
 )
+
 target_link_options(unittester-library-numeric PRIVATE
   -ldl
   -lrt
@@ -33,18 +36,22 @@ target_link_options(unittester-library-numeric PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(unittester-library-numeric PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/binary_search_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/double_array_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/piecewise_linear_function_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/numeric/unittests/util_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-numeric
   COMMAND
   unittester-library-numeric
 )
+
 set_property(
   TEST
   unittester-library-numeric
@@ -52,6 +59,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-library-numeric
@@ -59,14 +67,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-numeric
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-numeric
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-library-numeric)
+
+
+
+

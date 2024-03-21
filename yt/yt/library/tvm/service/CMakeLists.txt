@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(mock)
-
 add_library(library-tvm-service)
+
+
 target_compile_options(library-tvm-service PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-tvm-service PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,8 +21,15 @@ target_link_libraries(library-tvm-service PUBLIC
   cpp-yt-logging
   yt-yt-core
 )
+
 target_sources(library-tvm-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_common.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/tvm/service/tvm_service_dummy.cpp
 )
+
+
+
+
+
+

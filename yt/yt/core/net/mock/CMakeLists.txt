@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(core-net-mock)
+
+
 target_compile_options(core-net-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(core-net-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(core-net-mock PUBLIC
   cpp-testing-gtest
   yt-yt-core
 )
+
 target_sources(core-net-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/mock/dialer.cpp
 )
+
+
+
+
+
+

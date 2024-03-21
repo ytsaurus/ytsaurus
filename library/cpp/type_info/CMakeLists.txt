@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -15,6 +14,8 @@ get_built_tool_path(
 )
 
 add_library(library-cpp-type_info)
+
+
 target_link_libraries(library-cpp-type_info PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(library-cpp-type_info PUBLIC
   tools-enum_parser-enum_serialization_runtime
   yson_pull
 )
+
 target_sources(library-cpp-type_info PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_info.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/builder.cpp
@@ -33,8 +35,15 @@ target_sources(library-cpp-type_info PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_io.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_list.cpp
 )
+
+
+
 generate_enum_serilization(library-cpp-type_info
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/type_list.h
   INCLUDE_HEADERS
   library/cpp/type_info/type_list.h
 )
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-data-node)
+
+
 target_compile_options(unittester-data-node PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-data-node PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-data-node PUBLIC
   yt-server-node
   yt-server-tools
 )
+
 target_link_options(unittester-data-node PRIVATE
   -ldl
   -lrt
@@ -33,16 +35,20 @@ target_link_options(unittester-data-node PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-data-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-data-node
   COMMAND
   unittester-data-node
 )
+
 set_property(
   TEST
   unittester-data-node
@@ -50,6 +56,7 @@ set_property(
   LABELS
   LARGE
 )
+
 set_property(
   TEST
   unittester-data-node
@@ -57,6 +64,7 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-data-node
@@ -64,8 +72,15 @@ set_property(
   ENVIRONMENT
   ASAN_OPTIONS=detect_leaks=0
 )
+
+
 target_allocator(unittester-data-node
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-data-node)
+
+
+
+

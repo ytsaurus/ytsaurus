@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-ytalloc-impl)
+
+
 target_link_libraries(cpp-ytalloc-impl PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,13 @@ target_link_libraries(cpp-ytalloc-impl PUBLIC
   cpp-yt-memory
   cpp-yt-threading
 )
+
 target_sources(cpp-ytalloc-impl PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/ytalloc/impl/bridge.cpp
 )
+
+
+
+
+
+

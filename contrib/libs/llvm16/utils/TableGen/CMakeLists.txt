@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(GlobalISel)
-
 add_executable(llvm-tblgen)
+
+
 target_compile_options(llvm-tblgen PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(llvm-tblgen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen
 )
+
 target_link_libraries(llvm-tblgen PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +27,7 @@ target_link_libraries(llvm-tblgen PUBLIC
   utils-TableGen-GlobalISel
   cpp-sanitizer-include
 )
+
 target_link_options(llvm-tblgen PRIVATE
   -ldl
   -lrt
@@ -35,6 +38,7 @@ target_link_options(llvm-tblgen PRIVATE
   -lrt
   -ldl
 )
+
 target_sources(llvm-tblgen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/AsmMatcherEmitter.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/AsmWriterEmitter.cpp
@@ -93,8 +97,16 @@ target_sources(llvm-tblgen PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/X86ModRMFilters.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/utils/TableGen/X86RecognizableInstr.cpp
 )
+
+
+
 target_allocator(llvm-tblgen
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(llvm-tblgen)
+
+
+
+

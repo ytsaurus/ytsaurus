@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-profiling-resource_tracker)
+
+
 target_compile_options(library-profiling-resource_tracker PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-profiling-resource_tracker PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(library-profiling-resource_tracker PUBLIC
   yt-library-profiling
   yt_proto-yt-core
 )
+
 target_sources(library-profiling-resource_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/resource_tracker/resource_tracker.cpp
 )
+
+
+
+
+
+

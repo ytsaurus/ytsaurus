@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-hydra)
+
+
 target_compile_options(unittester-hydra PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-hydra PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-hydra PUBLIC
   cpp-testing-gtest_main
   server-lib-hydra
 )
+
 target_link_options(unittester-hydra PRIVATE
   -ldl
   -lrt
@@ -31,6 +33,7 @@ target_link_options(unittester-hydra PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/checkpointable_stream_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/file_changelog_index_ut.cpp
@@ -39,12 +42,15 @@ target_sources(unittester-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/hostname_sanitization_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/unittests/unbuffered_file_changelog_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-hydra
   COMMAND
   unittester-hydra
 )
+
 set_property(
   TEST
   unittester-hydra
@@ -52,6 +58,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-hydra
@@ -59,14 +66,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-hydra
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-hydra
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-hydra)
+
+
+
+

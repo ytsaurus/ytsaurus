@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-openssl-crypto)
+
+
 target_compile_options(libs-openssl-crypto PRIVATE
   -DOPENSSL_BN_ASM_MONT
   -DOPENSSL_CPUID_OBJ
@@ -34,6 +34,7 @@ target_compile_options(libs-openssl-crypto PRIVATE
   -DOPENSSL_USE_NODELETE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-openssl-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto
@@ -42,11 +43,13 @@ target_include_directories(libs-openssl-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/modes
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/include
 )
+
 target_link_libraries(libs-openssl-crypto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-zlib
   cpp-sanitizer-include
 )
+
 target_sources(libs-openssl-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/aes/aes_cbc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/crypto/aes/aes_cfb.c
@@ -706,3 +709,9 @@ target_sources(libs-openssl-crypto PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/asm/linux/crypto/whrlpool/wp-x86_64.s
   ${PROJECT_SOURCE_DIR}/contrib/libs/openssl/asm/linux/crypto/x86_64cpuid.s
 )
+
+
+
+
+
+

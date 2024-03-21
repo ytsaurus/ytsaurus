@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(ytserver-clickhouse)
+
+
 target_compile_options(ytserver-clickhouse PRIVATE
   -Wdeprecated-this-capture
   -fno-inline
 )
+
 target_link_libraries(ytserver-clickhouse PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(ytserver-clickhouse PUBLIC
   yt-chyt-server
   library-cpp-getopt
 )
+
 target_link_options(ytserver-clickhouse PRIVATE
   -ldl
   -lrt
@@ -32,11 +34,20 @@ target_link_options(ytserver-clickhouse PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(ytserver-clickhouse PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bin/main.cpp
 )
+
+
+
 target_allocator(ytserver-clickhouse
   cpp-malloc-tcmalloc
   contrib-libs-tcmalloc
 )
+
 vcs_info(ytserver-clickhouse)
+
+
+
+

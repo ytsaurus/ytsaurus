@@ -5,24 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-restricted-uriparser)
+
+
 target_compile_options(contrib-restricted-uriparser PRIVATE
   -DURI_LIBRARY_BUILD
   -DURI_VISIBILITY
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-restricted-uriparser PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/include
 )
 target_include_directories(contrib-restricted-uriparser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser
 )
+
 target_link_libraries(contrib-restricted-uriparser PUBLIC
   contrib-libs-linux-headers
   contrib-libs-libc_compat
 )
+
 target_sources(contrib-restricted-uriparser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/src/UriCommon.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/src/UriCompare.c
@@ -40,3 +43,9 @@ target_sources(contrib-restricted-uriparser PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/src/UriResolve.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/uriparser/src/UriShorten.c
 )
+
+
+
+
+
+

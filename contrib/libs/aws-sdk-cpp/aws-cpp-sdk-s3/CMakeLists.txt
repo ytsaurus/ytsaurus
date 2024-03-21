@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-aws-sdk-cpp-aws-cpp-sdk-s3)
+
+
 target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT
@@ -47,12 +47,14 @@ target_compile_options(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/include
 )
 target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-core/include
 )
+
 target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -65,6 +67,7 @@ target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
   restricted-aws-aws-c-sdkutils
   restricted-aws-aws-crt-cpp
 )
+
 target_sources(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/source/S3Client.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/source/S3ClientConfiguration.cpp
@@ -416,3 +419,9 @@ target_sources(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/source/model/WebsiteConfiguration.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/aws-sdk-cpp/aws-cpp-sdk-s3/source/model/WriteGetObjectResponseRequest.cpp
 )
+
+
+
+
+
+

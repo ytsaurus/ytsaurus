@@ -5,24 +5,33 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-compression)
+
+
 target_compile_options(restricted-aws-aws-c-compression PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_COMPRESSION_USE_IMPORT_EXPORT
   -DHAVE_SYSCONF
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-compression PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/include
 )
+
 target_link_libraries(restricted-aws-aws-c-compression PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-common
 )
+
 target_sources(restricted-aws-aws-c-compression PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/compression.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/huffman.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-compression/source/huffman_testing.c
 )
+
+
+
+
+
+

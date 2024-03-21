@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(abseil-cpp-tstring-y_absl-status)
+
+
 target_compile_options(abseil-cpp-tstring-y_absl-status PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(abseil-cpp-tstring-y_absl-status PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring
 )
+
 target_link_libraries(abseil-cpp-tstring-y_absl-status PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,8 +29,15 @@ target_link_libraries(abseil-cpp-tstring-y_absl-status PUBLIC
   abseil-cpp-tstring-y_absl-time
   abseil-cpp-tstring-y_absl-types
 )
+
 target_sources(abseil-cpp-tstring-y_absl-status PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/internal/status_internal.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/status.cc
   ${PROJECT_SOURCE_DIR}/contrib/restricted/abseil-cpp-tstring/y_absl/status/status_payload_printer.cc
 )
+
+
+
+
+
+

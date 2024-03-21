@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cell-balancer-unittests)
+
+
 target_compile_options(cell-balancer-unittests PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cell-balancer-unittests PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(cell-balancer-unittests PUBLIC
   cpp-testing-gtest_main
   yt-server-cell_balancer
 )
+
 target_link_options(cell-balancer-unittests PRIVATE
   -ldl
   -lrt
@@ -31,15 +33,19 @@ target_link_options(cell-balancer-unittests PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(cell-balancer-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
 )
+
+
 add_test(
   NAME
   cell-balancer-unittests
   COMMAND
   cell-balancer-unittests
 )
+
 set_property(
   TEST
   cell-balancer-unittests
@@ -47,6 +53,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   cell-balancer-unittests
@@ -54,14 +61,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   cell-balancer-unittests
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(cell-balancer-unittests
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(cell-balancer-unittests)
+
+
+
+

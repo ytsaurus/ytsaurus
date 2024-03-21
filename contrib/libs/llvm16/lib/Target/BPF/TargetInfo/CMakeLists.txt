@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(Target-BPF-TargetInfo)
+
+
 target_compile_options(Target-BPF-TargetInfo PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(Target-BPF-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo
 )
+
 target_link_libraries(Target-BPF-TargetInfo PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +24,13 @@ target_link_libraries(Target-BPF-TargetInfo PUBLIC
   llvm16-lib-MC
   llvm16-lib-Support
 )
+
 target_sources(Target-BPF-TargetInfo PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/BPF/TargetInfo/BPFTargetInfo.cpp
 )
+
+
+
+
+
+

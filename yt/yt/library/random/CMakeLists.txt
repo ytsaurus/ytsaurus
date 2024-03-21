@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-random)
+
+
 target_compile_options(yt-library-random PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-random PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(yt-library-random PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/random/bernoulli_sampler.cpp
 )
+
+
+
+
+
+

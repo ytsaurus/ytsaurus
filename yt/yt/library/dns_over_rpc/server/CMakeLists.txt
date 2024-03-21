@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-dns_over_rpc-server)
+
+
 target_compile_options(library-dns_over_rpc-server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-dns_over_rpc-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(library-dns_over_rpc-server PUBLIC
   yt-yt-core
   library-dns_over_rpc-client
 )
+
 target_sources(library-dns_over_rpc-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.cpp
 )
+
+
+
+
+
+

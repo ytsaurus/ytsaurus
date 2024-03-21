@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(blockcodecs)
 add_subdirectory(build_info)
 add_subdirectory(case_insensitive_string)
@@ -55,3 +54,5 @@ add_subdirectory(yson)
 add_subdirectory(yson_pull)
 add_subdirectory(yt)
 add_subdirectory(ytalloc)
+
+

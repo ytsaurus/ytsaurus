@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(tests-cpp-test_base)
+
+
 target_compile_options(tests-cpp-test_base PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(tests-cpp-test_base PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,13 @@ target_link_libraries(tests-cpp-test_base PUBLIC
   yt-yt-ytlib
   yt-core-test_framework
 )
+
 target_sources(tests-cpp-test_base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_base/api_test_base.cpp
 )
+
+
+
+
+
+

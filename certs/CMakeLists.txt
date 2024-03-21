@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_library(certs INTERFACE)
+
+
 target_link_libraries(certs INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,16 +22,26 @@ target_link_libraries(certs INTERFACE
   library-cpp-resource
 )
 
-add_global_library_for(certs.global certs)
+
+
+
+add_global_library_for(certs.global
+  certs)
+
+
 target_link_libraries(certs.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-resource
 )
+
 target_sources(certs.global PRIVATE
   ${PROJECT_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
 )
+
+
+
 resources(certs.global
   ${PROJECT_BINARY_DIR}/certs/b03c08f91a00a60ac9d7daef45f3075a.cpp
   INPUTS
@@ -38,3 +49,7 @@ resources(certs.global
   KEYS
   /builtin/cacert
 )
+
+
+
+

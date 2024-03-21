@@ -5,19 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-liburing)
+
+
 target_compile_options(contrib-libs-liburing PRIVATE
   -DLIBURING_INTERNAL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-liburing PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/include
 )
+
 target_link_libraries(contrib-libs-liburing PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-liburing PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/nolibc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/queue.c
@@ -26,3 +29,9 @@ target_sources(contrib-libs-liburing PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/syscall.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/version.c
 )
+
+
+
+
+
+

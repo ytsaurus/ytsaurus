@@ -5,6 +5,19 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -12,18 +25,7 @@ get_built_tool_path(
   contrib/tools/protoc/bin
   protoc
 )
-get_built_tool_path(
-  TOOL_cpp_styleguide_bin
-  TOOL_cpp_styleguide_dependency
-  contrib/tools/protoc/plugins/cpp_styleguide
-  cpp_styleguide
-)
-get_built_tool_path(
-  TOOL_protoc_bin
-  TOOL_protoc_dependency
-  contrib/tools/protoc/bin
-  protoc
-)
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -32,12 +34,16 @@ get_built_tool_path(
 )
 
 add_library(server-lib-scheduler)
+
+
 target_compile_options(server-lib-scheduler PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(server-lib-scheduler PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(server-lib-scheduler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -48,10 +54,12 @@ target_link_libraries(server-lib-scheduler PUBLIC
   yt_proto-yt-client
   contrib-libs-protobuf
 )
+
 target_proto_messages(server-lib-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.proto
 )
+
 target_sources(server-lib-scheduler PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h
@@ -66,6 +74,9 @@ target_sources(server-lib-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/job_metrics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/resource_metering.cpp
 )
+
+
+
 target_proto_addincls(server-lib-scheduler
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -78,7 +89,12 @@ target_proto_addincls(server-lib-scheduler
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(server-lib-scheduler
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

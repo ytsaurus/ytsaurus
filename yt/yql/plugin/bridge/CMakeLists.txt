@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yql-plugin-bridge INTERFACE)
+
+
 target_link_libraries(yql-plugin-bridge INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,7 +16,13 @@ target_link_libraries(yql-plugin-bridge INTERFACE
   yt-yt-core
 )
 
-add_global_library_for(yql-plugin-bridge.global yql-plugin-bridge)
+
+
+
+add_global_library_for(yql-plugin-bridge.global
+  yql-plugin-bridge)
+
+
 target_link_libraries(yql-plugin-bridge.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +30,13 @@ target_link_libraries(yql-plugin-bridge.global PUBLIC
   yt-yql-plugin
   yt-yt-core
 )
+
 target_sources(yql-plugin-bridge.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/plugin/bridge/plugin.cpp
 )
+
+
+
+
+
+

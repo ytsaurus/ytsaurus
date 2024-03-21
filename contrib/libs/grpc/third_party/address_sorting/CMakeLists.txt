@@ -5,23 +5,32 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(grpc-third_party-address_sorting)
+
+
 target_compile_options(grpc-third_party-address_sorting PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(grpc-third_party-address_sorting PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/include
 )
+
 target_link_libraries(grpc-third_party-address_sorting PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(grpc-third_party-address_sorting PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_posix.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/address_sorting/address_sorting_windows.c
 )
+
+
+
+
+
+

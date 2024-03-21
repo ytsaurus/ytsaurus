@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-concurrency)
+
+
 target_compile_options(unittester-core-concurrency PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-concurrency PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-core-concurrency PUBLIC
   yt-yt-core
   yt-core-test_framework
 )
+
 target_link_options(unittester-core-concurrency PRIVATE
   -ldl
   -lrt
@@ -32,6 +34,7 @@ target_link_options(unittester-core-concurrency PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_barrier_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_rw_lock_ut.cpp
@@ -63,12 +66,15 @@ target_sources(unittester-core-concurrency PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/throughput_throttler_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/two_level_fair_share_thread_pool_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-concurrency
   COMMAND
   unittester-core-concurrency
 )
+
 set_property(
   TEST
   unittester-core-concurrency
@@ -76,6 +82,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-concurrency
@@ -83,13 +90,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-concurrency
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-concurrency
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-concurrency)
+
+
+
+

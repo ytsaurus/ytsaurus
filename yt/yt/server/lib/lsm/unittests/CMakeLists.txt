@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-lsm)
+
+
 target_compile_options(unittester-library-lsm PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-lsm PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-library-lsm PUBLIC
   server-lib-lsm
   server-lib-hydra
 )
+
 target_link_options(unittester-library-lsm PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-library-lsm PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-lsm PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/lsm/unittests/upcoming_compaction_info_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-lsm
   COMMAND
   unittester-library-lsm
 )
+
 set_property(
   TEST
   unittester-library-lsm
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-library-lsm
@@ -55,14 +62,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-lsm
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-lsm
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-library-lsm)
+
+
+
+

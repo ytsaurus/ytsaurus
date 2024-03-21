@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-yt-systest)
+
+
 target_compile_options(unittester-yt-systest PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-yt-systest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-yt-systest PUBLIC
   cpp-testing-gtest_main
   yt-systest
 )
+
 target_link_options(unittester-yt-systest PRIVATE
   -ldl
   -lrt
@@ -31,6 +33,7 @@ target_link_options(unittester-yt-systest PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-yt-systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/unittests/stub_dataset.cpp
   ${PROJECT_SOURCE_DIR}/yt/systest/unittests/sort_ut.cpp
@@ -38,12 +41,15 @@ target_sources(unittester-yt-systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/unittests/worker_set_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/systest/unittests/util.cpp
 )
+
+
 add_test(
   NAME
   unittester-yt-systest
   COMMAND
   unittester-yt-systest
 )
+
 set_property(
   TEST
   unittester-yt-systest
@@ -51,6 +57,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-yt-systest
@@ -58,14 +65,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-yt-systest
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-yt-systest
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-yt-systest)
+
+
+
+

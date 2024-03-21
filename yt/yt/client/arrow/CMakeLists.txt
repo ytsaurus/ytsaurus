@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(fbs)
-
 add_library(yt-client-arrow)
+
+
 target_compile_options(yt-client-arrow PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-client-arrow PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,8 +20,15 @@ target_link_libraries(yt-client-arrow PUBLIC
   yt-yt-client
   client-arrow-fbs
 )
+
 target_sources(yt-client-arrow PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/arrow_row_stream_encoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/arrow_row_stream_decoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/arrow/public.cpp
 )
+
+
+
+
+
+

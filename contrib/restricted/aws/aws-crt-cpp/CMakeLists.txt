@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-crt-cpp)
+
+
 target_compile_options(restricted-aws-aws-crt-cpp PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT
@@ -38,9 +38,11 @@ target_compile_options(restricted-aws-aws-crt-cpp PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-crt-cpp PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/include
 )
+
 target_link_libraries(restricted-aws-aws-crt-cpp PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -54,6 +56,7 @@ target_link_libraries(restricted-aws-aws-crt-cpp PUBLIC
   restricted-aws-aws-c-s3
   restricted-aws-aws-c-sdkutils
 )
+
 target_sources(restricted-aws-aws-crt-cpp PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/source/Allocator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/source/Api.cpp
@@ -89,3 +92,9 @@ target_sources(restricted-aws-aws-crt-cpp PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/source/mqtt/Mqtt5Packets.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-crt-cpp/source/mqtt/MqttClient.cpp
 )
+
+
+
+
+
+

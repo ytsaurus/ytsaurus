@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(action_queue)
+
+
 target_link_libraries(action_queue PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(action_queue PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(action_queue PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(action_queue PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(action_queue PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/action_queue/main.cpp
 )
+
+
+
 target_allocator(action_queue
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(action_queue)
+
+
+
+

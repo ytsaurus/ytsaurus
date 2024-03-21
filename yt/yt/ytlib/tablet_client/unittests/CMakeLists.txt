@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-ytlib-tablet-client)
+
+
 target_compile_options(unittester-ytlib-tablet-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-ytlib-tablet-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(unittester-ytlib-tablet-client PUBLIC
   yt-core-test_framework
   yt-yt-ytlib
 )
+
 target_link_options(unittester-ytlib-tablet-client PRIVATE
   -ldl
   -lrt
@@ -34,15 +36,19 @@ target_link_options(unittester-ytlib-tablet-client PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-ytlib-tablet-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/unittests/build_reshard_pivots_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-ytlib-tablet-client
   COMMAND
   unittester-ytlib-tablet-client
 )
+
 set_property(
   TEST
   unittester-ytlib-tablet-client
@@ -50,6 +56,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-ytlib-tablet-client
@@ -57,14 +64,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-ytlib-tablet-client
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-ytlib-tablet-client
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-ytlib-tablet-client)
+
+
+
+

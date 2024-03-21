@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-client-cache)
+
+
 target_link_libraries(yt-client-cache PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -16,8 +16,15 @@ target_link_libraries(yt-client-cache PUBLIC
   yt-yt-client
   yt-client-cache-proto
 )
+
 target_sources(yt-client-cache PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/cache_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/cache/rpc.cpp
 )
+
+
+
+
+
+

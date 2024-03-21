@@ -5,16 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-xdelta3-xdelta_codec)
+
+
 target_link_libraries(cpp-xdelta3-xdelta_codec PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-xdelta3
 )
+
 target_sources(cpp-xdelta3-xdelta_codec PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/codec.c
   ${PROJECT_SOURCE_DIR}/library/cpp/xdelta3/xdelta_codec/merge_patches.c
 )
+
+
+
+
+
+

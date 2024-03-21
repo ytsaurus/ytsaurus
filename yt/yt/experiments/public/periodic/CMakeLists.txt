@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(periodic)
+
+
 target_compile_options(periodic PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(periodic PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(periodic PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(periodic PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(periodic PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(periodic PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/periodic/main.cpp
 )
+
+
+
 target_allocator(periodic
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(periodic)
+
+
+
+

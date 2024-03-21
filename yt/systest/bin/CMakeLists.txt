@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(systest)
+
+
 target_compile_options(systest PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(systest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(systest PUBLIC
   yt-library-program
   yt-systest
 )
+
 target_link_options(systest PRIVATE
   -ldl
   -lrt
@@ -31,11 +33,20 @@ target_link_options(systest PRIVATE
   -lutil
   -lutil
 )
+
 target_sources(systest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/systest/bin/main.cpp
 )
+
+
+
 target_allocator(systest
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(systest)
+
+
+
+

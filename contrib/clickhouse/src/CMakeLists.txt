@@ -5,11 +5,11 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(Common)
 add_subdirectory(Parsers)
-
 add_library(contrib-clickhouse-src)
+
+
 target_compile_options(contrib-clickhouse-src PUBLIC
   -DOS_LINUX
   -DXXH_INLINE_ALL
@@ -38,6 +38,7 @@ target_compile_options(contrib-clickhouse-src PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-clickhouse-src PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/cpp
@@ -73,6 +74,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
   ${PROJECT_SOURCE_DIR}/library/cpp/consistent_hashing
 )
+
 target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -144,6 +146,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   consistent-hashing
   cpp-sanitizer-include
 )
+
 target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessBackup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessChangesNotifier.cpp
@@ -1687,6 +1690,9 @@ target_sources(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/ReadBufferFromFileLog.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/FileLog/StorageFileLog.cpp
 )
+
+
+
 target_sources_custom(contrib-clickhouse-src
   .sse2
   SRCS
@@ -1695,6 +1701,7 @@ target_sources_custom(contrib-clickhouse-src
   -msse2
   -DNAMESPACE=SSE2
 )
+
 target_sources_custom(contrib-clickhouse-src
   .avx2
   SRCS
@@ -1707,7 +1714,11 @@ target_sources_custom(contrib-clickhouse-src
   -DNAMESPACE=AVX2
 )
 
-add_global_library_for(contrib-clickhouse-src.global contrib-clickhouse-src)
+
+add_global_library_for(contrib-clickhouse-src.global
+  contrib-clickhouse-src)
+
+
 target_compile_options(contrib-clickhouse-src.global PUBLIC
   -DOS_LINUX
   -DXXH_INLINE_ALL
@@ -1736,6 +1747,7 @@ target_compile_options(contrib-clickhouse-src.global PRIVATE
   -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-clickhouse-src.global PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/cpp
@@ -1771,6 +1783,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/clickhouse_deps/incbin_stub
   ${PROJECT_SOURCE_DIR}/library/cpp/consistent_hashing
 )
+
 target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -1842,6 +1855,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   consistent-hashing
   cpp-sanitizer-include
 )
+
 target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/CRC.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/CastOverloadResolver.cpp
@@ -2456,3 +2470,9 @@ target_sources(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/yesterday.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/ztest.cpp
 )
+
+
+
+
+
+

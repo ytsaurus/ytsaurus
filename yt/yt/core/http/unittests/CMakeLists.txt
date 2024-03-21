@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-http)
+
+
 target_compile_options(unittester-core-http PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,6 +26,7 @@ target_link_libraries(unittester-core-http PUBLIC
   core-net-mock
   yt-core-test_framework
 )
+
 target_link_options(unittester-core-http PRIVATE
   -ldl
   -lrt
@@ -36,15 +38,19 @@ target_link_options(unittester-core-http PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/http/unittests/http_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-http
   COMMAND
   unittester-core-http
 )
+
 set_property(
   TEST
   unittester-core-http
@@ -52,6 +58,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-http
@@ -59,13 +66,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-core-http
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-http
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-http)
+
+
+
+

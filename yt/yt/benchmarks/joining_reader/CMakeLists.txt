@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(joining_reader)
+
+
 target_compile_options(joining_reader PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(joining_reader PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(joining_reader PUBLIC
   yt-yt-client
   yt-yt-core
 )
+
 target_link_options(joining_reader PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(joining_reader PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(joining_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/joining_reader/main.cpp
 )
+
+
 add_test(
   NAME
   joining_reader
   COMMAND
   joining_reader
 )
+
 set_property(
   TEST
   joining_reader
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   joining_reader
@@ -55,7 +62,14 @@ set_property(
   PROCESSORS
   1
 )
+
+
 target_allocator(joining_reader
   cpp-ytalloc-impl
 )
+
 vcs_info(joining_reader)
+
+
+
+

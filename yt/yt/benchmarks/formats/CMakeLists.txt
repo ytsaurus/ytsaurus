@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(benchmark_formats)
+
+
 target_link_libraries(benchmark_formats PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(benchmark_formats PUBLIC
   yt-yt-client
   yt-library-formats
 )
+
 target_link_options(benchmark_formats PRIVATE
   -ldl
   -lrt
@@ -28,11 +29,20 @@ target_link_options(benchmark_formats PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(benchmark_formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/formats/main.cpp
 )
+
+
+
 target_allocator(benchmark_formats
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(benchmark_formats)
+
+
+
+

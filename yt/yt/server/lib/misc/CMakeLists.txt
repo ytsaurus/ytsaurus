@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(server-lib-misc)
+
+
 target_compile_options(server-lib-misc PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-misc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(server-lib-misc PUBLIC
   library-ytprof-allocation_tag_profiler
   library-cpp-porto
 )
+
 target_sources(server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/address_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/archive_reporter.cpp
@@ -41,10 +43,17 @@ target_sources(server-lib-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/job_report.cpp
 )
 
-add_global_library_for(server-lib-misc.global server-lib-misc)
+
+
+
+add_global_library_for(server-lib-misc.global
+  server-lib-misc)
+
+
 target_compile_options(server-lib-misc.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-misc.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -57,6 +66,13 @@ target_link_libraries(server-lib-misc.global PUBLIC
   library-ytprof-allocation_tag_profiler
   library-cpp-porto
 )
+
 target_sources(server-lib-misc.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/misc/public.cpp
 )
+
+
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-tti INTERFACE)
+
+
 target_include_directories(restricted-boost-tti INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/tti/include
 )
+
 target_link_libraries(restricted-boost-tti INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,3 +21,9 @@ target_link_libraries(restricted-boost-tti INTERFACE
   restricted-boost-preprocessor
   restricted-boost-type_traits
 )
+
+
+
+
+
+

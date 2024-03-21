@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(stateful_map_tnode)
+
+
 target_compile_options(stateful_map_tnode PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(stateful_map_tnode PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(stateful_map_tnode PUBLIC
   cpp-mapreduce-client
   cpp-string_utils-levenshtein_diff
 )
+
 target_link_options(stateful_map_tnode PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(stateful_map_tnode PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(stateful_map_tnode PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/examples/tutorial/stateful_map_tnode/main.cpp
 )
+
+
+
 target_allocator(stateful_map_tnode
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(stateful_map_tnode)
+
+
+
+

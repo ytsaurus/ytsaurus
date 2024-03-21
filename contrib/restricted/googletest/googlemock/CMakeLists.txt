@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-googletest-googlemock)
+
+
 target_compile_options(restricted-googletest-googlemock PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-googletest-googlemock PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/googletest/googlemock/include
 )
@@ -19,11 +20,19 @@ target_include_directories(restricted-googletest-googlemock PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/googletest/googletest
   ${PROJECT_SOURCE_DIR}/contrib/restricted/googletest/googletest/include
 )
+
 target_link_libraries(restricted-googletest-googlemock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   restricted-googletest-googletest
 )
+
 target_sources(restricted-googletest-googlemock PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/googletest/googlemock/src/gmock-all.cc
 )
+
+
+
+
+
+

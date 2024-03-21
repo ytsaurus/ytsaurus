@@ -5,11 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-pdqsort INTERFACE)
+
+
 target_link_libraries(contrib-libs-pdqsort INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
+
+
+
+
+

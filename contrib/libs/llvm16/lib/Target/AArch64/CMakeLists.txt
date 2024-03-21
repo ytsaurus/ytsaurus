@@ -5,21 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
-
 add_library(lib-Target-AArch64)
+
+
 target_compile_options(lib-Target-AArch64 PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-AArch64 PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/AArch64
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64
 )
+
 target_link_libraries(lib-Target-AArch64 PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -42,6 +44,7 @@ target_link_libraries(lib-Target-AArch64 PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(lib-Target-AArch64 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64A53Fix835769.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/AArch64A57FPLoadBalancing.cpp
@@ -100,3 +103,9 @@ target_sources(lib-Target-AArch64 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/SMEABIPass.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/AArch64/SVEIntrinsicOpts.cpp
 )
+
+
+
+
+
+

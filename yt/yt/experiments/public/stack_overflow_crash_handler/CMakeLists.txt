@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(stack_overflow_crash_handler)
+
+
 target_compile_options(stack_overflow_crash_handler PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(stack_overflow_crash_handler PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(stack_overflow_crash_handler PUBLIC
   yt-library-program
   backtrace-symbolizers-dwarf
 )
+
 target_link_options(stack_overflow_crash_handler PRIVATE
   -ldl
   -lrt
@@ -30,11 +32,20 @@ target_link_options(stack_overflow_crash_handler PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(stack_overflow_crash_handler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/stack_overflow_crash_handler/main.cpp
 )
+
+
+
 target_allocator(stack_overflow_crash_handler
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(stack_overflow_crash_handler)
+
+
+
+

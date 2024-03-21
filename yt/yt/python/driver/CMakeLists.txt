@@ -5,9 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(lib)
 add_subdirectory(native)
 add_subdirectory(native_shared)
 add_subdirectory(rpc)
 add_subdirectory(rpc_shared)
+
+

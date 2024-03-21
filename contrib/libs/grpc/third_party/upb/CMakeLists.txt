@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(grpc-third_party-upb)
+
+
 target_compile_options(grpc-third_party-upb PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(grpc-third_party-upb PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/grpc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc
@@ -19,9 +20,11 @@ target_include_directories(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
 )
+
 target_link_libraries(grpc-third_party-upb PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upb-generated/google/protobuf/descriptor.upb.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/upbdefs-generated/google/protobuf/descriptor.upbdefs.c
@@ -46,3 +49,9 @@ target_sources(grpc-third_party-upb PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/text_encode.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb/upb/upb.c
 )
+
+
+
+
+
+

@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_executable(unittester-core-misc)
+
+
 target_compile_options(unittester-core-misc PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-misc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -34,6 +37,7 @@ target_link_libraries(unittester-core-misc PUBLIC
   yt-core-test_framework
   contrib-libs-protobuf
 )
+
 target_link_options(unittester-core-misc PRIVATE
   -ldl
   -lrt
@@ -45,9 +49,11 @@ target_link_options(unittester-core-misc PRIVATE
   -ldl
   -lutil
 )
+
 target_proto_messages(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.proto
 )
+
 target_sources(unittester-core-misc PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/adjusted_exponential_moving_average_ut.cpp
@@ -117,12 +123,15 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/zerocopy_output_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hedging_manager_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-misc
   COMMAND
   unittester-core-misc
 )
+
 set_property(
   TEST
   unittester-core-misc
@@ -130,6 +139,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-core-misc
@@ -137,15 +147,19 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-misc
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-misc
   cpp-ytalloc-impl
 )
+
 target_proto_addincls(unittester-core-misc
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -157,8 +171,14 @@ target_proto_addincls(unittester-core-misc
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(unittester-core-misc
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
 vcs_info(unittester-core-misc)
+
+
+
+

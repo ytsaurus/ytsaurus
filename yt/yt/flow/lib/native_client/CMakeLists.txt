@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(flow-lib-native_client)
+
+
 target_link_libraries(flow-lib-native_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,13 @@ target_link_libraries(flow-lib-native_client PUBLIC
   flow-lib-client
   yt-yt-client
 )
+
 target_sources(flow-lib-native_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/flow/lib/native_client/pipeline_init.cpp
 )
+
+
+
+
+
+

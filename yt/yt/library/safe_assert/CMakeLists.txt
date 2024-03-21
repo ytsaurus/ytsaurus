@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-safe_assert INTERFACE)
+
+
 target_link_libraries(yt-library-safe_assert INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,16 +15,30 @@ target_link_libraries(yt-library-safe_assert INTERFACE
   yt-library-coredumper
 )
 
-add_global_library_for(yt-library-safe_assert.global yt-library-safe_assert)
+
+
+
+add_global_library_for(yt-library-safe_assert.global
+  yt-library-safe_assert)
+
+
 target_compile_options(yt-library-safe_assert.global PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-safe_assert.global PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-library-coredumper
 )
+
 target_sources(yt-library-safe_assert.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/safe_assert/safe_assert.cpp
 )
+
+
+
+
+
+

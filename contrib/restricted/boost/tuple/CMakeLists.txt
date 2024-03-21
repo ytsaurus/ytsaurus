@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-tuple INTERFACE)
+
+
 target_include_directories(restricted-boost-tuple INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/tuple/include
 )
+
 target_link_libraries(restricted-boost-tuple INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,3 +20,9 @@ target_link_libraries(restricted-boost-tuple INTERFACE
   restricted-boost-static_assert
   restricted-boost-type_traits
 )
+
+
+
+
+
+

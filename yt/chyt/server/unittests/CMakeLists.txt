@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-clickhouse-server)
+
+
 target_compile_options(unittester-clickhouse-server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-clickhouse-server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -23,6 +24,7 @@ target_link_libraries(unittester-clickhouse-server PUBLIC
   yt-core-test_framework
   yt-chyt-server
 )
+
 target_link_options(unittester-clickhouse-server PRIVATE
   -ldl
   -lrt
@@ -34,18 +36,22 @@ target_link_options(unittester-clickhouse-server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-clickhouse-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/computed_columns_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/ch_yt_converter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/yt_ch_converter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/unittests/framework.cpp
 )
+
+
 add_test(
   NAME
   unittester-clickhouse-server
   COMMAND
   unittester-clickhouse-server
 )
+
 set_property(
   TEST
   unittester-clickhouse-server
@@ -53,6 +59,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-clickhouse-server
@@ -60,13 +67,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-clickhouse-server
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-clickhouse-server
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-clickhouse-server)
+
+
+
+

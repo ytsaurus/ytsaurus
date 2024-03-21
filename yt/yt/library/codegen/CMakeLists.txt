@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-library-codegen)
+
+
 target_compile_options(yt-library-codegen PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-codegen PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,6 +33,7 @@ target_link_libraries(yt-library-codegen PUBLIC
   llvm16-lib-Passes
   yt-yt-core
 )
+
 target_sources(yt-library-codegen PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/builder_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/init.cpp
@@ -39,3 +41,9 @@ target_sources(yt-library-codegen PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/routine_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/codegen/msan.cpp
 )
+
+
+
+
+
+

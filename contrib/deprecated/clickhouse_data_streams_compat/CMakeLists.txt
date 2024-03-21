@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-deprecated-clickhouse_data_streams_compat)
+
+
 target_include_directories(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat
 )
+
 target_link_libraries(contrib-deprecated-clickhouse_data_streams_compat PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-clickhouse-src
 )
+
 target_sources(contrib-deprecated-clickhouse_data_streams_compat PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/IBlockInputStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/DataStreams/RemoteBlockOutputStream.cpp
@@ -26,3 +28,9 @@ target_sources(contrib-deprecated-clickhouse_data_streams_compat PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SourceFromInputStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/deprecated/clickhouse_data_streams_compat/Processors/Sources/SinkToOutputStream.cpp
 )
+
+
+
+
+
+

@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(cpp-yt-phdr_cache)
+
+
 target_compile_options(cpp-yt-phdr_cache PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-yt-phdr_cache PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert
 )
+
 target_sources(cpp-yt-phdr_cache PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/phdr_cache/phdr_cache.cpp
 )
+
+
+
+
+
+

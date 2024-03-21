@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(journal_reader)
+
+
 target_compile_options(journal_reader PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(journal_reader PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(journal_reader PUBLIC
   server-lib-tablet_node
   cpp-getopt-small
 )
+
 target_link_options(journal_reader PRIVATE
   -ldl
   -lrt
@@ -35,12 +37,21 @@ target_link_options(journal_reader PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(journal_reader PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/journal_dumper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/journal_reader/mutation_dumper.cpp
 )
+
+
+
 target_allocator(journal_reader
   cpp-ytalloc-impl
 )
+
 vcs_info(journal_reader)
+
+
+
+

@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(benchmark_bus)
+
+
 target_link_libraries(benchmark_bus PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(benchmark_bus PUBLIC
   cpp-yt-phdr_cache
   cpp-getopt-small
 )
+
 target_link_options(benchmark_bus PRIVATE
   -ldl
   -lrt
@@ -28,10 +29,19 @@ target_link_options(benchmark_bus PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(benchmark_bus PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/bus/main.cpp
 )
+
+
+
 target_allocator(benchmark_bus
   cpp-ytalloc-impl
 )
+
 vcs_info(benchmark_bus)
+
+
+
+

@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_executable(ytserver-all)
+
+
 target_compile_options(ytserver-all PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(ytserver-all PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -42,6 +43,7 @@ target_link_libraries(ytserver-all PUBLIC
   yt-server-replicated_table_tracker
   yt-library-oom
 )
+
 target_link_options(ytserver-all PRIVATE
   -ldl
   -lrt
@@ -53,11 +55,20 @@ target_link_options(ytserver-all PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(ytserver-all PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/main.cpp
 )
+
+
+
 target_allocator(ytserver-all
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(ytserver-all)
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(data_node_rpc_request)
+
+
 target_compile_options(data_node_rpc_request PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(data_node_rpc_request PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(data_node_rpc_request PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
 )
+
 target_link_options(data_node_rpc_request PRIVATE
   -ldl
   -lrt
@@ -33,11 +35,20 @@ target_link_options(data_node_rpc_request PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(data_node_rpc_request PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/data_node_rpc_request/main.cpp
 )
+
+
+
 target_allocator(data_node_rpc_request
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(data_node_rpc_request)
+
+
+
+

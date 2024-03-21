@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(yt-server-query_tracker)
+
+
 target_compile_options(yt-server-query_tracker PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-query_tracker PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -31,6 +32,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   yt-yt-ytlib
   yt-ytlib-query_tracker_client
 )
+
 target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/chyt_engine.cpp
@@ -43,3 +45,9 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp
 )
+
+
+
+
+
+

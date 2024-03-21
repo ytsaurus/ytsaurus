@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-lzma)
+
+
 target_compile_options(contrib-libs-lzma PUBLIC
   -DLZMA_API_STATIC
 )
@@ -16,6 +16,7 @@ target_compile_options(contrib-libs-lzma PRIVATE
   -DTUKLIB_SYMBOL_PREFIX=lzma_
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-lzma PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/api
 )
@@ -30,9 +31,11 @@ target_include_directories(contrib-libs-lzma PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/rangecoder
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple
 )
+
 target_link_libraries(contrib-libs-lzma PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-lzma PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/common/tuklib_cpucores.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/common/tuklib_physmem.c
@@ -116,3 +119,9 @@ target_sources(contrib-libs-lzma PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/sparc.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/x86.c
 )
+
+
+
+
+
+

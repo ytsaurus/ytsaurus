@@ -5,14 +5,15 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(dry_run)
 add_subdirectory(unittests)
-
 add_library(server-lib-tablet_balancer)
+
+
 target_compile_options(server-lib-tablet_balancer PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-tablet_balancer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(server-lib-tablet_balancer PUBLIC
   orm-library-query
   yt-yt-ytlib
 )
+
 target_sources(server-lib-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
@@ -31,3 +33,9 @@ target_sources(server-lib-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.cpp
 )
+
+
+
+
+
+

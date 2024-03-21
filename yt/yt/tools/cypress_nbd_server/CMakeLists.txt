@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(cypress_nbd_server)
+
+
 target_link_libraries(cypress_nbd_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +21,7 @@ target_link_libraries(cypress_nbd_server PUBLIC
   yt-yt-ytlib
   yt_proto-yt-client
 )
+
 target_link_options(cypress_nbd_server PRIVATE
   -ldl
   -lrt
@@ -32,11 +33,20 @@ target_link_options(cypress_nbd_server PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(cypress_nbd_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/cypress_nbd_server/main.cpp
 )
+
+
+
 target_allocator(cypress_nbd_server
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(cypress_nbd_server)
+
+
+
+

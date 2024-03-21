@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(offline_read_fmt_write)
+
+
 target_compile_options(offline_read_fmt_write PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(offline_read_fmt_write PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
 )
+
 target_link_libraries(offline_read_fmt_write PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -26,6 +28,7 @@ target_link_libraries(offline_read_fmt_write PUBLIC
   yt-yt-ytlib
   cpp-getopt-small
 )
+
 target_link_options(offline_read_fmt_write PRIVATE
   -ldl
   -lrt
@@ -37,10 +40,19 @@ target_link_options(offline_read_fmt_write PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(offline_read_fmt_write PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/offline_read_fmt_write/main.cpp
 )
+
+
+
 target_allocator(offline_read_fmt_write
   cpp-ytalloc-impl
 )
+
 vcs_info(offline_read_fmt_write)
+
+
+
+

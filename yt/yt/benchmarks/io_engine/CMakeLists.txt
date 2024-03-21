@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(io_engine)
+
+
 target_compile_options(io_engine PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(io_engine PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +25,7 @@ target_link_libraries(io_engine PUBLIC
   yt-yt-core
   cpp-getopt-small
 )
+
 target_link_options(io_engine PRIVATE
   -ldl
   -lrt
@@ -35,11 +37,20 @@ target_link_options(io_engine PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(io_engine PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/io_engine/main.cpp
 )
+
+
+
 target_allocator(io_engine
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(io_engine)
+
+
+
+

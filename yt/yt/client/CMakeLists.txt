@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(arrow)
 add_subdirectory(cache)
 add_subdirectory(driver)
@@ -19,27 +18,34 @@ set(
   YT_RPC_MODIFY_ROWS_STRONG_LOCKS_VERSION
   2
 )
+
 set(
   YT_RPC_PROXY_CLIENT_PROTOCOL_VERSION_MINOR
   1
 )
+
 set(
   YT_RPC_PROXY_PROTOCOL_VERSION_MAJOR
   1
 )
+
 set(
   YT_RPC_PROXY_SERVER_PROTOCOL_VERSION_MINOR
   2
 )
 
 add_library(yt-yt-client)
+
+
 target_compile_options(yt-yt-client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-yt-client PUBLIC
   ${PROJECT_BINARY_DIR}/yt
   ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy
 )
+
 target_link_libraries(yt-yt-client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -58,6 +64,7 @@ target_link_libraries(yt-yt-client PUBLIC
   library-cpp-json
   contrib-libs-pfr
 )
+
 target_sources(yt-yt-client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/config.cpp
@@ -210,7 +217,14 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/protocol.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/requests.cpp
 )
+
+
 configure_file(
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/protocol_version_variables.h.in
   ${PROJECT_BINARY_DIR}/yt/yt/client/_/api/rpc_proxy/protocol_version_variables.h
 )
+
+
+
+
+

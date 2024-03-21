@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(Crypto)
 add_subdirectory(Data)
 add_subdirectory(Foundation)
@@ -16,3 +15,5 @@ add_subdirectory(NetSSL_OpenSSL)
 add_subdirectory(Redis)
 add_subdirectory(Util)
 add_subdirectory(XML)
+
+

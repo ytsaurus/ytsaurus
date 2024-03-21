@@ -5,19 +5,27 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-sparse_coredump)
+
+
 target_compile_options(yt-library-sparse_coredump PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-library-sparse_coredump PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(yt-library-sparse_coredump PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/sparse_coredump/sparse_coredump.cpp
 )
+
+
+
+
+
+

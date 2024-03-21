@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-auth)
+
+
 target_compile_options(restricted-aws-aws-c-auth PRIVATE
   -DAWS_AUTH_USE_IMPORT_EXPORT
   -DAWS_CAL_USE_IMPORT_EXPORT
@@ -33,9 +33,11 @@ target_compile_options(restricted-aws-aws-c-auth PRIVATE
   -DS2N___RESTRICT__SUPPORTED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-auth PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-auth/include
 )
+
 target_link_libraries(restricted-aws-aws-c-auth PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-cal
@@ -44,6 +46,7 @@ target_link_libraries(restricted-aws-aws-c-auth PUBLIC
   restricted-aws-aws-c-io
   restricted-aws-aws-c-sdkutils
 )
+
 target_sources(restricted-aws-aws-c-auth PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-auth/source/auth.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-auth/source/aws_imds_client.c
@@ -76,3 +79,9 @@ target_sources(restricted-aws-aws-c-auth PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-auth/source/signing_result.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-auth/source/sigv4_http_request.c
 )
+
+
+
+
+
+

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(abseil-cpp)
 add_subdirectory(abseil-cpp-tstring)
 add_subdirectory(aws)
@@ -24,3 +23,5 @@ add_subdirectory(thrift)
 add_subdirectory(turbo_base64)
 add_subdirectory(uriparser)
 add_subdirectory(wavm)
+
+

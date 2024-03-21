@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-fair-share-update)
+
+
 target_compile_options(unittester-fair-share-update PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-fair-share-update PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-fair-share-update PUBLIC
   yt-library-vector_hdrf
   yt-core-test_framework
 )
+
 target_link_options(unittester-fair-share-update PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-fair-share-update PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-fair-share-update PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/unittests/fair_share_update_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-fair-share-update
   COMMAND
   unittester-fair-share-update
 )
+
 set_property(
   TEST
   unittester-fair-share-update
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-fair-share-update
@@ -55,14 +62,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-fair-share-update
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-fair-share-update
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-fair-share-update)
+
+
+
+

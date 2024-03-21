@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(mapreduce-library-mock_client)
+
+
 target_compile_options(mapreduce-library-mock_client PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-library-mock_client PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(mapreduce-library-mock_client PUBLIC
   cpp-mapreduce-interface
   cpp-testing-gmock_in_unittest
 )
+
 target_sources(mapreduce-library-mock_client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/mock_client/yt_mock.cpp
 )
+
+
+
+
+
+

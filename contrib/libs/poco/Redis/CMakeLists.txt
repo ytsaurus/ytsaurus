@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Redis)
+
+
 target_compile_options(libs-poco-Redis PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-Redis PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Redis PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/include
 )
@@ -25,12 +26,14 @@ target_include_directories(libs-poco-Redis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/src
 )
+
 target_link_libraries(libs-poco-Redis PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-poco-Foundation
   libs-poco-Net
 )
+
 target_sources(libs-poco-Redis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/src/Array.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/src/AsyncReader.cpp
@@ -42,3 +45,9 @@ target_sources(libs-poco-Redis PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/src/RedisStream.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Redis/src/Type.cpp
 )
+
+
+
+
+
+

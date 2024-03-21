@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-CodeGen-SelectionDAG)
+
+
 target_compile_options(lib-CodeGen-SelectionDAG PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-CodeGen-SelectionDAG PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG
 )
+
 target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,6 +30,7 @@ target_link_libraries(lib-CodeGen-SelectionDAG PUBLIC
   llvm16-lib-TargetParser
   lib-Transforms-Utils
 )
+
 target_sources(lib-CodeGen-SelectionDAG PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/DAGCombiner.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/FastISel.cpp
@@ -55,3 +58,9 @@ target_sources(lib-CodeGen-SelectionDAG PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/StatepointLowering.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/SelectionDAG/TargetLowering.cpp
 )
+
+
+
+
+
+

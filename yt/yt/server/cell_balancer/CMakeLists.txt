@@ -5,16 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-server-cell_balancer)
+
+
 target_compile_options(yt-server-cell_balancer PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(yt-server-cell_balancer PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(yt-server-cell_balancer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,6 +29,7 @@ target_link_libraries(yt-server-cell_balancer PUBLIC
   yt-server-master
   yt-server-node
 )
+
 target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller.cpp
@@ -43,3 +46,9 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/proxy_roles_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_controller_service.cpp
 )
+
+
+
+
+
+

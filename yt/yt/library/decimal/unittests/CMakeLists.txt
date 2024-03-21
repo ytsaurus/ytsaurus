@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-library-decimal)
+
+
 target_compile_options(unittester-library-decimal PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-library-decimal PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-library-decimal PUBLIC
   yt-core-test_framework
   yt-library-decimal
 )
+
 target_link_options(unittester-library-decimal PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-library-decimal PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-library-decimal PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/decimal/unittests/decimal_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-library-decimal
   COMMAND
   unittester-library-decimal
 )
+
 set_property(
   TEST
   unittester-library-decimal
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-library-decimal
@@ -55,13 +62,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-library-decimal
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-library-decimal
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-library-decimal)
+
+
+
+

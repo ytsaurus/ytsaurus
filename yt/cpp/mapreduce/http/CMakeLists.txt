@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(ut)
-
 add_library(cpp-mapreduce-http)
+
+
 target_compile_options(cpp-mapreduce-http PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(cpp-mapreduce-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -27,6 +28,7 @@ target_link_libraries(cpp-mapreduce-http PUBLIC
   yt-core-http
   yt-core-https
 )
+
 target_sources(cpp-mapreduce-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/abortable_http_response.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/context.cpp
@@ -37,3 +39,9 @@ target_sources(cpp-mapreduce-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/requests.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/http/retry_request.cpp
 )
+
+
+
+
+
+

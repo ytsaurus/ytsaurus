@@ -5,18 +5,20 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
-
 add_library(lib-Target-NVPTX)
+
+
 target_compile_options(lib-Target-NVPTX PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-NVPTX PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX
 )
+
 target_link_libraries(lib-Target-NVPTX PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -38,6 +40,7 @@ target_link_libraries(lib-Target-NVPTX PUBLIC
   lib-Transforms-Utils
   lib-Transforms-Vectorize
 )
+
 target_sources(lib-Target-NVPTX PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAllocaHoisting.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVPTXAsmPrinter.cpp
@@ -65,3 +68,9 @@ target_sources(lib-Target-NVPTX PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMIntrRange.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/NVPTX/NVVMReflect.cpp
 )
+
+
+
+
+
+

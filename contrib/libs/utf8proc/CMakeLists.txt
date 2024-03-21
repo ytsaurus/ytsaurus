@@ -5,15 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-utf8proc)
+
+
 target_compile_options(contrib-libs-utf8proc PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_link_libraries(contrib-libs-utf8proc PUBLIC
   contrib-libs-linux-headers
 )
+
 target_sources(contrib-libs-utf8proc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/utf8proc/utf8proc.c
 )
+
+
+
+
+
+

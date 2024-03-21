@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,20 +13,30 @@ get_built_tool_path(
 )
 
 add_library(library-cpp-skiff)
+
+
 target_link_libraries(library-cpp-skiff PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(library-cpp-skiff PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/skiff/skiff.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/skiff/skiff_schema.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/skiff/skiff_validator.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/skiff/zerocopy_output_writer.cpp
 )
+
+
+
 generate_enum_serilization(library-cpp-skiff
   ${PROJECT_SOURCE_DIR}/library/cpp/skiff/public.h
   INCLUDE_HEADERS
   library/cpp/skiff/public.h
 )
+
+
+
+

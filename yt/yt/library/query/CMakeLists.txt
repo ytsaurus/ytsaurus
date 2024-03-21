@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(base)
 add_subdirectory(engine)
 add_subdirectory(engine_api)
@@ -14,3 +13,5 @@ add_subdirectory(proto)
 add_subdirectory(row_comparer)
 add_subdirectory(row_comparer_api)
 add_subdirectory(unittests)
+
+

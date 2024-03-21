@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(ytserver-log-tailer)
+
+
 target_compile_options(ytserver-log-tailer PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(ytserver-log-tailer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(ytserver-log-tailer PUBLIC
   library-cpp-cpuid_check
   yt-server-log_tailer
 )
+
 target_link_options(ytserver-log-tailer PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(ytserver-log-tailer PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(ytserver-log-tailer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/log_tailer/bin/main.cpp
 )
+
+
+
 target_allocator(ytserver-log-tailer
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(ytserver-log-tailer)
+
+
+
+

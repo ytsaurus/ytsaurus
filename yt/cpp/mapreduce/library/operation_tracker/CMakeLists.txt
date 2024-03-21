@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(mapreduce-library-operation_tracker)
+
+
 target_compile_options(mapreduce-library-operation_tracker PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-library-operation_tracker PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
 )
+
 target_sources(mapreduce-library-operation_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/operation_tracker/operation_tracker.cpp
 )
+
+
+
+
+
+

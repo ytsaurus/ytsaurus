@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -15,9 +14,12 @@ get_built_tool_path(
 )
 
 add_library(mapreduce-interface-logging)
+
+
 target_compile_options(mapreduce-interface-logging PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(mapreduce-interface-logging PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -25,12 +27,20 @@ target_link_libraries(mapreduce-interface-logging PUBLIC
   cpp-yt-logging
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(mapreduce-interface-logging PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/logger.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/yt_log.cpp
 )
+
+
+
 generate_enum_serilization(mapreduce-interface-logging
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/logging/logger.h
   INCLUDE_HEADERS
   yt/cpp/mapreduce/interface/logging/logger.h
 )
+
+
+
+

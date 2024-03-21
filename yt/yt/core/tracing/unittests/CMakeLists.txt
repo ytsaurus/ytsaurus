@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-tracing)
+
+
 target_compile_options(unittester-core-tracing PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-tracing PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -21,6 +22,7 @@ target_link_libraries(unittester-core-tracing PUBLIC
   yt-yt-core
   yt-core-test_framework
 )
+
 target_link_options(unittester-core-tracing PRIVATE
   -ldl
   -lrt
@@ -32,15 +34,19 @@ target_link_options(unittester-core-tracing PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-tracing PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/tracing/unittests/allocation_tags_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-tracing
   COMMAND
   unittester-core-tracing
 )
+
 set_property(
   TEST
   unittester-core-tracing
@@ -48,6 +54,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-core-tracing
@@ -55,14 +62,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-core-tracing
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-tracing
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(unittester-core-tracing)
+
+
+
+

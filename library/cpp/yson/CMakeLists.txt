@@ -5,11 +5,11 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(json)
 add_subdirectory(node)
-
 add_library(library-cpp-yson)
+
+
 target_link_libraries(library-cpp-yson PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -17,6 +17,7 @@ target_link_libraries(library-cpp-yson PUBLIC
   cpp-yt-misc
   cpp-yt-yson
 )
+
 target_sources(library-cpp-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/consumer.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/lexer.cpp
@@ -26,3 +27,9 @@ target_sources(library-cpp-yson PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/varint.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/yson/writer.cpp
 )
+
+
+
+
+
+

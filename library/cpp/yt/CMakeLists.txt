@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(assert)
 add_subdirectory(backtrace)
 add_subdirectory(coding)
@@ -25,3 +24,5 @@ add_subdirectory(system)
 add_subdirectory(threading)
 add_subdirectory(yson)
 add_subdirectory(yson_string)
+
+

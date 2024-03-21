@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-server-http_proxy)
+
+
 target_compile_options(yt-server-http_proxy PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(yt-server-http_proxy PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -36,6 +37,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   cpp-string_utils-base64
   cpp-yt-phdr_cache
 )
+
 target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/access_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/api.cpp
@@ -57,3 +59,9 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/public.cpp
 )
+
+
+
+
+
+

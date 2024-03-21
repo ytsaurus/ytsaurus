@@ -5,18 +5,25 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(threading-future-subscription)
+
+
 target_link_libraries(threading-future-subscription PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-threading-future
 )
+
 target_sources(threading-future-subscription PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/subscription.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_all_or_exception.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/subscription/wait_any.cpp
 )
+
+
+
+
+
+

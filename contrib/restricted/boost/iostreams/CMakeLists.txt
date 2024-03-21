@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-iostreams)
+
+
 target_compile_options(restricted-boost-iostreams PRIVATE
   -DBOOST_IOSTREAMS_USE_DEPRECATED
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-iostreams PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/include
 )
@@ -19,6 +20,7 @@ target_include_directories(restricted-boost-iostreams PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/libbz2
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
+
 target_link_libraries(restricted-boost-iostreams PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -45,6 +47,7 @@ target_link_libraries(restricted-boost-iostreams PUBLIC
   restricted-boost-type_traits
   restricted-boost-utility
 )
+
 target_sources(restricted-boost-iostreams PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/bzip2.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/file_descriptor.cpp
@@ -54,3 +57,9 @@ target_sources(restricted-boost-iostreams PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/zlib.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iostreams/src/zstd.cpp
 )
+
+
+
+
+
+

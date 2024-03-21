@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(footprint)
+
+
 target_link_libraries(footprint PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(footprint PUBLIC
   library-cpp-cpuid_check
   yt-yt-ytlib
 )
+
 target_link_options(footprint PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(footprint PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(footprint PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/footprint/main.cpp
 )
+
+
+
 target_allocator(footprint
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(footprint)
+
+
+
+

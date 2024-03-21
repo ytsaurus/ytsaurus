@@ -5,12 +5,18 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-library-syncmap INTERFACE)
+
+
 target_link_libraries(yt-library-syncmap INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
+
+
+
+
+

@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-Transforms-ObjCARC)
+
+
 target_compile_options(lib-Transforms-ObjCARC PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Transforms-ObjCARC PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/ObjCARC
 )
+
 target_link_libraries(lib-Transforms-ObjCARC PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(lib-Transforms-ObjCARC PUBLIC
   llvm16-lib-Support
   lib-Transforms-Utils
 )
+
 target_sources(lib-Transforms-ObjCARC PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/ObjCARC/DependencyAnalysis.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/ObjCARC/ObjCARC.cpp
@@ -35,3 +38,9 @@ target_sources(lib-Transforms-ObjCARC PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/ObjCARC/ProvenanceAnalysisEvaluator.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Transforms/ObjCARC/PtrState.cpp
 )
+
+
+
+
+
+

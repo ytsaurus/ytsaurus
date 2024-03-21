@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-core-net)
+
+
 target_compile_options(unittester-core-net PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-core-net PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,6 +23,7 @@ target_link_libraries(unittester-core-net PUBLIC
   yt-core-test_framework
   cpp-streams-zstd
 )
+
 target_link_options(unittester-core-net PRIVATE
   -ldl
   -lrt
@@ -33,17 +35,21 @@ target_link_options(unittester-core-net PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-core-net PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/local_address_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/net_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/net/unittests/network_address_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-core-net
   COMMAND
   unittester-core-net
 )
+
 set_property(
   TEST
   unittester-core-net
@@ -51,6 +57,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-core-net
@@ -58,13 +65,21 @@ set_property(
   PROCESSORS
   4
 )
+
 set_property(
   TEST
   unittester-core-net
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-core-net
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-core-net)
+
+
+
+

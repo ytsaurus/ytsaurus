@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(unittests)
-
 add_library(yt-client-federated)
+
+
 target_link_libraries(yt-client-federated PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,9 +18,16 @@ target_link_libraries(yt-client-federated PUBLIC
   yt-yt-client
   yt-client-cache
 )
+
 target_sources(yt-client-federated PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/federated/cache.cpp
 )
+
+
+
+
+
+

@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(discovery_server-unittests-mock)
+
+
 target_compile_options(discovery_server-unittests-mock PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(discovery_server-unittests-mock PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
 )
+
 target_sources(discovery_server-unittests-mock PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/discovery_server/unittests/mock/connection.cpp
 )
+
+
+
+
+
+

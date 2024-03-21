@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-scheduler-simulator)
+
+
 target_compile_options(unittester-scheduler-simulator PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_include_directories(unittester-scheduler-simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
 )
+
 target_link_libraries(unittester-scheduler-simulator PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -24,6 +26,7 @@ target_link_libraries(unittester-scheduler-simulator PUBLIC
   yt-tools-scheduler_simulator
   yt-core-test_framework
 )
+
 target_link_options(unittester-scheduler-simulator PRIVATE
   -ldl
   -lrt
@@ -35,16 +38,20 @@ target_link_options(unittester-scheduler-simulator PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-scheduler-simulator PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/operation_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/unittests/control_thread_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-scheduler-simulator
   COMMAND
   unittester-scheduler-simulator
 )
+
 set_property(
   TEST
   unittester-scheduler-simulator
@@ -52,6 +59,7 @@ set_property(
   LABELS
   SMALL
 )
+
 set_property(
   TEST
   unittester-scheduler-simulator
@@ -59,13 +67,21 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-scheduler-simulator
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-scheduler-simulator
   cpp-ytalloc-impl
 )
+
 vcs_info(unittester-scheduler-simulator)
+
+
+
+

@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-iterator INTERFACE)
+
+
 target_include_directories(restricted-boost-iterator INTERFACE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/iterator/include
 )
+
 target_link_libraries(restricted-boost-iterator INTERFACE
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -28,3 +29,9 @@ target_link_libraries(restricted-boost-iterator INTERFACE
   restricted-boost-type_traits
   restricted-boost-utility
 )
+
+
+
+
+
+

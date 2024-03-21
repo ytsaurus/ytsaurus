@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(formats_test)
+
+
 target_compile_options(formats_test PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(formats_test PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,7 @@ target_link_libraries(formats_test PUBLIC
   library-cpp-cpuid_check
   yt-client-driver
 )
+
 target_link_options(formats_test PRIVATE
   -ldl
   -lrt
@@ -29,11 +31,20 @@ target_link_options(formats_test PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(formats_test PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/experiments/public/formats_test/main.cpp
 )
+
+
+
 target_allocator(formats_test
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(formats_test)
+
+
+
+

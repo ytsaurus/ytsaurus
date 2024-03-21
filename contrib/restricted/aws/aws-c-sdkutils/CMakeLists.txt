@@ -5,22 +5,25 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-aws-aws-c-sdkutils)
+
+
 target_compile_options(restricted-aws-aws-c-sdkutils PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_SDKUTILS_USE_IMPORT_EXPORT
   -DHAVE_SYSCONF
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-aws-aws-c-sdkutils PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/include
 )
+
 target_link_libraries(restricted-aws-aws-c-sdkutils PUBLIC
   contrib-libs-linux-headers
   restricted-aws-aws-c-common
 )
+
 target_sources(restricted-aws-aws-c-sdkutils PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/source/aws_profile.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/source/endpoints_rule_engine.c
@@ -32,3 +35,9 @@ target_sources(restricted-aws-aws-c-sdkutils PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/source/resource_name.c
   ${PROJECT_SOURCE_DIR}/contrib/restricted/aws/aws-c-sdkutils/source/sdkutils.c
 )
+
+
+
+
+
+

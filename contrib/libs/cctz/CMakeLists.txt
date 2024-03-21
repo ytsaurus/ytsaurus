@@ -5,20 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(tzdata)
-
 add_library(contrib-libs-cctz)
+
+
 target_compile_options(contrib-libs-cctz PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-cctz PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/include
 )
+
 target_link_libraries(contrib-libs-cctz PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
 )
+
 target_sources(contrib-libs-cctz PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/src/civil_time_detail.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_fixed.cc
@@ -31,3 +34,9 @@ target_sources(contrib-libs-cctz PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/src/time_zone_posix.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/src/zone_info_source.cc
 )
+
+
+
+
+
+

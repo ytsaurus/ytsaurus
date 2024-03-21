@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(all)
 add_subdirectory(cell_balancer)
 add_subdirectory(clock_server)
@@ -29,3 +28,5 @@ add_subdirectory(tablet_balancer)
 add_subdirectory(tcp_proxy)
 add_subdirectory(timestamp_provider)
 add_subdirectory(tools)
+
+

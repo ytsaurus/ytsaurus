@@ -5,15 +5,22 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(bridge)
-
 add_library(yt-yql-plugin)
+
+
 target_link_libraries(yt-yql-plugin PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_sources(yt-yql-plugin PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yql/plugin/plugin.cpp
 )
+
+
+
+
+
+

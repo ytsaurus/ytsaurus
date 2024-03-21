@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-coroutine)
+
+
 target_compile_options(restricted-boost-coroutine PUBLIC
   -DBOOST_COROUTINES_NO_DEPRECATION_WARNING
 )
@@ -15,9 +15,11 @@ target_compile_options(restricted-boost-coroutine PRIVATE
   -DBOOST_COROUTINES_SOURCE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-coroutine PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/coroutine/include
 )
+
 target_link_libraries(restricted-boost-coroutine PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -32,8 +34,15 @@ target_link_libraries(restricted-boost-coroutine PUBLIC
   restricted-boost-type_traits
   restricted-boost-utility
 )
+
 target_sources(restricted-boost-coroutine PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/posix/stack_traits.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/detail/coroutine_context.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/coroutine/src/exceptions.cpp
 )
+
+
+
+
+
+

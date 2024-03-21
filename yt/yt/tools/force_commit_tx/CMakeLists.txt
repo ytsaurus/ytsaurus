@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(force_commit_tx)
+
+
 target_link_libraries(force_commit_tx PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -15,6 +15,7 @@ target_link_libraries(force_commit_tx PUBLIC
   library-cpp-cpuid_check
   yt-yt-ytlib
 )
+
 target_link_options(force_commit_tx PRIVATE
   -ldl
   -lrt
@@ -26,11 +27,20 @@ target_link_options(force_commit_tx PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(force_commit_tx PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/force_commit_tx/main.cpp
 )
+
+
+
 target_allocator(force_commit_tx
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(force_commit_tx)
+
+
+
+

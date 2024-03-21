@@ -5,15 +5,16 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(src)
 add_subdirectory(third_party)
-
 add_library(contrib-libs-grpc)
+
+
 target_compile_options(contrib-libs-grpc PRIVATE
   -DGRPC_POSIX_FORK_ALLOW_PTHREAD_ATFORK=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-grpc PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/include
 )
@@ -26,6 +27,7 @@ target_include_directories(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/third_party/upb
   ${PROJECT_SOURCE_DIR}/contrib/libs/xxhash
 )
+
 target_link_libraries(contrib-libs-grpc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -54,6 +56,7 @@ target_link_libraries(contrib-libs-grpc PUBLIC
   abseil-cpp-tstring-y_absl-utility
   library-cpp-resource
 )
+
 target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/backend_metrics/backend_metric_filter.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/core/ext/filters/census/grpc_context.cc
@@ -920,3 +923,9 @@ target_sources(contrib-libs-grpc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/util/string_ref.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/grpc/src/cpp/util/time_cc.cc
 )
+
+
+
+
+
+

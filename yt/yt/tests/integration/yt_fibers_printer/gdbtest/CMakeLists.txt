@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(gdbtest)
+
+
 target_compile_options(gdbtest PRIVATE
   -g
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(gdbtest PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -19,6 +20,7 @@ target_link_libraries(gdbtest PUBLIC
   library-cpp-cpuid_check
   yt-yt-core
 )
+
 target_link_options(gdbtest PRIVATE
   -ldl
   -lrt
@@ -30,13 +32,22 @@ target_link_options(gdbtest PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(gdbtest PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/main.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/foo.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/integration/yt_fibers_printer/gdbtest/bar.cpp
 )
+
+
+
 target_allocator(gdbtest
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
+
 vcs_info(gdbtest)
+
+
+
+

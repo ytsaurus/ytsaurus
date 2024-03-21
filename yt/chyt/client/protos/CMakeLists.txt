@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,9 +20,12 @@ get_built_tool_path(
 )
 
 add_library(chyt-client-protos)
+
+
 target_include_directories(chyt-client-protos PUBLIC
   ${PROJECT_BINARY_DIR}/yt
 )
+
 target_link_libraries(chyt-client-protos PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -30,12 +33,17 @@ target_link_libraries(chyt-client-protos PUBLIC
   yt_proto-yt-core
   contrib-libs-protobuf
 )
+
 target_proto_messages(chyt-client-protos PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/client/protos/query_service.proto
 )
+
 target_sources(chyt-client-protos PRIVATE
   ${PROJECT_BINARY_DIR}/yt/chyt/client/protos/query_service.pb.h
 )
+
+
+
 target_proto_addincls(chyt-client-protos
   ./yt
   ${PROJECT_SOURCE_DIR}/yt
@@ -47,7 +55,12 @@ target_proto_addincls(chyt-client-protos
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(chyt-client-protos
   --cpp_out=${PROJECT_BINARY_DIR}/yt
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/yt
 )
+
+
+
+

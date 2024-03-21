@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(contrib-libs-c-ares)
+
+
 target_compile_options(contrib-libs-c-ares PUBLIC
   -DCARES_STATICLIB
 )
@@ -16,18 +16,21 @@ target_compile_options(contrib-libs-c-ares PRIVATE
   -DHAVE_CONFIG_H=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(contrib-libs-c-ares PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/include
 )
 target_include_directories(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib
 )
+
 target_link_libraries(contrib-libs-c-ares PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-libc_compat
 )
+
 target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__addrinfo2hostent.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/ares__addrinfo_localhost.c
@@ -95,3 +98,9 @@ target_sources(contrib-libs-c-ares PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/inet_ntop.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/src/lib/windows_port.c
 )
+
+
+
+
+
+

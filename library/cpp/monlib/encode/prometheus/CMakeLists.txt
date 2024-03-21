@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_enum_parser_bin
   TOOL_enum_parser_dependency
@@ -14,6 +13,8 @@ get_built_tool_path(
 )
 
 add_library(monlib-encode-prometheus)
+
+
 target_link_libraries(monlib-encode-prometheus PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -22,11 +23,15 @@ target_link_libraries(monlib-encode-prometheus PUBLIC
   monlib-encode-buffered
   tools-enum_parser-enum_serialization_runtime
 )
+
 target_sources(monlib-encode-prometheus PRIVATE
   ${PROJECT_BINARY_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h_serialized.h
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_decoder.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus_encoder.cpp
 )
+
+
+
 generate_enum_serilization(monlib-encode-prometheus
   ${PROJECT_SOURCE_DIR}/library/cpp/monlib/encode/prometheus/prometheus.h
   GEN_HEADER
@@ -34,3 +39,7 @@ generate_enum_serilization(monlib-encode-prometheus
   INCLUDE_HEADERS
   library/cpp/monlib/encode/prometheus/prometheus.h
 )
+
+
+
+

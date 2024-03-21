@@ -5,15 +5,16 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(subscription)
-
 add_library(cpp-threading-future)
+
+
 target_link_libraries(cpp-threading-future PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )
+
 target_sources(cpp-threading-future PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/async_semaphore.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/async.cpp
@@ -25,3 +26,9 @@ target_sources(cpp-threading-future PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/wait_group.cpp
   ${PROJECT_SOURCE_DIR}/library/cpp/threading/future/wait/wait_policy.cpp
 )
+
+
+
+
+
+

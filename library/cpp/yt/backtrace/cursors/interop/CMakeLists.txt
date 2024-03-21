@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(backtrace-cursors-interop)
+
+
 target_compile_options(backtrace-cursors-interop PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(backtrace-cursors-interop PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +19,13 @@ target_link_libraries(backtrace-cursors-interop PUBLIC
   backtrace-cursors-frame_pointer
   contrib-libs-libunwind
 )
+
 target_sources(backtrace-cursors-interop PRIVATE
   ${PROJECT_SOURCE_DIR}/library/cpp/yt/backtrace/cursors/interop/interop.cpp
 )
+
+
+
+
+
+

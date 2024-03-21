@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(lib-CodeGen-AsmPrinter)
+
+
 target_compile_options(lib-CodeGen-AsmPrinter PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-CodeGen-AsmPrinter PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AsmPrinter
 )
+
 target_link_libraries(lib-CodeGen-AsmPrinter PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -33,6 +35,7 @@ target_link_libraries(lib-CodeGen-AsmPrinter PUBLIC
   llvm16-lib-Target
   llvm16-lib-TargetParser
 )
+
 target_sources(lib-CodeGen-AsmPrinter PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AsmPrinter/AIXException.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AsmPrinter/ARMException.cpp
@@ -62,3 +65,9 @@ target_sources(lib-CodeGen-AsmPrinter PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AsmPrinter/WinCFGuard.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/CodeGen/AsmPrinter/WinException.cpp
 )
+
+
+
+
+
+

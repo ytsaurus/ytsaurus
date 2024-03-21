@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(library-ytprof-http)
+
+
 target_compile_options(library-ytprof-http PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(library-ytprof-http PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,13 @@ target_link_libraries(library-ytprof-http PUBLIC
   yt-library-ytprof
   yt-library-process
 )
+
 target_sources(library-ytprof-http PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/ytprof/http/handler.cpp
 )
+
+
+
+
+
+

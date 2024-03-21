@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(unittester-election)
+
+
 target_compile_options(unittester-election PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(unittester-election PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -20,6 +21,7 @@ target_link_libraries(unittester-election PUBLIC
   cpp-testing-gtest_main
   server-lib-election
 )
+
 target_link_options(unittester-election PRIVATE
   -ldl
   -lrt
@@ -31,15 +33,19 @@ target_link_options(unittester-election PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(unittester-election PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/election/unittests/election_ut.cpp
 )
+
+
 add_test(
   NAME
   unittester-election
   COMMAND
   unittester-election
 )
+
 set_property(
   TEST
   unittester-election
@@ -47,6 +53,7 @@ set_property(
   LABELS
   MEDIUM
 )
+
 set_property(
   TEST
   unittester-election
@@ -54,14 +61,22 @@ set_property(
   PROCESSORS
   1
 )
+
 set_property(
   TEST
   unittester-election
   PROPERTY
   ENVIRONMENT
 )
+
+
 target_allocator(unittester-election
   cpp-malloc-tcmalloc
   libs-tcmalloc-default
 )
+
 vcs_info(unittester-election)
+
+
+
+

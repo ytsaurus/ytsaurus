@@ -5,13 +5,14 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-apache-orc)
+
+
 target_compile_options(libs-apache-orc PRIVATE
   -DENABLE_METRICS=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-apache-orc PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/include
 )
@@ -20,6 +21,7 @@ target_include_directories(libs-apache-orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
+
 target_link_libraries(libs-apache-orc PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -29,6 +31,7 @@ target_link_libraries(libs-apache-orc PUBLIC
   contrib-libs-zlib
   contrib-libs-zstd
 )
+
 target_sources(libs-apache-orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/Adaptor.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/BlockBuffer.cc
@@ -70,3 +73,9 @@ target_sources(libs-apache-orc PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/SearchArgument.cc
   ${PROJECT_SOURCE_DIR}/contrib/libs/apache/orc/c++/src/sargs/TruthValue.cc
 )
+
+
+
+
+
+

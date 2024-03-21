@@ -5,13 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
   contrib/tools/protoc/bin
   protoc
 )
+
 get_built_tool_path(
   TOOL_cpp_styleguide_bin
   TOOL_cpp_styleguide_dependency
@@ -20,18 +20,25 @@ get_built_tool_path(
 )
 
 add_library(timers-timer-proto)
+
+
 target_link_libraries(timers-timer-proto PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf
 )
+
 target_proto_messages(timers-timer-proto PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.proto
 )
+
 target_sources(timers-timer-proto PRIVATE
   ${PROJECT_BINARY_DIR}/yt/cpp/roren/library/timers/timer/proto/timers.pb.h
 )
+
+
+
 target_proto_addincls(timers-timer-proto
   ./
   ${PROJECT_SOURCE_DIR}/
@@ -41,7 +48,12 @@ target_proto_addincls(timers-timer-proto
   ${PROJECT_BINARY_DIR}
   ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
 )
+
 target_proto_outs(timers-timer-proto
   --cpp_out=${PROJECT_BINARY_DIR}/
   --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
+
+
+
+

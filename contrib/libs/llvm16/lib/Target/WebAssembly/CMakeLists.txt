@@ -5,21 +5,23 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_subdirectory(Utils)
-
 add_library(lib-Target-WebAssembly)
+
+
 target_compile_options(lib-Target-WebAssembly PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(lib-Target-WebAssembly PRIVATE
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly
 )
+
 target_link_libraries(lib-Target-WebAssembly PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -41,6 +43,7 @@ target_link_libraries(lib-Target-WebAssembly PUBLIC
   lib-Transforms-Scalar
   lib-Transforms-Utils
 )
+
 target_sources(lib-Target-WebAssembly PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyAddMissingPrototypes.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyArgumentMove.cpp
@@ -85,3 +88,9 @@ target_sources(lib-Target-WebAssembly PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyTargetObjectFile.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm16/lib/Target/WebAssembly/WebAssemblyTargetTransformInfo.cpp
 )
+
+
+
+
+
+

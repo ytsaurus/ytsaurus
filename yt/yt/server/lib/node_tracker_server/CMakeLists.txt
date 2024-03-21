@@ -5,18 +5,26 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(server-lib-node_tracker_server)
+
+
 target_compile_options(server-lib-node_tracker_server PRIVATE
   -Wdeprecated-this-capture
 )
+
 target_link_libraries(server-lib-node_tracker_server PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
 )
+
 target_sources(server-lib-node_tracker_server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/node_tracker_server/name_helpers.cpp
 )
+
+
+
+
+
+

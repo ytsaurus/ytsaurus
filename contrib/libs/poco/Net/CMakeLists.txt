@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(libs-poco-Net)
+
+
 target_compile_options(libs-poco-Net PRIVATE
   -DPOCO_ENABLE_CPP11
   -DPOCO_ENABLE_CPP14
@@ -17,6 +17,7 @@ target_compile_options(libs-poco-Net PRIVATE
   -DPOCO_HAVE_FD_EPOLL
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(libs-poco-Net PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/include
 )
@@ -24,11 +25,13 @@ target_include_directories(libs-poco-Net PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Foundation/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src
 )
+
 target_link_libraries(libs-poco-Net PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-poco-Foundation
 )
+
 target_sources(libs-poco-Net PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src/AbstractHTTPRequestHandler.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src/DNS.cpp
@@ -131,3 +134,9 @@ target_sources(libs-poco-Net PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src/WebSocket.cpp
   ${PROJECT_SOURCE_DIR}/contrib/libs/poco/Net/src/WebSocketImpl.cpp
 )
+
+
+
+
+
+

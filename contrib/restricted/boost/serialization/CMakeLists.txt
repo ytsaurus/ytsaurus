@@ -5,15 +5,17 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_library(restricted-boost-serialization)
+
+
 target_compile_options(restricted-boost-serialization PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
+
 target_include_directories(restricted-boost-serialization PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/include
 )
+
 target_link_libraries(restricted-boost-serialization PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -39,6 +41,7 @@ target_link_libraries(restricted-boost-serialization PUBLIC
   restricted-boost-utility
   restricted-boost-variant
 )
+
 target_sources(restricted-boost-serialization PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/src/archive_exception.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/src/basic_archive.cpp
@@ -89,3 +92,9 @@ target_sources(restricted-boost-serialization PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/src/xml_wiarchive.cpp
   ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/serialization/src/xml_woarchive.cpp
 )
+
+
+
+
+
+

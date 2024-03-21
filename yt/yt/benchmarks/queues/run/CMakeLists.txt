@@ -5,9 +5,9 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-
-
 add_executable(benchmark_queues)
+
+
 target_link_libraries(benchmark_queues PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
@@ -18,6 +18,7 @@ target_link_libraries(benchmark_queues PUBLIC
   yt-library-program
   cpp-getopt-small
 )
+
 target_link_options(benchmark_queues PRIVATE
   -ldl
   -lrt
@@ -29,10 +30,19 @@ target_link_options(benchmark_queues PRIVATE
   -ldl
   -lutil
 )
+
 target_sources(benchmark_queues PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/queues/run/main.cpp
 )
+
+
+
 target_allocator(benchmark_queues
   cpp-ytalloc-impl
 )
+
 vcs_info(benchmark_queues)
+
+
+
+
