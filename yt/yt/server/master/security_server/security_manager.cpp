@@ -500,6 +500,7 @@ public:
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
+        AdminsGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffc);
 
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
@@ -1692,9 +1693,17 @@ public:
             .Item("name").Value(group->GetName());
     }
 
-    // This is here just for the sake of symmetry with user and account counterparts.
     TGroup* DoFindGroupByName(const TString& name)
     {
+        if (!GroupNameMapInitialized_) {
+            for (auto [_, group] : GroupMap_) {
+                if (group->GetName() == name && IsObjectAlive(group)) {
+                    return group;
+                }
+            }
+            return nullptr;
+        }
+
         auto it = GroupNameMap_.find(name);
         return it == GroupNameMap_.end() ? nullptr : it->second;
     }
@@ -1726,6 +1735,11 @@ public:
     TGroup* GetSuperusersGroup() override
     {
         return GetBuiltin(SuperusersGroup_);
+    }
+
+    TGroup* GetAdminsGroup() override
+    {
+        return GetBuiltin(AdminsGroup_);
     }
 
 
@@ -2814,6 +2828,9 @@ private:
     TGroupId SuperusersGroupId_;
     TGroup* SuperusersGroup_ = nullptr;
 
+    TGroupId AdminsGroupId_;
+    TGroup* AdminsGroup_ = nullptr;
+
     NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
     THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
 
@@ -2831,6 +2848,8 @@ private:
     bool NeedRecomputeReferencingAccounts_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
+
+    bool GroupNameMapInitialized_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3206,6 +3225,7 @@ private:
                 YT_VERIFY(SubjectAliasMap_.emplace(alias, group).second);
             }
         }
+        GroupNameMapInitialized_ = true;
 
         NetworkProjectNameMap_.clear();
         for (auto [networkProjectId, networkProject] : NetworkProjectMap_) {
@@ -3650,6 +3670,7 @@ private:
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
+        AdminsGroup_ = nullptr;
 
         RootAccount_ = nullptr;
         SysAccount_ = nullptr;
@@ -3661,6 +3682,7 @@ private:
         MustRecomputeMembershipClosure_ = false;
         NeedUpdatePerUserThrottlerLimits_ = false;
         NeedRecomputeReferencingAccounts_ = false;
+        GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();
     }
@@ -3738,6 +3760,11 @@ private:
         // superusers
         if (EnsureBuiltinGroupInitialized(SuperusersGroup_, SuperusersGroupId_, SuperusersGroupName)) {
             DoAddMember(UsersGroup_, SuperusersGroup_);
+        }
+
+        // admins
+        if (EnsureBuiltinGroupInitialized(AdminsGroup_, AdminsGroupId_, AdminsGroupName)) {
+            DoAddMember(UsersGroup_, AdminsGroup_);
         }
 
         DoRecomputeMembershipClosure();
@@ -3924,13 +3951,18 @@ private:
             Bootstrap_->GetObjectManager());
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId id, const TString& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId& id, const TString& name)
     {
         if (group) {
             return false;
         }
         group = FindGroup(id);
         if (group) {
+            return false;
+        }
+        group = FindGroupByName(name);
+        if (group) {
+            id = group->GetId();
             return false;
         }
         group = DoCreateGroup(id, name);

@@ -182,7 +182,6 @@ class ListOperationsSetup(YTEnvSetup):
         create_group("group1")
         create_group("group2")
         create_group("large_group")
-        create_group("admins")
         set("//sys/operations/@acl/end", make_ace("allow", "admins", ["write"]))
         add_member("user1", "group1")
         add_member("user2", "group2")
