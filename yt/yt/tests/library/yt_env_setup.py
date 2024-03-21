@@ -15,6 +15,7 @@ from yt.environment.helpers import (
     emergency_exit_within_tests,
     find_cri_endpoint,
 )
+from yt.environment.porto_helpers import porto_available
 from yt.environment.default_config import (
     get_dynamic_master_config,
 )
@@ -490,6 +491,9 @@ class YTEnvSetup(object):
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
         )
+
+        if yt_config.jobs_environment_type == "porto" and not porto_available():
+            pytest.skip("Porto is not available")
 
         if yt_config.jobs_environment_type == "cri" and yt_config.cri_endpoint is None:
             yt_config.cri_endpoint = find_cri_endpoint()
