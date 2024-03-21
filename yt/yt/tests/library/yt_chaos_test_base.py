@@ -227,7 +227,9 @@ class ChaosTestBase(DynamicTablesBase):
         wait(_era_in_sync)
 
         def _check_sync():
-            for replica in replication_card["replicas"].values():
+            for replica_id, replica in replication_card["replicas"].items():
+                if replica_id not in replica_ids:
+                    continue
                 if replica["mode"] != "sync" or replica["state"] != "enabled":
                     continue
                 orchids = self._get_table_orchids(replica["replica_path"], driver=get_driver(cluster=replica["cluster_name"]))

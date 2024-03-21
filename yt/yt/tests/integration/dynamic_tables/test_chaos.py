@@ -25,7 +25,7 @@ from yt_commands import (
 from yt_type_helpers import make_schema
 
 from yt.environment.helpers import assert_items_equal, are_items_equal
-from yt.common import YtError, YtResponseError
+from yt.common import YtError, YtResponseError, WaitFailed
 
 import yt.yson as yson
 
@@ -39,6 +39,8 @@ from itertools import zip_longest
 import builtins
 
 ##################################################################
+
+MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 
 class TestChaos(ChaosTestBase):
@@ -257,6 +259,66 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r1", [{"key": 0}], driver=remote_driver1) == values)
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("mount_before_alter", [True, False])
+    def test_invalid_alter_replication_progress(self, mount_before_alter):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": False, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(
+            cell_id,
+            replicas,
+            mount_tables=mount_before_alter,
+            sync_replication_era=mount_before_alter
+        )
+
+        if not mount_before_alter:
+            sync_mount_table("//tmp/r0", driver=get_driver(cluster="remote_0"))
+
+        if mount_before_alter:
+            sync_unmount_table("//tmp/t")
+
+        with pytest.raises(YtError, match="Replication progress should fully cover key space"):
+            alter_table(
+                "//tmp/t",
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": ["#<Max>"],
+                },
+            )
+
+        with pytest.raises(YtError, match="Invalid replication progress"):
+            alter_table(
+                "//tmp/t",
+                replication_progress={
+                    "segments": [
+                        {"lower_key": [], "timestamp": 0},
+                        {"lower_key": ["2"], "timestamp": 0},
+                        {"lower_key": ["1"], "timestamp": 0},
+                    ],
+                    "upper_key": MAX_KEY,
+                },
+            )
+
+        alter_table(
+            "//tmp/t",
+            replication_progress={
+                "segments": [{"lower_key": [], "timestamp": 1}],
+                "upper_key": MAX_KEY,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+        self._sync_replication_era(card_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+
     @authors("savrus")
     def test_pull_rows(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -272,7 +334,7 @@ class TestChaos(ChaosTestBase):
                 "//tmp/q",
                 replication_progress={
                     "segments": [{"lower_key": [], "timestamp": progress_timestamp}],
-                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                    "upper_key": MAX_KEY,
                 },
                 upstream_replica_id=replica_ids[0])
 
@@ -321,7 +383,7 @@ class TestChaos(ChaosTestBase):
                 "//tmp/q",
                 replication_progress={
                     "segments": [{"lower_key": [], "timestamp": 0}],
-                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                    "upper_key": MAX_KEY,
                 },
                 upstream_replica_id=replica_ids[0],
                 order_rows_by_timestamp=True)
@@ -366,7 +428,7 @@ class TestChaos(ChaosTestBase):
                 {"lower_key": [1], "timestamp": 0},
                 {"lower_key": [2], "timestamp": timestamp},
             ],
-            "upper_key": [yson.to_yson_type(None, attributes={"type": b"max"})]
+            "upper_key": MAX_KEY,
         }
 
         def _pull_rows(response_parameters=None):
@@ -390,7 +452,7 @@ class TestChaos(ChaosTestBase):
         progress = response_parameters["replication_progress"]
         assert progress["segments"][0] == replication_progress["segments"][0]
         assert progress["segments"][2] == replication_progress["segments"][2]
-        assert str(progress["upper_key"]) == str(replication_progress["upper_key"])
+        assert yson.dumps(progress["upper_key"]) == yson.dumps(replication_progress["upper_key"])
         assert progress["segments"][1]["timestamp"] >= row.attributes["write_timestamps"][0]
 
     @authors("osidorkin")
@@ -451,7 +513,7 @@ class TestChaos(ChaosTestBase):
                 upstream_replica_id=replica_id,
                 replication_progress={
                     "segments": [{"lower_key": [], "timestamp": 0}],
-                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                    "upper_key": MAX_KEY,
                 },
                 upper_timestamp=upper_timestamp,
                 response_parameters=response_parameters)
@@ -488,7 +550,7 @@ class TestChaos(ChaosTestBase):
                 upstream_replica_id=replica_ids[0],
                 replication_progress={
                     "segments": [{"lower_key": [], "timestamp": 0}],
-                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                    "upper_key": MAX_KEY,
                 },
                 upper_timestamp=upper_timestamp,
                 response_parameters=response_parameters)
@@ -734,7 +796,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows(replica_index, versioned=False):
             rows = pull_rows(
                 replicas[replica_index]["replica_path"],
-                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
                 upstream_replica_id=replica_ids[replica_index],
                 driver=get_driver(cluster=replicas[replica_index]["cluster_name"]))
             if versioned:
@@ -765,7 +830,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows(replica_index):
             rows = pull_rows(
                 replicas[replica_index]["replica_path"],
-                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
                 upstream_replica_id=replica_ids[replica_index],
                 driver=get_driver(cluster=replicas[replica_index]["cluster_name"]))
             return [{"key": row["key"], "value": str(row["value"][0])} for row in rows]
@@ -843,7 +911,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows(replica_index, timestamp):
             rows = pull_rows(
                 replicas[replica_index]["replica_path"],
-                replication_progress={"segments": [{"lower_key": [], "timestamp": timestamp}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": timestamp}],
+                    "upper_key": MAX_KEY,
+                },
                 upstream_replica_id=replica_ids[replica_index],
                 driver=get_driver(cluster=replicas[replica_index]["cluster_name"]))
             return [{"key": row["key"], "value": str(row["value"][0])} for row in rows]
@@ -1142,7 +1213,7 @@ class TestChaos(ChaosTestBase):
 
         TABLE_ID = "1-2-4b6-3"
         TABLE_PATH = "//path/to/table"
-        TABLE_CLUSTER_NAME = "remote0"
+        TABLE_CLUSTER_NAME = "remote_0"
 
         card_id = create_replication_card(chaos_cell_id=cell_id, attributes={
             "table_id": TABLE_ID,
@@ -1981,6 +2052,232 @@ class TestChaos(ChaosTestBase):
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
         assert get("#{0}/@".format(card_id))["replicas"][replica_ids[2]]["state"] == "disabled"
 
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("content_type", ["data", "queue"])
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    def test_copy_replica(self, content_type, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        # Keep one replica disabled to prevent trimming.
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/data"},
+            {"cluster_name": "primary", "content_type": content_type, "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/queue"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/disabled"},
+        ]
+        _, (_, t_replica_id, _, _) = self._create_chaos_tables(cell_id, replicas)
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        def _get_rows_from_queue(path):
+            rows = pull_rows(
+                path,
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
+                upstream_replica_id=t_replica_id,
+            )
+
+            encountered_keys = builtins.set()
+            result_rows = []
+            for row in rows:
+                key = row["key"]
+                assert key not in encountered_keys
+                encountered_keys.add(key)
+
+                assert len(row["value"]) == 1
+                result_rows.append({"key": row["key"], "value": str(row["value"][0])})
+
+            return sorted(result_rows, key=lambda row: row["key"])
+
+        def _lookup_over_pull_rows(path, key):
+            for row in _get_rows_from_queue(path):
+                if row["key"] == key:
+                    return row
+
+            return None
+
+        if content_type == "data":
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+        else:
+            wait(lambda: _lookup_over_pull_rows("//tmp/t", 0) == values[0])
+
+        sync_unmount_table("//tmp/t")
+
+        copy("//tmp/t", "//tmp/t-copy")
+
+        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t-copy")
+
+        assert get("//tmp/t-copy/@upstream_replica_id") == get("//tmp/t/@upstream_replica_id")
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+
+        if content_type == "data":
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "value": "1"}])
+        else:
+            wait(lambda: _lookup_over_pull_rows("//tmp/t", 1) == {"key": 1, "value": "1"})
+
+        with pytest.raises(WaitFailed):
+            if content_type == "data":
+                wait(lambda: lookup_rows("//tmp/t-copy", [{"key": 1}]) == [{"key": 1, "value": "1"}], timeout=15)
+            else:
+                wait(lambda: _lookup_over_pull_rows("//tmp/t-copy", 1) == {"key": 1, "value": "1"}, timeout=15)
+
+        if content_type == "data":
+            wait(lambda: select_rows("* from [//tmp/t] LIMIT 3") == [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}])
+            wait(lambda: select_rows("* from [//tmp/t-copy]") == [{"key": 0, "value": "0"}])
+        else:
+            wait(lambda: _get_rows_from_queue("//tmp/t") == [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}])
+            wait(lambda: _get_rows_from_queue("//tmp/t-copy") == [{"key": 0, "value": "0"}])
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t-copy", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+
+            return errors[0]["message"] == "Upstream replica id corresponds to another table"
+
+        wait(_check)
+
+        values = [{"key": 2, "value": "2"}]
+        with pytest.raises(YtError, match="Table uses upstream_replica_id of other replica"):
+            insert_rows("//tmp/t-copy", values)
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("content_type", ["data", "queue"])
+    @pytest.mark.parametrize("mode", ["sync", "async"])
+    @pytest.mark.parametrize("reset_type", ["recreate", "reset_progress"])
+    def test_change_replica_id(self, content_type, mode, reset_type):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        queue_mode = "async" if mode == "sync" and content_type == "queue" else "sync"
+
+        # Keep one replica disabled to prevent trimming.
+        replicas1 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/data-1"},
+            {"cluster_name": "primary", "content_type": content_type, "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": False, "replica_path": "//tmp/catchup_queue-1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": queue_mode, "enabled": True, "replica_path": "//tmp/q-1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/disabled-1"},
+        ]
+        replicas2 = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/data-2"},
+            {"cluster_name": "primary", "content_type": content_type, "mode": mode, "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": queue_mode, "enabled": True, "replica_path": "//tmp/q-2"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/disabled-2"},
+        ]
+
+        card_id1, replica_ids1 = self._create_chaos_tables(cell_id, replicas1)
+
+        card_id2 = create_replication_card(chaos_cell_id=cell_id)
+        replica_ids2 = self._create_chaos_table_replicas(replicas2, replication_card_id=card_id2)
+        self._create_replica_tables(replicas2[:1] + replicas2[2:], replica_ids2[:1] + replica_ids2[2:])
+        self._sync_replication_era(card_id2, replicas2[:1] + replicas2[2:])
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/t", values)
+
+        def _get_rows_from_queue(path, replica_id):
+            rows = pull_rows(
+                path,
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
+                upstream_replica_id=replica_id,
+            )
+
+            encountered_keys = builtins.set()
+            result_rows = []
+            for row in rows:
+                key = row["key"]
+                assert key not in encountered_keys
+                encountered_keys.add(key)
+
+                assert len(row["value"]) == 1
+                result_rows.append({"key": row["key"], "value": str(row["value"][0])})
+
+            return sorted(result_rows, key=lambda row: row["key"])
+
+        def _lookup_over_pull_rows(path, replica_id, key):
+            for row in _get_rows_from_queue(path, replica_id):
+                if row["key"] == key:
+                    return row
+
+            return None
+
+        if content_type == "data":
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
+        else:
+            wait(lambda: _lookup_over_pull_rows("//tmp/t", replica_ids1[1], 0) == values[0])
+
+        if queue_mode == "async":
+            with pytest.raises(YtError, match=f"Mismatched upstream replica: expected {replica_ids1[1]}, got {replica_ids2[1]}"):
+                insert_rows("//tmp/data-2", values)
+
+        sync_unmount_table("//tmp/t")
+
+        if reset_type == "recreate":
+            remove("//tmp/t")
+            self._create_replica_tables(replicas2[1:2], replica_ids2[1:2])
+        else:
+            alter_table(
+                "//tmp/t",
+                upstream_replica_id=replica_ids2[1],
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 1}],
+                    "upper_key": MAX_KEY,
+                },
+            )
+
+        sync_mount_table("//tmp/t")
+
+        values = [{"key": 10, "value": "10"}]
+        insert_rows("//tmp/t", values)
+
+        if content_type == "data":
+            wait(lambda: lookup_rows("//tmp/t", [{"key": 10}]) == [{"key": 10, "value": "10"}])
+        else:
+            wait(lambda: _lookup_over_pull_rows("//tmp/t", replica_ids2[1], 10) == {"key": 10, "value": "10"})
+
+        wait(lambda: lookup_rows("//tmp/data-2", [{"key": 10}]) == [{"key": 10, "value": "10"}])
+        with pytest.raises(WaitFailed):
+            wait(lambda: lookup_rows("//tmp/data-1", [{"key": 10}]) == [{"key": 10, "value": "10"}], timeout=15)
+
+        if queue_mode == "async":
+            alter_table_replica(replica_ids1[2], enabled=True)
+
+            def _check():
+                tablet_infos = get_tablet_infos("//tmp/catchup_queue-1", [0], request_errors=True)
+                errors = tablet_infos["tablets"][0]["tablet_errors"]
+                if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
+                    return False
+
+                return (
+                    errors[0]["message"] == "All pull rows subrequests failed" and
+                    len(errors[0]["inner_errors"]) == 1 and
+                    errors[0]["inner_errors"][0]["message"] == f"Mismatched upstream replica: expected {replica_ids2[1]}, got {replica_ids1[1]}"
+                )
+
+            wait(_check)
+        else:
+            self._sync_alter_replica(card_id1, replicas1[:1] + replicas1[2:], replica_ids1[:1] + replica_ids1[2:], 1, enabled=True)
+
+        expected = [{"key": 0, "value": "0"}, {"key": 10, "value": "10"}] if reset_type == "reset_progress" else [{"key": 10, "value": "10"}]
+        if content_type == "data":
+            wait(lambda: select_rows("* from [//tmp/t] LIMIT 3") == expected)
+        else:
+            wait(lambda: _get_rows_from_queue("//tmp/t", replica_ids2[1]) == expected)
+
+        wait(lambda: select_rows("* from [//tmp/data-1] LIMIT 2") == [{"key": 0, "value": "0"}])
+        expected = [{"key": 0, "value": "0"}, {"key": 10, "value": "10"}] if queue_mode == "async" and reset_type == "reset_progress" else [{"key": 10, "value": "10"}]
+        wait(lambda: select_rows("* from [//tmp/data-2] LIMIT 2") == expected)
+
     @authors("savrus")
     def test_new_data_replica(self):
         cell_id = self._sync_create_chaos_bundle_and_cell()
@@ -2121,9 +2418,9 @@ class TestChaos(ChaosTestBase):
         replication_progress = {
             "segments": [{
                 "lower_key": [],
-                "timestamp": timestamp
+                "timestamp": timestamp,
             }],
-            "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+            "upper_key": MAX_KEY,
         }
         print_debug("Creating new replica with progress:", replication_progress)
 
@@ -2729,7 +3026,10 @@ class TestChaos(ChaosTestBase):
         def _pull_rows():
             rows = pull_rows(
                 replicas[3]["replica_path"],
-                replication_progress={"segments": [{"lower_key": [], "timestamp": 0}], "upper_key": ["#<Max>"]},
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": 0}],
+                    "upper_key": MAX_KEY,
+                },
                 upstream_replica_id=replica_ids[3],
                 driver=get_driver(cluster=replicas[3]["cluster_name"]))
 
@@ -3210,7 +3510,7 @@ class TestChaos(ChaosTestBase):
                 timestamp = generate_timestamp()
                 progress = {
                     "segments": [{"lower_key": [], "timestamp": timestamp}],
-                    "upper_key": [yson.to_yson_type(None, attributes={"type": "max"})]
+                    "upper_key": MAX_KEY,
                 }
                 _switch(replica_ids, progress)
                 self._sync_replication_era(card_id, replicas)

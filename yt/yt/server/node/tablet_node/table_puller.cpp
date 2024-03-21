@@ -245,6 +245,16 @@ private:
                     << HardErrorAttribute;
             }
 
+            if (!IsReplicaLocationValid(selfReplica, tabletSnapshot->TablePath, LocalConnection_->GetClusterName().value())) {
+                THROW_ERROR_EXCEPTION("Upstream replica id corresponds to another table")
+                    << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId)
+                    << TErrorAttribute("table_path", tabletSnapshot->TablePath)
+                    << TErrorAttribute("expected_path", selfReplica->ReplicaPath)
+                    << TErrorAttribute("table_cluster", *LocalConnection_->GetClusterName())
+                    << TErrorAttribute("expected_cluster", selfReplica->ClusterName)
+                    << HardErrorAttribute;
+            }
+
             if (IsReplicaDisabled(selfReplica->State)) {
                 YT_LOG_DEBUG("Will not pull rows since replica is not enabled (ReplicaState: %v)",
                     selfReplica->State);
