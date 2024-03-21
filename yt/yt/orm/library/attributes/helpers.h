@@ -25,7 +25,7 @@ NYTree::INodePtr ConvertProtobufToNode(
 class TYsonStringWriterHelper
 {
 public:
-    TYsonStringWriterHelper(
+    explicit TYsonStringWriterHelper(
         NYson::EYsonFormat format = NYson::EYsonFormat::Binary,
         NYson::EYsonType type = NYson::EYsonType::Node);
 
@@ -36,7 +36,7 @@ public:
 private:
     TString ValueString_;
     TStringOutput Output_;
-    std::unique_ptr<NYson::IFlushableYsonConsumer> Writer_;
+    const std::unique_ptr<NYson::IFlushableYsonConsumer> Writer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
