@@ -359,6 +359,18 @@ def get_checks_config():
         }
     }
 
+    tablet_cells_check_hahn = {
+        "tablet_cells": {
+            "alerts": {
+                "simple": {
+                    "period": 22,
+                    "threshold": 2,
+                    "partially_available_strategy": "force_ok"
+                }
+            }
+        }
+    }
+
     YP_TRANSPORT_TO_PORT = {
         "grpc": 8090,
         "http": 8443,
@@ -1386,6 +1398,7 @@ def get_checks_config():
                 enable_nightly_compression_hahn,
                 dynamic_table_replication_stable,
                 system_quotas_with_non_critical_yp_account,
+                tablet_cells_check_hahn,
             ),
             "zeno": deep_merge(
                 allow_unaware_nodes,
