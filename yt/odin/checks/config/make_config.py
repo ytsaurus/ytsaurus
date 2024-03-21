@@ -879,6 +879,7 @@ def get_checks_config():
                         "freud-gnd": 9552,
                         "hahn": 83,
                         "hume": 85,
+                        "hume-gnd": 9487,
                         "landau": 138,
                         "locke": 96,
                         "markov": 89,
@@ -1310,6 +1311,12 @@ def get_checks_config():
                 bundle_controller,
                 tablet_stress_test,
                 enable_tablet_cell_snapshot_convergence,
+            ),
+            "hume-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                clock_quorum_health,
+                nochyt,
             ),
             "freud": deep_merge(
                 clouds,
