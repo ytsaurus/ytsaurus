@@ -208,6 +208,7 @@ private:
     TBannedReplicaTracker BannedReplicaTracker_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
+    TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
 
     TFuture<void> FiberFuture_;
 
@@ -333,7 +334,7 @@ private:
         }
     }
 
-    std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> PickQueueReplica(
+    TErrorOr<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>> PickQueueReplica(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationCardPtr& replicationCard,
         const TRefCountedReplicationProgressPtr& replicationProgress)
@@ -345,34 +346,40 @@ private:
 
         auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
         if (!selfReplica) {
-            YT_LOG_DEBUG("Will not pull rows since replication card does not contain us");
-            return {};
+            return TError("Will not pull rows since replication card does not contain us");
         }
 
         if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, selfReplica->ReplicationProgress)) {
-            YT_LOG_DEBUG("Will not pull rows since actual replication progress is behind replication card replica progress"
-                " (ReplicationProgress: %v, ReplicaInfo: %v)",
-                static_cast<TReplicationProgress>(*replicationProgress),
-                *selfReplica);
-            return {};
+            constexpr auto message = "Will not pull rows since actual replication progress is behind replication card replica progress";
+
+            // TODO(ponasenko-rs): Remove alerts after testing period.
+            if (Now() >= NextPermittedTimeForProgressBehindAlert_) {
+                YT_LOG_ALERT("%s (ReplicationProgress: %v, ReplicaInfo: %v)",
+                    message,
+                    static_cast<TReplicationProgress>(*replicationProgress),
+                    *selfReplica);
+                NextPermittedTimeForProgressBehindAlert_ = Now() + TDuration::Days(1);
+            }
+
+            return TError(message)
+                << TErrorAttribute("replication_progress", static_cast<TReplicationProgress>(*replicationProgress))
+                << TErrorAttribute("replica_info", *selfReplica);
         }
 
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
-            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %v, History: %v)",
-                oldestTimestamp,
-                selfReplica->History);
-            return {};
+            return TError("Will not pull rows since replica history does not cover replication progress")
+                << TErrorAttribute("oldest_timestamp", oldestTimestamp)
+                << TErrorAttribute("history", selfReplica->History);
         }
 
         YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
         const auto& historyItem = selfReplica->History[historyItemIndex];
         if (historyItem.IsSync()) {
-            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
-                oldestTimestamp,
-                historyItem);
-            return {};
+            return TError("Will not pull rows since oldest progress timestamp corresponds to sync history item")
+                << TErrorAttribute("oldest_timestamp", oldestTimestamp)
+                << TErrorAttribute("history_item", historyItem);
         }
 
         if (!IsReplicaAsync(selfReplica->Mode)) {
@@ -455,7 +462,7 @@ private:
         if (auto [queueReplicaId, queueReplica] = findFreshQueueReplica(); queueReplica) {
             YT_LOG_DEBUG("Pull rows from fresh replica (ReplicaId: %v)",
                 queueReplicaId);
-            return {queueReplicaId, queueReplica, NullTimestamp};
+            return std::tuple{queueReplicaId, queueReplica, NullTimestamp};
         }
 
         if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
@@ -463,11 +470,10 @@ private:
                 queueReplicaId,
                 oldestTimestamp,
                 upperTimestamp);
-            return {queueReplicaId, queueReplicaInfo, upperTimestamp};
+            return std::tuple{queueReplicaId, queueReplicaInfo, upperTimestamp};
         }
 
-        YT_LOG_DEBUG("Will not pull rows since no in-sync queue found");
-        return {};
+        return TError("Will not pull rows since no in-sync queue found");
     }
 
     void DoPullRows(
@@ -476,11 +482,18 @@ private:
         const TReplicaInfo* selfReplica,
         const TRefCountedReplicationProgressPtr& replicationProgress)
     {
-        auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
-        if (!queueReplicaInfo) {
-            THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from");
+        auto queueReplicaOrError = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
+        if (!queueReplicaOrError.IsOK()) {
+            // This form of logging accepts only string literals.
+            YT_LOG_DEBUG(queueReplicaOrError, "Unable to pick a queue replica to replicate from");
+            THROW_ERROR_EXCEPTION("Unable to pick a queue replica to replicate from")
+                << queueReplicaOrError;
         }
+
+        auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = queueReplicaOrError
+            .ValueOrThrow();
         YT_VERIFY(queueReplicaId);
+        YT_VERIFY(queueReplicaInfo);
 
         const auto& tableProfiler = tabletSnapshot->TableProfiler;
         auto* counters = tableProfiler->GetTablePullerCounters();
