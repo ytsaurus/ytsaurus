@@ -9,7 +9,7 @@ import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.v2.YtScan.ScanDescription
 import org.apache.spark.sql.v2.{YtFilePartition, YtScan}
 import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
-import tech.ytsaurus.spyt.format.optimizer.YtSortedTableMarkerRule.{findAttributes, getVars, getYtScan, parseAndClauses, prepareScanDesc, replaceYtScan}
+import tech.ytsaurus.spyt.format.optimizer.YtSortedTableMarkerRule._
 
 import scala.annotation.tailrec
 
@@ -40,18 +40,18 @@ class YtSortedTableMarkerRule(spark: SparkSession) extends Rule[LogicalPlan] {
         condition <- join.condition
       } yield {
         val clauses = parseAndClauses(condition)
-        val attrs = findAttributes(left.output, right.output, clauses)
-        if (attrs.isEmpty) {
+        val checkedClauses = findAttributes(left.output, right.output, clauses)
+        if (checkedClauses.isEmpty) {
           join
         } else {
-          patchJoin(join, attrs)
+          patchJoin(join, checkedClauses)
         }
       }
       res.getOrElse(join)
   }
 
-  private def patchJoin(join: Join, attrs: Seq[(AttributeReference, AttributeReference)]): Join = {
-    val (attributesL, attributesR) = attrs.unzip
+  private def patchJoin(join: Join, checkedClauses: Seq[EqualClause]): Join = {
+    val (attributesL, attributesR) = checkedClauses.unzip(clause => (clause.left, clause.right))
     val (leftNewScanDescO, rightNewScanDescO) =
       YtScan.trySyncKeyPartitioning(prepareScanDesc(join.left, attributesL), prepareScanDesc(join.right, attributesR))
     logInfo(
@@ -82,21 +82,38 @@ class YtSortedTableMarkerRule(spark: SparkSession) extends Rule[LogicalPlan] {
 }
 
 object YtSortedTableMarkerRule {
-  def prepareScanDesc(node: LogicalPlan, expressions: Seq[Expression]): Option[ScanDescription] = {
+  private def checkAttribute(source: Seq[Attribute], attr: AttributeReference): Boolean = {
+    source.exists { case aL: AttributeReference => attr.sameRef(aL) }
+  }
+
+  case class EqualClause(left: AttributeReference, right: AttributeReference) {
+    def checkInJoinSources(leftSource: Seq[Attribute], rightSource: Seq[Attribute]): Boolean = {
+      checkAttribute(leftSource, left) && checkAttribute(rightSource, right)
+    }
+
+    def swap(): EqualClause = EqualClause(right, left)
+  }
+
+  private def prepareScanDesc(node: LogicalPlan, expressions: Seq[Expression]): Option[ScanDescription] = {
     getYtScan(node).zip(getVars(expressions)).headOption
   }
 
-  private def findAttributes(left: Seq[Attribute], right: Seq[Attribute],
-                             clauses: Seq[(AttributeReference, AttributeReference)]): Seq[(AttributeReference, AttributeReference)] = {
-    clauses.filter { case (cL, cR) =>
-      left.exists { case aL: AttributeReference => cL.sameRef(aL) } &&
-        right.exists { case aR: AttributeReference => cR.sameRef(aR) }
+  private def findAttributes(leftSource: Seq[Attribute], rightSource: Seq[Attribute],
+                             clauses: Seq[EqualClause]): Seq[EqualClause] = {
+    clauses.flatMap { clause =>
+      if (clause.checkInJoinSources(leftSource, rightSource)) {
+        Some(clause)
+      } else if (clause.checkInJoinSources(rightSource, leftSource)) {
+        Some(clause.swap())
+      } else {
+        None
+      }
     }
   }
 
-  private def parseAndClauses(condition: Expression): Seq[(AttributeReference, AttributeReference)] = {
+  private def parseAndClauses(condition: Expression): Seq[EqualClause] = {
     condition match {
-      case EqualTo(aL: AttributeReference, aR: AttributeReference) => Seq((aL, aR))
+      case EqualTo(aL: AttributeReference, aR: AttributeReference) => Seq(EqualClause(aL, aR))
       case And(left, right) => parseAndClauses(left) ++ parseAndClauses(right)
       case _ => Seq()
     }
