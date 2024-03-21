@@ -7,7 +7,7 @@ ENV(YT_TEST_FILTER=LARGE)
 INCLUDE(../YaMakeDependsBoilerplate.txt)
 
 REQUIREMENTS(
-    cpu:24
+    cpu:28
 )
 
 IF (SANITIZER_TYPE)

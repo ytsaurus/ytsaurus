@@ -75,7 +75,7 @@ ELSEIF (BUILD_TYPE == "DEBUG" OR BUILD_TYPE == "FASTDEBUG")
     )
 ELSE()
     REQUIREMENTS(
-        cpu:8
+        cpu:9
         ram:16
     )
 ENDIF()
