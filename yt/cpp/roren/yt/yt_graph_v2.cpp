@@ -483,6 +483,7 @@ public:
     {
         auto result = TMapReduceOperationNode::MakeShared(GetFirstName(), GetTransformNames(), ssize(MapperBuilderList_));
         result->MapperBuilderList_ = MapperBuilderList_;
+        result->CombinerBuilder_ = CombinerBuilder_;
         result->ReducerBuilder_ = ReducerBuilder_;
         return result;
     }
@@ -2613,6 +2614,9 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
             spec.MapperInputFormat(GetFormat(mapReduceOperation->InputTables));
             spec.MapperOutputFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), mapperOutputs));
+            if (combinerJob) {
+                spec.ReduceCombinerFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), {}));
+            }
             spec.ReducerInputFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), {}));
             spec.ReducerOutputFormat(GetFormat(reducerOutputs));
             spec.ReduceBy({"key"});
@@ -2620,7 +2624,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             return client->RawMapReduce(
                 spec,
                 mapperJob,
-                nullptr,
+                combinerJob,
                 reducerJob,
                 operationOptions
             );
