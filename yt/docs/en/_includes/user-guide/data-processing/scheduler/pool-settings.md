@@ -45,7 +45,7 @@ Note that guarantees will be fulfilled only if the dominant resource of the oper
 * `fifo_sort_parameters` (start_time): The order of starting operations in the FIFO pool. By default, operations are sorted first by weight, and then by start time. This parameter enables you to change the order of operations in the queue. Supported values: `start_time` , `weight`, and `pending_job_count`. The `weight` parameter is applied in reverse order: operations with more weight go first and have a higher priority. The `pending_job_count` value enables you to prioritize small operations (with few jobs).
 * `forbid_immediate_operations`: Prohibits the start of operations directly in the given pool; does not apply to starting operations in subpools.
 * `create_ephemeral_subpools` (false): Activates the mode in which an ephemeral subpool is created for operations in the given pool with the `poolname$username` name where `poolname` is the name of the current pool. The operation is started in the created ephemeral subpool.
-* `ephemeral_subpool_config`: A nested configuration of ephemeral subpools created in the current pool. Makes sense only if the `create_ephemeral_subpools` option is specified. You can specify `mode`, `max_running_operation_count`, and `max_operation_count` in the configuration.
+* `ephemeral_subpool_config`: A nested configuration of ephemeral subpools created in the current pool. Makes sense only if the `create_ephemeral_subpools` option is specified. You can specify `mode`, `resource_limits`, `max_running_operation_count`, and `max_operation_count` in the configuration.
 
 Each pool has its _unique_ (within a single tree) name. The name of the pool selected to start the operation is shown in the operation settings.
 
