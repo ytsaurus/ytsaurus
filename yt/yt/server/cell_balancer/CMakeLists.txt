@@ -36,6 +36,7 @@ target_sources(yt-server-cell_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/bundle_scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cell_tracker_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/chaos_scheduler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cluster_state_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/cypress_bindings.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/config.cpp

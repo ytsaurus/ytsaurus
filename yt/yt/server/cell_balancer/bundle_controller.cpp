@@ -1,5 +1,6 @@
 #include "bundle_controller.h"
 #include "bundle_scheduler.h"
+#include "chaos_scheduler.h"
 
 #include "bootstrap.h"
 #include "config.h"
@@ -12,6 +13,9 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -30,11 +34,17 @@ using namespace NYson;
 
 static const auto& Logger = BundleControllerLogger;
 static const TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
+static const TYPath ChaosCellBundlesPath("//sys/chaos_cell_bundles");
+
 static const TYPath TabletCellBundlesDynamicConfigPath("//sys/tablet_cell_bundles/@config");
 static const TYPath TabletNodesPath("//sys/tablet_nodes");
 static const TYPath TabletCellsPath("//sys/tablet_cells");
 static const TYPath RpcProxiesPath("//sys/rpc_proxies");
 static const TYPath BundleSystemQuotasPath("//sys/account_tree/bundle_system_quotas");
+static const TYPath GlobalCellRegistryPath("//sys/global_cell_registry");
+
+static const TYPath BundleAttributeClockClusterTag("options/clock_cluster_tag");
+static const TYPath BundleAttributeMetadataCellIds("metadata_cell_ids");
 
 static const TString SensorTagInstanceSize = "instance_size";
 
@@ -130,6 +140,39 @@ using TZoneSensorsPtr = TIntrusivePtr<TZoneSensors>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TForeignClientProvider
+{
+public:
+    explicit TForeignClientProvider(IBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    { }
+
+    IClientPtr Get(const TString& cluster)
+    {
+        if (const auto& client = Clients_[cluster]; client) {
+            return client;
+        }
+
+        auto localConnection = Bootstrap_->GetClient()->GetNativeConnection();
+        auto foreignConnection = localConnection->GetClusterDirectory()->FindConnection(cluster);
+        if (!foreignConnection) {
+            THROW_ERROR_EXCEPTION("Cluster %Qv is not known", cluster);
+        }
+
+        // TODO(capone212): Use separate user name NSecurityClient::BundleControllerUserName
+        auto client = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        Clients_[cluster] = client;
+
+        return client;
+    }
+
+private:
+    IBootstrap* const Bootstrap_;
+    THashMap<TString, IClientPtr> Clients_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBundleController
     : public IBundleController
 {
@@ -215,7 +258,6 @@ private:
 
     mutable THashMap<TString, TBundleAlertCounters> BundleAlerts_;
 
-
     void ScanBundles() const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -227,6 +269,12 @@ private:
             return;
         }
 
+        ScanTabletCellBundles();
+        ScanChaosCellBundles();
+    }
+
+    void ScanTabletCellBundles() const
+    {
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
                 LinkOrchidService();
@@ -235,7 +283,17 @@ private:
                 SuccessfulScanBundleCounter_.Increment();
             }
         } catch (const TErrorException& ex) {
-            YT_LOG_ERROR(ex, "Scanning bundles failed");
+            YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed");
+            FailedScanBundleCounter_.Increment();
+        }
+    }
+
+    void ScanChaosCellBundles() const
+    {
+        try {
+            DoScanChaosBundles();
+        } catch (const TErrorException& ex) {
+            YT_LOG_ERROR(ex, "Scanning chaos cell bundles failed");
             FailedScanBundleCounter_.Increment();
         }
     }
@@ -367,6 +425,7 @@ private:
             Mutate(transaction, mutations);
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
+
             RegisterAlert({
                 .Id = "bundle_controller_is_disabled",
                 .Description = "BundleController is explicitly disabled",
@@ -382,6 +441,33 @@ private:
         // Update input state for serving orchid requests.
         OrchidBundlesInfo_ = Orchid::GetBundlesInfo(inputState, mutations);
         OrchidRacksInfo_ = Orchid::GetZonesRacksInfo(inputState);
+    }
+
+    void DoScanChaosBundles() const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        YT_LOG_DEBUG("Chaos bundles scan started");
+
+        TForeignClientProvider clientProvider(Bootstrap_);
+
+        auto transaction = CreateTransaction();
+        auto inputState = GetChaosInputState(transaction, &clientProvider);
+        TChaosSchedulerMutations mutations;
+        ScheduleChaosBundles(inputState, &mutations);
+
+        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController ) {
+            Mutate(mutations, transaction, &clientProvider);
+            WaitFor(transaction->Commit())
+                .ThrowOnError();
+        } else {
+            YT_LOG_WARNING("Bundle controller is disabled");
+
+            RegisterAlert({
+                .Id = "bundle_controller_is_disabled",
+                .Description = "BundleController is explicitly disabled",
+            });
+        }
     }
 
     inline static const TString  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
@@ -457,6 +543,102 @@ private:
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
+    }
+
+    void Mutate(
+        const TChaosSchedulerMutations& mutations,
+        const ITransactionPtr& transaction,
+        TForeignClientProvider* clientProvider) const
+    {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        for (const auto& [cellTag, cellInfo] : mutations.CellTagsToRegister) {
+            auto path = Format("%v/cell_tags/%v", GlobalCellRegistryPath, cellTag);
+            CypressSetSingleNode(transaction, path, cellInfo);
+        }
+
+        if (mutations.ChangedChaosCellTagLast) {
+            auto path = Format("%v/cell_tag_last", GlobalCellRegistryPath);
+            CypressSetSingleNode(transaction, path, mutations.ChangedChaosCellTagLast.value());
+        }
+
+        for (const auto& [cluster, accounts] : mutations.ForeignSystemAccountsToCreate) {
+            auto client = clientProvider->Get(cluster);
+
+            for (const auto& account : accounts) {
+                YT_LOG_INFO("Creating system account (Cluster: %v, Account: %v)",
+                    cluster,
+                    account);
+
+                CreateSystemAccount(client, account);
+            }
+        }
+
+        for (const auto& [cluster, bundlesInfo] : mutations.ForeignTabletCellBundlesToCreate) {
+            auto client = clientProvider->Get(cluster);
+
+            for (const auto& [bundleName, attributes] : bundlesInfo) {
+                YT_LOG_INFO("Creating tablet cell bundle (Cluster: %v, BundleName: %v)",
+                    cluster,
+                    bundleName);
+
+                CreateObject(EObjectType::TabletCellBundle, client, attributes);
+            }
+        }
+
+        for (const auto& [cluster, bundlesCellTag] : mutations.ForeignBundleCellTagsToSet) {
+            auto client = clientProvider->Get(cluster);
+            SetInstanceAttributes(
+                client,
+                TabletCellBundlesPath,
+                BundleAttributeClockClusterTag,
+                bundlesCellTag);
+        }
+
+        for (const auto& [cluster, chaosBundlesInfo] : mutations.ForeignChaosCellBundlesToCreate) {
+            auto client = clientProvider->Get(cluster);
+
+            for (const auto& [bundleName, attributes] : chaosBundlesInfo) {
+                YT_LOG_INFO("Creating chaos cell bundle (Cluster: %v, BundleName: %v)",
+                    cluster,
+                    bundleName);
+
+                CreateObject(EObjectType::ChaosCellBundle, client, attributes);
+            }
+        }
+
+        for (const auto& [cluster, chaosAreasInfo] : mutations.ForeignChaosAreasToCreate) {
+            auto client = clientProvider->Get(cluster);
+
+            for (const auto& [bundleName, attributes] : chaosAreasInfo) {
+                YT_LOG_INFO("Creating chaos area (Cluster: %v, BundleName: %v)",
+                    cluster,
+                    bundleName);
+
+                CreateObject(EObjectType::Area, client, attributes);
+            }
+        }
+
+        for (const auto& [cluster, chaosCellsInfo] : mutations.ForeignChaosCellsToCreate) {
+            auto client = clientProvider->Get(cluster);
+
+            for (const auto& [cellId, attributes] : chaosCellsInfo) {
+                YT_LOG_INFO("Creating chaos cell (Cluster: %v, CellId: %v)",
+                    cluster,
+                    cellId);
+
+                CreateObject(EObjectType::ChaosCell, client, attributes);
+            }
+        }
+
+        for (const auto& [cluster, bundlesMetadataCellIds] : mutations.ForeignMetadataCellIdsToSet) {
+            auto client = clientProvider->Get(cluster);
+            SetInstanceAttributes(
+                client,
+                ChaosCellBundlesPath,
+                BundleAttributeMetadataCellIds,
+                bundlesMetadataCellIds);
+        }
     }
 
     void ReportInstanceCountBySize(
@@ -959,8 +1141,40 @@ private:
         return inputState;
     }
 
+    TChaosSchedulerInputState GetChaosInputState(ITransactionPtr& transaction, TForeignClientProvider* clientProvider) const
+    {
+        TChaosSchedulerInputState inputState{
+            .Config = Config_,
+        };
+
+        inputState.TabletCellBundles = CypressList<TBundleInfo>(transaction, TabletCellBundlesPath);
+        inputState.SysConfig = GetSystemConfig(transaction);
+
+        const auto& chaosConfig = Config_->ChaosConfig;
+
+        for (const auto& cluster : chaosConfig->TabletCellClusters) {
+            YT_LOG_DEBUG("Loading tablet cell bundles for foreign cluster (Cluster: %v)",
+                cluster);
+
+            auto foreignClient = clientProvider->Get(cluster);
+            inputState.ForeignTabletCellBundles[cluster] = CypressList<TBundleInfo>(foreignClient, TabletCellBundlesPath);
+        }
+
+        for (const auto& cluster : chaosConfig->ChaosCellClusters) {
+            YT_LOG_DEBUG("Loading chaos cell bundles for foreign cluster (Cluster: %v)",
+                cluster);
+
+            auto foreignClient = clientProvider->Get(cluster);
+            inputState.ForeignChaosCellBundles[cluster] = CypressList<TChaosBundleInfo>(foreignClient, ChaosCellBundlesPath);
+        }
+
+        inputState.GlobalRegistry = CypressGetSingleNode<TGlobalCellRegistryPtr>(transaction, GlobalCellRegistryPath);
+
+        return inputState;
+    }
+
     template <typename TEntryInfo>
-    static TIndexedEntries<TEntryInfo> CypressList(const ITransactionPtr& transaction, const TYPath& path)
+    static TIndexedEntries<TEntryInfo> CypressList(const IClientBasePtr& transaction, const TYPath& path)
     {
         TListNodeOptions options;
         options.Attributes = TEntryInfo::GetAttributes();
@@ -1004,6 +1218,24 @@ private:
         return result;
     }
 
+    template <typename TEntryInfoPtr>
+    static TEntryInfoPtr CypressGetSingleNode(const ITransactionPtr& transaction, const TYPath& path)
+    {
+        auto yson = WaitFor(transaction->GetNode(path))
+            .ValueOrThrow();
+        return ConvertTo<TEntryInfoPtr>(yson);
+    }
+
+    template <typename TEntryValue>
+    static void CypressSetSingleNode(
+        const ITransactionPtr& transaction,
+        const TYPath& path,
+        TEntryValue value)
+    {
+        WaitFor(transaction->SetNode(path, ConvertToYsonString(value)))
+            .ThrowOnError();
+    }
+
     template <typename TEntryInfo>
     static void CypressSet(
         const ITransactionPtr& transaction,
@@ -1038,6 +1270,33 @@ private:
             .ThrowOnError();
     }
 
+    static void CreateSystemAccount(
+        const IClientBasePtr& client,
+        const TString& accountName)
+    {
+        auto accountPath = Format("//sys/accounts/bundle_system_quotas/%v", NYPath::ToYPathLiteral(accountName));
+
+        TCreateNodeOptions createOptions;
+        createOptions.Attributes = CreateEphemeralAttributes();
+        createOptions.Attributes->Set("parent_name", "bundle_system_quotas");
+        createOptions.Attributes->Set("name", accountName);
+
+        WaitFor(client->CreateNode(accountPath, EObjectType::Account, createOptions))
+            .ThrowOnError();
+    }
+
+    static void CreateObject(
+        EObjectType objectType,
+        const IClientBasePtr& client,
+        const NYTree::IAttributeDictionaryPtr& attributes)
+    {
+        TCreateObjectOptions createOptions;
+        createOptions.Attributes = attributes;
+
+        WaitFor(client->CreateObject(objectType, createOptions))
+            .ThrowOnError();
+    }
+
     template <typename TEntryInfo>
     static void CreateHulkRequests(
         const ITransactionPtr& transaction,
@@ -1058,7 +1317,7 @@ private:
 
     template <typename TAttribute>
     static void SetInstanceAttributes(
-        const ITransactionPtr& transaction,
+        const IClientBasePtr& client,
         const TYPath& instanceBasePath,
         const TString& attributeName,
         const THashMap<TString, TAttribute>& attributes)
@@ -1070,7 +1329,7 @@ private:
                 attributeName);
 
             TSetNodeOptions setOptions;
-            WaitFor(transaction->SetNode(path, ConvertToYsonString(attribute), setOptions))
+            WaitFor(client->SetNode(path, ConvertToYsonString(attribute), setOptions))
                 .ThrowOnError();
         }
     }
@@ -1161,9 +1420,9 @@ private:
         return ConvertTo<TSystemAccountPtr>(yson);
     }
 
-    static TSysConfigPtr GetSystemConfig(const ITransactionPtr& transaction)
+    static TSysConfigPtr GetSystemConfig(const IClientBasePtr& client)
     {
-        auto yson = WaitFor(transaction->GetNode("//sys/@"))
+        auto yson = WaitFor(client->GetNode("//sys/@"))
             .ValueOrThrow();
         return ConvertTo<TSysConfigPtr>(yson);
     }

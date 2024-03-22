@@ -20,6 +20,22 @@ void TCellBalancerMasterConnectorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tablet_cell_clusters", &TThis::TabletCellClusters)
+        .Default();
+    registrar.Parameter("chaos_cell_clusters", &TThis::ChaosCellClusters)
+        .Default();
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default();
+    registrar.Parameter("alpha_chaos_cluster", &TThis::AlphaChaosCluster)
+        .Default();
+    registrar.Parameter("beta_chaos_cluster", &TThis::BetaChaosCluster)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBundleControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster", &TThis::Cluster)
@@ -80,7 +96,13 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(40));
 
     registrar.Parameter("enable_network_limits", &TThis::EnableNetworkLimits)
-        .Default();
+        .Default(false);
+
+    registrar.Parameter("enable_chaos_bundle_management", &TThis::EnableChaosBundleManagement)
+        .Default(false);
+
+    registrar.Parameter("chaos_config", &TThis::ChaosConfig)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

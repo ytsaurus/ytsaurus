@@ -10,6 +10,7 @@ SRCS(
     bundle_scheduler.cpp
     cell_tracker.cpp
     cell_tracker_impl.cpp
+    chaos_scheduler.cpp
     cluster_state_provider.cpp
     cypress_bindings.cpp
     config.cpp

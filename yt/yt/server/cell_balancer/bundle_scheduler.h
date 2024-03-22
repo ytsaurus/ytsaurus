@@ -132,15 +132,6 @@ struct TSchedulerInputState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAlert
-{
-    TString Id;
-    std::optional<TString> BundleName;
-    TString Description;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TSchedulerMutations
 {
     TIndexedEntries<TAllocationRequest> NewAllocations;

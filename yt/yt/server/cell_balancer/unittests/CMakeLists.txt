@@ -36,6 +36,7 @@ target_link_options(cell-balancer-unittests PRIVATE
 
 target_sources(cell-balancer-unittests PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/bundle_scheduler_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cell_balancer/unittests/chaos_scheduler_ut.cpp
 )
 
 

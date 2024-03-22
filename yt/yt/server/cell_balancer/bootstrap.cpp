@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
@@ -162,6 +164,7 @@ private:
         NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
         Connection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
+        Connection_->GetClusterDirectorySynchronizer()->Start();
 
         auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
