@@ -1304,6 +1304,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/producer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
@@ -1497,6 +1498,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/consumer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/producer_init.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp

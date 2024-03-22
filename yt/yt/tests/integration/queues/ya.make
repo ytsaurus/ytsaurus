@@ -9,6 +9,7 @@ TEST_SRCS(
     test_acl.py
     test_consumer_registrations.py
     test_object_watchlist.py
+    test_producer.py
     test_queue_agent.py
     test_queue_agent_stages.py
 )
