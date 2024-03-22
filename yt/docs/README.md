@@ -1,12 +1,12 @@
 # About YTsaurus Documentation
 
-YTsaurus follows the "Documentation as a Code" paradigm. The documentation content is stored in an open-source repository along with the YTsaurus codebase and located in the `ytsaurus/yt/docs/` directory. Being bilingual, documentation is hosted in the official YTsaurus website:
+YTsaurus follows the "Documentation as a Code" paradigm. The documentation content is stored in an open-source repository along with the YTsaurus codebase and located in the `ytsaurus/yt/docs/` directory. Being bilingual, the documentation is hosted in the official YTsaurus website:
 - In Russian: https://ytsaurus.tech/docs/ru
 - In English: https://ytsaurus.tech/docs/en
 
-Documentation is built and published using the [Diplodoc](https://diplodoc.com/en/) open-source platform. Content is written using the Yandex Flavored Markdown (YFM). It is a Markdown dialect supplemented with unique elements from other markup languages and template engines, such as notes, tabs, reusable content, etc. For more information, see the [YFM Syntax Quick Reference](#yfm-syntax-quick-reference) section.
+The documentation is built and published using the [Diplodoc](https://diplodoc.com/en/) open-source platform. Content is written using the Yandex Flavored Markdown (YFM). It is a Markdown dialect supplemented with unique elements from other markup languages and template engines, such as notes, tabs, reusable content, etc. For more information, see the [YFM Syntax Quick Reference](#yfm-syntax-quick-reference) section.
 
-Documentation is released asynchronously from the main branch. The release cycle is once a week.
+The documentation is released asynchronously from the main branch. The release cycle is once a week.
 
 You are welcome to contribute to the YTsaurus documentation: correct typos, provide new content, and share your feedback and ideas. For more information, see the [Contribution](#contribution) section.
 
@@ -281,10 +281,10 @@ For more information, see the [Compaction](../../../user-guide/dynamic-tables/co
 
 #### How to Set Links Between the Documents Located in the `_includes` Folder?
 
-When adding a link in a document that is located in the `_includes` folder, keep the following in mind:
+For documents located in the `_includes` folder, consider the following when adding links:
 
-- A link path should be set relativelly to the document located in the `_includes` folder, but not in the original one. What is original folder, see the example below.
-- A link should always refer to the document located in the original folder, but not in the `_includes`. You should never link to the `_includes` folder.
+- A link path should be set relativelly to the document located in the `_includes` folder, but not in the original folder. What is original folder, see the example below.
+- You should never link to the `_includes` folder. A link should always refer to the document located in the original folder. 
 
 For an example, take a look at the [Query Tracker](https://ytsaurus.tech/docs/en/user-guide/query-tracker) article. Its source is stored in the [en/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) file:
 
