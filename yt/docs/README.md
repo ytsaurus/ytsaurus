@@ -4,7 +4,7 @@
 - [Documentation Structure](#documentation-structure)
   - [Table of Contents](#table-of-contents)
   - [Variables](#variables)
-  - [Reusing Content](#reusing-content)
+  - [Reused Content](#reused-content)
 - [Supported Languages](#supported-languages)
 - [Contribution](#contribution)
   - [How to Make a Quick Fix](#how-to-make-a-quick-fix)
@@ -42,13 +42,13 @@ You are welcome to contribute to the YTsaurus documentation: correct typos, prov
         |-- user-guide/     # Sources of the user guide section.
         |-- admin-guide/  
         |-- ...                                        
-        |-- _includes/      # Common documents that are reused in different parts of the Russian documentation.
+        |-- _includes/      # Here, content that is reused in different parts of the Russian documentation.
             |-- user-guide/ # For example, here are stored common articles that are used in the user guide section.
             |-- admin-guide/
     |-- en/                 # Content in English.
         |-- toc.yaml        # Table of contents of the English documentation.
         |-- user-guide/           
-        |-- _includes/      # Common documents that are reused in different parts of the English documentation.
+        |-- _includes/      # Content that is reused in different parts of the English documentation.
             |-- user-guide/
             |-- ...
     |-- images/             # Folder with images.
@@ -112,10 +112,11 @@ You can read more about using the variables in the official [YFM official docume
 
 -------
 
-### Reusing Content
+### Reused Content
 
 The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, the shared content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
 
+<!--
 To include recurring content in the required places of the document, the `{% include %}` construction is used. For example, below is the source code of the article [CLI and Python API](https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/cli-and-api), to which some parts of reusable content were added:
 
 ```
@@ -123,8 +124,9 @@ To include recurring content in the required places of the document, the `{% inc
 
 {% include [CLI and Python API — Usage Examples](../../../_includes/user-guide/data-processing/chyt/cli-and-api-details.md) %}
 ```
+-->
 
-For more details about reusing content, see the [Diplodoc documentation](https://diplodoc.com/docs/en/project/includes).
+Keep this approach in mind when [contributing](#contribution) to YTsaurus documentation.
 
 --------
 
@@ -185,7 +187,7 @@ Below are the main steps of how to add new content to the documentation:
 
 3. Add your article to the proper section in the documentation structure. Depending on the language you are writing in, you should add content to either the `ru` or `en` folder, accordingly.
 
-    Keep in mind that when adding a new article, you should follow the single source approach used in YTsaurus documentation. How to do that, shows the following example.
+    Keep in mind that when adding a new article, you should follow the single source approach used in YTsaurus documentation. The following example shows how to do it.
   
     Let's assume you want to add an article to the `user-guide` section to the English documentation, and let's assume you named the article file as `new-article.md`. So, to follow the single source approach you would need to do the following:
     
@@ -202,10 +204,10 @@ Below are the main steps of how to add new content to the documentation:
         +++            |-- new-article.md # This file will contain the text of the article itself.
          ```
    
-    2. In the `en/user-guide/new-article.md` file, insert an [include](#reusing-content) construction:
+    2. In the `en/user-guide/new-article.md` file, insert an `{% include %}` construction:
 
          ```
-         {% include [About Deployment in a Kubernetes cluster](../_includes/new-article.md) %}
+         {% include [About Deployment in a Kubernetes cluster](../_includes/user-guide/new-article.md) %}
          ```
          Note: The description set in the `[]` square brackets serves as a meta information. It does not affect the build and will not be shown on the documentation website.
 
@@ -218,7 +220,7 @@ Below are the main steps of how to add new content to the documentation:
          ```
         If your text contains links to another articles, see how to insert these links correctly in the [Links](#links) section.
 
-     > **Why this structure?** <br/> It is related to the specifics of the YTsaurus documentation build. Documentation is represented in two versions: public version (the one you are reading), and the internal one which is available only for the team members. Content of the public documentation can be reused in its internal version. Therefore, articles are basically placed in the `_includes` folder.
+     > **Why this structure?** <br/> It is related to the specifics of the YTsaurus documentation build. Documentation is represented in two versions: public version (the one you are reading), and the internal one which is available only for the team members. Content of the public documentation can be reused in its internal version. Therefore, articles are placed in the `_includes` folder by default.
 
 4. Add a link to your article into the `toc.yaml` file. Keep the following in mind:
    - You should refer to the `ru/user-guide/new-article.md` file, but not to the `ru/_includes/user-guide/new-article.md`.
@@ -290,7 +292,6 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 
 - [Article Description](#article-description)
 - [Links](#links)
-- [Headers](#headers)
 - [Lists](#lists)
 - [Code Examples Snippets](#code-examples-snippets)
 - [Tables](#tables)
@@ -313,12 +314,12 @@ The section name in the link should be capitalized. For example:
 For more information, see the [Compaction](../../../user-guide/dynamic-tables/compaction.md) section.
 ```
 
-### Links from the `_includes` folder
+#### How to Set Links Between the Documents Located in the `_includes` Folder?
 
-When adding a link into an article that is located in the `_includes` folder, keep the following in mind:
+When adding a link into a document that is located in the `_includes` folder, keep the following in mind:
 
-- A link should be relative to the `_includes` folder, but not to the original oneю Цhat does it mean, see the example below.
-- A link should refer to the article located in the original folder, but not in the `_includes` folder.
+- A link should be set relativelly to the document located in the `_includes` folder, but not in the original one. What is original folder, see the example below.
+- A link should refer to the document located in the original folder, but not in the `_includes` folder.
 
 For an example, take a look at the [Query Tracker](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) article. Its source is stored in the `en/user-guide/query-tracker.md` file.
 
@@ -349,17 +350,9 @@ Now, open the `en/_includes/user-guide/query-tracker.md` file. There you can fin
 Currently supported execution engines include: [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
-The `dyn-query-language.md` article also reuses content, same as `query-tracker.md`. So, as you can see in the code above:
-- The "YT QL" link refers to the article located in the `en/user-guide/dynamic-tables/` folder, but not the `en/_includes/user-guide/dynamic-tables/`.
-- This link is set relativelly to the `_includes` folder.
-
-### Headers
-
-Headers should always have anchors:
-
-```
-## Users, Groups { #users-groups }
-```
+The `dyn-query-language.md` document also reuses content, same as `query-tracker.md`. So, as you can see in the code above:
+- The "YT QL" link refers to the document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
+- This link is set relativelly to the document located in the `_includes` folder.
 
 
 ### Lists
@@ -403,7 +396,7 @@ When working with tables, keep the following in mind:
 
 - There must be a reference to the table, for example: "Table 1 shows...".
 - It is mandatory to add a table title: `<small>Table N — Title of the table`. It should start with a capital letter, without a period at the end. 
-- Periods are not needed in the table header, as well as at the end of the sentence in the right column.
+- Periods are not needed in the table: neither in the header nor in the cells.
 
 Example:
 
@@ -445,7 +438,7 @@ $ yt check-permission yql write //tmp
 
 - When writing text, determine your target audience, whom you are writing for. Take into account that YTsaurus users may have different backgrounds and may be from different areas: analysts, engineers, administrators, and developers. The target audience influences the level of detail of your text and the terminology you use.
 - Your text should not disrupt the integrity of the entire document or its narrative logic. When writing content, consider the context of the section where this content is intended to be added.
-- Try to avoid jargon, slang, Anglicisms, and colloquial language. Use commonly accepted terms. Strive to follow the academic style.
+- Try to avoid jargon, slang, and colloquial language. Use commonly accepted terms. Strive to follow the academic style.
 - Accompany your text with examples. Content without examples is perceived as abstract and is hard to assimilate.
 - Use cross-links between the sections.
 - Aim to write concisely and clearly. Do not make sentences too long — up to 15 words per sentence. Split long paragraphs into short ones — up to 5 sentences in one paragraph.
@@ -464,15 +457,15 @@ $ yt check-permission yql write //tmp
    ```
    $ yfm --version
    ```
-4. Clone YTsaurus repository in case you haven't done it yet:
+4. Clone the fork of the YTsaurus repository, in case you have not done it yet: 
    ```bash
-   $ git clone https://github.com/ytsaurus
+   $ git clone <ytsaurus-fork-url>
    ```
 5. Run the build:
    ```bash
    $ yfm -i ytsaurus/yt/docs/ -o ytsaurus-doc-output
    ```
-6. Navigate to the `ytsaurus-doc-output` folder and then go to the `ru/` or `en/` directory, depending on the documentation language you want to check. When opening the `index.html` file, the main page of the documentation will be shown.
+6. Navigate to the `ytsaurus-doc-output` folder and then go to the `ru` or `en` directory, depending on the documentation language you want to check. When opening the `index.html` file, the main page of the documentation will be shown.
 
 ------
 
