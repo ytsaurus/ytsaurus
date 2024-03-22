@@ -438,7 +438,7 @@ $ yt check-permission yql write //tmp
 
 ### Images
 
-If the image includes text, the text must be in English, regardless of the language of the documentation in which it will be used.
+If the image includes text, the text must be in English, regardless of the language of the documentation in which the image will be used.
 
 For information about images usage, read the [YFM documentation](https://diplodoc.com/docs/en/syntax/media).
 
@@ -446,13 +446,14 @@ For information about images usage, read the [YFM documentation](https://diplodo
 
 ### Documentation Philosophy
 
+> If you need any help with content writing, don't hesitate to ask questions in YTsaurus [community chat](#need-help).
+
 - When writing text, determine your target audience, whom you are writing for. Take into account that YTsaurus users may have different backgrounds and may be from different areas: analysts, engineers, administrators, and developers. The target audience influences the level of detail of your text and the terminology you use.
 - Your text should not disrupt the integrity of the entire document or its narrative logic. When writing content, consider the context of the section where this content is intended to be added.
 - Try to avoid jargon, slang, and colloquial language. Use commonly accepted terms. Strive to follow the academic style.
 - Accompany your text with examples. Content without examples is perceived as abstract and is hard to assimilate.
 - Use cross-links between the sections.
 - Aim to write concisely and clearly. Do not make sentences too long — up to 15 words per sentence. Split long paragraphs into short ones — up to 5 sentences in one paragraph.
-- If you need any help with content writing, don't hesitate to ask questions in YTsaurus [community chat](#need-help).
 
 ------
 
