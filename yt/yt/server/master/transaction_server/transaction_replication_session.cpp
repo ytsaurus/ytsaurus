@@ -18,7 +18,8 @@
 
 #include <yt/yt/core/misc/range_formatters.h>
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/rpc/response_keeper.h>
 
 #include <util/generic/algorithm.h>
@@ -445,7 +446,7 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
         .Apply(
-            BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this))
+            BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this), std::nullopt)
             .AsyncVia(std::move(automatonInvoker)))
         .Apply(BIND([context = std::move(context)] (const TErrorOr<TMutationResponse>& result) {
             if (context->IsReplied()) {
@@ -499,21 +500,34 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
         boomerangWaveSize);
 }
 
-TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests()
+// TODO(shakurov): refactor. Get rid of .WithTimeout.
+TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequestsOffloaded(std::optional<TDuration> timeout)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    return BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this), timeout)
+        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+        .Run();
+}
+
+TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests(std::optional<TDuration> timeout)
+{
     if (ReplicationRequestCellTags_.empty()) {
-        return Mutation_->Commit();
+        return timeout
+            ? Mutation_->Commit().WithTimeout(*timeout)
+            : Mutation_->Commit();
     }
 
     auto keptResult = BeginRequestInResponseKeeper();
     if (keptResult) {
         // Highly unlikely, considering that just a few moments ago some of request transactions were remote.
-        return keptResult
+        auto result = keptResult
             .Apply(BIND([] (const TSharedRefArray& data) {
                 return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
             }));
+        return timeout
+            ? result.WithTimeout(*timeout)
+            : result;
     }
     keptResult = FindRequestInResponseKeeper();
     YT_VERIFY(keptResult);
@@ -549,7 +563,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     // NB: the actual responses are irrelevant, because boomerang arrival
     // implicitly signifies a sync with corresponding cell. Absence of errors,
     // on the other hand, is crucial.
-    return AllSucceeded(std::move(asyncResults)).AsVoid()
+    auto result = AllSucceeded(std::move(asyncResults)).AsVoid()
         .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
@@ -571,6 +585,9 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
         .Apply(BIND([] (const TSharedRefArray& data) {
             return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
         }));
+    return timeout
+        ? result.WithTimeout(*timeout)
+        : result;
 }
 
 TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::BeginRequestInResponseKeeper()

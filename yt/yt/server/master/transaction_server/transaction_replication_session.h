@@ -233,7 +233,9 @@ public:
      *  NB: May commit the mutation right away if there're no transactions to
      *  replicate. Therefore, never returns null future.
      */
-    TFuture<NHydra::TMutationResponse> InvokeReplicationRequests();
+    TFuture<NHydra::TMutationResponse> InvokeReplicationRequests(std::optional<TDuration> timeout);
+
+    TFuture<NHydra::TMutationResponse> InvokeReplicationRequestsOffloaded(std::optional<TDuration> timeout);
 
 private:
     std::unique_ptr<NHydra::TMutation> Mutation_;
