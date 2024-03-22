@@ -10,7 +10,6 @@ Documentation is released asynchronously from the main branch. The release cycle
 
 You are welcome to contribute to the YTsaurus documentation: correct typos, provide new content, and share your feedback and ideas. For more information, see the [Contribution](#contribution) section.
 
-------
 
 ## Documentation Structure
 
@@ -42,8 +41,6 @@ For each language, YTsaurus documentation has a specific structure that consists
 
 In addition to these main sections, the documentation also includes other resources such as release notes, How to's, FAQs, and links to video materials.
 
--------
-
 ### Table of Contents 
 
 The document structure is described in the `ru/toc.yaml` file for the Russian documentation and in the `en/toc.yaml` for the English one. This file defines how the table of contents is generated and documentation is built. The structure of the `toc.yaml` file looks like the following:
@@ -63,8 +60,6 @@ When you add a new article, don't forget to add this article into the `toc.yaml`
 Individual sections can be included in or excluded from the document, depending on the values of variables. To describe visibility conditions, the `when` parameter is used. In order for an article to be included in the build, it must explicitly be flagged with `when: audience == "public"`. If this flag is not specified, the section will not be included in the open source documentation.
 
 For more details about the table of contents, see the [YFM official documentation](https://diplodoc.com/docs/en/project/toc).
-
-------
 
 ### Variables
 
@@ -87,23 +82,17 @@ default:
 
 You can read about variables in the official [YFM official documentation](https://diplodoc.com/docs/en/project/presets).
 
--------
-
 ### Reused Content
 
 The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, reused content is stored in the `ru/_includes` folder for the Russian documentation, and in `en/_includes` for the English one.
 
 Keep this approach in mind when [contributing](#contribution) to YTsaurus documentation.
 
---------
-
 ## Supported Languages
 
 YTsaurus documentation is written in two languages: Russian and English. The source content is originally written in Russian. Then, we automate translations through an internal process, collaborating with professional translators to localize the content. The English version is prepared asynchronously, so that it might be slightly behind the Russian version.
 
 We accept pull requests to the documentation for both the Russian and the English versions. We recommend that you offer your edits in the language that is most convenient for you. After merging your changes, the translation will be updated within a week, or so. However, it is very appreciated if you suggest edits in both languages whenever possible.
-
---------
 
 ## Contribution
 
@@ -138,8 +127,6 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
     <img src="images/merge-blocked-message.png" width="430" height="94" alt="Review is required before the merging.">
 
 4. To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
-
--------
 
 ### How to Add a New Article
 
@@ -212,8 +199,6 @@ Below are the main steps of how to add new content to the documentation:
 
 To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
 
--------
-
 ### How to Share Feedback
 
 Your feedback is always welcome and can be shared in the following ways:
@@ -221,15 +206,11 @@ Your feedback is always welcome and can be shared in the following ways:
 - **Open an issue.** Use this option if you want to report errors in the documentation, missing information, or inaccuracies. Issues are a way to track actionable tasks that need to be addressed.
 - **Open a discussion.** This option is better suited for sharing feedback that does not require immediate action or suggesting changes. Use discussions for general questions about the documentation or to propose new ideas for enhancing the content — for example, when you find some content is written in an unclear manner or you would like a more detailed explanation.
 
--------
-
 ### What Happens After Changes are Merged
 
 🔹 Publication: Once your changes are approved and merged, the pull request will be closed by the YTsaurus team. Expect your changes to be published on a documentation website within a week.
 
 🔹 Translation: Immediately after merging, your changes will be sent for the translation, if needed. The time it takes for the content translation to be published can vary depending on the volume and complexity of the text, as well as the current workload of the translation team. It could take up to few weeks for your changes to be published in another language.
-
-------
 
 ## Content Writing Recommendations
 
@@ -260,8 +241,6 @@ Your feedback is always welcome and can be shared in the following ways:
   ```
 
 For more details about YFM Syntax, see the [official documentation](https://diplodoc.com/docs/en/syntax/).
-
-------
 
 ## Style Guide
 
@@ -332,8 +311,8 @@ Currently supported execution engines:
 ```
 
 Note the following:
-- The "YT QL" path link is set relativelly to the `query-tracker.md` document located in `_includes` folder (see the `../../` operands in a link path).
-- If you open the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md), you will see that this article reuses content as well. Though, the "YT QL" link refers to the original `dyn-query-language.md` file that located in `en/user-guide/dynamic-tables/` folder, but not in `en/_includes/user-guide/dynamic-tables/`.
+- The "YT QL" link path is set relativelly to the `query-tracker.md` document located in `_includes` folder (see the `../../` operands in a link path).
+- If you open the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md), you will see that this article reuses content as well. Though, the "YT QL" link refers to the original `dyn-query-language.md` file that located in `en/user-guide/dynamic-tables/` folder, but not to the `en/_includes/user-guide/dynamic-tables/dyn-query-language.md`.
 
 > If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
 
@@ -421,8 +400,6 @@ If the image includes text, the text must be in English, regardless of the langu
 
 For information about images usage, read the [YFM documentation](https://diplodoc.com/docs/en/syntax/media).
 
-------
-
 ### Documentation Philosophy
 
 > If you need any help with content writing, don't hesitate to ask questions in YTsaurus [community chat](#need-help).
@@ -433,8 +410,6 @@ For information about images usage, read the [YFM documentation](https://diplodo
 - Accompany your text with examples. Content without examples is perceived as abstract and is hard to assimilate.
 - Use cross-links between the sections.
 - Aim to write concisely and clearly. Do not make sentences too long — up to 15 words per sentence. Split long paragraphs into short ones — up to 5 sentences in one paragraph.
-
-------
 
 ## How to Build Locally
 
@@ -456,8 +431,6 @@ For information about images usage, read the [YFM documentation](https://diplodo
    $ yfm -i ytsaurus/yt/docs/ -o ytsaurus-doc-output
    ```
 6. Navigate to the `ytsaurus-doc-output` folder and then go to the `ru` or `en` directory, depending on the documentation language you want to check. When opening the `index.html` file, the main page of the documentation will be shown.
-
-------
 
 ## Need Help?
 
