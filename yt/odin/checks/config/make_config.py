@@ -1334,6 +1334,7 @@ def get_checks_config():
                 allow_unaware_nodes,
                 clock_quorum_health,
                 nochyt,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "seneca-sas": deep_merge(
                 snapshot_validation,
