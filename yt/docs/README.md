@@ -332,9 +332,9 @@ For more information, see the [Compaction](../../../user-guide/dynamic-tables/co
 When adding a link into a document that is located in the `_includes` folder, keep the following in mind:
 
 - A link should be set relativelly to the document located in the `_includes` folder, but not in the original one. What is original folder, see the example below.
-- A link should refer to the document located in the original folder, but not in the `_includes` folder.
+- A link should always refer to the document located in the original folder, but not in the `_includes`. You should never refer to the `_includes` folder in links.
 
-For an example, take a look at the [Query Tracker](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) article. Its source is stored in the `en/user-guide/query-tracker.md` file.
+For an example, take a look at the [Query Tracker](https://ytsaurus.tech/docs/en/user-guide/query-tracker) article. Its source is stored in the [en/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) file:
 
 ```
 |-- ytsaurus/yt/docs
@@ -343,9 +343,9 @@ For an example, take a look at the [Query Tracker](https://github.com/ytsaurus/y
             |-- query-tracker.md    
         |-- dynamic-tables/  
             |-- dyn-query-language.md
-        |-- _includes/              # The "_includes" folder, where the common content is held.
+        |-- _includes/              # The "_includes" folder, where the shared content is stored.
            |-- user-guide/
-               |-- query-tracker.md
+               |-- query-tracker.md 
            |-- dynamic-tables/  
                |-- dyn-query-language.md
                    
@@ -364,9 +364,11 @@ Currently supported execution engines:
 + [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
-The `dyn-query-language.md` article also reuses content, same as `query-tracker.md`. So, as you can see in the code above:
-- The "YT QL" link is set relativelly to the document located in the `_includes` folder.
+The "YT QL" link refers to the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md) article which also reuses content, same as `query-tracker.md`. Note that:
+- The "YT QL" link is set relativelly to the `query-tracker.md` document located in the `_includes` folder.
 - This link refers to the `dyn-query-language.md` document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
+
+If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
 
 ### Lists
 
@@ -462,7 +464,7 @@ For information about images usage, read the [YFM documentation](https://diplodo
 - Accompany your text with examples. Content without examples is perceived as abstract and is hard to assimilate.
 - Use cross-links between the sections.
 - Aim to write concisely and clearly. Do not make sentences too long — up to 15 words per sentence. Split long paragraphs into short ones — up to 5 sentences in one paragraph.
-- If you need any help with content writing, don't hesitate to ask questions in YTsaurus [community chats](#need-help).
+- If you need any help with content writing, don't hesitate to ask questions in YTsaurus [community chat](#need-help).
 
 ------
 
