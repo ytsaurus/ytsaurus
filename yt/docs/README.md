@@ -112,7 +112,7 @@ You can read about variables in the official [YFM official documentation](https:
 
 ### Reused Content
 
-The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, reused content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
+The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, reused content is stored in the `ru/_includes` folder for the Russian documentation, and in `en/_includes` for the English one.
 
 Keep this approach in mind when [contributing](#contribution) to YTsaurus documentation.
 
@@ -208,11 +208,11 @@ Below are the main steps of how to add new content to the documentation:
          ```
         If your text contains links to another articles, see how to insert these links correctly in the [Links](#links) section.
 
-     > **Why this structure?** <br/> Content of YTsaurus documentation can be reused in its different parts. Therefore, all articles are placed in the `_includes` folder, by default.
+     > **Why this structure?** <br/> Content of YTsaurus documentation can be reused in different parts. Therefore, all articles are placed in the `_includes` folder, by default.
 
-4. Add a link to your article into the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Keep the following in mind:
-   - You should refer to the `user-guide/new-article.md`, but not to the `_includes/user-guide/new-article.md`.
-   - If you wrote articles in both Russian and English languages, you should add links into both `ru/toc.yaml` and `en/toc.yaml` files.
+4. Add a link to your article in the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Considering the example from the step 3, keep the following in mind:
+   - You should only add a link to the `user-guide/new-article.md` article, but not to the `_includes/user-guide/new-article.md`.
+   - If you write articles in both Russian and English languages, you should add links into both `ru/toc.yaml` and `en/toc.yaml` files.
    - Set a visibility flag to your article: `when: audience == "public"`.
    
    For example:
@@ -237,7 +237,7 @@ To know what happens next, see the [What Happens After Changes are Merged](#what
 
 ### How to Share Feedback
 
-Your feedback is always welcome. You can share it in the following ways:
+Your feedback is always welcome and can be shared in the following ways:
 
 - **Open an issue.** Use this option if you want to report errors in the documentation, missing information, or inaccuracies. Issues are a way to track actionable tasks that need to be addressed.
 - **Open a discussion.** This option is better suited for sharing feedback that does not require immediate action or suggesting changes. Use discussions for general questions about the documentation or to propose new ideas for enhancing the content — for example, when you find some content is written in an unclear manner or you would like a more detailed explanation.
