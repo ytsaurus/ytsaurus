@@ -214,7 +214,6 @@ def resources_equal(lhs, rhs):
 
 ##################################################################
 
-CONVERTER_BINARY = search_binary_path("convert_operations_to_binary_format")
 SIMULATOR_BINARY = search_binary_path("scheduler_simulator")
 
 ONE_GB = 1024 * 1024 * 1024
@@ -389,7 +388,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
         with open(simulator_files_path["simulator_input_yson_file"], "rb") as fin:
             subprocess.check_call(
-                [CONVERTER_BINARY, simulator_files_path["simulator_input_bin_file"]],
+                [SIMULATOR_BINARY, "convert-operations-to-binary-format", "--destination", simulator_files_path["simulator_input_bin_file"]],
                 stdin=fin,
             )
 

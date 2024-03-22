@@ -2,10 +2,8 @@ PY3TEST()
 
 INCLUDE(../../YaMakeBoilerplateForTestsWithConftest.txt)
 
-#controller, scheduler
 DEPENDS(
-    yt/yt/tools/scheduler_simulator/bin/converter
-    yt/yt/tools/scheduler_simulator/bin/simulator
+    yt/yt/tools/scheduler_simulator/bin
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

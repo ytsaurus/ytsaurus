@@ -1156,8 +1156,6 @@
   "yt/yt/tools/run_codec/CMakeLists.txt":"",
   "yt/yt/tools/scheduler_simulator/CMakeLists.txt":"",
   "yt/yt/tools/scheduler_simulator/bin/CMakeLists.txt":"",
-  "yt/yt/tools/scheduler_simulator/bin/converter/CMakeLists.txt":"",
-  "yt/yt/tools/scheduler_simulator/bin/simulator/CMakeLists.txt":"",
   "yt/yt/tools/scheduler_simulator/unittests/CMakeLists.txt":"",
   "yt/yt/tools/unpack_local_changelog/CMakeLists.txt":"",
   "yt/yt/tools/unpack_local_snapshot/CMakeLists.txt":"",
