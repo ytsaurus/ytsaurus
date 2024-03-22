@@ -37,7 +37,7 @@ You are welcome to contribute to the YTsaurus documentation: correct typos, prov
 
 ```
 |-- ytsaurus/yt/docs/       # Documentation project root. 
-    |-- ru/                 # Here, content in Russian is stored.
+    |-- ru/                 # Here, content of the Russian documentation is stored.
         |-- toc.yaml        # This file describes table of contents of the Russian documentation.
         |-- user-guide/     # Sources of the user guide section.
         |-- admin-guide/  
@@ -156,7 +156,7 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
 
    <img src="images/make-edits.png" width="650" height="245" alt="To suggest changes in the article, click on the pencil icon.">
 
-   When you press the button, the source file will be opened for editing. Note that if you see the `{% include ... %}` construction in the file, it means that the current file contains a reusable content which is located in the `_includes` folder. To quickly navigate to the reusable content source file, click on the link name.
+   When you press the button, the source file will be opened for editing. Note that if you see the `{% include ... %}` construction in the file, it means that the current file contains a shared content which is located in the `_includes` folder. To quickly navigate to the source file, click on the link name.
 
    <img src="images/include-in-file.png" width="500" height="207" alt="To open the source file click on the link name.">
 
@@ -220,12 +220,17 @@ Below are the main steps of how to add new content to the documentation:
          ```
         If your text contains links to another articles, see how to insert these links correctly in the [Links](#links) section.
 
-     > **Why this structure?** <br/> It is related to the specifics of the YTsaurus documentation build. Documentation is represented in two versions: public version (the one you are reading), and the internal one which is available only for the team members. Content of the public documentation can be reused in its internal version. Therefore, articles are placed in the `_includes` folder by default.
-
-4. Add a link to your article into the `toc.yaml` file. Keep the following in mind:
-   - You should refer to the `ru/user-guide/new-article.md` file, but not to the `ru/_includes/user-guide/new-article.md`.
-   - If you write an article in both Russian and English languages, you should add links to the `ru/toc.yaml` and `en/toc.yaml` files, accordingly.
+4. Add a link to your article into the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Keep the following in mind:
+   - You should refer to the `user-guide/new-article.md`, but not to the `_includes/user-guide/new-article.md`.
+   - If you wrote articles in both Russian and English languages, you should add links into both `ru/toc.yaml` and `en/toc.yaml` files.
    - Set a visibility flag to your article: `when: audience == "public"`.
+   
+   For example:
+   ```
+   - name: Deployment in a Kubernetes Cluster
+     when: audience == "public"
+     href: user-guide/new-article.md
+   ```
 
 5. Build the documentation locally and check whether it looks fine. See the [How to Build Locally](#how-to-build-locally) section.
 
@@ -305,7 +310,6 @@ Every article should begin with a brief overview of what will be described in th
 This section compiles information about the access control system for tables and other nodes of Cypress.
 ```
 
-
 ### Links
 
 The section name in the link should be capitalized. For example:
@@ -344,16 +348,16 @@ Text of this article is included from the `en/_includes/user-guide/query-tracker
 {% include [Query Tracker](../_includes/user-guide/query-tracker.md) %}
 ```
 
-Now, open the `en/_includes/user-guide/query-tracker.md` file. There you can find the link to the "YT Query Language" article:
+Now, open the [en/_includes/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/_includes/user-guide/query-tracker.md) file. There you can find the link to the "YT Query Language" article:
 
 ```
-Currently supported execution engines include: [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
+Currently supported execution engines:
++ [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
-The `dyn-query-language.md` document also reuses content, same as `query-tracker.md`. So, as you can see in the code above:
-- The "YT QL" link refers to the document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
-- This link is set relativelly to the document located in the `_includes` folder.
-
+The `dyn-query-language.md` article also reuses content, same as `query-tracker.md`. So, as you can see in the code above:
+- The "YT QL" link is set relativelly to the document located in the `_includes` folder.
+- This link refers to the `dyn-query-language.md` document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
 
 ### Lists
 
