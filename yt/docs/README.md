@@ -220,6 +220,8 @@ Below are the main steps of how to add new content to the documentation:
          ```
         If your text contains links to another articles, see how to insert these links correctly in the [Links](#links) section.
 
+     > **Why this structure?** <br/> Content of YTsaurus documentation can be reused in its different parts. Therefore, all articles are placed in the `_includes` folder, by default.
+
 4. Add a link to your article into the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Keep the following in mind:
    - You should refer to the `user-guide/new-article.md`, but not to the `_includes/user-guide/new-article.md`.
    - If you wrote articles in both Russian and English languages, you should add links into both `ru/toc.yaml` and `en/toc.yaml` files.
@@ -446,9 +448,9 @@ $ yt check-permission yql write //tmp
 
 ### Images
 
-Images should only contain text in English, regardless of the language of documentation to which they are added.
+If the image includes text, the text must be in English, regardless of the language of the documentation in which it will be used.
 
-For information about images usage syntax, read the [YFM documentation](https://diplodoc.com/docs/en/syntax/media).
+For information about images usage, read the [YFM documentation](https://diplodoc.com/docs/en/syntax/media).
 
 ------
 
