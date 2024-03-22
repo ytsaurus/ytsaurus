@@ -13,4 +13,6 @@ GO_XTEST_SRCS(sometimes_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)
