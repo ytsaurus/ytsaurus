@@ -26,12 +26,13 @@ const (
 )
 
 type ACE struct {
-	Action          SecurityAction `yson:"action,omitempty"`
-	Subjects        []string       `yson:"subjects,omitempty"`
-	Permissions     []Permission   `yson:"permissions,omitempty"`
-	InheritanceMode string         `yson:"inheritance_mode,omitempty"`
-	Columns         []string       `yson:"columns,omitempty"`
-	Vital           *bool          `yson:"vital,omitempty"`
+	Action           SecurityAction `yson:"action,omitempty"`
+	Subjects         []string       `yson:"subjects,omitempty"`
+	Permissions      []Permission   `yson:"permissions,omitempty"`
+	InheritanceMode  string         `yson:"inheritance_mode,omitempty"`
+	Columns          []string       `yson:"columns,omitempty"`
+	Vital            *bool          `yson:"vital,omitempty"`
+	SubjectTagFilter string         `yson:"subject_tag_filter,omitempty"`
 }
 
 func ConvertPermissionType(typ *Permission) (*int32, error) {
