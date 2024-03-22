@@ -190,7 +190,7 @@ Below are the main steps of how to add new content to the documentation:
      > **Why this structure?** <br/> Content of YTsaurus documentation can be reused in different parts. Therefore, all articles are placed in the `_includes` folder, by default.
 
 4. Add a link to your article in the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Considering the example from the step 3, keep the following in mind:
-   - You should only add a link to the `user-guide/new-article.md` article, but not to the `_includes/user-guide/new-article.md`.
+   - You should only link to the `user-guide/new-article.md` article, but not to the `_includes/user-guide/new-article.md`.
    - If you write articles in both Russian and English languages, you should add links in both `ru/toc.yaml` and `en/toc.yaml` files.
    - Set a visibility flag to your article: `when: audience == "public"`.
    
@@ -276,7 +276,7 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 
 ### File Naming
 
-In compound file names, use a hyphen `-`, not an underscore `_`. Examples: `new-article.md`, `new-image.png`.
+In compound file names, use a hyphen, not an underscore. Examples: `new-article.md`, `new-image.png`.
 
 ### Article Description
 
@@ -324,16 +324,16 @@ Text of this article is included from the `en/_includes/user-guide/query-tracker
 {% include [Query Tracker](../_includes/user-guide/query-tracker.md) %}
 ```
 
-Now, open the [en/_includes/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/_includes/user-guide/query-tracker.md) file. There you can find the link to the "YT Query Language" article:
+Now, open the [en/_includes/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/_includes/user-guide/query-tracker.md) file. There, you can find the link to the "YT Query Language" article:
 
 ```
 Currently supported execution engines:
 + [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
-The "YT QL" link refers to the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md) article which in turn reuses content. Note that:
-- The "YT QL" link is set relativelly to the `query-tracker.md` document located in the `_includes` folder.
-- This link refers to the `dyn-query-language.md` document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
+Note the following:
+- The "YT QL" path link is set relativelly to the `query-tracker.md` document located in `_includes` folder (see the `../../` operands in a link path).
+- If you open the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md), you will see that this article reuses content as well. Though, the "YT QL" link refers to the original `dyn-query-language.md` file that located in `en/user-guide/dynamic-tables/` folder, but not in `en/_includes/user-guide/dynamic-tables/`.
 
 > If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
 
