@@ -8,10 +8,10 @@ the test, otherwise os._exit(1) is used.
 """
 import inspect
 import os
-import shutil
 import signal
 import sys
 import threading
+import time
 import traceback
 from collections import namedtuple
 
@@ -19,6 +19,8 @@ import pytest
 
 
 __all__ = ("is_debugging", "Settings")
+SESSION_TIMEOUT_KEY = pytest.StashKey[float]()
+SESSION_EXPIRE_KEY = pytest.StashKey[float]()
 
 
 HAVE_SIGALRM = hasattr(signal, "SIGALRM")
@@ -43,6 +45,11 @@ used in the test.
 DISABLE_DEBUGGER_DETECTION_DESC = """
 When specified, disables debugger detection. breakpoint(), pdb.set_trace(), etc.
 will be interrupted by the timeout.
+""".strip()
+SESSION_TIMEOUT_DESC = """
+Timeout in seconds for entire session.  Default is None which
+means no timeout. Timeout is checked between tests, and will not interrupt a test
+in progress.
 """.strip()
 
 # bdb covers pdb, ipdb, and possibly others
@@ -80,6 +87,15 @@ def pytest_addoption(parser):
         action="store_true",
         help=DISABLE_DEBUGGER_DETECTION_DESC,
     )
+    group.addoption(
+        "--session-timeout",
+        action="store",
+        dest="session_timeout",
+        default=None,
+        type=float,
+        metavar="SECONDS",
+        help=SESSION_TIMEOUT_DESC,
+    )
     parser.addini("timeout", TIMEOUT_DESC)
     parser.addini("timeout_method", METHOD_DESC)
     parser.addini("timeout_func_only", FUNC_ONLY_DESC, type="bool", default=False)
@@ -89,6 +105,7 @@ def pytest_addoption(parser):
         type="bool",
         default=False,
     )
+    parser.addini("session_timeout", SESSION_TIMEOUT_DESC)
 
 
 class TimeoutHooks:
@@ -144,6 +161,19 @@ def pytest_configure(config):
     config._env_timeout_func_only = settings.func_only
     config._env_timeout_disable_debugger_detection = settings.disable_debugger_detection
 
+    timeout = config.getoption("session_timeout")
+    if timeout is None:
+        ini = config.getini("session_timeout")
+        if ini:
+            timeout = _validate_timeout(config.getini("session_timeout"), "config file")
+    if timeout is not None:
+        expire_time = time.time() + timeout
+    else:
+        expire_time = 0
+        timeout = 0
+    config.stash[SESSION_TIMEOUT_KEY] = timeout
+    config.stash[SESSION_EXPIRE_KEY] = expire_time
+
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_protocol(item):
@@ -161,6 +191,12 @@ def pytest_runtest_protocol(item):
     yield
     if is_timeout and settings.func_only is False:
         hooks.pytest_timeout_cancel_timer(item=item)
+
+    #  check session timeout
+    expire_time = item.session.config.stash[SESSION_EXPIRE_KEY]
+    if expire_time and (expire_time < time.time()):
+        timeout = item.session.config.stash[SESSION_TIMEOUT_KEY]
+        item.session.shouldfail = f"session-timeout: {timeout} sec exceeded"
 
 
 @pytest.hookimpl(hookwrapper=True)
@@ -183,15 +219,23 @@ def pytest_runtest_call(item):
 @pytest.hookimpl(tryfirst=True)
 def pytest_report_header(config):
     """Add timeout config to pytest header."""
+    timeout_header = []
+
     if config._env_timeout:
-        return [
+        timeout_header.append(
             "timeout: %ss\ntimeout method: %s\ntimeout func_only: %s"
             % (
                 config._env_timeout,
                 config._env_timeout_method,
                 config._env_timeout_func_only,
             )
-        ]
+        )
+
+    session_timeout = config.getoption("session_timeout")
+    if session_timeout:
+        timeout_header.append("session timeout: %ss" % session_timeout)
+    if timeout_header:
+        return timeout_header
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -236,8 +280,13 @@ def is_debugging(trace_func=None):
         return True
     if trace_func is None:
         trace_func = sys.gettrace()
-    if trace_func and inspect.getmodule(trace_func):
-        parts = inspect.getmodule(trace_func).__name__.split(".")
+    trace_module = None
+    if trace_func:
+        trace_module = inspect.getmodule(trace_func) or inspect.getmodule(
+            trace_func.__class__
+        )
+    if trace_module:
+        parts = trace_module.__name__.split(".")
         for name in KNOWN_DEBUGGING_MODULES:
             if any(part.startswith(name) for part in parts):
                 return True
@@ -440,11 +489,12 @@ def timeout_sigalrm(item, settings):
         return
     __tracebackhide__ = True
     nthreads = len(threading.enumerate())
+    terminal = item.config.get_terminal_writer()
     if nthreads > 1:
-        write_title("Timeout", sep="+")
-    dump_stacks()
+        terminal.sep("+", title="Timeout")
+    dump_stacks(terminal)
     if nthreads > 1:
-        write_title("Timeout", sep="+")
+        terminal.sep("+", title="Timeout")
     pytest.fail("Timeout >%ss" % settings.timeout)
 
 
@@ -456,6 +506,7 @@ def timeout_timer(item, settings):
     """
     if not settings.disable_debugger_detection and is_debugging():
         return
+    terminal = item.config.get_terminal_writer()
     try:
         capman = item.config.pluginmanager.getplugin("capturemanager")
         if capman:
@@ -463,30 +514,31 @@ def timeout_timer(item, settings):
             stdout, stderr = capman.read_global_capture()
         else:
             stdout, stderr = None, None
-        write_title("Timeout", sep="+")
+        terminal.sep("+", title="Timeout")
         caplog = item.config.pluginmanager.getplugin("_capturelog")
         if caplog and hasattr(item, "capturelog_handler"):
             log = item.capturelog_handler.stream.getvalue()
             if log:
-                write_title("Captured log")
-                write(log)
+                terminal.sep("~", title="Captured log")
+                terminal.write(log)
         if stdout:
-            write_title("Captured stdout")
-            write(stdout)
+            terminal.sep("~", title="Captured stdout")
+            terminal.write(stdout)
         if stderr:
-            write_title("Captured stderr")
-            write(stderr)
-        dump_stacks()
-        write_title("Timeout", sep="+")
+            terminal.sep("~", title="Captured stderr")
+            terminal.write(stderr)
+        dump_stacks(terminal)
+        terminal.sep("+", title="Timeout")
     except Exception:
         traceback.print_exc()
     finally:
+        terminal.flush()
         sys.stdout.flush()
         sys.stderr.flush()
         os._exit(1)
 
 
-def dump_stacks():
+def dump_stacks(terminal):
     """Dump the stacks of all threads except the current thread."""
     current_ident = threading.current_thread().ident
     for thread_ident, frame in sys._current_frames().items():
@@ -498,31 +550,5 @@ def dump_stacks():
                 break
         else:
             thread_name = "<unknown>"
-        write_title("Stack of %s (%s)" % (thread_name, thread_ident))
-        write("".join(traceback.format_stack(frame)))
-
-
-def write_title(title, stream=None, sep="~"):
-    """Write a section title.
-
-    If *stream* is None sys.stderr will be used, *sep* is used to
-    draw the line.
-    """
-    if stream is None:
-        stream = sys.stderr
-    width, height = shutil.get_terminal_size()
-    fill = int((width - len(title) - 2) / 2)
-    line = " ".join([sep * fill, title, sep * fill])
-    if len(line) < width:
-        line += sep * (width - len(line))
-    stream.write("\n" + line + "\n")
-
-
-def write(text, stream=None):
-    """Write text to stream.
-
-    Pretty stupid really, only here for symmetry with .write_title().
-    """
-    if stream is None:
-        stream = sys.stderr
-    stream.write(text)
+        terminal.sep("~", title="Stack of %s (%s)" % (thread_name, thread_ident))
+        terminal.write("".join(traceback.format_stack(frame)))

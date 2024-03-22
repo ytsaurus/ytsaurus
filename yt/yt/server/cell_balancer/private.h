@@ -12,6 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellBalancerMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TChaosConfig)
 
 struct IBootstrap;
 

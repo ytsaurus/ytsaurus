@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+add_subdirectory(blob_table)
 add_subdirectory(lambda)
 add_subdirectory(mock_client)
 add_subdirectory(operation_tracker)

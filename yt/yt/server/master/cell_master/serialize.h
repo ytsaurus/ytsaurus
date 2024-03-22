@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
     ((YsonDeserializeMicroseconds)                                  (2602))  // dgolear
     ((RemoveEnableSharedWriteLocksFlag)                             (2603))  // ponasenko-rs
+    ((AdminsGroup)                                                  (2604))  // aleksandr.gaev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

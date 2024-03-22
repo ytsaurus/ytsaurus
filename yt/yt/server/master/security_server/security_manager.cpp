@@ -500,6 +500,7 @@ public:
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
+        AdminsGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffc);
 
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
@@ -536,12 +537,16 @@ public:
                 BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
 
-        BufferedProducer_ = New<TBufferedProducer>();
-        BufferedProducer_->SetEnabled(false);
-        AccountProfiler
-            .WithGlobal()
-            .WithDefaultDisabled()
-            .AddProducer("", BufferedProducer_);
+        static constexpr int AccountProfilingProducerCount = 10;
+        AccountProfilingProducers_.reserve(AccountProfilingProducerCount);
+        for (auto i = 0; i < AccountProfilingProducerCount; ++i) {
+            auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
+            producer->SetEnabled(false);
+            AccountProfiler
+                .WithGlobal()
+                .WithDefaultDisabled()
+                .AddProducer("", producer);
+        }
     }
 
     void OnAccountsProfiling()
@@ -552,13 +557,18 @@ public:
         if (!IsLeader()) {
             return;
         }
-        TSensorBuffer buffer;
+        std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
+        auto bufferIndex = -1;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto [accountId, account] : Accounts()) {
             if (!IsObjectAlive(account)) {
                 continue;
             }
+
+            bufferIndex = ++bufferIndex % std::ssize(buffers);
+            auto& buffer = buffers[bufferIndex];
+
             TWithTagGuard accountTag(&buffer, "account", account->GetName());
 
             const auto& statistics = account->ClusterStatistics();
@@ -666,7 +676,11 @@ public:
             }
         }
 
-        BufferedProducer_->Update(std::move(buffer));
+        YT_ASSERT(std::ssize(buffers) == std::ssize(AccountProfilingProducers_));
+
+        for (auto i = 0; i < std::ssize(AccountProfilingProducers_); ++i) {
+            AccountProfilingProducers_[i]->Update(std::move(buffers[i]));
+        }
     }
 
 
@@ -1692,9 +1706,17 @@ public:
             .Item("name").Value(group->GetName());
     }
 
-    // This is here just for the sake of symmetry with user and account counterparts.
     TGroup* DoFindGroupByName(const TString& name)
     {
+        if (!GroupNameMapInitialized_) {
+            for (auto [_, group] : GroupMap_) {
+                if (group->GetName() == name && IsObjectAlive(group)) {
+                    return group;
+                }
+            }
+            return nullptr;
+        }
+
         auto it = GroupNameMap_.find(name);
         return it == GroupNameMap_.end() ? nullptr : it->second;
     }
@@ -1726,6 +1748,11 @@ public:
     TGroup* GetSuperusersGroup() override
     {
         return GetBuiltin(SuperusersGroup_);
+    }
+
+    TGroup* GetAdminsGroup() override
+    {
+        return GetBuiltin(AdminsGroup_);
     }
 
 
@@ -2722,7 +2749,7 @@ private:
 
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
-    TBufferedProducerPtr BufferedProducer_;
+    std::vector<TBufferedProducerPtr> AccountProfilingProducers_;
 
     TPeriodicExecutorPtr AccountsProfilingExecutor_;
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
@@ -2814,6 +2841,9 @@ private:
     TGroupId SuperusersGroupId_;
     TGroup* SuperusersGroup_ = nullptr;
 
+    TGroupId AdminsGroupId_;
+    TGroup* AdminsGroup_ = nullptr;
+
     NHydra::TEntityMap<TNetworkProject> NetworkProjectMap_;
     THashMap<TString, TNetworkProject*> NetworkProjectNameMap_;
 
@@ -2831,6 +2861,8 @@ private:
     bool NeedRecomputeReferencingAccounts_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
+
+    bool GroupNameMapInitialized_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3206,6 +3238,7 @@ private:
                 YT_VERIFY(SubjectAliasMap_.emplace(alias, group).second);
             }
         }
+        GroupNameMapInitialized_ = true;
 
         NetworkProjectNameMap_.clear();
         for (auto [networkProjectId, networkProject] : NetworkProjectMap_) {
@@ -3650,6 +3683,7 @@ private:
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
+        AdminsGroup_ = nullptr;
 
         RootAccount_ = nullptr;
         SysAccount_ = nullptr;
@@ -3661,6 +3695,7 @@ private:
         MustRecomputeMembershipClosure_ = false;
         NeedUpdatePerUserThrottlerLimits_ = false;
         NeedRecomputeReferencingAccounts_ = false;
+        GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();
     }
@@ -3738,6 +3773,11 @@ private:
         // superusers
         if (EnsureBuiltinGroupInitialized(SuperusersGroup_, SuperusersGroupId_, SuperusersGroupName)) {
             DoAddMember(UsersGroup_, SuperusersGroup_);
+        }
+
+        // admins
+        if (EnsureBuiltinGroupInitialized(AdminsGroup_, AdminsGroupId_, AdminsGroupName)) {
+            DoAddMember(UsersGroup_, AdminsGroup_);
         }
 
         DoRecomputeMembershipClosure();
@@ -3924,13 +3964,18 @@ private:
             Bootstrap_->GetObjectManager());
     }
 
-    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId id, const TString& name)
+    bool EnsureBuiltinGroupInitialized(TGroup*& group, TGroupId& id, const TString& name)
     {
         if (group) {
             return false;
         }
         group = FindGroup(id);
         if (group) {
+            return false;
+        }
+        group = FindGroupByName(name);
+        if (group) {
+            id = group->GetId();
             return false;
         }
         group = DoCreateGroup(id, name);
@@ -4003,39 +4048,55 @@ private:
             BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            StartAccountsProfiling();
-        }
+        StartAccountsProfiling();
     }
 
     void StartAccountsProfiling()
     {
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            return;
+        }
+
+        if (!IsLeader()) {
+            return;
+        }
+
         const auto& dynamicConfig = GetDynamicConfig();
 
         if (!dynamicConfig->EnableAccountsProfiling) {
-            StopAccountsProfiling();
+            return;
         }
 
-        BufferedProducer_->SetEnabled(true);
         if (AccountsProfilingExecutor_) {
-            AccountsProfilingExecutor_->SetPeriod(dynamicConfig->AccountsProfilingPeriod);
-        } else {
-            AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-                BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
-                dynamicConfig->AccountsProfilingPeriod);
-            AccountsProfilingExecutor_->Start();
+            // Already started.
+            return;
         }
+
+        for (const auto& producer : AccountProfilingProducers_) {
+            producer->SetEnabled(true);
+        }
+
+        AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
+            BIND(&TSecurityManager::OnAccountsProfiling, MakeWeak(this)),
+            dynamicConfig->AccountsProfilingPeriod);
+        AccountsProfilingExecutor_->Start();
     }
 
     void StopAccountsProfiling()
     {
+        if (!Bootstrap_->IsPrimaryMaster()) {
+            return;
+        }
+
         if (AccountsProfilingExecutor_) {
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
             AccountsProfilingExecutor_.Reset();
         }
 
-        BufferedProducer_->SetEnabled(false);
+        for (const auto& producer : AccountProfilingProducers_) {
+            producer->SetEnabled(false);
+        }
     }
 
     void OnStopLeading() override
@@ -4749,24 +4810,33 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
     {
+        const auto& oldConfig = oldClusterConfig->SecurityManager;
+        const auto& newConfig = GetDynamicConfig();
+
         if (AccountStatisticsGossipExecutor_) {
-            AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);
+            AccountStatisticsGossipExecutor_->SetPeriod(newConfig->AccountStatisticsGossipPeriod);
         }
 
         if (MembershipClosureRecomputeExecutor_) {
-            MembershipClosureRecomputeExecutor_->SetPeriod(GetDynamicConfig()->MembershipClosureRecomputePeriod);
+            MembershipClosureRecomputeExecutor_->SetPeriod(newConfig->MembershipClosureRecomputePeriod);
         }
 
         if (AccountMasterMemoryUsageUpdateExecutor_) {
-            AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(GetDynamicConfig()->AccountMasterMemoryUsageUpdatePeriod);
+            AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(newConfig->AccountMasterMemoryUsageUpdatePeriod);
         }
 
-        if (Bootstrap_->IsPrimaryMaster()) {
-            if (IsLeader()) {
-                StartAccountsProfiling();
+        if (newConfig->EnableAccountsProfiling) {
+            StartAccountsProfiling();
+
+            if (newConfig->AccountsProfilingPeriod != oldConfig->AccountsProfilingPeriod &&
+                AccountsProfilingExecutor_)
+            {
+                AccountsProfilingExecutor_->SetPeriod(newConfig->AccountsProfilingPeriod);
             }
+        } else {
+            StopAccountsProfiling();
         }
 
         if (HasMutationContext()) {
@@ -4776,7 +4846,6 @@ private:
 
     void RecomputeMasterMemoryUsageOnConfigChange()
     {
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto cellTag = multicellManager->GetCellTag();
         auto roles = multicellManager->GetMasterCellRoles(cellTag);

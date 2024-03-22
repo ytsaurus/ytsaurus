@@ -87,6 +87,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("medium_throughput_limits", &TThis::MediumThroughputLimits)
         .Default();
+    registrar.Parameter("init_chaos_bundles", &TThis::InitChaosBundles)
+        .Default(false);
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -105,9 +107,43 @@ void TTabletCellPeer::Register(TRegistrar registrar)
         .Default();
 }
 
+void TAbcInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("id", &TThis::Id)
+        .Optional();
+    registrar.Parameter("name", &TThis::Name)
+        .Optional();
+    registrar.Parameter("slug", &TThis::Slug)
+        .Optional();
+}
+
 void TTabletCellInfo::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "peers", &TThis::Peers)
+        .Default();
+}
+
+void TGlobalCellRegistry::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cell_tag_range_begin", &TThis::CellTagRangeBegin)
+        .GreaterThan(0)
+        .IsRequired();
+    registrar.Parameter("cell_tag_range_end", &TThis::CellTagRangeEnd)
+        .GreaterThan(0)
+        .IsRequired();
+    registrar.Parameter("cell_tag_last", &TThis::CellTagLast)
+        .Default();
+    registrar.Parameter("cell_tags", &TThis::CellTags)
+        .Default();
+}
+
+void TCellTagInfo::Register(TRegistrar registrar)
+{
+    registrar.Parameter("area", &TThis::Area)
+        .Default();
+    registrar.Parameter("cell_bundle", &TThis::CellBundle)
+        .Default();
+    registrar.Parameter("cell_id", &TThis::CellId)
         .Default();
 }
 
@@ -166,6 +202,37 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "system_account_quota_multiplier", &TThis::SystemAccountQuotaMultiplier)
         .GreaterThan(0)
         .Default(1.3);
+    RegisterAttribute(registrar, "folder_id", &TThis::FolderId)
+        .Default();
+    RegisterAttribute(registrar, "abc", &TThis::Abc)
+        .DefaultNew();
+}
+
+void TBundleArea::Register(TRegistrar registrar)
+{
+    RegisterAttribute(registrar, "id", &TThis::Id)
+        .Default();
+    RegisterAttribute(registrar, "cell_count", &TThis::CellCount)
+        .Default();
+    RegisterAttribute(registrar, "node_tag_filter", &TThis::NodeTagFilter)
+        .Default();
+}
+
+void TChaosBundleInfo::Register(TRegistrar registrar)
+{
+    RegisterAttribute(registrar, "id", &TThis::Id)
+        .Default();
+
+    // The attribute name is misleading, ids are actually chaos cell ones.
+    RegisterAttribute(registrar, "tablet_cell_ids", &TThis::ChaosCellIds)
+        .Default();
+
+    RegisterAttribute(registrar, "options", &TThis::Options)
+        .DefaultNew();
+    RegisterAttribute(registrar, "areas", &TThis::Areas)
+        .Default();
+    RegisterAttribute(registrar, "metadata_cell_ids", &TThis::MetadataCellIds)
+        .Default();
 }
 
 void TZoneInfo::Register(TRegistrar registrar)
@@ -489,6 +556,9 @@ void TBundleSystemOptions::Register(TRegistrar registrar)
     registrar.Parameter("peer_count", &TThis::PeerCount)
         .GreaterThan(0)
         .Default(1);
+
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

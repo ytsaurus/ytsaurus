@@ -21,6 +21,9 @@
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 
 #include <yt/yt/core/logging/public.h>
+#include <yt/yt/core/logging/config.h>
+#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -28,8 +31,19 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/misc/property.h>
+#include <yt/yt/core/misc/phoenix.h>
+
+#include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/core/yson/lexer.h>
+#include <yt/yt/core/yson/parser.h>
+#include <yt/yt/core/yson/writer.h>
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/stream.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
+
+#include <util/system/fs.h>
 
 namespace NYT {
 
@@ -43,8 +57,6 @@ using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NConcurrency;
 using namespace NLogging;
-
-static const auto& Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,43 +173,58 @@ TYsonString LoadPoolTreesYson(const TString& poolTreesFilename)
     }
 }
 
+template <class T>
+class TYsonListExtractor
+    : public TForwardingYsonConsumer
+{
+public:
+    DEFINE_BYVAL_RO_PROPERTY(int, ExtractedCount);
+
+public:
+    TYsonListExtractor(const std::function<void(const T&)>& onEntryExtracted, TLogger logger)
+        : ExtractedCount_(0)
+        , OnEntryExtracted_(onEntryExtracted)
+        , Logger(logger)
+    { }
+
+    void OnMyListItem() override
+    {
+        if (Builder_) {
+            ExtractEntry();
+        }
+        Builder_ = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        Builder_->BeginTree();
+        Forward(Builder_.get());
+    }
+
+    void Finish()
+    {
+        if (Builder_) {
+            ExtractEntry();
+            Builder_.reset();
+        }
+    }
+
+private:
+    void ExtractEntry()
+    {
+        auto node = Builder_->EndTree();
+        OnEntryExtracted_(ConvertTo<T>(node));
+        ++ExtractedCount_;
+        if (ExtractedCount_ % 1000 == 0) {
+            YT_LOG_INFO("Records extracted: %v", ExtractedCount_);
+        }
+    }
+
+    std::function<void(const T&)> OnEntryExtracted_;
+    std::unique_ptr<ITreeBuilder> Builder_;
+
+    TLogger Logger;
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
-{
-    YT_LOG_INFO("Reading operations description");
-
-    std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
-
-    YT_LOG_INFO("Discovered %v nodes", execNodes.size());
-
-    YT_VERIFY(!execNodes.empty());
-
-    const auto operations = LoadOperations(config->ShiftOperationsToStart);
-    const TInstant earliestTime = FindEarliestTime(operations);
-
-    TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
-
-    auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
-    auto poolTreesYson = LoadPoolTreesYson(config->PoolTreesFilename);
-
-    TSharedOperationStatisticsOutput statisticsOutput(config->OperationsStatsFilename);
-
-    auto simulatorControlThread = New<TSimulatorControlThread>(
-        &execNodes,
-        &eventLogOutputStream,
-        &statisticsOutput,
-        config,
-        schedulerConfig,
-        operations,
-        earliestTime);
-
-    simulatorControlThread->Initialize(poolTreesYson);
-    WaitFor(simulatorControlThread->AsyncRun())
-        .ThrowOnError();
-}
 
 class TSchedulerSimulatorProgram
     : public TProgram
@@ -264,6 +291,87 @@ protected:
 
 private:
     bool AllowDebugMode_ = false;
+
+    TLogger Logger = SchedulerSimulatorLogger;
+
+
+    void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
+    {
+        YT_LOG_INFO("Reading operations description");
+
+        std::vector<TExecNodePtr> execNodes = CreateExecNodesFromFile(config->NodeGroupsFilename);
+
+        YT_LOG_INFO("Discovered %v nodes", execNodes.size());
+
+        YT_VERIFY(!execNodes.empty());
+
+        const auto operations = LoadOperations(config->ShiftOperationsToStart);
+        const TInstant earliestTime = FindEarliestTime(operations);
+
+        TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
+
+        auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
+        auto poolTreesYson = LoadPoolTreesYson(config->PoolTreesFilename);
+
+        TSharedOperationStatisticsOutput statisticsOutput(config->OperationsStatsFilename);
+
+        auto simulatorControlThread = New<TSimulatorControlThread>(
+            &execNodes,
+            &eventLogOutputStream,
+            &statisticsOutput,
+            config,
+            schedulerConfig,
+            operations,
+            earliestTime);
+
+        simulatorControlThread->Initialize(poolTreesYson);
+        WaitFor(simulatorControlThread->AsyncRun())
+            .ThrowOnError();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+class TConvertOperationsToBinaryFormatProgram
+    : public TProgram
+{
+public:
+    TConvertOperationsToBinaryFormatProgram()
+    {
+        Opts_.AddLongOption("destination", "path to save converted operations")
+            .StoreResult(&Destination_)
+            .Required();
+    }
+
+private:
+    TString Destination_;
+
+    TLogger Logger = TLogger("Converter");
+
+    void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
+    {
+        TString destinationTemp(Destination_ + ".tmp");
+
+        {
+            auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
+            TUnbufferedFileOutput outputTemp(destinationTemp);
+            TStreamSaveContext context(&outputTemp);
+            TYsonListExtractor<TOperationDescription> extractor(
+                [&] (const TOperationDescription& entry) { Save(context, entry); },
+                Logger);
+
+            Serialize(input, &extractor);
+            extractor.Finish();
+
+            int extractedCount = extractor.GetExtractedCount();
+            TUnbufferedFileOutput output(Destination_);
+            output.Write(&extractedCount, sizeof extractedCount);
+
+            context.Finish();
+        }
+        NFs::Cat(Destination_.data(), destinationTemp.data());
+        NFs::Remove(destinationTemp.data());
+    }
+
 };
 
 } // namespace NYT
@@ -272,5 +380,8 @@ private:
 
 int main(int argc, const char** argv)
 {
+    if (TString(argv[1]) == "convert-operations-to-binary-format") {
+        return NYT::TConvertOperationsToBinaryFormatProgram().Run(argc - 1, argv + 1);
+    }
     return NYT::TSchedulerSimulatorProgram().Run(argc, argv);
 }

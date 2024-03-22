@@ -1787,6 +1787,15 @@ private:
             [&] (auto* protoRequest) {
                 auto allocationId = FromProto<TAllocationId>(protoRequest->allocation_id());
                 auto operationId = FromProto<TOperationId>(protoRequest->operation_id());
+
+                auto traceContext = TTraceContext::NewChildFromRpc(
+                    protoRequest->tracing_ext(),
+                    /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
+                    requestId,
+                    /*forceTracing*/ false);
+
+                TCurrentTraceContextGuard traceContextGuard(traceContext);
+
                 YT_LOG_DEBUG(
                     "Processing schedule allocation request (OperationId: %v, AllocationId: %v)",
                     operationId,
@@ -1820,17 +1829,9 @@ private:
                 auto scheduleAllocationInvoker = controller->GetCancelableInvoker(Config_->ScheduleAllocationControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
-                auto traceContext = TTraceContext::NewChildFromRpc(
-                    protoRequest->tracing_ext(),
-                    /*spanName*/ Format("ScheduleAllocation:%v", allocationId),
-                    requestId,
-                    /*forceTracing*/ false);
-
                 GuardedInvoke(
                     scheduleAllocationInvoker,
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
-                        TCurrentTraceContextGuard traceContextGuard(traceContext);
-
                         auto controllerInvocationInstant = TInstant::Now();
 
                         YT_LOG_DEBUG(

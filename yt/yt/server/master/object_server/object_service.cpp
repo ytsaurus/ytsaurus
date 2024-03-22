@@ -1773,8 +1773,7 @@ private:
             YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
             subrequest->MutationResponseFuture =
-                subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequests()
-                .WithTimeout(timeLeft);
+                subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequestsOffloaded(timeLeft);
         }
 
         if (!subrequest->RemoteTransactionReplicationFuture && !subrequest->MutationResponseFuture) {

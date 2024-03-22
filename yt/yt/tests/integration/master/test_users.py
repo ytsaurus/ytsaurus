@@ -116,12 +116,12 @@ class TestUsers(YTEnvSetup):
         set("//sys/users/u/@request_limits/read_request_rate/per_cell", {"10": 1338})
         assert get("//sys/users/u/@request_limits/read_request_rate/per_cell/10") == 1338
 
-    @authors("babenko")
+    @authors("babenko", "aleksandr.gaev")
     def test_builtin_init(self):
         assert_items_equal(get("//sys/groups/everyone/@members"), ["users", "guest"])
         assert_items_equal(
             get("//sys/groups/users/@members"),
-            ["superusers", "owner"],
+            ["superusers", "owner", "admins"],
         )
         assert_items_equal(
             get("//sys/groups/superusers/@members"),
@@ -141,6 +141,7 @@ class TestUsers(YTEnvSetup):
                 "tablet_balancer",
             ],
         )
+        assert_items_equal(get("//sys/groups/admins/@members"), [])
 
         assert_items_equal(get("//sys/users/root/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/guest/@member_of"), ["everyone"])

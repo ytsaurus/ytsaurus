@@ -12,6 +12,8 @@ namespace NYT::NCellBalancer {
 
 DECLARE_REFCOUNTED_STRUCT(TSysConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleInfo)
+DECLARE_REFCOUNTED_STRUCT(TBundleArea)
+DECLARE_REFCOUNTED_STRUCT(TChaosBundleInfo)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
 DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
@@ -44,9 +46,13 @@ DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
 DECLARE_REFCOUNTED_STRUCT(TNodeTagFilterOperationState)
 DECLARE_REFCOUNTED_STRUCT(TDataCenterInfo)
 DECLARE_REFCOUNTED_STRUCT(TMediumThroughputLimits)
+DECLARE_REFCOUNTED_STRUCT(TAbcInfo)
+DECLARE_REFCOUNTED_STRUCT(TCellTagInfo)
+DECLARE_REFCOUNTED_STRUCT(TGlobalCellRegistry)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
+using TChaosCellId = NObjectClient::TObjectId;
 
 constexpr int YTRoleTypeTabNode = 1;
 constexpr int YTRoleTypeRpcProxy = 3;
@@ -168,6 +174,7 @@ struct TBundleConfig
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    bool InitChaosBundles;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -205,6 +212,56 @@ struct TTabletCellPeer
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletCellPeer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAbcInfo
+    : public NYTree::TYsonStruct
+{
+    std::optional<int> Id;
+    std::optional<TString> Name;
+    std::optional<TString> Slug;
+
+    REGISTER_YSON_STRUCT(TAbcInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAbcInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCellTagInfo
+    : public NYTree::TYsonStruct
+{
+    TString Area;
+    TString CellBundle;
+    TChaosCellId CellId;
+
+    REGISTER_YSON_STRUCT(TCellTagInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellTagInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGlobalCellRegistry
+    : public NYTree::TYsonStruct
+{
+    ui16 CellTagRangeBegin;
+    ui16 CellTagRangeEnd;
+    ui16 CellTagLast;
+
+    THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> CellTags;
+
+    REGISTER_YSON_STRUCT(TGlobalCellRegistry);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGlobalCellRegistry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,12 +307,49 @@ struct TBundleInfo
 
     double SystemAccountQuotaMultiplier;
 
+    TString FolderId;
+    TAbcInfoPtr Abc;
+
     REGISTER_YSON_STRUCT(TBundleInfo);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleInfo)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBundleArea
+    : public TYsonStructAttributes<TBundleArea>
+{
+    TString Id;
+    int CellCount;
+    TString NodeTagFilter;
+
+    REGISTER_YSON_STRUCT(TBundleArea);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleArea)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosBundleInfo
+    : public TYsonStructAttributes<TChaosBundleInfo>
+{
+    TString Id;
+    THashSet<TChaosCellId> ChaosCellIds;
+    TBundleSystemOptionsPtr Options;
+    THashMap<TString, TBundleAreaPtr> Areas;
+    THashSet<TChaosCellId> MetadataCellIds;
+
+    REGISTER_YSON_STRUCT(TChaosBundleInfo);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosBundleInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -721,12 +815,23 @@ struct TBundleSystemOptions
 
     int PeerCount;
 
+    std::optional<NObjectClient::TCellTag> ClockClusterTag;
+
     REGISTER_YSON_STRUCT(TBundleSystemOptions);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleSystemOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAlert
+{
+    TString Id;
+    std::optional<TString> BundleName;
+    TString Description;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

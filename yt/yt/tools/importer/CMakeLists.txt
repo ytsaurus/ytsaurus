@@ -5,24 +5,25 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-add_executable(scheduler_simulator)
+add_executable(importer)
 
 
-target_include_directories(scheduler_simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator
-)
-
-target_link_libraries(scheduler_simulator PUBLIC
+target_link_libraries(importer PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
-  yt-tools-scheduler_simulator
-  cpp-yt-phdr_cache
+  cpp-mapreduce-client
+  cpp-mapreduce-util
+  mapreduce-library-blob_table
+  yt-library-arrow_parquet_adapter
+  yt-library-huggingface_client
+  cpp-yson-node
   library-cpp-getopt
+  libs-apache-arrow
 )
 
-target_link_options(scheduler_simulator PRIVATE
+target_link_options(importer PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -34,17 +35,18 @@ target_link_options(scheduler_simulator PRIVATE
   -lutil
 )
 
-target_sources(scheduler_simulator PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/scheduler_simulator/bin/simulator/main.cpp
+target_sources(importer PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/importer/main.cpp
 )
 
 
 
-target_allocator(scheduler_simulator
-  cpp-ytalloc-impl
+target_allocator(importer
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
-vcs_info(scheduler_simulator)
+vcs_info(importer)
 
 
 

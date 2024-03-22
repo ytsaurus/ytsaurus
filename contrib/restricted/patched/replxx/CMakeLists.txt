@@ -29,16 +29,7 @@ target_link_libraries(restricted-patched-replxx PUBLIC
 
 target_sources(restricted-patched-replxx PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/ConvertUTF.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/conversion.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/escape.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/history.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/prompt.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/replxx.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/replxx_impl.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/terminal.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/util.cxx
   ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/wcwidth.cpp
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/patched/replxx/src/windows.cxx
 )
 
 

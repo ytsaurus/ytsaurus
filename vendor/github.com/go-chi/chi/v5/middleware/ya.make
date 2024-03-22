@@ -23,6 +23,7 @@ SRCS(
     realip.go
     recoverer.go
     request_id.go
+    request_size.go
     route_headers.go
     strip.go
     terminal.go
@@ -52,4 +53,6 @@ GO_TEST_SRCS(
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

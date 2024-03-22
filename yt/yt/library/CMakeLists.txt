@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+add_subdirectory(arrow_parquet_adapter)
 add_subdirectory(auth)
 add_subdirectory(auth_server)
 add_subdirectory(backtrace_introspector)
@@ -22,6 +23,7 @@ add_subdirectory(error_skeleton)
 add_subdirectory(formats)
 add_subdirectory(gpu)
 add_subdirectory(heavy_schema_validation)
+add_subdirectory(huggingface_client)
 add_subdirectory(monitoring)
 add_subdirectory(named_value)
 add_subdirectory(numeric)

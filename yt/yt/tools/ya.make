@@ -8,6 +8,7 @@ RECURSE(
     dynamic_tables
     force_commit_tx
     hunk_chunk_advisor
+    importer
     journal_reader
     offline_controller
     offline_read

@@ -7,6 +7,7 @@
 #include "rpc_helpers.h"
 #include "default_type_handler.h"
 #include "pipeline_type_handler.h"
+#include "producer_type_handler.h"
 #include "replicated_table_replica_type_handler.h"
 #include "replication_card_type_handler.h"
 #include "replication_card_collocation_type_handler.h"
@@ -146,6 +147,7 @@ TClient::TClient(
     , Counters_(Profiler_)
     , TypeHandlers_{
         CreateConsumerTypeHandler(this),
+        CreateProducerTypeHandler(this),
         CreatePipelineTypeHandler(this),
         CreateReplicatedTableReplicaTypeHandler(this),
         CreateSecondaryIndexTypeHandler(this),

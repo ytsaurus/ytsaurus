@@ -359,6 +359,18 @@ def get_checks_config():
         }
     }
 
+    tablet_cells_check_hahn = {
+        "tablet_cells": {
+            "alerts": {
+                "simple": {
+                    "period": 22,
+                    "threshold": 2,
+                    "partially_available_strategy": "force_ok"
+                }
+            }
+        }
+    }
+
     YP_TRANSPORT_TO_PORT = {
         "grpc": 8090,
         "http": 8443,
@@ -867,6 +879,7 @@ def get_checks_config():
                         "freud-gnd": 9552,
                         "hahn": 83,
                         "hume": 85,
+                        "hume-gnd": 9487,
                         "landau": 138,
                         "locke": 96,
                         "markov": 89,
@@ -1299,6 +1312,12 @@ def get_checks_config():
                 tablet_stress_test,
                 enable_tablet_cell_snapshot_convergence,
             ),
+            "hume-gnd": deep_merge(
+                snapshot_validation,
+                allow_unaware_nodes,
+                clock_quorum_health,
+                nochyt,
+            ),
             "freud": deep_merge(
                 clouds,
                 skynet_manager,
@@ -1315,6 +1334,7 @@ def get_checks_config():
                 allow_unaware_nodes,
                 clock_quorum_health,
                 nochyt,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "seneca-sas": deep_merge(
                 snapshot_validation,
@@ -1386,6 +1406,7 @@ def get_checks_config():
                 enable_nightly_compression_hahn,
                 dynamic_table_replication_stable,
                 system_quotas_with_non_critical_yp_account,
+                tablet_cells_check_hahn,
             ),
             "zeno": deep_merge(
                 allow_unaware_nodes,

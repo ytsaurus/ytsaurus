@@ -46,6 +46,26 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChaosConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::vector<TString> TabletCellClusters;
+    std::vector<TString> ChaosCellClusters;
+    NObjectClient::TCellTag ClockClusterTag;
+
+    TString AlphaChaosCluster;
+    TString BetaChaosCluster;
+
+    REGISTER_YSON_STRUCT(TChaosConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
@@ -77,6 +97,9 @@ public:
     TDuration OfflineInstanceGracePeriod;
 
     bool EnableNetworkLimits;
+
+    bool EnableChaosBundleManagement;
+    TChaosConfigPtr ChaosConfig;
 
     REGISTER_YSON_STRUCT(TBundleControllerConfig);
 

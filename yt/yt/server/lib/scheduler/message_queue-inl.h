@@ -10,18 +10,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class T, typename = void>
-struct THasProtoTracingExtension
-    : std::false_type
-{ };
-
-template<class T>
-struct THasProtoTracingExtension<T, decltype((void)T::tracing_ext, void())>
-    : std::true_type
-{ };
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TItem>
 TMessageQueueOutbox<TItem>::TMessageQueueOutbox(
     const NLogging::TLogger& logger,
@@ -107,9 +95,10 @@ void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder
         protoItemBuilder(newItem, it->Item);
 
         using TProtoItem = typename std::remove_reference<decltype(*newItem)>::type;
-        if constexpr (THasProtoTracingExtension<TProtoItem>{}) {
+
+        if constexpr (requires(TProtoItem tmp) { { tmp.tracing_ext() }; }) {
             if (it->TraceContext) {
-                auto* tracingExt = newItem->MutableExtension(TProtoItem::tracing_ext);
+                auto* tracingExt = newItem->mutable_tracing_ext();
                 ToProto(tracingExt, it->TraceContext);
             }
         }
