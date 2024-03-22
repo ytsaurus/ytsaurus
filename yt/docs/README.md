@@ -361,7 +361,7 @@ The `dyn-query-language.md` article also reuses content, same as `query-tracker.
 
 ### Lists
 
-Every item in an ordered list starts with a capital letter and ends with a period, while items in an unordered list start with a lowercase letter and end with a semicolon; the last item in the list always ends with a period.
+Use an ordered list when order matters, and unordered list otherwise. Every item in a list starts with a capital letter and ends with a period. 
 
 **Ordered:**
 
@@ -374,9 +374,9 @@ Every item in an ordered list starts with a capital letter and ends with a perio
 **Unordered:**
 
 ```
-- the type of access (read, write, etc.);
-- the user who initiated the request;
-- the object to which access is requested.
+- The type of access (read, write, etc.).
+- The user who initiated the request.
+- The object to which access is requested.
 ```
 
 ### Code Examples Snippets
