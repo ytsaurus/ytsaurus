@@ -81,9 +81,7 @@ items:
 ```
 When you add a new article, don't forget to add this article into the `toc.yaml` file, otherwise, the article will not be included in the documentation.
 
-Individual sections can be included in or excluded from the document, depending on the values of variables. To describe visibility conditions, the `when` parameter is used. 
-
-> **Why the `when: audience == "public"` parameter is set?**</br>YTsaurus documentation is represented in two versions: public version (the one you are reading), and the internal one which is available only for the team members. As YTsaurus documentation uses the single source approach, both public and internal versions are built from the common content. So that, all articles for which the `when` parameter is not specified in `toc.yaml` appear in both internal and public documentation. If the `when: audience == "public"` parameter is specified for an article, it means that this article will only appear in the public documentation. Keep this in mind: when adding a new article, you should set the `when: audience == "public"` parameter.
+Individual sections can be included in or excluded from the document, depending on the values of variables. To describe visibility conditions, the `when` parameter is used. In order for an article to be included in the build, it must explicitly be flagged with `when: audience == "public"`. If this flag is not specified, the section will not be included in the open source documentation.
 
 For more details about the table of contents, see the [YFM official documentation](https://diplodoc.com/docs/en/project/toc).
 
@@ -108,23 +106,13 @@ default:
     ...
 ```
 
-You can read more about using the variables in the official [YFM official documentation](https://diplodoc.com/docs/en/project/presets).
+You can read about variables in the official [YFM official documentation](https://diplodoc.com/docs/en/project/presets).
 
 -------
 
 ### Reused Content
 
-The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, the shared content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
-
-<!--
-To include recurring content in the required places of the document, the `{% include %}` construction is used. For example, below is the source code of the article [CLI and Python API](https://ytsaurus.tech/docs/en/user-guide/data-processing/chyt/cli-and-api), to which some parts of reusable content were added:
-
-```
-{% include [CLI and Python API — Introduction](../../../_includes/user-guide/data-processing/chyt/cli-and-api-intro.md) %}
-
-{% include [CLI and Python API — Usage Examples](../../../_includes/user-guide/data-processing/chyt/cli-and-api-details.md) %}
-```
--->
+The documentation is written using the Single Source approach. This means the common content that is reused across different parts of the documentation is stored in separate files and then added in the necessary articles. In YTsaurus, reused content is stored in the `ru/_includes` folder for the Russian content, and in `en/_includes` for the English one.
 
 Keep this approach in mind when [contributing](#contribution) to YTsaurus documentation.
 
