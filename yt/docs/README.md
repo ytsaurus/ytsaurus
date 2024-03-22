@@ -1,26 +1,5 @@
 # About YTsaurus Documentation
 
-- [Overview](#overview)
-- [Documentation Structure](#documentation-structure)
-  - [Table of Contents](#table-of-contents)
-  - [Variables](#variables)
-  - [Reused Content](#reused-content)
-- [Supported Languages](#supported-languages)
-- [Contribution](#contribution)
-  - [How to Make a Quick Fix](#how-to-make-a-quick-fix)
-  - [How to Add a New Article](#how-to-add-a-new-article)
-  - [How to Share Feedback](#how-to-share-feedback)
-  - [What Happens After Changes are Merged](#what-happens-after-changes-are-merged)
-- [Content Writing Recommendations](#content-writing-recommendations)  
-  - [YFM Syntax Quick Reference](#yfm-syntax-quick-reference)
-  - [Style Guide](#style-guide)
-  - [Documentation Philosophy](#documentation-philosophy)
-- [How to Build Locally](#how-to-build-locally)
-- [Need Help?](#need-help)
-
-
-## Overview
-
 YTsaurus follows the "Documentation as a Code" paradigm. The documentation content is stored in an open-source repository along with the YTsaurus codebase and located in the `ytsaurus/yt/docs/` directory. Being bilingual, documentation is hosted in the official YTsaurus website:
 - In Russian: https://ytsaurus.tech/docs/ru
 - In English: https://ytsaurus.tech/docs/en
@@ -43,7 +22,7 @@ You are welcome to contribute to the YTsaurus documentation: correct typos, prov
         |-- admin-guide/  
         |-- ...                                        
         |-- _includes/      # Here, content that is reused in different parts of the Russian documentation.
-            |-- user-guide/ # For example, here are stored common articles that are used in the user guide section.
+            |-- user-guide/ # For example, here are stored common articles that are reused in the user guide section.
             |-- admin-guide/
     |-- en/                 # Content in English.
         |-- toc.yaml        # Table of contents of the English documentation.
@@ -212,7 +191,7 @@ Below are the main steps of how to add new content to the documentation:
 
 4. Add a link to your article in the `ru/toc.yaml` or `en/toc.yaml` file, depending on the language you are writing in. Considering the example from the step 3, keep the following in mind:
    - You should only add a link to the `user-guide/new-article.md` article, but not to the `_includes/user-guide/new-article.md`.
-   - If you write articles in both Russian and English languages, you should add links into both `ru/toc.yaml` and `en/toc.yaml` files.
+   - If you write articles in both Russian and English languages, you should add links in both `ru/toc.yaml` and `en/toc.yaml` files.
    - Set a visibility flag to your article: `when: audience == "public"`.
    
    For example:
@@ -226,7 +205,7 @@ Below are the main steps of how to add new content to the documentation:
 
 6. Proofread your text. Before publishing, look for typos, missing punctuation, or repetitions that could be avoided.
 
-7. Create a pull request. See the [Pull requests](https://docs.github.com/en/pull-requests) official documentation.
+7. Create a pull request. See the [Pull requests](https://docs.github.com/en/pull-requests) official documentation. Note that after opening a pull request, the message "Merging is blocked" will occur. This only means that review is required before the merging.
 
 8. Participate in the review process.
    Your article will be thoroughly reviewed by the team. Be prepared for a dialogue and adjustments — the team may request further changes. Keep in mind that your text may be modified, or the article may be moved to a different section of the documentation if it enhances navigation and readability.
@@ -317,10 +296,10 @@ For more information, see the [Compaction](../../../user-guide/dynamic-tables/co
 
 #### How to Set Links Between the Documents Located in the `_includes` Folder?
 
-When adding a link into a document that is located in the `_includes` folder, keep the following in mind:
+When adding a link in a document that is located in the `_includes` folder, keep the following in mind:
 
-- A link should be set relativelly to the document located in the `_includes` folder, but not in the original one. What is original folder, see the example below.
-- A link should always refer to the document located in the original folder, but not in the `_includes`. You should never refer to the `_includes` folder in links.
+- A link path should be set relativelly to the document located in the `_includes` folder, but not in the original one. What is original folder, see the example below.
+- A link should always refer to the document located in the original folder, but not in the `_includes`. You should never link to the `_includes` folder.
 
 For an example, take a look at the [Query Tracker](https://ytsaurus.tech/docs/en/user-guide/query-tracker) article. Its source is stored in the [en/user-guide/query-tracker.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/query-tracker.md) file:
 
@@ -352,11 +331,11 @@ Currently supported execution engines:
 + [YT QL](../../user-guide/dynamic-tables/dyn-query-language.md).
 ```
 
-The "YT QL" link refers to the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md) article which also reuses content, same as `query-tracker.md`. Note that:
+The "YT QL" link refers to the [en/user-guide/dynamic-tables/dyn-query-language.md](https://github.com/ytsaurus/ytsaurus/edit/main/yt/docs/en/user-guide/dynamic-tables/dyn-query-language.md) article which in turn reuses content. Note that:
 - The "YT QL" link is set relativelly to the `query-tracker.md` document located in the `_includes` folder.
 - This link refers to the `dyn-query-language.md` document located in the original `en/user-guide/dynamic-tables/` folder, but not in the `en/_includes/user-guide/dynamic-tables/`.
 
-If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
+> If you encounter issues with cross-link usage, feel free to ask questions in YTsaurus [community chat](#need-help).
 
 ### Lists
 
