@@ -272,7 +272,8 @@ Your feedback is always welcome. You can share it in the following ways:
 
 - Headers are on a separate line starting with `#`, `##` or `###`.
 - Bold is in `**asterisks**` or `__underlines__`.
-- Links `[anchor](http://...)`, images `![alt-text](_images/image.png "hint_text" =100x100)`.
+- Links `[anchor](http://...)`.
+- Images `![alt-text](images/example.png "hint_text" =100x100)`.
 - Lists are on lines starting with `*` unordered or `1.` ordered. There should be an empty line before the first list item. Sub-lists must be indented with 4 spaces.
 - Inline code fragments are <code>&#96;in backticks&#96;</code>.
 - Multiline code blocks are  <code>&#96;&#96;&#96;in triple backtick quotes &#96;&#96;&#96;</code>.
@@ -295,12 +296,18 @@ For more details about YFM Syntax, see the [official documentation](https://dipl
 
 ## Style Guide
 
+- [File Naming](#file-naming)
 - [Article Description](#article-description)
 - [Links](#links)
 - [Lists](#lists)
-- [Code Examples Snippets](#code-examples-snippets)
 - [Tables](#tables)
+- [Code Examples Snippets](#code-examples-snippets)
 - [Listings](#listings)
+- [Images](#images)
+
+### File Naming
+
+In compound file names, use a hyphen `-`, not an underscore `_`. Examples: `new-article.md`, `new-image.png`.
 
 ### Article Description
 
@@ -361,9 +368,9 @@ The `dyn-query-language.md` article also reuses content, same as `query-tracker.
 
 ### Lists
 
-Use an ordered list when order matters, and unordered list otherwise. Every item in a list starts with a capital letter and ends with a period. 
+Use an ordered list when order matters, and unordered list otherwise. Every item in a list should start with a capital letter and end with a period. 
 
-**Ordered:**
+**Ordered**
 
 ```
 1. The type of access (read, write, etc.).
@@ -371,28 +378,13 @@ Use an ordered list when order matters, and unordered list otherwise. Every item
 3. The object to which access is requested.
 ```
 
-**Unordered:**
+**Unordered**
 
 ```
 - The type of access (read, write, etc.).
 - The user who initiated the request.
 - The object to which access is requested.
 ```
-
-### Code Examples Snippets
-
-**Bash**
-
-In the bash examples, add the `$` symbol at the beginning of the line before the command. This allows to visually distinguish the command invocation from the output response.
-
-Example:
-
-````
-```bash
-$ yt get //home/@count
-36
-```
-````
 
 ### Tables
 
@@ -415,6 +407,22 @@ The attributes of subjects are shown in Table 1.
 | `member_of`         | `array<string>` | List of group names to which the subject directly belongs |
 ```
 
+### Code Examples Snippets
+
+**Bash**
+
+In the bash examples, add the `$` symbol at the beginning of the line before the command. This allows to visually distinguish the command invocation from the output response.
+
+Example:
+
+````
+```bash
+$ yt get //home/@count
+36
+```
+````
+
+
 ### Listings
 
 Listings are used to indicate the snippets with code examples. A reference to the listing is desirable. The title should start with a capital letter and end without a period.
@@ -435,6 +443,12 @@ $ yt check-permission yql write //tmp
 }
 ```
 ````
+
+### Images
+
+Images should only contain text in English, regardless of the language of documentation to which they are added.
+
+For information about images usage syntax, read the [YFM documentation](https://diplodoc.com/docs/en/syntax/media).
 
 ------
 
