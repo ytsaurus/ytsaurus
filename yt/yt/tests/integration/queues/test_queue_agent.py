@@ -3073,7 +3073,6 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
     @authors("achulkov2")
     def test_alert_combinations(self):
         queue_agent_orchid = QueueAgentOrchid()
-        cypress_orchid = CypressSynchronizerOrchid()
 
         export_dir_1 = "//tmp/export1"
         export_dir_2 = "//tmp/export2"
