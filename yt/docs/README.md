@@ -128,6 +128,8 @@ If you spot an error in the documentation, such as a typo or a broken link, you 
 
 4. To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
 
+------
+
 ### How to Add a New Article
 
 Below are the main steps of how to add new content to the documentation:
@@ -199,12 +201,16 @@ Below are the main steps of how to add new content to the documentation:
 
 To know what happens next, see the [What Happens After Changes are Merged](#what-happens-after-changes-are-merged) section.
 
+-------
+
 ### How to Share Feedback
 
 Your feedback is always welcome and can be shared in the following ways:
 
 - **Open an issue.** Use this option if you want to report errors in the documentation, missing information, or inaccuracies. Issues are a way to track actionable tasks that need to be addressed.
 - **Open a discussion.** This option is better suited for sharing feedback that does not require immediate action or suggesting changes. Use discussions for general questions about the documentation or to propose new ideas for enhancing the content — for example, when you find some content is written in an unclear manner or you would like a more detailed explanation.
+
+-------
 
 ### What Happens After Changes are Merged
 
