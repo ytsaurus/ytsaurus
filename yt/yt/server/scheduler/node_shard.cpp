@@ -472,8 +472,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
 
-    auto traceContextGuard = NTracing::TCurrentTraceContextGuard(context->GetTraceContext());
-
     const auto& strategy = ManagerHost_->GetStrategy();
 
     auto* request = &context->Request();

@@ -1881,3 +1881,95 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         set_banned_flag(False, nodes=[second_node], wait_for_scheduler=True)
 
         op.track()
+
+
+##################################################################
+
+
+class TestSchedulerTracing(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    LOG_WRITE_WAIT_TIME = 0.5
+
+    @authors("ignat", "pogorelov")
+    def test_tracing(self):
+        # update_scheduler_config("rpc_server/tracing_mode", "enable")
+
+        run_test_vanilla("sleep 0.1", track=True)
+
+        logs_path = self.path_to_run + "/logs"
+
+        scheduler_log_file = logs_path + "/scheduler-0.debug.log.zst"
+        controller_agent_log_file = logs_path + "/controller-agent-0.debug.log.zst"
+        node_log_file = logs_path + "/node-0.debug.log.zst"
+
+        time.sleep(self.LOG_WRITE_WAIT_TIME)
+
+        trace_id = None
+
+        decompressor = zstd.ZstdDecompressor()
+        with open(scheduler_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+            for line in text_stream:
+                if "AllocationTrackerService.Heartbeat ->" not in line:
+                    continue
+                if "StartedAllocations:" not in line:
+                    continue
+
+                started_allocation_count = int(line.split("StartedAllocations:", 1)[1].split(",", 1)[0].split()[1])
+                if started_allocation_count == 0:
+                    continue
+
+                parts = line.strip().split("\t")
+
+                # datetime \t log_level \t logger_name \t message \t txid \t fid \t trace_id
+                assert len(parts) == 7
+
+                trace_id = parts[-1]
+
+        assert trace_id is not None
+
+        has_allocation_registered_line = False
+        with open(scheduler_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+            for line in text_stream:
+                if line.strip().endswith(trace_id) and "Allocation registered" in line:
+                    has_allocation_registered_line = True
+                    break
+
+        assert has_allocation_registered_line
+
+        has_processing_scheduling_allocation_request_line = False
+        with open(controller_agent_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+
+            for line in text_stream:
+                if line.strip().endswith(trace_id) and "Processing schedule allocation request" in line:
+                    has_processing_scheduling_allocation_request_line = True
+
+        assert has_processing_scheduling_allocation_request_line
+
+        has_preparing_scheduler_heartbeat_line = False
+        has_successfully_reported_heartbeat_line = False
+        has_allocation_created_line = False
+        with open(node_log_file, "rb") as fin:
+            binary_reader = decompressor.stream_reader(fin, read_size=8192)
+            text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+
+            for line in text_stream:
+                if line.strip().endswith(trace_id):
+                    if "Preparing scheduler heartbeat request" in line:
+                        has_preparing_scheduler_heartbeat_line = True
+                    if "Successfully reported heartbeat to scheduler" in line:
+                        has_successfully_reported_heartbeat_line = True
+                    if "Allocation created" in line:
+                        has_allocation_created_line = True
+
+        assert has_preparing_scheduler_heartbeat_line
+        assert has_successfully_reported_heartbeat_line
+        assert has_allocation_created_line

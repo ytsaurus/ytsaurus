@@ -37,6 +37,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NScheduler::NProto::NNode, Heartbeat)
     {
+        auto traceContextGuard = NTracing::TCurrentTraceContextGuard(context->GetTraceContext());
+
         const auto& scheduler = Bootstrap_->GetScheduler();
         scheduler->ProcessNodeHeartbeat(context);
     }
