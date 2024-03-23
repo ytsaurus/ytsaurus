@@ -2987,6 +2987,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         return EAbortReason::RootVolumePreparationFailed;
     }
 
+    if (resultError.FindMatching(NJobProxy::EErrorCode::UserJobPortoAPIError)) {
+        return EAbortReason::Other;
+    }
+
     if (resultError.FindMatching(NChunkClient::EErrorCode::AllTargetNodesFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) ||
         resultError.FindMatching(NChunkClient::EErrorCode::MasterCommunicationFailed) ||
