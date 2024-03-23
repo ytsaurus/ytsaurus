@@ -265,6 +265,15 @@ public:
         }
     }
 
+    TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
+    {
+        if (!volumeCreationResult.IsOK()) {
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UserJobPortoAPIError, "Creation of user job volume failed", volumeCreationResult);
+        } else {
+            return volumeCreationResult.Value();
+        }
+    }
+
     TFuture<void> SpawnUserProcess(
         const TString& path,
         const std::vector<TString>& arguments,
@@ -289,8 +298,8 @@ public:
             THashMap<TString, TString> properties;
             properties["backend"] = "rbind";
             properties["storage"] = NFs::CurrentWorkingDirectory();
-            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, properties))
-                .ValueOrThrow();
+            auto volumeCreationResult = WaitFor(PortoExecutor_->CreateVolume(newPath, properties));
+            auto volumePath = HandleVolumeCreationError(volumeCreationResult);
 
             // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
             // so let's live with exec in layer for a while.
