@@ -603,6 +603,9 @@ private:
             auto recordsDataSize = GetByteSize(records);
             auto recordCount = records.size();
 
+            RecordCount_ += recordCount;
+            DataSize_ += recordsDataSize;
+
             if (WriterOpened_) {
                 FlushFuture_ = Writer_->Write(records);
             } else {
@@ -612,13 +615,6 @@ private:
                     records.end());
                 FlushFuture_ = PendingRecordsFlushFuture_;
             }
-
-            FlushFuture_.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                if (error.IsOK()) {
-                    DataSize_ += recordsDataSize;
-                    RecordCount_ += recordCount;
-                }
-            }));
 
             return FlushFuture_;
         }
