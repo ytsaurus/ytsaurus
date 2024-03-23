@@ -144,12 +144,12 @@ class StringIndexWorker(gdb.xmethod.XMethodWorker):
 
     def __call__(self, obj, idx):
         ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
-        __short_mask = 0x1
-        if ((ss['__size_'] & __short_mask) == 0):
-            return ss['__data_'][idx].reference_value().cast(self.result_type)
-        else:
+        is_long = ss['__is_long_']
+        if is_long:
             sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
             return sl['__data_'][idx].cast(self.result_type)
+        else:
+            return ss['__data_'][idx].reference_value().cast(self.result_type)
 
 
 class StringDataWorker(gdb.xmethod.XMethodWorker):
@@ -166,12 +166,12 @@ class StringDataWorker(gdb.xmethod.XMethodWorker):
 
     def __call__(self, obj):
         ss = destructure_compressed_pair(obj['__r_'])[0]['__s']
-        __short_mask = 0x1
-        if ((ss['__size_'] & __short_mask) == 0):
-            return ss['__data_'].address.cast(self.result_type)
-        else:
+        is_long = ss['__is_long_']
+        if is_long:
             sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
             return sl['__data_'].address.cast(self.result_type)
+        else:
+            return ss['__data_'].address.cast(self.result_type)
 
 
 class StringCStrWorker(StringDataWorker):
