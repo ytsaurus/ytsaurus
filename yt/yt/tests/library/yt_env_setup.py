@@ -374,6 +374,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def modify_timestamp_providers_configs(cls, timestamp_providers_configs, clock_configs, yt_configs):
+        return False
+
+    @classmethod
     def on_masters_started(cls):
         pass
 
@@ -647,6 +651,19 @@ class YTEnvSetup(object):
             cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
             cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
+        # All at once so one can copy alien entries between them
+        cluster_envs = [cls.Env] + cls.remote_envs
+        timestamp_provider_configs = [
+            cluster_env.get_cluster_configuration()["timestamp_provider"] for cluster_env in cluster_envs
+        ]
+        clock_configs = [
+            cluster_env.get_cluster_configuration()["clock"] for cluster_env in cluster_envs
+        ]
+        yt_configs = [cluster_env.yt_config for cluster_env in cluster_envs]
+        if cls.modify_timestamp_providers_configs(timestamp_provider_configs, clock_configs, yt_configs):
+            for cluster_env in cluster_envs:
+                cluster_env.rewrite_timestamp_provider_configs()
+
         latest_run_path = os.path.join(cls.path_to_test, "run_latest")
         if os.path.exists(latest_run_path):
             os.remove(latest_run_path)
@@ -655,7 +672,7 @@ class YTEnvSetup(object):
         yt_commands.is_multicell = cls.is_multicell()
         yt_commands.path_to_run_tests = cls.path_to_run
 
-        cls.combined_envs = cls.ground_envs + [cls.Env] + cls.remote_envs
+        cls.combined_envs = cls.ground_envs + cluster_envs
         yt_commands.init_drivers(cls.combined_envs)
 
         for env in cls.ground_envs:

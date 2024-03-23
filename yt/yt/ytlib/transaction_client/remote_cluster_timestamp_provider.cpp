@@ -33,51 +33,50 @@ public:
         TCellTag clockClusterTag,
         NLogging::TLogger logger)
         : NativeConnection_(nativeConnection)
-        , ClockClusterTag_(clockClusterTag)
+        , ClockClusterTag_(clockClusterTag == nativeConnection->GetClusterTag()
+            ? InvalidCellTag
+            : clockClusterTag)
         , Logger(std::move(logger))
     {
-        if (ClockClusterTag_ == nativeConnection->GetClusterTag()) {
-            Underlying_.Store(nativeConnection->GetTimestampProvider());
-            return;
-        }
-
-        if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
-            Underlying_.Store(connection->GetTimestampProvider());
-            return;
-        }
+        Underlying_.Store(nativeConnection->GetTimestampProvider());
 
         nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Subscribe(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)));
     }
 
-    TFuture<TTimestamp> GenerateTimestamps(int count) override
+    TFuture<TTimestamp> GenerateTimestamps(int count, TCellTag clockClusterTag) override
     {
+        if (clockClusterTag == InvalidCellTag) {
+            clockClusterTag = ClockClusterTag_;
+        }
         if (auto underlying = Underlying_.Acquire()) {
-            return underlying->GenerateTimestamps(count);
+            return underlying->GenerateTimestamps(count, clockClusterTag);
         }
 
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
             THROW_ERROR_EXCEPTION("Cannot generate timestamps: connection terminated")
-                << TErrorAttribute("clock_cluster_tag", ClockClusterTag_);
+                << TErrorAttribute("clock_cluster_tag", clockClusterTag);
         }
 
         return nativeConnection->GetClusterDirectorySynchronizer()->Sync()
             .Apply(BIND(&TRemoteClusterTimestampProvider::OnClusterDirectorySync, MakeWeak(this)))
-            .Apply(BIND([this, this_ = MakeStrong(this), count] {
+            .Apply(BIND([this, this_ = MakeStrong(this), count, clockClusterTag] {
                 if (auto underlying = Underlying_.Acquire()) {
-                    return underlying->GenerateTimestamps(count);
+                    return underlying->GenerateTimestamps(count, clockClusterTag);
                 }
                 return MakeFuture<TTimestamp>(TError(
                     "Timestamp provider for clock cluster tag %v is unavailable at the moment",
-                    ClockClusterTag_));
+                    clockClusterTag));
             }));
     }
 
-    TTimestamp GetLatestTimestamp() override
+    TTimestamp GetLatestTimestamp(TCellTag clockClusterTag) override
     {
         if (auto underlying = Underlying_.Acquire()) {
-            return underlying->GetLatestTimestamp();
+            return underlying->GetLatestTimestamp(clockClusterTag == InvalidCellTag
+                ? ClockClusterTag_
+                : clockClusterTag);
         }
 
         return MinTimestamp;
@@ -95,18 +94,11 @@ private:
     {
         auto nativeConnection = NativeConnection_.Lock();
         if (!nativeConnection) {
-            YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated (ClockClusterTag: %v)",
-                ClockClusterTag_);
+            YT_LOG_DEBUG("Cannot initialize timestamp provider: connection terminated");
             return;
         }
 
-        if (auto connection = FindRemoteConnection(nativeConnection, ClockClusterTag_)) {
-            Underlying_.Store(connection->GetTimestampProvider());
-            return;
-        }
-
-        YT_LOG_DEBUG("Cannot initialize timestamp provider: cluster is not known (ClockClusterTag: %v)",
-            ClockClusterTag_);
+        Underlying_.Store(nativeConnection->GetTimestampProvider());
     }
 };
 

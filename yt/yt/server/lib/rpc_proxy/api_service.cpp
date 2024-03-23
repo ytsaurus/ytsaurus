@@ -1216,12 +1216,24 @@ private:
             clockClusterTag = Connection_->GetClusterTag();
         }
 
-        const auto& timestampProvider = Connection_->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
+        const auto& timestampProvider = Connection_->GetTimestampProvider();
 
         ExecuteCall(
             context,
-            [=] {
-                return timestampProvider->GenerateTimestamps(count);
+            [=, Logger = Logger, connection = Connection_] {
+                return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
+                    BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
+                        if (providerResult.IsOK() ||
+                            !providerResult.FindMatching(NTransactionServer::EErrorCode::UnknownClockClusterTag))
+                        {
+                            return MakeFuture(std::move(providerResult));
+                        }
+                        YT_LOG_DEBUG("Unknown clock cluster tag %v, trying to generate timestamps via direct call",
+                            clockClusterTag);
+
+                        auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
+                        return alienClient->GenerateTimestamps(count);
+                    }));
             },
             [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {
                 auto* response = &context->Response();

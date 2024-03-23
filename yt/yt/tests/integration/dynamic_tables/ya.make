@@ -43,6 +43,7 @@ TEST_SRCS(
     test_tablet_actions.py
     test_tablet_balancer.py
     test_tablet_transactions.py
+    test_ts_providers.py
 )
 
 IF (NOT OPENSOURCE)
