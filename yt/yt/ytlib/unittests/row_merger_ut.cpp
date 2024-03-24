@@ -545,6 +545,7 @@ public:
             evaluator,
             false,
             mergeRowsOnFlush,
+            schema.GetTtlColumnIndex(),
             mergeDeletionsOnFlush);
     }
 
@@ -1603,6 +1604,120 @@ TEST_F(TVersionedRowMergerTest, MergeWithLimit)
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0", "<id=1;ts=10>1;<id=1;ts=15>3", {12, 17})},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, DeleteByTtlColumn)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TDuration::Seconds(30);
+    config->MinDataVersions = 0;
+    config->MaxDataVersions = 1;
+
+    auto merger = GetTypicalMerger(
+        config,
+        TimestampFromUnixTime(13),
+        MaxTimestamp,
+        TTableSchema{{
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("$ttl", EValueType::Uint64),
+        }},
+        TColumnFilter({0, 1, 2}));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 1; <id=1;ts=%v> 2; "
+            "<id=1;ts=%v> 3; <id=1;ts=%v> 4; "
+            "<id=2;ts=%v> 10000u; <id=2;ts=%v> 1000u; "
+            "<id=2;ts=%v> 1000u; <id=2;ts=%v> 1000u",
+            TimestampFromUnixTime(3),
+            TimestampFromUnixTime(7),
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10),
+            TimestampFromUnixTime(3),
+            TimestampFromUnixTime(7),
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10)),
+        {TimestampFromUnixTime(6)});
+
+    merger->AddPartialRow(row);
+
+    EXPECT_FALSE(merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, MergeIncreasedTtlColumn)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TDuration::Zero();
+    config->MinDataVersions = 0;
+    config->MaxDataVersions = 2;
+
+    auto merger = GetTypicalMerger(
+        config,
+        TimestampFromUnixTime(13),
+        MaxTimestamp,
+        TTableSchema{{
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("v2", EValueType::Int64),
+            TColumnSchema("$ttl", EValueType::Uint64),
+        }},
+        TColumnFilter({0, 1, 2, 3}));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 1; <id=2;ts=%v> 4; "
+            "<id=3;ts=%v> 1000u; <id=3;ts=%v> 5000u",
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10),
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10)),
+        {});
+
+    merger->AddPartialRow(row);
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{row},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TDuration::Seconds(30);
+    config->MinDataVersions = 0;
+    config->MaxDataVersions = 1;
+
+    auto merger = GetTypicalMerger(
+        config,
+        TimestampFromUnixTime(18),
+        MaxTimestamp,
+        TTableSchema{{
+            TColumnSchema("k", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("v1", EValueType::Int64),
+            TColumnSchema("$ttl", EValueType::Uint64),
+        }},
+        TColumnFilter({0, 1, 2}));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 1; <id=1;ts=%v> 4; "
+            "<id=2;ts=%v> 1000u; <id=2;ts=%v> 5000u",
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10),
+            TimestampFromUnixTime(9),
+            TimestampFromUnixTime(10)),
+        {});
+
+    merger->AddPartialRow(row);
+
+    EXPECT_FALSE(merger->BuildMergedRow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

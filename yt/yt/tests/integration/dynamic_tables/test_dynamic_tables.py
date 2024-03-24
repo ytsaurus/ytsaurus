@@ -3302,7 +3302,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         wait(lambda: not bool(_get_errors()))
 
-
 ##################################################################
 
 

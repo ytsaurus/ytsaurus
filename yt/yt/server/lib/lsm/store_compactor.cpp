@@ -156,7 +156,9 @@ private:
         auto* tablet = partition->GetTablet();
 
         auto mountConfig = tablet->GetMountConfig();
-        if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0) {
+        if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0 ||
+            tablet->GetHasTtlColumn())
+        {
             return {};
         }
 

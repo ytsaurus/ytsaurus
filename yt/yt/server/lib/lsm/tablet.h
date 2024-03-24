@@ -41,6 +41,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, OverlappingStoreCount);
     DEFINE_BYVAL_RW_PROPERTY(int, EdenOverlappingStoreCount);
     DEFINE_BYVAL_RW_PROPERTY(int, CriticalPartitionCount);
+    DEFINE_BYVAL_RW_PROPERTY(bool, HasTtlColumn, false);
 
     // Ordered.
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::unique_ptr<TStore>>, Stores);

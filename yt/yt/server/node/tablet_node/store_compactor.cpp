@@ -1059,6 +1059,13 @@ private:
             return nullptr;
         }
 
+        if (request.DiscardStores && tablet->GetTableSchema()->HasTtlColumn()) {
+            YT_LOG_DEBUG("Compaction task declined: tablet has ttl column and has been compacted "
+                "by discard stores (%v)",
+                tablet->GetLoggingTag());
+            return nullptr;
+        }
+
         auto task = std::make_unique<TTask>(
             slot,
             tablet,
