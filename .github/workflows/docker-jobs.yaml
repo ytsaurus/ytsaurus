@@ -88,8 +88,8 @@ jobs:
         if: ${{ inputs.publish-query-tracker-ya-make-relwithdebinfo }}
         run: |
           mkdir -p ../docker-query-tracker-build-ya-make-relwithdebinfo
-          IMAGE_TAG=${{ inputs.image-tag }}-ya-build-relwithdebinfo
-          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-ya-build-relwithdebinfo
+          IMAGE_TAG=${{ inputs.image-tag }}-relwithdebinfo
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-relwithdebinfo
 
           mv ../ya_build/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
           mv ../ya_build/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
@@ -103,8 +103,8 @@ jobs:
         if: ${{ inputs.publish-query-tracker-ya-make-release }}
         run: |
           mkdir -p ../docker-query-tracker-build-ya-make-release
-          IMAGE_TAG=${{ inputs.image-tag }}-ya-build
-          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-ya-build
+          IMAGE_TAG=${{ inputs.image-tag }}
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
 
           mv ../ya_build_release/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
           mv ../ya_build_release/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
