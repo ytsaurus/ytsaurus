@@ -20,6 +20,22 @@ class TestQueriesYqlBase(YTEnvSetup):
 
 
 class TestUdfs(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
+    @authors("max42")
+    def test_simple_udf(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [
+            {"a": "there is"},
+            {"a": "a meow"},
+            {"a": "in a word"},
+            {"a": "homeowner"},
+        ])
+        query = start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
+
     @authors("max42")
     def test_folder(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={

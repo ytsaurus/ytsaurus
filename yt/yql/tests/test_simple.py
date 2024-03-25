@@ -8,6 +8,8 @@ from yt_commands import (authors, create, create_user, sync_mount_table,
 
 from yt_env_setup import YTEnvSetup
 
+import pytest
+
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1
@@ -22,7 +24,7 @@ class TestQueriesYqlBase(YTEnvSetup):
 
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 16
+    NUM_TEST_PARTITIONS = 4
 
     @authors("max42")
     def test_simple(self, query_tracker, yql_agent):
@@ -82,58 +84,33 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         write_table("<append=%true>//tmp/t", rows)
         alter_table("//tmp/t", schema=schema_new)
 
-        query = start_query("yql", "select * from primary.`//tmp/t`")
+        query = start_query("yql", """select * from primary.`//tmp/t`;
+                                select c, b from primary.`//tmp/t`""")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, rows)
 
-        query = start_query("yql", "select c, b from primary.`//tmp/t`")
-        query.track()
-        result = query.read_result(0)
+        result = query.read_result(1)
         assert_items_equal(result, [{"b": "foo", "c": True}])
 
     @authors("mpereskokova")
     def test_calc(self, query_tracker, yql_agent):
-        query = start_query("yql", "select 1")
+        query = start_query("yql", """select 1;
+                                    select 1 + 1;
+                                    select 2 as b, 1 as a""")
         query.track()
         result = query.read_result(0)
         assert_items_equal([{"column0": 1}], result)
 
-        query = start_query("yql", "select 1 + 1")
-        query.track()
-        result = query.read_result(0)
+        result = query.read_result(1)
         assert_items_equal([{"column0": 2}], result)
 
-        query = start_query("yql", "select 2 as b, 1 as a")
-        query.track()
-        result = query.read_result(0)
+        result = query.read_result(2)
         assert_items_equal([{"a": 1, "b": 2}], result)
 
-    @authors("mpereskokova")
-    def test_multiple_queries(self, query_tracker, yql_agent):
-        query = start_query("yql", "select 1; select 2")
-        query.track()
 
-        result1 = query.read_result(0)
-        assert_items_equal([{"column0": 1}], result1)
-        result2 = query.read_result(1)
-        assert_items_equal([{"column0": 2}], result2)
-
-        create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
-        })
-        rows = [{"a": 42, "b": "foo"}]
-        write_table("//tmp/t", rows)
-
-        query = start_query("yql", "select a from `//tmp/t`; select b from `//tmp/t`; select 1;")
-        query.track()
-
-        result1 = query.read_result(0)
-        assert_items_equal([{"a": 42}], result1)
-        result2 = query.read_result(1)
-        assert_items_equal([{"b": "foo"}], result2)
-        result3 = query.read_result(2)
-        assert_items_equal([{"column0": 1}], result3)
+class TestComplexQueriesYql(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
     def test_count(self, query_tracker, yql_agent):
@@ -168,6 +145,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         assert_items_equal([{"a": 42}, {"a": 43}], result)
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(150)
     def test_complex_query(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -181,6 +159,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         assert_items_equal([{"column0": 2}], result)
 
     @authors("aleksandr.gaev")
+    @pytest.mark.timeout(150)
     def test_sum(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -274,22 +253,8 @@ class TestExecutionModesYql(TestQueriesYqlBase):
             query.track()
 
 
-class TestYqlAgent(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 16
-
-    @authors("max42")
-    def test_udf(self, query_tracker, yql_agent):
-        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
-        write_table("//tmp/t", [
-            {"a": "there is"},
-            {"a": "a meow"},
-            {"a": "in a word"},
-            {"a": "homeowner"},
-        ])
-        query = start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
+class TestYqlPlugin(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
     def test_default_cluster_read(self, query_tracker, yql_agent):
@@ -315,15 +280,39 @@ class TestYqlAgent(TestQueriesYqlBase):
         rows = [{"a": 42, "b": 43, "c": "test"}]
         insert_rows("//tmp/t", rows)
 
-        query = start_query("yql", "select * from `//tmp/t`")
+        query = start_query("yql", """select * from `//tmp/t`;
+                                        select c, a from `//tmp/t`""")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, rows)
 
-        query = start_query("yql", "select c, a from `//tmp/t`")
+        result = query.read_result(1)
+        assert_items_equal(result, [{"a": 42, "c": "test"}])
+
+    @authors("mpereskokova")
+    def test_pragma_refselect(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}, {"name": "c", "type": "string"}],
+            "dynamic": True,
+            "enable_dynamic_store_read": True,
+        })
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": 42, "b": 43, "c": "test"}]
+        insert_rows("//tmp/t", rows)
+
+        query = start_query("yql", """pragma RefSelect; select * from `//tmp/t`;
+                                        select c, a from `//tmp/t`""")
         query.track()
         result = query.read_result(0)
+        assert_items_equal(result, rows)
+
+        result = query.read_result(1)
         assert_items_equal(result, [{"a": 42, "c": "test"}])
+
+
+class TestYqlAgent(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
     def test_progress(self, query_tracker, yql_agent):
@@ -403,28 +392,6 @@ class TestYqlAgent(TestQueriesYqlBase):
             # The default should be overwritten from 1 << 14.
             assert file_storage_config["max_size_mb"] == 1 << 13
 
-    @authors("mpereskokova")
-    def test_pragma_refselect(self, query_tracker, yql_agent):
-        create("table", "//tmp/t", attributes={
-            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "int64"}, {"name": "c", "type": "string"}],
-            "dynamic": True,
-            "enable_dynamic_store_read": True,
-        })
-        sync_mount_table("//tmp/t")
-
-        rows = [{"a": 42, "b": 43, "c": "test"}]
-        insert_rows("//tmp/t", rows)
-
-        query = start_query("yql", "pragma RefSelect; select * from `//tmp/t`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, rows)
-
-        query = start_query("yql", "pragma RefSelect; select c, a from `//tmp/t`")
-        query.track()
-        result = query.read_result(0)
-        assert_items_equal(result, [{"a": 42, "c": "test"}])
-
 
 class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"row_count_limit": 1}}
@@ -455,8 +422,8 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
         "auth" : {"enable_authentication": True}
     }
 
-    @authors("mpereskokova")
-    def test_yql_agent_impersonation(self, query_tracker, yql_agent):
+    def setup_method(self, method):
+        super().setup_method(method)
         create_user("denied_user")
         create_user("allowed_user")
 
@@ -469,11 +436,15 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
         })
         write_table("//tmp/t", [{"a": 42}])
 
+    @authors("mpereskokova")
+    def test_yql_agent_impersonation_deny(self, query_tracker, yql_agent):
         q = start_query("yql", "select a + 1 as b from primary.`//tmp/t`;", authenticated_user="denied_user")
         with raises_yt_error("failed"):
             q.track()
         assert q.get_state() == "failed"
 
+    @authors("mpereskokova")
+    def test_yql_agent_impersonation_allow(self, query_tracker, yql_agent):
         q = start_query("yql", "select a + 1 as b from primary.`//tmp/t`;", authenticated_user="allowed_user")
         q.track()
         result = q.read_result(0)
