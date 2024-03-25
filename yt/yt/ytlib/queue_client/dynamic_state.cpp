@@ -139,6 +139,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("queue_agent_stage", EValueType::String),
     TColumnSchema("object_id", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
+    TColumnSchema("queue_agent_banned", EValueType::Boolean),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +163,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto staticExportConfigId = nameTable->FindId("static_export_config");
     auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
     auto objectIdFieldId = nameTable->FindId("object_id");
+    auto queueAgentBannedId = nameTable->FindId("queue_agent_banned");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
     for (const auto& row : rows) {
@@ -196,6 +198,10 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
             typedRow.AutoTrimConfig = ConvertTo<TQueueAutoTrimConfig>(TYsonStringBuf(autoTrimConfig->AsStringBuf()));
         } else {
             typedRow.AutoTrimConfig = TQueueAutoTrimConfig();
+        }
+
+        if (auto queueAgentBanned = findValue(queueAgentBannedId)) {
+            typedRow.QueueAgentBanned = queueAgentBanned->Data.Boolean;
         }
 
         // TODO(achulkov2): Use setSimpleOptional?
@@ -243,6 +249,7 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
         rowBuilder.AddValue(ToUnversionedValue(row.ObjectId, rowBuffer, nameTable->GetIdOrThrow("object_id")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
+        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentBanned, rowBuffer, nameTable->GetIdOrThrow("queue_agent_banned")));
 
         rowsBuilder.AddRow(rowBuilder.GetRow());
     }
@@ -277,6 +284,7 @@ std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
         "static_export_config",
         "queue_agent_stage",
         "id",
+        "queue_agent_banned",
         // Replicated tables and chaos replicated tables.
         "replicas",
         // Chaos replicated tables.
@@ -301,6 +309,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .StaticExportConfig = cypressAttributes->Find<THashMap<TString, TQueueStaticExportConfig>>("static_export_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
+        .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .SynchronizationError = TError(),
     };
 }
@@ -319,6 +328,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("static_export_config").Value(row.StaticExportConfig)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
             .Item("object_id").Value(row.ObjectId)
+            .Item("queue_agent_banned").Value(row.QueueAgentBanned)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();
 }

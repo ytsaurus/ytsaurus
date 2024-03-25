@@ -19,6 +19,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "static_export_config", "type": "any"},
     {"name": "queue_agent_stage", "type": "string"},
     {"name": "object_id", "type": "string"},
+    {"name": "queue_agent_banned", "type": "boolean"},
     {"name": "synchronization_error", "type": "any"},
 ]
 DEFAULT_QUEUE_TABLE_NAME = "queues"

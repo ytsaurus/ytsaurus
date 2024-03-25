@@ -480,6 +480,31 @@ class TestQueueController(TestQueueAgentBase):
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
+    @authors("apachee")
+    @pytest.mark.timeout(300)
+    def test_queue_agent_banned_attribute(self):
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+        self._wait_for_component_passes()
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        set("//tmp/q/@queue_agent_banned", True)
+        wait(lambda: queue_orchid.get_row()["queue_agent_banned"])
+        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
+
+        set("//tmp/q/@queue_agent_banned", False)
+        queue_orchid.wait_fresh_pass()
+        assert "error" not in queue_orchid.get_status()
+
+        set("//tmp/q/@queue_agent_banned", True)
+        wait(lambda: queue_orchid.get_row()["queue_agent_banned"])
+        assert "Queue is banned" in queue_orchid.get_status()["error"]["message"]
+
+        remove("//tmp/q/@queue_agent_banned")
+        queue_orchid.wait_fresh_pass()
+        assert "error" not in queue_orchid.get_status()
+
 
 class TestRates(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {

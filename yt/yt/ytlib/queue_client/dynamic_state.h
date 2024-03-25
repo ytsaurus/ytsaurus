@@ -62,6 +62,7 @@ struct TQueueTableRow
     std::optional<THashMap<TString, TQueueStaticExportConfig>> StaticExportConfig;
     std::optional<TString> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
+    std::optional<bool> QueueAgentBanned;
 
     std::optional<TError> SynchronizationError;
 

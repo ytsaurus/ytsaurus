@@ -461,6 +461,16 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
+        if (auto queueRow = QueueRow_.Load(); queueRow.QueueAgentBanned.value_or(false)) {
+            YT_LOG_INFO("Skipping queue controller pass because queue is banned by @queue_agent_banned attribute");
+            auto queueSnapshot = New<TQueueSnapshot>();
+            queueSnapshot->Row = std::move(queueRow);
+            queueSnapshot->ReplicatedTableMappingRow = std::move(ReplicatedTableMappingRow_.Load());
+            queueSnapshot->Error = TError("Queue is banned");
+            QueueSnapshot_.Exchange(queueSnapshot);
+            return;
+        }
+
         YT_LOG_INFO("Queue controller pass started");
 
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
