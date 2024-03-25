@@ -1819,24 +1819,33 @@ class TestQuery(DynamicTablesBase):
             [{"a": 1}])
 
     @authors("sabdenovch")
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_read_without_merge(self, optimize_for):
+    def test_read_without_merge_sorted(self):
         sync_create_cells(1)
-        self._create_table(
+        create(
+            "table",
             "//tmp/t",
-            [
-                {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                {"name": "key2", "type": "string", "sort_order": "ascending"},
-                {"name": "value1", "type": "int64"},
-                {"name": "value2", "type": "string"},
-                {"name": "aggr", "type": "int64", "aggregate": "sum"},
-            ],
-            [{"key1": 1, "key2": "2", "value1": 0, "value2": "value", "aggr": 0}],
-            optimize_for)
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "string", "sort_order": "ascending"},
+                    {"name": "value1", "type": "int64"},
+                    {"name": "value2", "type": "string"},
+                    {"name": "aggr", "type": "int64", "aggregate": "sum"},
+                ],
+                "single_column_group_by_default": False,
+            })
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [
+            {"key1": 1, "key2": "2", "value1": 0, "value2": "value", "aggr": 0},
+            {"key1": 2, "value1": 2},
+        ], update=True, aggregate=True)
 
         assert_items_equal(
             select_rows("key1, value2 from [//tmp/t]", merge_versioned_rows=False),
-            [{"key1": 1, "value2": "value"}])
+            [{"key1": 1, "value2": "value"}, {"key1": 2, "value2": None}])
 
         sync_flush_table("//tmp/t")
         insert_rows("//tmp/t", [
@@ -1846,7 +1855,10 @@ class TestQuery(DynamicTablesBase):
 
         assert_items_equal(
             select_rows("key1, value2, aggr from [//tmp/t]", merge_versioned_rows=False),
-            [{"key1": 1, "value2": "value", "aggr": 0}, {"key1": 1, "value2": "new_value", "aggr": 3}])
+            [
+                {"key1": 1, "value2": "value", "aggr": 0},
+                {"key1": 1, "value2": "new_value", "aggr": 3},
+                {"key1": 2, "value2": None, "aggr": None}])
 
     @authors("sabdenovch")
     def test_array_join(self):

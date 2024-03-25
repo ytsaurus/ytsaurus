@@ -701,6 +701,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         readItemWidth,
         keyColumnIndexes,
         valuesIdMapping);
+
     auto groupBlockHolders = CreateGroupBlockHolders(*preparedChunkMeta, groupIds);
     readerStatistics->CreateColumnBlockHoldersTime = getDurationAndReset();
 

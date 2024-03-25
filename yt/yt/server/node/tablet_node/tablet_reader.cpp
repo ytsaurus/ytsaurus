@@ -6,6 +6,7 @@
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
+#include "sorted_chunk_store.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -17,6 +18,8 @@
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
@@ -71,10 +74,34 @@ class TUnversifyingReader
 public:
     TUnversifyingReader(
         IVersionedReaderPtr versionedReader,
-        std::unique_ptr<TSchemafulRowMerger> rowMerger)
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+        const TColumnFilter& columnFilter,
+        int columnCount,
+        TTimestamp retentionTimestamp)
         : VersionedReader_(std::move(versionedReader))
-        , RowMerger_(std::move(rowMerger))
+        , ColumnEvaluator_(std::move(columnEvaluator))
+        , RetentionTimestamp_(retentionTimestamp)
+        , RowBuffer_(New<TRowBuffer>())
+
     {
+        if (columnFilter.IsUniversal()) {
+            ColumnIds_.reserve(columnCount);
+            for (int id = 0; id < columnCount; ++id) {
+                ColumnIds_.push_back(id);
+            }
+        } else {
+            const auto& indexes = columnFilter.GetIndexes();
+            ColumnIds_.reserve(indexes.size());
+            for (int id : indexes) {
+                ColumnIds_.push_back(id);
+            }
+        }
+
+        ColumnIdToIndex_.assign(static_cast<size_t>(columnCount), -1);
+        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
+            ColumnIdToIndex_[ColumnIds_[index]] = index;
+        }
+
         YT_UNUSED_FUTURE(VersionedReader_->Open());
     }
 
@@ -85,16 +112,71 @@ public:
             return nullptr;
         }
 
-        RowMerger_->Reset();
+        RowBuffer_->Clear();
         auto rowsRange = batch->MaterializeRows();
         Rows_.reserve(rowsRange.Size());
 
         for (auto versionedRow : rowsRange) {
-            RowMerger_->AddPartialRow(versionedRow);
-            Rows_.push_back(RowMerger_->BuildMergedRow());
+            Rows_.push_back(UnversifyRow(versionedRow));
         }
 
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(Rows_), MakeStrong(this)));
+    }
+
+    TUnversionedRow UnversifyRow(TVersionedRow versionedRow) const
+    {
+        auto unversionedRow = RowBuffer_->AllocateUnversioned(ColumnIds_.size());
+        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
+            unversionedRow[index] = MakeUnversionedNullValue(ColumnIds_[index]);
+        }
+
+        TTimestamp retentionTimestamp = RetentionTimestamp_;
+        if (versionedRow.GetDeleteTimestampCount() > 0) {
+            auto deleteTimestamp = versionedRow.DeleteTimestamps()[0];
+            retentionTimestamp = std::max(deleteTimestamp + 1, retentionTimestamp);
+        }
+
+        for (auto key : versionedRow.Keys()) {
+            auto index = ColumnIdToIndex_[key.Id];
+            if (index >= 0) {
+                unversionedRow[index] = key;
+            }
+        }
+
+        auto begin = versionedRow.BeginValues();
+        while (begin != versionedRow.EndValues()) {
+            auto id = begin->Id;
+
+            auto& column = unversionedRow[ColumnIdToIndex_[id]];
+
+            auto end = begin;
+            while (
+                end != versionedRow.EndValues() &&
+                end->Id == id &&
+                end->Timestamp >= retentionTimestamp)
+            {
+                end++;
+            }
+
+            if (ColumnEvaluator_->IsAggregate(id)) {
+                TUnversionedValue state;
+                ColumnEvaluator_->InitAggregate(id, &state, RowBuffer_);
+                for (auto it = begin; it < end; ++it) {
+                    ColumnEvaluator_->MergeAggregate(id, &state, *it, RowBuffer_);
+                }
+                ColumnEvaluator_->FinalizeAggregate(id, &column, state, RowBuffer_);
+            } else if (begin != end) {
+                column = *begin;
+            } else {
+                column = MakeUnversionedNullValue(id);
+            }
+
+            while (begin != versionedRow.EndValues() && begin->Id == id) {
+                begin++;
+            }
+        }
+
+        return unversionedRow;
     }
 
     NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -124,7 +206,11 @@ public:
 
 private:
     const IVersionedReaderPtr VersionedReader_;
-    const std::unique_ptr<TSchemafulRowMerger> RowMerger_;
+    const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TTimestamp RetentionTimestamp_;
+    const TRowBufferPtr RowBuffer_;
+    TCompactVector<int, TypicalColumnCount> ColumnIds_;
+    TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
     std::vector<TUnversionedRow> Rows_;
 };
 
@@ -389,6 +475,20 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     boundaries.reserve(stores.size());
     for (const auto& store : stores) {
         boundaries.push_back(store->GetMinKey());
+
+        if (Y_UNLIKELY(!mergeVersionedRows)) {
+            auto type = store->GetType();
+
+            THROW_ERROR_EXCEPTION_IF(type != EStoreType::SortedDynamic && type != EStoreType::SortedChunk,
+                "Expected a sorted table when not merging versioned rows");
+
+            if (type == EStoreType::SortedChunk) {
+                auto format = CheckedEnumCast<EChunkFormat>(store->AsSortedChunk()->GetChunkMeta().format());
+                THROW_ERROR_EXCEPTION_IF(format != EChunkFormat::TableVersionedColumnar,
+                    "Expected chunks with %Qlv format when not merging versioned rows",
+                    EChunkFormat::TableVersionedColumnar);
+            }
+        }
     }
 
     ISchemafulUnversionedReaderPtr reader;
@@ -450,14 +550,6 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 return nullptr;
             }
 
-            auto rowMerger = std::make_unique<TSchemafulRowMerger>(
-                New<TRowBuffer>(TTabletReaderPoolTag()),
-                tabletSnapshot->QuerySchema->GetColumnCount(),
-                tabletSnapshot->QuerySchema->GetKeyColumnCount(),
-                columnFilter,
-                tabletSnapshot->ColumnEvaluator,
-                timestampRange.RetentionTimestamp);
-
             auto reader = New<TUnversifyingReader>(
                 stores[index]->CreateReader(
                     tabletSnapshot,
@@ -467,7 +559,10 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                     columnFilter,
                     chunkReadOptions,
                     workloadCategory),
-                std::move(rowMerger));
+                tabletSnapshot->ColumnEvaluator,
+                columnFilter,
+                tabletSnapshot->QuerySchema->GetColumnCount(),
+                timestampRange.RetentionTimestamp);
             index++;
 
             return reader;

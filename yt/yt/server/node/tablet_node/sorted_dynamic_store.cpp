@@ -239,25 +239,32 @@ public:
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , Revision_(revision)
-        , ColumnFilter_(columnFilter)
         , KeyColumnCount_(Store_->KeyColumnCount_)
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
         , Pool_(TSortedDynamicStoreReaderPoolTag(), ReaderPoolSize)
     {
-        YT_VERIFY(Timestamp_ != AllCommittedTimestamp || ColumnFilter_.IsUniversal());
+        YT_VERIFY(Timestamp_ != AllCommittedTimestamp || columnFilter.IsUniversal());
 
         LockMask_.Set(PrimaryLockIndex, ELockType::SharedWeak);
         if (columnFilter.IsUniversal()) {
+            FilteredKeyColumns_.resize(KeyColumnCount_);
+            std::iota(FilteredKeyColumns_.begin(), FilteredKeyColumns_.end(), 0);
+            FilteredValueColumns_.resize(SchemaColumnCount_ - KeyColumnCount_);
+            std::iota(FilteredValueColumns_.begin(), FilteredValueColumns_.end(), KeyColumnCount_);
+
             LockMask_.Enrich(ColumnLockCount_);
         } else {
             for (int columnIndex : columnFilter.GetIndexes()) {
                 if (columnIndex < Store_->KeyColumnCount_) {
                     // Key columns don't have corresponding locks.
-                    continue;
+                    FilteredKeyColumns_.push_back(columnIndex);
+                } else {
+                    FilteredValueColumns_.push_back(columnIndex);
+
+                    int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
+                    LockMask_.Set(lockIndex, ELockType::SharedWeak);
                 }
-                int lockIndex = Store_->ColumnIndexToLockIndex_[columnIndex];
-                LockMask_.Set(lockIndex, ELockType::SharedWeak);
             }
         }
     }
@@ -268,7 +275,9 @@ protected:
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const ui32 Revision_;
-    const TColumnFilter ColumnFilter_;
+
+    TColumnFilter::TIndexes FilteredKeyColumns_;
+    TColumnFilter::TIndexes FilteredValueColumns_;
 
     int KeyColumnCount_;
     int SchemaColumnCount_;
@@ -386,21 +395,13 @@ protected:
             }
         };
 
-        if (ColumnFilter_.IsUniversal()) {
-            for (int index = KeyColumnCount_; index < SchemaColumnCount_; ++index) {
-                fillValue(index);
-            }
-        } else {
-            for (int index : ColumnFilter_.GetIndexes()) {
-                if (index >= KeyColumnCount_) {
-                    fillValue(index);
-                }
-            }
+        for (int index : FilteredValueColumns_) {
+            fillValue(index);
         }
 
         auto versionedRow = TMutableVersionedRow::Allocate(
             &Pool_,
-            KeyColumnCount_,
+            FilteredKeyColumns_.size(),
             VersionedValues_.size(),
             writeTimestampCount,
             deleteTimestampCount);
@@ -519,19 +520,16 @@ protected:
 
     void ProduceKeys(TSortedDynamicRow dynamicRow, TUnversionedValue* dstKey)
     {
-        TDynamicTableKeyMask nullKeyMask = dynamicRow.GetNullKeyMask();
-        TDynamicTableKeyMask nullKeyBit = 1;
-        const auto* srcKey = dynamicRow.BeginKeys();
-        for (int index = 0;
-             index < KeyColumnCount_;
-             ++index, nullKeyBit <<= 1, ++srcKey, ++dstKey)
-        {
+        const auto nullKeyMask = dynamicRow.GetNullKeyMask();
+        for (int index : FilteredKeyColumns_) {
+            const auto* srcKey = dynamicRow.BeginKeys() + index;
             ProduceUnversionedValue(
                 dstKey,
                 index,
                 *srcKey,
-                /*null*/ (nullKeyMask & nullKeyBit) != 0,
+                /*null*/ (nullKeyMask & (static_cast<TDynamicTableKeyMask>(1) << index)) != 0,
                 /*flags*/ {});
+            dstKey++;
         }
     }
 
