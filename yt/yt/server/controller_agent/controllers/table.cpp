@@ -89,6 +89,12 @@ bool TOutputTable::SupportsTeleportation() const
         !Path.GetOutputTimestamp();
 }
 
+bool TOutputTable::IsDebugTable() const
+{
+    return OutputType == EOutputTableType::Stderr ||
+        OutputType == EOutputTableType::Core;
+}
+
 void TOutputTable::Persist(const TPersistenceContext& context)
 {
     TTableBase::Persist(context);
