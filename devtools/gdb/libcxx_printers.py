@@ -256,10 +256,13 @@ class StdTuplePrinter:
     "Print a std::tuple"
 
     class _iterator(Iterator):
-        def __init__ (self, head):
-            self.head = head['__base_']
-            self.fields = self.head.type.fields()
+        def __init__ (self, tuple_):
             self.count = 0
+            if tuple_.type.has_key('__base_'):
+                self.base = tuple_['__base_']
+                self.fields = self.base.type.fields()
+            else:  # std::tuple<>
+                self.fields = []
 
         def __iter__ (self):
             return self
@@ -267,7 +270,7 @@ class StdTuplePrinter:
         def __next__ (self):
             if self.count >= len(self.fields):
                 raise StopIteration
-            self.field = self.head.cast(self.fields[self.count].type)['__value_']
+            self.field = self.base.cast(self.fields[self.count].type)['__value_']
             self.count += 1
             return ('[%d]' % (self.count - 1), self.field)
 
