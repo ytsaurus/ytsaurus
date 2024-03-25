@@ -133,8 +133,6 @@ using NCypressClient::EObjectType;
 
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
-static const TString ShardingKeyPattern("\%sharding_key\%");
-static const TString JobIdPattern("\%job_id\%");
 static const TString SlotIndexPattern("\%slot_index\%");
 
 static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
@@ -2571,41 +2569,47 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         return shardingKey.substr(0, shardingKeyLength);
     };
 
-    auto replacePatterns = [&] (TString& str) {
-        size_t shardingKeyPatternIndex = str.find(ShardingKeyPattern);
-        if (shardingKeyPatternIndex != TString::npos) {
-            str.replace(shardingKeyPatternIndex, ShardingKeyPattern.size(), calculateShardingKey(proxyConfig->ShardingKeyLength));
-        }
-
-        size_t jobIdPatternIndex = str.find(JobIdPattern);
-        if (jobIdPatternIndex != TString::npos) {
-            str.replace(jobIdPatternIndex, JobIdPattern.size(), ToString(GetId()));
-        }
-
-        size_t slotIndexPatternIndex = str.find(SlotIndexPattern);
-        if (slotIndexPatternIndex != TString::npos) {
-            str.replace(slotIndexPatternIndex, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
+    auto tryReplaceSlotIndex = [&] (TString& str) {
+        size_t index = str.find(SlotIndexPattern);
+        if (index != TString::npos) {
+            str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }
     };
 
-    // This replace logic is used for testing puproses.
-    proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
-        auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-        if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
-            return writerConfigNode;
-        }
+    if (proxyConfig->LoggingMode == EJobProxyLoggingMode::PerJobDirectory) {
+        proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+            auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
+            if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+                return writerConfigNode;
+            }
 
-        auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-        replacePatterns(fileLogWriterConfig->FileName);
-        return writerConfig->BuildFullConfig(fileLogWriterConfig);
-    });
+            auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+            fileLogWriterConfig->FileName = NFS::JoinPaths(
+                NFS::JoinPaths(proxyConfig->LoggingDirectory.value(), calculateShardingKey(proxyConfig->ShardingKeyLength)),
+                NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
+            );
+            return writerConfig->BuildFullConfig(fileLogWriterConfig);
+        });
+    } else {
+        // This replace logic is used for testing puproses.
+        proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+            auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
+            if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+                return writerConfigNode;
+            }
+
+            auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+            return writerConfig->BuildFullConfig(fileLogWriterConfig);
+        });
+    }
 
     if (proxyConfig->StderrPath) {
-        replacePatterns(*proxyConfig->StderrPath);
+        tryReplaceSlotIndex(*proxyConfig->StderrPath);
     }
 
     if (proxyConfig->ExecutorStderrPath) {
-        replacePatterns(*proxyConfig->ExecutorStderrPath);
+        tryReplaceSlotIndex(*proxyConfig->ExecutorStderrPath);
     }
 
     for (const auto& slot : GetGpuSlots()) {

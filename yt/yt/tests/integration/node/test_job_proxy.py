@@ -405,8 +405,7 @@ class TestJobProxyLogging(YTEnvSetup):
         op = map(
             command="cat",
             in_="//tmp/input",
-            out="//tmp/output",
-            job_count=3
+            out="//tmp/output"
         )
         op.complete()
         job_proxy_logs_dir = os.path.join(self.path_to_run, "logs/job_proxy-0")

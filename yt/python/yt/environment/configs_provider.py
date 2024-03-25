@@ -913,7 +913,7 @@ def _build_node_configs(node_dirs,
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/directory",
-            os.path.join(logs_dir, "job_proxy-{0}/%sharding_key%/%job_id%".format(index))
+            os.path.join(logs_dir, "job_proxy-{0}".format(index))
         )
         set_at(
             config,

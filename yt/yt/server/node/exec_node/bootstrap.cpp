@@ -353,23 +353,14 @@ private:
 
         JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
-        auto jobProxyLoggingConfig = GetConfig()->ExecNode->JobProxy->JobProxyLogging;
-        JobProxyConfigTemplate_->Logging = jobProxyLoggingConfig->LogManagerTemplate;
-        if (jobProxyLoggingConfig->Mode == EJobProxyLoggingMode::PerJobDirectory) {
-            JobProxyConfigTemplate_->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
-                auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-                if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
-                    return writerConfigNode;
-                }
+        JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate;
 
-                auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-                fileLogWriterConfig->FileName = NFS::JoinPaths(jobProxyLoggingConfig->Directory.value(), "job_proxy.log");
-                return writerConfig->BuildFullConfig(fileLogWriterConfig);
-            });
-        }
-        JobProxyConfigTemplate_->ShardingKeyLength = jobProxyLoggingConfig->ShardingKeyLength;
-        JobProxyConfigTemplate_->StderrPath = jobProxyLoggingConfig->JobProxyStderrPath;
-        JobProxyConfigTemplate_->ExecutorStderrPath = jobProxyLoggingConfig->ExecutorStderrPath;
+        JobProxyConfigTemplate_->LoggingMode = GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode;
+        JobProxyConfigTemplate_->LoggingDirectory = GetConfig()->ExecNode->JobProxy->JobProxyLogging->Directory;
+        JobProxyConfigTemplate_->ShardingKeyLength = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ShardingKeyLength;
+
+        JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
+        JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
 
         JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
         JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;

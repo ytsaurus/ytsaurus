@@ -664,42 +664,11 @@ DEFINE_REFCOUNTED_TYPE(TNbdConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobProxyLoggingMode,
-    (Simple)
-    (PerJobDirectory)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobProxyLoggingConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    EJobProxyLoggingMode Mode;
-
-    std::optional<TString> Directory;
-
-    NLogging::TLogManagerConfigPtr LogManagerTemplate;
-
-    int ShardingKeyLength;
-
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
-
-    REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobProxyLoggingConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobProxyConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TJobProxyLoggingConfigPtr JobProxyLogging;
+    NJobProxy::TJobProxyLoggingConfigPtr JobProxyLogging;
 
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
 
