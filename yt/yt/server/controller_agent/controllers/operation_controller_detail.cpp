@@ -10631,7 +10631,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, EnableMasterResourceUsageAccounting_);
     Persist(context, AccountResourceUsageLeaseMap_);
     Persist(context, TotalJobCounter_);
-    Persist(context, RegisteredMonitoringDescriptorCount_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
