@@ -3196,9 +3196,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
     auto joblet = GetJoblet(jobId);
 
-    if (!JobAbortsUntilOperationFailure_.empty()) {
-        JobAbortsUntilOperationFailure_.clear();
-    }
+    JobAbortsUntilOperationFailure_.clear();
 
     YT_LOG_DEBUG(
         "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
@@ -3382,9 +3380,7 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     auto joblet = GetJoblet(jobId);
 
-    if (!JobAbortsUntilOperationFailure_.empty()) {
-        JobAbortsUntilOperationFailure_.clear();
-    }
+    JobAbortsUntilOperationFailure_.clear();
 
     if (Spec_->IgnoreJobFailuresAtBannedNodes && BannedNodeIds_.find(joblet->NodeDescriptor.Id) != BannedNodeIds_.end()) {
         YT_LOG_DEBUG("Job is considered aborted since it has failed at a banned node "
@@ -3512,7 +3508,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto jobId = jobSummary->Id;
-    const auto abortReason = jobSummary->AbortReason;
+    auto abortReason = jobSummary->AbortReason;
 
     if (!ShouldProcessJobEvents()) {
         YT_LOG_DEBUG("Stale job aborted, ignored (JobId: %v)", jobId);
@@ -3610,7 +3606,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
         if (--it->second == 0) {
             JobAbortsUntilOperationFailure_.clear();
-            auto wrappedError = TError("Fail operation due to excessive successive job aborts");
+            auto wrappedError = TError("Operaiton failed due to excessive successive job aborts");
             if (error) {
                 wrappedError <<= *error;
             }
