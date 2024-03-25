@@ -162,6 +162,9 @@ private:
         }
 
         OngoingFlushTransactionId_ = transaction->GetId();
+
+        YT_LOG_DEBUG("Queue flush prepared (TransactionId: %v)",
+            OngoingFlushTransactionId_);
     }
 
     void HydraCommitFlushQueue(
@@ -192,7 +195,8 @@ private:
         YT_VERIFY(LastFlushedSequenceNumber_ <= endSequenceNumber);
         LastFlushedSequenceNumber_ = endSequenceNumber;
 
-        YT_LOG_DEBUG("Records flushed (StartSequenceNumber: %v, EndSequenceNumber: %v, RecordCount: %v)",
+        YT_LOG_DEBUG("Records flushed (TransactionId: %v, StartSequenceNumber: %v, EndSequenceNumber: %v, RecordCount: %v)",
+            transaction->GetId(),
             startSequenceNumber,
             endSequenceNumber,
             recordCount);
@@ -205,6 +209,12 @@ private:
     {
         if (OngoingFlushTransactionId_ == transaction->GetId()) {
             OngoingFlushTransactionId_ = {};
+            YT_LOG_DEBUG("Flush queue aborted (TransactionId: %v)",
+                transaction->GetId());
+        } else {
+            YT_LOG_DEBUG("Flush queue abort ignored (TransactionId: %v, OngoingFlushTransactionId: %v)",
+                transaction->GetId(),
+                OngoingFlushTransactionId_);
         }
     }
 
@@ -274,8 +284,9 @@ private:
                     }
 
                     // TODO(aleksandra-zh): remove this logging when sequoia queues are stable.
-                    YT_LOG_DEBUG("Flushing row (SequenceNumber: %v, Row: %v)",
+                    YT_LOG_DEBUG("Flushing row (SequenceNumber: %v, Action: %v, Row: %v)",
                         record.SequenceNumber,
+                        record.Action,
                         record.Row.Get());
 
                     switch (record.Action) {
