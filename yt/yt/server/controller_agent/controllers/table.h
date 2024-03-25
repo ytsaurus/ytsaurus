@@ -146,6 +146,8 @@ struct TOutputTable
 
     bool SupportsTeleportation() const;
 
+    bool IsDebugTable() const;
+
     void Persist(const TPersistenceContext& context);
 };
 
