@@ -718,7 +718,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     return result;
 }
 
-bool TOperationControllerBase::HasUserJobFiles() const
+bool TOperationControllerBase::HasUserJobFilesOrLayers() const
 {
     for (const auto& userJobSpec : GetUserJobSpecs()) {
         if (!userJobSpec->FilePaths.empty() || !GetLayerPaths(userJobSpec).empty()) {
@@ -842,7 +842,7 @@ void TOperationControllerBase::InitializeStructures()
         }
     }
 
-    if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()) && HasUserJobFiles()) {
+    if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
         auto path = TRichYPath(*Spec_->JobExperiment->BaseLayerPath);
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
@@ -1102,7 +1102,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     PrepareInputQuery();
 
     // Process files.
-    if (HasUserJobFiles()) {
+    if (HasUserJobFilesOrLayers()) {
         GetUserFilesAttributes();
     } else {
         YT_LOG_INFO("Operation has no input files");
@@ -1516,7 +1516,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
         case ETransactionType::Async:
             return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
-            return !GetInputTablePaths().empty() || HasUserJobFiles() || HasDiskRequestsWithSpecifiedAccount();
+            return !GetInputTablePaths().empty() || HasUserJobFilesOrLayers() || HasDiskRequestsWithSpecifiedAccount();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:
             // NB: cannot replace with OutputTables_.empty() here because output tables are not ready yet.
@@ -5651,7 +5651,8 @@ const std::vector<TString>& TOperationControllerBase::GetOffloadingPoolTrees()
 void TOperationControllerBase::InitializeJobExperiment()
 {
     if (Spec_->JobExperiment) {
-        if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()) && BaseLayer_) {
+        if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
+            YT_VERIFY(BaseLayer_.has_value());
             JobExperiment_ = New<TLayerJobExperiment>(
                 *Spec_->DefaultBaseLayerPath,
                 *BaseLayer_,

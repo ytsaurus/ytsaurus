@@ -791,7 +791,7 @@ protected:
     bool InputHasReadLimits() const;
     bool InputHasDynamicStores() const;
 
-    bool HasUserJobFiles() const;
+    bool HasUserJobFilesOrLayers() const;
 
     bool IsLocalityEnabled() const;
 
