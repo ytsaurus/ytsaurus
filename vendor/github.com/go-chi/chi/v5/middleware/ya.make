@@ -26,6 +26,8 @@ SRCS(
     request_size.go
     route_headers.go
     strip.go
+    sunset.go
+    supress_notfound.go
     terminal.go
     throttle.go
     timeout.go
@@ -46,6 +48,7 @@ GO_TEST_SRCS(
     recoverer_test.go
     request_id_test.go
     strip_test.go
+    sunset_test.go
     throttle_test.go
     url_format_test.go
     wrap_writer_test.go

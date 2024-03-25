@@ -6,15 +6,17 @@ import "testing"
 // If user organizes a router like this:
 //
 // (router.go)
-// r.Route("/v1", func(r chi.Router) {
-// 	r.Mount("/resources", resourcesController{}.Router())
-// }
+//
+//	r.Route("/v1", func(r chi.Router) {
+//		r.Mount("/resources", resourcesController{}.Router())
+//	}
 //
 // (resources_controller.go)
-// r.Route("/", func(r chi.Router) {
-// 	r.Get("/{resource_id}", getResource())
-// 	other routes...
-// }
+//
+//	r.Route("/", func(r chi.Router) {
+//		r.Get("/{resource_id}", getResource())
+//		// other routes...
+//	}
 //
 // This test checks how the route pattern is calculated
 // "/v1/resources/{resource_id}" (right)
@@ -74,5 +76,12 @@ func TestRoutePattern(t *testing.T) {
 	// Correctly removes in-the-middle wildcards instead of "/v1/resourcesspecial_path/with_asterisks{resource_id}"
 	if p := x.RoutePattern(); p != "/v1/resources/*special_path/with_asterisks*/{resource_id}" {
 		t.Fatal("unexpected route pattern: " + p)
+	}
+
+	// Testing for the root route pattern
+	x.RoutePatterns = []string{"/"}
+	// It should just return "/" as the pattern
+	if p := x.RoutePattern(); p != "/" {
+		t.Fatal("unexpected route pattern for root: " + p)
 	}
 }

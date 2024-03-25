@@ -7,6 +7,7 @@ SRCS(
     chi.go
     context.go
     mux.go
+    path_value_fallback.go
     tree.go
 )
 
