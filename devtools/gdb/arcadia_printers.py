@@ -163,7 +163,7 @@ class TStringPrinter:
         return ptr.string(_string_encoding, 'replace')
 
     def display_hint(self):
-        return 'TString'
+        return 'string'
 
 
 class TStringBufPrinter:
@@ -177,7 +177,7 @@ class TStringBufPrinter:
         return self.val.cast(sv_type)
 
     def display_hint(self):
-        return 'TStringBuf'
+        return 'string'
 
 
 class TUtf16StringPrinter:

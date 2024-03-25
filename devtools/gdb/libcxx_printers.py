@@ -159,8 +159,11 @@ class StdStringPrinter:
         else:
             ptr = ss['__data_']
             size = ss['__size_']
-
-        return ptr.string(length = size)
+        try:
+            return ptr.string(length = size)
+        except UnicodeDecodeError:  # Fallback for non-unicode strings
+            char_array_ptr = gdb.lookup_type('char').array(size).pointer()
+            return ptr.cast(char_array_ptr).dereference()
 
     def display_hint (self):
         return 'string'
@@ -180,7 +183,11 @@ class StdStringViewPrinter:
 
         len = self.val['__size_']
         ptr = self.val['__data_']
-        return ptr.string(length = len)
+        try:
+            return ptr.string(length = len)
+        except UnicodeDecodeError:  # Fallback for non-unicode strings
+            char_array_ptr = gdb.lookup_type('char').array(len).pointer()
+            return ptr.cast(char_array_ptr).dereference()
 
     def display_hint (self):
         return 'string'
