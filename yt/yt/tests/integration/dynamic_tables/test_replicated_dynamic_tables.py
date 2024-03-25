@@ -2671,6 +2671,27 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert replica_infos[replica_id1]["replicated_table_tracker_enabled"]
         assert not replica_infos[replica_id2]["replicated_table_tracker_enabled"]
 
+    @authors("ngc224")
+    def test_enable_replicated_table_tracker_via_alter_table_replica(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id)
+        sync_enable_table_replica(replica_id)
+
+        replica_infos = get("//tmp/t/@replicas")
+        assert replica_infos[replica_id]["replicated_table_tracker_enabled"]
+
+        alter_table_replica(replica_id, enable_replicated_table_tracker=False)
+
+        replica_infos = get("//tmp/t/@replicas")
+        assert not replica_infos[replica_id]["replicated_table_tracker_enabled"]
+
+        alter_table_replica(replica_id, enable_replicated_table_tracker=True)
+
+        replica_infos = get("//tmp/t/@replicas")
+        assert replica_infos[replica_id]["replicated_table_tracker_enabled"]
+
     @authors("gritukan")
     @pytest.mark.parametrize("preserve_timestamps", [False, True])
     def test_replicate_timestamp_column(self, preserve_timestamps):

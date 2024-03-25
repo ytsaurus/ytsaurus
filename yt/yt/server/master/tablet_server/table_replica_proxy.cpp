@@ -260,7 +260,7 @@ private:
         auto* replica = GetThisImpl();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        if (enabled || mode || atomicity || preserveTimestamps) {
+        if (enabled || mode || atomicity || preserveTimestamps || enableReplicatedTableTracker) {
             tabletManager->AlterTableReplica(
                 replica,
                 std::move(enabled),
