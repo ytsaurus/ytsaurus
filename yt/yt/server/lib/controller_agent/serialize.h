@@ -38,9 +38,11 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NewLivePreview)                       (301306))
     ((LivePreviewAnnotation)                (301307))
     ((JobErrorInJobSummary)                 (301308))
-    // 24.1 starts here
+    // 23.2 continues here (YT-21342)
     ((NodeJobStartTimeInJoblet)             (301408))
     ((JobAbortsUntilOperationFailure)       (301409))
+    // 24.1 starts here
+    ((BumpTo_24_1)                          (301500))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
