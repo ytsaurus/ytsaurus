@@ -185,7 +185,13 @@ struct TQueryOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TShuffleNavigator = THashMap<TString, TSharedRange<std::pair<TLegacyOwningKey, TLegacyOwningKey>>>;
+struct TShuffleNavigator
+{
+    THashMap<TString, TSharedRange<TKeyRange>> DestinationMap;
+    int PrefixHint;
+};
+
+using TJoinLayerDataSourceSet = std::vector<NQueryClient::TDataSource>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

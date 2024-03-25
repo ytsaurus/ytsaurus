@@ -14,17 +14,19 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShuffleNavigator ConstructNavigatorFromPivots(std::vector<TUnversionedOwningRow> pivots)
+TShuffleNavigator ConstructNavigatorFromPivots(std::vector<TOwningRow> pivots, int prefixHint)
 {
     THROW_ERROR_EXCEPTION_IF(pivots.front() != MakeUnversionedOwningRow(),
         "The first pivot must be an empty row");
 
-    TShuffleNavigator navigator;
-    navigator.reserve(pivots.size());
+    TShuffleNavigator navigator{
+        .PrefixHint=prefixHint,
+    };
+    navigator.DestinationMap.reserve(pivots.size());
     for (int index = 0; index < std::ssize(pivots); ++index) {
-        navigator[Format("node-%v", index)] = MakeSharedRange(std::vector<TKeyRange>{
+        EmplaceOrCrash(navigator.DestinationMap, Format("node-%v", index), MakeSharedRange(std::vector<TKeyRange>{
             {pivots[index],  index + 1 < std::ssize(pivots) ? pivots[index + 1] : MaxKey()}
-        });
+        }));
     }
 
     return navigator;
@@ -39,7 +41,7 @@ TEST(TShuffleTest, ExactKey)
         MakeUnversionedOwningRow(1),
         MakeUnversionedOwningRow(2),
         MakeUnversionedOwningRow(3),
-    });
+    }, /*prefixHint*/ 1);
 
     std::vector<TOwningRow> owningRows;
     for (int i = 0; i < 4; ++i) {
@@ -48,7 +50,7 @@ TEST(TShuffleTest, ExactKey)
 
     std::vector<TRow> rows(owningRows.begin(), owningRows.end());
 
-    auto shuffle = Shuffle(navigator, rows, 1);
+    auto shuffle = Shuffle(navigator, rows);
 
     ASSERT_EQ(shuffle.size(), 4ul);
     for (int i = 0; i < 4; ++i) {
@@ -67,7 +69,7 @@ TEST(TShuffleTest, BigKey)
         MakeUnversionedOwningRow(1),
         MakeUnversionedOwningRow(2),
         MakeUnversionedOwningRow(3),
-    });
+    }, /*prefixHint*/ 2);
 
     std::vector<TOwningRow> owningRows;
     for (int i = 0; i < 4; ++i) {
@@ -77,7 +79,7 @@ TEST(TShuffleTest, BigKey)
 
     std::vector<TRow> rows(owningRows.begin(), owningRows.end());
 
-    auto shuffle = Shuffle(navigator, rows, 2);
+    auto shuffle = Shuffle(navigator, rows);
 
     ASSERT_EQ(shuffle.size(), 4ul);
     for (int i = 0; i < 4; ++i) {
@@ -101,7 +103,7 @@ TEST(TShuffleTest, SmallKey)
         MakeUnversionedOwningRow(2, 100),
         MakeUnversionedOwningRow(3, 0),
         MakeUnversionedOwningRow(3, 100),
-    });
+    }, /*prefixHint*/ 1);
 
     std::vector<TOwningRow> owningRows;
     for (int i = 0; i < 4; ++i) {
@@ -110,7 +112,7 @@ TEST(TShuffleTest, SmallKey)
 
     std::vector<TRow> rows(owningRows.begin(), owningRows.end());
 
-    auto shuffle = Shuffle(navigator, rows, 1);
+    auto shuffle = Shuffle(navigator, rows);
 
     ASSERT_EQ(shuffle.size(), 8ul);
     for (int i = 0; i < 8; ++i) {
@@ -130,15 +132,19 @@ TEST(TShuffleTest, SmallKey)
 
 TEST(TShuffleTest, MultirangeDestination)
 {
+    auto rowBuffer = New<TRowBuffer>();
     TShuffleNavigator navigator = {
-        {"node-0", MakeSharedRange(std::vector<TKeyRange>{
-            {MakeUnversionedOwningRow(), MakeUnversionedOwningRow(1, 100)},
-            {MakeUnversionedOwningRow(2, 200), MakeUnversionedOwningRow(3, 300)},
-        })},
-        {"node-1", MakeSharedRange(std::vector<TKeyRange>{
-            {MakeUnversionedOwningRow(3, 300), MaxKey()},
-            {MakeUnversionedOwningRow(1, 100), MakeUnversionedOwningRow(2, 200)},
-        })},
+        .DestinationMap={
+            {"node-0", MakeSharedRange(std::vector<TKeyRange>{
+                {MakeUnversionedOwningRow(), MakeUnversionedOwningRow(1, 100)},
+                {MakeUnversionedOwningRow(2, 200), MakeUnversionedOwningRow(3, 300)},
+            })},
+            {"node-1", MakeSharedRange(std::vector<TKeyRange>{
+                {MakeUnversionedOwningRow(3, 300), MaxKey()},
+                {MakeUnversionedOwningRow(1, 100), MakeUnversionedOwningRow(2, 200)},
+            })},
+        },
+        .PrefixHint=2,
     };
 
     std::vector<TOwningRow> owningRows;
@@ -149,7 +155,7 @@ TEST(TShuffleTest, MultirangeDestination)
 
     std::vector<TRow> rows(owningRows.begin(), owningRows.end());
 
-    auto shuffle = Shuffle(navigator, rows, 2);
+    auto shuffle = Shuffle(navigator, rows);
 
     ASSERT_EQ(shuffle.size(), 2ul);
     for (int i = 0; i < 2; ++i) {

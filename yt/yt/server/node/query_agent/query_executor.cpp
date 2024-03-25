@@ -1,6 +1,7 @@
 #include "query_executor.h"
 #include "private.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -310,57 +311,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TSimpleRowsetWriter
-    : public IUnversionedRowsetWriter
-{
-public:
-    explicit TSimpleRowsetWriter(IMemoryChunkProviderPtr chunkProvider)
-        : RowBuffer_(New<TRowBuffer>(TSchemafulRowsetWriterBufferTag(), std::move(chunkProvider)))
-    { }
-
-    TSharedRange<TUnversionedRow> GetRows() const
-    {
-        return MakeSharedRange(Rows_, RowBuffer_);
-    }
-
-    TFuture<TSharedRange<TUnversionedRow>> GetResult() const
-    {
-        return Result_.ToFuture();
-    }
-
-    TFuture<void> Close() override
-    {
-        Result_.TrySet(GetRows());
-        return VoidFuture;
-    }
-
-    bool Write(TRange<TUnversionedRow> rows) override
-    {
-        for (auto row : rows) {
-            Rows_.push_back(RowBuffer_->CaptureRow(row));
-        }
-        return true;
-    }
-
-    TFuture<void> GetReadyEvent() override
-    {
-        return VoidFuture;
-    }
-
-    void Fail(const TError& error)
-    {
-        Result_.TrySet(error);
-    }
-
-private:
-    struct TSchemafulRowsetWriterBufferTag
-    { };
-
-    TPromise<TSharedRange<TUnversionedRow>> Result_ = NewPromise<TSharedRange<TUnversionedRow>>();
-    const TRowBufferPtr RowBuffer_;
-    std::vector<TUnversionedRow> Rows_;
-};
 
 class TRowsetSubrangeReader
     : public ISchemafulUnversionedReader
@@ -861,113 +811,9 @@ private:
 
     TQueryStatistics DoExecuteImpl()
     {
-        YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
-
-        std::vector<TDataSource> dataSourcesByTablet;
-
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
 
-        auto keySize = Query_->Schema.Original->GetKeyColumnCount();
-
-        std::vector<TLogicalTypePtr> keySchema;
-        for (ssize_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->Schema.Original->Columns()[index].LogicalType());
-        }
-
-        bool hasRanges = false;
-        for (const auto& source : DataSources_) {
-            for (const auto& range : source.Ranges) {
-                auto lowerBound = range.first;
-                auto upperBound = range.second;
-
-                if (source.LookupSupported &&
-                    keySize == static_cast<int>(lowerBound.GetCount()) &&
-                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
-                    upperBound[keySize].Type == EValueType::Max &&
-                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
-                {
-                    continue;
-                }
-
-                hasRanges = true;
-                break;
-            }
-        }
-
-        size_t rangesCount = 0;
-        size_t keysCount = 0;
-        for (const auto& source : DataSources_) {
-            TRowRanges rowRanges;
-            std::vector<TRow> keys;
-
-            auto pushRanges = [&] {
-                if (!rowRanges.empty()) {
-                    rangesCount += rowRanges.size();
-                    dataSourcesByTablet.push_back(TDataSource{
-                        .ObjectId = source.ObjectId,
-                        .CellId = source.CellId,
-                        .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
-                        .LookupSupported = source.LookupSupported,
-                        .KeyWidth = source.KeyWidth,
-                    });
-                }
-            };
-
-            auto pushKeys = [&] {
-                if (!keys.empty()) {
-                    keysCount += keys.size();
-                    dataSourcesByTablet.push_back(TDataSource{
-                        .ObjectId = source.ObjectId,
-                        .CellId = source.CellId,
-                        .Schema = keySchema,
-                        .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
-                        .LookupSupported = source.LookupSupported,
-                        .KeyWidth = source.KeyWidth,
-                    });
-                }
-            };
-
-            for (const auto& range : source.Ranges) {
-                auto lowerBound = range.first;
-                auto upperBound = range.second;
-
-                if (source.LookupSupported &&
-                    !hasRanges &&
-                    keySize == static_cast<int>(lowerBound.GetCount()) &&
-                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
-                    upperBound[keySize].Type == EValueType::Max &&
-                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
-                {
-                    pushRanges();
-                    keys.push_back(lowerBound);
-                } else {
-                    pushKeys();
-                    rowRanges.push_back(range);
-                }
-            }
-
-            for (const auto& key : source.Keys) {
-                auto rowSize = key.GetCount();
-                if (source.LookupSupported &&
-                    !hasRanges &&
-                    keySize == static_cast<int>(key.GetCount()))
-                {
-                    pushRanges();
-                    keys.push_back(key);
-                } else {
-                    pushKeys();
-                    rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, rowBuffer, false));
-                }
-            }
-            pushRanges();
-            pushKeys();
-        }
-
-        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)",
-            rangesCount,
-            keysCount);
-
-        auto splits = Split(std::move(dataSourcesByTablet), rowBuffer);
+        auto splits = Split(GetClassifiedDataSources(rowBuffer), rowBuffer);
 
         std::vector<TRefiner> refiners;
         std::vector<TSubreaderCreator> subreaderCreators;
@@ -1105,6 +951,115 @@ private:
             std::move(refiners),
             std::move(subreaderCreators),
             std::move(readRanges));
+    }
+
+    std::vector<TDataSource> GetClassifiedDataSources(const TRowBufferPtr& rowBuffer)
+    {
+        YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
+
+        std::vector<TDataSource> classifiedDataSources;
+        auto keySize = Query_->Schema.Original->GetKeyColumnCount();
+
+        std::vector<TLogicalTypePtr> keySchema;
+        for (ssize_t index = 0; index < keySize; ++index) {
+            keySchema.push_back(Query_->Schema.Original->Columns()[index].LogicalType());
+        }
+
+        bool hasRanges = false;
+        for (const auto& source : DataSources_) {
+            for (const auto& range : source.Ranges) {
+                auto lowerBound = range.first;
+                auto upperBound = range.second;
+
+                if (source.LookupSupported &&
+                    keySize == static_cast<int>(lowerBound.GetCount()) &&
+                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
+                    upperBound[keySize].Type == EValueType::Max &&
+                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
+                {
+                    continue;
+                }
+
+                hasRanges = true;
+                break;
+            }
+        }
+
+        size_t rangesCount = 0;
+        size_t keysCount = 0;
+        for (const auto& source : DataSources_) {
+            TRowRanges rowRanges;
+            std::vector<TRow> keys;
+
+            auto pushRanges = [&] {
+                if (!rowRanges.empty()) {
+                    rangesCount += rowRanges.size();
+                    classifiedDataSources.push_back(TDataSource{
+                        .ObjectId = source.ObjectId,
+                        .CellId = source.CellId,
+                        .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
+                        .LookupSupported = source.LookupSupported,
+                        .KeyWidth = source.KeyWidth,
+                    });
+                }
+            };
+
+            auto pushKeys = [&] {
+                if (!keys.empty()) {
+                    keysCount += keys.size();
+                    classifiedDataSources.push_back(TDataSource{
+                        .ObjectId = source.ObjectId,
+                        .CellId = source.CellId,
+                        .Schema = keySchema,
+                        .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
+                        .LookupSupported = source.LookupSupported,
+                        .KeyWidth = source.KeyWidth,
+                    });
+                }
+            };
+
+            for (const auto& range : source.Ranges) {
+                auto lowerBound = range.first;
+                auto upperBound = range.second;
+
+                if (source.LookupSupported &&
+                    !hasRanges &&
+                    keySize == static_cast<int>(lowerBound.GetCount()) &&
+                    keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
+                    upperBound[keySize].Type == EValueType::Max &&
+                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
+                {
+                    pushRanges();
+                    keys.push_back(lowerBound);
+                } else {
+                    pushKeys();
+                    rowRanges.push_back(range);
+                }
+            }
+
+            for (const auto& key : source.Keys) {
+                auto rowSize = key.GetCount();
+                if (source.LookupSupported &&
+                    !hasRanges &&
+                    keySize == static_cast<int>(key.GetCount()))
+                {
+                    pushRanges();
+                    keys.push_back(key);
+                } else {
+                    pushKeys();
+                    rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, rowBuffer, false));
+                }
+            }
+
+            pushRanges();
+            pushKeys();
+        }
+
+        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)",
+            rangesCount,
+            keysCount);
+
+        return classifiedDataSources;
     }
 
     std::vector<TDataSource> Split(std::vector<TDataSource> dataSourcesByTablet, TRowBufferPtr rowBuffer)
