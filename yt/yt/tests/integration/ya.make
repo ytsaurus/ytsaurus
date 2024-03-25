@@ -26,10 +26,15 @@ RECURSE(
     size_l
     size_m
     size_s
-    compat
     fake_blackbox
     yt_cli
 )
+    
+IF (NOT OPENSOURCE)
+    RECURSE(
+        compat
+    )
+ENDIF()
 
 IF (NOT YT_TEAMCITY)
     RECURSE(
