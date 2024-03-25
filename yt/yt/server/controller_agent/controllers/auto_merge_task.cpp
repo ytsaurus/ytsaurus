@@ -44,7 +44,7 @@ TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
 
 IChunkPoolInput::TCookie TAutoMergeChunkPoolAdapter::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
-    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(stripe->GetChunkCount() /*intermediateChunkCount*/);
+    Task_->GetTaskHost()->GetAutoMergeDirector()->AccountMergeInputChunks(/*intermediateChunkCount*/ stripe->GetChunkCount());
 
     Task_->CurrentChunkCounts_[PoolIndex_] += stripe->GetChunkCount();
 
@@ -154,18 +154,19 @@ TAutoMergeTask::TAutoMergeTask(
     CurrentChunkCounts_.resize(OutputStreamDescriptors_.size(), 0);
     for (int poolIndex = 0; poolIndex < std::ssize(OutputStreamDescriptors_); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            false /*isExplicitJobCount*/,
-            1 /*jobCount*/,
-            dataWeightPerJob /*dataWeightPerJob*/,
-            std::numeric_limits<i64>::max() / 4 /*primaryDataWeightPerJob*/,
-            maxChunksPerJob /*maxDataSlicesPerJob*/,
-            std::numeric_limits<i64>::max() / 4 /*maxDataWeightPerJob*/,
-            std::numeric_limits<i64>::max() / 4 /*primaryMaxDataWeightPerJob*/,
-            std::numeric_limits<i64>::max() / 4 /*inputSliceDataSize*/,
-            std::numeric_limits<i64>::max() / 4 /*inputSliceRowCount*/,
-            0 /*foreignSliceDataWeight*/,
-            std::nullopt /*samplingRate*/);
+            /*canAdjustDataSizePerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ 1,
+            /*dataWeightPerJob*/ dataWeightPerJob,
+            /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*maxDataSlicesPerJob*/ maxChunksPerJob,
+            /*maxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*primaryMaxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*inputSliceDataSize*/ std::numeric_limits<i64>::max() / 4,
+            /*inputSliceRowCount*/ std::numeric_limits<i64>::max() / 4,
+            /*batchRowCount*/ {},
+            /*foreignSliceDataWeight*/ 0,
+            /*samplingRate*/ std::nullopt);
 
         TUnorderedChunkPoolOptions options;
         options.RowBuffer = TaskHost_->GetRowBuffer();
@@ -383,7 +384,7 @@ TJobFinishedResult TAutoMergeTask::OnJobAborted(TJobletPtr joblet, const TAborte
         }
     }
 
-    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /*unregisteredIntermediateChunkCount*/);
+    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(/*unregisteredIntermediateChunkCount*/ 0);
 
     return result;
 }
@@ -410,7 +411,7 @@ TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJ
     int poolIndex = *joblet->InputStripeList->PartitionTag;
     CurrentChunkCounts_[poolIndex] += joblet->InputStripeList->TotalChunkCount;
 
-    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(0 /*unregisteredIntermediateChunkCount*/);
+    TaskHost_->GetAutoMergeDirector()->OnMergeJobFinished(/*unregisteredIntermediateChunkCount*/ 0);
 
     return result;
 }

@@ -805,6 +805,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
         .Default(false);
 
+    registrar.Parameter("batch_row_count", &TThis::BatchRowCount)
+        .Default();
+
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
 
@@ -857,6 +860,11 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         if (spec->UseColumnarStatistics) {
             spec->InputTableColumnarStatistics->Enabled = true;
             spec->UserFileColumnarStatistics->Enabled = true;
+        }
+
+        if (spec->BatchRowCount) {
+            THROW_ERROR_EXCEPTION_IF(*spec->BatchRowCount <= 0, "Value of \"batch_row_count\" of must be positive");
+            THROW_ERROR_EXCEPTION_IF(spec->Sampling && spec->Sampling->SamplingRate, "Option \"batch_row_count\" cannot be used with input sampling");
         }
     });
 }

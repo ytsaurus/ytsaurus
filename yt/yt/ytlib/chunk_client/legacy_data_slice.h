@@ -70,6 +70,7 @@ public:
     void CopyPayloadFrom(const TLegacyDataSlice& dataSlice);
 
     TInputChunkPtr GetSingleUnversionedChunk() const;
+    TInputChunkSlicePtr GetSingleUnversionedChunkSlice() const;
 
     std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 

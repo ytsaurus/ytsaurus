@@ -129,9 +129,14 @@ int TLegacyDataSlice::GetRangeIndex() const
 
 TInputChunkPtr TLegacyDataSlice::GetSingleUnversionedChunk() const
 {
+    return GetSingleUnversionedChunkSlice()->GetInputChunk();
+}
+
+TInputChunkSlicePtr TLegacyDataSlice::GetSingleUnversionedChunkSlice() const
+{
     YT_VERIFY(IsTrivial());
 
-    return ChunkSlices[0]->GetInputChunk();
+    return ChunkSlices[0];
 }
 
 bool TLegacyDataSlice::IsTrivial() const
