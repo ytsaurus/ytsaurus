@@ -16,7 +16,9 @@
 #include <roaring/containers/run.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /* Compute the intersection of src_1 and src_2 and write the result to
@@ -30,11 +32,9 @@ void array_bitset_container_intersection(const array_container_t *src_1,
 int array_bitset_container_intersection_cardinality(
     const array_container_t *src_1, const bitset_container_t *src_2);
 
-
-
 /* Checking whether src_1 and src_2 intersect. */
 bool array_bitset_container_intersect(const array_container_t *src_1,
-                                         const bitset_container_t *src_2);
+                                      const bitset_container_t *src_2);
 
 /*
  * Compute the intersection between src_1 and src_2 and write the result
@@ -68,18 +68,17 @@ int array_run_container_intersection_cardinality(const array_container_t *src_1,
 
 /* Compute the size of the intersection  between src_1 and src_2
  **/
-int run_bitset_container_intersection_cardinality(const run_container_t *src_1,
-                                       const bitset_container_t *src_2);
-
+int run_bitset_container_intersection_cardinality(
+    const run_container_t *src_1, const bitset_container_t *src_2);
 
 /* Check that src_1 and src_2 intersect. */
 bool array_run_container_intersect(const array_container_t *src_1,
-                                      const run_container_t *src_2);
+                                   const run_container_t *src_2);
 
 /* Check that src_1 and src_2 intersect.
  **/
 bool run_bitset_container_intersect(const run_container_t *src_1,
-                                       const bitset_container_t *src_2);
+                                    const bitset_container_t *src_2);
 
 /*
  * Same as bitset_bitset_container_intersection except that if the output is to
@@ -94,7 +93,9 @@ bool bitset_bitset_container_intersection_inplace(
     container_t **dst);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* INCLUDE_CONTAINERS_MIXED_INTERSECTION_H_ */

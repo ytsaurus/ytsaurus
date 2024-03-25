@@ -5,11 +5,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <roaring/containers/containers.h>  // get_writable_copy_if_shared()
 #include <roaring/array_util.h>
+#include <roaring/containers/containers.h>  // get_writable_copy_if_shared()
 
 #ifdef __cplusplus
-extern "C" { namespace roaring {
+extern "C" {
+namespace roaring {
 
 // Note: in pure C++ code, you should avoid putting `using` in header files
 using api::roaring_array_t;
@@ -83,9 +84,8 @@ inline int32_t ra_get_index(const roaring_array_t *ra, uint16_t x) {
 /**
  * Retrieves the container at index i, filling in the typecode
  */
-inline container_t *ra_get_container_at_index(
-    const roaring_array_t *ra, uint16_t i, uint8_t *typecode
-){
+inline container_t *ra_get_container_at_index(const roaring_array_t *ra,
+                                              uint16_t i, uint8_t *typecode) {
     *typecode = ra->typecodes[i];
     return ra->containers[i];
 }
@@ -100,16 +100,14 @@ inline uint16_t ra_get_key_at_index(const roaring_array_t *ra, uint16_t i) {
 /**
  * Add a new key-value pair at index i
  */
-void ra_insert_new_key_value_at(
-        roaring_array_t *ra, int32_t i, uint16_t key,
-        container_t *c, uint8_t typecode);
+void ra_insert_new_key_value_at(roaring_array_t *ra, int32_t i, uint16_t key,
+                                container_t *c, uint8_t typecode);
 
 /**
  * Append a new key-value pair
  */
-void ra_append(
-        roaring_array_t *ra, uint16_t key,
-        container_t *c, uint8_t typecode);
+void ra_append(roaring_array_t *ra, uint16_t key, container_t *c,
+               uint8_t typecode);
 
 /**
  * Append a new key-value pair to ra, cloning (in COW sense) a value from sa
@@ -159,16 +157,15 @@ void ra_append_range(roaring_array_t *ra, roaring_array_t *sa,
  * Set the container at the corresponding index using the specified
  * typecode.
  */
-inline void ra_set_container_at_index(
-    const roaring_array_t *ra, int32_t i,
-    container_t *c, uint8_t typecode
-){
+inline void ra_set_container_at_index(const roaring_array_t *ra, int32_t i,
+                                      container_t *c, uint8_t typecode) {
     assert(i < ra->size);
     ra->containers[i] = c;
     ra->typecodes[i] = typecode;
 }
 
-container_t *ra_get_container(roaring_array_t *ra, uint16_t x, uint8_t *typecode);
+container_t *ra_get_container(roaring_array_t *ra, uint16_t x,
+                              uint8_t *typecode);
 
 /**
  * If needed, increase the capacity of the array so that it can fit k values
@@ -188,10 +185,10 @@ int32_t ra_advance_until_freeing(roaring_array_t *ra, uint16_t x, int32_t pos);
 
 void ra_downsize(roaring_array_t *ra, int32_t new_length);
 
-inline void ra_replace_key_and_container_at_index(
-    roaring_array_t *ra, int32_t i, uint16_t key,
-    container_t *c, uint8_t typecode
-){
+inline void ra_replace_key_and_container_at_index(roaring_array_t *ra,
+                                                  int32_t i, uint16_t key,
+                                                  container_t *c,
+                                                  uint8_t typecode) {
     assert(i < ra->size);
 
     ra->keys[i] = key;
@@ -202,7 +199,8 @@ inline void ra_replace_key_and_container_at_index(
 // write set bits to an array
 void ra_to_uint32_array(const roaring_array_t *ra, uint32_t *ans);
 
-bool ra_range_uint32_array(const roaring_array_t *ra, size_t offset, size_t limit, uint32_t *ans);
+bool ra_range_uint32_array(const roaring_array_t *ra, size_t offset,
+                           size_t limit, uint32_t *ans);
 
 /**
  * write a bitmap to a buffer. This is meant to be compatible with
@@ -217,10 +215,11 @@ size_t ra_portable_serialize(const roaring_array_t *ra, char *buf);
  * with the Java and Go versions.
  * maxbytes  indicates how many bytes available from buf.
  * When the function returns true, roaring_array_t is populated with the data
- * and *readbytes indicates how many bytes were read. In all cases, if the function
- * returns true, then maxbytes >= *readbytes.
+ * and *readbytes indicates how many bytes were read. In all cases, if the
+ * function returns true, then maxbytes >= *readbytes.
  */
-bool ra_portable_deserialize(roaring_array_t *ra, const char *buf, const size_t maxbytes, size_t * readbytes);
+bool ra_portable_deserialize(roaring_array_t *ra, const char *buf,
+                             const size_t maxbytes, size_t *readbytes);
 
 /**
  * Quickly checks whether there is a serialized bitmap at the pointer,
@@ -257,8 +256,8 @@ uint32_t ra_portable_header_size(const roaring_array_t *ra);
 static inline void ra_unshare_container_at_index(roaring_array_t *ra,
                                                  uint16_t i) {
     assert(i < ra->size);
-    ra->containers[i] = get_writable_copy_if_shared(ra->containers[i],
-                                                    &ra->typecodes[i]);
+    ra->containers[i] =
+        get_writable_copy_if_shared(ra->containers[i], &ra->typecodes[i]);
 }
 
 /**
@@ -266,10 +265,9 @@ static inline void ra_unshare_container_at_index(roaring_array_t *ra,
  */
 void ra_remove_at_index(roaring_array_t *ra, int32_t i);
 
-
 /**
-* clears all containers, sets the size at 0 and shrinks the memory usage.
-*/
+ * clears all containers, sets the size at 0 and shrinks the memory usage.
+ */
 void ra_reset(roaring_array_t *ra);
 
 /**
@@ -300,7 +298,8 @@ void ra_shift_tail(roaring_array_t *ra, int32_t count, int32_t distance);
 
 #ifdef __cplusplus
 }  // namespace internal
-} }  // extern "C" { namespace roaring {
+}
+}  // extern "C" { namespace roaring {
 #endif
 
 #endif

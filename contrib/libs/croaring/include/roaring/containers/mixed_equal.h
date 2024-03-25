@@ -11,7 +11,9 @@
 #include <roaring/containers/run.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /**
@@ -32,7 +34,9 @@ bool run_container_equals_bitset(const run_container_t* container1,
                                  const bitset_container_t* container2);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* CONTAINERS_MIXED_EQUAL_H_ */

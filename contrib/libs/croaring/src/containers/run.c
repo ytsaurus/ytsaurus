@@ -2,17 +2,23 @@
 #include <stdlib.h>
 
 #include <roaring/containers/run.h>
-#include <roaring/portability.h>
 #include <roaring/memory.h>
+#include <roaring/portability.h>
 
 #if CROARING_IS_X64
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
-#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif  // CROARING_COMPILER_SUPPORTS_AVX512
 #endif
-
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 extern inline uint16_t run_container_minimum(const run_container_t *run);
@@ -21,14 +27,14 @@ extern inline int32_t interleavedBinarySearch(const rle16_t *array,
                                               int32_t lenarray, uint16_t ikey);
 extern inline bool run_container_contains(const run_container_t *run,
                                           uint16_t pos);
-extern inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_t x);
+extern inline int run_container_index_equalorlarger(const run_container_t *arr,
+                                                    uint16_t x);
 extern inline bool run_container_is_full(const run_container_t *run);
 extern inline bool run_container_nonzero_cardinality(const run_container_t *rc);
 extern inline int32_t run_container_serialized_size_in_bytes(int32_t num_runs);
 extern inline run_container_t *run_container_create_range(uint32_t start,
-                                                   uint32_t stop);
+                                                          uint32_t stop);
 extern inline int run_container_cardinality(const run_container_t *run);
-
 
 bool run_container_add(run_container_t *run, uint16_t pos) {
     int32_t index = interleavedBinarySearch(run->runs, run->n_runs, pos);
@@ -83,12 +89,14 @@ bool run_container_add(run_container_t *run, uint16_t pos) {
 run_container_t *run_container_create_given_capacity(int32_t size) {
     run_container_t *run;
     /* Allocate the run container itself. */
-    if ((run = (run_container_t *)roaring_malloc(sizeof(run_container_t))) == NULL) {
+    if ((run = (run_container_t *)roaring_malloc(sizeof(run_container_t))) ==
+        NULL) {
         return NULL;
     }
-    if (size <= 0 ) { // we don't want to rely on malloc(0)
+    if (size <= 0) {  // we don't want to rely on malloc(0)
         run->runs = NULL;
-    } else if ((run->runs = (rle16_t *)roaring_malloc(sizeof(rle16_t) * size)) == NULL) {
+    } else if ((run->runs = (rle16_t *)roaring_malloc(sizeof(rle16_t) *
+                                                      size)) == NULL) {
         roaring_free(run);
         return NULL;
     }
@@ -102,7 +110,8 @@ int run_container_shrink_to_fit(run_container_t *src) {
     int savings = src->capacity - src->n_runs;
     src->capacity = src->n_runs;
     rle16_t *oldruns = src->runs;
-    src->runs = (rle16_t *)roaring_realloc(oldruns, src->capacity * sizeof(rle16_t));
+    src->runs =
+        (rle16_t *)roaring_realloc(oldruns, src->capacity * sizeof(rle16_t));
     if (src->runs == NULL) roaring_free(oldruns);  // should never happen?
     return savings;
 }
@@ -111,6 +120,7 @@ run_container_t *run_container_create(void) {
     return run_container_create_given_capacity(RUN_DEFAULT_INIT_SIZE);
 }
 
+ALLOW_UNALIGNED
 run_container_t *run_container_clone(const run_container_t *src) {
     run_container_t *run = run_container_create_given_capacity(src->capacity);
     if (run == NULL) return NULL;
@@ -120,9 +130,8 @@ run_container_t *run_container_clone(const run_container_t *src) {
     return run;
 }
 
-void run_container_offset(const run_container_t *c,
-                          container_t **loc, container_t **hic,
-                          uint16_t offset) {
+void run_container_offset(const run_container_t *c, container_t **loc,
+                          container_t **hic, uint16_t offset) {
     run_container_t *lo = NULL, *hi = NULL;
 
     bool split;
@@ -144,29 +153,30 @@ void run_container_offset(const run_container_t *c,
 
     if (loc && lo_cap) {
         lo = run_container_create_given_capacity(lo_cap);
-        memcpy(lo->runs, c->runs, lo_cap*sizeof(rle16_t));
+        memcpy(lo->runs, c->runs, lo_cap * sizeof(rle16_t));
         lo->n_runs = lo_cap;
         for (int i = 0; i < lo_cap; ++i) {
             lo->runs[i].value += offset;
         }
-        *loc = (container_t*)lo;
+        *loc = (container_t *)lo;
     }
 
     if (hic && hi_cap) {
         hi = run_container_create_given_capacity(hi_cap);
-        memcpy(hi->runs, c->runs+pivot, hi_cap*sizeof(rle16_t));
+        memcpy(hi->runs, c->runs + pivot, hi_cap * sizeof(rle16_t));
         hi->n_runs = hi_cap;
         for (int i = 0; i < hi_cap; ++i) {
             hi->runs[i].value += offset;
         }
-        *hic = (container_t*)hi;
+        *hic = (container_t *)hi;
     }
 
     // Fix the split.
     if (split) {
         if (lo != NULL) {
             // Add the missing run to 'lo', exhausting length.
-            lo->runs[lo->n_runs-1].length = (1 << 16) - lo->runs[lo->n_runs-1].value - 1;
+            lo->runs[lo->n_runs - 1].length =
+                (1 << 16) - lo->runs[lo->n_runs - 1].value - 1;
         }
 
         if (hi != NULL) {
@@ -179,32 +189,31 @@ void run_container_offset(const run_container_t *c,
 
 /* Free memory. */
 void run_container_free(run_container_t *run) {
-    if(run->runs != NULL) {// Jon Strabala reports that some tools complain otherwise
-      roaring_free(run->runs);
-      run->runs = NULL;  // pedantic
+    if (run->runs !=
+        NULL) {  // Jon Strabala reports that some tools complain otherwise
+        roaring_free(run->runs);
+        run->runs = NULL;  // pedantic
     }
     roaring_free(run);
 }
 
 void run_container_grow(run_container_t *run, int32_t min, bool copy) {
-    int32_t newCapacity =
-        (run->capacity == 0)
-            ? RUN_DEFAULT_INIT_SIZE
-            : run->capacity < 64 ? run->capacity * 2
-                                 : run->capacity < 1024 ? run->capacity * 3 / 2
-                                                        : run->capacity * 5 / 4;
+    int32_t newCapacity = (run->capacity == 0)   ? RUN_DEFAULT_INIT_SIZE
+                          : run->capacity < 64   ? run->capacity * 2
+                          : run->capacity < 1024 ? run->capacity * 3 / 2
+                                                 : run->capacity * 5 / 4;
     if (newCapacity < min) newCapacity = min;
     run->capacity = newCapacity;
     assert(run->capacity >= min);
     if (copy) {
         rle16_t *oldruns = run->runs;
-        run->runs =
-            (rle16_t *)roaring_realloc(oldruns, run->capacity * sizeof(rle16_t));
+        run->runs = (rle16_t *)roaring_realloc(oldruns,
+                                               run->capacity * sizeof(rle16_t));
         if (run->runs == NULL) roaring_free(oldruns);
     } else {
         // Jon Strabala reports that some tools complain otherwise
         if (run->runs != NULL) {
-          roaring_free(run->runs);
+            roaring_free(run->runs);
         }
         run->runs = (rle16_t *)roaring_malloc(run->capacity * sizeof(rle16_t));
     }
@@ -528,7 +537,7 @@ int run_container_intersection_cardinality(const run_container_t *src_1,
 }
 
 bool run_container_intersect(const run_container_t *src_1,
-                                const run_container_t *src_2) {
+                             const run_container_t *src_2) {
     const bool if1 = run_container_is_full(src_1);
     const bool if2 = run_container_is_full(src_2);
     if (if1 || if2) {
@@ -536,7 +545,7 @@ bool run_container_intersect(const run_container_t *src_1,
             return !run_container_empty(src_2);
         }
         if (if2) {
-        	return !run_container_empty(src_1);
+            return !run_container_empty(src_1);
         }
     }
     int32_t rlepos = 0;
@@ -564,7 +573,6 @@ bool run_container_intersect(const run_container_t *src_1,
     }
     return false;
 }
-
 
 /* Compute the difference of src_1 and src_2 and write the result to
  * dst. It is assumed that dst is distinct from both src_1 and src_2. */
@@ -694,7 +702,8 @@ bool run_container_validate(const run_container_t *run, const char **reason) {
     }
 
     if (run->n_runs == 0) {
-        return true;
+        *reason = "zero run count";
+        return false;
     }
     if (run->runs == NULL) {
         *reason = "NULL runs";
@@ -710,7 +719,7 @@ bool run_container_validate(const run_container_t *run, const char **reason) {
             *reason = "run start + length overflow";
             return false;
         }
-        if (end > (1<<16)) {
+        if (end > (1 << 16)) {
             *reason = "run start + length too large";
             return false;
         }
@@ -743,9 +752,9 @@ int32_t run_container_read(int32_t cardinality, run_container_t *container,
     container->n_runs = cast_16;
     if (container->n_runs > container->capacity)
         run_container_grow(container, container->n_runs, false);
-    if(container->n_runs > 0) {
-      memcpy(container->runs, buf + sizeof(uint16_t),
-           container->n_runs * sizeof(rle16_t));
+    if (container->n_runs > 0) {
+        memcpy(container->runs, buf + sizeof(uint16_t),
+               container->n_runs * sizeof(rle16_t));
     }
     return run_container_size_in_bytes(container);
 }
@@ -883,18 +892,20 @@ int run_container_rank(const run_container_t *container, uint16_t x) {
     }
     return sum;
 }
-uint32_t run_container_rank_many(const run_container_t *container, uint64_t start_rank, const uint32_t* begin, const uint32_t* end, uint64_t* ans){
+uint32_t run_container_rank_many(const run_container_t *container,
+                                 uint64_t start_rank, const uint32_t *begin,
+                                 const uint32_t *end, uint64_t *ans) {
     const uint16_t high = (uint16_t)((*begin) >> 16);
-    const uint32_t* iter = begin;
+    const uint32_t *iter = begin;
     int sum = 0;
     int i = 0;
-    for(;iter != end; iter++) {
+    for (; iter != end; iter++) {
         uint32_t x = *iter;
         uint16_t xhigh = (uint16_t)(x >> 16);
-        if(xhigh != high) return iter - begin; // stop at next container
+        if (xhigh != high) return iter - begin;  // stop at next container
 
         uint32_t x32 = x & 0xFFFF;
-        while(i < container->n_runs) {
+        while (i < container->n_runs) {
             uint32_t startpoint = container->runs[i].value;
             uint32_t length = container->runs[i].length;
             uint32_t endpoint = length + startpoint;
@@ -911,11 +922,10 @@ uint32_t run_container_rank_many(const run_container_t *container, uint64_t star
             }
         }
         if (i >= container->n_runs) *(ans++) = start_rank + sum;
-   }
+    }
 
-  return iter - begin;
+    return iter - begin;
 }
-
 
 int run_container_get_index(const run_container_t *container, uint16_t x) {
     if (run_container_contains(container, x)) {
@@ -943,7 +953,8 @@ int run_container_get_index(const run_container_t *container, uint16_t x) {
 CROARING_TARGET_AVX512
 ALLOW_UNALIGNED
 /* Get the cardinality of `run'. Requires an actual computation. */
-static inline int _avx512_run_container_cardinality(const run_container_t *run) {
+static inline int _avx512_run_container_cardinality(
+    const run_container_t *run) {
     const int32_t n_runs = run->n_runs;
     const rle16_t *runs = run->runs;
 
@@ -971,7 +982,6 @@ static inline int _avx512_run_container_cardinality(const run_container_t *run) 
         _mm256_storeu_si256((__m256i *)buffer, hi);
         sum += (buffer[0] + buffer[1]) + (buffer[2] + buffer[3]) +
                (buffer[4] + buffer[5]) + (buffer[6] + buffer[7]);
-
     }
     for (; k < n_runs; ++k) {
         sum += runs[k].length;
@@ -1016,7 +1026,8 @@ static inline int _avx2_run_container_cardinality(const run_container_t *run) {
 CROARING_UNTARGET_AVX2
 
 /* Get the cardinality of `run'. Requires an actual computation. */
-static inline int _scalar_run_container_cardinality(const run_container_t *run) {
+static inline int _scalar_run_container_cardinality(
+    const run_container_t *run) {
     const int32_t n_runs = run->n_runs;
     const rle16_t *runs = run->runs;
 
@@ -1031,16 +1042,15 @@ static inline int _scalar_run_container_cardinality(const run_container_t *run) 
 
 int run_container_cardinality(const run_container_t *run) {
 #if CROARING_COMPILER_SUPPORTS_AVX512
-  if( croaring_hardware_support() & ROARING_SUPPORTS_AVX512 ) {
-    return _avx512_run_container_cardinality(run);
-  }
-  else
+    if (croaring_hardware_support() & ROARING_SUPPORTS_AVX512) {
+        return _avx512_run_container_cardinality(run);
+    } else
 #endif
-  if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
-    return _avx2_run_container_cardinality(run);
-  } else {
-    return _scalar_run_container_cardinality(run);
-  }
+        if (croaring_hardware_support() & ROARING_SUPPORTS_AVX2) {
+        return _avx2_run_container_cardinality(run);
+    } else {
+        return _scalar_run_container_cardinality(run);
+    }
 }
 #else
 
@@ -1059,7 +1069,11 @@ int run_container_cardinality(const run_container_t *run) {
 }
 #endif
 
-
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
 #endif

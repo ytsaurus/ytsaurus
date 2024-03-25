@@ -12,7 +12,9 @@
 #include <roaring/containers/perfparameters.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /* Compute the union of src_1 and src_2 and write the result to
@@ -157,17 +159,16 @@ void array_run_container_inplace_union(const array_container_t *src_1,
     }
 }
 
-bool array_array_container_union(
-    const array_container_t *src_1, const array_container_t *src_2,
-    container_t **dst
-){
+bool array_array_container_union(const array_container_t *src_1,
+                                 const array_container_t *src_2,
+                                 container_t **dst) {
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     if (totalCardinality <= DEFAULT_MAX_SIZE) {
         *dst = array_container_create_given_capacity(totalCardinality);
         if (*dst != NULL) {
             array_container_union(src_1, src_2, CAST_array(*dst));
         } else {
-            return true; // otherwise failure won't be caught
+            return true;  // otherwise failure won't be caught
         }
         return false;  // not a bitset
     }
@@ -189,30 +190,32 @@ bool array_array_container_union(
     return returnval;
 }
 
-bool array_array_container_inplace_union(
-    array_container_t *src_1, const array_container_t *src_2,
-    container_t **dst
-){
+bool array_array_container_inplace_union(array_container_t *src_1,
+                                         const array_container_t *src_2,
+                                         container_t **dst) {
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     *dst = NULL;
     if (totalCardinality <= DEFAULT_MAX_SIZE) {
-        if(src_1->capacity < totalCardinality) {
-          *dst = array_container_create_given_capacity(2  * totalCardinality); // be purposefully generous
-          if (*dst != NULL) {
-              array_container_union(src_1, src_2, CAST_array(*dst));
-          } else {
-              return true; // otherwise failure won't be caught
-          }
-          return false;  // not a bitset
+        if (src_1->capacity < totalCardinality) {
+            *dst = array_container_create_given_capacity(
+                2 * totalCardinality);  // be purposefully generous
+            if (*dst != NULL) {
+                array_container_union(src_1, src_2, CAST_array(*dst));
+            } else {
+                return true;  // otherwise failure won't be caught
+            }
+            return false;  // not a bitset
         } else {
-          memmove(src_1->array + src_2->cardinality, src_1->array, src_1->cardinality * sizeof(uint16_t));
-          // In theory, we could use fast_union_uint16, but it is unsafe. It fails
-          // with Intel compilers in particular.
-          // https://github.com/RoaringBitmap/CRoaring/pull/452
-          // See report https://github.com/RoaringBitmap/CRoaring/issues/476
-          src_1->cardinality = (int32_t)union_uint16(src_1->array + src_2->cardinality, src_1->cardinality,
-                                  src_2->array, src_2->cardinality, src_1->array);
-          return false; // not a bitset
+            memmove(src_1->array + src_2->cardinality, src_1->array,
+                    src_1->cardinality * sizeof(uint16_t));
+            // In theory, we could use fast_union_uint16, but it is unsafe. It
+            // fails with Intel compilers in particular.
+            // https://github.com/RoaringBitmap/CRoaring/pull/452
+            // See report https://github.com/RoaringBitmap/CRoaring/issues/476
+            src_1->cardinality = (int32_t)union_uint16(
+                src_1->array + src_2->cardinality, src_1->cardinality,
+                src_2->array, src_2->cardinality, src_1->array);
+            return false;  // not a bitset
         }
     }
     *dst = bitset_container_create();
@@ -225,13 +228,14 @@ bool array_array_container_inplace_union(
             src_2->cardinality);
         if (ourbitset->cardinality <= DEFAULT_MAX_SIZE) {
             // need to convert!
-            if(src_1->capacity < ourbitset->cardinality) {
-              array_container_grow(src_1, ourbitset->cardinality, false);
+            if (src_1->capacity < ourbitset->cardinality) {
+                array_container_grow(src_1, ourbitset->cardinality, false);
             }
 
-            bitset_extract_setbits_uint16(ourbitset->words, BITSET_CONTAINER_SIZE_IN_WORDS,
-                                  src_1->array, 0);
-            src_1->cardinality =  ourbitset->cardinality;
+            bitset_extract_setbits_uint16(ourbitset->words,
+                                          BITSET_CONTAINER_SIZE_IN_WORDS,
+                                          src_1->array, 0);
+            src_1->cardinality = ourbitset->cardinality;
             *dst = src_1;
             bitset_container_free(ourbitset);
             returnval = false;  // not going to be a bitset
@@ -240,29 +244,28 @@ bool array_array_container_inplace_union(
     return returnval;
 }
 
-
-bool array_array_container_lazy_union(
-    const array_container_t *src_1, const array_container_t *src_2,
-    container_t **dst
-){
+bool array_array_container_lazy_union(const array_container_t *src_1,
+                                      const array_container_t *src_2,
+                                      container_t **dst) {
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     //
     // We assume that operations involving bitset containers will be faster than
-    // operations involving solely array containers, except maybe when array containers
-    // are small. Indeed, for example, it is cheap to compute the union between an array and
-    // a bitset container, generally more so than between a large array and another array.
-    // So it is advantageous to favour bitset containers during the computation.
-    // Of course, if we convert array containers eagerly to bitset containers, we may later
-    // need to revert the bitset containers to array containerr to satisfy the Roaring format requirements,
-    // but such one-time conversions at the end may not be overly expensive. We arrived to this design
-    // based on extensive benchmarking.
+    // operations involving solely array containers, except maybe when array
+    // containers are small. Indeed, for example, it is cheap to compute the
+    // union between an array and a bitset container, generally more so than
+    // between a large array and another array. So it is advantageous to favour
+    // bitset containers during the computation. Of course, if we convert array
+    // containers eagerly to bitset containers, we may later need to revert the
+    // bitset containers to array containerr to satisfy the Roaring format
+    // requirements, but such one-time conversions at the end may not be overly
+    // expensive. We arrived to this design based on extensive benchmarking.
     //
     if (totalCardinality <= ARRAY_LAZY_LOWERBOUND) {
         *dst = array_container_create_given_capacity(totalCardinality);
         if (*dst != NULL) {
             array_container_union(src_1, src_2, CAST_array(*dst));
         } else {
-              return true; // otherwise failure won't be caught
+            return true;  // otherwise failure won't be caught
         }
         return false;  // not a bitset
     }
@@ -277,68 +280,78 @@ bool array_array_container_lazy_union(
     return returnval;
 }
 
-
-bool array_array_container_lazy_inplace_union(
-    array_container_t *src_1, const array_container_t *src_2,
-    container_t **dst
-){
+bool array_array_container_lazy_inplace_union(array_container_t *src_1,
+                                              const array_container_t *src_2,
+                                              container_t **dst) {
     int totalCardinality = src_1->cardinality + src_2->cardinality;
     *dst = NULL;
     //
     // We assume that operations involving bitset containers will be faster than
-    // operations involving solely array containers, except maybe when array containers
-    // are small. Indeed, for example, it is cheap to compute the union between an array and
-    // a bitset container, generally more so than between a large array and another array.
-    // So it is advantageous to favour bitset containers during the computation.
-    // Of course, if we convert array containers eagerly to bitset containers, we may later
-    // need to revert the bitset containers to array containerr to satisfy the Roaring format requirements,
-    // but such one-time conversions at the end may not be overly expensive. We arrived to this design
-    // based on extensive benchmarking.
+    // operations involving solely array containers, except maybe when array
+    // containers are small. Indeed, for example, it is cheap to compute the
+    // union between an array and a bitset container, generally more so than
+    // between a large array and another array. So it is advantageous to favour
+    // bitset containers during the computation. Of course, if we convert array
+    // containers eagerly to bitset containers, we may later need to revert the
+    // bitset containers to array containerr to satisfy the Roaring format
+    // requirements, but such one-time conversions at the end may not be overly
+    // expensive. We arrived to this design based on extensive benchmarking.
     //
     if (totalCardinality <= ARRAY_LAZY_LOWERBOUND) {
-        if(src_1->capacity < totalCardinality) {
-          *dst = array_container_create_given_capacity(2  * totalCardinality); // be purposefully generous
-          if (*dst != NULL) {
-              array_container_union(src_1, src_2, CAST_array(*dst));
-          } else {
-            return true; // otherwise failure won't be caught
-          }
-          return false;  // not a bitset
+        if (src_1->capacity < totalCardinality) {
+            *dst = array_container_create_given_capacity(
+                2 * totalCardinality);  // be purposefully generous
+            if (*dst != NULL) {
+                array_container_union(src_1, src_2, CAST_array(*dst));
+            } else {
+                return true;  // otherwise failure won't be caught
+            }
+            return false;  // not a bitset
         } else {
-          memmove(src_1->array + src_2->cardinality, src_1->array, src_1->cardinality * sizeof(uint16_t));
-          /*
-            Next line is safe:
+            memmove(src_1->array + src_2->cardinality, src_1->array,
+                    src_1->cardinality * sizeof(uint16_t));
+            /*
+              Next line is safe:
 
-            We just need to focus on the reading and writing performed on array1. In `union_vector16`, both vectorized and scalar code still obey the basic rule: read from two inputs, do the union, and then write the output.
+              We just need to focus on the reading and writing performed on
+              array1. In `union_vector16`, both vectorized and scalar code still
+              obey the basic rule: read from two inputs, do the union, and then
+              write the output.
 
-            Let's say the length(cardinality) of input2 is L2:
-            ```
-                |<-  L2  ->|
-            array1: [output--- |input 1---|---]
-            array2: [input 2---]
-            ```
-            Let's define 3 __m128i pointers, `pos1` starts from `input1`, `pos2` starts from `input2`, these 2 point at the next byte to read, `out` starts from `output`, pointing at the next byte to overwrite.
-            ```
-            array1: [output--- |input 1---|---]
-                        ^          ^
-                    out        pos1
-            array2: [input 2---]
-                        ^
-                        pos2
-            ```
-            The union output always contains less or equal number of elements than all inputs added, so we have:
-            ```
-            out <= pos1 + pos2
-            ```
-            therefore:
-            ```
-            out <= pos1 + L2
-            ```
-            which means you will not overwrite data beyond pos1, so the data haven't read is safe, and we don't care the data already read.
-          */
-          src_1->cardinality = (int32_t)fast_union_uint16(src_1->array + src_2->cardinality, src_1->cardinality,
-                                  src_2->array, src_2->cardinality, src_1->array);
-          return false; // not a bitset
+              Let's say the length(cardinality) of input2 is L2:
+              ```
+                  |<-  L2  ->|
+              array1: [output--- |input 1---|---]
+              array2: [input 2---]
+              ```
+              Let's define 3 __m128i pointers, `pos1` starts from `input1`,
+              `pos2` starts from `input2`, these 2 point at the next byte to
+              read, `out` starts from `output`, pointing at the next byte to
+              overwrite.
+              ```
+              array1: [output--- |input 1---|---]
+                          ^          ^
+                      out        pos1
+              array2: [input 2---]
+                          ^
+                          pos2
+              ```
+              The union output always contains less or equal number of elements
+              than all inputs added, so we have:
+              ```
+              out <= pos1 + pos2
+              ```
+              therefore:
+              ```
+              out <= pos1 + L2
+              ```
+              which means you will not overwrite data beyond pos1, so the data
+              haven't read is safe, and we don't care the data already read.
+            */
+            src_1->cardinality = (int32_t)fast_union_uint16(
+                src_1->array + src_2->cardinality, src_1->cardinality,
+                src_2->array, src_2->cardinality, src_1->array);
+            return false;  // not a bitset
         }
     }
     *dst = bitset_container_create();
@@ -353,5 +366,7 @@ bool array_array_container_lazy_inplace_union(
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif

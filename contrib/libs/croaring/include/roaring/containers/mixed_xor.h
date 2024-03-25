@@ -21,18 +21,20 @@
 #include <roaring/containers/bitset.h>
 #include <roaring/containers/run.h>
 
-//#include "containers.h"
+// #include "containers.h"
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /* Compute the xor of src_1 and src_2 and write the result to
  * dst (which has no container initially).
  * Result is true iff dst is a bitset  */
-bool array_bitset_container_xor(
-        const array_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool array_bitset_container_xor(const array_container_t *src_1,
+                                const bitset_container_t *src_2,
+                                container_t **dst);
 
 /* Compute the xor of src_1 and src_2 and write the result to
  * dst. It is allowed for src_2 to be dst.  This version does not
@@ -47,9 +49,9 @@ void array_bitset_container_lazy_xor(const array_container_t *src_1,
  * "dst is a bitset"
  */
 
-bool bitset_bitset_container_xor(
-        const bitset_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool bitset_bitset_container_xor(const bitset_container_t *src_1,
+                                 const bitset_container_t *src_2,
+                                 container_t **dst);
 
 /* Compute the xor of src_1 and src_2 and write the result to
  * dst. Result may be either a bitset or an array container
@@ -58,9 +60,9 @@ bool bitset_bitset_container_xor(
  * result true) or an array container.
  */
 
-bool run_bitset_container_xor(
-        const run_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool run_bitset_container_xor(const run_container_t *src_1,
+                              const bitset_container_t *src_2,
+                              container_t **dst);
 
 /* lazy xor.  Dst is initialized and may be equal to src_2.
  *  Result is left as a bitset container, even if actual
@@ -75,17 +77,16 @@ void run_bitset_container_lazy_xor(const run_container_t *src_1,
  * can become any kind of container.
  */
 
-int array_run_container_xor(
-        const array_container_t *src_1, const run_container_t *src_2,
-        container_t **dst);
+int array_run_container_xor(const array_container_t *src_1,
+                            const run_container_t *src_2, container_t **dst);
 
 /* dst does not initially have a valid container.  Creates either
  * an array or a bitset container, indicated by return code
  */
 
-bool array_array_container_xor(
-        const array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_xor(const array_container_t *src_1,
+                               const array_container_t *src_2,
+                               container_t **dst);
 
 /* dst does not initially have a valid container.  Creates either
  * an array or a bitset container, indicated by return code.
@@ -93,9 +94,9 @@ bool array_array_container_xor(
  * container type might not be correct for the actual cardinality
  */
 
-bool array_array_container_lazy_xor(
-        const array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_lazy_xor(const array_container_t *src_1,
+                                    const array_container_t *src_2,
+                                    container_t **dst);
 
 /* Dst is a valid run container. (Can it be src_2? Let's say not.)
  * Leaves result as run container, even if other options are
@@ -110,9 +111,8 @@ void array_run_container_lazy_xor(const array_container_t *src_1,
  * can become any kind of container.
  */
 
-int run_run_container_xor(
-        const run_container_t *src_1, const run_container_t *src_2,
-        container_t **dst);
+int run_run_container_xor(const run_container_t *src_1,
+                          const run_container_t *src_2, container_t **dst);
 
 /* INPLACE versions (initial implementation may not exploit all inplace
  * opportunities (if any...)
@@ -125,17 +125,17 @@ int run_run_container_xor(
  * cases, the caller is responsible for deallocating dst.
  * Returns true iff dst is a bitset  */
 
-bool bitset_array_container_ixor(
-        bitset_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool bitset_array_container_ixor(bitset_container_t *src_1,
+                                 const array_container_t *src_2,
+                                 container_t **dst);
 
-bool bitset_bitset_container_ixor(
-        bitset_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool bitset_bitset_container_ixor(bitset_container_t *src_1,
+                                  const bitset_container_t *src_2,
+                                  container_t **dst);
 
-bool array_bitset_container_ixor(
-        array_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool array_bitset_container_ixor(array_container_t *src_1,
+                                 const bitset_container_t *src_2,
+                                 container_t **dst);
 
 /* Compute the xor of src_1 and src_2 and write the result to
  * dst. Result may be either a bitset or an array container
@@ -144,36 +144,34 @@ bool array_bitset_container_ixor(
  * result true) or an array container.
  */
 
-bool run_bitset_container_ixor(
-        run_container_t *src_1, const bitset_container_t *src_2,
-        container_t **dst);
+bool run_bitset_container_ixor(run_container_t *src_1,
+                               const bitset_container_t *src_2,
+                               container_t **dst);
 
-bool bitset_run_container_ixor(
-        bitset_container_t *src_1, const run_container_t *src_2,
-        container_t **dst);
+bool bitset_run_container_ixor(bitset_container_t *src_1,
+                               const run_container_t *src_2, container_t **dst);
 
 /* dst does not indicate a valid container initially.  Eventually it
  * can become any kind of container.
  */
 
-int array_run_container_ixor(
-        array_container_t *src_1, const run_container_t *src_2,
-        container_t **dst);
+int array_run_container_ixor(array_container_t *src_1,
+                             const run_container_t *src_2, container_t **dst);
 
-int run_array_container_ixor(
-        run_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+int run_array_container_ixor(run_container_t *src_1,
+                             const array_container_t *src_2, container_t **dst);
 
-bool array_array_container_ixor(
-        array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_ixor(array_container_t *src_1,
+                                const array_container_t *src_2,
+                                container_t **dst);
 
-int run_run_container_ixor(
-        run_container_t *src_1, const run_container_t *src_2,
-        container_t **dst);
+int run_run_container_ixor(run_container_t *src_1, const run_container_t *src_2,
+                           container_t **dst);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif

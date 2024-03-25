@@ -331,7 +331,7 @@ int main() {
            expectedsizebasic, expectedsizerun);
 
     // create a new bitmap containing the values {1,2,3,5,6}
-    roaring_bitmap_t *r2 = roaring_bitmap_of(5, 1, 2, 3, 5, 6);
+    roaring_bitmap_t *r2 = roaring_bitmap_from(1, 2, 3, 5, 6);
     roaring_bitmap_printf(r2);  // print it
 
     // we can also create a bitmap from a pointer to 32-bit integers
@@ -432,22 +432,22 @@ int main() {
 
     // we can also create iterator structs
     counter = 0;
-    roaring_uint32_iterator_t *i = roaring_create_iterator(r1);
+    roaring_uint32_iterator_t *i = roaring_iterator_create(r1);
     while (i->has_value) {
         counter++;  // could use    i->current_value
-        roaring_advance_uint32_iterator(i);
+        roaring_uint32_iterator_advance(i);
     }
     // you can skip over values and move the iterator with
-    // roaring_move_uint32_iterator_equalorlarger(i,someintvalue)
+    // roaring_uint32_iterator_move_equalorlarger(i,someintvalue)
 
-    roaring_free_uint32_iterator(i);
+    roaring_uint32_iterator_free(i);
     // roaring_bitmap_get_cardinality(r1) == counter
 
     // for greater speed, you can iterate over the data in bulk
-    i = roaring_create_iterator(r1);
+    i = roaring_iterator_create(r1);
     uint32_t buffer[256];
     while (1) {
-        uint32_t ret = roaring_read_uint32_iterator(i, buffer, 256);
+        uint32_t ret = roaring_uint32_iterator_read(i, buffer, 256);
         for (uint32_t j = 0; j < ret; j++) {
             counter += buffer[j];
         }
@@ -455,7 +455,7 @@ int main() {
             break;
         }
     }
-    roaring_free_uint32_iterator(i);
+    roaring_uint32_iterator_free(i);
 
     roaring_bitmap_free(r1);
     roaring_bitmap_free(r2);
@@ -463,6 +463,19 @@ int main() {
     return EXIT_SUCCESS;
 }
 ```
+
+# Compressed 64-bit Roaring bitmaps (C)
+
+
+We also support efficient 64-bit compressed bitmaps in C:
+
+```c++
+  roaring64_bitmap_t *r2 = roaring64_bitmap_create();
+  for (uint64_t i = 100; i < 1000; i++) roaring64_bitmap_add(r2, i);
+  printf("cardinality (64-bit) = %d\n", (int) roaring64_bitmap_get_cardinality(r2));
+  roaring64_bitmap_free(r2);
+```
+
 
 # Conventional bitsets (C)
 
@@ -868,6 +881,10 @@ Justin Whear wrote a Zig wrapper available at https://github.com/jwhear/roaring-
 # Mailing list/discussion group
 
 https://groups.google.com/forum/#!forum/roaring-bitmaps
+
+# Contributing
+
+When contributing a change to the project, please run `tools/clang-format.sh` after making any changes. A github action runs on all PRs to ensure formatting is consistent with this.
 
 # References about Roaring
 

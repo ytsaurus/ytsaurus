@@ -9,7 +9,8 @@
 #include <roaring/portability.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring {
+extern "C" {
+namespace roaring {
 #endif
 
 #if defined(CROARING_INLINE_ASM)
@@ -21,14 +22,14 @@ extern "C" { namespace roaring {
                    :             /* write */      \
                    "r"(bitsReg), /* read only */  \
                    "r"(srcReg)   /* read only */  \
-                   )
+    )
 
 #define ASM_INPLACESHIFT_RIGHT(srcReg, bitsReg)  \
     __asm volatile("shrx %1, %0, %0"             \
                    : "+r"(srcReg)                \
                    :            /* read/write */ \
                    "r"(bitsReg) /* read only */  \
-                   )
+    )
 
 #define ASM_SHIFT_LEFT(srcReg, bitsReg, destReg) \
     __asm volatile("shlx %1, %2, %0"             \
@@ -36,7 +37,7 @@ extern "C" { namespace roaring {
                    :             /* write */     \
                    "r"(bitsReg), /* read only */ \
                    "r"(srcReg)   /* read only */ \
-                   )
+    )
 // set bit at position testBit within testByte to 1 and
 // copy cmovDst to cmovSrc if that bit was previously clear
 #define ASM_SET_BIT_INC_WAS_CLEAR(testByte, testBit, count) \
@@ -47,7 +48,7 @@ extern "C" { namespace roaring {
           "+r"(count)                                       \
         :            /* read/write */                       \
         "r"(testBit) /* read only */                        \
-        )
+    )
 
 #define ASM_CLEAR_BIT_DEC_WAS_SET(testByte, testBit, count) \
     __asm volatile(                                         \
@@ -57,7 +58,7 @@ extern "C" { namespace roaring {
           "+r"(count)                                       \
         :            /* read/write */                       \
         "r"(testBit) /* read only */                        \
-        )
+    )
 
 #define ASM_BT64(testByte, testBit, count) \
     __asm volatile(                        \
@@ -67,12 +68,13 @@ extern "C" { namespace roaring {
         :              /* write */         \
         "r"(testByte), /* read only */     \
         "r"(testBit)   /* read only */     \
-        )
+    )
 
 #endif
 
 #ifdef __cplusplus
-} }  // extern "C" { namespace roaring {
+}
+}  // extern "C" { namespace roaring {
 #endif
 
-#endif  /* INCLUDE_UTILASM_H_ */
+#endif /* INCLUDE_UTILASM_H_ */

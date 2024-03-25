@@ -11,7 +11,9 @@
 #include <roaring/containers/run.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /* Negation across the entire range of the container.
@@ -31,9 +33,8 @@ void array_container_negation(const array_container_t *src,
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-bool bitset_container_negation(
-        const bitset_container_t *src,
-        container_t **dst);
+bool bitset_container_negation(const bitset_container_t *src,
+                               container_t **dst);
 
 /* inplace version */
 /*
@@ -44,9 +45,8 @@ bool bitset_container_negation(
  * to free the container.
  * In all cases, the result is in *dst.
  */
-bool bitset_container_negation_inplace(
-        bitset_container_t *src,
-        container_t **dst);
+bool bitset_container_negation_inplace(bitset_container_t *src,
+                                       container_t **dst);
 
 /* Negation across the entire range of container
  * Compute the  negation of src  and write the result
@@ -71,19 +71,18 @@ int run_container_negation_inplace(run_container_t *src, container_t **dst);
  * to *dst. Returns true if the result is a bitset container
  * and false for an array container.  *dst is not preallocated.
  */
-bool array_container_negation_range(
-        const array_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+bool array_container_negation_range(const array_container_t *src,
+                                    const int range_start, const int range_end,
+                                    container_t **dst);
 
 /* Even when the result would fit, it is unclear how to make an
  * inplace version without inefficient copying.  Thus this routine
  * may be a wrapper for the non-in-place version
  */
-bool array_container_negation_range_inplace(
-        array_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+bool array_container_negation_range_inplace(array_container_t *src,
+                                            const int range_start,
+                                            const int range_end,
+                                            container_t **dst);
 
 /* Negation across a range of the container
  * Compute the  negation of src  and write the result
@@ -92,10 +91,9 @@ bool array_container_negation_range_inplace(
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-bool bitset_container_negation_range(
-        const bitset_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+bool bitset_container_negation_range(const bitset_container_t *src,
+                                     const int range_start, const int range_end,
+                                     container_t **dst);
 
 /* inplace version */
 /*
@@ -106,10 +104,10 @@ bool bitset_container_negation_range(
  * to free the container.
  * In all cases, the result is in *dst.
  */
-bool bitset_container_negation_range_inplace(
-        bitset_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+bool bitset_container_negation_range_inplace(bitset_container_t *src,
+                                             const int range_start,
+                                             const int range_end,
+                                             container_t **dst);
 
 /* Negation across a range of container
  * Compute the  negation of src  and write the result
@@ -117,10 +115,9 @@ bool bitset_container_negation_range_inplace(
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-int run_container_negation_range(
-        const run_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+int run_container_negation_range(const run_container_t *src,
+                                 const int range_start, const int range_end,
+                                 container_t **dst);
 
 /*
  * Same as run_container_negation except that if the output is to
@@ -129,13 +126,15 @@ int run_container_negation_range(
  * then src is modified and no allocation is made.
  * In all cases, the result is in *dst.
  */
-int run_container_negation_range_inplace(
-        run_container_t *src,
-        const int range_start, const int range_end,
-        container_t **dst);
+int run_container_negation_range_inplace(run_container_t *src,
+                                         const int range_start,
+                                         const int range_end,
+                                         container_t **dst);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* INCLUDE_CONTAINERS_MIXED_NEGATION_H_ */

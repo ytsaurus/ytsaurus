@@ -9,14 +9,17 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include <roaring/roaring_types.h>  // roaring_iterator
+
+// Include other headers after roaring_types.h
+#include <roaring/containers/container_defs.h>  // container_t, perfparameters
 #include <roaring/portability.h>
 #include <roaring/roaring_types.h>  // roaring_iterator
-#include <roaring/utilasm.h>  // ASM_XXX macros
-
-#include <roaring/containers/container_defs.h>  // container_t, perfparameters
+#include <roaring/utilasm.h>        // ASM_XXX macros
 
 #ifdef __cplusplus
-extern "C" { namespace roaring {
+extern "C" {
+namespace roaring {
 
 // Note: in pure C++ code, you should avoid putting `using` in header files
 using api::roaring_iterator;
@@ -24,8 +27,6 @@ using api::roaring_iterator64;
 
 namespace internal {
 #endif
-
-
 
 enum {
     BITSET_CONTAINER_SIZE_IN_WORDS = (1 << 16) / 64,
@@ -39,8 +40,8 @@ STRUCT_CONTAINER(bitset_container_s) {
 
 typedef struct bitset_container_s bitset_container_t;
 
-#define CAST_bitset(c)         CAST(bitset_container_t *, c)  // safer downcast
-#define const_CAST_bitset(c)   CAST(const bitset_container_t *, c)
+#define CAST_bitset(c) CAST(bitset_container_t *, c)  // safer downcast
+#define const_CAST_bitset(c) CAST(const bitset_container_t *, c)
 #define movable_CAST_bitset(c) movable_CAST(bitset_container_t **, c)
 
 /* Create a new bitset. Return NULL in case of failure. */
@@ -188,28 +189,29 @@ inline bool bitset_container_get(const bitset_container_t *bitset,
 #endif
 
 /*
-* Check if all bits are set in a range of positions from pos_start (included) to
-* pos_end (excluded).
-*/
+ * Check if all bits are set in a range of positions from pos_start (included)
+ * to pos_end (excluded).
+ */
 static inline bool bitset_container_get_range(const bitset_container_t *bitset,
-                                                uint32_t pos_start, uint32_t pos_end) {
-
+                                              uint32_t pos_start,
+                                              uint32_t pos_end) {
     const uint32_t start = pos_start >> 6;
     const uint32_t end = pos_end >> 6;
 
     const uint64_t first = ~((1ULL << (pos_start & 0x3F)) - 1);
     const uint64_t last = (1ULL << (pos_end & 0x3F)) - 1;
 
-    if (start == end) return ((bitset->words[end] & first & last) == (first & last));
+    if (start == end)
+        return ((bitset->words[end] & first & last) == (first & last));
     if ((bitset->words[start] & first) != first) return false;
 
-    if ((end < BITSET_CONTAINER_SIZE_IN_WORDS) && ((bitset->words[end] & last) != last)){
-
+    if ((end < BITSET_CONTAINER_SIZE_IN_WORDS) &&
+        ((bitset->words[end] & last) != last)) {
         return false;
     }
 
-    for (uint32_t i = start + 1; (i < BITSET_CONTAINER_SIZE_IN_WORDS) && (i < end); ++i){
-
+    for (uint32_t i = start + 1;
+         (i < BITSET_CONTAINER_SIZE_IN_WORDS) && (i < end); ++i) {
         if (bitset->words[i] != UINT64_C(0xFFFFFFFFFFFFFFFF)) return false;
     }
 
@@ -223,11 +225,11 @@ inline bool bitset_container_contains(const bitset_container_t *bitset,
 }
 
 /*
-* Check whether a range of bits from position `pos_start' (included) to `pos_end' (excluded)
-* is present in `bitset'.  Calls bitset_container_get_all.
-*/
-static inline bool bitset_container_contains_range(const bitset_container_t *bitset,
-          uint32_t pos_start, uint32_t pos_end) {
+ * Check whether a range of bits from position `pos_start' (included) to
+ * `pos_end' (excluded) is present in `bitset'.  Calls bitset_container_get_all.
+ */
+static inline bool bitset_container_contains_range(
+    const bitset_container_t *bitset, uint32_t pos_start, uint32_t pos_end) {
     return bitset_container_get_range(bitset, pos_start, pos_end);
 }
 
@@ -237,9 +239,6 @@ static inline int bitset_container_cardinality(
     const bitset_container_t *bitset) {
     return bitset->cardinality;
 }
-
-
-
 
 /* Copy one container into another. We assume that they are distinct. */
 void bitset_container_copy(const bitset_container_t *source,
@@ -257,20 +256,18 @@ int bitset_container_compute_cardinality(const bitset_container_t *bitset);
 
 /* Check whether this bitset is empty,
  *  it never modifies the bitset struct. */
-static inline bool bitset_container_empty(
-    const bitset_container_t *bitset) {
-  if (bitset->cardinality == BITSET_UNKNOWN_CARDINALITY) {
-      for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i ++) {
-          if((bitset->words[i]) != 0) return false;
-      }
-      return true;
-  }
-  return bitset->cardinality == 0;
+static inline bool bitset_container_empty(const bitset_container_t *bitset) {
+    if (bitset->cardinality == BITSET_UNKNOWN_CARDINALITY) {
+        for (int i = 0; i < BITSET_CONTAINER_SIZE_IN_WORDS; i++) {
+            if ((bitset->words[i]) != 0) return false;
+        }
+        return true;
+    }
+    return bitset->cardinality == 0;
 }
 
-
-/* Get whether there is at least one bit set  (see bitset_container_empty for the reverse),
-   the bitset is never modified */
+/* Get whether there is at least one bit set  (see bitset_container_empty for
+   the reverse), the bitset is never modified */
 static inline bool bitset_container_const_nonzero_cardinality(
     const bitset_container_t *bitset) {
     return !bitset_container_empty(bitset);
@@ -280,7 +277,7 @@ static inline bool bitset_container_const_nonzero_cardinality(
  * Check whether the two bitsets intersect
  */
 bool bitset_container_intersect(const bitset_container_t *src_1,
-                                  const bitset_container_t *src_2);
+                                const bitset_container_t *src_2);
 
 /* Computes the union of bitsets `src_1' and `src_2' into `dst'  and return the
  * cardinality. */
@@ -307,8 +304,8 @@ int bitset_container_union_justcard(const bitset_container_t *src_1,
 /* Computes the union of bitsets `src_1' and `src_2' into `dst', but does
  * not update the cardinality. Provided to optimize chained operations. */
 int bitset_container_union_nocard(const bitset_container_t *src_1,
-				  const bitset_container_t *src_2,
-				  bitset_container_t *dst);
+                                  const bitset_container_t *src_2,
+                                  bitset_container_t *dst);
 
 /* Computes the union of bitsets `src_1' and `src_2' into `dst', but does not
  * update the cardinality. Provided to optimize chained operations. */
@@ -341,8 +338,8 @@ int bitset_container_intersection_justcard(const bitset_container_t *src_1,
 /* Computes the intersection of bitsets `src_1' and `src_2' into `dst', but does
  * not update the cardinality. Provided to optimize chained operations. */
 int bitset_container_intersection_nocard(const bitset_container_t *src_1,
-					 const bitset_container_t *src_2,
-					 bitset_container_t *dst);
+                                         const bitset_container_t *src_2,
+                                         bitset_container_t *dst);
 
 /* Computes the intersection of bitsets `src_1' and `src_2' into `dst', but does
  * not update the cardinality. Provided to optimize chained operations. */
@@ -384,9 +381,8 @@ int bitset_container_andnot_nocard(const bitset_container_t *src_1,
                                    const bitset_container_t *src_2,
                                    bitset_container_t *dst);
 
-void bitset_container_offset(const bitset_container_t *c,
-                             container_t **loc, container_t **hic,
-                             uint16_t offset);
+void bitset_container_offset(const bitset_container_t *c, container_t **loc,
+                             container_t **hic, uint16_t offset);
 /*
  * Write out the 16-bit integers contained in this container as a list of 32-bit
  * integers using base
@@ -413,7 +409,8 @@ void bitset_container_printf(const bitset_container_t *v);
 void bitset_container_printf_as_uint32_array(const bitset_container_t *v,
                                              uint32_t base);
 
-bool bitset_container_validate(const bitset_container_t *v, const char **reason);
+bool bitset_container_validate(const bitset_container_t *v,
+                               const char **reason);
 
 /**
  * Return the serialized size in bytes of a container.
@@ -471,8 +468,8 @@ bool bitset_container_equals(const bitset_container_t *container1,
                              const bitset_container_t *container2);
 
 /**
-* Return true if container1 is a subset of container2.
-*/
+ * Return true if container1 is a subset of container2.
+ */
 bool bitset_container_is_subset(const bitset_container_t *container1,
                                 const bitset_container_t *container2);
 
@@ -495,18 +492,23 @@ uint16_t bitset_container_maximum(const bitset_container_t *container);
 /* Returns the number of values equal or smaller than x */
 int bitset_container_rank(const bitset_container_t *container, uint16_t x);
 
-/* bulk version of bitset_container_rank(); return number of consumed elements */
-uint32_t bitset_container_rank_many(const bitset_container_t *container, uint64_t start_rank,
-                                    const uint32_t* begin, const uint32_t* end, uint64_t* ans);
+/* bulk version of bitset_container_rank(); return number of consumed elements
+ */
+uint32_t bitset_container_rank_many(const bitset_container_t *container,
+                                    uint64_t start_rank, const uint32_t *begin,
+                                    const uint32_t *end, uint64_t *ans);
 
 /* Returns the index of x , if not exsist return -1 */
 int bitset_container_get_index(const bitset_container_t *container, uint16_t x);
 
 /* Returns the index of the first value equal or larger than x, or -1 */
-int bitset_container_index_equalorlarger(const bitset_container_t *container, uint16_t x);
+int bitset_container_index_equalorlarger(const bitset_container_t *container,
+                                         uint16_t x);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* INCLUDE_CONTAINERS_BITSET_H_ */

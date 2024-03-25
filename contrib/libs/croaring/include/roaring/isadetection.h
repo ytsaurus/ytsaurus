@@ -1,9 +1,6 @@
 #ifndef ROARING_ISADETECTION_H
 #define ROARING_ISADETECTION_H
-#if defined(__x86_64__) || defined(_M_AMD64) // x64
-
-
-
+#if defined(__x86_64__) || defined(_M_AMD64)  // x64
 
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #ifdef __has_include
@@ -11,32 +8,35 @@
 // fully supporting AVX-512.
 #if __has_include(<avx512vbmi2intrin.h>)
 #define CROARING_COMPILER_SUPPORTS_AVX512 1
-#endif // #if __has_include(<avx512vbmi2intrin.h>)
-#endif // #ifdef __has_include
+#endif  // #if __has_include(<avx512vbmi2intrin.h>)
+#endif  // #ifdef __has_include
 
 // Visual Studio 2019 and up support AVX-512
 #ifdef _MSC_VER
 #if _MSC_VER >= 1920
 #define CROARING_COMPILER_SUPPORTS_AVX512 1
-#endif // #if _MSC_VER >= 1920
-#endif // #ifdef _MSC_VER
+#endif  // #if _MSC_VER >= 1920
+#endif  // #ifdef _MSC_VER
 
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #define CROARING_COMPILER_SUPPORTS_AVX512 0
-#endif // #ifndef CROARING_COMPILER_SUPPORTS_AVX512
-#endif // #ifndef CROARING_COMPILER_SUPPORTS_AVX512
-
+#endif  // #ifndef CROARING_COMPILER_SUPPORTS_AVX512
+#endif  // #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 enum {
-  ROARING_SUPPORTS_AVX2 = 1,
-  ROARING_SUPPORTS_AVX512 = 2,
+    ROARING_SUPPORTS_AVX2 = 1,
+    ROARING_SUPPORTS_AVX512 = 2,
 };
 int croaring_hardware_support(void);
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
-#endif // x64
-#endif // ROARING_ISADETECTION_H
+#endif  // x64
+#endif  // ROARING_ISADETECTION_H

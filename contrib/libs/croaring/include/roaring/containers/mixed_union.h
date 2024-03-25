@@ -16,7 +16,9 @@
 #include <roaring/containers/run.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /* Compute the union of src_1 and src_2 and write the result to
@@ -38,9 +40,9 @@ void array_bitset_container_lazy_union(const array_container_t *src_1,
  * otherwise is a array_container_t. We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-bool array_array_container_union(
-        const array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_union(const array_container_t *src_1,
+                                 const array_container_t *src_2,
+                                 container_t **dst);
 
 /*
  * Compute the union between src_1 and src_2 and write the result
@@ -48,27 +50,28 @@ bool array_array_container_union(
  * the result is a bitset_container_t
  * otherwise is a array_container_t. When the result is an array_container_t, it
  * it either written to src_1 (if *dst is null) or to *dst.
- * If the result is a bitset_container_t and *dst is null, then there was a failure.
+ * If the result is a bitset_container_t and *dst is null, then there was a
+ * failure.
  */
-bool array_array_container_inplace_union(
-        array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_inplace_union(array_container_t *src_1,
+                                         const array_container_t *src_2,
+                                         container_t **dst);
 
 /*
  * Same as array_array_container_union except that it will more eagerly produce
  * a bitset.
  */
-bool array_array_container_lazy_union(
-        const array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_lazy_union(const array_container_t *src_1,
+                                      const array_container_t *src_2,
+                                      container_t **dst);
 
 /*
- * Same as array_array_container_inplace_union except that it will more eagerly produce
- * a bitset.
+ * Same as array_array_container_inplace_union except that it will more eagerly
+ * produce a bitset.
  */
-bool array_array_container_lazy_inplace_union(
-        array_container_t *src_1, const array_container_t *src_2,
-        container_t **dst);
+bool array_array_container_lazy_inplace_union(array_container_t *src_1,
+                                              const array_container_t *src_2,
+                                              container_t **dst);
 
 /* Compute the union of src_1 and src_2 and write the result to
  * dst. We assume that dst is a
@@ -106,7 +109,9 @@ void run_bitset_container_lazy_union(const run_container_t *src_1,
                                      bitset_container_t *dst);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* INCLUDE_CONTAINERS_MIXED_UNION_H_ */

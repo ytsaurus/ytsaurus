@@ -9,11 +9,17 @@
 #if CROARING_IS_X64
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
-#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif  // CROARING_COMPILER_SUPPORTS_AVX512
 #endif
-
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 /*
@@ -21,8 +27,8 @@ extern "C" { namespace roaring { namespace internal {
  *  Assumes that array is sorted, has logarithmic complexity.
  *  if the result is x, then:
  *     if ( x>0 )  you have array[x] = ikey
- *     if ( x<0 ) then inserting ikey at position -x-1 in array (insuring that array[-x-1]=ikey)
- *                   keys the array sorted.
+ *     if ( x<0 ) then inserting ikey at position -x-1 in array (insuring that
+ * array[-x-1]=ikey) keys the array sorted.
  */
 inline int32_t binarySearch(const uint16_t *array, int32_t lenarray,
                             uint16_t ikey) {
@@ -45,9 +51,9 @@ inline int32_t binarySearch(const uint16_t *array, int32_t lenarray,
 /**
  * Galloping search
  * Assumes that array is sorted, has logarithmic complexity.
- * if the result is x, then if x = length, you have that all values in array between pos and length
- *    are smaller than min.
- * otherwise returns the first index x such that array[x] >= min.
+ * if the result is x, then if x = length, you have that all values in array
+ * between pos and length are smaller than min. otherwise returns the first
+ * index x such that array[x] >= min.
  */
 static inline int32_t advanceUntil(const uint16_t *array, int32_t pos,
                                    int32_t length, uint16_t min) {
@@ -102,7 +108,7 @@ static inline int32_t count_less(const uint16_t *array, int32_t lenarray,
                                  uint16_t ikey) {
     if (lenarray == 0) return 0;
     int32_t pos = binarySearch(array, lenarray, ikey);
-    return pos >= 0 ? pos : -(pos+1);
+    return pos >= 0 ? pos : -(pos + 1);
 }
 
 /**
@@ -114,9 +120,9 @@ static inline int32_t count_greater(const uint16_t *array, int32_t lenarray,
     if (lenarray == 0) return 0;
     int32_t pos = binarySearch(array, lenarray, ikey);
     if (pos >= 0) {
-        return lenarray - (pos+1);
+        return lenarray - (pos + 1);
     } else {
-        return lenarray - (-pos-1);
+        return lenarray - (-pos - 1);
     }
 }
 
@@ -132,17 +138,17 @@ int32_t intersect_vector16(const uint16_t *__restrict__ A, size_t s_a,
                            uint16_t *C);
 
 int32_t intersect_vector16_inplace(uint16_t *__restrict__ A, size_t s_a,
-                           const uint16_t *__restrict__ B, size_t s_b);
+                                   const uint16_t *__restrict__ B, size_t s_b);
 
 /**
  * Take an array container and write it out to a 32-bit array, using base
  * as the offset.
  */
-int array_container_to_uint32_array_vector16(void *vout, const uint16_t* array, size_t cardinality,
-                                    uint32_t base);
+int array_container_to_uint32_array_vector16(void *vout, const uint16_t *array,
+                                             size_t cardinality, uint32_t base);
 #if CROARING_COMPILER_SUPPORTS_AVX512
-int avx512_array_container_to_uint32_array(void *vout, const uint16_t* array, size_t cardinality,
-                                    uint32_t base);
+int avx512_array_container_to_uint32_array(void *vout, const uint16_t *array,
+                                           size_t cardinality, uint32_t base);
 #endif
 /**
  * Compute the cardinality of the intersection using SSE4 instructions
@@ -165,10 +171,11 @@ int32_t intersect_skewed_uint16_cardinality(const uint16_t *smallarray,
                                             const uint16_t *largearray,
                                             size_t size_l);
 
-
-/* Check whether the size of the intersection between one small and one large set of uint16_t is non-zero. */
+/* Check whether the size of the intersection between one small and one large
+ * set of uint16_t is non-zero. */
 bool intersect_skewed_uint16_nonempty(const uint16_t *smallarray, size_t size_s,
-                                const uint16_t *largearray, size_t size_l);
+                                      const uint16_t *largearray,
+                                      size_t size_l);
 /**
  * Generic intersection function.
  */
@@ -184,7 +191,7 @@ int32_t intersect_uint16_cardinality(const uint16_t *A, const size_t lenA,
  * Checking whether the size of the intersection  is non-zero.
  */
 bool intersect_uint16_nonempty(const uint16_t *A, const size_t lenA,
-                         const uint16_t *B, const size_t lenB);
+                               const uint16_t *B, const size_t lenB);
 /**
  * Generic union function.
  */
@@ -248,16 +255,20 @@ size_t union_uint32_card(const uint32_t *set_1, size_t size_1,
                          const uint32_t *set_2, size_t size_2);
 
 /**
-* combines union_uint16 and  union_vector16 optimally
-*/
-size_t fast_union_uint16(const uint16_t *set_1, size_t size_1, const uint16_t *set_2,
-                    size_t size_2, uint16_t *buffer);
-
+ * combines union_uint16 and  union_vector16 optimally
+ */
+size_t fast_union_uint16(const uint16_t *set_1, size_t size_1,
+                         const uint16_t *set_2, size_t size_2,
+                         uint16_t *buffer);
 
 bool memequals(const void *s1, const void *s2, size_t n);
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
-
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #endif

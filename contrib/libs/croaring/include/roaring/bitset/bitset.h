@@ -15,16 +15,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <roaring/portability.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace api {
+extern "C" {
+namespace roaring {
+namespace api {
 #endif
 
 struct bitset_s {
     uint64_t *CBITSET_RESTRICT array;
-    /* For simplicity and performance, we prefer to have a size and a capacity that is a multiple of 64 bits.
-     * Thus we only track the size and the capacity in terms of 64-bit words allocated */
+    /* For simplicity and performance, we prefer to have a size and a capacity
+     * that is a multiple of 64 bits. Thus we only track the size and the
+     * capacity in terms of 64-bit words allocated */
     size_t arraysize;
     size_t capacity;
 };
@@ -50,9 +54,9 @@ void bitset_fill(bitset_t *bitset);
 /* Create a copy */
 bitset_t *bitset_copy(const bitset_t *bitset);
 
-/* For advanced users: Resize the bitset so that it can support newarraysize * 64 bits.
- * Return true in case of success, false for failure. Pad
- * with zeroes new buffer areas if requested. */
+/* For advanced users: Resize the bitset so that it can support newarraysize *
+ * 64 bits. Return true in case of success, false for failure. Pad with zeroes
+ * new buffer areas if requested. */
 bool bitset_resize(bitset_t *bitset, size_t newarraysize, bool padwithzeroes);
 
 /* returns how many bytes of memory the backend buffer uses */
@@ -70,12 +74,12 @@ inline size_t bitset_size_in_words(const bitset_t *bitset) {
     return bitset->arraysize;
 }
 
-/* For advanced users: Grow the bitset so that it can support newarraysize * 64 bits with padding.
- * Return true in case of success, false for failure. */
+/* For advanced users: Grow the bitset so that it can support newarraysize * 64
+ * bits with padding. Return true in case of success, false for failure. */
 bool bitset_grow(bitset_t *bitset, size_t newarraysize);
 
-/* attempts to recover unused memory, return false in case of roaring_reallocation
- * failure */
+/* attempts to recover unused memory, return false in case of
+ * roaring_reallocation failure */
 bool bitset_trim(bitset_t *bitset);
 
 /* shifts all bits by 's' positions so that the bitset representing values
@@ -152,13 +156,16 @@ size_t bitset_intersection_count(const bitset_t *CBITSET_RESTRICT b1,
                                  const bitset_t *CBITSET_RESTRICT b2);
 
 /* returns true if the bitsets contain no common elements */
-bool bitsets_disjoint(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2);
+bool bitsets_disjoint(const bitset_t *CBITSET_RESTRICT b1,
+                      const bitset_t *CBITSET_RESTRICT b2);
 
 /* returns true if the bitsets contain any common elements */
-bool bitsets_intersect(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2);
+bool bitsets_intersect(const bitset_t *CBITSET_RESTRICT b1,
+                       const bitset_t *CBITSET_RESTRICT b2);
 
 /* returns true if b1 contains all of the set bits of b2 */
-bool bitset_contains_all(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2);
+bool bitset_contains_all(const bitset_t *CBITSET_RESTRICT b1,
+                         const bitset_t *CBITSET_RESTRICT b2);
 
 /* compute the difference in-place (to b1), to generate a new bitset first call
  * bitset_copy */
@@ -211,8 +218,8 @@ inline bool bitset_next_set_bit(const bitset_t *bitset, size_t *i) {
  like so :
    size_t buffer[256];
    size_t howmany = 0;
-  for(size_t startfrom = 0; (howmany = bitset_next_set_bits(b,buffer,256, &startfrom)) >
- 0 ; startfrom++) {
+  for(size_t startfrom = 0; (howmany = bitset_next_set_bits(b,buffer,256,
+ &startfrom)) > 0 ; startfrom++) {
     //.....
   }
   */
@@ -277,7 +284,9 @@ inline void bitset_print(const bitset_t *b) {
 }
 
 #ifdef __cplusplus
-} } } // extern "C" { namespace roaring { namespace api {
+}
+}
+}  // extern "C" { namespace roaring { namespace api {
 #endif
 
 #endif

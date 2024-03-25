@@ -14,7 +14,9 @@
 #include <roaring/containers/run.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 // TODO: make simplified and optimized negation code across
@@ -47,9 +49,8 @@ void array_container_negation(const array_container_t *src,
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-bool bitset_container_negation(
-    const bitset_container_t *src, container_t **dst
-){
+bool bitset_container_negation(const bitset_container_t *src,
+                               container_t **dst) {
     return bitset_container_negation_range(src, 0, (1 << 16), dst);
 }
 
@@ -62,9 +63,8 @@ bool bitset_container_negation(
  * to free the container.
  * In all cases, the result is in *dst.
  */
-bool bitset_container_negation_inplace(
-    bitset_container_t *src, container_t **dst
-){
+bool bitset_container_negation_inplace(bitset_container_t *src,
+                                       container_t **dst) {
     return bitset_container_negation_range_inplace(src, 0, (1 << 16), dst);
 }
 
@@ -94,11 +94,9 @@ int run_container_negation_inplace(run_container_t *src, container_t **dst) {
  * to *dst. Returns true if the result is a bitset container
  * and false for an array container.  *dst is not preallocated.
  */
-bool array_container_negation_range(
-    const array_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+bool array_container_negation_range(const array_container_t *src,
+                                    const int range_start, const int range_end,
+                                    container_t **dst) {
     /* close port of the Java implementation */
     if (range_start >= range_end) {
         *dst = array_container_clone(src);
@@ -133,9 +131,9 @@ bool array_container_negation_range(
     array_container_t *arr =
         array_container_create_given_capacity(new_cardinality);
     *dst = (container_t *)arr;
-    if(new_cardinality == 0) {
-      arr->cardinality = new_cardinality;
-      return false; // we are done.
+    if (new_cardinality == 0) {
+        arr->cardinality = new_cardinality;
+        return false;  // we are done.
     }
     // copy stuff before the active area
     memcpy(arr->array, src->array, start_index * sizeof(uint16_t));
@@ -164,11 +162,10 @@ bool array_container_negation_range(
  * inplace version without inefficient copying.
  */
 
-bool array_container_negation_range_inplace(
-    array_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+bool array_container_negation_range_inplace(array_container_t *src,
+                                            const int range_start,
+                                            const int range_end,
+                                            container_t **dst) {
     bool ans = array_container_negation_range(src, range_start, range_end, dst);
     // TODO : try a real inplace version
     array_container_free(src);
@@ -182,11 +179,9 @@ bool array_container_negation_range_inplace(
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-bool bitset_container_negation_range(
-    const bitset_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+bool bitset_container_negation_range(const bitset_container_t *src,
+                                     const int range_start, const int range_end,
+                                     container_t **dst) {
     // TODO maybe consider density-based estimate
     // and sometimes build result directly as array, with
     // conversion back to bitset if wrong.  Or determine
@@ -216,11 +211,10 @@ bool bitset_container_negation_range(
  * to free the container.
  * In all cases, the result is in *dst.
  */
-bool bitset_container_negation_range_inplace(
-    bitset_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+bool bitset_container_negation_range_inplace(bitset_container_t *src,
+                                             const int range_start,
+                                             const int range_end,
+                                             container_t **dst) {
     bitset_flip_range(src->words, (uint32_t)range_start, (uint32_t)range_end);
     src->cardinality = bitset_container_compute_cardinality(src);
     if (src->cardinality > DEFAULT_MAX_SIZE) {
@@ -238,11 +232,9 @@ bool bitset_container_negation_range_inplace(
  *  We assume that dst is not pre-allocated. In
  * case of failure, *dst will be NULL.
  */
-int run_container_negation_range(
-    const run_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+int run_container_negation_range(const run_container_t *src,
+                                 const int range_start, const int range_end,
+                                 container_t **dst) {
     uint8_t return_typecode;
 
     // follows the Java implementation
@@ -280,11 +272,10 @@ int run_container_negation_range(
  * then src is modified and no allocation is made.
  * In all cases, the result is in *dst.
  */
-int run_container_negation_range_inplace(
-    run_container_t *src,
-    const int range_start, const int range_end,
-    container_t **dst
-){
+int run_container_negation_range_inplace(run_container_t *src,
+                                         const int range_start,
+                                         const int range_end,
+                                         container_t **dst) {
     uint8_t return_typecode;
 
     if (range_end <= range_start) {
@@ -357,5 +348,7 @@ int run_container_negation_range_inplace(
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif

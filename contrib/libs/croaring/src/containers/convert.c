@@ -8,11 +8,13 @@
 #if CROARING_IS_X64
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
-#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif  // CROARING_COMPILER_SUPPORTS_AVX512
 #endif
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 // file contains grubby stuff that must know impl. details of all container
@@ -56,24 +58,24 @@ array_container_t *array_container_from_bitset(const bitset_container_t *bits) {
     result->cardinality = bits->cardinality;
 #if CROARING_IS_X64
 #if CROARING_COMPILER_SUPPORTS_AVX512
-    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX512 ) {
-        bitset_extract_setbits_avx512_uint16(bits->words, BITSET_CONTAINER_SIZE_IN_WORDS,
-                                  result->array, bits->cardinality , 0);
+    if (croaring_hardware_support() & ROARING_SUPPORTS_AVX512) {
+        bitset_extract_setbits_avx512_uint16(
+            bits->words, BITSET_CONTAINER_SIZE_IN_WORDS, result->array,
+            bits->cardinality, 0);
     } else
 #endif
     {
         //  sse version ends up being slower here
         // (bitset_extract_setbits_sse_uint16)
         // because of the sparsity of the data
-        bitset_extract_setbits_uint16(bits->words, BITSET_CONTAINER_SIZE_IN_WORDS,
-                                  result->array, 0);
+        bitset_extract_setbits_uint16(
+            bits->words, BITSET_CONTAINER_SIZE_IN_WORDS, result->array, 0);
     }
 #else
-        // If the system is not x64, then we have no accelerated function.
-        bitset_extract_setbits_uint16(bits->words, BITSET_CONTAINER_SIZE_IN_WORDS,
+    // If the system is not x64, then we have no accelerated function.
+    bitset_extract_setbits_uint16(bits->words, BITSET_CONTAINER_SIZE_IN_WORDS,
                                   result->array, 0);
 #endif
-
 
     return result;
 }
@@ -113,10 +115,9 @@ run_container_t *run_container_from_array(const array_container_t *c) {
  * Allocates and returns new container, which caller is responsible for freeing.
  * It does not free the run container.
  */
-container_t *convert_to_bitset_or_array_container(
-    run_container_t *rc, int32_t card,
-    uint8_t *resulttype
-){
+container_t *convert_to_bitset_or_array_container(run_container_t *rc,
+                                                  int32_t card,
+                                                  uint8_t *resulttype) {
     if (card <= DEFAULT_MAX_SIZE) {
         array_container_t *answer = array_container_create_given_capacity(card);
         answer->cardinality = 0;
@@ -131,7 +132,7 @@ container_t *convert_to_bitset_or_array_container(
         }
         assert(card == answer->cardinality);
         *resulttype = ARRAY_CONTAINER_TYPE;
-        //run_container_free(r);
+        // run_container_free(r);
         return answer;
     }
     bitset_container_t *answer = bitset_container_create();
@@ -141,7 +142,7 @@ container_t *convert_to_bitset_or_array_container(
     }
     answer->cardinality = card;
     *resulttype = BITSET_CONTAINER_TYPE;
-    //run_container_free(r);
+    // run_container_free(r);
     return answer;
 }
 
@@ -150,10 +151,8 @@ container_t *convert_to_bitset_or_array_container(
 /* If a conversion occurs, the caller is responsible to free the original
  * container and
  * he becomes responsible to free the new one. */
-container_t *convert_run_to_efficient_container(
-    run_container_t *c,
-    uint8_t *typecode_after
-){
+container_t *convert_run_to_efficient_container(run_container_t *c,
+                                                uint8_t *typecode_after) {
     int32_t size_as_run_container =
         run_container_serialized_size_in_bytes(c->n_runs);
 
@@ -202,9 +201,7 @@ container_t *convert_run_to_efficient_container(
 
 // like convert_run_to_efficient_container but frees the old result if needed
 container_t *convert_run_to_efficient_container_and_free(
-    run_container_t *c,
-    uint8_t *typecode_after
-){
+    run_container_t *c, uint8_t *typecode_after) {
     container_t *answer = convert_run_to_efficient_container(c, typecode_after);
     if (answer != c) run_container_free(c);
     return answer;
@@ -217,13 +214,11 @@ container_t *convert_run_to_efficient_container_and_free(
 // TODO: split into run-  array-  and bitset-  subfunctions for sanity;
 // a few function calls won't really matter.
 
-container_t *convert_run_optimize(
-    container_t *c, uint8_t typecode_original,
-    uint8_t *typecode_after
-){
+container_t *convert_run_optimize(container_t *c, uint8_t typecode_original,
+                                  uint8_t *typecode_after) {
     if (typecode_original == RUN_CONTAINER_TYPE) {
-        container_t *newc = convert_run_to_efficient_container(
-                                    CAST_run(c), typecode_after);
+        container_t *newc =
+            convert_run_to_efficient_container(CAST_run(c), typecode_after);
         if (newc != c) {
             container_free(c, typecode_original);
         }
@@ -325,10 +320,8 @@ container_t *convert_run_optimize(
     }
 }
 
-container_t *container_from_run_range(
-    const run_container_t *run,
-    uint32_t min, uint32_t max, uint8_t *typecode_after
-){
+container_t *container_from_run_range(const run_container_t *run, uint32_t min,
+                                      uint32_t max, uint8_t *typecode_after) {
     // We expect most of the time to end up with a bitset container
     bitset_container_t *bitset = bitset_container_create();
     *typecode_after = BITSET_CONTAINER_TYPE;
@@ -340,12 +333,13 @@ container_t *container_from_run_range(
         union_cardinality += run->runs[i].length + 1;
     }
     union_cardinality += max - min + 1;
-    union_cardinality -= bitset_lenrange_cardinality(bitset->words, min, max-min);
+    union_cardinality -=
+        bitset_lenrange_cardinality(bitset->words, min, max - min);
     bitset_set_lenrange(bitset->words, min, max - min);
     bitset->cardinality = union_cardinality;
-    if(bitset->cardinality <= DEFAULT_MAX_SIZE) {
+    if (bitset->cardinality <= DEFAULT_MAX_SIZE) {
         // we need to convert to an array container
-        array_container_t * array = array_container_from_bitset(bitset);
+        array_container_t *array = array_container_from_bitset(bitset);
         *typecode_after = ARRAY_CONTAINER_TYPE;
         bitset_container_free(bitset);
         return array;
@@ -354,5 +348,7 @@ container_t *container_from_run_range(
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif

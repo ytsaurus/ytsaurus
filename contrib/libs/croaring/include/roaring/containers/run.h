@@ -6,19 +6,21 @@
 #ifndef INCLUDE_CONTAINERS_RUN_H_
 #define INCLUDE_CONTAINERS_RUN_H_
 
+#include <roaring/roaring_types.h>  // roaring_iterator
+
+// Include other headers after roaring_types.h
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <roaring/portability.h>
-#include <roaring/roaring_types.h>  // roaring_iterator
 #include <roaring/array_util.h>  // binarySearch()/memequals() for inlining
-
 #include <roaring/containers/container_defs.h>  // container_t, perfparameters
+#include <roaring/portability.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring {
+extern "C" {
+namespace roaring {
 
 // Note: in pure C++ code, you should avoid putting `using` in header files
 using api::roaring_iterator;
@@ -43,11 +45,11 @@ struct rle16_s {
 typedef struct rle16_s rle16_t;
 
 #ifdef __cplusplus
-    #define MAKE_RLE16(val,len) \
-        {(uint16_t)(val), (uint16_t)(len)}  // no tagged structs until c++20
+#define MAKE_RLE16(val, len) \
+    { (uint16_t)(val), (uint16_t)(len) }  // no tagged structs until c++20
 #else
-    #define MAKE_RLE16(val,len) \
-        (rle16_t){.value = (uint16_t)(val), .length = (uint16_t)(len)}
+#define MAKE_RLE16(val, len) \
+    (rle16_t) { .value = (uint16_t)(val), .length = (uint16_t)(len) }
 #endif
 
 /* struct run_container_s - run container bitmap
@@ -64,8 +66,8 @@ STRUCT_CONTAINER(run_container_s) {
 
 typedef struct run_container_s run_container_t;
 
-#define CAST_run(c)         CAST(run_container_t *, c)  // safer downcast
-#define const_CAST_run(c)   CAST(const run_container_t *, c)
+#define CAST_run(c) CAST(run_container_t *, c)  // safer downcast
+#define const_CAST_run(c) CAST(const run_container_t *, c)
 #define movable_CAST_run(c) movable_CAST(run_container_t **, c)
 
 /* Create a new run container. Return NULL in case of failure. */
@@ -138,13 +140,12 @@ static inline int32_t rle16_find_run(const rle16_t *array, int32_t lenarray,
     return -(low + 1);
 }
 
-
 /**
  * Returns number of runs which can'be be merged with the key because they
  * are less than the key.
  * Note that [5,6,7,8] can be merged with the key 9 and won't be counted.
  */
-static inline int32_t rle16_count_less(const rle16_t* array, int32_t lenarray,
+static inline int32_t rle16_count_less(const rle16_t *array, int32_t lenarray,
                                        uint16_t key) {
     if (lenarray == 0) return 0;
     int32_t low = 0;
@@ -152,8 +153,9 @@ static inline int32_t rle16_count_less(const rle16_t* array, int32_t lenarray,
     while (low <= high) {
         int32_t middleIndex = (low + high) >> 1;
         uint16_t min_value = array[middleIndex].value;
-        uint16_t max_value = array[middleIndex].value + array[middleIndex].length;
-        if (max_value + UINT32_C(1) < key) { // uint32 arithmetic
+        uint16_t max_value =
+            array[middleIndex].value + array[middleIndex].length;
+        if (max_value + UINT32_C(1) < key) {  // uint32 arithmetic
             low = middleIndex + 1;
         } else if (key < min_value) {
             high = middleIndex - 1;
@@ -164,18 +166,19 @@ static inline int32_t rle16_count_less(const rle16_t* array, int32_t lenarray,
     return low;
 }
 
-static inline int32_t rle16_count_greater(const rle16_t* array, int32_t lenarray,
-                                          uint16_t key) {
+static inline int32_t rle16_count_greater(const rle16_t *array,
+                                          int32_t lenarray, uint16_t key) {
     if (lenarray == 0) return 0;
     int32_t low = 0;
     int32_t high = lenarray - 1;
     while (low <= high) {
         int32_t middleIndex = (low + high) >> 1;
         uint16_t min_value = array[middleIndex].value;
-        uint16_t max_value = array[middleIndex].value + array[middleIndex].length;
+        uint16_t max_value =
+            array[middleIndex].value + array[middleIndex].length;
         if (max_value < key) {
             low = middleIndex + 1;
-        } else if (key + UINT32_C(1) < min_value) { // uint32 arithmetic
+        } else if (key + UINT32_C(1) < min_value) {  // uint32 arithmetic
             high = middleIndex - 1;
         } else {
             return lenarray - (middleIndex + 1);
@@ -259,16 +262,19 @@ inline bool run_container_contains(const run_container_t *run, uint16_t pos) {
 }
 
 /*
-* Check whether all positions in a range of positions from pos_start (included)
-* to pos_end (excluded) is present in `run'.
-*/
+ * Check whether all positions in a range of positions from pos_start (included)
+ * to pos_end (excluded) is present in `run'.
+ */
 static inline bool run_container_contains_range(const run_container_t *run,
-                                                uint32_t pos_start, uint32_t pos_end) {
+                                                uint32_t pos_start,
+                                                uint32_t pos_end) {
     uint32_t count = 0;
-    int32_t index = interleavedBinarySearch(run->runs, run->n_runs, (uint16_t)pos_start);
+    int32_t index =
+        interleavedBinarySearch(run->runs, run->n_runs, (uint16_t)pos_start);
     if (index < 0) {
         index = -index - 2;
-        if ((index == -1) || ((pos_start - run->runs[index].value) > run->runs[index].length)){
+        if ((index == -1) ||
+            ((pos_start - run->runs[index].value) > run->runs[index].length)) {
             return false;
         }
     }
@@ -276,7 +282,9 @@ static inline bool run_container_contains_range(const run_container_t *run,
         const uint32_t stop = run->runs[i].value + run->runs[i].length;
         if (run->runs[i].value >= pos_end) break;
         if (stop >= pos_end) {
-            count += (((pos_end - run->runs[i].value) > 0) ? (pos_end - run->runs[i].value) : 0);
+            count += (((pos_end - run->runs[i].value) > 0)
+                          ? (pos_end - run->runs[i].value)
+                          : 0);
             break;
         }
         const uint32_t min = (stop - pos_start) > 0 ? (stop - pos_start) : 0;
@@ -295,12 +303,9 @@ static inline bool run_container_nonzero_cardinality(
 }
 
 /* Card == 0?, see run_container_nonzero_cardinality for the reverse */
-static inline bool run_container_empty(
-    const run_container_t *run) {
+static inline bool run_container_empty(const run_container_t *run) {
     return run->n_runs == 0;  // runs never empty
 }
-
-
 
 /* Copy one container into another. We assume that they are distinct. */
 void run_container_copy(const run_container_t *src, run_container_t *dst);
@@ -404,7 +409,7 @@ int run_container_intersection_cardinality(const run_container_t *src_1,
 
 /* Check whether src_1 and src_2 intersect. */
 bool run_container_intersect(const run_container_t *src_1,
-                                const run_container_t *src_2);
+                             const run_container_t *src_2);
 
 /* Compute the symmetric difference of `src_1' and `src_2' and write the result
  * to `dst'
@@ -475,6 +480,7 @@ int32_t run_container_read(int32_t cardinality, run_container_t *container,
  * Return the serialized size in bytes of a container (see run_container_write).
  * This is meant to be compatible with the Java and Go versions of Roaring.
  */
+ALLOW_UNALIGNED
 static inline int32_t run_container_size_in_bytes(
     const run_container_t *container) {
     return run_container_serialized_size_in_bytes(container->n_runs);
@@ -485,7 +491,7 @@ static inline int32_t run_container_size_in_bytes(
  */
 ALLOW_UNALIGNED
 static inline bool run_container_equals(const run_container_t *container1,
-                          const run_container_t *container2) {
+                                        const run_container_t *container2) {
     if (container1->n_runs != container2->n_runs) {
         return false;
     }
@@ -494,8 +500,8 @@ static inline bool run_container_equals(const run_container_t *container1,
 }
 
 /**
-* Return true if container1 is a subset of container2.
-*/
+ * Return true if container1 is a subset of container2.
+ */
 bool run_container_is_subset(const run_container_t *container1,
                              const run_container_t *container2);
 
@@ -508,12 +514,12 @@ void run_container_smart_append_exclusive(run_container_t *src,
                                           const uint16_t length);
 
 /**
-* The new container consists of a single run [start,stop).
-* It is required that stop>start, the caller is responsability for this check.
-* It is required that stop <= (1<<16), the caller is responsability for this check.
-* The cardinality of the created container is stop - start.
-* Returns NULL on failure
-*/
+ * The new container consists of a single run [start,stop).
+ * It is required that stop>start, the caller is responsability for this check.
+ * It is required that stop <= (1<<16), the caller is responsability for this
+ * check. The cardinality of the created container is stop - start. Returns NULL
+ * on failure
+ */
 static inline run_container_t *run_container_create_range(uint32_t start,
                                                           uint32_t stop) {
     run_container_t *rc = run_container_create_given_capacity(1);
@@ -542,9 +548,8 @@ bool run_container_select(const run_container_t *container,
 void run_container_andnot(const run_container_t *src_1,
                           const run_container_t *src_2, run_container_t *dst);
 
-void run_container_offset(const run_container_t *c,
-                         container_t **loc, container_t **hic,
-                         uint16_t offset);
+void run_container_offset(const run_container_t *c, container_t **loc,
+                          container_t **hic, uint16_t offset);
 
 /* Returns the smallest value (assumes not empty) */
 inline uint16_t run_container_minimum(const run_container_t *run) {
@@ -562,14 +567,17 @@ inline uint16_t run_container_maximum(const run_container_t *run) {
 int run_container_rank(const run_container_t *arr, uint16_t x);
 
 /* bulk version of run_container_rank(); return number of consumed elements */
-uint32_t run_container_rank_many(const run_container_t *arr, uint64_t start_rank,
-                                 const uint32_t* begin, const uint32_t* end, uint64_t* ans);
+uint32_t run_container_rank_many(const run_container_t *arr,
+                                 uint64_t start_rank, const uint32_t *begin,
+                                 const uint32_t *end, uint64_t *ans);
 
 /* Returns the index of x, if not exsist return -1 */
 int run_container_get_index(const run_container_t *arr, uint16_t x);
 
-/* Returns the index of the first run containing a value at least as large as x, or -1 */
-inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_t x) {
+/* Returns the index of the first run containing a value at least as large as x,
+ * or -1 */
+inline int run_container_index_equalorlarger(const run_container_t *arr,
+                                             uint16_t x) {
     int32_t index = interleavedBinarySearch(arr->runs, arr->n_runs, x);
     if (index >= 0) return index;
     index = -index - 2;  // points to preceding run, possibly -1
@@ -579,8 +587,8 @@ inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_
         if (offset <= le) return index;
     }
     index += 1;
-    if(index  < arr->n_runs) {
-      return index;
+    if (index < arr->n_runs) {
+        return index;
     }
     return -1;
 }
@@ -588,7 +596,7 @@ inline int run_container_index_equalorlarger(const run_container_t *arr, uint16_
 /*
  * Add all values in range [min, max] using hint.
  */
-static inline void run_container_add_range_nruns(run_container_t* run,
+static inline void run_container_add_range_nruns(run_container_t *run,
                                                  uint32_t min, uint32_t max,
                                                  int32_t nruns_less,
                                                  int32_t nruns_greater) {
@@ -609,7 +617,7 @@ static inline void run_container_add_range_nruns(run_container_t* run,
 
         memmove(&(run->runs[nruns_less + 1]),
                 &(run->runs[run->n_runs - nruns_greater]),
-                nruns_greater*sizeof(rle16_t));
+                nruns_greater * sizeof(rle16_t));
         run->n_runs = nruns_less + 1 + nruns_greater;
     }
 }
@@ -621,44 +629,52 @@ static inline void run_container_add_range_nruns(run_container_t* run,
 /*static inline void run_container_add_range(run_container_t* run,
                                            uint32_t min, uint32_t max) {
     int32_t nruns_greater = rle16_count_greater(run->runs, run->n_runs, max);
-    int32_t nruns_less = rle16_count_less(run->runs, run->n_runs - nruns_greater, min);
-    run_container_add_range_nruns(run, min, max, nruns_less, nruns_greater);
+    int32_t nruns_less = rle16_count_less(run->runs, run->n_runs -
+nruns_greater, min); run_container_add_range_nruns(run, min, max, nruns_less,
+nruns_greater);
 }*/
 
 /**
- * Shifts last $count elements either left (distance < 0) or right (distance > 0)
+ * Shifts last $count elements either left (distance < 0) or right (distance >
+ * 0)
  */
-static inline void run_container_shift_tail(run_container_t* run,
-                                            int32_t count, int32_t distance) {
+static inline void run_container_shift_tail(run_container_t *run, int32_t count,
+                                            int32_t distance) {
     if (distance > 0) {
-        if (run->capacity < count+distance) {
-            run_container_grow(run, count+distance, true);
+        if (run->capacity < count + distance) {
+            run_container_grow(run, count + distance, true);
         }
     }
     int32_t srcpos = run->n_runs - count;
     int32_t dstpos = srcpos + distance;
-    memmove(&(run->runs[dstpos]), &(run->runs[srcpos]), sizeof(rle16_t) * count);
+    memmove(&(run->runs[dstpos]), &(run->runs[srcpos]),
+            sizeof(rle16_t) * count);
     run->n_runs += distance;
 }
 
 /**
  * Remove all elements in range [min, max]
  */
-static inline void run_container_remove_range(run_container_t *run, uint32_t min, uint32_t max) {
+static inline void run_container_remove_range(run_container_t *run,
+                                              uint32_t min, uint32_t max) {
     int32_t first = rle16_find_run(run->runs, run->n_runs, (uint16_t)min);
     int32_t last = rle16_find_run(run->runs, run->n_runs, (uint16_t)max);
 
     if (first >= 0 && min > run->runs[first].value &&
-        max < ((uint32_t)run->runs[first].value + (uint32_t)run->runs[first].length)) {
+        max < ((uint32_t)run->runs[first].value +
+               (uint32_t)run->runs[first].length)) {
         // split this run into two adjacent runs
 
         // right subinterval
-        makeRoomAtIndex(run, (uint16_t)(first+1));
-        run->runs[first+1].value = (uint16_t)(max + 1);
-        run->runs[first+1].length = (uint16_t)((run->runs[first].value + run->runs[first].length) - (max + 1));
+        makeRoomAtIndex(run, (uint16_t)(first + 1));
+        run->runs[first + 1].value = (uint16_t)(max + 1);
+        run->runs[first + 1].length =
+            (uint16_t)((run->runs[first].value + run->runs[first].length) -
+                       (max + 1));
 
         // left subinterval
-        run->runs[first].length = (uint16_t)((min - 1) - run->runs[first].value);
+        run->runs[first].length =
+            (uint16_t)((min - 1) - run->runs[first].value);
 
         return;
     }
@@ -666,11 +682,12 @@ static inline void run_container_remove_range(run_container_t *run, uint32_t min
     // update left-most partial run
     if (first >= 0) {
         if (min > run->runs[first].value) {
-            run->runs[first].length = (uint16_t)((min - 1) - run->runs[first].value);
+            run->runs[first].length =
+                (uint16_t)((min - 1) - run->runs[first].value);
             first++;
         }
     } else {
-        first = -first-1;
+        first = -first - 1;
     }
 
     // update right-most run
@@ -682,17 +699,20 @@ static inline void run_container_remove_range(run_container_t *run, uint32_t min
             last--;
         }
     } else {
-        last = (-last-1) - 1;
+        last = (-last - 1) - 1;
     }
 
     // remove intermediate runs
     if (first <= last) {
-        run_container_shift_tail(run, run->n_runs - (last+1), -(last-first+1));
+        run_container_shift_tail(run, run->n_runs - (last + 1),
+                                 -(last - first + 1));
     }
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif /* INCLUDE_CONTAINERS_RUN_H_ */

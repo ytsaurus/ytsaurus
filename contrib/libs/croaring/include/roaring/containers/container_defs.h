@@ -10,16 +10,16 @@
 #define INCLUDE_CONTAINERS_CONTAINER_DEFS_H_
 
 #ifdef __cplusplus
-    #include <type_traits>  // used by casting helper for compile-time check
+#include <type_traits>  // used by casting helper for compile-time check
 #endif
 
 // The preferences are a separate file to separate out tweakable parameters
 #include <roaring/containers/perfparameters.h>
 
 #ifdef __cplusplus
-namespace roaring { namespace internal {  // No extern "C" (contains template)
+namespace roaring {
+namespace internal {  // No extern "C" (contains template)
 #endif
-
 
 /*
  * Since roaring_array_t's definition is not opaque, the container type is
@@ -33,7 +33,6 @@ namespace roaring { namespace internal {  // No extern "C" (contains template)
  */
 typedef ROARING_CONTAINER_T container_t;
 #undef ROARING_CONTAINER_T
-
 
 /*
  * See ROARING_CONTAINER_T for notes on using container_t as a base class.
@@ -50,13 +49,10 @@ typedef ROARING_CONTAINER_T container_t;
  *     }
  */
 #if defined(__cplusplus)
-    #define STRUCT_CONTAINER(name) \
-        struct name : public container_t  /* { ... } */
+#define STRUCT_CONTAINER(name) struct name : public container_t /* { ... } */
 #else
-    #define STRUCT_CONTAINER(name) \
-        struct name  /* { ... } */
+#define STRUCT_CONTAINER(name) struct name /* { ... } */
 #endif
-
 
 /**
  * Since container_t* is not void* in C++, "dangerous" casts are not needed to
@@ -76,31 +72,29 @@ typedef ROARING_CONTAINER_T container_t;
  * leveraging <type_traits> to make sure it's legal in the C++ build.
  */
 #ifdef __cplusplus
-    #define CAST(type,value)            static_cast<type>(value)
-    #define movable_CAST(type,value)    movable_CAST_HELPER<type>(value)
+#define CAST(type, value) static_cast<type>(value)
+#define movable_CAST(type, value) movable_CAST_HELPER<type>(value)
 
-    template<typename PPDerived, typename Base>
-    PPDerived movable_CAST_HELPER(Base **ptr_to_ptr) {
-        typedef typename std::remove_pointer<PPDerived>::type PDerived;
-        typedef typename std::remove_pointer<PDerived>::type Derived;
-        static_assert(
-            std::is_base_of<Base, Derived>::value,
-            "use movable_CAST() for container_t** => xxx_container_t**"
-        );
-        return reinterpret_cast<Derived**>(ptr_to_ptr);
-    }
+template <typename PPDerived, typename Base>
+PPDerived movable_CAST_HELPER(Base **ptr_to_ptr) {
+    typedef typename std::remove_pointer<PPDerived>::type PDerived;
+    typedef typename std::remove_pointer<PDerived>::type Derived;
+    static_assert(std::is_base_of<Base, Derived>::value,
+                  "use movable_CAST() for container_t** => xxx_container_t**");
+    return reinterpret_cast<Derived **>(ptr_to_ptr);
+}
 #else
-    #define CAST(type,value)            ((type)value)
-    #define movable_CAST(type, value)   ((type)value)
+#define CAST(type, value) ((type)value)
+#define movable_CAST(type, value) ((type)value)
 #endif
 
 // Use for converting e.g. an `array_container_t**` to a `container_t**`
 //
-#define movable_CAST_base(c)   movable_CAST(container_t **, c)
-
+#define movable_CAST_base(c) movable_CAST(container_t **, c)
 
 #ifdef __cplusplus
-} }  // namespace roaring { namespace internal {
+}
+}  // namespace roaring { namespace internal {
 #endif
 
-#endif  /* INCLUDE_CONTAINERS_CONTAINER_DEFS_H_ */
+#endif /* INCLUDE_CONTAINERS_CONTAINER_DEFS_H_ */

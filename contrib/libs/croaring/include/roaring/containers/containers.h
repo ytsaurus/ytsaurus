@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include <roaring/bitset_util.h>
 #include <roaring/containers/array.h>
 #include <roaring/containers/bitset.h>
 #include <roaring/containers/convert.h>
@@ -16,10 +17,11 @@
 #include <roaring/containers/mixed_union.h>
 #include <roaring/containers/mixed_xor.h>
 #include <roaring/containers/run.h>
-#include <roaring/bitset_util.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 // would enum be possible or better?
@@ -45,10 +47,9 @@ extern "C" { namespace roaring { namespace internal {
  *        ...
  *     }
  */
-#define PAIR_CONTAINER_TYPES(type1,type2) \
-    (4 * (type1) + (type2))
+#define PAIR_CONTAINER_TYPES(type1, type2) (4 * (type1) + (type2))
 
-#define CONTAINER_PAIR(name1,name2) \
+#define CONTAINER_PAIR(name1, name2) \
     (4 * (name1##_CONTAINER_TYPE) + (name2##_CONTAINER_TYPE))
 
 /**
@@ -63,8 +64,8 @@ STRUCT_CONTAINER(shared_container_s) {
 
 typedef struct shared_container_s shared_container_t;
 
-#define CAST_shared(c)         CAST(shared_container_t *, c)  // safer downcast
-#define const_CAST_shared(c)   CAST(const shared_container_t *, c)
+#define CAST_shared(c) CAST(shared_container_t *, c)  // safer downcast
+#define const_CAST_shared(c) CAST(const shared_container_t *, c)
 #define movable_CAST_shared(c) movable_CAST(shared_container_t **, c)
 
 /*
@@ -90,8 +91,7 @@ container_t *shared_container_extract_copy(shared_container_t *container,
 
 /* access to container underneath */
 static inline const container_t *container_unwrap_shared(
-    const container_t *candidate_shared_container, uint8_t *type
-){
+    const container_t *candidate_shared_container, uint8_t *type) {
     if (*type == SHARED_CONTAINER_TYPE) {
         *type = const_CAST_shared(candidate_shared_container)->typecode;
         assert(*type != SHARED_CONTAINER_TYPE);
@@ -101,11 +101,9 @@ static inline const container_t *container_unwrap_shared(
     }
 }
 
-
 /* access to container underneath */
-static inline container_t *container_mutable_unwrap_shared(
-    container_t *c, uint8_t *type
-) {
+static inline container_t *container_mutable_unwrap_shared(container_t *c,
+                                                           uint8_t *type) {
     if (*type == SHARED_CONTAINER_TYPE) {  // the passed in container is shared
         *type = CAST_shared(c)->typecode;
         assert(*type != SHARED_CONTAINER_TYPE);
@@ -116,9 +114,7 @@ static inline container_t *container_mutable_unwrap_shared(
 }
 
 /* access to container underneath and queries its type */
-static inline uint8_t get_container_type(
-    const container_t *c, uint8_t type
-){
+static inline uint8_t get_container_type(const container_t *c, uint8_t type) {
     if (type == SHARED_CONTAINER_TYPE) {
         return const_CAST_shared(c)->typecode;
     } else {
@@ -134,9 +130,8 @@ static inline uint8_t get_container_type(
 container_t *container_clone(const container_t *container, uint8_t typecode);
 
 /* access to container underneath, cloning it if needed */
-static inline container_t *get_writable_copy_if_shared(
-    container_t *c, uint8_t *type
-){
+static inline container_t *get_writable_copy_if_shared(container_t *c,
+                                                       uint8_t *type) {
     if (*type == SHARED_CONTAINER_TYPE) {  // shared, return enclosed container
         return shared_container_extract_copy(CAST_shared(c), type);
     } else {
@@ -156,9 +151,8 @@ static const char *shared_container_names[] = {
 // if a new container is produced, caller responsible for freeing the previous
 // one
 // container should not be a shared container
-static inline bitset_container_t *container_to_bitset(
-    container_t *c, uint8_t typecode
-){
+static inline bitset_container_t *container_to_bitset(container_t *c,
+                                                      uint8_t typecode) {
     bitset_container_t *result = NULL;
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -199,9 +193,8 @@ static inline bitset_container_t *container_to_bitset(
     }
 }*/
 
-static inline const char *get_full_container_name(
-    const container_t *c, uint8_t typecode
-){
+static inline const char *get_full_container_name(const container_t *c,
+                                                  uint8_t typecode) {
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
             return container_names[0];
@@ -235,9 +228,8 @@ static inline const char *get_full_container_name(
 /**
  * Get the container cardinality (number of elements), requires a  typecode
  */
-static inline int container_get_cardinality(
-    const container_t *c, uint8_t typecode
-){
+static inline int container_get_cardinality(const container_t *c,
+                                            uint8_t typecode) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -252,8 +244,6 @@ static inline int container_get_cardinality(
     return 0;  // unreached
 }
 
-
-
 // returns true if a container is known to be full. Note that a lazy bitset
 // container
 // might be full without us knowing
@@ -261,11 +251,11 @@ static inline bool container_is_full(const container_t *c, uint8_t typecode) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_cardinality(
-                       const_CAST_bitset(c)) == (1 << 16);
+            return bitset_container_cardinality(const_CAST_bitset(c)) ==
+                   (1 << 16);
         case ARRAY_CONTAINER_TYPE:
-            return array_container_cardinality(
-                       const_CAST_array(c)) == (1 << 16);
+            return array_container_cardinality(const_CAST_array(c)) ==
+                   (1 << 16);
         case RUN_CONTAINER_TYPE:
             return run_container_is_full(const_CAST_run(c));
     }
@@ -274,9 +264,7 @@ static inline bool container_is_full(const container_t *c, uint8_t typecode) {
     return 0;  // unreached
 }
 
-static inline int container_shrink_to_fit(
-    container_t *c, uint8_t type
-){
+static inline int container_shrink_to_fit(container_t *c, uint8_t type) {
     c = container_mutable_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -291,41 +279,36 @@ static inline int container_shrink_to_fit(
     return 0;  // unreached
 }
 
-
 /**
  * make a container with a run of ones
  */
 /* initially always use a run container, even if an array might be
  * marginally
  * smaller */
-static inline container_t *container_range_of_ones(
-    uint32_t range_start, uint32_t range_end,
-    uint8_t *result_type
-){
+static inline container_t *container_range_of_ones(uint32_t range_start,
+                                                   uint32_t range_end,
+                                                   uint8_t *result_type) {
     assert(range_end >= range_start);
-    uint64_t cardinality =  range_end - range_start + 1;
-    if(cardinality <= 2) {
-      *result_type = ARRAY_CONTAINER_TYPE;
-      return array_container_create_range(range_start, range_end);
+    uint64_t cardinality = range_end - range_start + 1;
+    if (cardinality <= 2) {
+        *result_type = ARRAY_CONTAINER_TYPE;
+        return array_container_create_range(range_start, range_end);
     } else {
-      *result_type = RUN_CONTAINER_TYPE;
-      return run_container_create_range(range_start, range_end);
+        *result_type = RUN_CONTAINER_TYPE;
+        return run_container_create_range(range_start, range_end);
     }
 }
 
-
 /*  Create a container with all the values between in [min,max) at a
     distance k*step from min. */
-static inline container_t *container_from_range(
-    uint8_t *type, uint32_t min,
-    uint32_t max, uint16_t step
-){
+static inline container_t *container_from_range(uint8_t *type, uint32_t min,
+                                                uint32_t max, uint16_t step) {
     if (step == 0) return NULL;  // being paranoid
     if (step == 1) {
-        return container_range_of_ones(min,max,type);
+        return container_range_of_ones(min, max, type);
         // Note: the result is not always a run (need to check the cardinality)
         //*type = RUN_CONTAINER_TYPE;
-        //return run_container_create_range(min, max);
+        // return run_container_create_range(min, max);
     }
     int size = (max - min + step - 1) / step;
     if (size <= DEFAULT_MAX_SIZE) {  // array container
@@ -346,9 +329,8 @@ static inline container_t *container_from_range(
 /**
  * "repair" the container after lazy operations.
  */
-static inline container_t *container_repair_after_lazy(
-    container_t *c, uint8_t *type
-){
+static inline container_t *container_repair_after_lazy(container_t *c,
+                                                       uint8_t *type) {
     c = get_writable_copy_if_shared(c, type);  // !!! unnecessary cloning
     container_t *result = NULL;
     switch (*type) {
@@ -361,12 +343,13 @@ static inline container_t *container_repair_after_lazy(
                 *type = ARRAY_CONTAINER_TYPE;
                 return result;
             }
-            return c; }
+            return c;
+        }
         case ARRAY_CONTAINER_TYPE:
             return c;  // nothing to do
         case RUN_CONTAINER_TYPE:
-            return convert_run_to_efficient_container_and_free(
-                            CAST_run(c), type);
+            return convert_run_to_efficient_container_and_free(CAST_run(c),
+                                                               type);
         case SHARED_CONTAINER_TYPE:
             assert(false);
     }
@@ -383,10 +366,8 @@ static inline container_t *container_repair_after_lazy(
  * container_write(container, buf).
  *
  */
-static inline int32_t container_write(
-    const container_t *c, uint8_t typecode,
-    char *buf
-){
+static inline int32_t container_write(const container_t *c, uint8_t typecode,
+                                      char *buf) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -406,9 +387,8 @@ static inline int32_t container_write(
  * container_write), requires a
  * typecode
  */
-static inline int32_t container_size_in_bytes(
-    const container_t *c, uint8_t typecode
-){
+static inline int32_t container_size_in_bytes(const container_t *c,
+                                              uint8_t typecode) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -435,20 +415,19 @@ void container_printf(const container_t *container, uint8_t typecode);
 void container_printf_as_uint32_array(const container_t *container,
                                       uint8_t typecode, uint32_t base);
 
-bool container_internal_validate(const container_t *container,
-                                 uint8_t typecode, const char **reason);
+bool container_internal_validate(const container_t *container, uint8_t typecode,
+                                 const char **reason);
 
 /**
  * Checks whether a container is not empty, requires a  typecode
  */
-static inline bool container_nonzero_cardinality(
-    const container_t *c, uint8_t typecode
-){
+static inline bool container_nonzero_cardinality(const container_t *c,
+                                                 uint8_t typecode) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
             return bitset_container_const_nonzero_cardinality(
-                            const_CAST_bitset(c));
+                const_CAST_bitset(c));
         case ARRAY_CONTAINER_TYPE:
             return array_container_nonzero_cardinality(const_CAST_array(c));
         case RUN_CONTAINER_TYPE:
@@ -469,22 +448,20 @@ void container_free(container_t *container, uint8_t typecode);
  * "base" (most significant values)
  * Returns number of ints added.
  */
-static inline int container_to_uint32_array(
-    uint32_t *output,
-    const container_t *c, uint8_t typecode,
-    uint32_t base
-){
+static inline int container_to_uint32_array(uint32_t *output,
+                                            const container_t *c,
+                                            uint8_t typecode, uint32_t base) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_to_uint32_array(
-                            output, const_CAST_bitset(c), base);
+            return bitset_container_to_uint32_array(output,
+                                                    const_CAST_bitset(c), base);
         case ARRAY_CONTAINER_TYPE:
-            return array_container_to_uint32_array(
-                            output, const_CAST_array(c), base);
+            return array_container_to_uint32_array(output, const_CAST_array(c),
+                                                   base);
         case RUN_CONTAINER_TYPE:
-            return run_container_to_uint32_array(
-                            output, const_CAST_run(c), base);
+            return run_container_to_uint32_array(output, const_CAST_run(c),
+                                                 base);
     }
     assert(false);
     roaring_unreachable;
@@ -500,8 +477,7 @@ static inline int container_to_uint32_array(
 static inline container_t *container_add(
     container_t *c, uint16_t val,
     uint8_t typecode,  // !!! should be second argument?
-    uint8_t *new_typecode
-){
+    uint8_t *new_typecode) {
     c = get_writable_copy_if_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -514,7 +490,7 @@ static inline container_t *container_add(
                 *new_typecode = ARRAY_CONTAINER_TYPE;
                 return ac;
             } else {
-                bitset_container_t* bitset = bitset_container_from_array(ac);
+                bitset_container_t *bitset = bitset_container_from_array(ac);
                 bitset_container_add(bitset, val);
                 *new_typecode = BITSET_CONTAINER_TYPE;
                 return bitset;
@@ -542,8 +518,7 @@ static inline container_t *container_add(
 static inline container_t *container_remove(
     container_t *c, uint16_t val,
     uint8_t typecode,  // !!! should be second argument?
-    uint8_t *new_typecode
-){
+    uint8_t *new_typecode) {
     c = get_writable_copy_if_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -576,10 +551,9 @@ static inline container_t *container_remove(
  * Check whether a value is in a container, requires a  typecode
  */
 static inline bool container_contains(
-    const container_t *c,
-    uint16_t val,
+    const container_t *c, uint16_t val,
     uint8_t typecode  // !!! should be second argument?
-){
+) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
@@ -596,25 +570,24 @@ static inline bool container_contains(
 }
 
 /**
- * Check whether a range of values from range_start (included) to range_end (excluded)
- * is in a container, requires a typecode
+ * Check whether a range of values from range_start (included) to range_end
+ * (excluded) is in a container, requires a typecode
  */
 static inline bool container_contains_range(
-    const container_t *c,
-    uint32_t range_start, uint32_t range_end,
+    const container_t *c, uint32_t range_start, uint32_t range_end,
     uint8_t typecode  // !!! should be second argument?
-){
+) {
     c = container_unwrap_shared(c, &typecode);
     switch (typecode) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_get_range(const_CAST_bitset(c),
-                                                range_start, range_end);
+            return bitset_container_get_range(const_CAST_bitset(c), range_start,
+                                              range_end);
         case ARRAY_CONTAINER_TYPE:
             return array_container_contains_range(const_CAST_array(c),
-                                                    range_start, range_end);
+                                                  range_start, range_end);
         case RUN_CONTAINER_TYPE:
-            return run_container_contains_range(const_CAST_run(c),
-                                                    range_start, range_end);
+            return run_container_contains_range(const_CAST_run(c), range_start,
+                                                range_end);
         default:
             assert(false);
             roaring_unreachable;
@@ -626,50 +599,47 @@ static inline bool container_contains_range(
  * Returns true if the two containers have the same content. Note that
  * two containers having different types can be "equal" in this sense.
  */
-static inline bool container_equals(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2
-){
+static inline bool container_equals(const container_t *c1, uint8_t type1,
+                                    const container_t *c2, uint8_t type2) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             return bitset_container_equals(const_CAST_bitset(c1),
                                            const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             return run_container_equals_bitset(const_CAST_run(c2),
                                                const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             return run_container_equals_bitset(const_CAST_run(c1),
                                                const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             // java would always return false?
             return array_container_equal_bitset(const_CAST_array(c2),
                                                 const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             // java would always return false?
             return array_container_equal_bitset(const_CAST_array(c1),
                                                 const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             return run_container_equals_array(const_CAST_run(c2),
                                               const_CAST_array(c1));
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             return run_container_equals_array(const_CAST_run(c1),
                                               const_CAST_array(c2));
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             return array_container_equals(const_CAST_array(c1),
                                           const_CAST_array(c2));
 
-        case CONTAINER_PAIR(RUN,RUN):
-            return run_container_equals(const_CAST_run(c1),
-                                        const_CAST_run(c2));
+        case CONTAINER_PAIR(RUN, RUN):
+            return run_container_equals(const_CAST_run(c1), const_CAST_run(c2));
 
         default:
             assert(false);
@@ -682,45 +652,43 @@ static inline bool container_equals(
  * Returns true if the container c1 is a subset of the container c2. Note that
  * c1 can be a subset of c2 even if they have a different type.
  */
-static inline bool container_is_subset(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2
-){
+static inline bool container_is_subset(const container_t *c1, uint8_t type1,
+                                       const container_t *c2, uint8_t type2) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             return bitset_container_is_subset(const_CAST_bitset(c1),
                                               const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             return bitset_container_is_subset_run(const_CAST_bitset(c1),
                                                   const_CAST_run(c2));
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             return run_container_is_subset_bitset(const_CAST_run(c1),
                                                   const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             return false;  // by construction, size(c1) > size(c2)
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             return array_container_is_subset_bitset(const_CAST_array(c1),
                                                     const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             return array_container_is_subset_run(const_CAST_array(c1),
                                                  const_CAST_run(c2));
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             return run_container_is_subset_array(const_CAST_run(c1),
                                                  const_CAST_array(c2));
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             return array_container_is_subset(const_CAST_array(c1),
                                              const_CAST_array(c2));
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             return run_container_is_subset(const_CAST_run(c1),
                                            const_CAST_run(c2));
 
@@ -738,40 +706,36 @@ static inline bool container_is_subset(
  * type result_type), requires a typecode. This allocates new memory, caller
  * is responsible for deallocation.
  */
-static inline container_t *container_and(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_and(const container_t *c1, uint8_t type1,
+                                         const container_t *c2, uint8_t type2,
+                                         uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            *result_type = bitset_bitset_container_intersection(
-                                const_CAST_bitset(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(BITSET, BITSET):
+            *result_type =
+                bitset_bitset_container_intersection(
+                    const_CAST_bitset(c1), const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             result = array_container_create();
-            array_container_intersection(const_CAST_array(c1),
-                                         const_CAST_array(c2),
-                                         CAST_array(result));
+            array_container_intersection(
+                const_CAST_array(c1), const_CAST_array(c2), CAST_array(result));
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             result = run_container_create();
-            run_container_intersection(const_CAST_run(c1),
-                                       const_CAST_run(c2),
+            run_container_intersection(const_CAST_run(c1), const_CAST_run(c2),
                                        CAST_run(result));
-            return convert_run_to_efficient_container_and_free(
-                        CAST_run(result), result_type);
+            return convert_run_to_efficient_container_and_free(CAST_run(result),
+                                                               result_type);
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             result = array_container_create();
             array_bitset_container_intersection(const_CAST_array(c2),
                                                 const_CAST_bitset(c1),
@@ -779,7 +743,7 @@ static inline container_t *container_and(
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             result = array_container_create();
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
             array_bitset_container_intersection(const_CAST_array(c1),
@@ -787,36 +751,34 @@ static inline container_t *container_and(
                                                 CAST_array(result));
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
-            *result_type = run_bitset_container_intersection(
-                                const_CAST_run(c2),
-                                const_CAST_bitset(c1), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(BITSET, RUN):
+            *result_type =
+                run_bitset_container_intersection(
+                    const_CAST_run(c2), const_CAST_bitset(c1), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
-            *result_type = run_bitset_container_intersection(
-                                const_CAST_run(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(RUN, BITSET):
+            *result_type =
+                run_bitset_container_intersection(
+                    const_CAST_run(c1), const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = array_container_create();
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
-            array_run_container_intersection(const_CAST_array(c1),
-                                             const_CAST_run(c2),
-                                             CAST_array(result));
+            array_run_container_intersection(
+                const_CAST_array(c1), const_CAST_run(c2), CAST_array(result));
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             result = array_container_create();
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
-            array_run_container_intersection(const_CAST_array(c2),
-                                             const_CAST_run(c1),
-                                             CAST_array(result));
+            array_run_container_intersection(
+                const_CAST_array(c2), const_CAST_run(c1), CAST_array(result));
             return result;
 
         default:
@@ -829,46 +791,46 @@ static inline container_t *container_and(
 /**
  * Compute the size of the intersection between two containers.
  */
-static inline int container_and_cardinality(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2
-){
+static inline int container_and_cardinality(const container_t *c1,
+                                            uint8_t type1,
+                                            const container_t *c2,
+                                            uint8_t type2) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            return bitset_container_and_justcard(
-                const_CAST_bitset(c1), const_CAST_bitset(c2));
+        case CONTAINER_PAIR(BITSET, BITSET):
+            return bitset_container_and_justcard(const_CAST_bitset(c1),
+                                                 const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             return array_container_intersection_cardinality(
                 const_CAST_array(c1), const_CAST_array(c2));
 
-        case CONTAINER_PAIR(RUN,RUN):
-            return run_container_intersection_cardinality(
-                const_CAST_run(c1), const_CAST_run(c2));
+        case CONTAINER_PAIR(RUN, RUN):
+            return run_container_intersection_cardinality(const_CAST_run(c1),
+                                                          const_CAST_run(c2));
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             return array_bitset_container_intersection_cardinality(
                 const_CAST_array(c2), const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             return array_bitset_container_intersection_cardinality(
                 const_CAST_array(c1), const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             return run_bitset_container_intersection_cardinality(
                 const_CAST_run(c2), const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             return run_bitset_container_intersection_cardinality(
                 const_CAST_run(c1), const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             return array_run_container_intersection_cardinality(
                 const_CAST_array(c1), const_CAST_run(c2));
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             return array_run_container_intersection_cardinality(
                 const_CAST_array(c2), const_CAST_run(c1));
 
@@ -882,46 +844,44 @@ static inline int container_and_cardinality(
 /**
  * Check whether two containers intersect.
  */
-static inline bool container_intersect(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2
-){
+static inline bool container_intersect(const container_t *c1, uint8_t type1,
+                                       const container_t *c2, uint8_t type2) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             return bitset_container_intersect(const_CAST_bitset(c1),
                                               const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             return array_container_intersect(const_CAST_array(c1),
                                              const_CAST_array(c2));
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             return run_container_intersect(const_CAST_run(c1),
                                            const_CAST_run(c2));
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             return array_bitset_container_intersect(const_CAST_array(c2),
                                                     const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             return array_bitset_container_intersect(const_CAST_array(c1),
                                                     const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             return run_bitset_container_intersect(const_CAST_run(c2),
                                                   const_CAST_bitset(c1));
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             return run_bitset_container_intersect(const_CAST_run(c1),
                                                   const_CAST_bitset(c2));
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             return array_run_container_intersect(const_CAST_array(c1),
                                                  const_CAST_run(c2));
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             return array_run_container_intersect(const_CAST_array(c2),
                                                  const_CAST_run(c1));
 
@@ -941,40 +901,36 @@ static inline bool container_intersect(
  The type of the first container may change. Returns the modified
  (and possibly new) container.
 */
-static inline container_t *container_iand(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_iand(container_t *c1, uint8_t type1,
+                                          const container_t *c2, uint8_t type2,
+                                          uint8_t *result_type) {
     c1 = get_writable_copy_if_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            *result_type =
-                bitset_bitset_container_intersection_inplace(
-                    CAST_bitset(c1), const_CAST_bitset(c2), &result)
-                        ? BITSET_CONTAINER_TYPE
-                        : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(BITSET, BITSET):
+            *result_type = bitset_bitset_container_intersection_inplace(
+                               CAST_bitset(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             array_container_intersection_inplace(CAST_array(c1),
                                                  const_CAST_array(c2));
             *result_type = ARRAY_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             result = run_container_create();
-            run_container_intersection(const_CAST_run(c1),
-                                       const_CAST_run(c2),
+            run_container_intersection(const_CAST_run(c1), const_CAST_run(c2),
                                        CAST_run(result));
             // as of January 2016, Java code used non-in-place intersection for
             // two runcontainers
-            return convert_run_to_efficient_container_and_free(
-                            CAST_run(result), result_type);
+            return convert_run_to_efficient_container_and_free(CAST_run(result),
+                                                               result_type);
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             // c1 is a bitmap so no inplace possible
             result = array_container_create();
             array_bitset_container_intersection(const_CAST_array(c2),
@@ -983,44 +939,41 @@ static inline container_t *container_iand(
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
             array_bitset_container_intersection(
-                    const_CAST_array(c1), const_CAST_bitset(c2),
-                    CAST_array(c1));  // result is allowed to be same as c1
+                const_CAST_array(c1), const_CAST_bitset(c2),
+                CAST_array(c1));  // result is allowed to be same as c1
             return c1;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             // will attempt in-place computation
             *result_type = run_bitset_container_intersection(
-                                const_CAST_run(c2),
-                                const_CAST_bitset(c1), &c1)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               const_CAST_run(c2), const_CAST_bitset(c1), &c1)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(RUN,BITSET):
-            *result_type = run_bitset_container_intersection(
-                                const_CAST_run(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(RUN, BITSET):
+            *result_type =
+                run_bitset_container_intersection(
+                    const_CAST_run(c1), const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = array_container_create();
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
-            array_run_container_intersection(const_CAST_array(c1),
-                                             const_CAST_run(c2),
-                                             CAST_array(result));
+            array_run_container_intersection(
+                const_CAST_array(c1), const_CAST_run(c2), CAST_array(result));
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             result = array_container_create();
             *result_type = ARRAY_CONTAINER_TYPE;  // never bitset
-            array_run_container_intersection(const_CAST_array(c2),
-                                             const_CAST_run(c1),
-                                             CAST_array(result));
+            array_run_container_intersection(
+                const_CAST_array(c2), const_CAST_run(c1), CAST_array(result));
             return result;
 
         default:
@@ -1035,43 +988,39 @@ static inline container_t *container_iand(
  * result_type), requires a typecode. This allocates new memory, caller
  * is responsible for deallocation.
  */
-static inline container_t *container_or(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_or(const container_t *c1, uint8_t type1,
+                                        const container_t *c2, uint8_t type2,
+                                        uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             result = bitset_container_create();
-            bitset_container_or(const_CAST_bitset(c1),
-                                const_CAST_bitset(c2),
+            bitset_container_or(const_CAST_bitset(c1), const_CAST_bitset(c2),
                                 CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
-            *result_type = array_array_container_union(
-                                const_CAST_array(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(ARRAY, ARRAY):
+            *result_type =
+                array_array_container_union(const_CAST_array(c1),
+                                            const_CAST_array(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             result = run_container_create();
-            run_container_union(const_CAST_run(c1),
-                                const_CAST_run(c2),
+            run_container_union(const_CAST_run(c1), const_CAST_run(c2),
                                 CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // todo: could be optimized since will never convert to array
             result = convert_run_to_efficient_container_and_free(
-                            CAST_run(result), result_type);
+                CAST_run(result), result_type);
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             result = bitset_container_create();
             array_bitset_container_union(const_CAST_array(c2),
                                          const_CAST_bitset(c1),
@@ -1079,7 +1028,7 @@ static inline container_t *container_or(
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             result = bitset_container_create();
             array_bitset_container_union(const_CAST_array(c1),
                                          const_CAST_bitset(c2),
@@ -1087,52 +1036,46 @@ static inline container_t *container_or(
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
-                run_container_copy(const_CAST_run(c2),
-                                   CAST_run(result));
+                run_container_copy(const_CAST_run(c2), CAST_run(result));
                 return result;
             }
             result = bitset_container_create();
-            run_bitset_container_union(const_CAST_run(c2),
-                                       const_CAST_bitset(c1),
-                                       CAST_bitset(result));
+            run_bitset_container_union(
+                const_CAST_run(c2), const_CAST_bitset(c1), CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             if (run_container_is_full(const_CAST_run(c1))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
-                run_container_copy(const_CAST_run(c1),
-                                   CAST_run(result));
+                run_container_copy(const_CAST_run(c1), CAST_run(result));
                 return result;
             }
             result = bitset_container_create();
-            run_bitset_container_union(const_CAST_run(c1),
-                                       const_CAST_bitset(c2),
-                                       CAST_bitset(result));
+            run_bitset_container_union(
+                const_CAST_run(c1), const_CAST_bitset(c2), CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = run_container_create();
-            array_run_container_union(const_CAST_array(c1),
-                                      const_CAST_run(c2),
+            array_run_container_union(const_CAST_array(c1), const_CAST_run(c2),
                                       CAST_run(result));
             result = convert_run_to_efficient_container_and_free(
-                            CAST_run(result), result_type);
+                CAST_run(result), result_type);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             result = run_container_create();
-            array_run_container_union(const_CAST_array(c2),
-                                      const_CAST_run(c1),
+            array_run_container_union(const_CAST_array(c2), const_CAST_run(c1),
                                       CAST_run(result));
             result = convert_run_to_efficient_container_and_free(
-                            CAST_run(result), result_type);
+                CAST_run(result), result_type);
             return result;
 
         default:
@@ -1150,35 +1093,34 @@ static inline container_t *container_or(
  * This lazy version delays some operations such as the maintenance of the
  * cardinality. It requires repair later on the generated containers.
  */
-static inline container_t *container_lazy_or(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_lazy_or(const container_t *c1,
+                                             uint8_t type1,
+                                             const container_t *c2,
+                                             uint8_t type2,
+                                             uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             result = bitset_container_create();
-            bitset_container_or_nocard(
-                    const_CAST_bitset(c1), const_CAST_bitset(c2),
-                    CAST_bitset(result));  // is lazy
+            bitset_container_or_nocard(const_CAST_bitset(c1),
+                                       const_CAST_bitset(c2),
+                                       CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
-            *result_type = array_array_container_lazy_union(
-                                const_CAST_array(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(ARRAY, ARRAY):
+            *result_type =
+                array_array_container_lazy_union(const_CAST_array(c1),
+                                                 const_CAST_array(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             result = run_container_create();
-            run_container_union(const_CAST_run(c1),
-                                const_CAST_run(c2),
+            run_container_union(const_CAST_run(c1), const_CAST_run(c2),
                                 CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // we are being lazy
@@ -1186,23 +1128,23 @@ static inline container_t *container_lazy_or(
                 CAST_run(result), result_type);
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             result = bitset_container_create();
-            array_bitset_container_lazy_union(
-                    const_CAST_array(c2), const_CAST_bitset(c1),
-                    CAST_bitset(result));  // is lazy
+            array_bitset_container_lazy_union(const_CAST_array(c2),
+                                              const_CAST_bitset(c1),
+                                              CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             result = bitset_container_create();
-            array_bitset_container_lazy_union(
-                    const_CAST_array(c1), const_CAST_bitset(c2),
-                    CAST_bitset(result));  // is lazy
+            array_bitset_container_lazy_union(const_CAST_array(c1),
+                                              const_CAST_bitset(c2),
+                                              CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
@@ -1210,13 +1152,13 @@ static inline container_t *container_lazy_or(
                 return result;
             }
             result = bitset_container_create();
-            run_bitset_container_lazy_union(
-                const_CAST_run(c2), const_CAST_bitset(c1),
-                CAST_bitset(result));  // is lazy
+            run_bitset_container_lazy_union(const_CAST_run(c2),
+                                            const_CAST_bitset(c1),
+                                            CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             if (run_container_is_full(const_CAST_run(c1))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
@@ -1224,27 +1166,25 @@ static inline container_t *container_lazy_or(
                 return result;
             }
             result = bitset_container_create();
-            run_bitset_container_lazy_union(
-                const_CAST_run(c1), const_CAST_bitset(c2),
-                CAST_bitset(result));  // is lazy
+            run_bitset_container_lazy_union(const_CAST_run(c1),
+                                            const_CAST_bitset(c2),
+                                            CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = run_container_create();
-            array_run_container_union(const_CAST_array(c1),
-                                      const_CAST_run(c2),
+            array_run_container_union(const_CAST_array(c1), const_CAST_run(c2),
                                       CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // next line skipped since we are lazy
             // result = convert_run_to_efficient_container(result, result_type);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             result = run_container_create();
-            array_run_container_union(
-                const_CAST_array(c2), const_CAST_run(c1),
-                CAST_run(result));  // TODO make lazy
+            array_run_container_union(const_CAST_array(c2), const_CAST_run(c1),
+                                      CAST_run(result));  // TODO make lazy
             *result_type = RUN_CONTAINER_TYPE;
             // next line skipped since we are lazy
             // result = convert_run_to_efficient_container(result, result_type);
@@ -1265,19 +1205,16 @@ static inline container_t *container_lazy_or(
  * created and the caller is responsible for freeing it.
  * The type of the first container may change. Returns the modified
  * (and possibly new) container
-*/
-static inline container_t *container_ior(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+ */
+static inline container_t *container_ior(container_t *c1, uint8_t type1,
+                                         const container_t *c2, uint8_t type2,
+                                         uint8_t *result_type) {
     c1 = get_writable_copy_if_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            bitset_container_or(const_CAST_bitset(c1),
-                                const_CAST_bitset(c2),
+        case CONTAINER_PAIR(BITSET, BITSET):
+            bitset_container_or(const_CAST_bitset(c1), const_CAST_bitset(c2),
                                 CAST_bitset(c1));
 #ifdef OR_BITSET_CONVERSION_TO_FULL
             if (CAST_bitset(c1)->cardinality == (1 << 16)) {  // we convert
@@ -1289,30 +1226,28 @@ static inline container_t *container_ior(
             *result_type = BITSET_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             *result_type = array_array_container_inplace_union(
-                                CAST_array(c1), const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            if((result == NULL)
-               && (*result_type == ARRAY_CONTAINER_TYPE)) {
-                 return c1; // the computation was done in-place!
+                               CAST_array(c1), const_CAST_array(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
+            if ((result == NULL) && (*result_type == ARRAY_CONTAINER_TYPE)) {
+                return c1;  // the computation was done in-place!
             }
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             run_container_union_inplace(CAST_run(c1), const_CAST_run(c2));
             return convert_run_to_efficient_container(CAST_run(c1),
                                                       result_type);
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
-            array_bitset_container_union(const_CAST_array(c2),
-                                         const_CAST_bitset(c1),
-                                         CAST_bitset(c1));
+        case CONTAINER_PAIR(BITSET, ARRAY):
+            array_bitset_container_union(
+                const_CAST_array(c2), const_CAST_bitset(c1), CAST_bitset(c1));
             *result_type = BITSET_CONTAINER_TYPE;  // never array
             return c1;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             // c1 is an array, so no in-place possible
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
@@ -1321,7 +1256,7 @@ static inline container_t *container_ior(
                                          CAST_bitset(result));
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
@@ -1334,32 +1269,29 @@ static inline container_t *container_ior(
             *result_type = BITSET_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             if (run_container_is_full(const_CAST_run(c1))) {
                 *result_type = RUN_CONTAINER_TYPE;
                 return c1;
             }
             result = bitset_container_create();
-            run_bitset_container_union(const_CAST_run(c1),
-                                       const_CAST_bitset(c2),
-                                       CAST_bitset(result));
+            run_bitset_container_union(
+                const_CAST_run(c1), const_CAST_bitset(c2), CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = run_container_create();
-            array_run_container_union(const_CAST_array(c1),
-                                      const_CAST_run(c2),
+            array_run_container_union(const_CAST_array(c1), const_CAST_run(c2),
                                       CAST_run(result));
             result = convert_run_to_efficient_container_and_free(
-                            CAST_run(result), result_type);
+                CAST_run(result), result_type);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             array_run_container_inplace_union(const_CAST_array(c2),
                                               CAST_run(c1));
-            c1 = convert_run_to_efficient_container(CAST_run(c1),
-                                                    result_type);
+            c1 = convert_run_to_efficient_container(CAST_run(c1), result_type);
             return c1;
 
         default:
@@ -1380,22 +1312,20 @@ static inline container_t *container_ior(
  *
  * This lazy version delays some operations such as the maintenance of the
  * cardinality. It requires repair later on the generated containers.
-*/
-static inline container_t *container_lazy_ior(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+ */
+static inline container_t *container_lazy_ior(container_t *c1, uint8_t type1,
+                                              const container_t *c2,
+                                              uint8_t type2,
+                                              uint8_t *result_type) {
     assert(type1 != SHARED_CONTAINER_TYPE);
     // c1 = get_writable_copy_if_shared(c1,&type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
 #ifdef LAZY_OR_BITSET_CONVERSION_TO_FULL
             // if we have two bitsets, we might as well compute the cardinality
-            bitset_container_or(const_CAST_bitset(c1),
-                                const_CAST_bitset(c2),
+            bitset_container_or(const_CAST_bitset(c1), const_CAST_bitset(c2),
                                 CAST_bitset(c1));
             // it is possible that two bitsets can lead to a full container
             if (CAST_bitset(c1)->cardinality == (1 << 16)) {  // we convert
@@ -1405,54 +1335,49 @@ static inline container_t *container_lazy_ior(
             }
 #else
             bitset_container_or_nocard(const_CAST_bitset(c1),
-                                       const_CAST_bitset(c2),
-                                       CAST_bitset(c1));
+                                       const_CAST_bitset(c2), CAST_bitset(c1));
 
 #endif
             *result_type = BITSET_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             *result_type = array_array_container_lazy_inplace_union(
-                                CAST_array(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            if((result == NULL)
-               && (*result_type == ARRAY_CONTAINER_TYPE)) {
-                 return c1; // the computation was done in-place!
+                               CAST_array(c1), const_CAST_array(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
+            if ((result == NULL) && (*result_type == ARRAY_CONTAINER_TYPE)) {
+                return c1;  // the computation was done in-place!
             }
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
-            run_container_union_inplace(CAST_run(c1),
-                                        const_CAST_run(c2));
+        case CONTAINER_PAIR(RUN, RUN):
+            run_container_union_inplace(CAST_run(c1), const_CAST_run(c2));
             *result_type = RUN_CONTAINER_TYPE;
             return convert_run_to_efficient_container(CAST_run(c1),
                                                       result_type);
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
-            array_bitset_container_lazy_union(
-                    const_CAST_array(c2), const_CAST_bitset(c1),
-                    CAST_bitset(c1));              // is lazy
-            *result_type = BITSET_CONTAINER_TYPE;  // never array
+        case CONTAINER_PAIR(BITSET, ARRAY):
+            array_bitset_container_lazy_union(const_CAST_array(c2),
+                                              const_CAST_bitset(c1),
+                                              CAST_bitset(c1));  // is lazy
+            *result_type = BITSET_CONTAINER_TYPE;                // never array
             return c1;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             // c1 is an array, so no in-place possible
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
-            array_bitset_container_lazy_union(
-                    const_CAST_array(c1), const_CAST_bitset(c2),
-                    CAST_bitset(result));  // is lazy
+            array_bitset_container_lazy_union(const_CAST_array(c1),
+                                              const_CAST_bitset(c2),
+                                              CAST_bitset(result));  // is lazy
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = run_container_create();
                 *result_type = RUN_CONTAINER_TYPE;
-                run_container_copy(const_CAST_run(c2),
-                                   CAST_run(result));
+                run_container_copy(const_CAST_run(c2), CAST_run(result));
                 return result;
             }
             run_bitset_container_lazy_union(
@@ -1461,22 +1386,21 @@ static inline container_t *container_lazy_ior(
             *result_type = BITSET_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             if (run_container_is_full(const_CAST_run(c1))) {
                 *result_type = RUN_CONTAINER_TYPE;
                 return c1;
             }
             result = bitset_container_create();
-            run_bitset_container_lazy_union(
-                const_CAST_run(c1), const_CAST_bitset(c2),
-                CAST_bitset(result));  //  lazy
+            run_bitset_container_lazy_union(const_CAST_run(c1),
+                                            const_CAST_bitset(c2),
+                                            CAST_bitset(result));  //  lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = run_container_create();
-            array_run_container_union(const_CAST_array(c1),
-                                      const_CAST_run(c2),
+            array_run_container_union(const_CAST_array(c1), const_CAST_run(c2),
                                       CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // next line skipped since we are lazy
@@ -1484,7 +1408,7 @@ static inline container_t *container_lazy_ior(
             // result_type);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             array_run_container_inplace_union(const_CAST_array(c2),
                                               CAST_run(c1));
             *result_type = RUN_CONTAINER_TYPE;
@@ -1505,79 +1429,74 @@ static inline container_t *container_lazy_ior(
  * container (having type result_type), requires a typecode. This allocates new
  * memory, caller is responsible for deallocation.
  */
-static inline container_t* container_xor(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_xor(const container_t *c1, uint8_t type1,
+                                         const container_t *c2, uint8_t type2,
+                                         uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            *result_type = bitset_bitset_container_xor(
-                                const_CAST_bitset(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(ARRAY,ARRAY):
-            *result_type = array_array_container_xor(
-                                const_CAST_array(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(BITSET, BITSET):
             *result_type =
-                (uint8_t)run_run_container_xor(const_CAST_run(c1),
-                                      const_CAST_run(c2), &result);
+                bitset_bitset_container_xor(const_CAST_bitset(c1),
+                                            const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
-            *result_type = array_bitset_container_xor(
-                                const_CAST_array(c2),
-                                const_CAST_bitset(c1), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(ARRAY,BITSET):
-            *result_type = array_bitset_container_xor(
-                                const_CAST_array(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(BITSET,RUN):
-            *result_type = run_bitset_container_xor(
-                                const_CAST_run(c2),
-                                const_CAST_bitset(c1), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(RUN,BITSET):
-            *result_type = run_bitset_container_xor(
-                                const_CAST_run(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             *result_type =
-                (uint8_t)array_run_container_xor(const_CAST_array(c1),
-                                        const_CAST_run(c2), &result);
+                array_array_container_xor(const_CAST_array(c1),
+                                          const_CAST_array(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, RUN):
+            *result_type = (uint8_t)run_run_container_xor(
+                const_CAST_run(c1), const_CAST_run(c2), &result);
+            return result;
+
+        case CONTAINER_PAIR(BITSET, ARRAY):
             *result_type =
-                (uint8_t)array_run_container_xor(const_CAST_array(c2),
-                                        const_CAST_run(c1), &result);
+                array_bitset_container_xor(const_CAST_array(c2),
+                                           const_CAST_bitset(c1), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
+            return result;
+
+        case CONTAINER_PAIR(ARRAY, BITSET):
+            *result_type =
+                array_bitset_container_xor(const_CAST_array(c1),
+                                           const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
+            return result;
+
+        case CONTAINER_PAIR(BITSET, RUN):
+            *result_type =
+                run_bitset_container_xor(const_CAST_run(c2),
+                                         const_CAST_bitset(c1), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
+            return result;
+
+        case CONTAINER_PAIR(RUN, BITSET):
+            *result_type =
+                run_bitset_container_xor(const_CAST_run(c1),
+                                         const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
+            return result;
+
+        case CONTAINER_PAIR(ARRAY, RUN):
+            *result_type = (uint8_t)array_run_container_xor(
+                const_CAST_array(c1), const_CAST_run(c2), &result);
+            return result;
+
+        case CONTAINER_PAIR(RUN, ARRAY):
+            *result_type = (uint8_t)array_run_container_xor(
+                const_CAST_array(c2), const_CAST_run(c1), &result);
             return result;
 
         default:
@@ -1589,14 +1508,13 @@ static inline container_t* container_xor(
 
 /* Applies an offset to the non-empty container 'c'.
  * The results are stored in new containers returned via 'lo' and 'hi', for the
- * low and high halves of the result (where the low half matches the original key
- * and the high one corresponds to values for the following key).
- * Either one of 'lo' and 'hi' are allowed to be 'NULL', but not both.
- * Whenever one of them is not 'NULL', it should point to a 'NULL' container.
- * Whenever one of them is 'NULL' the shifted elements for that part will not be
- * computed.
- * If either of the resulting containers turns out to be empty, the pointed
- * container will remain 'NULL'.
+ * low and high halves of the result (where the low half matches the original
+ * key and the high one corresponds to values for the following key). Either one
+ * of 'lo' and 'hi' are allowed to be 'NULL', but not both. Whenever one of them
+ * is not 'NULL', it should point to a 'NULL' container. Whenever one of them is
+ * 'NULL' the shifted elements for that part will not be computed. If either of
+ * the resulting containers turns out to be empty, the pointed container will
+ * remain 'NULL'.
  */
 static inline void container_add_offset(const container_t *c, uint8_t type,
                                         container_t **lo, container_t **hi,
@@ -1608,19 +1526,19 @@ static inline void container_add_offset(const container_t *c, uint8_t type,
     assert(hi == NULL || *hi == NULL);
 
     switch (type) {
-    case BITSET_CONTAINER_TYPE:
-        bitset_container_offset(const_CAST_bitset(c), lo, hi, offset);
-        break;
-    case ARRAY_CONTAINER_TYPE:
-        array_container_offset(const_CAST_array(c), lo, hi, offset);
-        break;
-    case RUN_CONTAINER_TYPE:
-        run_container_offset(const_CAST_run(c), lo, hi, offset);
-        break;
-    default:
-        assert(false);
-        roaring_unreachable;
-        break;
+        case BITSET_CONTAINER_TYPE:
+            bitset_container_offset(const_CAST_bitset(c), lo, hi, offset);
+            break;
+        case ARRAY_CONTAINER_TYPE:
+            array_container_offset(const_CAST_array(c), lo, hi, offset);
+            break;
+        case RUN_CONTAINER_TYPE:
+            run_container_offset(const_CAST_run(c), lo, hi, offset);
+            break;
+        default:
+            assert(false);
+            roaring_unreachable;
+            break;
     }
 }
 
@@ -1632,39 +1550,38 @@ static inline void container_add_offset(const container_t *c, uint8_t type,
  * This lazy version delays some operations such as the maintenance of the
  * cardinality. It requires repair later on the generated containers.
  */
-static inline container_t *container_lazy_xor(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_lazy_xor(const container_t *c1,
+                                              uint8_t type1,
+                                              const container_t *c2,
+                                              uint8_t type2,
+                                              uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             result = bitset_container_create();
-            bitset_container_xor_nocard(
-                const_CAST_bitset(c1), const_CAST_bitset(c2),
-                CAST_bitset(result));  // is lazy
+            bitset_container_xor_nocard(const_CAST_bitset(c1),
+                                        const_CAST_bitset(c2),
+                                        CAST_bitset(result));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
-            *result_type = array_array_container_lazy_xor(
-                                const_CAST_array(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(RUN,RUN):
-            // nothing special done yet.
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             *result_type =
-                (uint8_t)run_run_container_xor(const_CAST_run(c1),
-                                      const_CAST_run(c2), &result);
+                array_array_container_lazy_xor(const_CAST_array(c1),
+                                               const_CAST_array(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(RUN, RUN):
+            // nothing special done yet.
+            *result_type = (uint8_t)run_run_container_xor(
+                const_CAST_run(c1), const_CAST_run(c2), &result);
+            return result;
+
+        case CONTAINER_PAIR(BITSET, ARRAY):
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
             array_bitset_container_lazy_xor(const_CAST_array(c2),
@@ -1672,7 +1589,7 @@ static inline container_t *container_lazy_xor(
                                             CAST_bitset(result));
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
             array_bitset_container_lazy_xor(const_CAST_array(c1),
@@ -1680,37 +1597,33 @@ static inline container_t *container_lazy_xor(
                                             CAST_bitset(result));
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             result = bitset_container_create();
-            run_bitset_container_lazy_xor(const_CAST_run(c2),
-                                          const_CAST_bitset(c1),
-                                          CAST_bitset(result));
+            run_bitset_container_lazy_xor(
+                const_CAST_run(c2), const_CAST_bitset(c1), CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             result = bitset_container_create();
-            run_bitset_container_lazy_xor(const_CAST_run(c1),
-                                          const_CAST_bitset(c2),
-                                          CAST_bitset(result));
+            run_bitset_container_lazy_xor(
+                const_CAST_run(c1), const_CAST_bitset(c2), CAST_bitset(result));
             *result_type = BITSET_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             result = run_container_create();
             array_run_container_lazy_xor(const_CAST_array(c1),
-                                         const_CAST_run(c2),
-                                         CAST_run(result));
+                                         const_CAST_run(c2), CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // next line skipped since we are lazy
             // result = convert_run_to_efficient_container(result, result_type);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             result = run_container_create();
             array_run_container_lazy_xor(const_CAST_array(c2),
-                                         const_CAST_run(c1),
-                                         CAST_run(result));
+                                         const_CAST_run(c1), CAST_run(result));
             *result_type = RUN_CONTAINER_TYPE;
             // next line skipped since we are lazy
             // result = convert_run_to_efficient_container(result, result_type);
@@ -1728,76 +1641,73 @@ static inline container_t *container_lazy_xor(
  * If the returned pointer is identical to c1, then the container has been
  * modified.
  * If the returned pointer is different from c1, then a new container has been
- * created and the caller is responsible for freeing it.
- * The type of the first container may change. Returns the modified
- * (and possibly new) container
-*/
-static inline container_t *container_ixor(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+ * created. The original container is freed by container_ixor.
+ * The type of the first container may change. Returns the modified (and
+ * possibly new) container.
+ */
+static inline container_t *container_ixor(container_t *c1, uint8_t type1,
+                                          const container_t *c2, uint8_t type2,
+                                          uint8_t *result_type) {
     c1 = get_writable_copy_if_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             *result_type = bitset_bitset_container_ixor(
-                                CAST_bitset(c1), const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_bitset(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             *result_type = array_array_container_ixor(
-                                CAST_array(c1), const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_array(c1), const_CAST_array(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             *result_type = (uint8_t)run_run_container_ixor(
                 CAST_run(c1), const_CAST_run(c2), &result);
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             *result_type = bitset_array_container_ixor(
-                                CAST_bitset(c1), const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_bitset(c1), const_CAST_array(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             *result_type = array_bitset_container_ixor(
-                                CAST_array(c1), const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_array(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
-            *result_type =
-                bitset_run_container_ixor(
-                    CAST_bitset(c1), const_CAST_run(c2), &result)
-                        ? BITSET_CONTAINER_TYPE
-                        : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(BITSET, RUN):
+            *result_type = bitset_run_container_ixor(
+                               CAST_bitset(c1), const_CAST_run(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
 
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             *result_type = run_bitset_container_ixor(
-                                CAST_run(c1), const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_run(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             *result_type = (uint8_t)array_run_container_ixor(
-                                CAST_array(c1), const_CAST_run(c2), &result);
+                CAST_array(c1), const_CAST_run(c2), &result);
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             *result_type = (uint8_t)run_array_container_ixor(
-                                CAST_run(c1), const_CAST_array(c2), &result);
+                CAST_run(c1), const_CAST_array(c2), &result);
             return result;
 
         default:
@@ -1818,19 +1728,17 @@ static inline container_t *container_ixor(
  *
  * This lazy version delays some operations such as the maintenance of the
  * cardinality. It requires repair later on the generated containers.
-*/
-static inline container_t *container_lazy_ixor(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+ */
+static inline container_t *container_lazy_ixor(container_t *c1, uint8_t type1,
+                                               const container_t *c2,
+                                               uint8_t type2,
+                                               uint8_t *result_type) {
     assert(type1 != SHARED_CONTAINER_TYPE);
     // c1 = get_writable_copy_if_shared(c1,&type1);
     c2 = container_unwrap_shared(c2, &type2);
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            bitset_container_xor_nocard(CAST_bitset(c1),
-                                        const_CAST_bitset(c2),
+        case CONTAINER_PAIR(BITSET, BITSET):
+            bitset_container_xor_nocard(CAST_bitset(c1), const_CAST_bitset(c2),
                                         CAST_bitset(c1));  // is lazy
             *result_type = BITSET_CONTAINER_TYPE;
             return c1;
@@ -1855,51 +1763,49 @@ static inline container_t *container_lazy_ixor(
  * container (having type result_type), requires a typecode. This allocates new
  * memory, caller is responsible for deallocation.
  */
-static inline container_t *container_andnot(
-    const container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+static inline container_t *container_andnot(const container_t *c1,
+                                            uint8_t type1,
+                                            const container_t *c2,
+                                            uint8_t type2,
+                                            uint8_t *result_type) {
     c1 = container_unwrap_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
-            *result_type = bitset_bitset_container_andnot(
-                                const_CAST_bitset(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(BITSET, BITSET):
+            *result_type =
+                bitset_bitset_container_andnot(const_CAST_bitset(c1),
+                                               const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
+        case CONTAINER_PAIR(ARRAY, ARRAY):
             result = array_container_create();
-            array_array_container_andnot(const_CAST_array(c1),
-                                         const_CAST_array(c2),
-                                         CAST_array(result));
+            array_array_container_andnot(
+                const_CAST_array(c1), const_CAST_array(c2), CAST_array(result));
             *result_type = ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = array_container_create();
                 *result_type = ARRAY_CONTAINER_TYPE;
                 return result;
             }
+            *result_type = (uint8_t)run_run_container_andnot(
+                const_CAST_run(c1), const_CAST_run(c2), &result);
+            return result;
+
+        case CONTAINER_PAIR(BITSET, ARRAY):
             *result_type =
-                (uint8_t)run_run_container_andnot(const_CAST_run(c1),
-                                         const_CAST_run(c2), &result);
+                bitset_array_container_andnot(const_CAST_bitset(c1),
+                                              const_CAST_array(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
-            *result_type = bitset_array_container_andnot(
-                                const_CAST_bitset(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
-            return result;
-
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             result = array_container_create();
             array_bitset_container_andnot(const_CAST_array(c1),
                                           const_CAST_bitset(c2),
@@ -1907,44 +1813,42 @@ static inline container_t *container_andnot(
             *result_type = ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = array_container_create();
                 *result_type = ARRAY_CONTAINER_TYPE;
                 return result;
             }
-            *result_type = bitset_run_container_andnot(
-                                const_CAST_bitset(c1),
-                                const_CAST_run(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+            *result_type =
+                bitset_run_container_andnot(const_CAST_bitset(c1),
+                                            const_CAST_run(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
-            *result_type = run_bitset_container_andnot(
-                                const_CAST_run(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+        case CONTAINER_PAIR(RUN, BITSET):
+            *result_type =
+                run_bitset_container_andnot(const_CAST_run(c1),
+                                            const_CAST_bitset(c2), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             if (run_container_is_full(const_CAST_run(c2))) {
                 result = array_container_create();
                 *result_type = ARRAY_CONTAINER_TYPE;
                 return result;
             }
             result = array_container_create();
-            array_run_container_andnot(const_CAST_array(c1),
-                                       const_CAST_run(c2),
+            array_run_container_andnot(const_CAST_array(c1), const_CAST_run(c2),
                                        CAST_array(result));
             *result_type = ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             *result_type = (uint8_t)run_array_container_andnot(
-                const_CAST_run(c1), const_CAST_array(c2),
-                &result);
+                const_CAST_run(c1), const_CAST_array(c2), &result);
             return result;
 
         default:
@@ -1960,75 +1864,68 @@ static inline container_t *container_andnot(
  * If the returned pointer is identical to c1, then the container has been
  * modified.
  * If the returned pointer is different from c1, then a new container has been
- * created and the caller is responsible for freeing it.
- * The type of the first container may change. Returns the modified
- * (and possibly new) container
-*/
-static inline container_t *container_iandnot(
-    container_t *c1, uint8_t type1,
-    const container_t *c2, uint8_t type2,
-    uint8_t *result_type
-){
+ * created. The original container is freed by container_iandnot.
+ * The type of the first container may change. Returns the modified (and
+ * possibly new) container.
+ */
+static inline container_t *container_iandnot(container_t *c1, uint8_t type1,
+                                             const container_t *c2,
+                                             uint8_t type2,
+                                             uint8_t *result_type) {
     c1 = get_writable_copy_if_shared(c1, &type1);
     c2 = container_unwrap_shared(c2, &type2);
     container_t *result = NULL;
     switch (PAIR_CONTAINER_TYPES(type1, type2)) {
-        case CONTAINER_PAIR(BITSET,BITSET):
+        case CONTAINER_PAIR(BITSET, BITSET):
             *result_type = bitset_bitset_container_iandnot(
-                                CAST_bitset(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_bitset(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,ARRAY):
-            array_array_container_iandnot(CAST_array(c1),
-                                          const_CAST_array(c2));
+        case CONTAINER_PAIR(ARRAY, ARRAY):
+            array_array_container_iandnot(CAST_array(c1), const_CAST_array(c2));
             *result_type = ARRAY_CONTAINER_TYPE;
             return c1;
 
-        case CONTAINER_PAIR(RUN,RUN):
+        case CONTAINER_PAIR(RUN, RUN):
             *result_type = (uint8_t)run_run_container_iandnot(
                 CAST_run(c1), const_CAST_run(c2), &result);
             return result;
 
-        case CONTAINER_PAIR(BITSET,ARRAY):
+        case CONTAINER_PAIR(BITSET, ARRAY):
             *result_type = bitset_array_container_iandnot(
-                                CAST_bitset(c1),
-                                const_CAST_array(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_bitset(c1), const_CAST_array(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,BITSET):
+        case CONTAINER_PAIR(ARRAY, BITSET):
             *result_type = ARRAY_CONTAINER_TYPE;
             array_bitset_container_iandnot(CAST_array(c1),
                                            const_CAST_bitset(c2));
             return c1;
 
-        case CONTAINER_PAIR(BITSET,RUN):
+        case CONTAINER_PAIR(BITSET, RUN):
             *result_type = bitset_run_container_iandnot(
-                                CAST_bitset(c1),
-                                const_CAST_run(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_bitset(c1), const_CAST_run(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(RUN,BITSET):
+        case CONTAINER_PAIR(RUN, BITSET):
             *result_type = run_bitset_container_iandnot(
-                                CAST_run(c1),
-                                const_CAST_bitset(c2), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+                               CAST_run(c1), const_CAST_bitset(c2), &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
 
-        case CONTAINER_PAIR(ARRAY,RUN):
+        case CONTAINER_PAIR(ARRAY, RUN):
             *result_type = ARRAY_CONTAINER_TYPE;
-            array_run_container_iandnot(CAST_array(c1),
-                                        const_CAST_run(c2));
+            array_run_container_iandnot(CAST_array(c1), const_CAST_run(c2));
             return c1;
 
-        case CONTAINER_PAIR(RUN,ARRAY):
+        case CONTAINER_PAIR(RUN, ARRAY):
             *result_type = (uint8_t)run_array_container_iandnot(
                 CAST_run(c1), const_CAST_array(c2), &result);
             return result;
@@ -2045,22 +1942,20 @@ static inline container_t *container_iandnot(
  * to iterator. You need to specify a container and its type.
  * Returns true if the iteration should continue.
  */
-static inline bool container_iterate(
-    const container_t *c, uint8_t type,
-    uint32_t base,
-    roaring_iterator iterator, void *ptr
-){
+static inline bool container_iterate(const container_t *c, uint8_t type,
+                                     uint32_t base, roaring_iterator iterator,
+                                     void *ptr) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_iterate(const_CAST_bitset(c),
-                                            base, iterator, ptr);
+            return bitset_container_iterate(const_CAST_bitset(c), base,
+                                            iterator, ptr);
         case ARRAY_CONTAINER_TYPE:
-            return array_container_iterate(const_CAST_array(c),
-                                           base, iterator, ptr);
+            return array_container_iterate(const_CAST_array(c), base, iterator,
+                                           ptr);
         case RUN_CONTAINER_TYPE:
-            return run_container_iterate(const_CAST_run(c),
-                                         base, iterator, ptr);
+            return run_container_iterate(const_CAST_run(c), base, iterator,
+                                         ptr);
         default:
             assert(false);
             roaring_unreachable;
@@ -2070,12 +1965,10 @@ static inline bool container_iterate(
     return false;
 }
 
-static inline bool container_iterate64(
-    const container_t *c, uint8_t type,
-    uint32_t base,
-    roaring_iterator64 iterator,
-    uint64_t high_bits, void *ptr
-){
+static inline bool container_iterate64(const container_t *c, uint8_t type,
+                                       uint32_t base,
+                                       roaring_iterator64 iterator,
+                                       uint64_t high_bits, void *ptr) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -2085,8 +1978,8 @@ static inline bool container_iterate64(
             return array_container_iterate64(const_CAST_array(c), base,
                                              iterator, high_bits, ptr);
         case RUN_CONTAINER_TYPE:
-            return run_container_iterate64(const_CAST_run(c), base,
-                                           iterator, high_bits, ptr);
+            return run_container_iterate64(const_CAST_run(c), base, iterator,
+                                           high_bits, ptr);
         default:
             assert(false);
             roaring_unreachable;
@@ -2096,24 +1989,21 @@ static inline bool container_iterate64(
     return false;
 }
 
-static inline container_t *container_not(
-    const container_t *c, uint8_t type,
-    uint8_t *result_type
-){
+static inline container_t *container_not(const container_t *c, uint8_t type,
+                                         uint8_t *result_type) {
     c = container_unwrap_shared(c, &type);
     container_t *result = NULL;
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            *result_type = bitset_container_negation(
-                                const_CAST_bitset(c), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+            *result_type =
+                bitset_container_negation(const_CAST_bitset(c), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
         case ARRAY_CONTAINER_TYPE:
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
-            array_container_negation(const_CAST_array(c),
-                                     CAST_bitset(result));
+            array_container_negation(const_CAST_array(c), CAST_bitset(result));
             return result;
         case RUN_CONTAINER_TYPE:
             *result_type =
@@ -2129,31 +2019,31 @@ static inline container_t *container_not(
     return NULL;
 }
 
-static inline container_t *container_not_range(
-    const container_t *c, uint8_t type,
-    uint32_t range_start, uint32_t range_end,
-    uint8_t *result_type
-){
+static inline container_t *container_not_range(const container_t *c,
+                                               uint8_t type,
+                                               uint32_t range_start,
+                                               uint32_t range_end,
+                                               uint8_t *result_type) {
     c = container_unwrap_shared(c, &type);
     container_t *result = NULL;
     switch (type) {
         case BITSET_CONTAINER_TYPE:
             *result_type =
-                bitset_container_negation_range(
-                        const_CAST_bitset(c), range_start, range_end, &result)
-                            ? BITSET_CONTAINER_TYPE
-                            : ARRAY_CONTAINER_TYPE;
+                bitset_container_negation_range(const_CAST_bitset(c),
+                                                range_start, range_end, &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
         case ARRAY_CONTAINER_TYPE:
             *result_type =
-                array_container_negation_range(
-                    const_CAST_array(c), range_start, range_end, &result)
-                        ? BITSET_CONTAINER_TYPE
-                        : ARRAY_CONTAINER_TYPE;
+                array_container_negation_range(const_CAST_array(c), range_start,
+                                               range_end, &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
         case RUN_CONTAINER_TYPE:
             *result_type = (uint8_t)run_container_negation_range(
-                            const_CAST_run(c), range_start, range_end, &result);
+                const_CAST_run(c), range_start, range_end, &result);
             return result;
 
         default:
@@ -2165,25 +2055,22 @@ static inline container_t *container_not_range(
     return NULL;
 }
 
-static inline container_t *container_inot(
-    container_t *c, uint8_t type,
-    uint8_t *result_type
-){
+static inline container_t *container_inot(container_t *c, uint8_t type,
+                                          uint8_t *result_type) {
     c = get_writable_copy_if_shared(c, &type);
     container_t *result = NULL;
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            *result_type = bitset_container_negation_inplace(
-                                CAST_bitset(c), &result)
-                                    ? BITSET_CONTAINER_TYPE
-                                    : ARRAY_CONTAINER_TYPE;
+            *result_type =
+                bitset_container_negation_inplace(CAST_bitset(c), &result)
+                    ? BITSET_CONTAINER_TYPE
+                    : ARRAY_CONTAINER_TYPE;
             return result;
         case ARRAY_CONTAINER_TYPE:
             // will never be inplace
             result = bitset_container_create();
             *result_type = BITSET_CONTAINER_TYPE;
-            array_container_negation(CAST_array(c),
-                                     CAST_bitset(result));
+            array_container_negation(CAST_array(c), CAST_bitset(result));
             array_container_free(CAST_array(c));
             return result;
         case RUN_CONTAINER_TYPE:
@@ -2200,31 +2087,28 @@ static inline container_t *container_inot(
     return NULL;
 }
 
-static inline container_t *container_inot_range(
-    container_t *c, uint8_t type,
-    uint32_t range_start, uint32_t range_end,
-    uint8_t *result_type
-){
+static inline container_t *container_inot_range(container_t *c, uint8_t type,
+                                                uint32_t range_start,
+                                                uint32_t range_end,
+                                                uint8_t *result_type) {
     c = get_writable_copy_if_shared(c, &type);
     container_t *result = NULL;
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            *result_type =
-                bitset_container_negation_range_inplace(
-                    CAST_bitset(c), range_start, range_end, &result)
-                        ? BITSET_CONTAINER_TYPE
-                        : ARRAY_CONTAINER_TYPE;
+            *result_type = bitset_container_negation_range_inplace(
+                               CAST_bitset(c), range_start, range_end, &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
         case ARRAY_CONTAINER_TYPE:
-            *result_type =
-                array_container_negation_range_inplace(
-                    CAST_array(c), range_start, range_end, &result)
-                        ? BITSET_CONTAINER_TYPE
-                        : ARRAY_CONTAINER_TYPE;
+            *result_type = array_container_negation_range_inplace(
+                               CAST_array(c), range_start, range_end, &result)
+                               ? BITSET_CONTAINER_TYPE
+                               : ARRAY_CONTAINER_TYPE;
             return result;
         case RUN_CONTAINER_TYPE:
             *result_type = (uint8_t)run_container_negation_range_inplace(
-                                CAST_run(c), range_start, range_end, &result);
+                CAST_run(c), range_start, range_end, &result);
             return result;
 
         default:
@@ -2244,22 +2128,20 @@ static inline container_t *container_inot_range(
  * accordingly.
  * Otherwise, it returns false and update start_rank.
  */
-static inline bool container_select(
-    const container_t *c, uint8_t type,
-    uint32_t *start_rank, uint32_t rank,
-    uint32_t *element
-){
+static inline bool container_select(const container_t *c, uint8_t type,
+                                    uint32_t *start_rank, uint32_t rank,
+                                    uint32_t *element) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_select(const_CAST_bitset(c),
-                                           start_rank, rank, element);
+            return bitset_container_select(const_CAST_bitset(c), start_rank,
+                                           rank, element);
         case ARRAY_CONTAINER_TYPE:
-            return array_container_select(const_CAST_array(c),
-                                          start_rank, rank, element);
+            return array_container_select(const_CAST_array(c), start_rank, rank,
+                                          element);
         case RUN_CONTAINER_TYPE:
-            return run_container_select(const_CAST_run(c),
-                                        start_rank, rank, element);
+            return run_container_select(const_CAST_run(c), start_rank, rank,
+                                        element);
         default:
             assert(false);
             roaring_unreachable;
@@ -2269,9 +2151,7 @@ static inline bool container_select(
     return false;
 }
 
-static inline uint16_t container_maximum(
-    const container_t *c, uint8_t type
-){
+static inline uint16_t container_maximum(const container_t *c, uint8_t type) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -2289,9 +2169,7 @@ static inline uint16_t container_maximum(
     return false;
 }
 
-static inline uint16_t container_minimum(
-    const container_t *c, uint8_t type
-){
+static inline uint16_t container_minimum(const container_t *c, uint8_t type) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -2310,10 +2188,8 @@ static inline uint16_t container_minimum(
 }
 
 // number of values smaller or equal to x
-static inline int container_rank(
-    const container_t *c, uint8_t type,
-    uint16_t x
-){
+static inline int container_rank(const container_t *c, uint8_t type,
+                                 uint16_t x) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -2332,18 +2208,21 @@ static inline int container_rank(
 }
 
 // bulk version of container_rank(); return number of consumed elements
-static inline uint32_t container_rank_many(
-    const container_t *c, uint8_t type,
-    uint64_t start_rank, const uint32_t* begin, const uint32_t* end, uint64_t* ans
-){
+static inline uint32_t container_rank_many(const container_t *c, uint8_t type,
+                                           uint64_t start_rank,
+                                           const uint32_t *begin,
+                                           const uint32_t *end, uint64_t *ans) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
-            return bitset_container_rank_many(const_CAST_bitset(c), start_rank, begin, end, ans);
+            return bitset_container_rank_many(const_CAST_bitset(c), start_rank,
+                                              begin, end, ans);
         case ARRAY_CONTAINER_TYPE:
-            return array_container_rank_many(const_CAST_array(c), start_rank, begin, end, ans);
+            return array_container_rank_many(const_CAST_array(c), start_rank,
+                                             begin, end, ans);
         case RUN_CONTAINER_TYPE:
-            return run_container_rank_many(const_CAST_run(c), start_rank, begin, end, ans);
+            return run_container_rank_many(const_CAST_run(c), start_rank, begin,
+                                           end, ans);
         default:
             assert(false);
             roaring_unreachable;
@@ -2355,7 +2234,7 @@ static inline uint32_t container_rank_many(
 
 // return the index of x, if not exsist return -1
 static inline int container_get_index(const container_t *c, uint8_t type,
-                                    uint16_t x) {
+                                      uint16_t x) {
     c = container_unwrap_shared(c, &type);
     switch (type) {
         case BITSET_CONTAINER_TYPE:
@@ -2381,11 +2260,9 @@ static inline int container_get_index(const container_t *c, uint8_t type,
  * The type of the first container may change. Returns the modified
  * (and possibly new) container.
  */
-static inline container_t *container_add_range(
-    container_t *c, uint8_t type,
-    uint32_t min, uint32_t max,
-    uint8_t *result_type
-){
+static inline container_t *container_add_range(container_t *c, uint8_t type,
+                                               uint32_t min, uint32_t max,
+                                               uint8_t *result_type) {
     // NB: when selecting new container type, we perform only inexpensive checks
     switch (type) {
         case BITSET_CONTAINER_TYPE: {
@@ -2394,8 +2271,8 @@ static inline container_t *container_add_range(
             int32_t union_cardinality = 0;
             union_cardinality += bitset->cardinality;
             union_cardinality += max - min + 1;
-            union_cardinality -= bitset_lenrange_cardinality(bitset->words,
-                                                             min, max-min);
+            union_cardinality -=
+                bitset_lenrange_cardinality(bitset->words, min, max - min);
 
             if (union_cardinality == INT32_C(0x10000)) {
                 *result_type = RUN_CONTAINER_TYPE;
@@ -2410,16 +2287,21 @@ static inline container_t *container_add_range(
         case ARRAY_CONTAINER_TYPE: {
             array_container_t *array = CAST_array(c);
 
-            int32_t nvals_greater = count_greater(array->array, array->cardinality, (uint16_t)max);
-            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, (uint16_t)min);
-            int32_t union_cardinality = nvals_less + (max - min + 1) + nvals_greater;
+            int32_t nvals_greater =
+                count_greater(array->array, array->cardinality, (uint16_t)max);
+            int32_t nvals_less =
+                count_less(array->array, array->cardinality - nvals_greater,
+                           (uint16_t)min);
+            int32_t union_cardinality =
+                nvals_less + (max - min + 1) + nvals_greater;
 
             if (union_cardinality == INT32_C(0x10000)) {
                 *result_type = RUN_CONTAINER_TYPE;
                 return run_container_create_range(0, INT32_C(0x10000));
             } else if (union_cardinality <= DEFAULT_MAX_SIZE) {
                 *result_type = ARRAY_CONTAINER_TYPE;
-                array_container_add_range_nvals(array, min, max, nvals_less, nvals_greater);
+                array_container_add_range_nvals(array, min, max, nvals_less,
+                                                nvals_greater);
                 return array;
             } else {
                 *result_type = BITSET_CONTAINER_TYPE;
@@ -2432,14 +2314,19 @@ static inline container_t *container_add_range(
         case RUN_CONTAINER_TYPE: {
             run_container_t *run = CAST_run(c);
 
-            int32_t nruns_greater = rle16_count_greater(run->runs, run->n_runs, (uint16_t)max);
-            int32_t nruns_less = rle16_count_less(run->runs, run->n_runs - nruns_greater, (uint16_t)min);
+            int32_t nruns_greater =
+                rle16_count_greater(run->runs, run->n_runs, (uint16_t)max);
+            int32_t nruns_less = rle16_count_less(
+                run->runs, run->n_runs - nruns_greater, (uint16_t)min);
 
-            int32_t run_size_bytes = (nruns_less + 1 + nruns_greater) * sizeof(rle16_t);
-            int32_t bitset_size_bytes = BITSET_CONTAINER_SIZE_IN_WORDS * sizeof(uint64_t);
+            int32_t run_size_bytes =
+                (nruns_less + 1 + nruns_greater) * sizeof(rle16_t);
+            int32_t bitset_size_bytes =
+                BITSET_CONTAINER_SIZE_IN_WORDS * sizeof(uint64_t);
 
             if (run_size_bytes <= bitset_size_bytes) {
-                run_container_add_range_nruns(run, min, max, nruns_less, nruns_greater);
+                run_container_add_range_nruns(run, min, max, nruns_less,
+                                              nruns_greater);
                 *result_type = RUN_CONTAINER_TYPE;
                 return run;
             } else {
@@ -2459,30 +2346,30 @@ static inline container_t *container_add_range(
  *   - pointer to a newly-allocated container (if it is more efficient)
  *
  * If the returned pointer is different from $container, then a new container
- * has been created and the caller is responsible for freeing the original container.
+ * has been created and the caller is responsible for freeing the original
+ * container.
  */
-static inline container_t *container_remove_range(
-    container_t *c, uint8_t type,
-    uint32_t min, uint32_t max,
-    uint8_t *result_type
-){
-     switch (type) {
+static inline container_t *container_remove_range(container_t *c, uint8_t type,
+                                                  uint32_t min, uint32_t max,
+                                                  uint8_t *result_type) {
+    switch (type) {
         case BITSET_CONTAINER_TYPE: {
             bitset_container_t *bitset = CAST_bitset(c);
 
-            int32_t result_cardinality = bitset->cardinality -
-                bitset_lenrange_cardinality(bitset->words, min, max-min);
+            int32_t result_cardinality =
+                bitset->cardinality -
+                bitset_lenrange_cardinality(bitset->words, min, max - min);
 
             if (result_cardinality == 0) {
                 return NULL;
             } else if (result_cardinality <= DEFAULT_MAX_SIZE) {
                 *result_type = ARRAY_CONTAINER_TYPE;
-                bitset_reset_range(bitset->words, min, max+1);
+                bitset_reset_range(bitset->words, min, max + 1);
                 bitset->cardinality = result_cardinality;
                 return array_container_from_bitset(bitset);
             } else {
                 *result_type = BITSET_CONTAINER_TYPE;
-                bitset_reset_range(bitset->words, min, max+1);
+                bitset_reset_range(bitset->words, min, max + 1);
                 bitset->cardinality = result_cardinality;
                 return bitset;
             }
@@ -2490,16 +2377,19 @@ static inline container_t *container_remove_range(
         case ARRAY_CONTAINER_TYPE: {
             array_container_t *array = CAST_array(c);
 
-            int32_t nvals_greater = count_greater(array->array, array->cardinality, (uint16_t)max);
-            int32_t nvals_less = count_less(array->array, array->cardinality - nvals_greater, (uint16_t)min);
+            int32_t nvals_greater =
+                count_greater(array->array, array->cardinality, (uint16_t)max);
+            int32_t nvals_less =
+                count_less(array->array, array->cardinality - nvals_greater,
+                           (uint16_t)min);
             int32_t result_cardinality = nvals_less + nvals_greater;
 
             if (result_cardinality == 0) {
                 return NULL;
             } else {
                 *result_type = ARRAY_CONTAINER_TYPE;
-                array_container_remove_range(array, nvals_less,
-                    array->cardinality - result_cardinality);
+                array_container_remove_range(
+                    array, nvals_less, array->cardinality - result_cardinality);
                 return array;
             }
         }
@@ -2509,7 +2399,8 @@ static inline container_t *container_remove_range(
             if (run->n_runs == 0) {
                 return NULL;
             }
-            if (min <= run_container_minimum(run) && max >= run_container_maximum(run)) {
+            if (min <= run_container_minimum(run) &&
+                max >= run_container_maximum(run)) {
                 return NULL;
             }
 
@@ -2518,11 +2409,78 @@ static inline container_t *container_remove_range(
         }
         default:
             roaring_unreachable;
-     }
+    }
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+using api::roaring_container_iterator_t;
+#endif
+
+/**
+ * Initializes the iterator at the first entry in the container.
+ */
+roaring_container_iterator_t container_init_iterator(const container_t *c,
+                                                     uint8_t typecode,
+                                                     uint16_t *value);
+
+/**
+ * Initializes the iterator at the last entry in the container.
+ */
+roaring_container_iterator_t container_init_iterator_last(const container_t *c,
+                                                          uint8_t typecode,
+                                                          uint16_t *value);
+
+/**
+ * Moves the iterator to the next entry. Returns true and sets `value` if a
+ * value is present.
+ */
+bool container_iterator_next(const container_t *c, uint8_t typecode,
+                             roaring_container_iterator_t *it, uint16_t *value);
+
+/**
+ * Moves the iterator to the previous entry. Returns true and sets `value` if a
+ * value is present.
+ */
+bool container_iterator_prev(const container_t *c, uint8_t typecode,
+                             roaring_container_iterator_t *it, uint16_t *value);
+
+/**
+ * Moves the iterator to the smallest entry that is greater than or equal to
+ * `val`. Returns true and sets `value_out` if a value is present. `value_out`
+ * should be initialized to a value.
+ */
+bool container_iterator_lower_bound(const container_t *c, uint8_t typecode,
+                                    roaring_container_iterator_t *it,
+                                    uint16_t *value_out, uint16_t val);
+
+/**
+ * Reads up to `count` entries from the container, and writes them into `buf`
+ * as `high16 | entry`. Returns true and sets `value_out` if a value is present
+ * after reading the entries. Sets `consumed` to the number of values read.
+ * `count` should be greater than zero.
+ */
+bool container_iterator_read_into_uint32(const container_t *c, uint8_t typecode,
+                                         roaring_container_iterator_t *it,
+                                         uint32_t high16, uint32_t *buf,
+                                         uint32_t count, uint32_t *consumed,
+                                         uint16_t *value_out);
+
+/**
+ * Reads up to `count` entries from the container, and writes them into `buf`
+ * as `high48 | entry`. Returns true and sets `value_out` if a value is present
+ * after reading the entries. Sets `consumed` to the number of values read.
+ * `count` should be greater than zero.
+ */
+bool container_iterator_read_into_uint64(const container_t *c, uint8_t typecode,
+                                         roaring_container_iterator_t *it,
+                                         uint64_t high48, uint64_t *buf,
+                                         uint32_t count, uint32_t *consumed,
+                                         uint16_t *value_out);
+
+#ifdef __cplusplus
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
 
 #endif

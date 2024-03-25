@@ -25,6 +25,7 @@ target_link_libraries(contrib-libs-croaring PUBLIC
 
 target_sources(contrib-libs-croaring PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/array_util.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/art/art.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/bitset.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/bitset_util.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/containers/array.c
@@ -42,6 +43,7 @@ target_sources(contrib-libs-croaring PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/isadetection.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/memory.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring64.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring_array.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/src/roaring_priority_queue.c
 )

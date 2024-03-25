@@ -3,25 +3,25 @@
  *
  */
 
- /**
-  * All macros should be prefixed with either CROARING or ROARING.
-  * The library uses both ROARING_...
-  * as well as CROAIRING_ as prefixes. The ROARING_ prefix is for
-  * macros that are provided by the build system or that are closely
-  * related to the format. The header macros may also use ROARING_.
-  * The CROARING_ prefix is for internal macros that a user is unlikely
-  * to ever interact with.
-  */
+/**
+ * All macros should be prefixed with either CROARING or ROARING.
+ * The library uses both ROARING_...
+ * as well as CROAIRING_ as prefixes. The ROARING_ prefix is for
+ * macros that are provided by the build system or that are closely
+ * related to the format. The header macros may also use ROARING_.
+ * The CROARING_ prefix is for internal macros that a user is unlikely
+ * to ever interact with.
+ */
 
 #ifndef INCLUDE_PORTABILITY_H_
 #define INCLUDE_PORTABILITY_H_
 
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE 1
-#endif // _GNU_SOURCE
+#endif  // _GNU_SOURCE
 #ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS 1
-#endif // __STDC_FORMAT_MACROS
+#endif  // __STDC_FORMAT_MACROS
 
 #ifdef _MSC_VER
 #define CROARING_VISUAL_STUDIO 1
@@ -36,8 +36,8 @@
 #else
 // just regular visual studio (best guess)
 #define CROARING_REGULAR_VISUAL_STUDIO 1
-#endif // __clang__
-#endif // _MSC_VER
+#endif  // __clang__
+#endif  // _MSC_VER
 #ifndef CROARING_VISUAL_STUDIO
 #define CROARING_VISUAL_STUDIO 0
 #endif
@@ -54,10 +54,10 @@
 
 #ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 200809L
-#endif // !(defined(_POSIX_C_SOURCE)) || (_POSIX_C_SOURCE < 200809L)
+#endif  // !(defined(_POSIX_C_SOURCE)) || (_POSIX_C_SOURCE < 200809L)
 #if !(defined(_XOPEN_SOURCE)) || (_XOPEN_SOURCE < 700)
 #define _XOPEN_SOURCE 700
-#endif // !(defined(_XOPEN_SOURCE)) || (_XOPEN_SOURCE < 700)
+#endif  // !(defined(_XOPEN_SOURCE)) || (_XOPEN_SOURCE < 700)
 
 #ifdef __illumos__
 #define __EXTENSIONS__
@@ -81,10 +81,8 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #if CROARING_REGULAR_VISUAL_STUDIO
 #ifndef __restrict__
 #define __restrict__ __restrict
-#endif // __restrict__
-#endif // CROARING_REGULAR_VISUAL_STUDIO
-
-
+#endif  // __restrict__
+#endif  // CROARING_REGULAR_VISUAL_STUDIO
 
 #if defined(__x86_64__) || defined(_M_X64)
 // we have an x64 processor
@@ -95,7 +93,7 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #undef CROARING_IS_X64
 #endif
 
-#if defined(__clang_major__) && (__clang_major__<= 8) && !defined(__AVX2__)
+#if defined(__clang_major__) && (__clang_major__ <= 8) && !defined(__AVX2__)
 // Older versions of clang have a bug affecting us
 // https://stackoverflow.com/questions/57228537/how-does-one-use-pragma-clang-attribute-push-with-c-namespaces
 #undef CROARING_IS_X64
@@ -108,8 +106,6 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #if !CROARING_REGULAR_VISUAL_STUDIO
 /* Non-Microsoft C/C++-compatible compiler */
 #include <x86intrin.h>  // on some recent GCC, this will declare posix_memalign
-
-
 
 #if CROARING_CLANG_VISUAL_STUDIO
 
@@ -128,6 +124,8 @@ extern "C" {  // portability definitions are in global scope, not a namespace
  * <x86intrin.h>  (or <intrin.h>) before, so the headers
  * are fooled.
  */
+// To avoid reordering imports:
+// clang-format off
 #include <bmiintrin.h>   // for _blsr_u64
 #include <lzcntintrin.h> // for  __lzcnt64
 #include <immintrin.h>   // for most things (AVX2, AVX512, _popcnt64)
@@ -146,24 +144,24 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 #include <avx512vbmiintrin.h>
 #include <avx512vbmi2intrin.h>
 #include <avx512vpopcntdqintrin.h>
-#endif // _MSC_VER >= 1920
+// clang-format on
+#endif  // _MSC_VER >= 1920
 // unfortunately, we may not get _blsr_u64, but, thankfully, clang
 // has it as a macro.
 #ifndef _blsr_u64
 // we roll our own
 #define _blsr_u64(n) ((n - 1) & n)
-#endif //  _blsr_u64
-#endif // SIMDJSON_CLANG_VISUAL_STUDIO
+#endif  //  _blsr_u64
+#endif  // SIMDJSON_CLANG_VISUAL_STUDIO
 
-
-#endif // CROARING_REGULAR_VISUAL_STUDIO
-#endif // defined(__x86_64__) || defined(_M_X64)
+#endif  // CROARING_REGULAR_VISUAL_STUDIO
+#endif  // defined(__x86_64__) || defined(_M_X64)
 
 #if !defined(CROARING_USENEON) && !defined(DISABLENEON) && defined(__ARM_NEON)
-#  define CROARING_USENEON
+#define CROARING_USENEON
 #endif
 #if defined(CROARING_USENEON)
-#  include <arm_neon.h>
+#include <arm_neon.h>
 #endif
 
 #if !CROARING_REGULAR_VISUAL_STUDIO
@@ -182,51 +180,59 @@ extern "C" {  // portability definitions are in global scope, not a namespace
 // sadly there is no way to check whether we are missing these intrinsics
 // specifically.
 
-/* wrappers for Visual Studio built-ins that look like gcc built-ins __builtin_ctzll */
-/* result might be undefined when input_num is zero */
+/* wrappers for Visual Studio built-ins that look like gcc built-ins
+ * __builtin_ctzll */
+/** result might be undefined when input_num is zero */
 inline int roaring_trailing_zeroes(unsigned long long input_num) {
     unsigned long index;
 #ifdef _WIN64  // highly recommended!!!
     _BitScanForward64(&index, input_num);
-#else  // if we must support 32-bit Windows
+#else   // if we must support 32-bit Windows
     if ((uint32_t)input_num != 0) {
         _BitScanForward(&index, (uint32_t)input_num);
     } else {
         _BitScanForward(&index, (uint32_t)(input_num >> 32));
         index += 32;
     }
-#endif // _WIN64
+#endif  // _WIN64
     return index;
 }
 
-/* wrappers for Visual Studio built-ins that look like gcc built-ins __builtin_clzll */
-/* result might be undefined when input_num is zero */
+/* wrappers for Visual Studio built-ins that look like gcc built-ins
+ * __builtin_clzll */
+/** result might be undefined when input_num is zero */
 inline int roaring_leading_zeroes(unsigned long long input_num) {
     unsigned long index;
 #ifdef _WIN64  // highly recommended!!!
     _BitScanReverse64(&index, input_num);
-#else  // if we must support 32-bit Windows
+#else   // if we must support 32-bit Windows
     if (input_num > 0xFFFFFFFF) {
         _BitScanReverse(&index, (uint32_t)(input_num >> 32));
         index += 32;
     } else {
         _BitScanReverse(&index, (uint32_t)(input_num));
     }
-#endif // _WIN64
+#endif  // _WIN64
     return 63 - index;
 }
 
 /* Use #define so this is effective even under /Ob0 (no inline) */
 #define roaring_unreachable __assume(0)
-#endif // __clang__
+#endif  // __clang__
 
-#endif // CROARING_REGULAR_VISUAL_STUDIO
+#endif  // CROARING_REGULAR_VISUAL_STUDIO
 
 #ifndef CROARING_INTRINSICS
 #define CROARING_INTRINSICS 1
 #define roaring_unreachable __builtin_unreachable()
-inline int roaring_trailing_zeroes(unsigned long long input_num) { return __builtin_ctzll(input_num); }
-inline int roaring_leading_zeroes(unsigned long long input_num) { return __builtin_clzll(input_num); }
+/** result might be undefined when input_num is zero */
+inline int roaring_trailing_zeroes(unsigned long long input_num) {
+    return __builtin_ctzll(input_num);
+}
+/** result might be undefined when input_num is zero */
+inline int roaring_leading_zeroes(unsigned long long input_num) {
+    return __builtin_clzll(input_num);
+}
 #endif
 
 #if CROARING_REGULAR_VISUAL_STUDIO
@@ -239,46 +245,52 @@ inline int roaring_leading_zeroes(unsigned long long input_num) { return __built
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-#define WARN_UNUSED __attribute__((warn_unused_result))
+#define CROARING_WARN_UNUSED __attribute__((warn_unused_result))
 #else
-#define WARN_UNUSED
+#define CROARING_WARN_UNUSED
 #endif
 
 #define IS_BIG_ENDIAN (*(uint16_t *)"\0\xff" < 0x100)
 
 #ifdef CROARING_USENEON
 // we can always compute the popcount fast.
-#elif (defined(_M_ARM) || defined(_M_ARM64)) && ((defined(_WIN64) || defined(_WIN32)) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO)
+#elif (defined(_M_ARM) || defined(_M_ARM64)) && \
+    ((defined(_WIN64) || defined(_WIN32)) &&    \
+     defined(CROARING_REGULAR_VISUAL_STUDIO) && \
+     CROARING_REGULAR_VISUAL_STUDIO)
 // we will need this function:
 static inline int roaring_hamming_backup(uint64_t x) {
-  uint64_t c1 = UINT64_C(0x5555555555555555);
-  uint64_t c2 = UINT64_C(0x3333333333333333);
-  uint64_t c4 = UINT64_C(0x0F0F0F0F0F0F0F0F);
-  x -= (x >> 1) & c1;
-  x = (( x >> 2) & c2) + (x & c2); x=(x +(x>>4))&c4;
-  x *= UINT64_C(0x0101010101010101);
-  return x >> 56;
+    uint64_t c1 = UINT64_C(0x5555555555555555);
+    uint64_t c2 = UINT64_C(0x3333333333333333);
+    uint64_t c4 = UINT64_C(0x0F0F0F0F0F0F0F0F);
+    x -= (x >> 1) & c1;
+    x = ((x >> 2) & c2) + (x & c2);
+    x = (x + (x >> 4)) & c4;
+    x *= UINT64_C(0x0101010101010101);
+    return x >> 56;
 }
 #endif
 
-
 static inline int roaring_hamming(uint64_t x) {
-#if defined(_WIN64) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO
+#if defined(_WIN64) && defined(CROARING_REGULAR_VISUAL_STUDIO) && \
+    CROARING_REGULAR_VISUAL_STUDIO
 #ifdef CROARING_USENEON
-   return vaddv_u8(vcnt_u8(vcreate_u8(input_num)));
+    return vaddv_u8(vcnt_u8(vcreate_u8(input_num)));
 #elif defined(_M_ARM64)
-  return roaring_hamming_backup(x);
-  // (int) _CountOneBits64(x); is unavailable
-#else  // _M_ARM64
-  return (int) __popcnt64(x);
-#endif // _M_ARM64
-#elif defined(_WIN32) && defined(CROARING_REGULAR_VISUAL_STUDIO) && CROARING_REGULAR_VISUAL_STUDIO
+    return roaring_hamming_backup(x);
+    // (int) _CountOneBits64(x); is unavailable
+#else   // _M_ARM64
+    return (int)__popcnt64(x);
+#endif  // _M_ARM64
+#elif defined(_WIN32) && defined(CROARING_REGULAR_VISUAL_STUDIO) && \
+    CROARING_REGULAR_VISUAL_STUDIO
 #ifdef _M_ARM
-  return roaring_hamming_backup(x);
-  // _CountOneBits is unavailable
-#else // _M_ARM
-    return (int) __popcnt(( unsigned int)x) + (int)  __popcnt(( unsigned int)(x>>32));
-#endif // _M_ARM
+    return roaring_hamming_backup(x);
+    // _CountOneBits is unavailable
+#else   // _M_ARM
+    return (int)__popcnt((unsigned int)x) +
+           (int)__popcnt((unsigned int)(x >> 32));
+#endif  // _M_ARM
 #else
     return __builtin_popcountll(x);
 #endif
@@ -286,16 +298,15 @@ static inline int roaring_hamming(uint64_t x) {
 
 #ifndef UINT64_C
 #define UINT64_C(c) (c##ULL)
-#endif // UINT64_C
+#endif  // UINT64_C
 
 #ifndef UINT32_C
 #define UINT32_C(c) (c##UL)
-#endif // UINT32_C
+#endif  // UINT32_C
 
 #ifdef __cplusplus
 }  // extern "C" {
-#endif // __cplusplus
-
+#endif  // __cplusplus
 
 // this is almost standard?
 #undef STRINGIFY_IMPLEMENTATION_
@@ -314,7 +325,8 @@ static inline int roaring_hamming(uint64_t x) {
 // slower, but it should run everywhere.
 
 //
-// Enable valid runtime implementations, and select CROARING_BUILTIN_IMPLEMENTATION
+// Enable valid runtime implementations, and select
+// CROARING_BUILTIN_IMPLEMENTATION
 //
 
 // We are going to use runtime dispatch.
@@ -322,20 +334,20 @@ static inline int roaring_hamming(uint64_t x) {
 #ifdef __clang__
 // clang does not have GCC push pop
 // warning: clang attribute push can't be used within a namespace in clang up
-// til 8.0 so CROARING_TARGET_REGION and CROARING_UNTARGET_REGION must be *outside* of a
-// namespace.
-#define CROARING_TARGET_REGION(T)                                                       \
-  _Pragma(STRINGIFY(                                                           \
-      clang attribute push(__attribute__((target(T))), apply_to = function)))
+// til 8.0 so CROARING_TARGET_REGION and CROARING_UNTARGET_REGION must be
+// *outside* of a namespace.
+#define CROARING_TARGET_REGION(T)                                      \
+    _Pragma(STRINGIFY(clang attribute push(__attribute__((target(T))), \
+                                           apply_to = function)))
 #define CROARING_UNTARGET_REGION _Pragma("clang attribute pop")
 #elif defined(__GNUC__)
 // GCC is easier
-#define CROARING_TARGET_REGION(T)                                                       \
-  _Pragma("GCC push_options") _Pragma(STRINGIFY(GCC target(T)))
+#define CROARING_TARGET_REGION(T) \
+    _Pragma("GCC push_options") _Pragma(STRINGIFY(GCC target(T)))
 #define CROARING_UNTARGET_REGION _Pragma("GCC pop_options")
-#endif // clang then gcc
+#endif  // clang then gcc
 
-#endif // CROARING_IS_X64
+#endif  // CROARING_IS_X64
 
 // Default target region macros don't do anything.
 #ifndef CROARING_TARGET_REGION
@@ -343,9 +355,12 @@ static inline int roaring_hamming(uint64_t x) {
 #define CROARING_UNTARGET_REGION
 #endif
 
-
-#define CROARING_TARGET_AVX2 CROARING_TARGET_REGION("avx2,bmi,pclmul,lzcnt,popcnt")
-#define CROARING_TARGET_AVX512 CROARING_TARGET_REGION("avx2,bmi,bmi2,pclmul,lzcnt,popcnt,avx512f,avx512dq,avx512bw,avx512vbmi2,avx512bitalg,avx512vpopcntdq")
+#define CROARING_TARGET_AVX2 \
+    CROARING_TARGET_REGION("avx2,bmi,pclmul,lzcnt,popcnt")
+#define CROARING_TARGET_AVX512                                         \
+    CROARING_TARGET_REGION(                                            \
+        "avx2,bmi,bmi2,pclmul,lzcnt,popcnt,avx512f,avx512dq,avx512bw," \
+        "avx512vbmi2,avx512bitalg,avx512vpopcntdq")
 #define CROARING_UNTARGET_AVX2 CROARING_UNTARGET_REGION
 #define CROARING_UNTARGET_AVX512 CROARING_UNTARGET_REGION
 
@@ -358,7 +373,9 @@ static inline int roaring_hamming(uint64_t x) {
 #define CROARING_UNTARGET_AVX2
 #endif
 
-#if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) && defined(__AVX512VPOPCNTDQ__)
+#if defined(__AVX512F__) && defined(__AVX512DQ__) && defined(__AVX512BW__) && \
+    defined(__AVX512VBMI2__) && defined(__AVX512BITALG__) &&                  \
+    defined(__AVX512VPOPCNTDQ__)
 // No need for runtime dispatching.
 // It is unnecessary and harmful to old clang to tag regions.
 #undef CROARING_TARGET_AVX512
@@ -375,61 +392,94 @@ static inline int roaring_hamming(uint64_t x) {
 #endif
 
 #if defined(__BYTE_ORDER__) && defined(__ORDER_BIG_ENDIAN__)
- #define CROARING_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
+#define CROARING_IS_BIG_ENDIAN (__BYTE_ORDER__ == __ORDER_BIG_ENDIAN__)
 #elif defined(_WIN32)
- #define CROARING_IS_BIG_ENDIAN 0
- #else
- #if defined(__APPLE__) || defined(__FreeBSD__) // defined __BYTE_ORDER__ && defined __ORDER_BIG_ENDIAN__
- #include <machine/endian.h>
- #elif defined(sun) || defined(__sun) // defined(__APPLE__) || defined(__FreeBSD__)
- #error #include <sys/byteorder.h>
- #else  // defined(__APPLE__) || defined(__FreeBSD__)
+#define CROARING_IS_BIG_ENDIAN 0
+#else
+#if defined(__APPLE__) || \
+    defined(__FreeBSD__)  // defined __BYTE_ORDER__ && defined
+                          // __ORDER_BIG_ENDIAN__
+#include <machine/endian.h>
+#elif defined(sun) || \
+    defined(__sun)  // defined(__APPLE__) || defined(__FreeBSD__)
+#error #include <sys/byteorder.h>
+#else  // defined(__APPLE__) || defined(__FreeBSD__)
 
- #ifdef __has_include
- #if __has_include(<endian.h>)
- #include <endian.h>
- #endif //__has_include(<endian.h>)
- #endif //__has_include
+#ifdef __has_include
+#if __has_include(<endian.h>)
+#include <endian.h>
+#endif  //__has_include(<endian.h>)
+#endif  //__has_include
 
- #endif // defined(__APPLE__) || defined(__FreeBSD__)
+#endif  // defined(__APPLE__) || defined(__FreeBSD__)
 
-
- #ifndef !defined(__BYTE_ORDER__) || !defined(__ORDER_LITTLE_ENDIAN__)
- #define CROARING_IS_BIG_ENDIAN 0
- #endif
-
- #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
- #define CROARING_IS_BIG_ENDIAN 0
- #else // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
- #define CROARING_IS_BIG_ENDIAN 1
- #endif // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#ifndef !defined(__BYTE_ORDER__) || !defined(__ORDER_LITTLE_ENDIAN__)
+#define CROARING_IS_BIG_ENDIAN 0
 #endif
 
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define CROARING_IS_BIG_ENDIAN 0
+#else  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define CROARING_IS_BIG_ENDIAN 1
+#endif  // __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#endif
+
+// Host <-> big endian conversion.
+#if CROARING_IS_BIG_ENDIAN
+#define croaring_htobe64(x) (x)
+
+#elif defined(_WIN32) || defined(_WIN64)  // CROARING_IS_BIG_ENDIAN
+#include <stdlib.h>
+#define croaring_htobe64(x) _byteswap_uint64(x)
+
+#elif defined(__APPLE__)  // CROARING_IS_BIG_ENDIAN
+#include <libkern/OSByteOrder.h>
+#define croaring_htobe64(x) OSSwapInt64(x)
+
+#elif defined(__has_include) && \
+    __has_include(<byteswap.h>)  // CROARING_IS_BIG_ENDIAN
+#include <byteswap.h>
+#define croaring_htobe64(x) __bswap_64(x)
+
+#else  // CROARING_IS_BIG_ENDIAN
+// Gets compiled to bswap or equivalent on most compilers.
+#define croaring_htobe64(x)                                                    \
+    (((x & 0x00000000000000FFULL) << 56) |                                     \
+     ((x & 0x000000000000FF00ULL) << 40) |                                     \
+     ((x & 0x0000000000FF0000ULL) << 24) |                                     \
+     ((x & 0x00000000FF000000ULL) << 8) | ((x & 0x000000FF00000000ULL) >> 8) | \
+     ((x & 0x0000FF0000000000ULL) >> 24) |                                     \
+     ((x & 0x00FF000000000000ULL) >> 40) |                                     \
+     ((x & 0xFF00000000000000ULL) >> 56))
+#endif  // CROARING_IS_BIG_ENDIAN
+#define croaring_be64toh(x) croaring_htobe64(x)
+// End of host <-> big endian conversion.
+
 // Defines for the possible CROARING atomic implementations
-#define CROARING_ATOMIC_IMPL_NONE          1
-#define CROARING_ATOMIC_IMPL_CPP           2
-#define CROARING_ATOMIC_IMPL_C             3
-#define CROARING_ATOMIC_IMPL_C_WINDOWS     4
+#define CROARING_ATOMIC_IMPL_NONE 1
+#define CROARING_ATOMIC_IMPL_CPP 2
+#define CROARING_ATOMIC_IMPL_C 3
+#define CROARING_ATOMIC_IMPL_C_WINDOWS 4
 
 // If the use has forced a specific implementation, use that, otherwise,
 // figure out the best implementation we can use.
 #if !defined(CROARING_ATOMIC_IMPL)
-  #if defined(__cplusplus) && __cplusplus >= 201103L
-    #ifdef __has_include
-      #if __has_include(<atomic>)
-        #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
-      #endif //__has_include(<atomic>)
-    #else
-      // We lack __has_include to check:
-      #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
-    #endif //__has_include
-  #elif __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_ATOMICS__)
-    #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C
-  #elif CROARING_REGULAR_VISUAL_STUDIO
-    // https://www.technetworkhub.com/c11-atomics-in-visual-studio-2022-version-17/
-    #define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C_WINDOWS
-  #endif
-#endif // !defined(CROARING_ATOMIC_IMPL)
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#ifdef __has_include
+#if __has_include(<atomic>)
+#define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
+#endif  //__has_include(<atomic>)
+#else
+   // We lack __has_include to check:
+#define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_CPP
+#endif  //__has_include
+#elif __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_ATOMICS__)
+#define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C
+#elif CROARING_REGULAR_VISUAL_STUDIO
+   // https://www.technetworkhub.com/c11-atomics-in-visual-studio-2022-version-17/
+#define CROARING_ATOMIC_IMPL CROARING_ATOMIC_IMPL_C_WINDOWS
+#endif
+#endif  // !defined(CROARING_ATOMIC_IMPL)
 
 #if CROARING_ATOMIC_IMPL == CROARING_ATOMIC_IMPL_C
 #include <stdatomic.h>
@@ -438,17 +488,18 @@ typedef _Atomic(uint32_t) croaring_refcount_t;
 static inline void croaring_refcount_inc(croaring_refcount_t *val) {
     // Increasing the reference counter can always be done with
     // memory_order_relaxed: New references to an object can only be formed from
-    // an existing reference, and passing an existing reference from one thread to
-    // another must already provide any required synchronization.
+    // an existing reference, and passing an existing reference from one thread
+    // to another must already provide any required synchronization.
     atomic_fetch_add_explicit(val, 1, memory_order_relaxed);
 }
 
 static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
-    // It is important to enforce any possible access to the object in one thread
-    // (through an existing reference) to happen before deleting the object in a
-    // different thread. This is achieved by a "release" operation after dropping
-    // a reference (any access to the object through this reference must obviously
-    // happened before), and an "acquire" operation before deleting the object.
+    // It is important to enforce any possible access to the object in one
+    // thread (through an existing reference) to happen before deleting the
+    // object in a different thread. This is achieved by a "release" operation
+    // after dropping a reference (any access to the object through this
+    // reference must obviously happened before), and an "acquire" operation
+    // before deleting the object.
     bool is_zero = atomic_fetch_sub_explicit(val, 1, memory_order_release) == 1;
     if (is_zero) {
         atomic_thread_fence(memory_order_acquire);
@@ -497,7 +548,8 @@ static inline bool croaring_refcount_dec(croaring_refcount_t *val) {
 }
 
 static inline uint32_t croaring_refcount_get(const croaring_refcount_t *val) {
-    // Per https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
+    // Per
+    // https://learn.microsoft.com/en-us/windows/win32/sync/interlocked-variable-access
     // > Simple reads and writes to properly-aligned 32-bit variables are atomic
     // > operations. In other words, you will not end up with only one portion
     // > of the variable updated; all bits are updated in an atomic fashion.
@@ -524,6 +576,11 @@ static inline uint32_t croaring_refcount_get(const croaring_refcount_t *val) {
 #error "Unknown atomic implementation"
 #endif
 
+#if defined(__GNUC__) || defined(__clang__)
+#define CROARING_DEPRECATED __attribute__((deprecated))
+#else
+#define CROARING_DEPRECATED
+#endif  // defined(__GNUC__) || defined(__clang__)
 
 // We need portability.h to be included first,
 // but we also always want isadetection.h to be
@@ -532,5 +589,5 @@ static inline uint32_t croaring_refcount_get(const croaring_refcount_t *val) {
 // There is no scenario where we want portability.h to
 // be included, but not isadetection.h: the latter is a
 // strict requirement.
-#include <roaring/isadetection.h> // include it last!
-#endif /* INCLUDE_PORTABILITY_H_ */
+#include <roaring/isadetection.h>  // include it last!
+#endif                             /* INCLUDE_PORTABILITY_H_ */

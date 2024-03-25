@@ -9,12 +9,18 @@
 #if CROARING_IS_X64
 #ifndef CROARING_COMPILER_SUPPORTS_AVX512
 #error "CROARING_COMPILER_SUPPORTS_AVX512 needs to be defined."
-#endif // CROARING_COMPILER_SUPPORTS_AVX512
+#endif  // CROARING_COMPILER_SUPPORTS_AVX512
 #endif
-
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
 #ifdef __cplusplus
 using namespace ::roaring::internal;
-extern "C" { namespace roaring { namespace api {
+extern "C" {
+namespace roaring {
+namespace api {
 #endif
 
 #if CROARING_IS_X64
@@ -562,29 +568,34 @@ static uint16_t vecDecodeTable_uint16[256][8] = {
 #if CROARING_IS_X64
 #if CROARING_COMPILER_SUPPORTS_AVX512
 CROARING_TARGET_AVX512
-const uint8_t vbmi2_table[64] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63};
-size_t bitset_extract_setbits_avx512(const uint64_t *words, size_t length, uint32_t *vout,
-                                   size_t outcapacity, uint32_t base) {
+const uint8_t vbmi2_table[64] = {
+    0,  1,  2,  3,  4,  5,  6,  7,  8,  9,  10, 11, 12, 13, 14, 15,
+    16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,
+    48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63};
+size_t bitset_extract_setbits_avx512(const uint64_t *words, size_t length,
+                                     uint32_t *vout, size_t outcapacity,
+                                     uint32_t base) {
     uint32_t *out = (uint32_t *)vout;
     uint32_t *initout = out;
     uint32_t *safeout = out + outcapacity;
-    __m512i base_v = _mm512_set1_epi32(base);    
+    __m512i base_v = _mm512_set1_epi32(base);
     __m512i index_table = _mm512_loadu_si512(vbmi2_table);
     size_t i = 0;
 
-    for (; (i < length) && ((out + 64) < safeout); i += 1)
-    {
-        uint64_t v = words[i];		
-        __m512i vec = _mm512_maskz_compress_epi8(v, index_table);	
-        	    
+    for (; (i < length) && ((out + 64) < safeout); i += 1) {
+        uint64_t v = words[i];
+        __m512i vec = _mm512_maskz_compress_epi8(v, index_table);
+
         uint8_t advance = (uint8_t)roaring_hamming(v);
-        
-        __m512i vbase = _mm512_add_epi32(base_v, _mm512_set1_epi32((int)(i * 64)));
-        __m512i r1 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,0));
-        __m512i r2 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,1));
-        __m512i r3 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,2));
-        __m512i r4 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec,3));
-        
+
+        __m512i vbase =
+            _mm512_add_epi32(base_v, _mm512_set1_epi32((int)(i * 64)));
+        __m512i r1 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec, 0));
+        __m512i r2 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec, 1));
+        __m512i r3 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec, 2));
+        __m512i r4 = _mm512_cvtepi8_epi32(_mm512_extracti32x4_epi32(vec, 3));
+
         r1 = _mm512_add_epi32(r1, vbase);
         r2 = _mm512_add_epi32(r2, vbase);
         r3 = _mm512_add_epi32(r3, vbase);
@@ -595,33 +606,35 @@ size_t bitset_extract_setbits_avx512(const uint64_t *words, size_t length, uint3
         _mm512_storeu_si512((__m512i *)(out + 48), r4);
 
         out += advance;
-        
     }
 
     base += i * 64;
-    
-    for (; (i < length) && (out < safeout); ++i) {
-         uint64_t w = words[i];
-         while ((w != 0) && (out < safeout)) {
-             uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
-             int r = roaring_trailing_zeroes(w); // on x64, should compile to TZCNT
-             uint32_t val = r + base;
-             memcpy(out, &val,
-                    sizeof(uint32_t));  // should be compiled as a MOV on x64
-             out++;
-             w ^= t;
-         }
-         base += 64;
-     }
 
+    for (; (i < length) && (out < safeout); ++i) {
+        uint64_t w = words[i];
+        while ((w != 0) && (out < safeout)) {
+            uint64_t t =
+                w & (~w + 1);  // on x64, should compile to BLSI (careful: the
+                               // Intel compiler seems to fail)
+            int r =
+                roaring_trailing_zeroes(w);  // on x64, should compile to TZCNT
+            uint32_t val = r + base;
+            memcpy(out, &val,
+                   sizeof(uint32_t));  // should be compiled as a MOV on x64
+            out++;
+            w ^= t;
+        }
+        base += 64;
+    }
 
     return out - initout;
-
 }
 
-// Reference: https://lemire.me/blog/2022/05/10/faster-bitset-decoding-using-intel-avx-512/
-size_t bitset_extract_setbits_avx512_uint16(const uint64_t *array, size_t length,
-                                     uint16_t *vout, size_t capacity, uint16_t base) {
+// Reference:
+// https://lemire.me/blog/2022/05/10/faster-bitset-decoding-using-intel-avx-512/
+size_t bitset_extract_setbits_avx512_uint16(const uint64_t *array,
+                                            size_t length, uint16_t *vout,
+                                            size_t capacity, uint16_t base) {
     uint16_t *out = (uint16_t *)vout;
     uint16_t *initout = out;
     uint16_t *safeout = vout + capacity;
@@ -630,41 +643,42 @@ size_t bitset_extract_setbits_avx512_uint16(const uint64_t *array, size_t length
     __m512i index_table = _mm512_loadu_si512(vbmi2_table);
     size_t i = 0;
 
-    for (; (i < length) && ((out + 64) < safeout); i++)
-    {
+    for (; (i < length) && ((out + 64) < safeout); i++) {
         uint64_t v = array[i];
         __m512i vec = _mm512_maskz_compress_epi8(v, index_table);
 
         uint8_t advance = (uint8_t)roaring_hamming(v);
 
-        __m512i vbase = _mm512_add_epi16(base_v, _mm512_set1_epi16((short)(i * 64)));
-        __m512i r1 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec,0));
-        __m512i r2 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec,1));
+        __m512i vbase =
+            _mm512_add_epi16(base_v, _mm512_set1_epi16((short)(i * 64)));
+        __m512i r1 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec, 0));
+        __m512i r2 = _mm512_cvtepi8_epi16(_mm512_extracti32x8_epi32(vec, 1));
 
         r1 = _mm512_add_epi16(r1, vbase);
         r2 = _mm512_add_epi16(r2, vbase);
 
-	    _mm512_storeu_si512((__m512i *)out, r1);
+        _mm512_storeu_si512((__m512i *)out, r1);
         _mm512_storeu_si512((__m512i *)(out + 32), r2);
         out += advance;
-
     }
 
     base += i * 64;
 
     for (; (i < length) && (out < safeout); ++i) {
-         uint64_t w = array[i];
-         while ((w != 0) && (out < safeout)) {
-             uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
-             int r = roaring_trailing_zeroes(w); // on x64, should compile to TZCNT
-             uint32_t val = r + base;
-             memcpy(out, &val,
-                    sizeof(uint16_t));
-             out++;
-             w ^= t;
-         }
-         base += 64;
-     }
+        uint64_t w = array[i];
+        while ((w != 0) && (out < safeout)) {
+            uint64_t t =
+                w & (~w + 1);  // on x64, should compile to BLSI (careful: the
+                               // Intel compiler seems to fail)
+            int r =
+                roaring_trailing_zeroes(w);  // on x64, should compile to TZCNT
+            uint32_t val = r + base;
+            memcpy(out, &val, sizeof(uint16_t));
+            out++;
+            w ^= t;
+        }
+        base += 64;
+    }
 
     return out - initout;
 }
@@ -711,8 +725,11 @@ size_t bitset_extract_setbits_avx2(const uint64_t *words, size_t length,
     for (; (i < length) && (out < safeout); ++i) {
         uint64_t w = words[i];
         while ((w != 0) && (out < safeout)) {
-            uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
-            int r = roaring_trailing_zeroes(w); // on x64, should compile to TZCNT
+            uint64_t t =
+                w & (~w + 1);  // on x64, should compile to BLSI (careful: the
+                               // Intel compiler seems to fail)
+            int r =
+                roaring_trailing_zeroes(w);  // on x64, should compile to TZCNT
             uint32_t val = r + base;
             memcpy(out, &val,
                    sizeof(uint32_t));  // should be compiled as a MOV on x64
@@ -732,8 +749,11 @@ size_t bitset_extract_setbits(const uint64_t *words, size_t length,
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = words[i];
         while (w != 0) {
-            uint64_t t = w & (~w + 1); // on x64, should compile to BLSI (careful: the Intel compiler seems to fail)
-            int r = roaring_trailing_zeroes(w); // on x64, should compile to TZCNT
+            uint64_t t =
+                w & (~w + 1);  // on x64, should compile to BLSI (careful: the
+                               // Intel compiler seems to fail)
+            int r =
+                roaring_trailing_zeroes(w);  // on x64, should compile to TZCNT
             uint32_t val = r + base;
             memcpy(out + outpos, &val,
                    sizeof(uint32_t));  // should be compiled as a MOV on x64
@@ -745,10 +765,9 @@ size_t bitset_extract_setbits(const uint64_t *words, size_t length,
     return outpos;
 }
 
-size_t bitset_extract_intersection_setbits_uint16(const uint64_t * __restrict__ words1,
-                                                  const uint64_t * __restrict__ words2,
-                                                  size_t length, uint16_t *out,
-                                                  uint16_t base) {
+size_t bitset_extract_intersection_setbits_uint16(
+    const uint64_t *__restrict__ words1, const uint64_t *__restrict__ words2,
+    size_t length, uint16_t *out, uint16_t base) {
     int outpos = 0;
     for (size_t i = 0; i < length; ++i) {
         uint64_t w = words1[i] & words2[i];
@@ -857,8 +876,10 @@ size_t bitset_extract_setbits_uint16(const uint64_t *words, size_t length,
 
 #if defined(CROARING_ASMBITMANIPOPTIMIZATION) && defined(CROARING_IS_X64)
 
-static inline uint64_t _asm_bitset_set_list_withcard(uint64_t *words, uint64_t card,
-                                  const uint16_t *list, uint64_t length) {
+static inline uint64_t _asm_bitset_set_list_withcard(uint64_t *words,
+                                                     uint64_t card,
+                                                     const uint16_t *list,
+                                                     uint64_t length) {
     uint64_t offset, load, pos;
     uint64_t shift = 6;
     const uint16_t *end = list + length;
@@ -882,7 +903,8 @@ static inline uint64_t _asm_bitset_set_list_withcard(uint64_t *words, uint64_t c
     return card;
 }
 
-static inline void _asm_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
+static inline void _asm_bitset_set_list(uint64_t *words, const uint16_t *list,
+                                        uint64_t length) {
     uint64_t pos;
     const uint16_t *end = list + length;
 
@@ -937,8 +959,9 @@ static inline void _asm_bitset_set_list(uint64_t *words, const uint16_t *list, u
     }
 }
 
-static inline uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
-                           uint64_t length) {
+static inline uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card,
+                                              const uint16_t *list,
+                                              uint64_t length) {
     uint64_t offset, load, pos;
     uint64_t shift = 6;
     const uint16_t *end = list + length;
@@ -963,8 +986,9 @@ static inline uint64_t _asm_bitset_clear_list(uint64_t *words, uint64_t card, co
     return card;
 }
 
-static inline uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
-                           uint64_t length) {
+static inline uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card,
+                                                 const uint16_t *list,
+                                                 uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
     while (list != end) {
@@ -980,8 +1004,10 @@ static inline uint64_t _scalar_bitset_clear_list(uint64_t *words, uint64_t card,
     return card;
 }
 
-static inline uint64_t _scalar_bitset_set_list_withcard(uint64_t *words, uint64_t card,
-                                  const uint16_t *list, uint64_t length) {
+static inline uint64_t _scalar_bitset_set_list_withcard(uint64_t *words,
+                                                        uint64_t card,
+                                                        const uint16_t *list,
+                                                        uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
     while (list != end) {
@@ -997,7 +1023,9 @@ static inline uint64_t _scalar_bitset_set_list_withcard(uint64_t *words, uint64_
     return card;
 }
 
-static inline void _scalar_bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
+static inline void _scalar_bitset_set_list(uint64_t *words,
+                                           const uint16_t *list,
+                                           uint64_t length) {
     uint64_t offset, load, newload, pos, index;
     const uint16_t *end = list + length;
     while (list != end) {
@@ -1013,7 +1041,7 @@ static inline void _scalar_bitset_set_list(uint64_t *words, const uint16_t *list
 
 uint64_t bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
                            uint64_t length) {
-    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
+    if (croaring_hardware_support() & ROARING_SUPPORTS_AVX2) {
         return _asm_bitset_clear_list(words, card, list, length);
     } else {
         return _scalar_bitset_clear_list(words, card, list, length);
@@ -1022,7 +1050,7 @@ uint64_t bitset_clear_list(uint64_t *words, uint64_t card, const uint16_t *list,
 
 uint64_t bitset_set_list_withcard(uint64_t *words, uint64_t card,
                                   const uint16_t *list, uint64_t length) {
-    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
+    if (croaring_hardware_support() & ROARING_SUPPORTS_AVX2) {
         return _asm_bitset_set_list_withcard(words, card, list, length);
     } else {
         return _scalar_bitset_set_list_withcard(words, card, list, length);
@@ -1030,7 +1058,7 @@ uint64_t bitset_set_list_withcard(uint64_t *words, uint64_t card,
 }
 
 void bitset_set_list(uint64_t *words, const uint16_t *list, uint64_t length) {
-    if( croaring_hardware_support() & ROARING_SUPPORTS_AVX2 ) {
+    if (croaring_hardware_support() & ROARING_SUPPORTS_AVX2) {
         _asm_bitset_set_list(words, list, length);
     } else {
         _scalar_bitset_set_list(words, list, length);
@@ -1124,5 +1152,10 @@ void bitset_flip_list(uint64_t *words, const uint16_t *list, uint64_t length) {
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace api {
+}
+}
+}  // extern "C" { namespace roaring { namespace api {
+#endif
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
 #endif

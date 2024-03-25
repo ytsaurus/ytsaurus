@@ -2,7 +2,9 @@
 #include <roaring/containers/mixed_subset.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 bool array_container_is_subset_bitset(const array_container_t* container1,
@@ -137,5 +139,7 @@ bool bitset_container_is_subset_run(const bitset_container_t* container1,
 }
 
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif

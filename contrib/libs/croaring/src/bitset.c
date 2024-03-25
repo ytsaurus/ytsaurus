@@ -5,18 +5,21 @@
 #include <string.h>
 
 #include <roaring/bitset/bitset.h>
-#include <roaring/portability.h>
 #include <roaring/memory.h>
+#include <roaring/portability.h>
 
 #ifdef __cplusplus
-extern "C" { namespace roaring { namespace internal {
+extern "C" {
+namespace roaring {
+namespace internal {
 #endif
 
 extern inline void bitset_print(const bitset_t *b);
 extern inline bool bitset_for_each(const bitset_t *b, bitset_iterator iterator,
                                    void *ptr);
-extern inline size_t bitset_next_set_bits(const bitset_t *bitset, size_t *buffer,
-                                 size_t capacity, size_t *startfrom);
+extern inline size_t bitset_next_set_bits(const bitset_t *bitset,
+                                          size_t *buffer, size_t capacity,
+                                          size_t *startfrom);
 extern inline void bitset_set_to_value(bitset_t *bitset, size_t i, bool flag);
 extern inline bool bitset_next_set_bit(const bitset_t *bitset, size_t *i);
 extern inline void bitset_set(bitset_t *bitset, size_t i);
@@ -24,7 +27,6 @@ extern inline bool bitset_get(const bitset_t *bitset, size_t i);
 extern inline size_t bitset_size_in_words(const bitset_t *bitset);
 extern inline size_t bitset_size_in_bits(const bitset_t *bitset);
 extern inline size_t bitset_size_in_bytes(const bitset_t *bitset);
-
 
 /* Create a new bitset. Return NULL in case of failure. */
 bitset_t *bitset_create(void) {
@@ -50,8 +52,8 @@ bitset_t *bitset_create_with_capacity(size_t size) {
     bitset->arraysize =
         (size + sizeof(uint64_t) * 8 - 1) / (sizeof(uint64_t) * 8);
     bitset->capacity = bitset->arraysize;
-    if ((bitset->array =
-             (uint64_t *)roaring_calloc(bitset->arraysize, sizeof(uint64_t))) == NULL) {
+    if ((bitset->array = (uint64_t *)roaring_calloc(
+             bitset->arraysize, sizeof(uint64_t))) == NULL) {
         roaring_free(bitset);
         return NULL;
     }
@@ -68,7 +70,7 @@ bitset_t *bitset_copy(const bitset_t *bitset) {
     memcpy(copy, bitset, sizeof(bitset_t));
     copy->capacity = copy->arraysize;
     if ((copy->array = (uint64_t *)roaring_malloc(sizeof(uint64_t) *
-                                          bitset->arraysize)) == NULL) {
+                                                  bitset->arraysize)) == NULL) {
         roaring_free(copy);
         return NULL;
     }
@@ -135,7 +137,9 @@ void bitset_shift_right(bitset_t *bitset, size_t s) {
 
 /* Free memory. */
 void bitset_free(bitset_t *bitset) {
-    if(bitset == NULL) { return; }
+    if (bitset == NULL) {
+        return;
+    }
     roaring_free(bitset->array);
     roaring_free(bitset);
 }
@@ -143,15 +147,22 @@ void bitset_free(bitset_t *bitset) {
 /* Resize the bitset so that it can support newarraysize * 64 bits. Return true
  * in case of success, false for failure. */
 bool bitset_resize(bitset_t *bitset, size_t newarraysize, bool padwithzeroes) {
-    if(newarraysize > SIZE_MAX/64) { return false; }
+    if (newarraysize > SIZE_MAX / 64) {
+        return false;
+    }
     size_t smallest =
         newarraysize < bitset->arraysize ? newarraysize : bitset->arraysize;
     if (bitset->capacity < newarraysize) {
         uint64_t *newarray;
         size_t newcapacity = bitset->capacity;
-        if(newcapacity == 0) { newcapacity = 1; }
-        while(newcapacity < newarraysize) { newcapacity *= 2; }
-        if ((newarray = (uint64_t *) roaring_realloc(bitset->array, sizeof(uint64_t) * newcapacity)) == NULL) {
+        if (newcapacity == 0) {
+            newcapacity = 1;
+        }
+        while (newcapacity < newarraysize) {
+            newcapacity *= 2;
+        }
+        if ((newarray = (uint64_t *)roaring_realloc(
+                 bitset->array, sizeof(uint64_t) * newcapacity)) == NULL) {
             return false;
         }
         bitset->capacity = newcapacity;
@@ -216,13 +227,22 @@ size_t bitset_minimum(const bitset_t *bitset) {
 }
 
 bool bitset_grow(bitset_t *bitset, size_t newarraysize) {
-    if(newarraysize < bitset->arraysize) { return false; }
-    if(newarraysize > SIZE_MAX/64) { return false; }
+    if (newarraysize < bitset->arraysize) {
+        return false;
+    }
+    if (newarraysize > SIZE_MAX / 64) {
+        return false;
+    }
     if (bitset->capacity < newarraysize) {
         uint64_t *newarray;
-        size_t newcapacity = (UINT64_C(0xFFFFFFFFFFFFFFFF) >> roaring_leading_zeroes(newarraysize)) + 1;
-        while(newcapacity < newarraysize) { newcapacity *= 2; }
-        if ((newarray = (uint64_t *) roaring_realloc(bitset->array, sizeof(uint64_t) * newcapacity)) == NULL) {
+        size_t newcapacity = (UINT64_C(0xFFFFFFFFFFFFFFFF) >>
+                              roaring_leading_zeroes(newarraysize)) +
+                             1;
+        while (newcapacity < newarraysize) {
+            newcapacity *= 2;
+        }
+        if ((newarray = (uint64_t *)roaring_realloc(
+                 bitset->array, sizeof(uint64_t) * newcapacity)) == NULL) {
             return false;
         }
         bitset->capacity = newcapacity;
@@ -247,7 +267,8 @@ size_t bitset_maximum(const bitset_t *bitset) {
 /* Returns true if bitsets share no common elements, false otherwise.
  *
  * Performs early-out if common element found. */
-bool bitsets_disjoint(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2) {
+bool bitsets_disjoint(const bitset_t *CBITSET_RESTRICT b1,
+                      const bitset_t *CBITSET_RESTRICT b2) {
     size_t minlength =
         b1->arraysize < b2->arraysize ? b1->arraysize : b2->arraysize;
 
@@ -261,7 +282,8 @@ bool bitsets_disjoint(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITS
  * disjoint.
  *
  * Performs early-out if common element found. */
-bool bitsets_intersect(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2) {
+bool bitsets_intersect(const bitset_t *CBITSET_RESTRICT b1,
+                       const bitset_t *CBITSET_RESTRICT b2) {
     size_t minlength =
         b1->arraysize < b2->arraysize ? b1->arraysize : b2->arraysize;
 
@@ -285,9 +307,10 @@ static bool any_bits_set(const bitset_t *b, size_t starting_loc) {
 /* Returns true if b1 has all of b2's bits set.
  *
  * Performs early out if a bit is found in b2 that is not found in b1. */
-bool bitset_contains_all(const bitset_t *CBITSET_RESTRICT b1, const bitset_t *CBITSET_RESTRICT b2) {
+bool bitset_contains_all(const bitset_t *CBITSET_RESTRICT b1,
+                         const bitset_t *CBITSET_RESTRICT b2) {
     size_t min_size = b1->arraysize;
-    if(b1->arraysize > b2->arraysize) {
+    if (b1->arraysize > b2->arraysize) {
         min_size = b2->arraysize;
     }
     for (size_t k = 0; k < min_size; k++) {
@@ -450,7 +473,8 @@ bool bitset_trim(bitset_t *bitset) {
     return true;
 }
 
-
 #ifdef __cplusplus
-} } }  // extern "C" { namespace roaring { namespace internal {
+}
+}
+}  // extern "C" { namespace roaring { namespace internal {
 #endif
