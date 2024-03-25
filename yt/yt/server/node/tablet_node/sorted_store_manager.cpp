@@ -757,6 +757,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
+            tabletSnapshot->QuerySchema->GetTtlColumnIndex(),
             /*mergeDeletionsOnFlush*/ mountConfig->MergeDeletionsOnFlush);
 
         auto unflushedTimestamp = MaxTimestamp;

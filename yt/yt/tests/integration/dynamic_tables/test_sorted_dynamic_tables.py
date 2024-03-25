@@ -20,7 +20,7 @@ import yt_error_codes
 
 from yt_helpers import profiler_factory
 
-from yt_type_helpers import make_schema
+from yt_type_helpers import make_schema, optional_type
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
@@ -2696,3 +2696,201 @@ class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
         wait(lambda: _compaction_finished())
 
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}]) == [{"key": 1, "value": "11"}]
+
+
+##################################################################
+
+
+class TestDynamicTablesTtl(DynamicTablesBase):
+    def _create_table_with_ttl_column(self, min_data_ttl, max_data_ttl=100000,
+                                      merge_rows_on_flush=False,
+                                      auto_compaction_period=1):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type_v3": optional_type("int64")},
+            {"name": "$ttl", "type_v3": optional_type("uint64")},
+            {"name": "value2", "type_v3": optional_type("int64")}
+        ]
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=schema,
+            min_data_ttl=min_data_ttl,
+            max_data_ttl=max_data_ttl,
+            min_data_versions=0,
+            auto_compaction_period=auto_compaction_period,
+            merge_rows_on_flush=merge_rows_on_flush,
+            dynamic_store_auto_flush_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+
+    def _make_row(self, key, v1, ttl=yson.YsonEntity(), v2=yson.YsonEntity()):
+        return {"key": key, "value1": v1, "$ttl": ttl, "value2": v2}
+
+    def _sync_wait_chunk_ids_to_change(self, path):
+        chunks = builtins.set(get(path + "/@chunk_ids"))
+        if len(chunks) == 0:
+            return
+
+        set(path + "/@forced_compaction_revision", 1)
+        remount_table(path)
+
+        def _check():
+            new_chunks = builtins.set(get(path + "/@chunk_ids"))
+            if not chunks.intersection(new_chunks):
+                return True
+            time.sleep(0.5)
+
+        wait(lambda: _check())
+
+    @authors("alexelexa")
+    def test_per_row_ttl(self):
+        self._create_table_with_ttl_column(min_data_ttl=0, max_data_ttl=5000)
+        keys = [{"key": i} for i in range(3)]
+        insert_rows("//tmp/t", [
+            self._make_row(0, 0, 1000),
+            self._make_row(1, 0),
+            self._make_row(2, 0, 9000),
+        ])
+        sync_flush_table("//tmp/t")
+
+        time.sleep(3)
+        assert lookup_rows("//tmp/t", keys, column_names=["key"]) == [{"key": 1}, {"key": 2}]
+
+        time.sleep(4)
+        assert lookup_rows("//tmp/t", keys, column_names=["key"]) == [{"key": 2}]
+
+        time.sleep(4)
+        assert lookup_rows("//tmp/t", keys, column_names=["key"]) == []
+
+    @authors("alexelexa")
+    def test_per_row_ttl_flush(self):
+        self._create_table_with_ttl_column(
+            min_data_ttl=0,
+            max_data_ttl=100000,
+            merge_rows_on_flush=True,
+            auto_compaction_period=yson.YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": 0}]
+        rows = [self._make_row(0, 1, 3000)]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        time.sleep(5)
+        sync_flush_table("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == []
+
+    @authors("alexelexa")
+    def test_per_row_ttl_base(self):
+        self._create_table_with_ttl_column(min_data_ttl=3000)
+
+        keys = [{"key": 0}]
+        rows = [self._make_row(0, 1, 10000)]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        rows = [{"key": 1, "value1": 1}]
+        insert_rows("//tmp/t", rows)
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [self._make_row(1, 1)]
+
+        insert_rows("//tmp/t", [{"key": 0, "value2": 2, "$ttl": 10000}], update=True)
+        assert lookup_rows("//tmp/t", keys) == [self._make_row(0, 1, 10000, 2)]
+
+        # Correctness is not guaranteed, but no crash is guaranteed.
+        insert_rows("//tmp/t", [{"key": 0, "value2": 3}])
+        sync_flush_table("//tmp/t")
+
+    @authors("alexelexa")
+    def test_per_row_ttl_base_compaction(self):
+        self._create_table_with_ttl_column(min_data_ttl=1000)
+        keys = [{"key": 0}]
+
+        insert_rows("//tmp/t", [self._make_row(0, 1, 3000)])
+        insert_rows("//tmp/t", [self._make_row(0, 0, 3300)])
+        sync_flush_table("//tmp/t")
+
+        delete_rows("//tmp/t", keys)
+
+        insert_rows("//tmp/t", [self._make_row(0, 15, 15000)])
+
+        delete_rows("//tmp/t", keys)
+
+        insert_rows("//tmp/t", [self._make_row(0, 13, 1000)])
+
+        rows = [self._make_row(0, 2, 5000)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        time.sleep(7)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == []
+
+    @authors("alexelexa")
+    def test_per_row_ttl_storage_extend(self):
+        self._create_table_with_ttl_column(min_data_ttl=3000)
+        keys = [{"key": 0}]
+        rows = [self._make_row(0, 1, 3000)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        time.sleep(1)
+        assert rows == lookup_rows("//tmp/t", keys)
+
+        # extend row storage
+        rows[0]["$ttl"] = 9000
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        time.sleep(4)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        time.sleep(6)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == []
+
+    @authors("alexelexa")
+    def test_per_row_ttl_storage_reduce(self):
+        self._create_table_with_ttl_column(min_data_ttl=3000)
+        keys = [{"key": 0}]
+        insert_rows("//tmp/t", [self._make_row(0, 1, 1000000)])
+        sync_flush_table("//tmp/t")
+
+        # reduce row storage
+        delete_rows("//tmp/t", keys)
+        insert_rows("//tmp/t", [self._make_row(0, 1, 3000)])
+        sync_flush_table("//tmp/t")
+
+        time.sleep(5)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == []
+
+    @authors("alexelexa")
+    def test_per_row_ttl_wrong_storage_reduce(self):
+        self._create_table_with_ttl_column(min_data_ttl=3000)
+        keys = [{"key": 0}]
+        rows = [self._make_row(0, 1, 5000)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        # There is no guarantee that storage time will be reduced, but no crash is guaranteed.
+        rows[0]["$ttl"] = 1000
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        time.sleep(6)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == []
+
+    @authors("alxelexa")
+    def test_per_row_ttl_min_data_ttl(self):
+        self._create_table_with_ttl_column(min_data_ttl=20000)
+        keys = [{"key": 0}]
+        rows = [self._make_row(0, 1, 1000)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        time.sleep(3)
+        self._sync_wait_chunk_ids_to_change("//tmp/t")
+        assert lookup_rows("//tmp/t", keys) == rows

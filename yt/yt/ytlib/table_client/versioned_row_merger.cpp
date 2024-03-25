@@ -32,6 +32,7 @@ public:
         TColumnEvaluatorPtr columnEvaluator,
         bool lookup,
         bool mergeRowsOnFlush,
+        std::optional<int> ttlColumnIndex,
         bool mergeDeletionsOnFlush)
         : RowBuffer_(std::move(rowBuffer))
         , KeyColumnCount_(keyColumnCount)
@@ -43,6 +44,7 @@ public:
         , Lookup_(lookup)
         , MergeRowsOnFlush_(mergeRowsOnFlush)
         , MergeDeletionsOnFlush_(mergeDeletionsOnFlush)
+        , TtlColumnIndex_(ttlColumnIndex)
     {
         int mergedKeyColumnCount = 0;
         if (columnFilter.IsUniversal()) {
@@ -137,6 +139,8 @@ public:
                 }),
             PartialValues_.end());
 
+        auto rowMaxDataTtl = ComputeRowMaxDataTtl();
+
         // Scan through input values.
         auto columnIdsBeginIt = ColumnIds_.begin();
         auto columnIdsEndIt = ColumnIds_.end();
@@ -188,6 +192,7 @@ public:
 
             // Apply retention config if present.
             if (Config_) {
+                YT_VERIFY(rowMaxDataTtl.has_value());
                 retentionBeginIt = ColumnValues_.end();
 
                 // Compute safety limit by MinDataTtl.
@@ -216,7 +221,7 @@ public:
 
                     auto timestamp = (retentionBeginIt - 1)->Timestamp;
                     if (timestamp < CurrentTimestamp_ &&
-                        TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > Config_->MaxDataTtl)
+                        TimestampDiffToDuration(timestamp, CurrentTimestamp_).first > rowMaxDataTtl)
                     {
                         break;
                     }
@@ -385,6 +390,7 @@ private:
     const bool Lookup_ = true;
     const bool MergeRowsOnFlush_;
     const bool MergeDeletionsOnFlush_;
+    const std::optional<int> TtlColumnIndex_;
 
     bool Started_ = false;
 
@@ -410,6 +416,28 @@ private:
 
         Started_ = false;
     }
+
+    std::optional<TDuration> ComputeRowMaxDataTtl() const
+    {
+        if (!Config_) {
+            return std::nullopt;
+        }
+
+        auto ttlColumnValue = std::find_if(
+            PartialValues_.rbegin(),
+            PartialValues_.rend(),
+            [&] (const TVersionedValue& value) {
+                return value.Id == TtlColumnIndex_;
+            });
+
+        if (ttlColumnValue != PartialValues_.rend() && ttlColumnValue->Type == EValueType::Uint64 &&
+            (DeleteTimestamps_.empty() || ttlColumnValue->Timestamp > DeleteTimestamps_.back()))
+        {
+            return std::max(Config_->MinDataTtl, TDuration::MilliSeconds(ttlColumnValue->Data.Uint64));
+        }
+
+        return Config_->MaxDataTtl;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +453,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
+    std::optional<int> ttlColumnIndex,
     bool mergeDeletionsOnFlush)
 {
     return std::make_unique<TVersionedRowMerger>(
@@ -438,6 +467,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
         columnEvaluator,
         lookup,
         mergeRowsOnFlush,
+        ttlColumnIndex,
         mergeDeletionsOnFlush);
 }
 
@@ -455,8 +485,8 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
+    std::optional<int> ttlColumnIndex,
     bool mergeDeletionsOnFlush)
-
 {
     switch (rowMergerType) {
         case ETabletRowMergerType::Legacy:
@@ -471,6 +501,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                 columnEvaluator,
                 lookup,
                 mergeRowsOnFlush,
+                ttlColumnIndex,
                 mergeDeletionsOnFlush);
         default:
             YT_ABORT();

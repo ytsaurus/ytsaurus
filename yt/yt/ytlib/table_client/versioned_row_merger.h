@@ -37,6 +37,7 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
+    std::optional<int> ttlColumnIndex = std::nullopt,
     bool mergeDeletionsOnFlush = false);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +54,7 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
     bool mergeRowsOnFlush,
+    std::optional<int> ttlColumnIndex = std::nullopt,
     bool mergeDeletionsOnFlush = false);
 
 ////////////////////////////////////////////////////////////////////////////////
