@@ -2984,7 +2984,45 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     }
                     batchReq->AddRequest(req);
                 }
-                if (table->OutputType == EOutputTableType::Stderr || table->OutputType == EOutputTableType::Core) {
+            }
+
+            asyncResults.push_back(batchReq->Invoke());
+        }
+
+        auto checkError = [] (const auto& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error finishing upload to output tables");
+        };
+
+        auto result = WaitFor(AllSucceeded(asyncResults));
+        checkError(result);
+
+        for (const auto& batchRsp : result.Value()) {
+            checkError(GetCumulativeError(batchRsp));
+        }
+    }
+
+    {
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
+        for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
+            std::vector<TOutputTablePtr> debugTables;
+            for (const auto& table : tables) {
+                if (table->IsDebugTable()) {
+                    debugTables.push_back(table);
+
+                    YT_LOG_INFO("Setting custom attributes for debug output table (Path: %v, OutputType: %v)",
+                        table->GetPath(),
+                        table->OutputType);
+                }
+            }
+
+            if (debugTables.empty()) {
+                continue;
+            }
+
+            auto proxy = CreateObjectServiceWriteProxy(OutputClient, nativeCellTag);
+            auto batchReq = proxy.ExecuteBatch();
+            for (const auto& table : debugTables) {
+                {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                     req->set_value(ConvertToYsonStringNestingLimited(GetPartSize(table->OutputType)).ToString());
@@ -3002,7 +3040,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
         }
 
         auto checkError = [] (const auto& error) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error finishing upload to output tables");
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error setting custom attributes for debug output tables");
         };
 
         auto result = WaitFor(AllSucceeded(asyncResults));
