@@ -1599,7 +1599,7 @@ TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
         if (clipped || value.Type == EValueType::Any) {
             truncatedValue = MakeUnversionedNullValue(value.Id, value.Flags);
         } else if (value.Type == EValueType::Composite) {
-            if (auto truncatedCompositeValue = TruncateCompositeValue(TYsonStringBuf{value.AsStringBuf()}, maxSizePerValue)) {
+            if (auto truncatedCompositeValue = TruncateCompositeValue(TYsonStringBuf(value.AsStringBuf()), maxSizePerValue)) {
                 truncatedValue = rowBuffer->CaptureValue(MakeUnversionedCompositeValue(truncatedCompositeValue->AsStringBuf(), value.Id, value.Flags));
             } else {
                 truncatedValue = MakeUnversionedNullValue(value.Id, value.Flags);
@@ -1621,7 +1621,7 @@ TUnversionedValueRangeTruncationResult TruncateUnversionedValues(
         }
     }
 
-    return {MakeSharedRange(truncatedValues, rowBuffer), resultSize, clipped};
+    return {MakeSharedRange(std::move(truncatedValues), rowBuffer), resultSize, clipped};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

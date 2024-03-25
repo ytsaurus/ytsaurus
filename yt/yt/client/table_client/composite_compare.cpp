@@ -156,7 +156,7 @@ Y_FORCE_INLINE static int CompareYsonItems(const TYsonItem& lhs, const TYsonItem
 }
 
 // Returns the minimum binary size needed to represent a potentially truncated version of the this item.
-// Item should not be Map or Attribute-related, there is no special handling for them.
+// We should not rely on the return value for Map or Attribute-related items, there is no special handling for them.
 i64 GetMinResultingSize(const TYsonItem& item, bool isInsideList)
 {
     // These bytes were already accounted when handling the corresponding BeginList.
@@ -337,15 +337,15 @@ std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size
     for (auto remainingBytes = size;;) {
         const auto item = valueParser.Next();
 
-        // Both braces of the outmost list are not considered to be inside an enclosing list.
-        bool isInsideList = unclosedListCount >= 2 || (unclosedListCount == 1 && item.GetType() != EYsonItemType::EndList);
+        // We don't handle the case of the last EndList, since the function below returns 0 for EndList anyway.
+        bool isInsideList = unclosedListCount > 0;
         auto resultingItemSize = GetMinResultingSize(item, isInsideList);
 
         if (resultingItemSize > remainingBytes) {
             break;
         }
 
-        bool canBeTruncatedFurther = true;
+        bool isEof = false;
 
         switch (item.GetType()) {
             case EYsonItemType::BeginList:
@@ -385,13 +385,13 @@ std::optional<TYsonString> TruncateCompositeValue(TYsonStringBuf value, i64 size
             case EYsonItemType::BeginMap:
             case EYsonItemType::EndMap:
             case EYsonItemType::EndOfStream:
-                canBeTruncatedFurther = false;
+                isEof = true;
                 break;
             default:
                 YT_ABORT();
         }
 
-        if (!canBeTruncatedFurther) {
+        if (isEof) {
             break;
         }
 

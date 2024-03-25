@@ -7,7 +7,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
 
 from yt_helpers import skip_if_no_descending
-from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type, tuple_type
+from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, list_type, optional_type
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError

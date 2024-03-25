@@ -75,11 +75,11 @@ TEST(TCompositeCompare, CompositeFingerprint)
 TEST(TCompositeCompare, TruncateCompositeValue)
 {
     auto normalizeYson = [] (TStringBuf yson) {
-        return yson.empty() ? TString{yson} : ConvertToYsonString(TYsonString{yson}, EYsonFormat::Binary).ToString();
+        return yson.empty() ? TString(yson) : ConvertToYsonString(TYsonString(yson), EYsonFormat::Binary).ToString();
     };
 
     auto getTruncatedYson = [&] (TStringBuf original, i64 size) {
-        auto truncatedCompositeValue = TruncateCompositeValue(TYsonString{original}, size);
+        auto truncatedCompositeValue = TruncateCompositeValue(TYsonString(original), size);
         return truncatedCompositeValue ? truncatedCompositeValue->ToString() : "";
     };
 
@@ -134,7 +134,7 @@ TEST(TCompositeCompare, TruncateCompositeValue)
     checkTruncatedYson("[please; [take; [me; ha;];];]", "[please; [take; [me; haha; too; late]]]", 34);
     // The actual size of the resulting yson is only 4 bytes, but during truncation it is too hard to account for the fact that longer strings
     // take up more bytes for their length, since it is represented as a varint.
-    checkTruncatedYson("aa", TString{1000, 'a'}, 5);
+    checkTruncatedYson("aa", TString(1000, 'a'), 5);
     checkTruncatedYson("\"\"", "erase-me", 2);
 
     checkTruncatedYson("[[5; 7]; [1; 5; 4; 3]; [];]", "[[5; 7]; [1; 5; 4; 3]; [{hello=darkness}; 0; 0; 7]]", 10000);

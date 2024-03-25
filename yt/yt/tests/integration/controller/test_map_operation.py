@@ -821,8 +821,8 @@ print row + table_index
 
     @authors("achulkov2")
     def test_truncate_composite_partitioning_sample(self):
-        max_sample_size = 64 * 1024 # 64KiB
-        big_size = 15 * 1024 * 1024 # 15MiB, a bit smaller than the default row limit.
+        max_sample_size = 64 * 1024  # 64KiB
+        big_size = 15 * 1024 * 1024  # 15MiB, a bit smaller than the default row limit.
 
         schema = [{"name": "data", "type_v3": tuple_type(["string", optional_type("int64"), list_type("string")])}]
 
@@ -842,7 +842,6 @@ print row + table_index
         assert len(chunk_ids) == 1
 
         assert get(f"#{chunk_ids[0]}/@meta_size") < 2 * max_sample_size
-
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
