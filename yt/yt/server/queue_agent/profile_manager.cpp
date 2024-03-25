@@ -122,6 +122,11 @@ public:
         , Logger(logger)
     { }
 
+    TProfiler GetQueueProfiler() const override
+    {
+        return QueueProfiler_;
+    }
+
     void Profile(
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot) override

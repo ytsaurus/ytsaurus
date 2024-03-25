@@ -43,6 +43,7 @@
 namespace NYT::NQueueAgent {
 
 using namespace NApi;
+using namespace NAlertManager;
 using namespace NHydra;
 using namespace NYPath;
 using namespace NYTree;
@@ -58,6 +59,7 @@ using namespace NTracing;
 using namespace NThreading;
 using namespace NLogging;
 using namespace NObjectClient;
+using namespace NProfiling;
 
 using namespace std::placeholders;
 
@@ -315,6 +317,8 @@ public:
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
             Logger))
+        , AlertManager_(CreateAlertManager(Logger, ProfileManager_->GetQueueProfiler(), Invoker_))
+        , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -324,6 +328,7 @@ public:
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
 
         PassExecutor_->Start();
+        AlertManager_->Start();
 
         YT_LOG_INFO("Queue controller started");
     }
@@ -342,7 +347,7 @@ public:
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
             .Item("replicated_table_mapping_row").Value(queueSnapshot->ReplicatedTableMappingRow)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, _1))
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, AlertManager_, _1))
             .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
         .EndMap();
     }
@@ -372,6 +377,8 @@ public:
         DynamicConfig_.Exchange(newConfig);
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
+
+        AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
         YT_LOG_DEBUG(
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -413,6 +420,9 @@ private:
     const TLogger Logger;
     const TPeriodicExecutorPtr PassExecutor_;
     const IQueueProfileManagerPtr ProfileManager_;
+    const IAlertManagerPtr AlertManager_;
+    // TODO(achulkov2, nadya73): Separate trim into separate periodic executor.
+    const IAlertCollectorPtr TrimAlertCollector_;
 
     struct TQueueExport
     {
@@ -509,9 +519,12 @@ private:
                         QueueExports_[name] = {
                             .Executor = executor,
                             .Exporter = New<TQueueExporter>(
+                                name,
                                 ClientDirectory_->GetUnderlyingClientDirectory(),
                                 Invoker_,
-                                Logger.WithTag("ExportName: %v", name)),
+                                CreateAlertCollector(AlertManager_),
+                                ProfileManager_->GetQueueProfiler(),
+                                Logger),
                         };
                     }
 
@@ -576,18 +589,31 @@ private:
             GuardedTrim();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error while trimming queue");
+            TrimAlertCollector_->StageAlert(CreateAlert(
+                NAlerts::EErrorCode::QueueAgentQueueControllerTrimFailed,
+                "Error while trimming queue",
+                /*tags*/ {},
+                ex));
         }
+
+        TrimAlertCollector_->PublishAlerts();
     }
 
     struct TPartitionTrimContext
     {
         int PartitionIndex;
         TError PartitionError;
+        bool IsErrorCritical = true;
 
         //! Signifies that the partition could (and should) be trimmed up to this point.
         std::optional<i64> MinTrimmedRowCount;
         //! Partition will not be trimmed past this point under any circumstances. Overrides the value above.
         std::optional<i64> MaxTrimmedRowCount;
+
+        bool HasCriticalError() const
+        {
+            return !PartitionError.IsOK() && IsErrorCritical;
+        }
 
         explicit operator bool() const
         {
@@ -603,8 +629,9 @@ private:
 
         void Update(const TPartitionTrimContext& other)
         {
-            if (PartitionError.IsOK()) {
+            if (PartitionError.IsOK() || (!HasCriticalError() && other.HasCriticalError())) {
                 PartitionError = other.PartitionError;
+                IsErrorCritical = other.IsErrorCritical;
             }
 
             MinTrimmedRowCount = std::max(MinTrimmedRowCount, other.MinTrimmedRowCount);
@@ -825,16 +852,19 @@ private:
         for (const auto& trimSession : trimSessions) {
             asyncTrimSessions.push_back(trimSession->Run());
         }
-        auto trimSessionErrors = WaitFor(AllSet(asyncTrimSessions))
+        auto trimSessionPotentialErrors = WaitFor(AllSet(asyncTrimSessions))
             .ValueOrThrow();
 
-        for (const auto& [replicaContext, trimSessionError] : Zip(replicaContexts, trimSessionErrors)) {
-            if (!trimSessionError.IsOK()) {
-                YT_LOG_DEBUG(
-                    trimSessionError,
-                    "Unable to trim queue replica due to error (Replica: %v)",
-                    replicaContext.Ref);
+        std::vector<TError> trimSessionErrors;
+        for (const auto& [replicaContext, trimSessionPotentialError] : Zip(replicaContexts, trimSessionPotentialErrors)) {
+            if (!trimSessionPotentialError.IsOK()) {
+                trimSessionErrors.push_back(trimSessionPotentialError << TErrorAttribute("replica", replicaContext.Ref));
             }
+        }
+
+        if (!trimSessionErrors.empty()) {
+            THROW_ERROR_EXCEPTION("Error trimming %v queue replicas", trimSessionErrors.size())
+                << trimSessionErrors;
         }
     }
 
@@ -939,11 +969,17 @@ private:
                         "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
                         consumerSnapshot->Row.Ref);
                 }
-                VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = it->second;
+                const auto& consumerSubSnapshot = it->second;
+                if (!consumerSubSnapshot->Error.IsOK()) {
+                    THROW_ERROR_EXCEPTION(
+                        "Trimming iteration skipped due to erroneous queue sub-snapshot in registered vital consumer %Qv",
+                        consumerSnapshot->Row.Ref)
+                        << consumerSubSnapshot->Error;
+                }
+                VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = consumerSubSnapshot;
             }
 
             if (VitalConsumerSubSnapshots.empty()) {
-                // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
                 THROW_ERROR_EXCEPTION(
                     "Attempted trimming iteration on queue %Qv with no vital consumers",
                     QueueRef);
@@ -983,10 +1019,13 @@ private:
                 const auto& replicaPartitionSnapshot = Context.ReplicaSnapshot->PartitionSnapshots[partitionIndex];
 
                 if (replicaPartitionSnapshot->TabletState != NTabletClient::ETabletState::Mounted) {
-                    partitionContext.Update({.PartitionError = TError(
-                        "Not trimming partition %v since its tablet is in state %Qlv and is not mounted",
-                        partitionIndex,
-                        replicaPartitionSnapshot->TabletState)});
+                    partitionContext.Update({
+                        .PartitionError = TError(
+                            "Not trimming partition %v since its tablet is in state %Qlv and is not mounted",
+                            partitionIndex,
+                            replicaPartitionSnapshot->TabletState),
+                        .IsErrorCritical = false,
+                    });
                     continue;
                 }
 
@@ -1161,13 +1200,16 @@ private:
 
         void ReportErrors()
         {
+            std::vector<TError> partitionTrimErrors;
             for (const auto& partitionContext : Context.Partitions) {
-                if (!partitionContext) {
-                    YT_LOG_DEBUG(
-                        partitionContext.PartitionError,
-                        "Failed to trim partition (PartitionIndex: %v)",
-                        partitionContext.PartitionIndex);
+                if (partitionContext.HasCriticalError()) {
+                    partitionTrimErrors.push_back(partitionContext.PartitionError << TErrorAttribute("partition_index", partitionContext.PartitionIndex));
                 }
+            }
+
+            if (!partitionTrimErrors.empty()) {
+                THROW_ERROR_EXCEPTION("Failed to trim %v partitions", partitionTrimErrors.size())
+                    << partitionTrimErrors;
             }
         }
     };

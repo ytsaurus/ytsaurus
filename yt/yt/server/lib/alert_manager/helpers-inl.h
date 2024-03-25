@@ -9,14 +9,10 @@ namespace NYT::NAlertManager {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class EErrorCode>
-TAlert CreateAlert(const TError& error)
+    requires std::is_enum_v<EErrorCode>
+TAlert CreateAlert(EErrorCode errorCode, TString description, NProfiling::TTagList tags, TError error)
 {
-    auto category = static_cast<EErrorCode>(static_cast<int>(error.GetCode()));
-
-    static const auto possibleAlertErrorCodes = TEnumTraits<EErrorCode>::GetDomainValues();
-    YT_VERIFY(std::find(possibleAlertErrorCodes.begin(), possibleAlertErrorCodes.end(), category) != possibleAlertErrorCodes.end());
-
-    return TAlert{FormatEnum(category), error};
+    return {errorCode, FormatEnum(errorCode), std::move(description), std::move(tags), std::move(error)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

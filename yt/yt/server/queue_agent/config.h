@@ -114,6 +114,8 @@ public:
 
     bool EnableQueueStaticExport;
 
+    NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

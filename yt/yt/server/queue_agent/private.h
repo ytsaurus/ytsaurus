@@ -33,6 +33,9 @@ YT_DEFINE_ERROR_ENUM(
 
     ((QueueAgentPassFailed)                                       (3025))
 
+    ((QueueAgentQueueControllerStaticExportFailed)                (3035))
+    ((QueueAgentQueueControllerTrimFailed)                        (3036))
+
     ((QueueAgentShardingManagerPassFailed)                        (3050))
 );
 

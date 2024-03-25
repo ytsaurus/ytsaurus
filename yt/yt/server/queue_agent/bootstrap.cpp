@@ -176,10 +176,11 @@ void TBootstrap::DoRun()
 
     DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
 
-    AlertManager_ = CreateAlertManager(ControlInvoker_);
+    AlertManager_ = CreateAlertManager(QueueAgentLogger, TProfiler{}, ControlInvoker_);
 
     QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
         ControlInvoker_,
+        CreateAlertCollector(AlertManager_),
         DynamicState_,
         MemberClient_,
         DiscoveryClient_,
@@ -192,13 +193,15 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         DynamicState_,
         ElectionManager_,
+        CreateAlertCollector(AlertManager_),
         AgentId_);
 
     CypressSynchronizer_ = CreateCypressSynchronizer(
         Config_->CypressSynchronizer,
         ControlInvoker_,
         DynamicState_,
-        ClientDirectory_);
+        ClientDirectory_,
+        CreateAlertCollector(AlertManager_));
 
     DynamicConfigManager_->Start();
 
@@ -262,10 +265,6 @@ void TBootstrap::DoRun()
     UpdateCypressNode();
 
     YT_UNUSED_FUTURE(MemberClient_->Start());
-
-    AlertManager_->SubscribePopulateAlerts(BIND(&IQueueAgentShardingManager::PopulateAlerts, QueueAgentShardingManager_));
-    AlertManager_->SubscribePopulateAlerts(BIND(&TQueueAgent::PopulateAlerts, QueueAgent_));
-    AlertManager_->SubscribePopulateAlerts(BIND(&ICypressSynchronizer::PopulateAlerts, CypressSynchronizer_));
 
     ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
 

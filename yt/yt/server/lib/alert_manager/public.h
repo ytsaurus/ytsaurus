@@ -8,6 +8,7 @@ namespace NYT::NAlertManager {
 
 DECLARE_REFCOUNTED_STRUCT(IAlertManager)
 DECLARE_REFCOUNTED_CLASS(TAlertManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(IAlertCollector)
 
 ////////////////////////////////////////////////////////////////////////////////
 
