@@ -135,6 +135,10 @@ class ResponseStream(Iterator):
                 action(from_delete)
             self._is_closed = True
 
+    @property
+    def closed(self):
+        return self._is_closed
+
 
 class EmptyResponseStream(Iterator):
     def read(self, length=None):
@@ -148,6 +152,10 @@ class EmptyResponseStream(Iterator):
 
     def close(self):
         pass
+
+    @property
+    def closed(self):
+        return True
 
     def __iter__(self):
         return self

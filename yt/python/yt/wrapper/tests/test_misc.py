@@ -912,9 +912,11 @@ class TestResponseStream(object):
 
         assert stream.read(8) == s[202:210]
 
+        assert not stream.closed
         chunks = []
         for chunk in stream.chunk_iter():
             chunks.append(chunk)
+        assert stream.closed
 
         assert string_iterator.process_error_called
 
@@ -924,6 +926,7 @@ class TestResponseStream(object):
 
         stream.close()
         assert len(close_list) > 0
+        assert stream.closed
 
     @authors("asaitgalin")
     def test_empty_response_stream(self):
@@ -931,6 +934,8 @@ class TestResponseStream(object):
         assert stream.read() == b""
         assert len([x for x in stream.chunk_iter()]) == 0
         assert stream.readline() == b""
+
+        assert stream.closed
 
         values = []
         for value in stream:
