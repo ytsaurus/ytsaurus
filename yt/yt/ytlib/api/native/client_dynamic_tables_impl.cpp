@@ -321,9 +321,9 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
 
     auto& index = *(query.WithIndex);
 
-    auto indexTableInfo = WaitFor(cache->GetTableInfo(index.Path))
+    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
         .ValueOrThrow();
-    auto tableInfo = WaitFor(cache->GetTableInfo(query.Table.Path))
+    auto tableInfo = WaitForFast(cache->GetTableInfo(query.Table.Path))
         .ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
@@ -331,15 +331,34 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
 
     const auto& indexTableSchema = *indexTableInfo->Schemas[ETableSchemaKind::Primary];
     const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Primary];
+    const auto& indices = tableInfo->Indices;
 
-    const TColumnSchema* unfoldedColumn = nullptr;
-    ValidateIndexSchema(tableSchema, indexTableSchema, &unfoldedColumn);
+    const TColumnSchema* unfoldedColumn{};
+    auto it = std::find_if(indices.begin(), indices.end(), [&] (const TIndexInfo& index) {
+        return index.TableId == indexTableInfo->TableId;
+    });
+
+    if (it == indices.end()) {
+        ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
+    } else {
+        switch (it->Kind) {
+            case ESecondaryIndexKind::FullSync:
+                ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
+                break;
+
+            case ESecondaryIndexKind::Unfolding:
+                unfoldedColumn = &FindUnfoldingColumnAndValidate(tableSchema, indexTableSchema);
+                break;
+
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", it->Kind);
+        }
+    }
 
     index.Alias = SecondaryIndexAlias;
-    const auto& alias = query.Table.Alias;
 
     if (unfoldedColumn) {
-        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), alias);
+        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), query.Table.Alias);
         NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
 
         query.WherePredicate = NAst::TListContainsTrasformer(
@@ -368,8 +387,14 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
 
         YT_ASSERT(indexColumn && indexColumn->SortOrder());
 
-        auto* indexReference = head->New<NAst::TReferenceExpression>(NullSourceLocation, indexColumn->Name(), index.Alias);
-        auto* tableReference = head->New<NAst::TReferenceExpression>(NullSourceLocation, tableColumn.Name(), alias);
+        auto* indexReference = head->New<NAst::TReferenceExpression>(
+            NullSourceLocation,
+            indexColumn->Name(),
+            index.Alias);
+        auto* tableReference = head->New<NAst::TReferenceExpression>(
+            NullSourceLocation,
+            tableColumn.Name(),
+            query.Table.Alias);
 
         indexJoinColumns.push_back(indexReference);
         tableJoinColumns.push_back(tableReference);
@@ -378,7 +403,7 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
     query.WherePredicate = NAst::TTableReferenceReplacer(
         head,
         std::move(replacedColumns),
-        alias,
+        query.Table.Alias,
         index.Alias)
         .Visit(query.WherePredicate);
 

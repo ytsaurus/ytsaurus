@@ -57,6 +57,7 @@
 
 #include <yt/yt/core/compression/codec.h>
 
+#include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/misc/sliding_window.h>
 
 namespace NYT::NApi::NNative {
@@ -962,7 +963,6 @@ private:
                     << TError(ex);
             }
         }
-
         void GuardedSubmitRows()
         {
             auto transaction = Transaction_.Lock();
@@ -1206,8 +1206,6 @@ private:
             }
 
             int indexTableCount = tableInfo->Indices.size();
-            const auto& tableSchema = *tableInfo->Schemas[ETableSchemaKind::Write];
-
             std::vector<TFuture<TTableMountInfoPtr>> indexTableInfoFutures;
             indexTableInfoFutures.reserve(indexTableCount);
             for (const auto& indexInfo : tableInfo->Indices) {
@@ -1218,119 +1216,39 @@ private:
 
             auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
-
-            for (const auto& column : tableSchema.Columns()) {
-                NameTable_->GetIdOrRegisterName(column.Name());
-            }
-
-            std::vector<TNameTableToSchemaIdMapping> writeIdMappings(indexTableCount);
-            std::vector<TNameTableToSchemaIdMapping> deleteIdMappings(indexTableCount);
-            std::vector<const TColumnSchema*> unfoldedColumns(indexTableCount, nullptr);
-
-            for (int index = 0; index < indexTableCount; ++index) {
-                if (tableInfo->Indices[index].Kind == ESecondaryIndexKind::Unfolding) {
-                    const TColumnSchema* column = nullptr;
-                    ValidateIndexSchema(
-                        tableSchema,
-                        *indexTableInfos[index]->Schemas[ETableSchemaKind::Primary],
-                        &column);
-                    unfoldedColumns[index] = column;
-                } else {
-                    ValidateIndexSchema(
-                        tableSchema,
-                        *indexTableInfos[index]->Schemas[ETableSchemaKind::Primary]);
-                }
-                writeIdMappings[index] = BuildColumnIdMapping(
-                    *indexTableInfos[index]->Schemas[ETableSchemaKind::Write],
-                    NameTable_,
-                    /*allowMissingKeyColumns*/ true);
-                deleteIdMappings[index] = BuildColumnIdMapping(
-                    *indexTableInfos[index]->Schemas[ETableSchemaKind::Delete],
-                    NameTable_,
-                    /*allowMissingKeyColumns*/ true);
-            }
-
-            struct TSecondaryIndicesLookupBufferTag { };
-            auto rowBuffer = New<TRowBuffer>(TSecondaryIndicesLookupBufferTag());
-
-            const auto& lookupSchema = tableInfo->Schemas[ETableSchemaKind::Lookup];
-            const auto& lookupIdMapping = transaction->GetColumnIdMapping(
-                tableInfo,
+            auto secondaryIndexModifier = TSecondaryIndexModifier(
+                tableInfo->Schemas[ETableSchemaKind::Write],
                 NameTable_,
-                ETableSchemaKind::Lookup,
-                /*allowMissingKeyColumns*/ false);
+                Modifications_,
+                tableInfo,
+                std::move(indexTableInfos),
+                Logger);
 
-            std::vector<TUnversionedRow> lookupKeys;
-            lookupKeys.reserve(Modifications_.Size());
-            for (const auto& modification : Modifications_) {
-                auto capturedRow = rowBuffer->CaptureAndPermuteRow(
-                    TUnversionedRow(modification.Row),
-                    *lookupSchema,
-                    lookupSchema->GetKeyColumnCount(),
-                    lookupIdMapping,
-                    /*columnPresenceBuffer*/ nullptr);
-                lookupKeys.push_back(capturedRow);
-            }
+            auto lookupKeys = secondaryIndexModifier.GetLookupKeys();
 
-            auto keyRange = MakeSharedRange(std::move(lookupKeys), std::move(rowBuffer));
-
-            TLookupRowsOptions lookupRowsOptions;
-            lookupRowsOptions.KeepMissingRows = true;
-
+            TLookupRowsOptions options;
+            options.ColumnFilter = TColumnFilter(secondaryIndexModifier.GetPositionToTableIdMapping());
             auto lookupRows = WaitForUnique(transaction->LookupRows(
                 Path_,
                 NameTable_,
-                keyRange,
-                lookupRowsOptions))
-                .ValueOrThrow();
+                MakeSharedRange(std::move(lookupKeys)),
+                options))
+                .ValueOrThrow().Rowset->GetRows();
+
+            secondaryIndexModifier.SetInitialAndResultingRows(std::move(lookupRows));
+
+            auto modifyRowsOptions = Options_;
+            modifyRowsOptions.SequenceNumber.reset();
 
             for (int index = 0; index < indexTableCount; ++index) {
-                auto secondaryIndexPath = FromObjectId(tableInfo->Indices[index].TableId);
-                const auto& indexSchema = *indexTableInfos[index]->Schemas[ETableSchemaKind::Primary];
-                auto secondaryNameTable = TNameTable::FromSchema(indexSchema);
-
-                std::optional<TUnversionedValue> empty;
-                if (auto id = secondaryNameTable->FindId(EmptyValueColumnName)) {
-                    empty = MakeUnversionedNullValue(*id);
-                }
-
-                TSharedRange<TRowModification> indexModifications;
-                switch (auto kind = tableInfo->Indices[index].Kind) {
-                    case ESecondaryIndexKind::FullSync: {
-                        indexModifications = GetFullSyncIndexModifications(
-                            Modifications_,
-                            lookupRows.Rowset->GetRows(),
-                            writeIdMappings[index],
-                            deleteIdMappings[index],
-                            indexSchema,
-                            empty);
-                        break;
-                    }
-                    case ESecondaryIndexKind::Unfolding: {
-                        int unfoldedKeyPosition = indexSchema.GetColumnIndex(*unfoldedColumns[index]);
-                        indexModifications = GetUnfoldedIndexModifications(
-                            Modifications_,
-                            lookupRows.Rowset->GetRows(),
-                            writeIdMappings[index],
-                            deleteIdMappings[index],
-                            indexSchema,
-                            empty,
-                            unfoldedKeyPosition);
-                        break;
-                    }
-                    default: {
-                        THROW_ERROR_EXCEPTION("Unsupported secondary index kind %Qlv", kind);
-                    }
-                }
-
                 transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
                     transaction.Get(),
                     Connection_,
-                    secondaryIndexPath,
-                    std::move(secondaryNameTable),
+                    FromObjectId(tableInfo->Indices[index].TableId),
+                    NameTable_,
                     HunkMemoryPool_,
-                    std::move(indexModifications),
-                    Options_));
+                    secondaryIndexModifier.ProduceModificationsForIndex(index),
+                    modifyRowsOptions));
             }
         }
     };
