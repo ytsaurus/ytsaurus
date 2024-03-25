@@ -56,6 +56,7 @@ public:
     {
         std::unique_lock guard(Mutex_);
         Data_.push_back(std::move(values));
+        CondVar_.notify_all();
     }
 
     void Stop()
