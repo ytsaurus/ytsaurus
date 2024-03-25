@@ -28,10 +28,26 @@ using namespace NYT;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYT::TStringBuilder AllProgramNames;
+
 class TAllProgram
     : public TProgram
 {
+public:
+    TAllProgram()
+    {
+        // Fake option just to show in --help output.
+        Opts_
+            .AddFreeArgBinding("program-name", ProgramName_, "Program name to run");
+        Opts_
+            .SetFreeArgsMax(Opts_.UNLIMITED_ARGS);
+        Opts_
+            .AddSection("Programs", AllProgramNames.Flush());
+    }
+
 private:
+    TString ProgramName_;
+
     void DoRun(const NLastGetopt::TOptsParseResult& /*result*/) override
     {
         Cerr << "Program " << Argv0_ << " is not known" << Endl;
@@ -45,10 +61,21 @@ void TryProgram(int argc, const char** argv, const TString& nameSuffix)
     if (TStringBuf(argv[0]).EndsWith("ytserver-" + nameSuffix)) {
         T().Run(argc, argv);
     }
+    AllProgramNames.AppendFormat("ytserver-%v\n", nameSuffix);
 }
 
 int main(int argc, const char** argv)
 {
+    // Shift arguments to handle "program-name" specified in the first argument.
+    // Example: ./ytserver-all ytserver-master --help
+    if (argc >= 2 &&
+        TStringBuf(argv[0]).EndsWith("ytserver-all") &&
+        TStringBuf(argv[1]).StartsWith("ytserver-"))
+    {
+        argc--;
+        argv++;
+    }
+
     TryProgram<NCellMaster::TCellMasterProgram>(argc, argv, "master");
     TryProgram<NClusterClock::TClusterClockProgram>(argc, argv, "clock");
     TryProgram<NHttpProxy::THttpProxyProgram>(argc, argv, "http-proxy");
