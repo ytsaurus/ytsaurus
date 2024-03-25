@@ -1,6 +1,2 @@
-[nose.plugins.0.10]
-flaky = flaky.flaky_nose_plugin:FlakyPlugin
-
 [pytest11]
 flaky = flaky.flaky_pytest_plugin
-

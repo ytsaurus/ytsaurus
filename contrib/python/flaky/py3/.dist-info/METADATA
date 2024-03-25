@@ -1,32 +1,32 @@
 Metadata-Version: 2.1
 Name: flaky
-Version: 3.7.0
-Summary: Plugin for nose or pytest that automatically reruns flaky tests.
+Version: 3.8.0
+Summary: Plugin for pytest that automatically reruns flaky tests.
 Home-page: https://github.com/box/flaky
 Author: Box
 Author-email: oss@box.com
 License: Apache Software License, Version 2.0, http://www.apache.org/licenses/LICENSE-2.0
-Keywords: nose pytest plugin flaky tests rerun retry
-Platform: UNKNOWN
+Keywords: pytest plugin flaky tests rerun retry
 Classifier: Development Status :: 4 - Beta
 Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: Apache Software License
 Classifier: Topic :: Software Development :: Testing
 Classifier: Programming Language :: Python
-Classifier: Programming Language :: Python :: 2
-Classifier: Programming Language :: Python :: 2.7
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.4
 Classifier: Programming Language :: Python :: 3.5
 Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3 :: Only
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Operating System :: OS Independent
 Classifier: Operating System :: POSIX
 Classifier: Operating System :: Microsoft :: Windows
 Classifier: Operating System :: MacOS :: MacOS X
-Requires-Python: >=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*
+Requires-Python: >=3.5
+License-File: LICENSE
+License-File: AUTHORS.rst
 
 flaky
 =====
@@ -34,8 +34,8 @@ flaky
 .. image:: http://opensource.box.com/badges/stable.svg
     :target: http://opensource.box.com/badges
 
-.. image:: https://travis-ci.org/box/flaky.svg?branch=master
-    :target: https://travis-ci.org/box/flaky
+.. image:: https://github.com/box/flaky/actions/workflows/tox.yml/badge.svg?branch=master&event=push
+    :target: https://github.com/box/flaky/actions/workflows/tox.yml
 
 .. image:: https://img.shields.io/pypi/v/flaky.svg
     :target: https://pypi.python.org/pypi/flaky
@@ -43,7 +43,7 @@ flaky
 About
 -----
 
-Flaky is a plugin for nose or pytest that automatically reruns flaky tests.
+Flaky is a plugin for pytest that automatically reruns flaky tests.
 
 Ideally, tests reliably pass or fail, but sometimes test fixtures must rely on components that aren't 100%
 reliable. With flaky, instead of removing those tests or marking them to @skip, they can be automatically
@@ -134,25 +134,19 @@ Flaky will run ``test_something`` twice, but will only run ``test_something_else
 It can also be used to incur a delay between test retries:
 
 .. code-block:: python
-
+    
     import time
-
+    
     def delay_rerun(*args):
         time.sleep(1)
         return True
-
+    
     @flaky(rerun_filter=delay_rerun)
     def test_something_else():
         ...
 
 Activating the plugin
 ~~~~~~~~~~~~~~~~~~~~~
-
-Like any nose plugin, flaky can be activated via the command line:
-
-.. code-block:: console
-
-    nosetests --with-flaky
 
 With pytest, flaky will automatically run. It can, however be disabled via the command line:
 
@@ -182,7 +176,7 @@ Pass ``--max-runs=MAX_RUNS`` and/or ``--min-passes=MIN_PASSES`` to control the b
 is specified. Flaky decorators on individual tests will override these defaults.
 
 
-*Additional usage examples are in the code - see test/test_nose/test_nose_example.py and test/test_pytest/test_pytest_example.py*
+*Additional usage examples are in the code - see test/test_pytest/test_pytest_example.py*
 
 Installation
 ------------
@@ -198,8 +192,6 @@ Compatibility
 -------------
 
 Flaky is tested with the following test runners and options:
-
-- Nosetests. Doctests cannot be marked flaky.
 
 - Py.test. Works with ``pytest-xdist`` but not with the ``--boxed`` option. Doctests cannot be marked flaky.
 
@@ -251,5 +243,3 @@ Copyright and License
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-
-

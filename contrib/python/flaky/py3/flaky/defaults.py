@@ -1,5 +1,3 @@
-# coding: utf-8
-
 from flaky.names import FlakyNames
 
 
@@ -11,7 +9,7 @@ def _true(*args):
     return True
 
 
-class FilterWrapper(object):
+class FilterWrapper:
     """
     Filter function wrapper. Expected to be called as though it's a filter
     function. Since @flaky adds attributes to a decorated class, Python wants

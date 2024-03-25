@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(3.7.0)
+VERSION(3.8.0)
 
 LICENSE(Apache-2.0)
 
@@ -20,11 +20,9 @@ PY_SRCS(
     flaky/_flaky_plugin.py
     flaky/defaults.py
     flaky/flaky_decorator.py
-    flaky/flaky_nose_plugin.py
     flaky/flaky_pytest_plugin.py
     flaky/multiprocess_string_io.py
     flaky/names.py
-    flaky/utils.py
 )
 
 RESOURCE_FILES(

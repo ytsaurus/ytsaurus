@@ -1,11 +1,6 @@
-# coding: utf-8
-
-from __future__ import unicode_literals
-
-from _pytest.runner import call_runtest_hook  # pylint:disable=import-error
+from _pytest import runner  # pylint:disable=import-error
 
 from flaky._flaky_plugin import _FlakyPlugin
-from flaky.utils import ensure_unicode_string
 
 
 def _get_worker_output(item):
@@ -17,10 +12,10 @@ def _get_worker_output(item):
     return worker_output
 
 
-class FlakyXdist(object):
+class FlakyXdist:
 
     def __init__(self, plugin):
-        super(FlakyXdist, self).__init__()
+        super().__init__()
         self._plugin = plugin
 
     def pytest_testnodedown(self, node, error):
@@ -135,7 +130,23 @@ class FlakyPlugin(_FlakyPlugin):
         :type log:
             `bool`
         """
-        call = call_runtest_hook(item, when, **kwds)
+        def _call_runtest_hook(item, when, **kwds):
+            if when == "setup":
+                ihook = item.ihook.pytest_runtest_setup
+            elif when == "call":
+                ihook = item.ihook.pytest_runtest_call
+            elif when == "teardown":
+                ihook = item.ihook.pytest_runtest_teardown
+            else:
+                assert False, f"Unhandled runtest hook case: {when}"
+            reraise = (runner.Exit,)
+            if not item.config.getoption("usepdb", False):
+                reraise += (KeyboardInterrupt,)
+            return runner.CallInfo.from_call(
+                lambda: ihook(item=item, **kwds), when=when, reraise=reraise
+            )
+
+        call = _call_runtest_hook(item, when, **kwds)
         self._call_infos[item][when] = call
         hook = item.ihook
         report = hook.pytest_runtest_makereport(item=item, call=call)
@@ -393,14 +404,14 @@ class FlakyPlugin(_FlakyPlugin):
         printed by the plugin's report method.
         """
         self._stream.writelines([
-            ensure_unicode_string(test_callable_name),
+            str(test_callable_name),
             message,
             '\n\t',
-            ensure_unicode_string(err[0]),
+            str(err[0]),
             '\n\t',
-            ensure_unicode_string(err[1]),
+            str(err[1]),
             '\n\t',
-            ensure_unicode_string(err[2]),
+            str(err[2]),
             '\n',
         ])
 

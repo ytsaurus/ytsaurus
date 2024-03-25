@@ -1,11 +1,7 @@
-# coding: utf-8
-
-from __future__ import unicode_literals
-
 import multiprocessing
 
 
-class MultiprocessingStringIO(object):
+class MultiprocessingStringIO:
     """
     Provide a StringIO-like interface to the multiprocessing ListProxy. The
     multiprocessing ListProxy needs to be instantiated before the flaky plugin

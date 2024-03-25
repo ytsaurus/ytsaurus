@@ -1,15 +1,9 @@
-# coding: utf-8
-
-from __future__ import unicode_literals
-
 from flaky.defaults import default_flaky_attributes
 
 
 def flaky(max_runs=None, min_passes=None, rerun_filter=None):
     """
-    Decorator used to mark a test as "flaky". When used in conjuction with
-    the flaky nosetests plugin, will cause the decorated test to be retried
-    until min_passes successes are achieved out of up to max_runs test runs.
+    Decorator used to mark a test as "flaky".
 
     :param max_runs:
         The maximum number of times the decorated test will be run.
@@ -27,9 +21,9 @@ def flaky(max_runs=None, min_passes=None, rerun_filter=None):
             Information about the test failure (from sys.exc_info())
         - name (`unicode`):
             The test name
-        - test (:class:`nose.case.Test` or :class:`Function`):
+        - test (:class:`Function`):
             The test that has raised an error
-        - plugin (:class:`FlakyNosePlugin` or :class:`FlakyPytestPlugin`):
+        - plugin (:class:`FlakyPytestPlugin`):
             The flaky plugin. Has a :prop:`stream` that can be written to in
             order to add to the Flaky Report.
     :type rerun_filter:

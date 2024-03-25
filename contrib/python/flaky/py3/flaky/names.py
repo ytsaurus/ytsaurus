@@ -1,9 +1,4 @@
-# coding: utf-8
-
-from __future__ import unicode_literals
-
-
-class FlakyNames(object):
+class FlakyNames:
     """
     Names of flaky attributes that will be added to flaky tests
     """
@@ -25,5 +20,4 @@ class FlakyNames(object):
         )
 
     def __iter__(self):
-        for attr in self.items():
-            yield attr
+        yield from self.items()
