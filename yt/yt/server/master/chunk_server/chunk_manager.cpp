@@ -5635,6 +5635,7 @@ private:
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(
         const std::vector<TChunkId>& chunkIds,
+        const TColumnFilter& columns,
         const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
         std::vector<NRecords::TChunkReplicasKey> keys;
@@ -5648,7 +5649,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TChunkReplicasKey>(keys)
+            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columns)
             .Apply(BIND([extractReplicas] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
                 std::vector<TSequoiaChunkReplica> replicas;
                 for (const auto& replicaRecord : replicaRecords) {
@@ -5668,14 +5669,20 @@ private:
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
     {
-        return DoGetSequoiaReplicas({chunkId}, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
+        YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);
+        TColumnFilter filter({*idMapping.ChunkId, *idMapping.LastSeenReplicas});
+        return DoGetSequoiaReplicas({chunkId}, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.LastSeenReplicas;
         });
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const
     {
-        return DoGetSequoiaReplicas(chunkIds, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
+        YT_VERIFY(idMapping.ChunkId && idMapping.Replicas);
+        TColumnFilter filter({*idMapping.ChunkId, *idMapping.Replicas});
+        return DoGetSequoiaReplicas(chunkIds, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.Replicas;
         });
     }
