@@ -24,8 +24,6 @@ struct ICypressSynchronizer
     virtual void OnDynamicConfigChanged(
         const TCypressSynchronizerDynamicConfigPtr& oldConfig,
         const TCypressSynchronizerDynamicConfigPtr& newConfig) = 0;
-
-    virtual void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressSynchronizer)
@@ -34,7 +32,8 @@ ICypressSynchronizerPtr CreateCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     NQueueClient::TDynamicStatePtr dynamicState,
-    NHiveClient::TClientDirectoryPtr clientDirectory);
+    NHiveClient::TClientDirectoryPtr clientDirectory,
+    NAlertManager::IAlertCollectorPtr alertCollector);
 
 ////////////////////////////////////////////////////////////////////////////////
 

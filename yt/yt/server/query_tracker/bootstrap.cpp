@@ -149,7 +149,7 @@ void TBootstrap::DoRun()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    AlertManager_ = CreateAlertManager(ControlInvoker_);
+    AlertManager_ = CreateAlertManager(QueryTrackerLogger, TProfiler{}, ControlInvoker_);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -202,11 +202,11 @@ void TBootstrap::DoRun()
         DynamicConfigManager_->GetConfig()->QueryTracker,
         SelfAddress_,
         ControlInvoker_,
+        CreateAlertCollector(AlertManager_),
         NativeClient_,
         Config_->Root,
         Config_->MinRequiredStateVersion);
 
-    AlertManager_->SubscribePopulateAlerts(BIND(&IQueryTracker::PopulateAlerts, QueryTracker_));
     AlertManager_->Start();
 
     QueryTracker_->Start();

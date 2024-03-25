@@ -71,14 +71,16 @@ public:
         TCypressSynchronizerDynamicConfigPtr dynamicConfigSnapshot,
         TDynamicStatePtr dynamicState,
         TClientDirectoryPtr clientDirectory,
+        IAlertCollectorPtr alertCollector,
         const NLogging::TLogger& logger)
         : DynamicConfigSnapshot_(std::move(dynamicConfigSnapshot))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
+        , AlertCollector_(std::move(alertCollector))
         , Logger(logger)
     { }
 
-    std::vector<TAlert> Build()
+    void Build()
     {
         if (DynamicConfigSnapshot_->Policy == ECypressSynchronizerPolicy::Polling && (DynamicConfigSnapshot_->PollReplicatedObjects || DynamicConfigSnapshot_->WriteReplicatedTableMapping)) {
             THROW_ERROR_EXCEPTION("Cypress synchronizer cannot work with replicated objects in polling mode");
@@ -101,14 +103,13 @@ public:
         DeleteRows();
         FetchAttributes();
         WriteRows();
-
-        return Alerts_;
     }
 
 private:
     const TCypressSynchronizerDynamicConfigPtr DynamicConfigSnapshot_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;
+    const IAlertCollectorPtr AlertCollector_;
     const NLogging::TLogger Logger;
 
     using TObjectMap = THashMap<TString, std::vector<TObject>>;
@@ -257,8 +258,6 @@ private:
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
 
-    std::vector<TAlert> Alerts_;
-
     void ListObjectChanges()
     {
         switch (DynamicConfigSnapshot_->Policy) {
@@ -295,12 +294,15 @@ private:
 
         // Collect all objects for which the current Cypress revision is larger than the stored revision.
 
-        std::vector<TError> clusterRevisionFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                clusterRevisionFetchingAlerts.push_back(GetCumulativeError(batchRsp) << TErrorAttribute("cluster", cluster));
+                AlertCollector_->StageAlert(CreateAlert(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                    "Error fetching object revisions from clusters",
+                    /*tags*/ {{"cluster", cluster}},
+                    GetCumulativeError(batchRsp)));
                 continue;
             }
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
@@ -336,14 +338,6 @@ private:
                     ClusterToModifiedObjects_[cluster].push_back(object);
                 }
             }
-        }
-
-        if (!clusterRevisionFetchingAlerts.empty()) {
-            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
-                TError(
-                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
-                    "Error fetching object revisions from clusters")
-                    << clusterRevisionFetchingAlerts));
         }
     }
 
@@ -390,27 +384,22 @@ private:
         auto combinedResults = WaitFor(AllSet(asyncResults))
             .ValueOrThrow();
 
-        std::vector<TError> clusterRevisionFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& rspOrError = combinedResults[index];
             const auto& cluster = DynamicConfigSnapshot_->Clusters[index];
 
             if (!rspOrError.IsOK()) {
-                clusterRevisionFetchingAlerts.push_back(rspOrError << TErrorAttribute("cluster", cluster));
+                AlertCollector_->StageAlert(CreateAlert(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
+                    "Error retrieving queue agent object revisions from clusters",
+                    /*tags*/ {{"cluster", cluster}},
+                    rspOrError));
                 continue;
             }
 
             auto cypressWatchlist = ConvertTo<TCypressWatchlist>(TYsonString(rspOrError.Value()->value()));
 
             InferChangesFromClusterWatchlist(cluster, std::move(cypressWatchlist));
-        }
-
-        if (!clusterRevisionFetchingAlerts.empty()) {
-            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
-                TError(
-                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchObjectRevisions,
-                    "Error retrieving queue agent object revisions from clusters")
-                    << clusterRevisionFetchingAlerts));
         }
     }
 
@@ -590,12 +579,15 @@ private:
 
         // Create rows for the modified objects with new attribute values and an increased row revision.
 
-        std::vector<TError> clusterAttributeFetchingAlerts;
         for (int index = 0; index < std::ssize(combinedResults); ++index) {
             const auto& batchRsp = combinedResults[index];
             const auto& cluster = clusters[index];
             if (!batchRsp.IsOK()) {
-                clusterAttributeFetchingAlerts.push_back(GetCumulativeError(batchRsp) << TErrorAttribute("cluster", cluster));
+                AlertCollector_->StageAlert(CreateAlert(
+                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
+                    "Error fetching attributes from clusters",
+                    /*tags*/ {{"cluster", cluster}},
+                    GetCumulativeError(batchRsp)));
                 continue;
             }
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
@@ -658,14 +650,6 @@ private:
                     RowsWithErrors_.AppendReplicatedObjectWithError(object, ex);
                 }
             }
-        }
-
-        if (!clusterAttributeFetchingAlerts.empty()) {
-            Alerts_.push_back(CreateAlert<NAlerts::EErrorCode>(
-                TError(
-                    NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
-                    "Error fetching attributes from clusters")
-                    << clusterAttributeFetchingAlerts));
         }
     }
 
@@ -748,12 +732,14 @@ public:
         TCypressSynchronizerConfigPtr config,
         IInvokerPtr controlInvoker,
         TDynamicStatePtr dynamicState,
-        TClientDirectoryPtr clientDirectory)
+        TClientDirectoryPtr clientDirectory,
+        IAlertCollectorPtr alertCollector)
         : Config_(std::move(config))
         , DynamicConfig_(New<TCypressSynchronizerDynamicConfig>())
         , ControlInvoker_(std::move(controlInvoker))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
+        , AlertCollector_(std::move(alertCollector))
         , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
@@ -790,9 +776,12 @@ public:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
+        auto finalizePass = Finally([&] {
+            AlertCollector_->PublishAlerts();
+        });
+
         if (!DynamicConfig_->Enable) {
             YT_LOG_DEBUG("Pass skipped");
-            Alerts_.clear();
             return;
         }
 
@@ -803,22 +792,22 @@ public:
 
         YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
         try {
-            auto alerts = TCypressSynchronizerPassSession(
+            TCypressSynchronizerPassSession(
                 // NB: We need to make a copy so that the config does not change during context-switches within the pass session.
                 dynamicConfigSnapshot,
                 DynamicState_,
                 ClientDirectory_,
+                AlertCollector_,
                 Logger.WithTag("PassIndex: %v", PassIndex_))
                 .Build();
             PassError_ = TError();
-            Alerts_.swap(alerts);
         } catch (const std::exception& ex) {
             PassError_ = TError(ex);
-            auto alert = TError(
+            AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
-                "Error performing Cypress synchronizer pass")
-                << TError(ex);
-            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
+                "Error performing Cypress synchronizer pass",
+                /*tags*/ {},
+                ex));
         }
 
         YT_LOG_DEBUG("Pass finished (PassIndex: %v)", PassIndex_);
@@ -840,21 +829,13 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
-    void PopulateAlerts(std::vector<TAlert>* alerts) const override
-    {
-        WaitFor(
-            BIND(&TCypressSynchronizer::DoPopulateAlerts, MakeStrong(this), alerts)
-                .AsyncVia(ControlInvoker_)
-                .Run())
-            .ThrowOnError();
-    }
-
 private:
     const TCypressSynchronizerConfigPtr Config_;
     TCypressSynchronizerDynamicConfigPtr DynamicConfig_;
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;
+    const IAlertCollectorPtr AlertCollector_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
@@ -867,8 +848,6 @@ private:
     //! Index of the current pass iteration.
     i64 PassIndex_ = -1;
 
-    std::vector<TAlert> Alerts_;
-
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
@@ -880,13 +859,6 @@ private:
             .Item("pass_error").Value(PassError_)
         .EndMap();
     }
-
-    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
-    {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
-
-        alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressSynchronizer)
@@ -895,13 +867,15 @@ ICypressSynchronizerPtr CreateCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
-    TClientDirectoryPtr clientDirectory)
+    TClientDirectoryPtr clientDirectory,
+    IAlertCollectorPtr alertCollector)
 {
     return New<TCypressSynchronizer>(
         std::move(config),
         std::move(controlInvoker),
         std::move(dynamicState),
-        std::move(clientDirectory));
+        std::move(clientDirectory),
+        std::move(alertCollector));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

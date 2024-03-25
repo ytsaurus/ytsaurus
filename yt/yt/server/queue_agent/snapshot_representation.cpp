@@ -7,6 +7,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NAlertManager;
 using namespace NNet;
 using namespace NQueueClient;
 using namespace NYson;
@@ -48,27 +49,28 @@ void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow reg
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
+void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, const IAlertManagerPtr& alertManager, TFluentAny fluent)
 {
-    if (!snapshot->Error.IsOK()) {
-        fluent
-            .BeginMap()
-                .Item("queue_agent_host").Value(GetLocalHostName())
-                .Item("error").Value(snapshot->Error)
-            .EndMap();
-        return;
-    }
-
     fluent
         .BeginMap()
             .Item("queue_agent_host").Value(GetLocalHostName())
-            .Item("family").Value(snapshot->Family)
-            .Item("partition_count").Value(snapshot->PartitionCount)
-            .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
-            .Item("has_timestamp_column").Value(snapshot->HasTimestampColumn)
-            .Item("has_cumulative_data_weight_column").Value(snapshot->HasCumulativeDataWeightColumn)
-            .Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1))
-            .Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1))
+            .Item("alerts")
+                .BeginAttributes()
+                    .Item("opaque").Value(true)
+                .EndAttributes()
+                .Value(alertManager->GetAlerts())
+            .DoIf(snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("family").Value(snapshot->Family);
+                fluentMap.Item("partition_count").Value(snapshot->PartitionCount);
+                fluentMap.Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson);
+                fluentMap.Item("has_timestamp_column").Value(snapshot->HasTimestampColumn);
+                fluentMap.Item("has_cumulative_data_weight_column").Value(snapshot->HasCumulativeDataWeightColumn);
+                fluentMap.Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1));
+                fluentMap.Item("write_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.DataWeight, _1));
+            })
+            .DoIf(!snapshot->Error.IsOK(), [&] (TFluentMap fluentMap) {
+                fluentMap.Item("error").Value(snapshot->Error);
+            })
         .EndMap();
 }
 

@@ -36,12 +36,14 @@ class TQueueAgentShardingManager
 public:
     TQueueAgentShardingManager(
         IInvokerPtr controlInvoker,
+        IAlertCollectorPtr alertCollector,
         TDynamicStatePtr dynamicState,
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
         TString queueAgentStage)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
         , ControlInvoker_(std::move(controlInvoker))
+        , AlertCollector_(std::move(alertCollector))
         , DynamicState_(std::move(dynamicState))
         , MemberClient_(std::move(memberClient))
         , DiscoveryClient_(std::move(discoveryClient))
@@ -80,18 +82,10 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
-    void PopulateAlerts(std::vector<TAlert>* alerts) const override
-    {
-        WaitFor(
-            BIND(&TQueueAgentShardingManager::DoPopulateAlerts, MakeStrong(this), alerts)
-                .AsyncVia(ControlInvoker_)
-                .Run())
-            .ThrowOnError();
-    }
-
 private:
     TQueueAgentShardingManagerDynamicConfigPtr DynamicConfig_;
     const IInvokerPtr ControlInvoker_;
+    const IAlertCollectorPtr AlertCollector_;
     const TDynamicStatePtr DynamicState_;
     const IMemberClientPtr MemberClient_;
     const IDiscoveryClientPtr DiscoveryClient_;
@@ -107,8 +101,6 @@ private:
     //! Index of the current pass iteration.
     i64 PassIndex_ = -1;
 
-    std::vector<TAlert> Alerts_;
-
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
@@ -121,13 +113,6 @@ private:
         .EndMap();
     }
 
-    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
-    {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
-
-        alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
-    }
-
     void Pass()
     {
         VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
@@ -138,17 +123,17 @@ private:
         try {
             GuardedPass();
             PassError_ = TError();
-            Alerts_.clear();
         } catch (const std::exception& ex) {
             PassError_ = ex;
             YT_LOG_ERROR(ex, "Error performing queue agent manager pass (PassIndex: %v)", PassIndex_);
-            auto alert = TError(
+            AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentShardingManagerPassFailed,
-                "Error performing queue agent manager pass")
-                << ex;
-            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
-            return;
+                "Error performing queue agent manager pass",
+                /*tags*/ {},
+                ex));
         }
+
+        AlertCollector_->PublishAlerts();
     }
 
     //! Uses FarmFingerprint as a deterministic (both platform and time-agnostic) hash.
@@ -297,6 +282,7 @@ private:
 
 IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     IInvokerPtr controlInvoker,
+    IAlertCollectorPtr alertCollector,
     TDynamicStatePtr dynamicState,
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
@@ -304,6 +290,7 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
 {
     return New<TQueueAgentShardingManager>(
         std::move(controlInvoker),
+        std::move(alertCollector),
         std::move(dynamicState),
         std::move(memberClient),
         std::move(discoveryClient),
