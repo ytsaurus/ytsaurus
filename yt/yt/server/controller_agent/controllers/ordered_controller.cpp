@@ -287,6 +287,11 @@ protected:
                 return false;
             }
 
+            // Setting batch_row_count disables interrupts since they make it much harder to fullfil the divisibility conditions.
+            if (Controller_->JobSizeConstraints_->GetBatchRowCount()) {
+                return false;
+            }
+
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
             auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return

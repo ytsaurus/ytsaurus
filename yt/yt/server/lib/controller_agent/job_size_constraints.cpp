@@ -23,6 +23,7 @@ public:
         i64 maxPrimaryDataWeightPerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
+        std::optional<i64> batchRowCount,
         i64 foreignSliceDataWeight,
         std::optional<double> samplingRate,
         i64 samplingDataWeightPerJob,
@@ -39,6 +40,7 @@ public:
         , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
         , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
+        , BatchRowCount_(batchRowCount)
         , ForeignSliceDataWeight_(foreignSliceDataWeight)
         , SamplingRate_(samplingRate)
         , SamplingDataWeightPerJob_(samplingDataWeightPerJob)
@@ -103,6 +105,11 @@ public:
         return InputSliceRowCount_;
     }
 
+    std::optional<i64> GetBatchRowCount() const override
+    {
+        return BatchRowCount_;
+    }
+
     i64 GetForeignSliceDataWeight() const override
     {
         return ForeignSliceDataWeight_;
@@ -158,6 +165,9 @@ public:
         Persist(context, MaxPrimaryDataWeightPerJob_);
         Persist(context, InputSliceDataWeight_);
         Persist(context, InputSliceRowCount_);
+        if (context.GetVersion() >= ESnapshotVersion::BatchRowCount_23_2) {
+            Persist(context, BatchRowCount_);
+        }
         Persist(context, ForeignSliceDataWeight_);
         Persist(context, SamplingRate_);
         Persist(context, SamplingDataWeightPerJob_);
@@ -187,6 +197,7 @@ private:
     i64 MaxPrimaryDataWeightPerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
+    std::optional<i64> BatchRowCount_;
     i64 ForeignSliceDataWeight_;
     std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_;
@@ -211,6 +222,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
+    std::optional<i64> batchRowCount,
     i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob,
@@ -229,6 +241,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         maxPrimaryDataWeightPerJob,
         inputSliceDataWeight,
         inputSliceRowCount,
+        batchRowCount,
         foreignSliceDataWeight,
         samplingRate,
         samplingDataWeightPerJob,

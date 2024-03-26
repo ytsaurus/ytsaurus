@@ -39,6 +39,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((LivePreviewAnnotation)                (301307))
     ((NodeJobStartTimeInJoblet)             (301408))
     ((JobAbortsUntilOperationFailure)       (301409))
+    ((BatchRowCount_23_2)                   (301410))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

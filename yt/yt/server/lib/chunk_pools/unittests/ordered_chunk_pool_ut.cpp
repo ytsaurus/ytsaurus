@@ -21,6 +21,8 @@
 #include <yt/yt/core/misc/blob_output.h>
 #include <yt/yt/core/misc/phoenix.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <util/generic/cast.h>
 
 #include <util/stream/null.h>
@@ -78,6 +80,7 @@ protected:
             0 /* maxPrimaryDataWeightPerJob_ */,
             InputSliceDataSize_,
             InputSliceRowCount_,
+            BatchRowCount_,
             0 /* foreignSliceDataWeight */,
             SamplingRate_);
     }
@@ -117,7 +120,7 @@ protected:
             Options_,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+            BIND([this] (TInputChunkPtr teleportChunk, /*tag*/ std::any) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
             }));
     }
@@ -133,6 +136,8 @@ protected:
 
     IChunkPoolInput::TCookie AddChunk(const TInputChunkPtr& chunk)
     {
+        MaxChunkRowDataWeight_ = std::max(MaxChunkRowDataWeight_, DivCeil(chunk->GetDataWeight(), chunk->GetRowCount()));
+
         auto dataSlice = BuildDataSliceByChunk(chunk);
         ActiveChunks_.insert(chunk->GetChunkId());
         OriginalChunks_.push_back(chunk->GetChunkId());
@@ -193,7 +198,7 @@ protected:
         TLoadContext loadContext(&input, RowBuffer_, GetCurrentSnapshotVersion());
         Load(loadContext, ChunkPool_);
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+            BIND([this] (TInputChunkPtr teleportChunk, /*tag*/ std::any) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
             }));
     }
@@ -292,6 +297,48 @@ protected:
         }
     }
 
+    void CheckEntryForBatchRowCountAcceptability(const TOutputOrder::TEntry& entry)
+    {
+        EXPECT_TRUE(entry.IsCookie());
+
+        auto stripeList = ChunkPool_->GetStripeList(entry.GetCookie());
+        EXPECT_TRUE(stripeList->TotalRowCount % *BatchRowCount_ == 0);
+        EXPECT_LE(std::abs(stripeList->TotalDataWeight - DataSizePerJob_), *BatchRowCount_ * MaxChunkRowDataWeight_);
+    }
+
+    void CheckBatchRowCount()
+    {
+        ASSERT_TRUE(Options_.KeepOutputOrder);
+
+        auto order = ChunkPool_->GetOutputOrder();
+        ASSERT_TRUE(order);
+
+        auto entries = order->ToEntryVector();
+        for (int index = 0; index + 1 < std::ssize(entries); ++index) {
+            CheckEntryForBatchRowCountAcceptability(entries[index]);
+        }
+    }
+
+    void CheckExplicitRowCounts(std::vector<i64> rowCounts)
+    {
+        ASSERT_TRUE(Options_.KeepOutputOrder);
+
+        auto order = ChunkPool_->GetOutputOrder();
+        ASSERT_TRUE(order);
+
+        auto entries = order->ToEntryVector();
+        EXPECT_EQ(std::ssize(entries), std::ssize(rowCounts));
+
+        for (const auto& [entry, rowCount] : Zip(entries, rowCounts)) {
+            if (entry.IsTeleportChunk()) {
+                EXPECT_EQ(entry.GetTeleportChunk()->GetRowCount(), rowCount);
+            } else {
+                EXPECT_TRUE(entry.IsCookie());
+                EXPECT_EQ(ChunkPool_->GetStripeList(entry.GetCookie())->TotalRowCount, rowCount);
+            }
+        }
+    }
+
     std::vector<TChunkId> OriginalChunks_;
 
     IPersistentChunkPoolPtr ChunkPool_;
@@ -300,6 +347,8 @@ protected:
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
+
+    i64 MaxChunkRowDataWeight_ = 0;
 
     std::vector<TInputStreamDescriptor> InputTables_;
 
@@ -318,6 +367,8 @@ protected:
     i64 InputSliceDataSize_;
 
     i64 InputSliceRowCount_;
+
+    std::optional<i64> BatchRowCount_;
 
     std::optional<i32> ExplicitJobCount_;
 
@@ -364,6 +415,162 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
     EXPECT_EQ(2u, stripeLists.size());
 
     CheckEverything(stripeLists);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedChunkPoolTest, LargeChunksPreciseSlicing)
+{
+    InitTables(
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false}
+    );
+
+    DataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    auto chunkA1 = CreateChunk(0, 10_KB);
+    auto chunkA2 = CreateChunk(0, 22_KB);
+    auto chunkB = CreateChunk(1, 23_KB);
+    auto chunkC = CreateChunk(2, 3_KB);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(29u, stripeLists.size());
+
+    CheckEverything(stripeLists);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedChunkPoolTest, BatchRowCountBasic)
+{
+    InitTables(
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false}
+    );
+
+    Options_.KeepOutputOrder = true;
+    // This should have no effect!
+    Options_.MinTeleportChunkSize = 2_KB;
+
+    // Nor this!
+    SamplingRate_ = 0.3;
+    BatchRowCount_ = 42;
+    DataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    auto chunkA1 = CreateChunk(0, 10_KB, 1234);
+    auto chunkA2 = CreateChunk(0, 22_KB, 2435);
+    auto chunkB = CreateChunk(1, 23_KB, 3434);
+    auto chunkC = CreateChunk(2, 3_KB, 333);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    CheckBatchRowCount();
+    CheckEverything(GetAllStripeLists());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
+{
+    InitTables(
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, true, false}
+    );
+
+    Options_.KeepOutputOrder = true;
+    // This should have no effect!
+    Options_.MinTeleportChunkSize = 2_KB;
+    // Nor this!
+    SamplingRate_ = 0.3;
+    BatchRowCount_ = 42;
+    DataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    auto chunkA1 = CreateChunk(0, 10_KB, 1234);
+    auto chunkA2 = CreateChunk(0, 22_KB, 2435);
+    auto chunkB = CreateChunk(1, 23_KB, 3434);
+    auto chunkC = CreateChunk(2, 3_KB, 333);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    CheckEverything(GetAllStripeLists());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
+{
+    InitTables(
+        /*isTeleportable*/ {true, true, true},
+        /*isVersioned*/ {false, false, false}
+    );
+
+    Options_.KeepOutputOrder = true;
+    // This should have no effect!
+    Options_.MinTeleportChunkSize = 2_KB;
+    BatchRowCount_ = 20;
+    DataSizePerJob_ = 2_KB;
+
+    InitJobConstraints();
+
+    auto chunkA1 = CreateChunk(0, 10_KB, 10);
+    auto chunkA2 = CreateChunk(0, 30_KB, 5);
+    auto chunkB = CreateChunk(1, 60_KB, 30);
+    auto chunkC = CreateChunk(2, 3_KB, 6);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA1);
+    AddChunk(chunkA2);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+
+    CheckBatchRowCount();
+
+    auto stripeLists = GetAllStripeLists();
+    EXPECT_EQ(std::ssize(stripeLists), 3);
+    CheckExplicitRowCounts({20, 20, 11});
+
+    CheckEverything(GetAllStripeLists());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
