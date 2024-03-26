@@ -62,10 +62,6 @@ void TCoordinatorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
-
-    registrar.Preprocessor([] (TThis* config) {
-        config->CypressRegistrar->RequestTimeout = config->CypressTimeout;
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
