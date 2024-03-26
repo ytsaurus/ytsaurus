@@ -69,7 +69,7 @@ TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TCellTracker::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TCellTracker::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TCellTracker::Start()

@@ -82,7 +82,7 @@ public:
                 ->WithCategory(EMemoryCategory::ChunkBlockMeta),
             DataNodeProfiler.WithPrefix("/block_meta_cache")))
     {
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkMetaManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() override

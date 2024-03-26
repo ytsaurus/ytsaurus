@@ -89,7 +89,7 @@ public:
         , Bootstrap_(bootstrap)
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->SubscribeLeaderActive(BIND(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
+        hydraManager->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TWorldInitializer::OnLeaderActive, MakeWeak(this)));
     }
 
     bool IsInitialized() override

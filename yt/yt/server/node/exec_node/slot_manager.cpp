@@ -122,9 +122,9 @@ void TSlotManager::Initialize()
     auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
 
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        PortoHealthChecker_->SubscribeSuccess(BIND(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
+        PortoHealthChecker_->SubscribeSuccess(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckSuccess, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
-        PortoHealthChecker_->SubscribeFailed(BIND(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
+        PortoHealthChecker_->SubscribeFailed(BIND_NO_PROPAGATE(&TSlotManager::OnPortoHealthCheckFailed, MakeStrong(this))
             .Via(Bootstrap_->GetJobInvoker()));
     }
 }

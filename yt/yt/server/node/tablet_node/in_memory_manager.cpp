@@ -228,10 +228,10 @@ public:
         , PreloadSemaphore_(New<TAsyncSemaphore>(GetConfig()->MaxConcurrentPreloads))
     {
         const auto& slotManager = Bootstrap_->GetSlotManager();
-        slotManager->SubscribeScanSlot(BIND(&TInMemoryManager::ScanSlot, MakeWeak(this)));
+        slotManager->SubscribeScanSlot(BIND_NO_PROPAGATE(&TInMemoryManager::ScanSlot, MakeWeak(this)));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TInMemoryManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override

@@ -129,7 +129,7 @@ public:
         , OrchidService_(CreateOrchidService())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreFlusher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override

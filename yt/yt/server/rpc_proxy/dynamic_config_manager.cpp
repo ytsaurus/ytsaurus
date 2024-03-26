@@ -49,7 +49,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        ProxyCoordinator_->SubscribeOnProxyRoleChanged(BIND(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
+        ProxyCoordinator_->SubscribeOnProxyRoleChanged(BIND_NO_PROPAGATE(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
     }
 
 private:

@@ -133,11 +133,11 @@ public:
             .SetRequestQueueProvider(ExecuteBatchRequestQueueProvider_));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TChunkService::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkService::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserRequestThrottlerConfigChanged(
-            BIND(&TChunkService::OnUserRequestThrottlerConfigChanged, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TChunkService::OnUserRequestThrottlerConfigChanged, MakeWeak(this)));
 
         DeclareServerFeature(EMasterFeature::OverlayedJournals);
     }

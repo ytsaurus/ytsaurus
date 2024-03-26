@@ -901,15 +901,15 @@ private:
             NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
             NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
             Config_->Tags);
-        MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
-        MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
-        MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+        MasterConnector_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TBootstrap::PopulateAlerts, this));
+        MasterConnector_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterConnected, this));
+        MasterConnector_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterDisconnected, this));
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
-        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
+        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1562,15 +1562,15 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     : Bootstrap_(bootstrap)
 {
     Bootstrap_->SubscribeMasterConnected(
-        BIND([this] (TNodeId nodeId) {
+        BIND_NO_PROPAGATE([this] (TNodeId nodeId) {
             MasterConnected_.Fire(nodeId);
         }));
     Bootstrap_->SubscribeMasterDisconnected(
-        BIND([this] {
+        BIND_NO_PROPAGATE([this] {
             MasterDisconnected_.Fire();
         }));
     Bootstrap_->SubscribePopulateAlerts(
-        BIND([this] (std::vector<TError>* alerts) {
+        BIND_NO_PROPAGATE([this] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);
         }));
 }

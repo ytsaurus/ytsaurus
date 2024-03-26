@@ -112,7 +112,7 @@ public:
             ->GetClient()
             ->GetNativeConnection()
             ->GetClusterDirectorySynchronizer()
-            ->SubscribeSynchronized(BIND(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
+            ->SubscribeSynchronized(BIND_NO_PROPAGATE(&TImpl::OnClusterDirectorySynchronized, MakeWeak(this))
                 .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)));
 
         StartConnecting(true);

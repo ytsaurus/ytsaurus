@@ -182,10 +182,10 @@ public:
         YT_LOG_INFO("Initializing tablet node");
 
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -325,7 +325,7 @@ public:
         SlotManager_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
+        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }
 
     void InitializeOverloadController()

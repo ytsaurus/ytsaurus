@@ -139,8 +139,8 @@ public:
 
         Shuffle(JobTrackerAddresses_.begin(), JobTrackerAddresses_.end());
 
-        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
@@ -148,18 +148,18 @@ public:
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->SubscribeChunkAdded(
-            BIND(&TMasterConnector::OnChunkAdded, MakeWeak(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkAdded, MakeWeak(this))
                 .Via(controlInvoker));
         chunkStore->SubscribeChunkRemoved(
-            BIND(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkRemoved, MakeWeak(this))
                 .Via(controlInvoker));
         chunkStore->SubscribeChunkMediumChanged(
-            BIND(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnChunkMediumChanged, MakeWeak(this))
                 .Via(controlInvoker));
 
         Initialized_ = true;

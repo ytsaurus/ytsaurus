@@ -57,7 +57,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND(&TAlertManager::OnDynamicConfigChanged, MakeWeak(this)));
+        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAlertManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void RegisterAlertSource(TAlertSource alertSource) override

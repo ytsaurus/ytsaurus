@@ -216,7 +216,7 @@ TChunkPlacement::TChunkPlacement(
     , ConsistentPlacement_(std::move(consistentPlacement))
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TChunkPlacement::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkPlacement::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 void TChunkPlacement::Clear()

@@ -141,7 +141,7 @@ void TBootstrap::DoRun()
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
     ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
@@ -266,9 +266,9 @@ void TBootstrap::DoRun()
 
     YT_UNUSED_FUTURE(MemberClient_->Start());
 
-    ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
+    ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&ICypressSynchronizer::Start, CypressSynchronizer_));
 
-    ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
+    ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&ICypressSynchronizer::Stop, CypressSynchronizer_));
 
     ElectionManager_->Start();
 

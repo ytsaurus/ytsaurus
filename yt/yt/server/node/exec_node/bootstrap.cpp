@@ -84,7 +84,7 @@ public:
         YT_LOG_INFO("Initializing exec node");
 
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
         SlotManager_ = New<TSlotManager>(this);
 
@@ -177,7 +177,7 @@ public:
         JobController_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
+        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }
 
     void Run() override

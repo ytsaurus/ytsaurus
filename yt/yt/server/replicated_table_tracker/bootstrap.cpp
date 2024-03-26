@@ -232,8 +232,8 @@ private:
             Config_->ElectionManager,
             std::move(options));
 
-        ElectionManager_->SubscribeLeadingStarted(BIND(&TBootstrap::OnLeadingStarted, this));
-        ElectionManager_->SubscribeLeadingEnded(BIND(&TBootstrap::OnLeadingEnded, this));
+        ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingStarted, this));
+        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingEnded, this));
 
         ElectionManager_->Start();
 

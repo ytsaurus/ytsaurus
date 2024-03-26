@@ -347,7 +347,7 @@ TChunkLocation::TChunkLocation(
         Profiler_);
 
     ChunkStoreHost_->SubscribePopulateAlerts(
-        BIND(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
+        BIND_NO_PROPAGATE(&TChunkLocation::PopulateAlerts, MakeWeak(this)));
 }
 
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const

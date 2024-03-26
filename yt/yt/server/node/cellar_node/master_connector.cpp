@@ -68,17 +68,17 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-        Bootstrap_->SubscribeMasterDisconnected(BIND(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
-        Bootstrap_->SubscribePopulateAlerts(BIND(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
+        Bootstrap_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TMasterConnector::PopulateAlerts, MakeWeak(this)));
 
         const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
         connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void ScheduleHeartbeat(TCellTag cellTag, bool immediately) override

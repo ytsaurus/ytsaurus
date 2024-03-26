@@ -68,7 +68,7 @@ public:
             dataNodeConfig->ChangelogReaderCache,
             DataNodeProfiler.WithPrefix("/changelog_reader_cache"))
     {
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TJournalDispatcher::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TFuture<IFileChangelogPtr> OpenJournal(

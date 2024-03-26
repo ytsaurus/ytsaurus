@@ -55,7 +55,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TIncumbentManager::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TIncumbentManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     IYPathServicePtr GetOrchidService() override

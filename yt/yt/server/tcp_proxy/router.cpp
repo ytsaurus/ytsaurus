@@ -62,7 +62,7 @@ public:
         RoutingTableUpdateExecutor_->Start();
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TRouter::OnDynamicConfigChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TRouter::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:

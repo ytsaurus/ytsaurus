@@ -180,7 +180,7 @@ public:
 
         OperationsCleaner_ = New<TOperationsCleaner>(Config_->OperationsCleaner, this, Bootstrap_);
 
-        OperationsCleaner_->SubscribeOperationsRemovedFromCypress(BIND(&TImpl::OnOperationsRemovedFromCypress, MakeWeak(this)));
+        OperationsCleaner_->SubscribeOperationsRemovedFromCypress(BIND_NO_PROPAGATE(&TImpl::OnOperationsRemovedFromCypress, MakeWeak(this)));
 
         ServiceAddress_ = BuildServiceAddress(
             GetLocalHostName(),

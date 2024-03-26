@@ -367,7 +367,7 @@ TChunkReplicator::TChunkReplicator(
     }
 
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this)));
 
     const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
     incumbentManager->RegisterIncumbent(this);

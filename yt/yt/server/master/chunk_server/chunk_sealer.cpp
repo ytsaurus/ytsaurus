@@ -153,7 +153,7 @@ public:
             /*isJournal*/ true))
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkSealer::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override

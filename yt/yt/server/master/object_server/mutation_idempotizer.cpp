@@ -33,7 +33,7 @@ TMutationIdempotizer::TMutationIdempotizer(TBootstrap* bootstrap)
 {
     const auto& configManager = Bootstrap_->GetConfigManager();
     YT_VERIFY(configManager);
-    configManager->SubscribeConfigChanged(BIND(&TMutationIdempotizer::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMutationIdempotizer::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 TMutationIdempotizer::~TMutationIdempotizer() = default;

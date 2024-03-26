@@ -101,7 +101,7 @@ public:
         , ChunkMetaManager_(chunkMetaManager)
     {
         dynamicConfigManager->SubscribeConfigChanged(
-            BIND(&TBlobReaderCache::OnDynamicConfigChanged, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TBlobReaderCache::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     TChunkFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk) override
