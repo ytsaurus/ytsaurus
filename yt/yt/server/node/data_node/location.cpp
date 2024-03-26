@@ -648,17 +648,18 @@ i64 TChunkLocation::GetAvailableSpace() const
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
         availableSpace = statistics.AvailableSpace + GetAdditionalSpace();
+
+        i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
+        availableSpace = std::min(availableSpace, remainingQuota);
+        AvailableSpace_.store(availableSpace);
+
+        return availableSpace;
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
             << ex;
         const_cast<TChunkLocation*>(this)->ScheduleDisable(error);
+        return 0;
     }
-
-    i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
-    availableSpace = std::min(availableSpace, remainingQuota);
-    AvailableSpace_.store(availableSpace);
-
-    return availableSpace;
 }
 
 const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetReadMemoryTracker() const

@@ -194,32 +194,38 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
     error = error << reason;
     LocationDisabledAlert_.Store(error);
 
-    bool finish = false;
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
+        try {
+            CreateDisableLockFile(reason);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Creating disable lock file failed");
+        }
 
-    try {
-        WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
-            WaitFor(SynchronizeActions())
-                .ThrowOnError();
+        try {
+            // Fast removal of chunks is necessary to avoid problems with access to chunks on the node.
             WaitFor(RemoveChunks())
                 .ThrowOnError();
+            WaitFor(BIND(&TCacheLocation::SynchronizeActions, MakeStrong(this))
+                .AsyncVia(GetAuxPoolInvoker())
+                .Run())
+                .ThrowOnError();
             ResetLocationStatistic();
-            CreateDisableLockFile(reason);
-        })
-            .AsyncVia(GetAuxPoolInvoker())
-            .Run())
-            .ThrowOnError();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Location disabling error");
-    }
+            YT_LOG_INFO("Location disabling finished");
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Location disabling error");
+        }
 
-    finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        auto finish = ChangeState(ELocationState::Disabled, ELocationState::Disabling);
 
-    if (!finish) {
-        YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",
-            GetState());
-    }
+        if (!finish) {
+            YT_LOG_ALERT("Detect location state racing (CurrentState: %v)",
+                GetState());
+        }
+    })
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run());
 
-    return finish;
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
