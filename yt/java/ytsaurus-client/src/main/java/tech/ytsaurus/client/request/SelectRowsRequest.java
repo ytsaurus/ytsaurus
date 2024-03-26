@@ -7,9 +7,11 @@ import java.util.OptionalLong;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.rpcproxy.TReqSelectRows;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public class SelectRowsRequest
         extends RequestBase<SelectRowsRequest.Builder, SelectRowsRequest>
@@ -41,6 +43,8 @@ public class SelectRowsRequest
     private final Boolean useCanonicalNullRelations;
     @Nullable
     private final ReplicaConsistency replicaConsistency;
+    @Nullable
+    private final YTreeMapNode placeholderValues;
 
     public SelectRowsRequest(BuilderBase<?> builder) {
         super(builder);
@@ -58,6 +62,7 @@ public class SelectRowsRequest
         this.rangeExpansionLimit = builder.rangeExpansionLimit;
         this.useCanonicalNullRelations = builder.useCanonicalNullRelations;
         this.replicaConsistency = builder.replicaConsistency;
+        this.placeholderValues = builder.placeholderValues;
     }
 
     private SelectRowsRequest(String query) {
@@ -128,6 +133,10 @@ public class SelectRowsRequest
         return Optional.ofNullable(replicaConsistency);
     }
 
+    public Optional<YTreeMapNode> getPlaceholderValues() {
+        return Optional.ofNullable(placeholderValues);
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
@@ -172,6 +181,9 @@ public class SelectRowsRequest
         }
         if (getReplicaConsistency().isPresent()) {
             builder.body().setReplicaConsistency(getReplicaConsistency().get().getProtoValue());
+        }
+        if (getPlaceholderValues().isPresent()) {
+            builder.body().setPlaceholderValues(ByteString.copyFrom(getPlaceholderValues().get().toBinary()));
         }
     }
 
@@ -229,6 +241,9 @@ public class SelectRowsRequest
         if (replicaConsistency != null) {
             builder.setReplicaConsistency(replicaConsistency);
         }
+        if (placeholderValues != null) {
+            builder.setPlaceholderValues(placeholderValues);
+        }
         return builder;
     }
 
@@ -270,6 +285,7 @@ public class SelectRowsRequest
         private Boolean useCanonicalNullRelations;
         @Nullable
         private ReplicaConsistency replicaConsistency;
+        @Nullable YTreeMapNode placeholderValues;
 
         public BuilderBase() {
         }
@@ -290,6 +306,7 @@ public class SelectRowsRequest
             rangeExpansionLimit = builder.rangeExpansionLimit;
             useCanonicalNullRelations = builder.useCanonicalNullRelations;
             replicaConsistency = builder.replicaConsistency;
+            placeholderValues = builder.placeholderValues;
         }
 
         public TBuilder setQuery(String query) {
@@ -362,6 +379,11 @@ public class SelectRowsRequest
             return self();
         }
 
+        public TBuilder setPlaceholderValues(YTreeMapNode placeholderValues) {
+            this.placeholderValues = placeholderValues;
+            return self();
+        }
+
         public String getQuery() {
             return Objects.requireNonNull(query);
         }
@@ -416,6 +438,10 @@ public class SelectRowsRequest
 
         public Optional<ReplicaConsistency> getReplicaConsistency() {
             return Optional.ofNullable(replicaConsistency);
+        }
+
+        public Optional<YTreeMapNode> getPlaceholderValues() {
+            return Optional.ofNullable(placeholderValues);
         }
 
         @Override
