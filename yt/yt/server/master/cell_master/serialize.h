@@ -214,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
     ((UsersInSequoia)                                               (2546))  // cherepashka
     ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
+    ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
     // 24.2 starts here.
 );
 
