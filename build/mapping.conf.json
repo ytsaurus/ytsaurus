@@ -234,7 +234,8 @@
         "5171089675": "ymake for linux-aarch64",
         "5171091797": "ymake.exe for win32-clang-cl",
         "2980468199": "ytexec for linux",
-        "5562224408": "ytexec for linux"
+        "5562224408": "ytexec for linux",
+        "6048579718": "ytexec for linux"
     },
     "tasks": {}
 }
