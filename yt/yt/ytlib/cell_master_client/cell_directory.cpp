@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "config.h"
+#include "protobuf_helpers.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -176,10 +177,9 @@ public:
         auto primaryCellFound = false;
 
         for (const auto& item : protoDirectory.items()) {
-            // TODO(cherepashka): parsing of proto version of TMasterConnectionConfig.
-            auto masterConnectionConfig = New<TMasterConnectionConfig>();
-            masterConnectionConfig->CellId = FromProto<TCellId>(item.cell_id());
-            masterConnectionConfig->Addresses = FromProto<std::vector<TString>>(item.addresses());
+            TMasterConnectionConfigPtr masterConnectionConfig;
+            FromProto(&masterConnectionConfig, item);
+            YT_VERIFY(masterConnectionConfig->Addresses);
             Sort(*masterConnectionConfig->Addresses);
 
             auto cellId = masterConnectionConfig->CellId;
@@ -192,11 +192,7 @@ public:
                 roleToCellTags[role].push_back(cellTag);
             }
             EmplaceOrCrash(cellTagToRoles, cellTag, roles);
-
-            YT_VERIFY(masterConnectionConfig->Addresses);
-            auto addresses = *masterConnectionConfig->Addresses;
-            Sort(addresses);
-            EmplaceOrCrash(cellAddresses, cellTag, std::move(addresses));
+            EmplaceOrCrash(cellAddresses, cellTag, *masterConnectionConfig->Addresses);
 
             if (cellTag == PrimaryMasterCellTag_) {
                 YT_VERIFY(cellId == PrimaryMasterCellId_);

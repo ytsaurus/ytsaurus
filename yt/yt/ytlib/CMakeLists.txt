@@ -1337,6 +1337,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/protobuf_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp
