@@ -737,12 +737,13 @@ private:
         }
 
         auto* cellTagData = GetCellTagData(cellTag);
-        ++cellTagData->ScheduledDataNodeHeartbeatCount;
 
         // Out-of-order heartbeats are best effort, so we do not execute them if node is not online.
         if (outOfOrder && cellTagData->ChunksDelta->State != EMasterConnectorState::Online) {
             return;
         }
+
+        ++cellTagData->ScheduledDataNodeHeartbeatCount;
 
         auto delay = immediately ? TDuration::Zero() : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
         TDelayedExecutor::Submit(
