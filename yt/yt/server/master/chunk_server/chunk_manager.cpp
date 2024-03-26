@@ -2557,7 +2557,7 @@ public:
 
         THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList> result;
         for (auto chunkId : chunkIds) {
-            EmplaceOrCrash(result, chunkId, TChunkLocationPtrWithReplicaInfoList());
+            result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
         }
 
         if (!GetDynamicConfig()->FetchReplicasFromSequoia) {
@@ -2574,6 +2574,9 @@ public:
         if (sequoiaChunkIds.empty()) {
             return MakeFuture(std::move(result));
         }
+
+        // TODO(aleksandra-zh)
+        SortUnique(sequoiaChunkIds);
 
         return DoGetSequoiaChunkReplicas({chunkIds})
             .Apply(BIND([result = std::move(result), this, this_ = MakeStrong(this)] (const std::vector<TSequoiaChunkReplica>& sequoiaReplicas) mutable {
