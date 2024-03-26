@@ -659,6 +659,8 @@ public:
 
     bool EnableChunkSchemas;
 
+    bool SchemalessEndUploadPreservesTableSchema;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
