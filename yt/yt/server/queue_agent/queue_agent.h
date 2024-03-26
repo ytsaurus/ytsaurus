@@ -49,6 +49,7 @@ public:
         IInvokerPtr controlInvoker,
         NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
+        NAlertManager::IAlertCollectorPtr alertCollector,
         TString agentId);
 
     void Start();
@@ -58,8 +59,6 @@ public:
     void OnDynamicConfigChanged(
         const TQueueAgentDynamicConfigPtr& oldConfig,
         const TQueueAgentDynamicConfigPtr& newConfig);
-
-    void PopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const;
 
     // IObjectStore implementation.
 
@@ -77,6 +76,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const NQueueClient::TDynamicStatePtr DynamicState_;
     const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
+    const NAlertManager::IAlertCollectorPtr AlertCollector_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
 
@@ -115,8 +115,6 @@ private:
 
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
 
-    std::vector<NAlertManager::TAlert> Alerts_;
-
     NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
 
     void BuildObjectYson(
@@ -130,8 +128,6 @@ private:
 
     //! Stops periodic passes and destroys all controllers.
     void DoStop();
-
-    void DoPopulateAlerts(std::vector<NAlertManager::TAlert>* alerts) const;
 
     TTaggedProfilingCounters& GetOrCreateTaggedProfilingCounters(const NQueueClient::TProfilingTags& profilingTags);
 

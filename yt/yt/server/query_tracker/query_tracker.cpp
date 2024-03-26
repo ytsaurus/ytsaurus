@@ -69,11 +69,13 @@ public:
         TQueryTrackerDynamicConfigPtr config,
         TString selfAddress,
         IInvokerPtr controlInvoker,
+        IAlertCollectorPtr alertCollector,
         NApi::NNative::IClientPtr stateClient,
         TYPath stateRoot,
         int minRequiredStateVersion)
         : SelfAddress_(std::move(selfAddress))
         , ControlInvoker_(std::move(controlInvoker))
+        , AlertCollector_(std::move(alertCollector))
         , StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , MinRequiredStateVersion_(minRequiredStateVersion)
@@ -113,18 +115,10 @@ public:
         Engines_[EQueryEngine::Spyt]->Reconfigure(config->SpytEngine);
     }
 
-    void PopulateAlerts(std::vector<TAlert>* alerts) const override
-    {
-        WaitFor(
-            BIND(&TQueryTracker::DoPopulateAlerts, MakeStrong(this), alerts)
-                .AsyncVia(ControlInvoker_)
-                .Run())
-                .ThrowOnError();
-    }
-
 private:
     const TString SelfAddress_;
     const IInvokerPtr ControlInvoker_;
+    const IAlertCollectorPtr AlertCollector_;
     const NApi::NNative::IClientPtr StateClient_;
     const TYPath StateRoot_;
     const int MinRequiredStateVersion_;
@@ -134,7 +128,6 @@ private:
 
     NApi::ITransactionPtr LeaseTransaction_;
 
-    std::vector<TAlert> Alerts_;
     TQueryTrackerDynamicConfigPtr Config_;
 
     THashMap<EQueryEngine, IQueryEnginePtr> Engines_;
@@ -148,13 +141,6 @@ private:
 
     THashMap<TQueryId, TAcquiredQuery> AcquiredQueries_;
 
-    void DoPopulateAlerts(std::vector<TAlert>* alerts) const
-    {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
-    }
-
     void OnHealthCheck()
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -165,23 +151,26 @@ private:
         auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version", options);
         auto rspOrError = WaitFor(asyncResult);
         if (!rspOrError.IsOK()) {
-            auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Failed getting state version") << rspOrError;
-            YT_LOG_ERROR(alert);
-
-            Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
+            AlertCollector_->StageAlert(CreateAlert(
+                NAlerts::EErrorCode::QueryTrackerInvalidState,
+                "Erroneous query tracker state",
+                /*tags*/ {},
+                rspOrError));
         } else {
             int stateVersion = ConvertTo<int>(rspOrError.Value());
             if (stateVersion < MinRequiredStateVersion_) {
                 auto alert = TError(NAlerts::EErrorCode::QueryTrackerInvalidState, "Min required state version is not met")
                     << TErrorAttribute("version", stateVersion)
                     << TErrorAttribute("min_required_version", MinRequiredStateVersion_);
-                YT_LOG_ERROR(alert);
-
-                Alerts_ = {CreateAlert<NAlerts::EErrorCode>(alert)};
-            } else {
-                Alerts_.clear();
+                AlertCollector_->StageAlert(CreateAlert(
+                    NAlerts::EErrorCode::QueryTrackerInvalidState,
+                    "Erroneous query tracker state",
+                    /*tags*/ {},
+                    alert));
             }
         }
+
+        AlertCollector_->PublishAlerts();
     }
 
     void AcquireQueries()
@@ -729,6 +718,7 @@ IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,
     TString selfAddress,
     IInvokerPtr controlInvoker,
+    IAlertCollectorPtr alertCollector,
     NApi::NNative::IClientPtr stateClient,
     TYPath stateRoot,
     int minRequiredStateVersion)
@@ -737,6 +727,7 @@ IQueryTrackerPtr CreateQueryTracker(
         std::move(config),
         std::move(selfAddress),
         std::move(controlInvoker),
+        std::move(alertCollector),
         std::move(stateClient),
         std::move(stateRoot),
         minRequiredStateVersion);

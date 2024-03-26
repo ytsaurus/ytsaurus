@@ -2591,7 +2591,6 @@ class TestDynamicConfig(TestQueueAgentBase):
 
 class TestQueueStaticExportBase(TestQueueAgentBase):
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_TEST_PARTITIONS = 3
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "controller": {
@@ -2932,6 +2931,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # The export directory is not configured to accept exports from //tmp/q, so none should have been performed.
         assert len(ls(export_dir)) == 0
 
+        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="does not match queue id", attributes={"export_name": "default"})
+        assert alerts.get_alert_count() == 1
+
         self.remove_export_destination(export_dir)
 
     @authors("nadya73")
@@ -3052,3 +3055,77 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
         self._check_export(export_dir, [["foo"] * 6])
 
         self.remove_export_destination(export_dir)
+
+
+class TestObjectAlertCollection(TestQueueStaticExportBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "controller": {
+                "enable_automatic_trimming": True,
+                "enable_queue_static_export": True,
+            },
+        },
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    @authors("achulkov2")
+    def test_alert_combinations(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        export_dir_1 = "//tmp/export1"
+        export_dir_2 = "//tmp/export2"
+        export_dir_3 = "//tmp/export3"
+        create("map_node", export_dir_2)
+        create("map_node", export_dir_3)
+
+        queue_path = "//tmp/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        # Only the third export should actually work.
+        self._create_export_destination(export_dir_3, queue_id)
+
+        set(f"{queue_path}/@static_export_config", {
+            # Destination directory does not exist.
+            "first": {
+                "export_directory": export_dir_1,
+                "export_period": 1 * 1000,
+            },
+            # Destination directory is not properly configured.
+            "second": {
+                "export_directory": export_dir_2,
+                "export_period": 1 * 1000,
+            },
+            # Everything is correct.
+            "third": {
+                "export_directory": export_dir_3,
+                "export_period": 2 * 1000,
+            },
+        })
+
+        # A single non-vital consumer with enabled trimming should trigger an alert.
+        self._create_registered_consumer("//tmp/c", "//tmp/q", vital=False)
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+
+        self._wait_for_component_passes()
+
+        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table(queue_path)
+
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 3)
+
+        wait(lambda: len(ls(export_dir_3)) == 1)
+        # Nothing should be trimmed since consumer is not vital.
+        self._wait_for_row_count("//tmp/q", 0, 6)
+
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="has no child with key", attributes={"export_name": "first"})
+        alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="export_destination", attributes={"export_name": "second"})
+        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="with no vital consumers")
+        assert alerts.get_alert_count() == 3
+
+        self.remove_export_destination(export_dir_2)
+        self.remove_export_destination(export_dir_3)

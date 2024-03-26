@@ -1,4 +1,5 @@
 #include "queue_static_table_exporter.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -25,10 +26,12 @@
 namespace NYT::NQueueAgent {
 
 using namespace NApi;
+using namespace NAlertManager;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NHiveClient;
+using namespace NProfiling;
 using namespace NObjectClient;
 using namespace NQueueClient;
 using namespace NRpc;
@@ -52,7 +55,7 @@ public:
     TChunkId LastChunk;
     TTimestamp MaxTimestamp;
     i64 RowCount;
-    // TODO(achulkov2): Chunk count?
+    i64 ChunkCount;
 
     REGISTER_YSON_STRUCT(TTabletExportProgress);
 
@@ -63,6 +66,8 @@ public:
         registrar.Parameter("max_timestamp", &TThis::MaxTimestamp)
             .Default(NullTimestamp);
         registrar.Parameter("row_count", &TThis::RowCount)
+            .Default(0);
+        registrar.Parameter("chunk_count", &TThis::ChunkCount)
             .Default(0);
     }
 };
@@ -89,6 +94,7 @@ public:
         }
 
         tabletProgressIt->second->LastChunk = chunkId;
+        ++tabletProgressIt->second->ChunkCount;
         tabletProgressIt->second->MaxTimestamp = std::max(tabletProgressIt->second->MaxTimestamp, maxTimestamp);
         tabletProgressIt->second->RowCount = rowCount;
     }
@@ -108,6 +114,21 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TExportProgress)
 
+struct TProgressDiff
+{
+    i64 RowCount = 0;
+    i64 ChunkCount = 0;
+
+    TProgressDiff(const TExportProgressPtr& currentProgress, const TExportProgressPtr& newProgress)
+    {
+        for (const auto& [tabletIndex, newTabletProgress] : newProgress->Tablets) {
+            auto currentTabletProgress = currentProgress->Tablets.Value(tabletIndex, New<TTabletExportProgress>());
+            RowCount += newTabletProgress->RowCount - currentTabletProgress->RowCount;
+            ChunkCount += newTabletProgress->ChunkCount - currentTabletProgress->ChunkCount;
+        }
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Wrapper-class for performing a single export iteration.
@@ -118,12 +139,14 @@ public:
     TQueueExportTask(
         NNative::IClientPtr client,
         IInvokerPtr invoker,
+        TQueueExportProfilingCountersPtr profilingCounters,
         TYPath queue,
         TQueueStaticExportConfig exportConfig,
         const TLogger& logger)
         : Client_(std::move(client))
         , Connection_(Client_->GetNativeConnection())
         , Invoker_(std::move(invoker))
+        , ProfilingCounters_(std::move(profilingCounters))
         , Queue_(std::move(queue))
         , ExportConfig_(std::move(exportConfig))
         , Logger(logger.WithTag(
@@ -143,6 +166,7 @@ private:
     const NNative::IClientPtr Client_;
     const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
+    const TQueueExportProfilingCountersPtr ProfilingCounters_;
 
     const TYPath Queue_;
     const TQueueStaticExportConfig ExportConfig_;
@@ -231,13 +255,17 @@ private:
         AttachChunks();
         EndUpload();
 
-        UpdateCypressExportProgress(currentExportProgress, newExportProgress);
+        auto diff = UpdateCypressExportProgress(currentExportProgress, newExportProgress);
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         THROW_ERROR_EXCEPTION_IF_FAILED(
             commitResultOrError,
             "Error committing main export task transaction for queue %v",
             Queue_);
+
+        ProfilingCounters_->ExportedRows.Increment(diff.RowCount);
+        ProfilingCounters_->ExportedChunks.Increment(diff.ChunkCount);
+        ProfilingCounters_->ExportedTables.Increment();
 
         YT_LOG_INFO("Finished queue static export iteration");
     }
@@ -359,6 +387,7 @@ private:
         if (destinationConfig.OriginatingQueueId != QueueObject_.ObjectId) {
             THROW_ERROR_EXCEPTION(
                 "Destination config is not configured to accept exports from queue %v, configured id %v does not match queue id %v",
+                QueueObject_.GetPath(),
                 destinationConfig.OriginatingQueueId,
                 QueueObject_.ObjectId);
         }
@@ -706,8 +735,8 @@ private:
         UploadTransaction_->Detach();
     }
 
-    void UpdateCypressExportProgress(
-        const TExportProgressPtr& /*currentExportProgress*/,
+    TProgressDiff UpdateCypressExportProgress(
+        const TExportProgressPtr& currentExportProgress,
         const TExportProgressPtr& newExportProgress)
     {
         TSetNodeOptions options;
@@ -718,8 +747,10 @@ private:
             options))
             .ThrowOnError();
 
-        // TODO(achulkov2): Log summary of progress difference.
-        YT_LOG_DEBUG("Updated export progress");
+
+        TProgressDiff diff{currentExportProgress, newExportProgress};
+        YT_LOG_DEBUG("Updated export progress (ExportedRows: %v, ExportedChunks: %v)", diff.RowCount, diff.ChunkCount);
+        return diff;
     }
 
     bool CanUseSchemaId() const
@@ -732,13 +763,27 @@ DEFINE_REFCOUNTED_TYPE(TQueueExportTask)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TQueueExportProfilingCounters::TQueueExportProfilingCounters(const TProfiler& profiler)
+    : ExportedRows(profiler.Counter("/exported_rows"))
+    , ExportedChunks(profiler.Counter("/exported_chunks"))
+    , ExportedTables(profiler.Counter("/exported_tables"))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueueExporter::TQueueExporter(
+    TString exportName,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
+    IAlertCollectorPtr alertCollector,
+    const TProfiler& queueProfiler,
     const TLogger& logger)
-    : ClientDirectory_(std::move(clientDirectory))
+    : ExportName_(std::move(exportName))
+    , ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
-    , Logger(logger)
+    , AlertCollector_(std::move(alertCollector))
+    , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
+    , Logger(logger.WithTag("ExportName: %v", ExportName_))
 { }
 
 TFuture<void> TQueueExporter::RunExportIteration(
@@ -748,10 +793,22 @@ TFuture<void> TQueueExporter::RunExportIteration(
     auto exportTask = New<TQueueExportTask>(
         ClientDirectory_->GetClientOrThrow(queue.Cluster),
         Invoker_,
+        ProfilingCounters_,
         queue.Path,
         exportConfig,
         Logger);
-    return exportTask->Run();
+    auto exportTaskFuture = exportTask->Run();
+    exportTaskFuture.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+        if (!error.IsOK()) {
+            AlertCollector_->StageAlert(CreateAlert(
+                NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
+                "Failed to perform static export for queue",
+                /*tags*/ {{"export_name", ExportName_}},
+                error));
+        }
+        AlertCollector_->PublishAlerts();
+    }));
+    return exportTaskFuture;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
