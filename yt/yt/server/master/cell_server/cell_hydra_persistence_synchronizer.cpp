@@ -65,7 +65,7 @@ public:
     {
         YT_VERIFY(Bootstrap_);
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TCellHydraPersistenceSynchronizer::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TCellHydraPersistenceSynchronizer::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override

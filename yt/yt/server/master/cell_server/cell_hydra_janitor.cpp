@@ -69,14 +69,14 @@ public:
     void Initialize() override
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->SubscribeStartLeading(BIND(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStopLeading(BIND(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStartFollowing(BIND(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
-        hydraManager->SubscribeStopFollowing(BIND(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartLeading(BIND_NO_PROPAGATE(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND_NO_PROPAGATE(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(
-            BIND(&TCellHydraJanitor::OnDynamicConfigChanged, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TCellHydraJanitor::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {

@@ -125,10 +125,10 @@ public:
         YT_LOG_INFO("Initializing cellar node");
 
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 

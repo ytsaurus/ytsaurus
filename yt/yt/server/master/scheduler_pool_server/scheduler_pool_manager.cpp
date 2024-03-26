@@ -738,7 +738,7 @@ void TSchedulerPoolManager::Initialize()
     Bootstrap_->GetObjectManager()->RegisterHandler(New<TSchedulerPoolTreeTypeHandler>(this));
 
     const auto& configManager = Bootstrap_->GetConfigManager();
-    configManager->SubscribeConfigChanged(BIND(&TSchedulerPoolManager::OnDynamicConfigChanged, MakeWeak(this)));
+    configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TSchedulerPoolManager::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

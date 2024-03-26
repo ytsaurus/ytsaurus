@@ -81,7 +81,7 @@ public:
             CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
 
         const auto& dynamicConfigManager = GetDynamicConfigManger();
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TMasterCacheBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterCacheBootstrap::OnDynamicConfigChanged, Unretained(this)));
     }
 
     void Run() override

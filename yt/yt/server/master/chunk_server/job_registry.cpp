@@ -46,7 +46,7 @@ public:
         , PerTypeJobThrottlers_(CreatePerTypeJobThrottlers())
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TJobRegistry::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void RegisterJob(TJobPtr job) override

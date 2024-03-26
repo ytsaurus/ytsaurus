@@ -40,8 +40,8 @@ public:
             RpcProxyProfiler.WithPrefix("/access_checker_cache")))
         , Enabled_(Config_->Enabled)
     {
-        dynamicConfigManager->SubscribeConfigChanged(BIND(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
-        proxyCoordinator->SubscribeOnProxyRoleChanged(BIND(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnDynamicConfigChanged, MakeWeak(this)));
+        proxyCoordinator->SubscribeOnProxyRoleChanged(BIND_NO_PROPAGATE(&TAccessChecker::OnProxyRoleChanged, MakeWeak(this)));
     }
 
     TError CheckAccess(const TString& user) const override

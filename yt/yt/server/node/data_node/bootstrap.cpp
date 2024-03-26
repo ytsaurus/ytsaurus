@@ -87,7 +87,7 @@ public:
         YT_LOG_INFO("Initializing data node");
 
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
         const auto& dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 

@@ -48,18 +48,18 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TConfigManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
+                BIND_NO_PROPAGATE(&TConfigManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
 
             Bootstrap_->GetAlertManager()->RegisterAlertSource(
-                BIND(&TConfigManager::GetAlerts, MakeStrong(this)));
+                BIND_NO_PROPAGATE(&TConfigManager::GetAlerts, MakeStrong(this)));
         }
 
         // NB: Config Manager initialization is performed after all automaton parts registration in Hydra,
         // so config changed signal will be fired after other {LeaderRecoveryComplete,FollowerRecoveryComplete,LeaderActive}
         // subscribers. This property is crucial for many automaton parts.
-        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
-        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
-        HydraManager_->SubscribeLeaderActive(BIND(&TConfigManager::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonLeaderRecoveryComplete(BIND_NO_PROPAGATE(&TConfigManager::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeAutomatonFollowerRecoveryComplete(BIND_NO_PROPAGATE(&TConfigManager::FireConfigChanged, MakeWeak(this)));
+        HydraManager_->SubscribeLeaderActive(BIND_NO_PROPAGATE(&TConfigManager::FireConfigChanged, MakeWeak(this)));
     }
 
     const TDynamicClusterConfigPtr& GetConfig() const override

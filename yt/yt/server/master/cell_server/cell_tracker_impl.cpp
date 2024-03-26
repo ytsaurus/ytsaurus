@@ -59,7 +59,7 @@ public:
         , BalanceRequestTime_(Now())
     {
         const auto& bundleNodeTracker = Bootstrap_->GetTamedCellManager()->GetBundleNodeTracker();
-        bundleNodeTracker->SubscribeAreaNodesChanged(BIND(&TCellBalancerProvider::OnAreaNodesChanged, MakeWeak(this)));
+        bundleNodeTracker->SubscribeAreaNodesChanged(BIND_NO_PROPAGATE(&TCellBalancerProvider::OnAreaNodesChanged, MakeWeak(this)));
     }
 
     std::vector<TNodeHolder> GetNodes() override
@@ -174,7 +174,7 @@ TCellTrackerImpl::TCellTrackerImpl(
     }
 
     const auto& cellManager = Bootstrap_->GetTamedCellManager();
-    cellManager->SubscribeCellPeersAssigned(BIND(&TCellTrackerImpl::OnCellPeersReassigned, MakeWeak(this)));
+    cellManager->SubscribeCellPeersAssigned(BIND_NO_PROPAGATE(&TCellTrackerImpl::OnCellPeersReassigned, MakeWeak(this)));
 }
 
 void TCellTrackerImpl::ScanCells()

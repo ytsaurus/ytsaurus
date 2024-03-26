@@ -69,7 +69,7 @@ public:
             Config_->ReplicatorHintConfigFetcher,
             Bootstrap_))
     {
-        ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
+        ReplicatorHintConfigFetcher_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&THintManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Start() override

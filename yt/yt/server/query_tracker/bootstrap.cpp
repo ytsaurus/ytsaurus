@@ -141,7 +141,7 @@ void TBootstrap::DoRun()
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
     BusServer_ = CreateBusServer(Config_->BusServer);
 

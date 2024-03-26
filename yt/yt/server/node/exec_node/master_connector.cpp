@@ -49,7 +49,7 @@ public:
 
     void Initialize() override
     {
-        Bootstrap_->SubscribeMasterConnected(BIND(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
     }
 
     void OnDynamicConfigChanged(
