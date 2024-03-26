@@ -428,6 +428,21 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool TestCacheLocationDisabling;
+
+    REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
@@ -760,6 +775,8 @@ public:
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
+
+    TChunkCacheDynamicConfigPtr ChunkCache;
 
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.

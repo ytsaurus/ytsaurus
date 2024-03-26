@@ -265,6 +265,14 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("test_cache_location_disabling", &TThis::TestCacheLocationDisabling)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobSensor::Register(TRegistrar registrar)
 {
     registrar.Parameter("type", &TThis::Type);
@@ -853,6 +861,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
+        .DefaultNew();
+
+    registrar.Parameter("chunk_cache", &TThis::ChunkCache)
         .DefaultNew();
 
     registrar.Parameter("nbd", &TThis::Nbd)
