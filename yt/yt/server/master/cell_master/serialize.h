@@ -214,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
     ((UsersInSequoia)                                               (2546))  // cherepashka
     ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
+    ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -221,6 +222,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveEnableSharedWriteLocksFlag)                             (2603))  // ponasenko-rs
     ((AdminsGroup)                                                  (2604))  // aleksandr.gaev
     ((FixAlterTableReplicaWithRTT)                                  (2605))  // ngc224
+    ((AddTtlSystemColumn)                                           (2606))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
