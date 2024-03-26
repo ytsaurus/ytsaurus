@@ -28,7 +28,11 @@ target_link_libraries(contrib-libs-pycxx PUBLIC
 )
 
 target_sources(contrib-libs-pycxx PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/IndirectPythonInterface.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_exceptions.cxx
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_extensions.cxx
   ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
 )
 
 
