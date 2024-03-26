@@ -3716,12 +3716,12 @@ private:
                 }
 
                 for (const auto& chunkInfo : request.added_chunks()) {
-                    auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+
                     if (deadChunkIds.contains(chunkId)) {
                         continue;
                     }
-
-                    auto chunkIdWithIndex = DecodeChunkId(chunkId);
 
                     auto location = locationDirectory[chunkInfo.location_index()];
                     auto locationUuid = location->GetUuid();
@@ -3759,7 +3759,9 @@ private:
 
                 std::vector<NRecords::TLocationReplicasKey> keys;
                 for (const auto& chunkInfo : request.removed_chunks()) {
-                    auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+
                     auto location = locationDirectory[chunkInfo.location_index()];
                     auto locationUuid = location->GetUuid();
 
@@ -3785,16 +3787,15 @@ private:
                 }
 
                 for (const auto& chunkInfo : request.removed_chunks()) {
-                    auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
+                    auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                    auto chunkId = chunkIdWithIndex.Id;
+
                     if (!chunksWithReplicas.contains(chunkId) || deadChunkIds.contains(chunkId)) {
                         continue;
                     }
 
-                    auto chunkIdWithIndex = DecodeChunkId(chunkId);
-
                     auto location = locationDirectory[chunkInfo.location_index()];
                     auto locationUuid = location->GetUuid();
-
 
                     TChunkReplicaWithLocation replica(
                         nodeId,
