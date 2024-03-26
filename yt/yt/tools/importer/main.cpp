@@ -8,9 +8,13 @@
 
 #include <yt/yt/client/api/cypress_client.h>
 
+#include <yt/yt/core/concurrency/thread_pool_poller.h>
+
 #include <yt/yt/library/arrow_parquet_adapter/arrow.h>
 
 #include <yt/yt/library/huggingface_client/client.h>
+
+#include <yt/yt/library/s3/client.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 
@@ -23,6 +27,9 @@
 #include <util/system/env.h>
 
 namespace NYT::NTools::NImporter {
+
+using namespace NConcurrency;
+using namespace NYtBlobTable;
 
 static const NLogging::TLogger Logger("Importer");
 
@@ -42,14 +49,162 @@ const TString DataColumnName = "data";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THuggingfaceConfig
+{
+    Y_SAVELOAD_DEFINE();
+};
+
+struct TS3Config
+{
+    TString Url;
+    TString Region;
+    TString Bucket;
+
+    Y_SAVELOAD_DEFINE(
+        Url,
+        Region,
+        Bucket);
+};
+
+struct TSourceConfig
+{
+    std::optional<TS3Config> S3Config;
+    std::optional<THuggingfaceConfig> HuggingfaceConfig;
+
+    Y_SAVELOAD_DEFINE(
+        S3Config,
+        HuggingfaceConfig);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ExtractKeys(std::vector<TString>& keys, const std::vector<NS3::TObject>& objects)
+{
+    for (const auto& value : objects) {
+        keys.push_back(value.Key);
+    }
+}
+
+NS3::IClientPtr CreateS3Client(
+    const TS3Config& s3Config,
+    const TString& accessKeyId,
+    const TString& secretAccessKey)
+{
+    auto clientConfig = New<NS3::TS3ClientConfig>();
+
+    clientConfig->Url = s3Config.Url;
+    clientConfig->Region = s3Config.Region;
+    clientConfig->Bucket = s3Config.Bucket;
+    clientConfig->AccessKeyId = accessKeyId;
+    clientConfig->SecretAccessKey = secretAccessKey;
+
+    auto poller = CreateThreadPoolPoller(1, "s3_poller");
+    auto client = NS3::CreateClient(
+        std::move(clientConfig),
+        poller,
+        poller->GetInvoker());
+
+    WaitFor(client->Start())
+        .ThrowOnError();
+    return client;
+}
+
+std::vector<TString> GetListFilesKeysFromS3(
+    const TS3Config& s3Config,
+    const TString& accessKeyId,
+    const TString& secretAccessKey,
+    const TString& prefix)
+{
+    auto s3Client =  CreateS3Client(
+        s3Config,
+        accessKeyId,
+        secretAccessKey);
+
+    std::vector<TString> keys;
+    NS3::TListObjectsResponse response({ .NextContinuationToken = std::nullopt });
+    do {
+        response = WaitFor(s3Client->ListObjects({
+            .Prefix = prefix,
+            .Bucket = s3Config.Bucket,
+            .ContinuationToken = response.NextContinuationToken,
+        })).ValueOrThrow();
+        ExtractKeys(keys, response.Objects);
+    } while (response.NextContinuationToken);
+
+    return keys;
+}
+
+IAsyncZeroCopyInputStreamPtr DownloadFileFromS3(
+    const TS3Config& s3Config,
+    const TString& accessKeyId,
+    const TString& secretAccessKey,
+    const TString& fileKey)
+{
+    auto s3Client =  CreateS3Client(
+        s3Config,
+        accessKeyId,
+        secretAccessKey);
+
+    return WaitFor(s3Client->GetObjectStream({
+        .Bucket = s3Config.Bucket,
+        .Key = fileKey,
+    })).ValueOrThrow().Stream;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAsyncZeroCopyInputStreamPtr DownloadFileFromSource(
+    const TSourceConfig& sourceConfig,
+    const TString& fileId)
+{
+    if (sourceConfig.S3Config) {
+        TString accessKeyId = GetEnv("YT_SECURE_VAULT_ACCESS_KEY_ID");
+        TString secretAccessKey = GetEnv("YT_SECURE_VAULT_SECRET_ACCESS_KEY");
+        return DownloadFileFromS3(
+            *sourceConfig.S3Config,
+            accessKeyId,
+            secretAccessKey,
+            fileId);
+    } else if (sourceConfig.HuggingfaceConfig) {
+        TString huggingfaceToken = GetEnv("YT_SECURE_VAULT_HUGGINGFACE_TOKEN");
+        NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken);
+        return huggingfaceClient.DownloadFile(fileId);
+    } else {
+        THROW_ERROR_EXCEPTION("The importer source is not defined");
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOpts
 {
     TOpts()
         : Opts(NLastGetopt::TOpts::Default())
     {
-        Opts.AddLongOption("proxy", "Cluster name")
-            .StoreResult(&Cluster)
+        Opts.AddLongOption("proxy", "Specify cluster to run command")
+            .StoreResult(&Proxy)
             .Required();
+        Opts.AddLongOption("output", "Path to output table")
+            .StoreResult(&ResultTable)
+            .Required();
+        Opts.AddLongOption("format", "Format of files")
+            .DefaultValue("parquet")
+            .StoreResult(&Format);
+    }
+
+    NLastGetopt::TOpts Opts;
+
+    TString Proxy;
+    TString ResultTable;
+    TString Format;
+};
+
+struct TOptsHuggingface
+    : public TOpts
+{
+    TOptsHuggingface()
+        : TOpts()
+    {
         Opts.AddLongOption("dataset", "Name of dataset")
             .StoreResult(&Dataset)
             .Required();
@@ -59,34 +214,55 @@ struct TOpts
         Opts.AddLongOption("split", "Name of split")
             .StoreResult(&Split)
             .Required();
-        Opts.AddLongOption("output", "Path to output table")
-            .StoreResult(&ResultTable)
-            .Required();
     }
 
-    NLastGetopt::TOpts Opts;
-
-    TString Cluster;
     TString Dataset;
     TString Config;
     TString Split;
-    TString ResultTable;
+};
+
+struct TOptsS3
+    : public TOpts
+{
+    TOptsS3()
+        : TOpts()
+    {
+        Opts.AddLongOption("url", "Endpoint url of s3 storage")
+            .StoreResult(&Url)
+            .Required();
+        Opts.AddLongOption("region", "Region")
+            .DefaultValue("")
+            .StoreResult(&Region);
+        Opts.AddLongOption("bucket", "Name of bucket in s3")
+            .StoreResult(&Bucket)
+            .Required();
+        Opts.AddLongOption("prefix", "Common prefix of target files")
+            .DefaultValue("")
+            .StoreResult(&Prefix);
+    }
+
+    TString Url;
+    TString Region;
+    TString Bucket;
+    TString Prefix;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDownloadFromHuggingFaceMapper
+class TDownloadMapper
     : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
-    TDownloadFromHuggingFaceMapper()
-        : Client_(GetEnv("YT_SECURE_VAULT_HUGGINGFACE_TOKEN"))
+    TDownloadMapper() = default;
+
+    TDownloadMapper(TSourceConfig sourceConfig)
+        : SourceConfig_(std::move(sourceConfig))
     { }
 
     void Do(TReader* reader, TWriter* writer) override
     {
-        NYtBlobTable::TBlobTableSchema blobTableSchema;
-        blobTableSchema.BlobIdColumns({ NYT::TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64) });
+        TBlobTableSchema blobTableSchema;
+        blobTableSchema.BlobIdColumns({ TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64) });
 
         for (auto& cursor : *reader) {
             const auto& curRow = cursor.GetRow();
@@ -98,7 +274,7 @@ public:
             TNode keyNode = TNode::CreateMap();
             keyNode[FileIndexColumnName] = fileIndex;
 
-            BlobTableWriter_ = NYtBlobTable::CreateBlobTableWriter(
+            BlobTableWriter_ = CreateBlobTableWriter(
                 writer,
                 keyNode,
                 blobTableSchema,
@@ -107,8 +283,8 @@ public:
 
             FileSize_ = 0;
 
-            auto stream = Client_.DownloadFile(url);
-            while (auto data = NConcurrency::WaitFor(stream->Read()).ValueOrThrow()) {
+            auto stream = DownloadFileFromSource(SourceConfig_, url);
+            while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
                 DownloadFilePart(data);
             }
 
@@ -118,10 +294,12 @@ public:
         }
     }
 
+    Y_SAVELOAD_JOB(SourceConfig_);
+
 private:
     int FileSize_;
     IFileWriterPtr BlobTableWriter_;
-    NHuggingface::THuggingfaceClient Client_;
+    TSourceConfig SourceConfig_;
 
     // A ring buffer in which we save the current end of the file.
     char RingBuffer_[BufferSize];
@@ -205,7 +383,7 @@ private:
     }
 };
 
-REGISTER_MAPPER(TDownloadFromHuggingFaceMapper);
+REGISTER_MAPPER(TDownloadMapper);
 
 
 class TParseParquetFilesReducer
@@ -368,29 +546,20 @@ TTableSchema CreateResultTableSchema(IClientPtr ytClient, const TString& metadat
     return NFormats::NArrow::CreateYtTableSchemaFromArrowSchema(arrowSchema);
 }
 
-int UploadParquetsFileToTableFromHuggingface(int argc, const char** argv)
+void ImportParquetFilesFromSource(
+    const std::vector<TString>& fileIds,
+    const TString& resultTable,
+    const TString& cluster,
+    const TSourceConfig& sourceConfig)
 {
-    TOpts opts;
-    NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
-
-    TString huggingfaceToken = GetEnv("HUGGINGFACE_TOKEN");
-
-    YT_LOG_INFO("Start getting list of parquet files");
-
-    NYT::NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken);
-
-    auto result = huggingfaceClient.GetParquetFileUrls(opts.Dataset, opts.Config, opts.Split);
-
-    YT_LOG_INFO("Successfully downloaded %v parquet files", result.size());
-
     YT_LOG_INFO("Create table with meta information");
 
-    auto ytClient = NYT::CreateClient(opts.Cluster);
+    auto ytClient = NYT::CreateClient(cluster);
 
-    NYT::TTempTable metaInformationTable(
+    TTempTable metaInformationTable(
         ytClient,
-        /*prefix*/ {},
-        /*path*/ {},
+        /*prefix*/ TString(),
+        /*path*/ TString(),
         TCreateOptions().Attributes(TNode()("schema", TTableSchema()
             .AddColumn(TColumnSchema()
                 .Name(FileUrlColumnName)
@@ -401,7 +570,7 @@ int UploadParquetsFileToTableFromHuggingface(int argc, const char** argv)
 
     auto writer = ytClient->CreateTableWriter<TNode>(metaInformationTable.Name());
     int fileIndex = 0;
-    for (const auto& fileName : result) {
+    for (const auto& fileName : fileIds) {
         writer->AddRow(TNode()(FileUrlColumnName, fileName)(FileIndexColumnName, fileIndex));
         ++fileIndex;
     }
@@ -409,17 +578,22 @@ int UploadParquetsFileToTableFromHuggingface(int argc, const char** argv)
 
     YT_LOG_INFO("Create tables with data and meta parquet information from parquet files");
 
-    NYtBlobTable::TBlobTableSchema blobTableSchema;
-    blobTableSchema.BlobIdColumns({NYT::TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64)});
+    TBlobTableSchema blobTableSchema;
+    blobTableSchema.BlobIdColumns({TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64)});
 
-    auto createOptions = NYT::TCreateOptions().Attributes(
-        NYT::TNode()("schema", blobTableSchema.CreateYtSchema().ToNode()));
+    auto createOptions = TCreateOptions().Attributes(
+        TNode()("schema", blobTableSchema.CreateYtSchema().ToNode()));
 
-    NYT::TTempTable dataTable(ytClient, /*prefix*/ {}, /*path*/ {}, createOptions);
-    NYT::TTempTable metadataTable(
+    TTempTable dataTable(
         ytClient,
-        /*prefix*/ {},
-        /*path*/ {},
+        /*prefix*/ TString(),
+        /*path*/ TString(),
+        createOptions);
+
+    TTempTable metadataTable(
+        ytClient,
+        /*prefix*/ TString(),
+        /*path*/ TString(),
         TCreateOptions().Attributes(TNode()("schema", TTableSchema()
             .AddColumn(TColumnSchema()
                 .Name(FileIndexColumnName)
@@ -437,17 +611,26 @@ int UploadParquetsFileToTableFromHuggingface(int argc, const char** argv)
     const TString dataTablePath = dataTable.Name();
     const TString metadataTablePath = metadataTable.Name();
 
+    TOperationOptions operationOptions;
     TNode secureVault;
-    secureVault["HUGGINGFACE_TOKEN"] = huggingfaceToken;
 
+    if (sourceConfig.S3Config) {
+        secureVault["ACCESS_KEY_ID"] = GetEnv("ACCESS_KEY_ID");
+        secureVault["SECRET_ACCESS_KEY"] = GetEnv("SECRET_ACCESS_KEY");
+    } else if (sourceConfig.HuggingfaceConfig) {
+        secureVault["HUGGINGFACE_TOKEN"] = GetEnv("HUGGINGFACE_TOKEN");
+    } else {
+        THROW_ERROR_EXCEPTION("The importer source is not defined");
+    }
+
+    operationOptions.SecureVault(secureVault);
     ytClient->Map(
         TMapOperationSpec()
             .AddInput<TNode>(metaInformationTable.Name())
             .AddOutput<TNode>(dataTablePath)
             .AddOutput<TNode>(metadataTablePath),
-        new TDownloadFromHuggingFaceMapper(),
-        NYT::TOperationOptions()
-            .SecureVault(secureVault));
+        new TDownloadMapper(sourceConfig),
+        operationOptions);
 
     YT_LOG_INFO("Start sort operation of dataParquetTable and metadataOfParquetTable");
 
@@ -469,34 +652,104 @@ int UploadParquetsFileToTableFromHuggingface(int argc, const char** argv)
             .SortBy({FileIndexColumnName, PartIndexColumnName})
             .AddInput(metadataTablePath)
             .AddInput(dataTablePath)
-            .AddOutput(TRichYPath(opts.ResultTable)
+            .AddOutput(TRichYPath(resultTable)
                 .Schema(CreateResultTableSchema(ytClient, metadataTablePath)))
             .InputFormat(TFormat(TNode("yson")))
             .OutputFormat(TFormat(TNode("arrow"))),
         new TParseParquetFilesReducer);
 
-    YT_LOG_INFO("Parquet files were successfully uploaded to the table with path %v", opts.ResultTable);
+    YT_LOG_INFO("Parquet files were successfully uploaded to the table with path %v", resultTable);
+}
+
+void ImportFilesFromSource(
+    const std::vector<TString>& fileIds,
+    const TString& format,
+    const TString& resultTable,
+    const TString& cluster,
+    const TSourceConfig& sourceConfig)
+{
+    if (format == "parquet") {
+        ImportParquetFilesFromSource(
+            fileIds,
+            resultTable,
+            cluster,
+            sourceConfig);
+    } else {
+        THROW_ERROR_EXCEPTION("Unsupported format, only parquet is supported now");
+    }
+}
+
+int ImportFilesFromS3(int argc, const char** argv)
+{
+    TString accessKeyId = GetEnv("ACCESS_KEY_ID");
+    TString secretAccessKey = GetEnv("SECRET_ACCESS_KEY");
+
+    TOptsS3 opts;
+    NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
+
+    TS3Config s3Config({
+        .Url = opts.Url,
+        .Region = opts.Region,
+        .Bucket = opts.Bucket,
+    });
+
+    auto fileKeys = GetListFilesKeysFromS3(s3Config, accessKeyId, secretAccessKey, opts.Prefix);
+
+    YT_LOG_INFO("Successfully received %v file names from s3", fileKeys.size());
+
+    ImportFilesFromSource(
+        fileKeys,
+        opts.Format,
+        opts.ResultTable,
+        opts.Proxy,
+        TSourceConfig({ .S3Config = s3Config }));
+
     return 0;
 }
 
-int UploadParquetsFileToTableFromS3(int /*argc*/, const char** /*argv*/) {
-    THROW_ERROR_EXCEPTION("Not implemented");
-    return 1;
+int ImportFilesFromHuggingface(int argc, const char** argv)
+{
+    TOptsHuggingface opts;
+    NLastGetopt::TOptsParseResult parseResult(&opts.Opts, argc, argv);
+
+    TString huggingfaceToken = GetEnv("HUGGINGFACE_TOKEN");
+    std::vector<TString> fileIds;
+
+    if (opts.Format == "parquet") {
+        YT_LOG_INFO("Start getting list of files");
+
+        NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken);
+
+        fileIds = huggingfaceClient.GetParquetFileUrls(opts.Dataset, opts.Config, opts.Split);
+
+        YT_LOG_INFO("Successfully received %v file names from huggingface", fileIds.size());
+    } else {
+        THROW_ERROR_EXCEPTION("Unsupported format, only parquet is supported now");
+    }
+
+    ImportFilesFromSource(
+        fileIds,
+        opts.Format,
+        opts.ResultTable,
+        opts.Proxy,
+        TSourceConfig{ .HuggingfaceConfig = THuggingfaceConfig{} });
+
+    return 0;
 }
 
-void UploadParquetsFileToTable(int argc, const char** argv)
+void ImportFiles(int argc, const char** argv)
 {
     TModChooser modChooser;
 
     modChooser.AddMode(
         "huggingface",
-        UploadParquetsFileToTableFromHuggingface,
-        "-- import parquet files from huggingface"
+        ImportFilesFromHuggingface,
+        "-- import files from huggingface"
     );
     modChooser.AddMode(
         "s3",
-        UploadParquetsFileToTableFromS3,
-        "-- import parquet files from s3"
+        ImportFilesFromS3,
+        "-- import files from s3"
     );
 
     modChooser.Run(argc, argv);
@@ -518,11 +771,27 @@ void UploadParquetsFileToTable(int argc, const char** argv)
 //     --split train \
 //     --output //tmp/result_parquet_table
 
+// S3 access keys must be placed in an environment variables $ACCESS_KEY_ID and $SECRET_ACCESS_KEY
+// Usage example for yandex cloud: ./importer s3 \
+//     --proxy <cluster-name> \
+//     --url https://s3.yandexcloud.net \
+//     --region ru-central1 \ # optional param
+//     --bucket bucket_name \
+//     --prefix common_parquet_files_prefix \ # would be empty by default
+//     --output //tmp/result_parquet_table
+
+// Usage example for amazon: ./importer s3 \
+//     --proxy <cluster-name> \
+//     --url https://s3-us-west-2.amazonaws.com \
+//     --bucket bucket_name \
+//     --prefix common_parquet_files_prefix \
+//     --output //tmp/result_parquet_table
+
 int main(int argc, const char** argv)
 {
     NYT::Initialize();
     try {
-        NYT::NTools::NImporter::UploadParquetsFileToTable(argc, argv);
+        NYT::NTools::NImporter::ImportFiles(argc, argv);
     } catch (const std::exception& e) {
         Cerr << ToString(NYT::TError(e));
         return 1;

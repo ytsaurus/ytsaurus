@@ -18,6 +18,7 @@ target_link_libraries(importer PUBLIC
   mapreduce-library-blob_table
   yt-library-arrow_parquet_adapter
   yt-library-huggingface_client
+  yt-library-s3
   cpp-yson-node
   library-cpp-getopt
   libs-apache-arrow

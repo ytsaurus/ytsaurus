@@ -11,5 +11,6 @@ add_subdirectory(quote)
 add_subdirectory(relaxed_escaper)
 add_subdirectory(scan)
 add_subdirectory(url)
+add_subdirectory(ztstrbuf)
 
 

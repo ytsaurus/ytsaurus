@@ -9,6 +9,8 @@ PEERDIR(
 
     yt/yt/library/huggingface_client
 
+    yt/yt/library/s3
+
     library/cpp/yson/node
     library/cpp/getopt
 
