@@ -1451,7 +1451,7 @@ class TestInvalidAttributeValues(YTEnvSetup):
 @authors("yuryalekseev")
 class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
     NUM_SCHEDULERS = 1
-    NUM_NODES = 2
+    NUM_NODES = 1
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
