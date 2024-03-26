@@ -200,18 +200,23 @@ public:
                 .ThrowOnError();
         }
 
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            &preparedRequest->NonSequoiaRequest,
-            &preparedRequest->NonSequoiaResponse,
-            &TDataNodeTracker::HydraFullDataNodeHeartbeat,
-            this);
-
-        CommitMutationWithSemaphore(
-            std::move(mutation),
-            std::move(context),
-            std::move(preparedRequest),
-            FullHeartbeatSemaphore_);
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        hydraFacade->CommitMutationWithSemaphore(
+            FullHeartbeatSemaphore_,
+            context,
+            BIND([=, this, this_ = MakeStrong(this)] {
+                return CreateMutation(
+                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                    &preparedRequest->NonSequoiaRequest,
+                    &preparedRequest->NonSequoiaResponse,
+                    &TDataNodeTracker::HydraFullDataNodeHeartbeat,
+                    this);
+            }),
+            BIND([=] (const TMutationResponse& /*response*/) {
+                auto* response = &context->Response();
+                response->Swap(&preparedRequest->NonSequoiaResponse);
+                context->Reply();
+            }));
     }
 
     void ProcessFullHeartbeat(
@@ -316,18 +321,23 @@ public:
                 .ThrowOnError();
         }
 
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            &preparedRequest->NonSequoiaRequest,
-            &preparedRequest->NonSequoiaResponse,
-            &TDataNodeTracker::HydraIncrementalDataNodeHeartbeat,
-            this);
-
-        CommitMutationWithSemaphore(
-            std::move(mutation),
-            std::move(context),
-            std::move(preparedRequest),
-            IncrementalHeartbeatSemaphore_);
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        hydraFacade->CommitMutationWithSemaphore(
+            IncrementalHeartbeatSemaphore_,
+            context,
+            BIND([=, this, this_ = MakeStrong(this)] {
+                return CreateMutation(
+                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                    &preparedRequest->NonSequoiaRequest,
+                    &preparedRequest->NonSequoiaResponse,
+                    &TDataNodeTracker::HydraIncrementalDataNodeHeartbeat,
+                    this);
+            }),
+            BIND([=] (const TMutationResponse& /*response*/) {
+                auto* response = &context->Response();
+                response->Swap(&preparedRequest->NonSequoiaResponse);
+                context->Reply();
+            }));
     }
 
     void ProcessIncrementalHeartbeat(
@@ -569,7 +579,6 @@ private:
         TRspFullHeartbeat NonSequoiaResponse;
 
         TReqModifyReplicas SequoiaRequest;
-        TRspModifyReplicas SequoiaResponse;
     };
 
     struct TIncrementalHeartbeatRequest
@@ -579,7 +588,6 @@ private:
         TRspIncrementalHeartbeat NonSequoiaResponse;
 
         TReqModifyReplicas SequoiaRequest;
-        TRspModifyReplicas SequoiaResponse;
     };
 
     TChunkLocationUuidMap& GetChunkLocationShard(TChunkLocationUuid uuid)
@@ -830,39 +838,6 @@ private:
             location->Statistics() = chunkLocationStatistics;
             UpdateLocationDiskFamilyAlert(location);
         }
-    }
-
-    template <class TRequestPtr, class TContextPtr>
-    void CommitMutationWithSemaphore(
-        std::unique_ptr<TMutation> mutation,
-        TContextPtr context,
-        TRequestPtr preparedRequest,
-        const TAsyncSemaphorePtr& semaphore)
-    {
-        auto timeBefore = NProfiling::GetInstant();
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
-
-        semaphore->AsyncAcquire(
-            BIND([=, mutation = std::move(mutation), context = std::move(context), preparedRequest = std::move(preparedRequest)] (TAsyncSemaphoreGuard) {
-                auto requestTimeout = context->GetTimeout();
-                auto timeAfter = NProfiling::GetInstant();
-                if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
-                    context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-                    return;
-                }
-
-                auto result = WaitFor(mutation->Commit());
-                if (!result.IsOK()) {
-                    context->Reply(result);
-                    return;
-                }
-
-                auto* response = &context->Response();
-                response->CopyFrom(std::move(preparedRequest->NonSequoiaResponse));
-                context->Reply();
-            }).Via(EpochAutomatonInvoker_));
     }
 
     const TDynamicDataNodeTrackerConfigPtr& GetDynamicConfig() const

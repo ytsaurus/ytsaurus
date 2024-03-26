@@ -4,6 +4,7 @@
 #include "changelog_acquisition.h"
 #include "lease_tracker.h"
 #include "helpers.h"
+#include "epoch.h"
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
@@ -265,7 +266,7 @@ void TLeaderCommitter::SerializeMutations()
         }
 
         auto epochId = mutationDraft.Request.EpochId;
-        auto currentEpochId = *CurrentEpochId;
+        auto currentEpochId = GetCurrentEpochId();
         if (epochId && epochId != currentEpochId) {
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,

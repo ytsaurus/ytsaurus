@@ -9,6 +9,7 @@
 #include "mutation_committer.h"
 #include "recovery.h"
 #include "helpers.h"
+#include "epoch.h"
 
 #include <yt/yt/server/lib/hydra_common/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>
@@ -486,13 +487,6 @@ public:
         }
 
         return epochContext->LeaderSyncBatcher->Run();
-    }
-
-    TEpochId GetCurrentEpochId()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return *CurrentEpochId;
     }
 
     TFuture<TMutationResponse> Forward(TMutationRequest&& request)

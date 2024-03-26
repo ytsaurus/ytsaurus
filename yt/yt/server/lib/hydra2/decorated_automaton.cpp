@@ -1,4 +1,5 @@
 #include "decorated_automaton.h"
+#include "epoch.h"
 
 #include <yt/yt/server/lib/hydra_common/automaton.h>
 #include <yt/yt/server/lib/hydra_common/changelog.h>

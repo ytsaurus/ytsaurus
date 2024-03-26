@@ -11,6 +11,7 @@ SRCS(
     decorated_automaton.cpp
     distributed_hydra_manager.cpp
     dry_run_hydra_manager.cpp
+    epoch.cpp
     helpers.cpp
     lease_tracker.cpp
     mutation_committer.cpp

@@ -4,6 +4,7 @@
 #include "config.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node_detail.h>
@@ -26,6 +27,7 @@
 
 #include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
 #include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra2/epoch.h>
 #include <yt/yt/server/lib/hydra2/private.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
@@ -55,6 +57,7 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -295,6 +298,59 @@ public:
         VerifyPersistentStateRead();
 
         return EpochCancelableContext_->CreateInvoker(std::move(underlyingInvoker));
+    }
+
+    void CommitMutationWithSemaphore(
+        const TAsyncSemaphorePtr& semaphore,
+        NRpc::IServiceContextPtr context,
+        TCallback<std::unique_ptr<TMutation>()> mutationBuilder,
+        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto epochId = GetCurrentEpochId();
+
+        auto timeBefore = NProfiling::GetInstant();
+
+        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
+
+        semaphore->AsyncAcquire(
+            BIND(
+                [
+                    =,
+                    context = std::move(context),
+                    mutationBuilder = std::move(mutationBuilder),
+                    replyCallback = std::move(replyCallback)
+                ] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
+                    if (!guardOrError.IsOK()) {
+                        context->Reply(TError("Failed to acquire semaphore") << guardOrError);
+                        return;
+                    }
+
+                    auto requestTimeout = context->GetTimeout();
+                    auto timeAfter = NProfiling::GetInstant();
+                    if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
+                        context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
+                        return;
+                    }
+
+                    auto mutation = mutationBuilder();
+                    mutation->SetEpochId(epochId);
+
+                    auto result = WaitFor(mutation->Commit());
+                    if (!result.IsOK()) {
+                        context->Reply(result);
+                        return;
+                    }
+
+                    const auto& mutationResponse = result.Value();
+                    if (replyCallback) {
+                        replyCallback(mutationResponse);
+                    } else {
+                        context->Reply(mutationResponse.Data);
+                    }
+                }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
 private:
