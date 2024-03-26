@@ -5,10 +5,6 @@
 
 #include <yt/yt/ytlib/hydra/private.h>
 
-#include <yt/yt/core/misc/lazy_ptr.h>
-
-#include <yt/yt/core/concurrency/fls.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -47,20 +43,6 @@ DECLARE_REFCOUNTED_CLASS(TConfigWrapper)
 DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 DECLARE_REFCOUNTED_STRUCT(IChangelogDiscarder)
 DECLARE_REFCOUNTED_STRUCT(TPendingMutation)
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern NConcurrency::TFlsSlot<NElection::TEpochId> CurrentEpochId;
-
-class TCurrentEpochIdGuard
-{
-public:
-    TCurrentEpochIdGuard(const TCurrentEpochIdGuard&) = delete;
-    TCurrentEpochIdGuard(TCurrentEpochIdGuard&&) = delete;
-
-    explicit TCurrentEpochIdGuard(NElection::TEpochId epochId);
-    ~TCurrentEpochIdGuard();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

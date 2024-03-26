@@ -10,6 +10,7 @@
 #include "mutation_context.h"
 #include "serialize.h"
 #include "snapshot.h"
+#include "epoch.h"
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
@@ -358,7 +359,7 @@ void TLeaderCommitter::SerializeMutations()
         }
 
         auto epochId = mutationDraft.Request.EpochId;
-        auto currentEpochId = *CurrentEpochId;
+        auto currentEpochId = GetCurrentEpochId();
         if (epochId && epochId != currentEpochId) {
             mutationDraft.Promise.Set(TError(
                 NRpc::EErrorCode::Unavailable,

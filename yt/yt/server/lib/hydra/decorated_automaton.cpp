@@ -7,6 +7,7 @@
 #include "serialize.h"
 #include "snapshot.h"
 #include "state_hash_checker.h"
+#include "epoch.h"
 
 #include <yt/yt/server/lib/misc/fork_executor.h>
 

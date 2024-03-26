@@ -60,6 +60,7 @@ target_sources(server-lib-hydra PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/epoch.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_dispatcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_index.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hydra/file_helpers.cpp

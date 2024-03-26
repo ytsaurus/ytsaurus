@@ -53,6 +53,12 @@ public:
     virtual IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const = 0;
 
     virtual const NObjectServer::TEpochContextPtr& GetEpochContext() const = 0;
+
+    virtual void CommitMutationWithSemaphore(
+        const NConcurrency::TAsyncSemaphorePtr& semaphore,
+        NRpc::IServiceContextPtr context,
+        TCallback<std::unique_ptr<NHydra::TMutation>()> mutationBuilder,
+        TCallback<void(const NHydra::TMutationResponse& response)> replyCallback = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHydraFacade)
