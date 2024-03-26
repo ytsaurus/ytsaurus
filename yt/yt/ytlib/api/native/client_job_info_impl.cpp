@@ -1160,18 +1160,9 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const std::vector<NRecords::TJobPartial>& records,
-    const NTableClient::TTableSchemaPtr& schema,
+    const NRecords::TJobPartial::TRecordDescriptor::TIdMapping& responseIdMapping,
     bool needFullStatistics)
 {
-    auto responseHasColumn = [&] (auto ...names) {
-        for (auto name : {names...,}) {
-            if (schema->FindColumn(name)) {
-                return true;
-            }
-        }
-        return false;
-    };
-
     std::vector<TJob> jobs;
     jobs.reserve(records.size());
     for (const auto& record : records) {
@@ -1185,8 +1176,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             nodeState = record.NodeState;
         }
 
+        bool needType = responseIdMapping.Type || responseIdMapping.JobType;
+        bool needState = responseIdMapping.NodeState || responseIdMapping.TransientState;
         // Skip jobs that was not fully written (usually it is written only by controller).
-        if ((responseHasColumn("job_type", "type") && !jobType) || (responseHasColumn("node_state", "transient_state") && !nodeState)) {
+        if ((needType && !jobType) || (needState && !nodeState)) {
             continue;
         }
 
@@ -1206,7 +1199,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .JobCookie = record.JobCookie,
         };
 
-        if (responseHasColumn("operation_id_hi")) {
+        if (responseIdMapping.OperationIdHi) {
             job.OperationId = operationId;
         }
 
@@ -1222,7 +1215,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.ArchiveState = ParseEnum<EJobState>(*nodeState);
         }
 
-        if (responseHasColumn("address")) {
+        if (responseIdMapping.Address) {
             // This field previously was non-optional.
             job.Address = record.Address.value_or("");
         }
@@ -1238,17 +1231,17 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.FinishTime = TInstant::MicroSeconds(*record.FinishTime);
         }
 
-        if (responseHasColumn("has_spec")) {
+        if (responseIdMapping.HasSpec) {
             // This field previously was non-optional.
             job.HasSpec = record.HasSpec.value_or(false);
         }
 
-        if (responseHasColumn("has_competitors")) {
+        if (responseIdMapping.HasCompetitors) {
             // This field previously was non-optional.
             job.HasCompetitors = record.HasCompetitors.value_or(false);
         }
 
-        if (responseHasColumn("has_probing_competitors")) {
+        if (responseIdMapping.HasProbingCompetitors) {
             // This field previously was non-optional.
             job.HasProbingCompetitors = record.HasProbingCompetitors.value_or(false);
         }
@@ -1439,11 +1432,12 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
     return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId, this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
-        auto records = ToRecords<NRecords::TJobPartial>(result.Rowset);
+        auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
+        auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
         return ParseJobsFromArchiveResponse(
             operationId,
             records,
-            result.Rowset->GetSchema(),
+            idMapping,
             /*needFullStatistics*/ false);
     }));
 }
@@ -2084,11 +2078,12 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         return {};
     }
 
-    auto records = ToRecords<NRecords::TJobPartial>(rowset);
+    auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto records = ToRecords<NRecords::TJobPartial>(rowset->GetRows(), idMapping);
     auto jobs = ParseJobsFromArchiveResponse(
         operationId,
         records,
-        rowset->GetSchema(),
+        idMapping,
         /*needFullStatistics*/ true);
     if (jobs.empty()) {
         return {};
