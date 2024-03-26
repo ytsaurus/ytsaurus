@@ -41,6 +41,7 @@ def check_operation_tasks(op, expected):
 
 
 def simple_sort_1_phase(in_, out, sort_by, spec=None):
+    spec = spec or {}
     op = sort(in_=in_, out=out, sort_by=sort_by, spec=spec)
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {"simple_sort"}

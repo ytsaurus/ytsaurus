@@ -821,6 +821,10 @@ print row + table_index
 
     @authors("achulkov2")
     def test_truncate_composite_partitioning_sample(self):
+        # TODO(achulkov2): Lower/remove after cherry-picks.
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
+            pytest.skip()
+
         max_sample_size = 64 * 1024  # 64KiB
         big_size = 15 * 1024 * 1024  # 15MiB, a bit smaller than the default row limit.
 
