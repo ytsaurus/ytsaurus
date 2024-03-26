@@ -8,21 +8,6 @@ using namespace NElection;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFlsSlot<TEpochId> CurrentEpochId;
-
-TCurrentEpochIdGuard::TCurrentEpochIdGuard(TEpochId epochId)
-{
-    YT_VERIFY(!*CurrentEpochId);
-    *CurrentEpochId = epochId;
-}
-
-TCurrentEpochIdGuard::~TCurrentEpochIdGuard()
-{
-    *CurrentEpochId = {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TConfigWrapper::TConfigWrapper(TDistributedHydraManagerConfigPtr config)
     : Config_(config)
 { }

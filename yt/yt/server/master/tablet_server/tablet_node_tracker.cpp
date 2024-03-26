@@ -59,12 +59,17 @@ public:
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override
     {
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        hydraFacade->CommitMutationWithSemaphore(
+            HeartbeatSemaphore_,
             context,
-            &TTabletNodeTracker::HydraTabletNodeHeartbeat,
-            this);
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
+            BIND([=, this, this_ = MakeStrong(this)] {
+                return CreateMutation(
+                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                    context,
+                    &TTabletNodeTracker::HydraTabletNodeHeartbeat,
+                    this);
+            }));
     }
 
     void ProcessHeartbeat(
@@ -109,33 +114,6 @@ private:
 
             ProcessHeartbeat(node, request, response, /*legacyFullHeartbeat*/ false);
         }
-    }
-
-    void CommitMutationWithSemaphore(
-        std::unique_ptr<TMutation> mutation,
-        NRpc::IServiceContextPtr context,
-        const TAsyncSemaphorePtr& semaphore)
-    {
-        auto timeBefore = NProfiling::GetInstant();
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
-
-        semaphore->AsyncAcquire().SubscribeUnique(
-            BIND([=, mutation = std::move(mutation), context = std::move(context)] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) {
-                if (!guardOrError.IsOK()) {
-                    context->Reply(TError("Failed to acquire semaphore") << guardOrError);
-                    return;
-                }
-
-                auto requestTimeout = context->GetTimeout();
-                auto timeAfter = NProfiling::GetInstant();
-                if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
-                    context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-                } else {
-                    Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
-                }
-            }).Via(EpochAutomatonInvoker_));
     }
 
     const TDynamicTabletNodeTrackerConfigPtr& GetDynamicConfig() const

@@ -272,12 +272,17 @@ public:
 
     void ProcessHeartbeat(TCtxHeartbeatPtr context) override
     {
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        hydraFacade->CommitMutationWithSemaphore(
+            HeartbeatSemaphore_,
             context,
-            &TNodeTracker::HydraClusterNodeHeartbeat,
-            this);
-        CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
+            BIND([=, this, this_ = MakeStrong(this)] {
+                return CreateMutation(
+                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                    context,
+                    &TNodeTracker::HydraClusterNodeHeartbeat,
+                    this);
+            }));
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
@@ -2086,37 +2091,6 @@ private:
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
                 ->CommitAndLog(Logger));
         }
-    }
-
-    void CommitMutationWithSemaphore(
-        std::unique_ptr<TMutation> mutation,
-        NRpc::IServiceContextPtr context,
-        const TAsyncSemaphorePtr& semaphore)
-    {
-        auto timeBefore = NProfiling::GetInstant();
-
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto expectedMutationCommitDuration = config->CellMaster->ExpectedMutationCommitDuration;
-
-        semaphore->AsyncAcquire().SubscribeUnique(
-            BIND([=, mutation = std::move(mutation), context = std::move(context)] (TErrorOr<TAsyncSemaphoreGuard>&& guardOrError) mutable {
-                if (!guardOrError.IsOK()) {
-                    context->Reply(TError("Failed to acquire semaphore") << guardOrError);
-                    return;
-                }
-
-                auto requestTimeout = context->GetTimeout();
-                auto timeAfter = NProfiling::GetInstant();
-                if (requestTimeout && timeAfter + expectedMutationCommitDuration >= timeBefore + *requestTimeout) {
-                    context->Reply(TError(NYT::EErrorCode::Timeout, "Semaphore acquisition took too long"));
-                } else {
-                    Y_UNUSED(WaitFor(mutation->CommitAndReply(context)));
-                }
-
-                // Offload mutation destruction to another thread.
-                NRpc::TDispatcher::Get()->GetHeavyInvoker()
-                    ->Invoke(BIND([mutation = std::move(mutation)] { }));
-            }).Via(EpochAutomatonInvoker_));
     }
 
     void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)

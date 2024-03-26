@@ -5,6 +5,7 @@
 #include "changelog_discovery.h"
 #include "config.h"
 #include "decorated_automaton.h"
+#include "epoch.h"
 #include "helpers.h"
 #include "hydra_manager.h"
 #include "hydra_service.h"
@@ -58,27 +59,6 @@ using namespace NConcurrency;
 using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TEpochIdInjectingInvoker
-    : public TInvokerWrapper
-{
-public:
-    TEpochIdInjectingInvoker(IInvokerPtr underlying, TEpochId epochId)
-        : TInvokerWrapper(std::move(underlying))
-        , EpochId_(epochId)
-    { }
-
-    void Invoke(TClosure callback) override
-    {
-        UnderlyingInvoker_->Invoke(BIND([callback = std::move(callback), epochId = EpochId_] {
-            TCurrentEpochIdGuard guard(epochId);
-            callback();
-        }));
-    }
-
-private:
-    const TEpochId EpochId_;
-};
 
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManager)
 
@@ -490,13 +470,6 @@ public:
         }
 
         return epochContext->LeaderSyncBatcher->Run();
-    }
-
-    TEpochId GetCurrentEpochId()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return *CurrentEpochId;
     }
 
     TFuture<TMutationResponse> Forward(TMutationRequest&& request)
@@ -2565,7 +2538,7 @@ private:
     IInvokerPtr CreateEpochInvoker(const TEpochContextPtr& epochContext, const IInvokerPtr& underlying)
     {
         auto invoker = epochContext->CancelableContext->CreateInvoker(underlying);
-        return New<TEpochIdInjectingInvoker>(invoker, epochContext->EpochId);
+        return CreateEpochIdInjectingInvoker(std::move(invoker), epochContext->EpochId);
     }
 
     TEpochContextPtr StartEpoch(const NElection::TEpochContextPtr& electionEpochContext)

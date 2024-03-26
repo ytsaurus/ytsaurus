@@ -66,6 +66,7 @@ target_sources(server-lib-hydra PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/decorated_automaton.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/distributed_hydra_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/dry_run_hydra_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_dispatcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_changelog_index.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/hydra/file_helpers.cpp

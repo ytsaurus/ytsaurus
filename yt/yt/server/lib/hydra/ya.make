@@ -17,6 +17,7 @@ SRCS(
     decorated_automaton.cpp
     distributed_hydra_manager.cpp
     dry_run_hydra_manager.cpp
+    epoch.cpp
     file_changelog_dispatcher.cpp
     file_changelog_index.cpp
     file_helpers.cpp
