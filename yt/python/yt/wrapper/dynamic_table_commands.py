@@ -848,6 +848,9 @@ class TableBackupManifest(object):
             result["ordered_mode"] = self.ordered_mode
         return result
 
+    def __repr__(self):
+        return str(self._serialize())
+
 
 class ClusterBackupManifest(object):
     def __init__(self):
@@ -872,6 +875,9 @@ class ClusterBackupManifest(object):
 
     def _serialize(self):
         return [table._serialize() for table in self.tables]
+
+    def __repr__(self):
+        return str(self._serialize())
 
 
 class BackupManifest(object):
@@ -904,6 +910,9 @@ class BackupManifest(object):
             in iteritems(self.clusters)
         }
         return {"clusters": clusters}
+
+    def __repr__(self):
+        return str(self._serialize())
 
 
 def create_table_backup(
