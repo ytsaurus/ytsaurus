@@ -180,7 +180,7 @@ private:
         auto code = error.GetCode();
 
         // COMPAT(savrus)
-        if (IsChannelFailureError(error) || code == NYT::EErrorCode::Timeout) {
+        if (IsChannelFailureError(error) || error.FindMatching(NYT::EErrorCode::Timeout)) {
             return true;
         }
 
