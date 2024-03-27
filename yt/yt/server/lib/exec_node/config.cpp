@@ -784,12 +784,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
-    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
-        .Default();
-
-    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
-        .Default();
-
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));
 

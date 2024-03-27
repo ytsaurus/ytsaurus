@@ -685,7 +685,7 @@ class TJobProxyConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NLogging::TLogManagerConfigPtr JobProxyLogging;
+    NJobProxy::TJobProxyLoggingConfigPtr JobProxyLogging;
 
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
 
@@ -694,9 +694,6 @@ public:
     NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
-
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
 
     TDuration SupervisorRpcTimeout;
 
