@@ -10,7 +10,7 @@ def _explain_id(**kwargs):
         raise yt.YtError("Error: expect GUID like string, not \"{}\"".format(kwargs["id"]))
     print_to_output("  Epoch/Segment:  {} ({})".format(a, hex(a)))
     print_to_output("  Mutation:       {} ({})".format(b, hex(b)))
-    print_to_output("  Cell id:        {} ({})".format(c >> 16, hex(c >> 16)))
+    print_to_output("  Cell tag:       {} ({})".format(c >> 16, hex(c >> 16)))
     print_to_output("  Object type:    {} ({}) - {}".format(c & 0xFFFF, hex(c & 0xFFFF), _OBJECT_TYPE.get(c & 0xFFFF, "unknown")))
     print_to_output("  Hash:           {} ({})".format(d, hex(d)))
 
