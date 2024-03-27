@@ -22,6 +22,7 @@ namespace NYT::NJobProxy {
 
 struct TJobEnvironmentCpuStatistics
 {
+    TDuration BurstUsageTime;
     TDuration UserUsageTime;
     TDuration SystemUsageTime;
     TDuration WaitTime;

@@ -59,6 +59,7 @@ void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsu
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("burst").Value(statistics.BurstUsageTime)
             .Item("user").Value(statistics.UserUsageTime)
             .Item("system").Value(statistics.SystemUsageTime)
             .Item("wait").Value(statistics.WaitTime)
@@ -72,6 +73,7 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
 {
     try {
         return TJobEnvironmentCpuStatistics {
+            .BurstUsageTime = statistics.BurstUsageTime.ValueOrThrow(),
             .UserUsageTime = statistics.UserUsageTime.ValueOrThrow(),
             .SystemUsageTime = statistics.SystemUsageTime.ValueOrThrow(),
             .WaitTime = statistics.WaitTime.ValueOrThrow(),
