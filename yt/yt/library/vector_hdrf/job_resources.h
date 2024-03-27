@@ -51,13 +51,12 @@ public:
     XX(user_memory,           Memory) \
     XX(network,               Network)
 
-// NB(antonkikh): Resource types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EJobResourceType,
-    (UserSlots)
-    (Cpu)
-    (Gpu)
-    (Memory)
-    (Network)
+    ((UserSlots)    (0))
+    ((Cpu)          (1))
+    ((Gpu)          (2))
+    ((Memory)       (3))
+    ((Network)      (4))
 );
 
 EJobResourceType GetDominantResource(

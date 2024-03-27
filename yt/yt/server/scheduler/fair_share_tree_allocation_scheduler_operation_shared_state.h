@@ -52,9 +52,8 @@ public:
 
     void OnMinNeededResourcesUnsatisfied(
         const ISchedulingContextPtr& schedulingContext,
-        const TJobResources& availableResources,
-        const TJobResources& minNeededResources);
-    TEnumIndexedArray<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount();
+        const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources);
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
 
     void IncrementOperationScheduleAllocationAttemptCount(const ISchedulingContextPtr& schedulingContext);
     int GetOperationScheduleAllocationAttemptCount();
@@ -131,7 +130,7 @@ private:
     //! Thread affinity: control.
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasons_;
     TEnumIndexedArray<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
-    TEnumIndexedArray<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
     TInstant LastDiagnosticCountersUpdateTime_;
 
     //! Thread affinity: control, profiling.
@@ -141,7 +140,7 @@ private:
     {
         TEnumIndexedArray<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedArray<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
-        TEnumIndexedArray<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
+        TEnumIndexedArray<EJobResourceWithDiskQuotaType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
 
         std::atomic<i64> ScheduleAllocationAttemptCount;
     };

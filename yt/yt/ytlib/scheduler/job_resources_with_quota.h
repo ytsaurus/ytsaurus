@@ -14,6 +14,18 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB(omgronny): This is an extension of EJobResourceType.
+DEFINE_ENUM(EJobResourceWithDiskQuotaType,
+    ((UserSlots)    (0))
+    ((Cpu)          (1))
+    ((Gpu)          (2))
+    ((Memory)       (3))
+    ((Network)      (4))
+    ((DiskQuota)    (5))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDiskQuota
 {
     NChunkClient::TMediumMap<i64> DiskSpacePerMedium;

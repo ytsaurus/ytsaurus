@@ -1729,7 +1729,8 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         return false;
     }
 
-    if (!HasAllocationsSatisfyingResourceLimits(element)) {
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool> unsatisfiedResources;
+    if (!HasAllocationsSatisfyingResourceLimits(element, &unsatisfiedResources)) {
         YT_ELEMENT_LOG_DETAILED(
             element,
             "No pending allocations can satisfy available resources on node ("
@@ -1751,8 +1752,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
 
         OnMinNeededResourcesUnsatisfied(
             element,
-            SchedulingContext_->GetNodeFreeResourcesWithDiscountForOperation(element->GetOperationId()),
-            element->AggregatedMinNeededAllocationResources());
+            unsatisfiedResources);
         deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return false;
     }
@@ -2208,10 +2208,12 @@ void TScheduleAllocationsContext::UpdateOperationResourceUsage(TSchedulerOperati
     DynamicAttributesManager_.UpdateOperationResourceUsage(element, SchedulingContext_->GetNow());
 }
 
-bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(const TSchedulerOperationElement* element) const
+bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
+    const TSchedulerOperationElement* element,
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
     for (const auto& allocationResources : element->DetailedMinNeededAllocationResources()) {
-        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetOperationId())) {
+        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetOperationId(), unsatisfiedResources)) {
             return true;
         }
     }
@@ -2272,13 +2274,11 @@ bool TScheduleAllocationsContext::IsOperationEnabled(const TSchedulerOperationEl
 
 void TScheduleAllocationsContext::OnMinNeededResourcesUnsatisfied(
     const TSchedulerOperationElement* element,
-    const TJobResources& availableResources,
-    const TJobResources& minNeededResources) const
+    const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources) const
 {
     TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->OnMinNeededResourcesUnsatisfied(
         SchedulingContext_,
-        availableResources,
-        minNeededResources);
+        unsatisfiedResources);
 }
 
 void TScheduleAllocationsContext::UpdateOperationPreemptionStatusStatistics(
@@ -2940,13 +2940,15 @@ void TFairShareTreeAllocationScheduler::BuildOperationProgress(
     const auto& attributes = isEnabled
         ? treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element)
         : TStaticAttributes{};
+    auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
+
     fluent
         .Item("preemptible_job_count").Value(operationSharedState->GetPreemptibleAllocationCount())
         .Item("aggressively_preemptible_job_count").Value(operationSharedState->GetAggressivelyPreemptibleAllocationCount())
         .Item("scheduling_index").Value(attributes.SchedulingIndex)
         .Item("scheduling_priority").Value(attributes.SchedulingPriority)
         .Item("deactivation_reasons").Value(operationSharedState->GetDeactivationReasons())
-        .Item("min_needed_resources_unsatisfied_count").Value(operationSharedState->GetMinNeededResourcesUnsatisfiedCount())
+        .Item("min_needed_resources_unsatisfied_count").Value(minNeededResourcesWithDiskQuotaUnsatisfiedCount)
         .Item("disk_quota_usage").BeginMap()
             .Do([&] (TFluentMap fluent) {
                 strategyHost->SerializeDiskQuota(operationSharedState->GetTotalDiskQuota(), fluent.GetConsumer());
@@ -3093,6 +3095,8 @@ void TFairShareTreeAllocationScheduler::BuildElementLoggingStringAttributes(
         const auto& attributes = treeSnapshot->IsElementEnabled(element)
             ? treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element)
             : TStaticAttributes{};
+        auto minNeededResourcesWithDiskQuotaUnsatisfiedCount = operationSharedState->GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount();
+
         delimitedBuilder->AppendFormat(
             "PreemptibleRunningAllocations: %v, AggressivelyPreemptibleRunningAllocations: %v, PreemptionStatusStatistics: %v, "
             "SchedulingIndex: %v, SchedulingPriority: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v, "
@@ -3103,7 +3107,7 @@ void TFairShareTreeAllocationScheduler::BuildElementLoggingStringAttributes(
             attributes.SchedulingIndex,
             attributes.SchedulingPriority,
             operationSharedState->GetDeactivationReasons(),
-            operationSharedState->GetMinNeededResourcesUnsatisfiedCount(),
+            minNeededResourcesWithDiskQuotaUnsatisfiedCount,
             operationState->SchedulingSegment,
             operationState->SchedulingSegmentModule);
     }
