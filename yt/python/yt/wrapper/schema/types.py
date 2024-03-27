@@ -37,6 +37,7 @@ else:
     def dataclass_transform():
         return lambda x: x
 
+T = typing.TypeVar("T")
 
 @dataclass_transform()
 def yt_dataclass(cls):
@@ -82,7 +83,7 @@ class Annotation:
         return "Annotation({})".format(self._ti_type)
 
 
-def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
+def create_annotated_type(py_type: typing.Type[T], ti_type, to_yt_type=None, from_yt_type=None) -> typing.Type[T]:
     """
     Create an alias of a python type `py_type` that will correspond to `ti_type`
     in table schemas.
@@ -235,19 +236,18 @@ class OutputRow(typing.Generic[YtDataclassType]):
         self._table_index = table_index
 
 
-class RowIteratorProtocol(typing.Iterable[YtDataclassType]):
-    def with_context():
-        pass
-
-
 class ContextProtocol(Protocol):
-    def get_table_index():
+    def get_table_index(self) -> int:
         pass
 
-    def get_row_index():
+    def get_row_index(self) -> int:
         pass
 
-    def get_range_index():
+    def get_range_index(self) -> int:
+        pass
+
+class RowIteratorProtocol(typing.Iterable[YtDataclassType]):
+    def with_context(self) -> typing.Iterable[typing.Tuple[YtDataclassType, ContextProtocol]]:
         pass
 
 
