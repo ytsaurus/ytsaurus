@@ -48,7 +48,6 @@ private:
     NCellMaster::TBootstrap* const Bootstrap_;
     TIntrusivePtr<TCellTrackerImpl> CellTrackerImpl_;
 
-    TInstant StartTime_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     std::optional<bool> LastEnabled_;
 
@@ -76,9 +75,7 @@ void TCellTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    StartTime_ = TInstant::Now();
-
-    CellTrackerImpl_ = New<TCellTrackerImpl>(Bootstrap_, StartTime_);
+    CellTrackerImpl_ = New<TCellTrackerImpl>(Bootstrap_);
 
     YT_VERIFY(!PeriodicExecutor_);
     PeriodicExecutor_ = New<TPeriodicExecutor>(

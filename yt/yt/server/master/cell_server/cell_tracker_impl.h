@@ -23,15 +23,12 @@ class TCellTrackerImpl
     : public TRefCounted
 {
 public:
-    TCellTrackerImpl(
-        NCellMaster::TBootstrap* bootstrap,
-        TInstant startTime);
+    TCellTrackerImpl(NCellMaster::TBootstrap* bootstrap);
 
     void ScanCells();
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const TInstant StartTime_;
 
     THashMap<NCellarClient::ECellarType, ICellBalancerProviderPtr> PerCellarProviders_;
     bool WaitForCommit_ = false;
