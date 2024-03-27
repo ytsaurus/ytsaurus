@@ -1184,6 +1184,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/cell_directory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/cell_master_client/protobuf_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/alien_cell.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/banned_replica_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/chaos_client/chaos_cell_channel_factory.cpp

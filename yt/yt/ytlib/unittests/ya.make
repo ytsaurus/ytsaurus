@@ -25,6 +25,7 @@ SRCS(
     striped_erasure_ut.cpp
     tablet_request_batcher_ut.cpp
     transaction_helpers_ut.cpp
+    protobuf_helpers_ut.cpp
 )
 
 ADDINCL(

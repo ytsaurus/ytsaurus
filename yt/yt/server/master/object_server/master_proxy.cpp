@@ -30,6 +30,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
@@ -49,6 +51,7 @@ using namespace NObjectClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCellMaster;
+using namespace NCellMasterClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,21 +230,16 @@ private:
         if (populateCellDirectory) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             const auto& masterCellConnectionConfigs = multicellManager->GetMasterCellConnectionConfigs();
-            // TODO(cherepashka): to add all fields from TMasterConnectionConfig into NProto::TCellDirectory.
             auto* protoCellDirectory = response->mutable_cell_directory();
 
             auto addCell = [&] (const NApi::NNative::TMasterConnectionConfigPtr& cellConfig) {
-                auto* cellItem = protoCellDirectory->add_items();
-                ToProto(cellItem->mutable_cell_id(), cellConfig->CellId);
-
-                if (cellConfig->Addresses) {
-                    ToProto(cellItem->mutable_addresses(), *cellConfig->Addresses);
-                }
+                auto* cellDirectoryItem = protoCellDirectory->add_items();
+                ToProto(cellDirectoryItem, cellConfig);
 
                 auto roles = multicellManager->GetMasterCellRoles(CellTagFromId(cellConfig->CellId));
                 for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
                     if (Any(roles & EMasterCellRoles(role))) {
-                        cellItem->add_roles(static_cast<i32>(role));
+                        cellDirectoryItem->add_roles(static_cast<i32>(role));
                     }
                 }
             };

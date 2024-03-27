@@ -62,6 +62,7 @@ target_sources(unittester-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/striped_erasure_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/tablet_request_batcher_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/transaction_helpers_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/protobuf_helpers_ut.cpp
 )
 add_test(
   NAME
