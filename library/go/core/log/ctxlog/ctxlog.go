@@ -122,3 +122,41 @@ func mergeFields(a, b []log.Field) []log.Field {
 	copy(c[n:], b)
 	return c
 }
+
+func WriteAt(lvl log.Level, ctx context.Context, l log.Logger, msg string, fields ...log.Field) {
+	l = log.AddCallerSkip(l, 1)
+
+	switch lvl {
+	case log.TraceLevel:
+		Trace(ctx, l, msg, fields...)
+	case log.DebugLevel:
+		Debug(ctx, l, msg, fields...)
+	case log.InfoLevel:
+		Info(ctx, l, msg, fields...)
+	case log.WarnLevel:
+		Warn(ctx, l, msg, fields...)
+	case log.ErrorLevel:
+		Error(ctx, l, msg, fields...)
+	case log.FatalLevel:
+		Fatal(ctx, l, msg, fields...)
+	}
+}
+
+func WriteAtf(lvl log.Level, ctx context.Context, l log.Logger, format string, args ...interface{}) {
+	l = log.AddCallerSkip(l, 1)
+
+	switch lvl {
+	case log.TraceLevel:
+		Tracef(ctx, l, format, args...)
+	case log.DebugLevel:
+		Debugf(ctx, l, format, args...)
+	case log.InfoLevel:
+		Infof(ctx, l, format, args...)
+	case log.WarnLevel:
+		Warnf(ctx, l, format, args...)
+	case log.ErrorLevel:
+		Errorf(ctx, l, format, args...)
+	case log.FatalLevel:
+		Fatalf(ctx, l, format, args...)
+	}
+}

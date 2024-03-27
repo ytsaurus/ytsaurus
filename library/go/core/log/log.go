@@ -116,10 +116,10 @@ func WriteAt(l Structured, lvl Level, msg string, fields ...Field) error {
 	}
 
 	switch lvl {
-	case DebugLevel:
-		l.Debug(msg, fields...)
 	case TraceLevel:
 		l.Trace(msg, fields...)
+	case DebugLevel:
+		l.Debug(msg, fields...)
 	case InfoLevel:
 		l.Info(msg, fields...)
 	case WarnLevel:
