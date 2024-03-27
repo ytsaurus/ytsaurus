@@ -734,6 +734,7 @@
   "yt/cpp/roren/library/timers/timer/proto/CMakeLists.txt":"",
   "yt/cpp/roren/yt/CMakeLists.txt":"",
   "yt/cpp/roren/yt/proto/CMakeLists.txt":"",
+  "yt/docs/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/README.md",
   "yt/examples/CMakeLists.txt":"",
   "yt/examples/rpc_proxy_sample/CMakeLists.txt":"",
   "yt/go/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/go/README.md",
