@@ -257,6 +257,8 @@ message TUserJobSpec
 
     optional double container_cpu_limit = 53 [default = 0];
 
+    optional int64 slot_container_memory_limit = 73;
+
     optional bool make_rootfs_writable = 54 [default = false];
 
     optional int32 restart_exit_code = 55;
