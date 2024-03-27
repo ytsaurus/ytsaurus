@@ -2,6 +2,7 @@ package bus
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -93,6 +94,18 @@ func WithFeatureIDFormatter(f featureIDFormatter) ClientOption {
 	}
 }
 
+func WithEncryptionMode(m EncryptionMode) ClientOption {
+	return func(conn *ClientConn) {
+		conn.EncryptionMode = m
+	}
+}
+
+func WithTLSConfig(c *tls.Config) ClientOption {
+	return func(conn *ClientConn) {
+		conn.TLSConfig = c
+	}
+}
+
 var ErrConnClosed = xerrors.NewSentinel("connection closed")
 
 type ClientConn struct {
@@ -119,6 +132,9 @@ type ClientConn struct {
 	bus    *Bus
 
 	log log.Logger
+
+	EncryptionMode EncryptionMode
+	TLSConfig      *tls.Config
 }
 
 func NewClient(ctx context.Context, address string, opts ...ClientOption) *ClientConn {
@@ -274,7 +290,13 @@ func (c *ClientConn) runSender() {
 }
 
 func (c *ClientConn) dial(ctx context.Context) {
-	bus, err := Dial(ctx, Options{Address: c.address, Logger: c.log})
+	opts := Options{
+		Address:        c.address,
+		Logger:         c.log,
+		EncryptionMode: c.EncryptionMode,
+		TLSConfig:      c.TLSConfig,
+	}
+	bus, err := Dial(ctx, opts)
 	if err != nil {
 		c.fail(err)
 		return
