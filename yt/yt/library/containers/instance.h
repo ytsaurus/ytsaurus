@@ -141,6 +141,7 @@ struct IInstance
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
 
+    virtual TString GetStdout() const = 0;
     virtual TString GetStderr() const = 0;
 
     virtual TString GetName() const = 0;

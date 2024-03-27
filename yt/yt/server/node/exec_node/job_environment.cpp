@@ -40,6 +40,7 @@
 #include <yt/yt/core/net/connection.h>
 
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/string_helpers.h>
 
 #include <util/generic/guid.h>
 
@@ -178,7 +179,7 @@ public:
         return 0;
     }
 
-    TFuture<void> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
         TJobId /*jobId*/,
@@ -421,7 +422,7 @@ private:
 
 #ifdef _linux_
 
-constexpr int MaxStderrSizeInError = 500;
+constexpr int MaxCommandOutputSizeInError = 500;
 
 constexpr double CpuUpdatePrecision = 0.01;
 
@@ -550,7 +551,7 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
-    TFuture<void> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -563,6 +564,9 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         return BIND([this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
+            std::vector<TShellCommandOutput> outputs;
+            outputs.reserve(commands.size());
+
             for (int index = 0; index < std::ssize(commands); ++index) {
                 const auto& command = commands[index];
                 YT_LOG_DEBUG(
@@ -583,19 +587,25 @@ public:
                 const auto& instance = instanceOrError.ValueOrThrow();
 
                 auto error = WaitFor(instance->Wait());
-                if (!error.IsOK()) {
-                    auto instanceStderr = instance->GetStderr();
-                    YT_LOG_WARNING(error, "Setup command failed (JobId: %v, Stderr: %v)",
-                        jobId,
-                        instanceStderr);
 
-                    if (instanceStderr.size() > MaxStderrSizeInError) {
-                        error.MutableAttributes()->Set("stderr_truncated", true);
-                        instanceStderr = instanceStderr.substr(0, MaxStderrSizeInError);
-                    }
-                    error.MutableAttributes()->Set("stderr", instanceStderr);
+                TShellCommandOutput instanceOutput{
+                    .Stdout = instance->GetStdout(),
+                    .Stderr = instance->GetStderr(),
+                };
+
+                if (!error.IsOK()) {
+                    YT_LOG_WARNING(error, "Setup command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
+                        jobId,
+                        instanceOutput.Stderr,
+                        instanceOutput.Stdout);
+
+                    error.MutableAttributes()->Set("stdout", TruncateString(instanceOutput.Stdout, MaxCommandOutputSizeInError));
+                    error.MutableAttributes()->Set("stderr", TruncateString(instanceOutput.Stderr, MaxCommandOutputSizeInError));
+
                     THROW_ERROR error;
                 }
+
+                outputs.push_back(instanceOutput);
 
                 YT_LOG_DEBUG(
                     "Setup command finished (JobId: %v, Path: %v, Args: %v)",
@@ -603,6 +613,8 @@ public:
                     command->Path,
                     command->Args);
             }
+
+            return outputs;
         })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run();

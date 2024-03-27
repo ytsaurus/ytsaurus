@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "job_workspace_builder.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
@@ -47,7 +47,7 @@ struct IJobEnvironment
 
     virtual i64 GetMajorPageFaultCount() const = 0;
 
-    virtual TFuture<void> RunSetupCommands(
+    virtual TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,

@@ -206,6 +206,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/signal_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/string_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/cache_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/utf8_decoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/zerocopy_output_writer.cpp
