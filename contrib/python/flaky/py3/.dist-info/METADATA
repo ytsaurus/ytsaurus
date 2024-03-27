@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: flaky
-Version: 3.8.0
+Version: 3.8.1
 Summary: Plugin for pytest that automatically reruns flaky tests.
 Home-page: https://github.com/box/flaky
 Author: Box
