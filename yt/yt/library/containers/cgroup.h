@@ -116,6 +116,7 @@ public:
 
     struct TStatistics
     {
+        TErrorOr<TDuration> BurstUsageTime;
         TErrorOr<TDuration> TotalUsageTime;
         TErrorOr<TDuration> UserUsageTime;
         TErrorOr<TDuration> SystemUsageTime;
