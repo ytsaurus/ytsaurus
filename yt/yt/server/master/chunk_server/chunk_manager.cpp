@@ -1327,6 +1327,7 @@ public:
         }
 
         if (canHaveSequoiaReplicas) {
+            std::sort(sequoiaReplicas.begin(), sequoiaReplicas.end());
             EmplaceOrCrash(SequoiaChunkPurgatory_, chunk->GetId(), sequoiaReplicas);
         }
 
