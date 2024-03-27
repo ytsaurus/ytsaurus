@@ -635,6 +635,17 @@ class TestAccessControlList(YTEnvSetup):
         expect_queries([q_u3], list_queries(filter="aco_list_by_aco3"))
         expect_queries([q_u3], list_queries(filter="aco:aco_list_by_aco3"))
 
+    @authors("mpereskokova")
+    def test_list_sql_injection(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+        q0 = start_query("mock", "fail", authenticated_user="u1")
+        q1 = start_query("mock", "fail", authenticated_user="u2")
+
+        expect_queries([q0], list_queries(cursor_direction="future", attributes=["id"], user="u1"))
+        expect_queries([q1], list_queries(cursor_direction="future", attributes=["id"], user="u2"))
+        expect_queries([], list_queries(cursor_direction="future", attributes=["id"], user="u1\") OR ([user]=\"u2"))
+
 
 ##################################################################
 
