@@ -173,7 +173,7 @@ jobs:
           cd ../ya_build_release
           rm -rf *
 
-          ../ytsaurus/ytsaurus/ya make -T --build=release -DSTRIP=yes --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          ../ytsaurus/ytsaurus/ya make -T --build=release --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
@@ -229,21 +229,24 @@ jobs:
         if: ${{ inputs.build-query-tracker-ya-make-relwithdebinfo || inputs.build-query-tracker-ya-make-release }}
         run: |
           shopt -s expand_aliases
-          alias ydb-ya-make="../ytsaurus/ydb/ya make -T -DSTRIP=yes --ignore-recurses --output=."
+          alias ydb-ya-make="../ytsaurus/ydb/ya make -T --ignore-recurses --output=."
 
           build_types=()
+          strip_flags=()
           yqla_output_dirs=()
           ydb_output_dirs=()
 
           if ${{ inputs.build-query-tracker-ya-make-relwithdebinfo }}; then
             build_types+=(relwithdebinfo)
             yqla_output_dirs+=(ya_build)
+            strip_flags+=(yes)
             ydb_output_dirs+=(build_qt_ya_make)
           fi
 
           if ${{ inputs.build-query-tracker-ya-make-release }}; then
             build_types+=(release)
             yqla_output_dirs+=(ya_build_release)
+            strip_flags+=(no)
             ydb_output_dirs+=(build_qt_ya_make_release)
           fi
 
@@ -252,40 +255,40 @@ jobs:
             cd ../${ydb_output_dirs[$i]}
             rm -rf *
 
-            ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]} -DSTRIP=yes --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
+            ../ytsaurus/ytsaurus/ya make -T --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]} --output=../${yqla_output_dirs[$i]} ../ytsaurus/ytsaurus/yt/yql/agent/bin
 
-            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
-            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ../ytsaurus/ydb/ydb/library/yql/tools/mrjob
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ../ytsaurus/ydb/ydb/library/yql/yt/dynamic
 
-            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job
-            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job.lite
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ../ytsaurus/ydb/ydb/library/yql/yt/dq_vanilla_job.lite
 
             udfs_prefix="../ytsaurus/ydb/ydb/library/yql/udfs/common"
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/compress_base
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/datetime2
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/digest
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/file
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/histogram
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/hyperloglog
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/hyperscan
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/ip_base
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/json
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/json2
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/math
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/pire
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/protobuf
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/re2
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/set
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/stat
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/streaming
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/string
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/top
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/topfreq
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/unicode_base
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/url_base
-            ydb-ya-make --build=${build_types[$i]} ${udfs_prefix}/yson2
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/compress_base
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/datetime2
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/digest
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/file
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/histogram
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/hyperloglog
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/hyperscan
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/ip_base
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/json
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/json2
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/math
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/pire
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/protobuf
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/re2
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/set
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/stat
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/streaming
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/string
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/top
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/topfreq
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/unicode_base
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/url_base
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ${udfs_prefix}/yson2
 
-            ydb-ya-make --build=${build_types[$i]} ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
+            ydb-ya-make --build=${build_types[$i]} -DSTRIP=${strip_flags[$i]}  ../ytsaurus/ydb/ydb/library/yql/udfs/logs/dsv
           done
 
       - name: Build Python packages
