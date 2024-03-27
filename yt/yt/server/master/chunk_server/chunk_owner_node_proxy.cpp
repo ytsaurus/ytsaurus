@@ -1425,7 +1425,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
         replicationRequest->set_upload_transaction_title(request->upload_transaction_title());
     }
 
-    // NB: Journals and files have no schema, thus no need to replicate one.
+    // NB: Journals and files have no schema.
     if (uploadContext.TableSchema) {
         auto tableSchemaId = uploadContext.TableSchema->GetId();
         ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
@@ -1480,7 +1480,7 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     }
 
     // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    // NB: Journals and files have no schema, thus no need to replicate one.
+    // NB: Journals and files have no schema.
     if (uploadContext.TableSchema) {
         auto tableSchemaId = uploadContext.TableSchema->GetId();
         // Schema was exported during EndUpload call, it's safe to send id only.
@@ -2019,7 +2019,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
             tableSchema,
             tableSchemaId);
 
-        uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, Transaction_);
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
+        if (tableSchema || tableSchemaId ||
+            !dynamicConfig->SchemalessEndUploadPreservesTableSchema)
+        {
+            // Either a new client that sends schema info with BeginUpload,
+            // or an old client that aims for an empty schema.
+            // If the first case, we should leave the table schema intact.
+            // In the second case, BeginUpload would've already set table schema
+            // to empty, and we may as well leave it intact.
+            // COMPAT(shakurov): remove the above comment once all clients are "new".
+            uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, Transaction_);
+        }
     }
 
     node->EndUpload(uploadContext);
