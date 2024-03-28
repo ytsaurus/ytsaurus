@@ -223,6 +223,7 @@ DEFINE_ENUM(EMasterReign,
     ((AdminsGroup)                                                  (2604))  // aleksandr.gaev
     ((FixAlterTableReplicaWithRTT)                                  (2605))  // ngc224
     ((AddTtlSystemColumn)                                           (2606))  // alexelexa
+    ((RemoveChaosIndependentPeersAssumption)                        (2607))  // ponasenko-rs
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
