@@ -37,7 +37,6 @@ import (
 	"io"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
-
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/ypath"
