@@ -1305,7 +1305,7 @@ private:
 
     void CheckBarrier()
     {
-        if (!IsLeader()) {
+        if (!IsActiveLeader()) {
             return;
         }
 

@@ -148,6 +148,11 @@ bool TCompositeAutomatonPart::IsLeader() const
     return HydraManager_->IsLeader();
 }
 
+bool TCompositeAutomatonPart::IsActiveLeader() const
+{
+    return HydraManager_->IsActiveLeader();
+}
+
 bool TCompositeAutomatonPart::IsFollower() const
 {
     return HydraManager_->IsFollower();

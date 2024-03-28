@@ -83,6 +83,7 @@ protected:
         const std::vector<TString>& aliases = {});
 
     bool IsLeader() const;
+    bool IsActiveLeader() const;
     bool IsFollower() const;
     bool IsRecovery() const;
 
