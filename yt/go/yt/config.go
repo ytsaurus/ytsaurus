@@ -120,7 +120,8 @@ type Config struct {
 	// LightRequestTimeout specifies default timeout for light requests. Timeout includes all retries and backoffs.
 	// Timeout for single request is not configurable right now.
 	//
-	// A Timeout of zero means no timeout. Client can still specify timeout on per-request basis using context.
+	// A Timeout of zero means no timeout (retries never stop).
+	// Client can still specify timeout on per-request basis using context.
 	//
 	// nil value means default timeout of 5 minutes.
 	LightRequestTimeout *time.Duration
