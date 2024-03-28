@@ -298,16 +298,18 @@ void TJob::Start() noexcept
 
     TCurrentTraceContextGuard guard(TraceContext_);
 
-    YT_VERIFY(!std::exchange(Started_, true));
-
+    // Job may be aborted concurrently with allocation scheduled.
     if (JobPhase_ != EJobPhase::Created) {
-        YT_LOG_FATAL("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
+        YT_LOG_INFO(
+            "Job was not started since it is not in initial state (JobState: %v, JobPhase: %v)",
             JobState_,
             JobPhase_);
         return;
     }
 
-    YT_LOG_INFO("Start job");
+    YT_VERIFY(!std::exchange(Started_, true));
+
+    YT_LOG_INFO("Starting job");
 
     SetJobState(EJobState::Running);
 
