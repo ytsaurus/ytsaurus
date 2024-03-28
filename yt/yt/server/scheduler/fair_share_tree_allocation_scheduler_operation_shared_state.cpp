@@ -461,23 +461,21 @@ TAllocationPreemptionStatusMap TFairShareTreeAllocationSchedulerOperationSharedS
 
 void TFairShareTreeAllocationSchedulerOperationSharedState::OnMinNeededResourcesUnsatisfied(
     const ISchedulingContextPtr& schedulingContext,
-    const TJobResources& availableResources,
-    const TJobResources& minNeededResources)
+    const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources)
 {
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
-#define XX(name, Name) \
-        if (availableResources.Get##Name() < minNeededResources.Get##Name()) { \
-            IncrementAtomicCounterUnsafely(&shard.MinNeededResourcesUnsatisfiedCount[EJobResourceType::Name]); \
+    for (auto resourceType : TEnumTraitsImpl<EJobResourceWithDiskQuotaType>::GetDomainValues()) {
+        if (unsatisfiedResources[resourceType]) {
+            IncrementAtomicCounterUnsafely(&shard.MinNeededResourcesUnsatisfiedCount[resourceType]);
         }
-    ITERATE_JOB_RESOURCES(XX)
-#undef XX
+    }
 }
 
-TEnumIndexedArray<EJobResourceType, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
+TEnumIndexedArray<EJobResourceWithDiskQuotaType, int> TFairShareTreeAllocationSchedulerOperationSharedState::GetMinNeededResourcesWithDiskQuotaUnsatisfiedCount()
 {
     UpdateDiagnosticCounters();
 
-    return MinNeededResourcesUnsatisfiedCount_;
+    return MinNeededResourcesWithDiskQuotaUnsatisfiedCount_;
 }
 
 void TFairShareTreeAllocationSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason)
@@ -545,7 +543,7 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::UpdateDiagnosticCoun
 
     std::fill(DeactivationReasons_.begin(), DeactivationReasons_.end(), 0);
     std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
-    std::fill(MinNeededResourcesUnsatisfiedCount_.begin(), MinNeededResourcesUnsatisfiedCount_.end(), 0);
+    std::fill(MinNeededResourcesWithDiskQuotaUnsatisfiedCount_.begin(), MinNeededResourcesWithDiskQuotaUnsatisfiedCount_.end(), 0);
     i64 scheduleAllocationAttemptCount = 0;
 
     for (int shardId = 0; shardId < std::ssize(StrategyHost_->GetNodeShardInvokers()); ++shardId) {
@@ -555,8 +553,8 @@ void TFairShareTreeAllocationSchedulerOperationSharedState::UpdateDiagnosticCoun
             DeactivationReasonsFromLastNonStarvingTime_[reason] +=
                 shard.DeactivationReasonsFromLastNonStarvingTime[reason].load();
         }
-        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-            MinNeededResourcesUnsatisfiedCount_[resource] +=
+        for (auto resource : TEnumTraits<EJobResourceWithDiskQuotaType>::GetDomainValues()) {
+            MinNeededResourcesWithDiskQuotaUnsatisfiedCount_[resource] +=
                 shard.MinNeededResourcesUnsatisfiedCount[resource].load();
         }
         scheduleAllocationAttemptCount += shard.ScheduleAllocationAttemptCount;

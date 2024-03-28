@@ -499,7 +499,9 @@ private:
     bool IsOperationResourceUsageOutdated(const TSchedulerOperationElement* element) const;
     void UpdateOperationResourceUsage(TSchedulerOperationElement* element);
 
-    bool HasAllocationsSatisfyingResourceLimits(const TSchedulerOperationElement* element) const;
+    bool HasAllocationsSatisfyingResourceLimits(
+        const TSchedulerOperationElement* element,
+        TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const;
 
     TFairShareStrategyPackingConfigPtr GetPackingConfig() const;
     bool CheckPacking(const TSchedulerOperationElement* element, const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
@@ -511,8 +513,7 @@ private:
     bool IsOperationEnabled(const TSchedulerOperationElement* element) const;
     void OnMinNeededResourcesUnsatisfied(
         const TSchedulerOperationElement* element,
-        const TJobResources& availableResources,
-        const TJobResources& minNeededResources) const;
+        const TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>& unsatisfiedResources) const;
     void UpdateOperationPreemptionStatusStatistics(
         const TSchedulerOperationElement* element,
         EOperationPreemptionStatus status) const;

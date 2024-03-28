@@ -48,7 +48,8 @@ public:
 
     bool CanStartAllocationForOperation(
         const TJobResourcesWithQuota& allocationResourcesWithQuota,
-        TOperationId operationId) const override;
+        TOperationId operationId,
+        TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const override;
     bool CanStartMoreAllocations(
         const std::optional<TJobResources>& customMinSpareAllocationResources) const override;
     bool CanSchedule(const TSchedulingTagFilter& filter) const override;
@@ -113,9 +114,11 @@ private:
 
     ENodeSchedulingResult NodeSchedulingResult_ = ENodeSchedulingResult::FullyScheduled;
 
+    // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr
     bool CanSatisfyResourceRequest(
         const TJobResources& allocationResources,
-        const TJobResources& conditionalDiscount) const;
+        const TJobResources& conditionalDiscount,
+        TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources = nullptr) const;
 
     TDiskQuota GetDiskQuotaWithCompactedDefaultMedium(TDiskQuota diskQuota) const;
 };

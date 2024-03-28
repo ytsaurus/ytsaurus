@@ -120,27 +120,43 @@ const TExecNodeDescriptorPtr& TSchedulingContextBase::GetNodeDescriptor() const
 
 bool TSchedulingContextBase::CanSatisfyResourceRequest(
     const TJobResources& allocationResources,
-    const TJobResources& conditionalDiscount) const
+    const TJobResources& conditionalDiscount,
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    return Dominates(
-        ResourceLimits_,
-        ResourceUsage_ + allocationResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount));
+    auto resourceRequest = ResourceUsage_ + allocationResources - (UnconditionalDiscount_.ToJobResources() + conditionalDiscount);
+    bool canSatisfyResourceRequest = true;
+
+    #define XX(name, Name) \
+        if (ResourceLimits_.Get##Name() < resourceRequest.Get##Name()) { \
+            canSatisfyResourceRequest = false; \
+            if (unsatisfiedResources) { \
+                (*unsatisfiedResources)[EJobResourceWithDiskQuotaType::Name] = true; \
+            } \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+
+    return canSatisfyResourceRequest;
 }
 
 bool TSchedulingContextBase::CanStartAllocationForOperation(
     const TJobResourcesWithQuota& allocationResourcesWithQuota,
-    TOperationId operationId) const
+    TOperationId operationId,
+    TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
+    std::vector<TDiskQuota> diskRequests(DiskRequests_);
     auto diskRequest = Max(TDiskQuota{},
         GetDiskQuotaWithCompactedDefaultMedium(allocationResourcesWithQuota.DiskQuota()) - (UnconditionalDiscount_.DiskQuota() + GetConditionalDiscountForOperation(operationId).DiskQuota()));
     diskRequests.push_back(std::move(diskRequest));
 
-    return
-        CanSatisfyResourceRequest(
-            allocationResourcesWithQuota.ToJobResources(),
-            GetConditionalDiscountForOperation(operationId).ToJobResources()) &&
-        CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
+    bool canSatisfyResourceRequest = CanSatisfyResourceRequest(
+        allocationResourcesWithQuota.ToJobResources(),
+        GetConditionalDiscountForOperation(operationId).ToJobResources(),
+        unsatisfiedResources);
+    bool canSatisfyDiskQuotaRequests = CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
+    (*unsatisfiedResources)[EJobResourceWithDiskQuotaType::DiskQuota] |= !canSatisfyDiskQuotaRequests;
+
+    return canSatisfyResourceRequest && canSatisfyDiskQuotaRequests;
 }
 
 bool TSchedulingContextBase::CanStartMoreAllocations(

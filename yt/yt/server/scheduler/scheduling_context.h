@@ -98,7 +98,10 @@ struct ISchedulingContext
     virtual const std::vector<TPreemptedAllocation>& PreemptedAllocations() const = 0;
 
     //! Returns |true| if node has enough resources to start allocation with given limits.
-    virtual bool CanStartAllocationForOperation(const TJobResourcesWithQuota& allocationResources, TOperationId operationId) const = 0;
+    virtual bool CanStartAllocationForOperation(
+        const TJobResourcesWithQuota& allocationResources,
+        TOperationId operationId,
+        TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const = 0;
     //! Returns |true| if any more new allocations can be scheduled at this node.
     virtual bool CanStartMoreAllocations(
         const std::optional<TJobResources>& customMinSpareAllocationResources = {}) const = 0;
