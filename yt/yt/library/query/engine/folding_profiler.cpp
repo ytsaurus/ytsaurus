@@ -1633,9 +1633,10 @@ void TQueryProfiler::Profile(
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
-            InferRowWeightWithNoStrings(query->GetReadSchema()),
-            stringLikeColumnIndices,
-            query->GetReadSchema()->GetColumnCount() + 0}); // NB: This query has no incoming stream tag.
+            /*RowWeightWithNoStrings*/ InferRowWeightWithNoStrings(query->GetReadSchema()),
+            /*StringLikeIndices*/ stringLikeColumnIndices,
+            /*Length*/ query->GetReadSchema()->GetColumnCount() + 0, // NB: This query has no incoming stream tag.
+        });
 
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
@@ -1920,9 +1921,10 @@ void TQueryProfiler::Profile(
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
-            InferRowWeightWithNoStrings(query->GetReadSchema()),
-            stringLikeColumnIndices,
-            query->GetReadSchema()->GetColumnCount() + 1}); // NB: We use +1 for stream tag.
+            /*RowWeightWithNoStrings*/ InferRowWeightWithNoStrings(query->GetReadSchema()),
+            /*StringLikeIndices*/ stringLikeColumnIndices,
+            /*Length*/ query->GetReadSchema()->GetColumnCount() + 1, // NB: We use +1 for stream tag.
+        });
 
     size_t currentSlot = MakeCodegenScanOp(
         codegenSource,
