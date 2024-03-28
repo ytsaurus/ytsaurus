@@ -1216,7 +1216,17 @@ def get_checks_config():
                 "alerts": instant_force_ok,
             },
             "queue_agent_alerts": {
-                "alerts": instant_force_ok,
+                "alerts": {
+                    "simple": {
+                        "period": 2,
+                        "threshold": 1,
+                        "partially_available_strategy": "force_ok"
+                    },
+                    "long": {
+                        "period": 60,
+                        "threshold": 20,
+                    },
+                },
                 "options": {
                     "queue_agent_stage_clusters": {
                         "hume": "hume",

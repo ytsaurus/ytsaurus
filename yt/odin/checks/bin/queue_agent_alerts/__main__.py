@@ -1,6 +1,6 @@
 from yt_odin_checks.lib.check_runner import main
 from yt.wrapper import YtClient
-from yt.common import YtError
+from yt.common import YtError, YtResponseError
 
 from collections import defaultdict
 
@@ -39,10 +39,22 @@ def run_check(secrets, yt_client, logger, options, states):
         queue_agent_instances = run_method(lambda: queue_agent_stage_client.list("//sys/queue_agents/instances"),
                                            null_value=[])
 
+        queue_agent_instances_count = len(queue_agent_instances)
+        failed_instance_count = 0
+        last_instance_error = None
+
         for instance in queue_agent_instances:
             logger.info(f"Collecting alerts from {instance}")
-            alerts = run_method(lambda: queue_agent_stage_client.get(f"//sys/queue_agents/instances/{instance}/orchid/alerts"),
-                                null_value=dict())
+
+            try:
+                alerts = run_method(lambda: queue_agent_stage_client.get(f"//sys/queue_agents/instances/{instance}/orchid/alerts"),
+                                    null_value=dict())
+            except YtResponseError as err:
+                if not err.is_transport_error():
+                    raise err
+                failed_instance_count += 1
+                last_instance_error = err
+                continue
 
             for alert, raw_error in alerts.items():
                 error = YtError.from_dict(raw_error)
@@ -60,6 +72,11 @@ def run_check(secrets, yt_client, logger, options, states):
                         # If there is at least one inner error without a specified cluster attribute,
                         # we consider this alert generic for the corresponding queue agent.
                         generic_alerts_by_stage_cluster[queue_agent_stage_cluster][instance][alert] = error
+
+        if failed_instance_count * 2 > queue_agent_instances_count:
+            raise last_instance_error
+        elif failed_instance_count > 0:
+            return states.PARTIALLY_AVAILABLE_STATE, f"There are {failed_instance_count} unavailable instances"
 
     if cluster_name in queue_agent_stage_clusters:
         logger.info("Checking for generic alerts for queue agent stage on our cluster %s", cluster_name)
