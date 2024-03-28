@@ -14,7 +14,7 @@ namespace NYT::NChaosNode {
 
 DEFINE_ENUM(EReplicationCardCollocationState,
     ((Normal)       (0))
-    ((Emmigrating)  (1))
+    ((Emigrating)   (1))
     ((Immigrating)  (2))
 );
 

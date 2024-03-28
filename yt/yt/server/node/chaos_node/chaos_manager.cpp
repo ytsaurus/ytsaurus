@@ -1366,7 +1366,7 @@ private:
         }
 
         for (auto* collocation : collocations) {
-            collocation->SetState(EReplicationCardCollocationState::Emmigrating);
+            collocation->SetState(EReplicationCardCollocationState::Emigrating);
             ReplicationCollocationDestroyed_.Fire(collocation->GetId());
         }
 
@@ -1408,7 +1408,7 @@ private:
             if (!replicationCard) {
                 if (IsDomesticReplicationCard(replicationCardId)) {
                     // Seems like card has been removed.
-                    YT_LOG_DEBUG("Unexpected replication card returned from emmigration (ReplicationCardId: %v)",
+                    YT_LOG_DEBUG("Unexpected replication card returned from emigration (ReplicationCardId: %v)",
                         replicationCardId);
                     continue;
                 }
@@ -2192,7 +2192,7 @@ private:
                 collocation->GetId(),
                 collocation->GetState());
 
-            YT_LOG_ALERT_IF(oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emmigrating,
+            YT_LOG_ALERT_IF(oldCollocation && oldCollocation->GetState() != EReplicationCardCollocationState::Emigrating,
                 "Unexpected replication card collocation state during migration "
                 "(ReplicationCardId: %v, OldCollocationId: %v, OldCollocationState: %v)",
                 replicationCard->GetId(),
@@ -2406,13 +2406,13 @@ private:
                             fluent.Item("immigrated_to_cell_id").Value(migration.ImmigratedToCellId);
                         })
                         .DoIf(static_cast<bool>(migration.EmigratedFromCellId), [&] (TFluentMap fluent) {
-                            fluent.Item("emmgrated_from_cell_id").Value(migration.EmigratedFromCellId);
+                            fluent.Item("emigrated_from_cell_id").Value(migration.EmigratedFromCellId);
                         })
                         .DoIf(static_cast<bool>(migration.ImmigrationTime), [&] (TFluentMap fluent) {
                             fluent.Item("immigration_time").Value(migration.ImmigrationTime);
                         })
                         .DoIf(static_cast<bool>(migration.EmigrationTime), [&] (TFluentMap fluent) {
-                            fluent.Item("emmigration_time").Value(migration.EmigrationTime);
+                            fluent.Item("emigration_time").Value(migration.EmigrationTime);
                         })
                     .EndMap()
             .EndMap();

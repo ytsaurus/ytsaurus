@@ -397,7 +397,7 @@ private:
             auto state = transaction->GetPersistentState();
 
             YT_LOG_FATAL_IF(state != transaction->GetTransientState(),
-                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestatmp: %v)",
+                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestamp: %v)",
                 transactionId,
                 state,
                 transaction->GetTransientState(),
