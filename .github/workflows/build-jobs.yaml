@@ -239,14 +239,14 @@ jobs:
           if ${{ inputs.build-query-tracker-ya-make-relwithdebinfo }}; then
             build_types+=(relwithdebinfo)
             yqla_output_dirs+=(ya_build)
-            strip_flags+=(yes)
+            strip_flags+=(no)
             ydb_output_dirs+=(build_qt_ya_make)
           fi
 
           if ${{ inputs.build-query-tracker-ya-make-release }}; then
             build_types+=(release)
             yqla_output_dirs+=(ya_build_release)
-            strip_flags+=(no)
+            strip_flags+=(yes)
             ydb_output_dirs+=(build_qt_ya_make_release)
           fi
 
