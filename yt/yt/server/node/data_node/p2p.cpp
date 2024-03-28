@@ -740,7 +740,8 @@ void TP2PDistributor::AllocateNodes()
             continue;
         }
 
-        if (auto lastSeenTime = nodeDescriptor.GetLastSeenTime(); lastSeenTime && (*lastSeenTime + config->NodeStalenessTimeout <= now)) {
+        auto lastSeenTime = nodeDescriptor.GetLastSeenTime();
+        if (!lastSeenTime || (*lastSeenTime + config->NodeStalenessTimeout <= now)) {
             continue;
         }
 
