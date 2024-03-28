@@ -1510,7 +1510,6 @@ type GenerateTimestampOptions struct{}
 type GetInSyncReplicasOptions struct{}
 
 type AuthClient interface {
-
 	// http:verb:"set_user_password"
 	// http:params:"user","new_password_sha256","current_password_sha256"
 	SetUserPassword(
