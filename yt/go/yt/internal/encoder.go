@@ -253,10 +253,10 @@ func (e *Encoder) SetUserPassword(
 	currentPassword string,
 	options *yt.SetUserPasswordOptions,
 ) (err error) {
-	newPasswordSHA256 := EncodeSHA256(newPassword)
+	newPasswordSHA256 := encodeSHA256(newPassword)
 	currentPasswordSHA256 := ""
 	if currentPassword != "" {
-		currentPasswordSHA256 = EncodeSHA256(currentPassword)
+		currentPasswordSHA256 = encodeSHA256(currentPassword)
 	}
 
 	call := e.newCall(NewSetUserPasswordParams(user, newPasswordSHA256, currentPasswordSHA256, options))
@@ -274,7 +274,7 @@ func (e *Encoder) IssueToken(
 ) (token string, err error) {
 	passwordSHA256 := ""
 	if password != "" {
-		passwordSHA256 = EncodeSHA256(password)
+		passwordSHA256 = encodeSHA256(password)
 	}
 	call := e.newCall(NewIssueTokenParams(user, passwordSHA256, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
@@ -293,9 +293,9 @@ func (e *Encoder) RevokeToken(
 ) (err error) {
 	passwordSHA256 := ""
 	if password != "" {
-		passwordSHA256 = EncodeSHA256(password)
+		passwordSHA256 = encodeSHA256(password)
 	}
-	tokenSHA256 := EncodeSHA256(token)
+	tokenSHA256 := encodeSHA256(token)
 
 	call := e.newCall(NewRevokeTokenParams(user, passwordSHA256, tokenSHA256, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
@@ -312,7 +312,7 @@ func (e *Encoder) ListUserTokens(
 ) (tokens []string, err error) {
 	passwordSHA256 := ""
 	if password != "" {
-		passwordSHA256 = EncodeSHA256(password)
+		passwordSHA256 = encodeSHA256(password)
 	}
 	call := e.newCall(NewListUserTokensParams(user, passwordSHA256, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
@@ -1038,6 +1038,6 @@ func (e *Encoder) AlterQuery(
 	return
 }
 
-func EncodeSHA256(input string) string {
+func encodeSHA256(input string) string {
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
 }

@@ -1,6 +1,8 @@
 package integration
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -8,7 +10,6 @@ import (
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yt/internal"
 )
 
 func TestAuthClient(t *testing.T) {
@@ -52,7 +53,7 @@ func (s *Suite) TestIssueListRevokeToken(t *testing.T, yc yt.Client) {
 
 	tokens, err := yc.ListUserTokens(s.Ctx, user, "", nil)
 	require.NoError(t, err)
-	tokenSHA := internal.EncodeSHA256(token)
+	tokenSHA := encodeSHA256(token)
 	require.Contains(t, tokens, tokenSHA)
 
 	err = yc.RevokeToken(s.Ctx, user, "", token, nil)
@@ -61,4 +62,8 @@ func (s *Suite) TestIssueListRevokeToken(t *testing.T, yc yt.Client) {
 	tokens, err = yc.ListUserTokens(s.Ctx, user, "", nil)
 	require.NoError(t, err)
 	require.Empty(t, tokens)
+}
+
+func encodeSHA256(input string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
 }
