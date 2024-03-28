@@ -270,9 +270,20 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
 
         /**
-         * Allows to regular a chunk size in the output table.
+         * Specifies the minimum data size for a {@code write_table} request
+         * (one {@code write_table} request creates at least one chunk).
+         * <p>
+         * If you want to specify the desired chunk size in the output table,
+         * set {@code desired_chunk_size} in {@link #config}.
+         * <p>
+         * This parameter will be ignored if {@link #needRetries}=false.
          *
          * @return self
+         * @see BuilderBase#setNeedRetries(boolean)
+         * @see BuilderBase#setConfig(YTreeNode)
+         * @see <a href=https://ytsaurus.tech/docs/en/user-guide/storage/io-configuration#desired_chunk_size>
+         * desired_chunk_size
+         * </a>
          */
         public TBuilder setChunkSize(int chunkSize) {
             this.chunkSize = chunkSize;
