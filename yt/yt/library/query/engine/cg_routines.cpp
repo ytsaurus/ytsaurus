@@ -3562,163 +3562,6 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using f64 = double;
-using f32 = float;
-
-#define DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(name, result, ...) \
-    result name(__VA_ARGS__) \
-    { \
-        THROW_ERROR_EXCEPTION("WebAssembly call to forbidden system call: %Qv", \
-            #name); \
-    }
-
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(socket, i32, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_close, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(send, i64, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(recv, i64, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(connect, i32, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(bind, i32, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(setsockopt, i32, i32, i32, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(sendto, i64, i32, i64, i64, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(recvfrom, i64, i32, i64, i64, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_recvmmsg, i32, i32, i64, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(sendmsg, i64, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getnameinfo, i32, i64, i32, i64, i32, i64, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(environ_sizes_get, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(environ_get, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_umask, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mkdirat, i32, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_chmod, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchmodat, i32, i32, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_newfstatat, i32, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_utimensat, i32, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mknodat, i32, i32, i64, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchmod, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_statfs64, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fstatfs64, i32, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_stat64, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_lstat64, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_sync, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchownat, i32, i32, i64, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setsid, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_renameat, i32, i32, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getsid, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_symlinkat, i32, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getpgid, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pause, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_dup3, i32, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pipe, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getgroups32, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setpgid, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_pwrite, i32, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_geteuid32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_readlinkat, i32, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getuid32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_read, i32, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getgid32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_rmdir, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_acct, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fdatasync, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_write, i32, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_faccessat, i32, i32, i64, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_fdstat_get, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getcwd, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_chdir, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getegid32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_truncate64, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_unlinkat, i32, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pipe2, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_link, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_dup, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_sync, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_pread, i32, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_linkat, i32, i32, i64, i32, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fd_seek, i32, i32, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_ftruncate64, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_symlink, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getppid, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchown32, i32, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fchdir, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__subtf3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__divtf3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fadvise64, i32, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_fallocate, i32, i32, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getdents64, i32, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__eqtf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multf3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__letf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__netf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mincore, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mremap, i32, i64, i64, i64, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mprotect, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_munlockall, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_munlock, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_madvise, i32, i64, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mlock, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_mlockall, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall__newselect, i32, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_poll, i32, i64, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_pselect6, i32, i32, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__mulsc3, void, i64, f32, f32, f32, f32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__lttf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__trunctfdf2, f64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__extenddftf2, void, i64, f64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__muldc3, void, i64, f64, f64, f64, f64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__addtf3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__unordtf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multc3, void, i64, i64, i64, i64, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__trunctfsf2, f32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__extendsftf2, void, i64, f32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__getf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__fixtfdi, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatditf, void, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__multi3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getpwnam_r, i32, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(getpwuid_r, i32, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(execve, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_wait4, i32, i32, i64, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatsitf, void, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__gttf2, i32, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__fixtfsi, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_base, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_current, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_prlimit64, i32, i32, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_ugetrlimit, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setdomainname, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setrlimit, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(fork, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getresuid32, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getpriority, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_setpriority, i32, i32, i32, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_uname, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getresgid32, i32, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__syscall_getrusage, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_get_progname, void, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__floatunsitf, void, i64, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(proc_exit, void, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_setitimer_js, i32, i32, f64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlopen_js, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_dlopen_js, void, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlsym_js, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_dlinit, void, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_stack_get_end, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_msync_js, i32, i64, i64, i32, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_tzset_js, void, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_localtime_js, void, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_gmtime_js, void, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_date_now, f64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(_emscripten_get_now_is_monotonic, i32)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(emscripten_get_now_res, f64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(args_sizes_get, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(args_get, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__main_argc_argv, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(clock_res_get, i32, i32, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(clock_time_get, i32, i32, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__divti3, void, i64, i64, i64, i64, i64)
-    DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(__lshrti3, void, i64, i64, i64, i32)
-
-#undef DEFINE_WEB_ASSEMBLY_SYSCALL_STUB
-
 int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
 {
     auto* first = ConvertPointerFromWasmToHost(std::bit_cast<char*>(firstOffset), count);
@@ -3769,11 +3612,6 @@ void* _ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv(TFunctionContex
     return context->GetPrivateData();
 }
 
-void emscripten_notify_memory_growth(i64) // NOLINT
-{
-    // Do nothing.
-}
-
 } // namespace NRoutines
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3784,35 +3622,32 @@ NCodegen::TRoutineRegistry WebAssemblyRegistry;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSignature>
-struct TMakeRoutineWithWebAssemblyContext;
+struct TMakeWebAssemblyIntrinsic;
 
 template <class TResult, class... TArgs>
-struct TMakeRoutineWithWebAssemblyContext<TResult(TArgs...)>
+struct TMakeWebAssemblyIntrinsic<TResult(TArgs...)>
 {
     template <TResult(*FunctionPtr)(TArgs...)>
     static TResult Wrapper(WAVM::Runtime::ContextRuntimeData*, TArgs... args)
     {
-        auto* compartmentBeforeCall = NWebAssembly::GetCurrentCompartment();
+        auto* compartmentBeforeCall = GetCurrentCompartment();
         auto finally = Finally([&] {
-            auto* compartmentAfterCall = NWebAssembly::GetCurrentCompartment();
+            auto* compartmentAfterCall = GetCurrentCompartment();
             YT_VERIFY(compartmentBeforeCall == compartmentAfterCall);
         });
         return FunctionPtr(args...);
     }
 };
 
-#define REGISTER_WEBASSEMBLY_INTRINSIC(routine) \
-    constexpr auto RoutineWithWebAssemblyContext##routine = &TMakeRoutineWithWebAssemblyContext< \
-    decltype(NRoutines::routine)>::Wrapper<&NRoutines::routine>; \
-    static WAVM::Intrinsics::Function IntrinsicFunction##routine( \
-        NWebAssembly::getIntrinsicModule_env(), \
-        #routine, \
-        (void*)RoutineWithWebAssemblyContext##routine, \
+#define REGISTER_WEB_ASSEMBLY_INTRINSIC(intrinsic) \
+    constexpr auto Intrinsic##intrinsic = &TMakeWebAssemblyIntrinsic<decltype(NRoutines::intrinsic)>::Wrapper<&NRoutines::intrinsic>; \
+    static WAVM::Intrinsics::Function IntrinsicFunction##intrinsic( \
+        NWebAssembly::getIntrinsicModule_standard(), \
+        #intrinsic, \
+        (void*)Intrinsic##intrinsic, \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
-            std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder< \
-                true, \
-                decltype(NRoutines::routine) >::Get()) \
-            }) \
+            std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
+        }) \
     );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3831,21 +3666,20 @@ struct RegisterLLVMRoutine
 };
 
 #define REGISTER_LLVM_ROUTINE(routine, onlyWebAssembly) \
-    static RegisterLLVMRoutine RegisteredLLVM##routine(#routine, onlyWebAssembly, NRoutines::routine);
+    static auto RegisteredLLVM##routine = RegisterLLVMRoutine(#routine, onlyWebAssembly, NRoutines::routine);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_ROUTINE(routine) \
     REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ false) \
-    REGISTER_WEBASSEMBLY_INTRINSIC(routine)
+    REGISTER_WEB_ASSEMBLY_INTRINSIC(routine)
 
 #define REGISTER_YPATH_GET_ROUTINE(TYPE) \
     REGISTER_ROUTINE(TryGet ## TYPE); \
     REGISTER_ROUTINE(Get ## TYPE)
 
-#define REGISTER_WEBASSEMBLY_ROUTINE(routine) \
-    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ true) \
-    REGISTER_WEBASSEMBLY_INTRINSIC(routine)
+#define REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM(routine, ...) \
+    REGISTER_LLVM_ROUTINE(routine, /*onlyWebAssembly*/ true)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3924,156 +3758,14 @@ REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
-REGISTER_ROUTINE(BigBHashImpl)
-REGISTER_ROUTINE(AddRegexToFunctionContext)
-REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi)
-REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv)
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_notify_memory_growth);
+REGISTER_ROUTINE(BigBHashImpl);
+REGISTER_ROUTINE(AddRegexToFunctionContext);
+REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext12IsLiteralArgEi);
+REGISTER_ROUTINE(_ZNK3NYT12NQueryClient16TFunctionContext14GetPrivateDataEv);
 
-REGISTER_WEBASSEMBLY_ROUTINE(socket);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_close);
-REGISTER_WEBASSEMBLY_ROUTINE(send);
-REGISTER_WEBASSEMBLY_ROUTINE(recv);
-REGISTER_WEBASSEMBLY_ROUTINE(connect);
-REGISTER_WEBASSEMBLY_ROUTINE(bind);
-REGISTER_WEBASSEMBLY_ROUTINE(setsockopt);
-REGISTER_WEBASSEMBLY_ROUTINE(sendto);
-REGISTER_WEBASSEMBLY_ROUTINE(recvfrom);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_recvmmsg);
-REGISTER_WEBASSEMBLY_ROUTINE(sendmsg);
-REGISTER_WEBASSEMBLY_ROUTINE(getnameinfo);
-REGISTER_WEBASSEMBLY_ROUTINE(environ_sizes_get);
-REGISTER_WEBASSEMBLY_ROUTINE(environ_get);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_umask);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mkdirat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_chmod);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchmodat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_newfstatat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_utimensat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mknodat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchmod);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_statfs64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fstatfs64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_stat64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_lstat64);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_sync);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchownat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setsid);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_renameat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getsid);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_symlinkat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getpgid);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pause);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_dup3);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pipe);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getgroups32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setpgid);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_pwrite);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_geteuid32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_readlinkat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getuid32);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_read);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getgid32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_rmdir);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_acct);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fdatasync);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_write);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_faccessat);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_fdstat_get);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getcwd);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_chdir);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getegid32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_truncate64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_unlinkat);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pipe2);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_link);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_dup);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_sync);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_pread);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_linkat);
-REGISTER_WEBASSEMBLY_ROUTINE(fd_seek);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_ftruncate64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_symlink);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getppid);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchown32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fchdir);
-REGISTER_WEBASSEMBLY_ROUTINE(__subtf3);
-REGISTER_WEBASSEMBLY_ROUTINE(__divtf3);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fadvise64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_fallocate);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getdents64);
-REGISTER_WEBASSEMBLY_ROUTINE(__eqtf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__multf3);
-REGISTER_WEBASSEMBLY_ROUTINE(__letf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__netf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mincore);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mremap);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mprotect);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_munlockall);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_munlock);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_madvise);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mlock);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_mlockall);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall__newselect);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_poll);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_pselect6);
-REGISTER_WEBASSEMBLY_ROUTINE(__mulsc3);
-REGISTER_WEBASSEMBLY_ROUTINE(__lttf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__trunctfdf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__extenddftf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__muldc3);
-REGISTER_WEBASSEMBLY_ROUTINE(__addtf3);
-REGISTER_WEBASSEMBLY_ROUTINE(__unordtf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__multc3);
-REGISTER_WEBASSEMBLY_ROUTINE(__trunctfsf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__extendsftf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__getf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__fixtfdi);
-REGISTER_WEBASSEMBLY_ROUTINE(__floatditf);
-REGISTER_WEBASSEMBLY_ROUTINE(__multi3);
-REGISTER_WEBASSEMBLY_ROUTINE(getpwnam_r);
-REGISTER_WEBASSEMBLY_ROUTINE(getpwuid_r);
-REGISTER_WEBASSEMBLY_ROUTINE(execve);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_wait4);
-REGISTER_WEBASSEMBLY_ROUTINE(__floatsitf);
-REGISTER_WEBASSEMBLY_ROUTINE(__gttf2);
-REGISTER_WEBASSEMBLY_ROUTINE(__fixtfsi);
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_base);
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_current);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_prlimit64);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_ugetrlimit);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setdomainname);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setrlimit);
-REGISTER_WEBASSEMBLY_ROUTINE(fork);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getresuid32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getpriority);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_setpriority);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_uname);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getresgid32);
-REGISTER_WEBASSEMBLY_ROUTINE(__syscall_getrusage);
-REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_get_progname);
-REGISTER_WEBASSEMBLY_ROUTINE(__floatunsitf);
-REGISTER_WEBASSEMBLY_ROUTINE(proc_exit);
-REGISTER_WEBASSEMBLY_ROUTINE(_setitimer_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_dlopen_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_dlopen_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_dlsym_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_dlinit);
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_stack_get_end);
-REGISTER_WEBASSEMBLY_ROUTINE(_msync_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_tzset_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_localtime_js);
-REGISTER_WEBASSEMBLY_ROUTINE(_gmtime_js);
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_date_now);
-REGISTER_WEBASSEMBLY_ROUTINE(_emscripten_get_now_is_monotonic);
-REGISTER_WEBASSEMBLY_ROUTINE(emscripten_get_now_res);
-REGISTER_WEBASSEMBLY_ROUTINE(args_sizes_get);
-REGISTER_WEBASSEMBLY_ROUTINE(args_get);
-REGISTER_WEBASSEMBLY_ROUTINE(__main_argc_argv);
-REGISTER_WEBASSEMBLY_ROUTINE(clock_res_get);
-REGISTER_WEBASSEMBLY_ROUTINE(clock_time_get);
-REGISTER_WEBASSEMBLY_ROUTINE(__divti3);
-REGISTER_WEBASSEMBLY_ROUTINE(__lshrti3);
+REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM(emscripten_notify_memory_growth);
+
+FOREACH_WEB_ASSEMBLY_SYSCALL(REGISTER_WEB_ASSEMBLY_INTRINSIC_IN_LLVM);
 
 ////////////////////////////////////////////////////////////////////////////////
 

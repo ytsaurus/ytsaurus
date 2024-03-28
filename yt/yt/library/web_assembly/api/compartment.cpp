@@ -4,7 +4,17 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateBaseImage()
+Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage()
+{
+    YT_UNIMPLEMENTED();
+}
+
+Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateStandardRuntimeImage()
+{
+    YT_UNIMPLEMENTED();
+}
+
+Y_WEAK std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage()
 {
     YT_UNIMPLEMENTED();
 }

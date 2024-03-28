@@ -23,13 +23,13 @@ TEST_F(TWebAssemblyTest, Create)
 {
     std::vector<std::unique_ptr<IWebAssemblyCompartment>> compartments;
     for (int i = 0; i < 1024; ++i) {
-        compartments.push_back(CreateBaseImage());
+        compartments.push_back(CreateEmptyImage());
     }
 }
 
 TEST_F(TWebAssemblyTest, AllocateAndFree)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     std::vector<uintptr_t> offsets;
     for (int i = 0; i < 1024; ++i) {
         uintptr_t offset = compartment->AllocateBytes(1024);
@@ -64,14 +64,14 @@ static const TString AddAndMul = R"(
 
 TEST_F(TWebAssemblyTest, LinkAndStrip)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(AddAndMul);
     compartment->Strip();
 }
 
 TEST_F(TWebAssemblyTest, RunSimple)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(AddAndMul);
 
     auto add = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "add");
@@ -106,7 +106,7 @@ static const TString Divide = R"(
 
 TEST_F(TWebAssemblyTest, BadDivision)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(Divide);
     auto div = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "div");
 
@@ -128,7 +128,7 @@ TEST_F(TWebAssemblyTest, BadDivision)
 
 TEST_F(TWebAssemblyTest, Clone)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(AddAndMul);
 
     for (int i = 0; i < 1024; ++i) {
@@ -187,7 +187,7 @@ static const TString ArraySum = R"(
 
 TEST_F(TWebAssemblyTest, SimpleArraySum)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(ArraySum);
     auto sum = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "sum");
 
@@ -213,7 +213,7 @@ TEST_F(TWebAssemblyTest, SimpleArraySum)
 
 TEST_F(TWebAssemblyTest, DataTransfer)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(ArraySum);
     auto sum = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "sum");
 
@@ -266,7 +266,7 @@ static const TString PointerDereference = R"(
 
 TEST_F(TWebAssemblyTest, BadPointerDereference)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
     compartment->AddModule(PointerDereference);
     auto arrayAt = TCompartmentFunction<i64(i64, i64)>(compartment.get(), "arrayAt");
 
@@ -309,7 +309,7 @@ TEST_F(TWebAssemblyTest, BadPointerDereference)
 
 TEST_F(TWebAssemblyTest, MemoryPoolAlignedAlloc)
 {
-    auto compartment = CreateBaseImage();
+    auto compartment = CreateEmptyImage();
 
     SetCurrentCompartment(compartment.get());
     auto unsetCompartment = Finally([] {

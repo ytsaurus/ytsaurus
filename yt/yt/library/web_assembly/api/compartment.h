@@ -42,7 +42,9 @@ struct IWebAssemblyCompartment
     virtual void FreeBytes(uintptr_t offset) = 0;
 };
 
-std::unique_ptr<IWebAssemblyCompartment> CreateBaseImage();
+std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage();
+std::unique_ptr<IWebAssemblyCompartment> CreateStandardRuntimeImage();
+std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage();
 
 ////////////////////////////////////////////////////////////////////////////////
 

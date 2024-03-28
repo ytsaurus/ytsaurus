@@ -45,8 +45,8 @@ target_link_options(unittester-web-assembly PRIVATE
 )
 
 target_sources(unittester-web-assembly PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
 )
 
 

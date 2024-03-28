@@ -8,6 +8,8 @@
 
 #include <library/cpp/resource/resource.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 #include <contrib/restricted/wavm/Lib/Runtime/RuntimePrivate.h>
 
 #include <util/generic/hash_set.h>
@@ -130,6 +132,7 @@ Runtime::ModuleRef LoadModuleFromBytecode(TRef bytecode)
 {
     auto featureSpec = IR::FeatureSpec();
     featureSpec.memory64 = true;
+    featureSpec.exceptionHandling = true;
 
     auto loadError = WASM::LoadError();
     auto wasmModule = Runtime::ModuleRef();
@@ -152,6 +155,7 @@ IR::Module ParseWast(const TString& wast)
 {
     auto irModule = IR::Module();
     irModule.featureSpec.memory64 = true;
+    irModule.featureSpec.exceptionHandling = true;
 
     auto wastErrors = std::vector<WAST::Error>();
 
@@ -178,6 +182,14 @@ struct TNamedGlobalOffsetTableElements
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EKnownImage,
+    (Empty)
+    (Standard)
+    (QueryLanguage)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TWebAssemblyCompartment
     : public IWebAssemblyCompartment
 {
@@ -192,6 +204,8 @@ public:
         for (auto& instance : Instances_) {
             instance = nullptr;
         }
+
+        ExceptionType_ = nullptr;
 
         Context_ = nullptr;
         TMemoryLayoutData::Clear(&MemoryLayoutData_);
@@ -320,7 +334,7 @@ public:
 
 private:
     friend class TLinker;
-    friend std::unique_ptr<TWebAssemblyCompartment> BuildBaseImageOnce();
+    friend std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image);
 
     static constexpr int TypicalModuleCount = 5;
 
@@ -335,6 +349,8 @@ private:
 
     TMemoryLayoutData MemoryLayoutData_;
     TNamedGlobalOffsetTableElements GlobalOffsetTableElements_;
+
+    Runtime::GCPointer<Runtime::ExceptionType> ExceptionType_;
 
     bool Stripped_ = false;
 
@@ -379,8 +395,8 @@ public:
             return true;
         }
 
-        if (auto result = ResolveLocalUDFs(moduleName, objectName, type); result.has_value()) {
-            outObject = *result;
+        if (objectName == "__cpp_exception") {
+            outObject = Compartment_->ExceptionType_;
             return true;
         }
 
@@ -411,6 +427,13 @@ private:
         } else if (objectName == "__stack_high") {
             return Runtime::asObject(Compartment_->MemoryLayoutData_.StackHigh);
         }
+
+        for (auto global : Compartment_->Compartment_->globals) {
+            if (global->debugName == objectName) {
+                return global;
+            }
+        }
+
         return std::nullopt;
     }
 
@@ -505,14 +528,6 @@ private:
         Runtime::initializeGlobal(resultOffset, globalOffsetTableIndex);
         return Runtime::asObject(resultOffset);
     }
-
-    std::optional<Runtime::Object*> ResolveLocalUDFs(
-        const std::string& /*moduleName*/,
-        const std::string& /*objectName*/,
-        IR::ExternType /*type*/)
-    {
-        return std::nullopt; // TODO(dtorilov): resolve known UDFs
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,7 +590,7 @@ void TWebAssemblyCompartment::AddExportsToGlobalOffsetTable(const IR::Module& ir
     for (const auto& elementSegment : irModule.elemSegments) {
         for (int index = 0; index < std::ssize(elementSegment.contents->elemIndices); index++) {
             int functionIndex = elementSegment.contents->elemIndices[index];
-            std::string& functionName = disassemblyNames.functions[functionIndex].name;
+            auto& functionName = disassemblyNames.functions[functionIndex].name;
             if (exportedFunctions.contains(functionName)) {
                 int globalOffsetTableIndex = offset + index;
                 GlobalOffsetTableElements_.Functions[functionName] = globalOffsetTableIndex;
@@ -614,6 +629,10 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
     destination->MemoryLayoutData_.GlobalOffsetTable = *destination->Compartment_->tables.get(0);
     destination->GlobalOffsetTableElements_ = source.GlobalOffsetTableElements_;
 
+    if (source.ExceptionType_) {
+        destination->ExceptionType_ = destination->Compartment_->exceptionTypes[source.ExceptionType_->id];
+    }
+
     for (auto* global : destination->Compartment_->globals) {
         if (global->debugName == "__stack_pointer") {
             destination->MemoryLayoutData_.StackPointer = global;
@@ -635,34 +654,8 @@ void TWebAssemblyCompartment::Clone(const TWebAssemblyCompartment& source, TWebA
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Runtime::ModuleRef LoadSystemLibraries()
+Runtime::ModuleRef LoadMinimalRuntimeLibrary()
 {
-    auto featureSpec = IR::FeatureSpec();
-    featureSpec.memory64 = true;
-
-    if (EnableSystemLibraries()) {
-        auto bytecode = NResource::Find("libc.so.wasm");
-        auto irModule = IR::Module(std::move(featureSpec));
-
-        auto loadError = WASM::LoadError();
-        bool succeeded = WASM::loadBinaryModule(
-            std::bit_cast<U8*>(bytecode.begin()),
-            bytecode.size(),
-            irModule,
-            &loadError);
-
-        if (!succeeded) {
-            THROW_ERROR_EXCEPTION("Could not load WebAssembly system libraries: %v", loadError.message);
-        }
-
-        auto resource = NResource::Find("compiled-libc");
-        auto objectCode = std::vector<U8>(resource.size());
-        ::memcpy(objectCode.data(), resource.data(), resource.size());
-
-        return std::make_shared<Runtime::Module>(std::move(irModule), std::move(objectCode));
-    }
-
-    // Fallback to stub.
     static const TString code = R"(
         (module
             (type (;0;) (func))
@@ -685,56 +678,266 @@ Runtime::ModuleRef LoadSystemLibraries()
             (export "free" (func $free))
         ))";
 
-    auto irModule = ParseWast(code);
-    auto wavmModule = Runtime::compileModule(irModule);
-    return wavmModule;
+    return Runtime::compileModule(ParseWast(code));
 }
 
-Runtime::ModuleRef LoadLocalUDFs()
+Runtime::ModuleRef LoadSystemLibraries()
+{
+    auto featureSpec = IR::FeatureSpec();
+    featureSpec.memory64 = true;
+    featureSpec.exceptionHandling = true;
+
+    auto bytecode = NResource::Find("libc.so.wasm");
+    auto irModule = IR::Module(std::move(featureSpec));
+
+    auto loadError = WASM::LoadError();
+    bool succeeded = WASM::loadBinaryModule(
+        std::bit_cast<U8*>(bytecode.begin()),
+        bytecode.size(),
+        irModule,
+        &loadError);
+
+    if (!succeeded) {
+        THROW_ERROR_EXCEPTION("Could not load WebAssembly system libraries: %v", loadError.message);
+    }
+
+    auto resource = NResource::Find("compiled-libc");
+    auto objectCode = std::vector<U8>(resource.size());
+    ::memcpy(objectCode.data(), resource.data(), resource.size());
+
+    return std::make_shared<Runtime::Module>(std::move(irModule), std::move(objectCode));
+}
+
+Runtime::ModuleRef LoadLocalUdfs()
 {
     auto bytecode = NResource::Find("all-udfs.so.wasm");
     auto asRef = TRef(bytecode.begin(), bytecode.size());
     return LoadModuleFromBytecode(asRef);
 }
 
-std::unique_ptr<TWebAssemblyCompartment> BuildBaseImageOnce()
+void DefineCxxAbiGlobalStubs(Runtime::Compartment* compartment)
+{
+    static const auto globals = std::vector<const char*>{
+        "_ZTVN10__cxxabiv121__vmi_class_type_infoE",
+        "_ZTSN10__cxxabiv121__vmi_class_type_infoE",
+        "_ZTIN10__cxxabiv121__vmi_class_type_infoE",
+        "_ZTSN10__cxxabiv120__si_class_type_infoE",
+        "_ZTIN10__cxxabiv120__si_class_type_infoE",
+        "_ZTSN10__cxxabiv116__enum_type_infoE",
+        "_ZTIN10__cxxabiv116__enum_type_infoE",
+        "_ZTSN10__cxxabiv117__array_type_infoE",
+        "_ZTIN10__cxxabiv117__array_type_infoE",
+        "_ZTSPKDi",
+        "_ZTIDi",
+        "_ZTSPDi",
+        "_ZTSDi",
+        "_ZTSPKDs",
+        "_ZTIDs",
+        "_ZTSPDs",
+        "_ZTSDs",
+        "_ZTSPKDu",
+        "_ZTIDu",
+        "_ZTSPDu",
+        "_ZTSDu",
+        "_ZTSPKg",
+        "_ZTIg",
+        "_ZTSPg",
+        "_ZTSg",
+        "_ZTSPKe",
+        "_ZTIe",
+        "_ZTSPe",
+        "_ZTSe",
+        "_ZTSPKd",
+        "_ZTId",
+        "_ZTSPd",
+        "_ZTSd",
+        "_ZTSPKf",
+        "_ZTIf",
+        "_ZTSPf",
+        "_ZTSf",
+        "_ZTSPKDh",
+        "_ZTIDh",
+        "_ZTSPDh",
+        "_ZTSDh",
+        "_ZTSPKo",
+        "_ZTIo",
+        "_ZTSPo",
+        "_ZTSo",
+        "_ZTSPKn",
+        "_ZTIn",
+        "_ZTSPn",
+        "_ZTSn",
+        "_ZTSPKy",
+        "_ZTIy",
+        "_ZTSPy",
+        "_ZTSy",
+        "_ZTSPKx",
+        "_ZTIx",
+        "_ZTSPx",
+        "_ZTSx",
+        "_ZTSPKm",
+        "_ZTIm",
+        "_ZTSPm",
+        "_ZTSm",
+        "_ZTSPKl",
+        "_ZTIl",
+        "_ZTSPl",
+        "_ZTSl",
+        "_ZTSPKj",
+        "_ZTIj",
+        "_ZTSPj",
+        "_ZTSj",
+        "_ZTSPKi",
+        "_ZTIi",
+        "_ZTSPi",
+        "_ZTSi",
+        "_ZTSPKt",
+        "_ZTIt",
+        "_ZTSPt",
+        "_ZTSt",
+        "_ZTSPKs",
+        "_ZTIs",
+        "_ZTSPs",
+        "_ZTSs",
+        "_ZTSPKa",
+        "_ZTIa",
+        "_ZTSPa",
+        "_ZTSa",
+        "_ZTSPKh",
+        "_ZTIh",
+        "_ZTSPh",
+        "_ZTSh",
+        "_ZTSPKc",
+        "_ZTIc",
+        "_ZTSPc",
+        "_ZTSc",
+        "_ZTSPKw",
+        "_ZTIw",
+        "_ZTSPw",
+        "_ZTSw",
+        "_ZTSPKb",
+        "_ZTIb",
+        "_ZTSPb",
+        "_ZTSb",
+        "_ZTSPKDn",
+        "_ZTSPDn",
+        "_ZTSDn",
+        "_ZTSPKv",
+        "_ZTSPv",
+        "_ZTVN10__cxxabiv119__pointer_type_infoE",
+        "_ZTSv",
+        "_ZTVN10__cxxabiv123__fundamental_type_infoE",
+        "_ZTSN10__cxxabiv123__fundamental_type_infoE",
+        "_ZTIN10__cxxabiv123__fundamental_type_infoE",
+        "_ZTSN10__cxxabiv129__pointer_to_member_type_infoE",
+        "_ZTSN10__cxxabiv120__function_type_infoE",
+        "_ZTSN10__cxxabiv119__pointer_type_infoE",
+        "_ZTSN10__cxxabiv117__pbase_type_infoE",
+        "_ZTSN10__cxxabiv117__class_type_infoE",
+        "_ZTSN10__cxxabiv116__shim_type_infoE",
+        "_ZTIN10__cxxabiv129__pointer_to_member_type_infoE",
+        "_ZTIN10__cxxabiv120__function_type_infoE",
+        "_ZTIv",
+        "_ZTIN10__cxxabiv119__pointer_type_infoE",
+        "_ZTIDn",
+        "_ZTIN10__cxxabiv117__pbase_type_infoE",
+        "_ZTIN10__cxxabiv116__shim_type_infoE",
+        "_ZTIN10__cxxabiv117__class_type_infoE",
+        "_Znam",
+        "_ZdaPv",
+        "__cxa_pure_virtual",
+        "_ZTVN10__cxxabiv120__si_class_type_infoE",
+        "_ZTVN10__cxxabiv117__class_type_infoE",
+        "__cxa_new_handler",
+        "__cxa_terminate_handler",
+        "__cxa_unexpected_handler",
+    };
+
+    for (const char* global : globals) {
+        Runtime::initializeGlobal(
+            Runtime::createGlobal(compartment, IR::GlobalType{IR::ValueType::i64, true}, global),
+            IR::Value(static_cast<int64_t>(-1)));
+    }
+}
+
+std::unique_ptr<TWebAssemblyCompartment> CreateImage(EKnownImage image)
 {
     auto compartment = std::make_unique<TWebAssemblyCompartment>();
-
     compartment->Compartment_ = Runtime::createCompartment();
     compartment->Context_ = Runtime::createContext(compartment->Compartment_);
     compartment->MemoryLayoutData_ = BuildMemoryLayoutData(compartment->Compartment_);
 
-    compartment->IntrinsicsInstance_ = Intrinsics::instantiateModule(
-        compartment->Compartment_,
-        {WAVM_INTRINSIC_MODULE_REF(env)},
-        "env");
+    if (image == EKnownImage::Empty) {
+        compartment->IntrinsicsInstance_ = Intrinsics::instantiateModule(
+            compartment->Compartment_,
+            {WAVM_INTRINSIC_MODULE_REF(empty)},
+            "env");
+    } else {
+        compartment->IntrinsicsInstance_ = Intrinsics::instantiateModule(
+            compartment->Compartment_,
+            {WAVM_INTRINSIC_MODULE_REF(standard)},
+            "env");
+    }
 
-    {
-        auto wasmModule = LoadSystemLibraries();
+    if (image != EKnownImage::Empty) {
+        DefineCxxAbiGlobalStubs(compartment->Compartment_);
+
+        compartment->ExceptionType_ = Runtime::createExceptionType(
+            compartment->Compartment_,
+            IR::ExceptionType{IR::TypeTuple{IR::ValueType::i64}},
+            "__cpp_exception");
+    }
+
+    auto runtimeModule = Runtime::ModuleRef();
+    switch (image) {
+        case EKnownImage::Empty:
+            runtimeModule = LoadMinimalRuntimeLibrary();
+            break;
+        case EKnownImage::Standard:
+        case EKnownImage::QueryLanguage:
+            runtimeModule = LoadSystemLibraries();
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    const auto& runtimeIR = Runtime::getModuleIR(runtimeModule);
+    auto linkResult = compartment->LinkModule(runtimeIR);
+    compartment->AddExportsToGlobalOffsetTable(runtimeIR);
+    compartment->InstantiateModule(runtimeModule, linkResult, "env");
+    compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
+
+    if (image == EKnownImage::QueryLanguage) {
+        auto wasmModule = LoadLocalUdfs();
         const auto& irModule = Runtime::getModuleIR(wasmModule);
         auto linkResult = compartment->LinkModule(irModule);
         compartment->AddExportsToGlobalOffsetTable(irModule);
         compartment->InstantiateModule(wasmModule, linkResult, "env");
-        compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
     }
 
-    if (EnableSystemLibraries()) {
-        auto wasmModule = LoadLocalUDFs();
-        const auto& irModule = Runtime::getModuleIR(wasmModule);
-        auto linkResult = compartment->LinkModule(irModule);
-        compartment->AddExportsToGlobalOffsetTable(irModule);
-        compartment->InstantiateModule(wasmModule, linkResult, "env");
-        compartment->RuntimeLibraryInstance_ = compartment->Instances_.back();
-    }
-
-    return std::move(compartment);
+    return compartment;
 }
 
-std::unique_ptr<IWebAssemblyCompartment> CreateBaseImage()
+std::unique_ptr<IWebAssemblyCompartment> CreateEmptyImage()
 {
-    static std::unique_ptr<TWebAssemblyCompartment> leakyBaseImageSingleton = BuildBaseImageOnce();
-    return leakyBaseImageSingleton->Clone();
+    static std::unique_ptr<TWebAssemblyCompartment> leakyImageSingleton = CreateImage(EKnownImage::Empty);
+    return leakyImageSingleton->Clone();
+}
+
+std::unique_ptr<IWebAssemblyCompartment> CreateStandardRuntimeImage()
+{
+    THROW_ERROR_EXCEPTION_IF(!EnableSystemLibraries(), "WebAssembly runtime libraries are not supported by this build");
+
+    static std::unique_ptr<TWebAssemblyCompartment> leakyImageSingleton = CreateImage(EKnownImage::Standard);
+    return leakyImageSingleton->Clone();
+}
+
+std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage()
+{
+    THROW_ERROR_EXCEPTION_IF(!EnableSystemLibraries(), "WebAssembly runtime libraries are not supported by this build");
+
+    static std::unique_ptr<TWebAssemblyCompartment> leakyImageSingleton = CreateImage(EKnownImage::QueryLanguage);
+    return leakyImageSingleton->Clone();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
