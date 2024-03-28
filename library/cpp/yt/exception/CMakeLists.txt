@@ -15,6 +15,7 @@ target_link_libraries(cpp-yt-exception PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
+  cpp-yt-assert
 )
 target_sources(cpp-yt-exception PRIVATE
   ${CMAKE_SOURCE_DIR}/library/cpp/yt/exception/exception.cpp
