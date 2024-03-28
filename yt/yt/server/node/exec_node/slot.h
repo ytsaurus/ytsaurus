@@ -108,7 +108,7 @@ struct IUserSlot
 
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
 
-    virtual TFuture<void> RunSetupCommands(
+    virtual TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,

@@ -378,7 +378,7 @@ public:
             });
     }
 
-    TFuture<void> RunSetupCommands(
+    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,

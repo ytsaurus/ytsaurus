@@ -647,6 +647,12 @@ public:
         SetProperty("io_ops_limit", operations);
     }
 
+    TString GetStdout() const override
+    {
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stdout"))
+            .ValueOrThrow();
+    }
+
     TString GetStderr() const override
     {
         return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))

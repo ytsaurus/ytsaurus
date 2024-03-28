@@ -1,9 +1,7 @@
 #pragma once
 
-#include "public.h"
-#include "chunk_cache.h"
+#include "private.h"
 #include "job.h"
-#include "slot.h"
 
 #include <yt/yt/library/containers/public.h>
 
@@ -64,7 +62,7 @@ private:
 
     NLogging::TLogger Logger;
 
-    static void OnGpuCheckFinished(TJobGpuCheckerPtr checker, const TError& result);
+    static void OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandOutput>>&& result);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobGpuChecker)

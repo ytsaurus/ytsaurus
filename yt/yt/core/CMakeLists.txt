@@ -205,6 +205,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/signal_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/statistics.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/string_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/cache_config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/utf8_decoder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/zerocopy_output_writer.cpp

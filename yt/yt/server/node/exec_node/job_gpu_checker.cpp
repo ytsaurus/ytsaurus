@@ -1,4 +1,5 @@
 #include "job_gpu_checker.h"
+#include "slot.h"
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -51,7 +52,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         testFileCommand->Path = "/usr/bin/test";
         testFileCommand->Args = {"-f", Context_.GpuCheckBinaryPath};
 
-        auto testFileError = WaitFor(
+        auto testFileResultOrError = WaitFor(
             Context_.Slot->RunSetupCommands(
                 Context_.Job->GetId(),
                 {testFileCommand},
@@ -60,18 +61,18 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*devices*/ std::nullopt,
                 /*startIndex*/ checkStartIndex));
 
-        if (!testFileError.IsOK()) {
+        if (!testFileResultOrError.IsOK()) {
             YT_LOG_INFO(
-                testFileError,
+                testFileResultOrError,
                 "Path to %lv GPU check binary is not a file",
                 Context_.GpuCheckType);
 
             THROW_ERROR_EXCEPTION(EErrorCode::GpuCheckCommandIncorrect, "Path to GPU check binary is not a file")
                 << TErrorAttribute("path", Context_.GpuCheckBinaryPath)
-                << testFileError;
+                << testFileResultOrError;
         }
 
-        YT_LOG_INFO("%lv GPU check command successfully verified", Context_.GpuCheckType);
+        YT_LOG_INFO("%v GPU check command successfully verified", Context_.GpuCheckType);
     }
 
     auto checkCommand = New<TShellCommandConfig>();
@@ -95,18 +96,29 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         /*startIndex*/ checkStartIndex + 1)
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.
-        .Apply(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
+        .ApplyUnique(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
             .AsyncVia(Context_.Job->GetInvoker()))
         .ToUncancelable();
 }
 
-void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, const TError& result)
+void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandOutput>>&& result)
 {
     VERIFY_THREAD_AFFINITY(checker->JobThread);
 
     const auto& Logger = checker->Logger;
 
-    YT_LOG_INFO(result, "%lv GPU check commands finished", checker->Context_.GpuCheckType);
+    if (result.IsOK()) {
+        YT_VERIFY(std::ssize(result.Value()) == 1);
+        const auto& gpuCheckOutput = result.Value().front();
+
+        YT_LOG_INFO("%v GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
+            checker->Context_.GpuCheckType,
+            gpuCheckOutput.Stdout,
+            gpuCheckOutput.Stderr);
+    } else {
+        YT_LOG_INFO(result, "%v GPU check command failed", checker->Context_.GpuCheckType);
+    }
+
     checker->FinishCheck_.Fire();
 
     result.ThrowOnError();
