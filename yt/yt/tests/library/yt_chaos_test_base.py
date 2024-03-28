@@ -58,14 +58,18 @@ class ChaosTestBase(DynamicTablesBase):
         orchids = [get("#{0}/orchid".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
         return orchids
 
-    def _wait_for_era(self, path, era=1, check_write=False, driver=None):
+    def _wait_for_card_era(self, path, card_id, era=1, check_write=False, driver=None):
         import logging
         logger = logging.getLogger()
 
         def _check():
+            nonlocal era
             for orchid in self._get_table_orchids(path, driver=driver):
                 if not orchid["replication_card"] or orchid["replication_card"]["era"] != era:
                     logger.debug("Waiting {0} for era {1} got {2}".format(path, era, orchid["replication_card"]["era"] if orchid["replication_card"] else None))
+                    if orchid["replication_card"] and orchid["replication_card"]["era"] > era:
+                        logger.debug("Renewing replication card era")
+                        era = self._sync_replication_card(card_id)["era"]
                     return False
                 if check_write and orchid["write_mode"] != "direct":
                     logger.debug("Waiting {0} for direct write mode but got {1}".format(path, orchid["write_mode"]))
@@ -144,7 +148,7 @@ class ChaosTestBase(DynamicTablesBase):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             check_write = replica["mode"] == "sync" and _enabled(replica)
-            self._wait_for_era(path, era=replication_card["era"], check_write=check_write, driver=driver)
+            self._wait_for_card_era(path, card_id, era=replication_card["era"], check_write=check_write, driver=driver)
 
     def _create_chaos_tables(self, cell_id, replicas, sync_replication_era=True, create_replica_tables=True, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None):
         card_id = create_replication_card(chaos_cell_id=cell_id)
