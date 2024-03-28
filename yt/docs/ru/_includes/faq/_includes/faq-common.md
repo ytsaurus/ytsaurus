@@ -231,7 +231,8 @@ yt merge --src '_path/to/src/table[#100:#500]' --dst _path/to/dst/table --mode o
 #### **Q: Ошибка «Operations of type "remote-copy" must have small enough specified resource limits in some of ancestor pools»**
 
 **A:** Операции [RemoteCopy](../../../user-guide/data-processing/operations/remote-copy.md) создают нагрузку на cross-DC сеть.
-Для ограничения нагрузки было введено искусственное ограничение: операции RemoteCopy должны запускаться в пуле с лимитом на `user_slots` не более `2000`.
+Для ограничения нагрузки было введено искусственное ограничение: операции RemoteCopy должны запускаться в пуле с лимитом на `user_slots`. Лимит указан в тексте ошибки и чаще всего равен `2000`.
+
 Если в пуле планируется запускать только RemoteCopy, то достаточно выставить это ограничение для пула
 `yt set //sys/pools/..../your_pool/@resource_limits '{user_slots=2000}'`.
 
