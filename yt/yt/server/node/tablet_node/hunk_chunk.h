@@ -32,7 +32,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Committed);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, CreationTime);
     // Set to |true| for compression dictionaries that reside in tablet list of fresh dictionaries.
-    // Such hunk chunks will not be sweeped. Transient.
+    // Such hunk chunks will not be swept. Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, AttachedCompressionDictionary);
 
 public:

@@ -70,7 +70,7 @@ static constexpr int MinSampledBlockCountPerChunk = 3;
 
 DECLARE_REFCOUNTED_CLASS(TBuildCompressionDictionarySession)
 
-// TODO(akozhikhov): Proper memory managment within session.
+// TODO(akozhikhov): Proper memory management within session.
 class TBuildCompressionDictionarySession
     : public TRefCounted
 {
@@ -451,7 +451,7 @@ private:
             EmplaceOrCrash(referencedHunkChunkIds, hunkRef.HunkChunk->GetId());
         }
 
-        // NB: As of now we cannot read from unversioned chunks with specified column fitler.
+        // NB: As of now we cannot read from unversioned chunks with specified column filter.
         bool produceAllVersions;
         switch (chunkMeta->GetChunkFormat()) {
             case EChunkFormat::TableVersionedSimple:

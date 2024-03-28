@@ -1513,7 +1513,7 @@ TSharedRange<TRowRange> TSortedChunkStore::MaybePerformXorRangeFiltering(
                 MakeSharedRange(std::move(keys))));
         }
 
-        // TODO(akozhikhov): Get rid of WairFor TSortedChunkStoreVersionedReader-style.
+        // TODO(akozhikhov): Get rid of WaitFor TSortedChunkStoreVersionedReader-style.
         auto filteringResults = WaitForFast(AllSucceeded(std::move(filteringFutures)))
             .ValueOrThrow();
 

@@ -41,7 +41,7 @@ struct TInMemoryChunkData final
     const NTableClient::TChunkLookupHashTablePtr LookupHashTable;
 
     //! Guard that trackers non blocks memory usage (ChunkMeta + LookupHashTable).
-    const TMemoryUsageTrackerGuard BlockMetaMemoryTrackerGurard;
+    const TMemoryUsageTrackerGuard BlockMetaMemoryTrackerGuard;
 
     //! Blocks to serve.
     const std::vector<NChunkClient::TBlock> Blocks;

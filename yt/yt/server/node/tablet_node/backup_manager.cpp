@@ -113,9 +113,9 @@ FeasibilityConfirmed: tablet has confirmed that checkpoint timestamp was receive
   before it happened and is waiting for checkpoint passage.
 AwaitingReplicationFinish: checkpoint timestamp has passed, the tablet is waiting
   for replication in progress to finish.
-RespondedToMasterSuccess: tablet's active articipation in the backup is finished
+RespondedToMasterSuccess: tablet's active participation in the backup is finished
   by passing checkpoint and confirming it.
-RespondedToMasterFailure: tablet's active articipation in the backup is finished
+RespondedToMasterFailure: tablet's active participation in the backup is finished
   by rejecting the checkpoint.
 
 
@@ -139,8 +139,6 @@ TimestampReceived:
 FeasibilityConfirmed:
   -> None: backup was cancelled for any reason.
   -> RespondedToMasterSuccess: backup checkpoint has passed successfully.
-      success or was not ready and reported failure (e.g. in case of lacking spare
-      dynamic store id necessary for store rotation).
   -> RespondedToMasterFailure: backup checkpoint has passed, tablet was not ready
       and reported failure (e.g. in case of lacking spare dynamic store id necessary
       for store rotation).

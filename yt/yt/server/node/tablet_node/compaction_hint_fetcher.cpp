@@ -21,7 +21,7 @@ bool TCompactionHintFetchStatus::ShouldAddToQueue()
 bool TCompactionHintFetchStatus::ShouldMakeFirstRequest()
 {
     YT_VERIFY(!InQueue);
-    // We could consume request result from previos epoch.
+    // We could consume request result from previous epoch.
     return IsFetchNeeded && RequestStep == 0;
 }
 

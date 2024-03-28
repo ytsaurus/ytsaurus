@@ -394,7 +394,7 @@ public:
             YT_VERIFY(persistent);
         }
 
-        // NB: forwaring must happen after transaction actions are run because
+        // NB: forwarding must happen after transaction actions are run because
         // prepare may fail locally.
         ForwardTransactionIfExternalized(
             transaction,
@@ -719,6 +719,8 @@ private:
     THashMap<TCellTag, std::vector<TTransaction*>> SerializingTransactionHeaps_;
     THashMap<TCellTag, TTimestamp> LastSerializedCommitTimestamps_;
     TTimestamp TransientBarrierTimestamp_ = MinTimestamp;
+
+    // Minimal commit timestamp among all committed transactions waiting for serialization.
     std::optional<TTimestamp> MinCommitTimestamp_;
 
     bool Decommission_ = false;

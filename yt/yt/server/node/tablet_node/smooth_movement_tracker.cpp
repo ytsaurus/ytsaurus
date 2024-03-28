@@ -31,7 +31,7 @@ using namespace NTableClient;
     - internal decision of the tablet (e.g. all transactions have finished);
     - Hive message from the sibling servant.
 
-    Internal desicions are made by the |CheckTablet| method which is called whenever
+    Internal decisions are made by the |CheckTablet| method which is called whenever
   something has been done to the tablet. It may be called both in or out of the mutation
   context. If stage should be changed then the appropriate mutation is scheduled
   and the corresponding flag |StageChangeScheduled| is set. Hive stage change requests

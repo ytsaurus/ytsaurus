@@ -3654,7 +3654,7 @@ private:
         auto leaseManagerDecommissioned = Slot_->GetLeaseManager()->IsFullyDecommissioned();
 
         YT_LOG_INFO("Checking if tablet cell is decommissioned "
-            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissined: %v, "
+            "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissioned: %v, "
             "TransactionSupervisorDecommissioned: %v, LeaseManagerDecommissioned: %v)",
             transactionManagerDecommissioned,
             transactionSupervisorDecommissioned,
@@ -5266,7 +5266,7 @@ private:
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
             auto hunkChunk = tablet->FindHunkChunk(chunkId);
             if (!hunkChunk) {
-                YT_LOG_ALERT("Trying to remove unexisting hunk chunk (TabletId: %v, HunkChunkId: %v)",
+                YT_LOG_ALERT("Trying to remove non-existent hunk chunk (TabletId: %v, HunkChunkId: %v)",
                     tabletId,
                     chunkId);
                 continue;
