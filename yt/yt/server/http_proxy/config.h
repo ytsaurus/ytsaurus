@@ -241,6 +241,9 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
+    // COMPAT(danilalexeev): unretriable read-only error.
+    bool RetryReadOnlyResponseError;
+
     NZookeeperProxy::TZookeeperProxyConfigPtr ZookeeperProxy;
 
     REGISTER_YSON_STRUCT(TProxyConfig);
