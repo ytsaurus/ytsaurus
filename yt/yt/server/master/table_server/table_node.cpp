@@ -256,8 +256,11 @@ const TTableNode* TTableNode::GetTrunkNode() const
 void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
 {
     if (IsDynamic()) {
-        if (SchemaMode_ != context.SchemaMode ||
-            *GetSchema()->AsTableSchema() != *context.TableSchema->AsTableSchema())
+        // NB: EndUpload may (and eventually will) stop sending schema info.
+        auto contextMode = context.SchemaMode;
+        auto* contextSchema = context.TableSchema;
+        if ((contextMode && SchemaMode_ != contextMode) ||
+            (contextSchema && *GetSchema()->AsTableSchema() != *contextSchema->AsTableSchema()))
         {
             YT_LOG_ALERT("Schema of a dynamic table changed during upload (TableId: %v, TransactionId: %v, "
                 "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
@@ -270,16 +273,20 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
         }
     }
 
-    SchemaMode_ = context.SchemaMode;
-    YT_VERIFY(context.TableSchema);
+    if (context.SchemaMode) {
+        SchemaMode_ = *context.SchemaMode;
+    }
 
-    const auto& tableManager = context.Bootstrap->GetTableManager();
-    tableManager->SetTableSchema(this, context.TableSchema);
+    if (context.TableSchema) {
+        const auto& tableManager = context.Bootstrap->GetTableManager();
+        tableManager->SetTableSchema(this, context.TableSchema);
+    }
 }
 
 void TTableNode::BeginUpload(const TBeginUploadContext &context)
 {
     ParseCommonUploadContext(context);
+    YT_VERIFY(context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);
 }

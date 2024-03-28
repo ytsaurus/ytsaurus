@@ -82,7 +82,7 @@ public:
 
         NChunkClient::EUpdateMode Mode = {};
         NTableServer::TMasterTableSchema* TableSchema = nullptr;
-        NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
+        std::optional<NTableClient::ETableSchemaMode> SchemaMode = NTableClient::ETableSchemaMode::Weak;
 
         NCellMaster::TBootstrap* const Bootstrap = nullptr;
     };

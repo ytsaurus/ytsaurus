@@ -630,12 +630,6 @@ public:
         auto nativeCellTag = CellTagFromId(nodeId.ObjectId);
         auto native = nativeCellTag == multicellManager->GetCellTag();
 
-        // I know that this is a hack, and not even a good one.
-        // But I really don't want to butcher this validation code everywhere else
-        // just to make a temporary compat message a tiny bit prettier.
-        // COMPAT(h0pless): AddChunkSchemas
-        auto messagePart = isChunkSchema ? "chunk schema" : "schema";
-
         const auto& tableManager = Bootstrap_->GetTableManager();
         TMasterTableSchema* schemaById = nullptr;
         if (native) {
@@ -647,7 +641,9 @@ public:
             // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
             YT_LOG_ALERT_IF(!schemaId, "Request to create a foreign node has no %v id on external cell "
                 "(NodeId: %v, NativeCellTag: %v, CellTag: %v)",
-                messagePart,
+                MakeFormatterWrapper([&] (auto* builder) {
+                    builder->AppendString(isChunkSchema ? "chunk schema" : "schema");
+                }),
                 nodeId,
                 nativeCellTag,
                 multicellManager->GetCellTag());
@@ -658,7 +654,9 @@ public:
                 // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
                 YT_LOG_ALERT_IF(!schema, "Request to create a foreign node has %v id of an unimported schema on external cell "
                     "(NodeId: %v, NativeCellTag: %v, CellTag: %v, SchemaId: %v)",
-                    messagePart,
+                    MakeFormatterWrapper([&] (auto* builder) {
+                        builder->AppendString(isChunkSchema ? "chunk schema" : "schema");
+                    }),
                     nodeId,
                     nativeCellTag,
                     multicellManager->GetCellTag(),
