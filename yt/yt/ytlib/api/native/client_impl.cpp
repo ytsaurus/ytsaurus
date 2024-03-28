@@ -371,7 +371,10 @@ TFuture<T> TClient::Execute(
 
     return promise
         .ToFuture()
-        .WithTimeout(options.Timeout);
+        .WithTimeout(options.Timeout, TFutureTimeoutOptions{
+            .Error = TError("Command failed")
+                << TErrorAttribute("command", commandName),
+        });
 }
 
 void TClient::SetMutationId(const IClientRequestPtr& request, const TMutatingOptions& options)
@@ -806,19 +809,13 @@ void TClient::DoCheckClusterLiveness(
         }
     }
 
-    auto batchResponsesOrError = WaitFor(AllSucceeded(std::move(futures))
-        .WithTimeout(Connection_->GetConfig()->ClusterLivenessCheckTimeout));
-    if (!batchResponsesOrError.IsOK()) {
-        if (batchResponsesOrError.FindMatching(NYT::EErrorCode::Timeout)) {
-            THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
+    auto batchResponses = WaitFor(AllSucceeded(std::move(futures))
+        .WithTimeout(Connection_->GetConfig()->ClusterLivenessCheckTimeout, TFutureTimeoutOptions{
+            .Error = TError(NApi::EErrorCode::ClusterLivenessCheckFailed,
                 "Cluster liveness request timed out")
-                << TError(batchResponsesOrError);
-        } else {
-            batchResponsesOrError.ThrowOnError();
-        }
-    }
+        }))
+        .ValueOrThrow();
 
-    const auto& batchResponses = batchResponsesOrError.Value();
     for (const auto& batchResponse : batchResponses) {
         for (int responseIndex = 0; responseIndex < batchResponse->GetResponseCount(); ++responseIndex) {
             const auto& responseOrError = batchResponse->GetResponse(responseIndex);
