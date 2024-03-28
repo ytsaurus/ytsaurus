@@ -91,7 +91,7 @@ public:
             .Run()
             .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
-                    YT_LOG_ERROR(error, "Failed to create nodes");
+                    YT_LOG_ERROR(error, "Failed to update nodes");
                     THROW_ERROR_EXCEPTION("Cypress registrar failed to update nodes")
                         << error;
                 }
@@ -120,7 +120,6 @@ private:
     {
         options.SuppressUpstreamSync = Options_.SuppressUpstreamSync;
         options.SuppressTransactionCoordinatorSync = Options_.SuppressTransactionCoordinatorSync;
-        options.Timeout = Config_->RequestTimeout;
     }
 
     IAttributeDictionaryPtr WithExpirationTime(IAttributeDictionaryPtr attributes) const

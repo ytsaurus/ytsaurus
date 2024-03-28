@@ -57,9 +57,6 @@ public:
     std::optional<TDuration> RootNodeTtl;
     std::optional<TDuration> AliveChildTtl;
 
-    //! Timeout for all Cypress requests.
-    TDuration RequestTimeout;
-
     REGISTER_YSON_STRUCT(TCypressRegistrarConfig);
 
     static void Register(TRegistrar registrar);

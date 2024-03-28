@@ -13,9 +13,6 @@ void TCypressRegistrarConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("alive_child_ttl", &TThis::AliveChildTtl)
         .Default();
-
-    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
-        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
