@@ -25,6 +25,7 @@ public:
     TString RuntimeHandler;
 
     //! Common parent cgroup for all pods.
+    //! Should be absolute and follow slice notation for systemd setup.
     TString BaseCgroup;
 
     //! Cpu quota period for cpu limits.

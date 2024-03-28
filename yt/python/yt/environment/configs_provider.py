@@ -1845,6 +1845,12 @@ def _get_node_resource_limits_config(yt_config):
     return {"memory": memory}
 
 
+def _get_node_base_cgroup(cluster_name, index):
+    if os.path.isdir("/run/systemd/system"):
+        return "/yt.slice/yt-{}_node_{}.slice".format(cluster_name.replace('-', '_'), index)
+    return "/yt/{}_node_{}".format(cluster_name, index)
+
+
 def _get_node_job_environment_config(yt_config, index, logs_dir):
     return {
         "cri": {
@@ -1852,7 +1858,7 @@ def _get_node_job_environment_config(yt_config, index, logs_dir):
             "cri_executor": {
                 "runtime_endpoint": yt_config.cri_endpoint,
                 "image_endpoint": yt_config.cri_endpoint,
-                "base_cgroup": "yt.slice/{}-node-{}.slice".format(yt_config.cluster_name, index),
+                "base_cgroup": _get_node_base_cgroup(yt_config.cluster_name, index),
                 "namespace": "yt--{}-node-{}".format(yt_config.cluster_name, index),
                 "verbose_logging": True,
             },
