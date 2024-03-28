@@ -1,10 +1,8 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 #include "chunk_cache.h"
 #include "job.h"
-#include "slot.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/chunk.h>

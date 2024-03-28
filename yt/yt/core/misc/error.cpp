@@ -6,6 +6,7 @@
 #include <yt/yt_proto/yt/core/misc/proto/error.pb.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/string_helpers.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/local_address.h>
@@ -35,6 +36,10 @@ using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr TStringBuf ErrorMessageTruncatedSuffix = "...<message truncated>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -616,13 +621,6 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit, const THashSet<
         return innerError.Truncate(maxInnerErrorCount, stringLimit, attributeWhitelist);
     };
 
-    auto truncateString = [stringLimit] (TString string) {
-        if (std::ssize(string) > stringLimit) {
-            return Format("%v...<message truncated>", string.substr(0, stringLimit));
-        }
-        return string;
-    };
-
     auto truncateAttributes = [stringLimit, &attributeWhitelist] (const IAttributeDictionary& attributes) {
         auto truncatedAttributes = CreateEphemeralAttributes();
         for (const auto& key : attributes.ListKeys()) {
@@ -644,7 +642,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit, const THashSet<
 
     auto result = std::make_unique<TImpl>();
     result->SetCode(GetCode());
-    result->SetMessage(truncateString(GetMessage()));
+    result->SetMessage(TruncateString(GetMessage(), stringLimit, ErrorMessageTruncatedSuffix));
     if (Impl_->HasAttributes()) {
         result->SetAttributes(truncateAttributes(Impl_->Attributes()));
     }
@@ -675,12 +673,6 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit, const THashSet<
         innerError = std::move(innerError).Truncate(maxInnerErrorCount, stringLimit, attributeWhitelist);
     };
 
-    auto truncateString = [stringLimit] (TString* string) {
-        if (std::ssize(*string) > stringLimit) {
-            *string = Format("%v...<message truncated>", string->substr(0, stringLimit));
-        }
-    };
-
     auto truncateAttributes = [stringLimit, &attributeWhitelist] (IAttributeDictionary* attributes) {
         for (const auto& key : attributes->ListKeys()) {
             if (std::ssize(attributes->FindYson(key).AsStringBuf()) > stringLimit && !attributeWhitelist.contains(key)) {
@@ -692,7 +684,7 @@ TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit, const THashSet<
         }
     };
 
-    truncateString(Impl_->MutableMessage());
+    TruncateStringInplace(Impl_->MutableMessage(), stringLimit, ErrorMessageTruncatedSuffix);
     if (Impl_->HasAttributes()) {
         truncateAttributes(Impl_->MutableAttributes());
     }

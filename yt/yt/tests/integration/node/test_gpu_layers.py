@@ -1069,7 +1069,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         alerts = get(alerts_path)
         assert len(alerts) == 1
-        assert "GPU check command failed" in str(alerts[0])
+        assert "Preliminary GPU check command failed" in str(alerts[0])
 
         resource_limits_path = "//sys/cluster_nodes/{}/@resource_limits".format(node)
         wait(lambda: get(resource_limits_path)["user_slots"] == 0)
@@ -1149,7 +1149,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         alerts = get(alerts_path)
         assert len(alerts) == 1
-        assert "GPU check command failed" in str(alerts[0])
+        assert "Preliminary GPU check command failed" in str(alerts[0])
 
         time.sleep(2.0)
 

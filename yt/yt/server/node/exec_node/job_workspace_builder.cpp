@@ -1,7 +1,7 @@
 #include "job_workspace_builder.h"
+#include "slot.h"
 
 #include "job_gpu_checker.h"
-#include "job_directory_manager.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
@@ -512,13 +512,14 @@ private:
 
         YT_LOG_INFO("Running setup commands");
 
-        return slot->RunSetupCommands(
+        auto future = slot->RunSetupCommands(
             Context_.Job->GetId(),
             commands,
             MakeWritableRootFS(),
             Context_.CommandUser,
             /*devices*/ std::nullopt,
             /*startIndex*/ 0);
+        return future.AsVoid();
     }
 
     TFuture<void> DoRunGpuCheckCommand() override
@@ -564,10 +565,8 @@ private:
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) {
                     ValidateJobPhase(EJobPhase::RunningGpuCheckCommand);
                     if (!result.IsOK()) {
-                        YT_LOG_WARNING("Preliminary GPU check command failed");
-
-                        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "GPU check command failed")
-                            << result;
+                        auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Preliminary GPU check command failed")
+                            << std::move(result);
                         THROW_ERROR checkError;
                     }
 
