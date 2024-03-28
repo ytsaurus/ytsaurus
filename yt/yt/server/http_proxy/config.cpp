@@ -225,9 +225,6 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("zookeeper_proxy", &TThis::ZookeeperProxy)
         .Default();
 
-    registrar.Parameter("retry_read_only_response_error", &TThis::RetryReadOnlyResponseError)
-        .Default(false);
-
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;
     });

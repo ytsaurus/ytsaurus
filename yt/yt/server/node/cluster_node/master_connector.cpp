@@ -676,7 +676,7 @@ private:
             ScheduleHeartbeat(/*immediately*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cluster node heartbeat to master");
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 ScheduleHeartbeat(/* immediately*/ false);
             } else {
                 ResetAndRegisterAtMaster(/*firstTime*/ false);

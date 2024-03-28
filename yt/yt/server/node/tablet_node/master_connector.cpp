@@ -202,7 +202,7 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting tablet node heartbeat to master (CellTag: %v)",
                 cellTag);
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
