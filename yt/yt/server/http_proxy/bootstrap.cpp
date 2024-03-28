@@ -138,6 +138,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    connectionOptions.RetryReadOnlyResponseError = Config_->RetryReadOnlyResponseError;
     Connection_ = CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     SetupClusterConnectionDynamicConfigUpdate(
