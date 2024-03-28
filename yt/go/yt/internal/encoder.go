@@ -3,6 +3,8 @@ package internal
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"io"
 
 	"go.ytsaurus.tech/yt/go/guid"
@@ -240,6 +242,82 @@ func (e *Encoder) RemoveMember(
 	call := e.newCall(NewRemoveMemberParams(group, member, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return nil
+	})
+	return
+}
+
+func (e *Encoder) SetUserPassword(
+	ctx context.Context,
+	user string,
+	newPassword string,
+	currentPassword string,
+	options *yt.SetUserPasswordOptions,
+) (err error) {
+	newPasswordSHA256 := encodeSHA256(newPassword)
+	currentPasswordSHA256 := ""
+	if currentPassword != "" {
+		currentPasswordSHA256 = encodeSHA256(currentPassword)
+	}
+
+	call := e.newCall(NewSetUserPasswordParams(user, newPasswordSHA256, currentPasswordSHA256, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
+func (e *Encoder) IssueToken(
+	ctx context.Context,
+	user string,
+	password string,
+	options *yt.IssueTokenOptions,
+) (token string, err error) {
+	passwordSHA256 := ""
+	if password != "" {
+		passwordSHA256 = encodeSHA256(password)
+	}
+	call := e.newCall(NewIssueTokenParams(user, passwordSHA256, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		err = res.decode(&token)
+		return err
+	})
+	return
+}
+
+func (e *Encoder) RevokeToken(
+	ctx context.Context,
+	user string,
+	password string,
+	token string,
+	options *yt.RevokeTokenOptions,
+) (err error) {
+	passwordSHA256 := ""
+	if password != "" {
+		passwordSHA256 = encodeSHA256(password)
+	}
+	tokenSHA256 := encodeSHA256(token)
+
+	call := e.newCall(NewRevokeTokenParams(user, passwordSHA256, tokenSHA256, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
+func (e *Encoder) ListUserTokens(
+	ctx context.Context,
+	user string,
+	password string,
+	options *yt.ListUserTokensOptions,
+) (tokens []string, err error) {
+	passwordSHA256 := ""
+	if password != "" {
+		passwordSHA256 = encodeSHA256(password)
+	}
+	call := e.newCall(NewListUserTokensParams(user, passwordSHA256, options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		err = res.decode(&tokens)
+		return err
 	})
 	return
 }
@@ -968,4 +1046,8 @@ func (e *Encoder) AlterQuery(
 		return nil
 	})
 	return
+}
+
+func encodeSHA256(input string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(input)))
 }
