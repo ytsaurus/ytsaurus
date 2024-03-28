@@ -1860,7 +1860,7 @@ def add_get_job_input_paths_parser(add_parser):
 @copy_docstring_from(yt.get_job_spec)
 def get_job_spec(**kwargs):
     job_spec = yt.get_job_spec(**kwargs)
-    print(dump_data(map(yt.YPath.to_yson_type, job_spec)))
+    print_to_output(dump_data(job_spec))
 
 
 def add_get_job_spec_parser(add_parser):
