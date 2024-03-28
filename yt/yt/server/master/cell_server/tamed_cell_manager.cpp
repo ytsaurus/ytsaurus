@@ -338,6 +338,10 @@ public:
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
+        auto snapshotAcl = ConvertToYsonString(newOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
+        auto changelogAcl = ConvertToYsonString(newOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
+        auto rootUser = securityManager->GetRootUser();
+
         ValidateTabletCellOptions(newOptions);
         cellBundle->SetOptions(std::move(newOptions));
         ReconfigureCellBundle(cellBundle);
@@ -345,6 +349,43 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* cell : GetValuesSortedByKey(cellBundle->Cells())) {
             if (multicellManager->IsPrimaryMaster()) {
+                if (auto node = FindLegacyCellNode(cell->GetId())) {
+                    TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+
+                    auto executeAclChange = [&] (const auto& node) {
+                        auto cellNode = node->AsMap();
+                        try {
+                            {
+                                auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                                req->set_value(snapshotAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                            {
+                                auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                                req->set_value(changelogAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                        } catch (const std::exception& ex) {
+                            YT_LOG_ALERT(ex,
+                                "Caught exception while changing ACL (CellarType: %v, Bundle: %v, CellId: %v)",
+                                cellBundle->GetCellarType(),
+                                cellBundle->GetName(),
+                                cell->GetId());
+                        }
+                    };
+
+                    if (cell->IsIndependent()) {
+                        for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                            if (cell->IsAlienPeer(peerId)) {
+                                continue;
+                            }
+                            executeAclChange(node->FindChild(ToString(peerId)));
+                        }
+                    } else {
+                        executeAclChange(node);
+                    }
+                }
+
                 RestartAllPrerequisiteTransactions(cell);
             }
             cell->SetPendingAclsUpdate(true);
