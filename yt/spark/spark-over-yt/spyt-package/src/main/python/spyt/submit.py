@@ -106,7 +106,7 @@ def shutdown_gateway(gateway):
 
 
 @contextmanager
-def java_gateway(*args, **kwargs):
+def java_gateway(kill_jvm_on_shutdown=True, *args, **kwargs):
     logger.debug("Launching java gateway")
     gateway = launch_gateway(*args, **kwargs)
     try:
@@ -115,6 +115,9 @@ def java_gateway(*args, **kwargs):
         raise RuntimeError(str(e))
     finally:
         shutdown_gateway(gateway)
+        if kill_jvm_on_shutdown:
+            gateway.proc.kill()
+            logger.debug("Java process stopped")
 
 
 class RetryConfig(object):

@@ -1,6 +1,8 @@
+import glob
 import logging
 import os
-from tempfile import TemporaryDirectory
+import shutil
+from tempfile import TemporaryDirectory, gettempdir
 from typing import Optional
 import zipfile
 
@@ -39,7 +41,7 @@ def _extract_resources(resource_key_prefix: str, remove_prefix: str, destination
 
 
 def _extract_spark():
-    temp_dir = TemporaryDirectory()
+    temp_dir = TemporaryDirectory(prefix="spark_yamake_", ignore_cleanup_errors=True)
     logger.info(f"Created Spark temp dir {temp_dir}")
     pyspark_dir = "contrib/python/ytsaurus-pyspark/pyspark/"
     pyspark_subdirs = [f"{pyspark_dir}{subdir}" for subdir in ["bin", "conf", "jars"]]
@@ -51,7 +53,7 @@ def _extract_spark():
 
 
 def _extract_spyt():
-    temp_dir = TemporaryDirectory()
+    temp_dir = TemporaryDirectory(prefix="spyt_yamake_", ignore_cleanup_errors=True)
     logger.info(f"Created Spyt temp dir {temp_dir}")
     spyt_original_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spyt_cluster/"
     build_dir = temp_dir.name
@@ -88,3 +90,23 @@ def checked_extract_spark() -> Optional[str]:
         os.environ["SPARK_HOME"] = extracted_spark_dir.name
     logger.debug(f"Current extracted Spark location {extracted_spark_dir}")
     return extracted_spark_dir.name
+
+
+def _remove_from_tempdir(prefix: str):
+    tempdir = gettempdir()
+    for old_tempdir in glob.glob(os.path.join(tempdir, prefix + "*")):
+        logger.info(f"Removing temp dir {old_tempdir}")
+        shutil.rmtree(old_tempdir)
+
+
+def clean_extracted(find_all=False):
+    global extracted_spark_dir, extracted_spyt_dir
+    if extracted_spark_dir:
+        extracted_spark_dir.cleanup()
+        extracted_spark_dir = None
+    if extracted_spyt_dir:
+        extracted_spyt_dir.cleanup()
+        extracted_spyt_dir = None
+    if find_all:
+        _remove_from_tempdir("spark_yamake_")
+        _remove_from_tempdir("spyt_yamake_")

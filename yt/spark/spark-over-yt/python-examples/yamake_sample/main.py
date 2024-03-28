@@ -1,5 +1,6 @@
 import argparse
 import logging
+from spyt.arcadia import clean_extracted
 import spyt.submit as submit
 import spyt.utils as utils
 
@@ -20,6 +21,7 @@ def run_job(proxy, discovery_path):
 
         status = submission_client.wait_final(app_id)
         logging.info(f"Final status: {status}")
+    clean_extracted(find_all=True)
 
 
 def main():
