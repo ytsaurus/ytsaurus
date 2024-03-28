@@ -38,7 +38,11 @@ IF (AUTOCHECK OR YT_TEAMCITY)
         SPLIT_FACTOR($YT_SPLIT_FACTOR)
     ENDIF()
 
-    TIMEOUT(1800)
+    IF (DEFINED YT_TIMEOUT)
+        TIMEOUT($YT_TIMEOUT)
+    ELSE()
+        TIMEOUT(1800)
+    ENDIF()
 ELSE()
     DEPENDS(
         # We intentionally want to have symlink on ytserver-all at this path in local runs.
