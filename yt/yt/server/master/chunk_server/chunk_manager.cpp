@@ -4538,8 +4538,15 @@ private:
                 if (importData.has_chunk_schema_id()) {
                     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
 
-                    auto* existingChunkSchema = tableManager->GetMasterTableSchema(chunkSchemaId);
-                    tableManager->SetChunkSchema(chunk, existingChunkSchema);
+                    auto* existingChunkSchema = tableManager->FindMasterTableSchema(chunkSchemaId);
+                    if (IsObjectAlive(existingChunkSchema)) {
+                        tableManager->SetChunkSchema(chunk, existingChunkSchema);
+                    } else {
+                        YT_LOG_ALERT("Failed to find specified chunk schema while importing chunk, assuming null "
+                            "(ChunkId: %v, SchemaId: %v)",
+                            chunkId,
+                            chunkSchemaId);
+                    }
                 }
 
                 chunk->Confirm(importData.info(), importData.meta());
