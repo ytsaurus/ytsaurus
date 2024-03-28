@@ -567,6 +567,14 @@ struct FunctionPrintContext
 		string += "\nthrow " + moduleContext.names.exceptionTypes[imm.exceptionTypeIndex];
 	}
 
+	void delegate(DelegateImm imm)
+	{
+		WAVM_ASSERT(controlStack[controlStack.size() - 1 - imm.catchDepth].type == ControlContext::Type::try_ ||
+					controlStack[controlStack.size() - 1 - imm.catchDepth].type == ControlContext::Type::block);
+
+		string += "\ndelegate " + getBranchTargetId(imm.catchDepth);
+	}
+
 	void rethrow(RethrowImm imm)
 	{
 		WAVM_ASSERT(controlStack[controlStack.size() - 1 - imm.catchDepth].type

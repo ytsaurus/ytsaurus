@@ -74,7 +74,7 @@ void EmitFunctionContext::endTryWithoutCatch()
 void EmitFunctionContext::endTryCatch()
 {
 	WAVM_ASSERT(catchStack.size());
-	CatchContext& catchContext = catchStack.back();
+	CatchContext& catchContext = catchStack.back().value();
 
 	exitCatch();
 
@@ -100,7 +100,7 @@ void EmitFunctionContext::exitCatch()
 	WAVM_ASSERT(currentContext.type == ControlContext::Type::catch_);
 
 	WAVM_ASSERT(catchStack.size());
-	CatchContext& catchContext = catchStack.back();
+	CatchContext& catchContext = catchStack.back().value();
 
 	if(currentContext.isReachable)
 	{
@@ -228,7 +228,7 @@ void EmitFunctionContext::catch_(ExceptionTypeImm imm)
 	WAVM_ASSERT(controlStack.size());
 	WAVM_ASSERT(catchStack.size());
 	ControlContext& controlContext = controlStack.back();
-	CatchContext& catchContext = catchStack.back();
+	CatchContext& catchContext = catchStack.back().value();
 	WAVM_ASSERT(controlContext.type == ControlContext::Type::try_
 				|| controlContext.type == ControlContext::Type::catch_);
 	if(controlContext.type == ControlContext::Type::try_)
@@ -283,7 +283,7 @@ void EmitFunctionContext::catch_all(NoImm)
 	WAVM_ASSERT(controlStack.size());
 	WAVM_ASSERT(catchStack.size());
 	ControlContext& controlContext = controlStack.back();
-	CatchContext& catchContext = catchStack.back();
+	CatchContext& catchContext = catchStack.back().value();
 	WAVM_ASSERT(controlContext.type == ControlContext::Type::try_
 				|| controlContext.type == ControlContext::Type::catch_);
 	if(controlContext.type == ControlContext::Type::try_)
@@ -317,6 +317,13 @@ void EmitFunctionContext::catch_all(NoImm)
 	// Change the top of the control stack to a catch clause.
 	controlContext.type = ControlContext::Type::catch_;
 	controlContext.isReachable = true;
+}
+void EmitFunctionContext::delegate(DelegateImm imm)
+{
+	// NB: We temporally rewrite `delegate` as `catch_all` + `rethrow`.
+	catch_all(NoImm{});
+	rethrow(RethrowImm{0});
+	end(NoImm{});
 }
 
 void EmitFunctionContext::throw_(ExceptionTypeImm imm)
@@ -368,7 +375,7 @@ void EmitFunctionContext::throw_(ExceptionTypeImm imm)
 void EmitFunctionContext::rethrow(RethrowImm imm)
 {
 	WAVM_ASSERT(imm.catchDepth < catchStack.size());
-	CatchContext& catchContext = catchStack[catchStack.size() - imm.catchDepth - 1];
+	CatchContext& catchContext = catchStack[catchStack.size() - imm.catchDepth - 1].value();
 	emitRuntimeIntrinsic(
 		"throwException",
 		FunctionType(

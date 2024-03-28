@@ -283,7 +283,7 @@ namespace WAVM { namespace LLVMJIT {
 			llvm::Value* exceptionTypeId;
 		};
 
-		std::vector<CatchContext> catchStack;
+		std::vector<std::optional<CatchContext>> catchStack;
 
 		void endTryWithoutCatch();
 		void endTryCatch();

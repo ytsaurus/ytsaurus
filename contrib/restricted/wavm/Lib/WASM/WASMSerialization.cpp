@@ -221,7 +221,14 @@ namespace WAVM { namespace IR {
 
 	template<typename Stream> void serialize(Stream& stream, ExceptionType& exceptionType)
 	{
-		serialize(stream, exceptionType.params);
+		U8 attribute = 0;
+		serializeVarUInt7(stream, attribute);
+		if (attribute != 0) {
+			throw FatalSerializationException("tag attribute must be 0");
+		}
+
+		U32 index = 0;
+		serializeVarUInt7(stream, index);
 	}
 
 	static void serialize(InputStream& stream, ExternKind& kind)
@@ -234,7 +241,7 @@ namespace WAVM { namespace IR {
 		case 1: kind = ExternKind::table; break;
 		case 2: kind = ExternKind::memory; break;
 		case 3: kind = ExternKind::global; break;
-		case 127: kind = ExternKind::exceptionType; break;
+		case 4: kind = ExternKind::exceptionType; break;
 		default: throw FatalSerializationException("invalid reference type encoding");
 		};
 	}
@@ -247,7 +254,7 @@ namespace WAVM { namespace IR {
 		case ExternKind::table: encodedKind = 1; break;
 		case ExternKind::memory: encodedKind = 2; break;
 		case ExternKind::global: encodedKind = 3; break;
-		case ExternKind::exceptionType: encodedKind = 127; break;
+		case ExternKind::exceptionType: encodedKind = 4; break;
 		case ExternKind::invalid:
 		default: WAVM_UNREACHABLE();
 		};
@@ -794,6 +801,12 @@ void serialize(Stream& stream,
 }
 
 template<typename Stream>
+void serialize(Stream& stream, DelegateImm& imm, const FunctionDef&, const ModuleSerializationState&)
+{
+	serializeVarUInt32(stream, imm.catchDepth);
+}
+
+template<typename Stream>
 void serialize(Stream& stream, RethrowImm& imm, const FunctionDef&, const ModuleSerializationState&)
 {
 	serializeVarUInt32(stream, imm.catchDepth);
@@ -1226,6 +1239,7 @@ template<typename Stream> void serializeImportSection(Stream& moduleStream, Modu
 					ExceptionType exceptionType;
 					serialize(sectionStream, exceptionType);
 					kindIndex = module.exceptionTypes.imports.size();
+					exceptionType.params = TypeTuple({ValueType::i64});
 					module.exceptionTypes.imports.push_back(
 						{exceptionType, std::move(moduleName), std::move(exportName)});
 					break;

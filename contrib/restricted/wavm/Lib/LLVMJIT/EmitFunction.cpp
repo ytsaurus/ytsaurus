@@ -198,6 +198,10 @@ void EmitFunctionContext::pushControlStack(ControlContext::Type type,
 							stack.size(),
 							branchTargetStack.size(),
 							true});
+
+	if (type != ControlContext::Type::try_) {
+		catchStack.push_back(std::nullopt);
+	}
 }
 
 void EmitFunctionContext::pushBranchTarget(TypeTuple branchArgumentType,
@@ -285,6 +289,10 @@ struct UnreachableOpVisitor
 	void catch_all(NoImm imm)
 	{
 		if(!unreachableControlDepth) { context.catch_all(imm); }
+	}
+	void delegate(DelegateImm imm)
+	{
+		if(!unreachableControlDepth) { context.delegate(imm); }
 	}
 
 private:

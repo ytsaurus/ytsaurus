@@ -580,6 +580,14 @@ static void parseImm(CursorState* cursor, ExceptionTypeImm& outImm)
 										cursor->moduleState->module.exceptionTypes.size(),
 										"exception type");
 }
+static void parseImm(CursorState* cursor, DelegateImm& outImm)
+{
+	if(!tryParseAndResolveBranchTargetRef(cursor, outImm.catchDepth))
+	{
+		parseErrorf(cursor->parseState, cursor->nextToken, "expected try label or index");
+		throw RecoverParseException();
+	}
+}
 static void parseImm(CursorState* cursor, RethrowImm& outImm)
 {
 	if(!tryParseAndResolveBranchTargetRef(cursor, outImm.catchDepth))

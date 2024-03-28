@@ -475,6 +475,22 @@ struct FunctionValidationContext
 		VALIDATE_FEATURE("catch_all", exceptionHandling);
 		validateCatch();
 	}
+	void delegate(DelegateImm imm)
+	{
+		VALIDATE_FEATURE("delegate", exceptionHandling);
+		WAVM_ASSERT(controlStack.size());
+
+		if(controlStack.back().type != ControlContext::Type::try_)
+		{ throw ValidationException("delegate may occur only in try context"); }
+
+		TypeTuple results = controlStack.back().results;
+
+		popAndValidateTypeTuple("end result", controlStack.back().results);
+		validateStackEmptyAtEndOfControlStructure();
+
+		controlStack.pop_back();
+		if(controlStack.size()) { pushOperandTuple(results); }
+	}
 
 	void return_(NoImm)
 	{

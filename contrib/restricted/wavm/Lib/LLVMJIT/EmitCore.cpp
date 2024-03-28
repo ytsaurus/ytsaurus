@@ -197,6 +197,12 @@ void EmitFunctionContext::end(NoImm)
 	WAVM_ASSERT(currentContext.outerBranchTargetStackSize <= branchTargetStack.size());
 	branchTargetStack.resize(currentContext.outerBranchTargetStackSize);
 
+	if (controlStack.back().type != ControlContext::Type::catch_) {
+		WAVM_ASSERT(!catchStack.empty());
+		WAVM_ASSERT(!catchStack.back().has_value());
+		catchStack.pop_back();
+	}
+
 	// Pop this control context.
 	controlStack.pop_back();
 }
