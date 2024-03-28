@@ -90,7 +90,7 @@ class TestQueueCommands(object):
 
     @staticmethod
     def _create_consumer(path, **kwargs):
-        yt.create("consumer", path=path, attributes=kwargs)
+        yt.create("queue_consumer", path=path, attributes=kwargs)
 
     @authors("achulkov2")
     # This is a very basic test, just to check that there are no bugs in the client api implementation.

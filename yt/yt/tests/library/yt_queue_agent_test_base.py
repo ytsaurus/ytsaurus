@@ -413,7 +413,7 @@ class TestQueueAgentBase(YTEnvSetup):
             if mount:
                 sync_mount_table(path)
         else:
-            create("consumer", path, attributes=kwargs)
+            create("queue_consumer", path, attributes=kwargs)
             if not mount:
                 sync_unmount_table(path)
 

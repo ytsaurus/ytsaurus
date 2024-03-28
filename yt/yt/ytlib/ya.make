@@ -40,7 +40,7 @@ SRCS(
     api/native/client_transactions_impl.cpp
     api/native/config.cpp
     api/native/connection.cpp
-    api/native/consumer_type_handler.cpp
+    api/native/queue_consumer_type_handler.cpp
     api/native/default_type_handler.cpp
     api/native/file_reader.cpp
     api/native/file_writer.cpp
@@ -343,7 +343,7 @@ SRCS(
     query_client/join_tree.cpp
 
     queue_client/config.cpp
-    queue_client/consumer_init.cpp
+    queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
     queue_client/producer_init.cpp
