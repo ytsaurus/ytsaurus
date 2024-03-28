@@ -34,6 +34,7 @@
   "build/mapping.conf.json":"devtools/ya/opensource/mapping.conf.json",
   "build/scripts/export_script_gen.py":"",
   "build/scripts/generate_vcs_info.py":"",
+  "build/scripts/re_replace.py":"",
   "build/scripts/split_unittest.py":"",
   "build/ya.conf.json":"devtools/ya/opensource/ya.conf.json",
   "certs/CMakeLists.txt":"",
