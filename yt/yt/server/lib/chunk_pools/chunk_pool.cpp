@@ -140,7 +140,7 @@ int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(ICh
 template <class TJobManager>
 void TChunkPoolOutputWithJobManagerBase<TJobManager>::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
 {
-    JobManager_->Completed(cookie, jobSummary.InterruptReason);
+JobManager_->Completed(cookie, jobSummary.InterruptionReason);
 }
 
 template <class TJobManager>
@@ -227,7 +227,7 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // This is an important property as we should not consider job as an empty job since it may
     // not actually be empty. We can rely on fact that a job cannot be interrupted unless it read at
     // least one row, but let's write something more robust.
-    if (jobSummary.InterruptReason != EInterruptReason::None) {
+    if (jobSummary.InterruptionReason != EInterruptReason::None) {
         return;
     }
 

@@ -54,10 +54,10 @@ public:
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        YT_VERIFY(jobSummary.InterruptReason != EInterruptReason::JobSplit);
+        YT_VERIFY(jobSummary.InterruptionReason != EInterruptReason::JobSplit);
 
-        JobManager_->Completed(cookie, jobSummary.InterruptReason);
-        if (jobSummary.InterruptReason != EInterruptReason::None || RestartCompletedJobs_) {
+        JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+        if (jobSummary.InterruptionReason != EInterruptReason::None || RestartCompletedJobs_) {
             // NB: it is important to lose this job instead of alloacting new job since we want
             // to keep range of cookies same as before (without growing infinitely). It is
             // significant to some of the vanilla operation applications like CHYT.

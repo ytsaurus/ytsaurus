@@ -62,6 +62,8 @@ struct TJobSummary
     EJobState State = EJobState::None;
     EJobPhase Phase = EJobPhase::Missing;
 
+    EInterruptReason InterruptionReason = EInterruptReason::None;
+
     std::optional<TInstant> FinishTime;
     NJobAgent::TTimeStatistics TimeStatistics;
     TInstant StartTime;
@@ -93,7 +95,6 @@ struct TCompletedJobSummary
     void Persist(const TPersistenceContext& context);
 
     bool Abandoned = false;
-    EInterruptReason InterruptReason;
 
     // These fields are for controller's use only.
     std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
@@ -182,6 +183,13 @@ std::unique_ptr<TJobSummaryType> SummaryCast(std::unique_ptr<TJobSummary> jobSum
 {
     YT_VERIFY(jobSummary->State == TJobSummaryType::ExpectedState);
     return std::unique_ptr<TJobSummaryType>{static_cast<TJobSummaryType*>(jobSummary.release())};
+}
+
+template <class TJobSummaryType>
+const TJobSummaryType& SummaryCast(const TJobSummary& jobSummary) noexcept
+{
+    YT_VERIFY(jobSummary.State == TJobSummaryType::ExpectedState);
+    return static_cast<const TJobSummaryType&>(jobSummary);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

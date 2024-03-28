@@ -158,15 +158,16 @@ public:
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
-        if (jobSummary.InterruptReason != EInterruptReason::None) {
-            YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+        if (jobSummary.InterruptionReason != EInterruptReason::None) {
+            YT_LOG_DEBUG(
+                "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
                 cookie,
-                jobSummary.InterruptReason,
+                jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
             RegisterChildCookies(cookie, std::move(childCookies));
         }
-        JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        JobManager_->Completed(cookie, jobSummary.InterruptionReason);
         CheckCompleted();
     }
 

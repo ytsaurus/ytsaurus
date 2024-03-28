@@ -43,6 +43,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobAbortsUntilOperationFailure)       (301409))
     // 24.1 starts here
     ((BumpTo_24_1)                          (301500))
+    ((InterruptionReasonInJoblet)           (301501))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
