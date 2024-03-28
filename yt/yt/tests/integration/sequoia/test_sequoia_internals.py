@@ -31,7 +31,6 @@ class TestSequoiaEnvSetup(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_REMOTE_CLUSTERS = 2
     USE_SEQUOIA_REMOTE_0 = False
-    GROUND_INDEX_OFFSET = 10
 
     @authors("h0pless")
     def test1(self):

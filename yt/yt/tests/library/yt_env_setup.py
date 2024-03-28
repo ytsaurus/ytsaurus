@@ -295,7 +295,6 @@ class YTEnvSetup(object):
 
     USE_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
-    GROUND_INDEX_OFFSET = 1
 
     ENABLE_TMP_ROOTSTOCK = False
     ENABLE_BULK_INSERT = False
@@ -382,8 +381,12 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def get_ground_index_offset(cls):
+        return cls.NUM_REMOTE_CLUSTERS + 1
+
+    @classmethod
     def _is_ground_cluster(cls, cluster_index):
-        return cluster_index >= cls.GROUND_INDEX_OFFSET
+        return cluster_index >= cls.get_ground_index_offset()
 
     @classmethod
     def _get_param_real_name(cls, name, cluster_index):
@@ -435,7 +438,7 @@ class YTEnvSetup(object):
         clock_count = 0
         if cls.get_param("USE_SEQUOIA", index):
             if cls._is_ground_cluster(index):
-                clock_count = cls.get_param("NUM_CLOCKS", index - cls.GROUND_INDEX_OFFSET)
+                clock_count = cls.get_param("NUM_CLOCKS", index - cls.get_ground_index_offset())
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
@@ -530,9 +533,9 @@ class YTEnvSetup(object):
             return "primary"
         if cluster_index <= cls.NUM_REMOTE_CLUSTERS:
             return "remote_" + str(cluster_index - 1)
-        if cluster_index == cls.GROUND_INDEX_OFFSET:
+        if cluster_index == cls.get_ground_index_offset():
             return "primary_ground"
-        return "remote_{}_ground".format(cluster_index - cls.GROUND_INDEX_OFFSET - 1)
+        return "remote_{}_ground".format(cluster_index - cls.get_ground_index_offset() - 1)
 
     # NB: Does not return ground clusters.
     @classmethod
@@ -605,9 +608,6 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             cls.USE_PRIMARY_CLOCKS = False
 
-        if cls.GROUND_INDEX_OFFSET < cls.NUM_REMOTE_CLUSTERS + 1:
-            cls.GROUND_INDEX_OFFSET = cls.NUM_REMOTE_CLUSTERS + 1
-
         if cls.USE_SEQUOIA != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
@@ -639,7 +639,7 @@ class YTEnvSetup(object):
         # Ground clusters instantiation.
         for original_cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
             if cls.get_param("USE_SEQUOIA", original_cluster_index):
-                cluster_index = original_cluster_index + cls.GROUND_INDEX_OFFSET
+                cluster_index = original_cluster_index + cls.get_ground_index_offset()
                 cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
                 cls.ground_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
@@ -699,7 +699,7 @@ class YTEnvSetup(object):
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 cls._setup_cluster_configuration(cluster_index, clusters)
                 if cls.USE_SEQUOIA:
-                    cls._setup_cluster_configuration(cluster_index + cls.GROUND_INDEX_OFFSET, clusters)
+                    cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
@@ -915,7 +915,7 @@ class YTEnvSetup(object):
         if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
             return config
 
-        ground_cluster_name = cls.get_cluster_name(cluster_index + cls.GROUND_INDEX_OFFSET)
+        ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
         config["cluster_connection"].setdefault("sequoia_connection", {})
         config["cluster_connection"]["sequoia_connection"]["ground_cluster_name"] = ground_cluster_name
         return config
@@ -977,7 +977,7 @@ class YTEnvSetup(object):
             self.setup_cluster(method, cluster_index)
 
             if self.get_param("USE_SEQUOIA", cluster_index):
-                self.setup_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
+                self.setup_cluster(method, cluster_index + self.get_ground_index_offset())
 
         for env in self.combined_envs:
             env.restore_default_node_dynamic_config()
@@ -1170,7 +1170,7 @@ class YTEnvSetup(object):
             self.teardown_cluster(method, cluster_index, wait_for_nodes)
 
             if self.get_param("USE_SEQUOIA", cluster_index):
-                self.teardown_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
+                self.teardown_cluster(method, cluster_index + self.get_ground_index_offset())
 
         yt_commands.reset_events_on_fs()
 
