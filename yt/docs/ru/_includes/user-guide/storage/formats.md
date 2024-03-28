@@ -147,7 +147,7 @@ yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tut
 - **enable_type_conversion** (`false`) — включить все опции выше. В большинстве случаев достаточно пользоваться только этой опцией.
 - **complex_type_mode** (`named`) — режим представления композитных типов, структур и вариантов,
   возможные значения `named` или `positional`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
-- **string_keyed_dict_mode** (`positional`) - режим представления словей со строковыми ключами, возможные значения `named` или `positional`, подробнее в [специальном разделе](../../../user-guide/storage/data-types.md#yson).
+- **string_keyed_dict_mode** (`positional`) - режим представления словарей со строковыми ключами, возможные значения `named` или `positional`, подробнее в [специальном разделе](../../../user-guide/storage/data-types.md#yson).
 - **decimal_mode** (`binary`) — режим представления типа `decimal`,
   возможные значения `text`, `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
 - **time_mode** (`binary`) — режим представления типов `date`, `datetime`, `timestamp`, возможные значения `text` или `binary`, подробнее в [разделе](../../../user-guide/storage/data-types.md#yson).
