@@ -940,7 +940,7 @@ private:
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
 
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
@@ -979,7 +979,7 @@ private:
 
             OnIncrementalHeartbeatFailed(cellTag);
 
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();

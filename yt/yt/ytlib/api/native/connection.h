@@ -194,8 +194,6 @@ struct TConnectionOptions
     : public NApi::TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
-    // COMPAT(danilalexeev): unretriable read-only error.
-    bool RetryReadOnlyResponseError = true;
 
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;

@@ -515,12 +515,6 @@ private:
                 effectiveError = &error.InnerErrors().front();
             }
 
-            if (!options.RetryReadOnlyResponseError &&
-                effectiveError->FindMatching(NHydra::EErrorCode::ReadOnly))
-            {
-                return false;
-            }
-
             if (options.RetryRequestQueueSizeLimitExceeded &&
                 effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {

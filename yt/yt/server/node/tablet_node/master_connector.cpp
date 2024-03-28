@@ -198,12 +198,12 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            DoScheduleHeartbeat(cellTag, /* immediately */ false);
+            DoScheduleHeartbeat(cellTag, /*immediately*/ false);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting tablet node heartbeat to master (CellTag: %v)",
                 cellTag);
-            if (IsRetriableError(rspOrError)) {
-                DoScheduleHeartbeat(cellTag, /* immediately */ false);
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
+                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
                 Bootstrap_->ResetAndRegisterAtMaster();
             }

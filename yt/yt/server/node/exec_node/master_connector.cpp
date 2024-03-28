@@ -169,7 +169,7 @@ private:
             return TError();
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting exec node heartbeat to master");
-            if (IsRetriableError(rspOrError)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 // TODO(arkady-e1ppa): Maybe backoff in this case?
                 return TError();
             } else {

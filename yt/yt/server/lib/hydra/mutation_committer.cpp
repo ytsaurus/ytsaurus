@@ -342,10 +342,7 @@ void TLeaderCommitter::SerializeMutations()
             auto error = TError(
                 NHydra::EErrorCode::ReadOnly,
                 "Read-only mode is active");
-            mutationDraft.Promise.Set(TError(
-                NRpc::EErrorCode::Unavailable,
-                "Cannot commit a mutation at the moment")
-                << error);
+            mutationDraft.Promise.Set(error);
             if (Options_.ResponseKeeper && mutationDraft.Request.MutationId) {
                 if (auto setResponseKeeperPromise = Options_.ResponseKeeper->EndRequest(
                     mutationDraft.Request.MutationId,
