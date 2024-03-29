@@ -1,4 +1,4 @@
-#include "consumer_init.h"
+#include "queue_consumer_init.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>

@@ -1142,7 +1142,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/client_transactions_impl.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/connection.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/consumer_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_consumer_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/default_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/file_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/file_writer.cpp
@@ -1342,7 +1342,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/tracked_memory_chunk_provider.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/query_client/shuffle.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/config.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/consumer_init.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_consumer_init.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp

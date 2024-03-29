@@ -126,7 +126,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::ClusterProxyNode ||
         type == EObjectType::SequoiaMapNode ||
         type == EObjectType::Pipeline ||
-        type == EObjectType::Consumer;
+        type == EObjectType::QueueConsumer;
 }
 
 bool IsUserType(EObjectType type)

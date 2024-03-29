@@ -1,16 +1,17 @@
 #include "client_impl.h"
 #include "type_handler_detail.h"
 
-#include <yt/yt/ytlib/queue_client/consumer_init.h>
+#include <yt/yt/ytlib/queue_client/queue_consumer_init.h>
 
 namespace NYT::NApi::NNative {
 
 using namespace NCypressClient;
+using namespace NQueueClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConsumerTypeHandler
+class TQueueConsumerTypeHandler
     : public TTypeHandlerBase
 {
 public:
@@ -21,8 +22,7 @@ public:
         const TYPath& path,
         const TCreateNodeOptions& options)
     {
-        using namespace NYT::NQueueClient;
-        if (type != EObjectType::Consumer) {
+        if (type != EObjectType::QueueConsumer) {
             return {};
         }
 
@@ -32,9 +32,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeHandlerPtr CreateConsumerTypeHandler(TClient* client)
+ITypeHandlerPtr CreateQueueConsumerTypeHandler(TClient* client)
 {
-    return New<TConsumerTypeHandler>(client);
+    return New<TQueueConsumerTypeHandler>(client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
