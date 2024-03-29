@@ -27,7 +27,7 @@
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
-#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>

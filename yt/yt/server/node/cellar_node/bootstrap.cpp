@@ -1,6 +1,6 @@
 #include "bootstrap.h"
 
-#include "dynamic_bundle_config_manager.h"
+#include "bundle_dynamic_config_manager.h"
 #include "master_connector.h"
 #include "private.h"
 

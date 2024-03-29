@@ -5,7 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     bootstrap.cpp
     config.cpp
-    dynamic_bundle_config_manager.cpp
+    bundle_dynamic_config_manager.cpp
     master_connector.cpp
 )
 

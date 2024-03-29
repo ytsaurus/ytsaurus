@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/config.h>
-#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
+#include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/chaos_node/bootstrap.h>
@@ -1145,6 +1145,10 @@ private:
             OrchidRoot_,
             "/dynamic_config_manager",
             CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/bundle_dynamic_config_manager",
+            CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/object_service_cache",
