@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(JITLink)
 add_subdirectory(MCJIT)
 add_subdirectory(Orc)
@@ -21,7 +22,7 @@ target_include_directories(llvm16-lib-ExecutionEngine PRIVATE
 )
 
 target_link_libraries(llvm16-lib-ExecutionEngine PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

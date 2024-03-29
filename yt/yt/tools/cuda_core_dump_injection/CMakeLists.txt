@@ -5,11 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_shared_library(cuda_core_dump_injection)
 
 
 target_link_libraries(cuda_core_dump_injection PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
 )

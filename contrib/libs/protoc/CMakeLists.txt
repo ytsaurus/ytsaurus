@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-protoc)
 
 
@@ -20,7 +21,7 @@ target_include_directories(contrib-libs-protoc PUBLIC
 )
 
 target_link_libraries(contrib-libs-protoc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-protobuf
 )

@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(Target-NVPTX-TargetInfo)
 
 
@@ -18,7 +19,7 @@ target_include_directories(Target-NVPTX-TargetInfo PRIVATE
 )
 
 target_link_libraries(Target-NVPTX-TargetInfo PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-MC

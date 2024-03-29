@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_library(yt-server-log_tailer)
 
@@ -14,7 +15,7 @@ target_compile_options(yt-server-log_tailer PRIVATE
 )
 
 target_link_libraries(yt-server-log_tailer PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine

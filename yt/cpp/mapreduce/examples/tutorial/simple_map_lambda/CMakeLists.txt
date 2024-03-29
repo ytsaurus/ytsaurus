@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
@@ -27,7 +28,7 @@ target_compile_options(simple_map_lambda PRIVATE
 )
 
 target_link_libraries(simple_map_lambda PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(arrow)
 add_subdirectory(cache)
 add_subdirectory(driver)
@@ -47,7 +48,7 @@ target_include_directories(yt-yt-client PUBLIC
 )
 
 target_link_libraries(yt-yt-client PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-client-query_tracker_client

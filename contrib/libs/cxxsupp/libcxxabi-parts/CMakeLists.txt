@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-cxxsupp-libcxxabi-parts)
 
 
@@ -23,7 +24,7 @@ target_include_directories(libs-cxxsupp-libcxxabi-parts PRIVATE
 )
 
 target_link_libraries(libs-cxxsupp-libcxxabi-parts PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(libs-cxxsupp-libcxxabi-parts PRIVATE

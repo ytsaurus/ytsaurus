@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(yt-cpp-mapreduce-interface-logging-ut)
 
 
@@ -13,7 +14,7 @@ target_include_directories(yt-cpp-mapreduce-interface-logging-ut PRIVATE
 )
 
 target_link_libraries(yt-cpp-mapreduce-interface-logging-ut PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

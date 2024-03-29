@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -44,7 +45,7 @@ add_library(query-unittests-udf INTERFACE)
 
 
 target_link_libraries(query-unittests-udf INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-resource
@@ -66,7 +67,7 @@ target_include_directories(query-unittests-udf.global PRIVATE
 )
 
 target_link_libraries(query-unittests-udf.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-resource

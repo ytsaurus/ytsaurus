@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
@@ -37,7 +38,7 @@ add_library(client-arrow-fbs)
 
 
 target_link_libraries(client-arrow-fbs PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-flatbuffers

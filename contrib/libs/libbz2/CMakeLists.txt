@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-libbz2)
 
 
@@ -13,7 +14,7 @@ target_compile_options(contrib-libs-libbz2 PRIVATE
 )
 
 target_link_libraries(contrib-libs-libbz2 PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(contrib-libs-libbz2 PRIVATE

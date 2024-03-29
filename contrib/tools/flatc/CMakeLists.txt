@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(flatc)
 
 
@@ -13,7 +14,7 @@ target_include_directories(flatc PRIVATE
 )
 
 target_link_libraries(flatc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   libs-flatbuffers-flatc
 )

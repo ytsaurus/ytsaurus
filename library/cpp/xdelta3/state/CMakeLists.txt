@@ -5,11 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(cpp-xdelta3-state)
 
 
 target_link_libraries(cpp-xdelta3-state PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-xdelta3-proto

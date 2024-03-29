@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(impl)
 add_library(yt-library-erasure)
 
@@ -14,7 +15,7 @@ target_compile_options(yt-library-erasure PRIVATE
 )
 
 target_link_libraries(yt-library-erasure PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

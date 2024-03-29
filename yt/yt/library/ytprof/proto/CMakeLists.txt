@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
@@ -27,7 +28,7 @@ target_include_directories(library-ytprof-proto PUBLIC
 )
 
 target_link_libraries(library-ytprof-proto PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf

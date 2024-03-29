@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(yt-library-dynamic_config)
 
 
@@ -13,7 +14,7 @@ target_compile_options(yt-library-dynamic_config PRIVATE
 )
 
 target_link_libraries(yt-library-dynamic_config PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-client

@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(mock)
 add_subdirectory(unittests)
 add_library(server-lib-chunk_pools)
@@ -15,7 +16,7 @@ target_compile_options(server-lib-chunk_pools PRIVATE
 )
 
 target_link_libraries(server-lib-chunk_pools PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
@@ -59,7 +60,7 @@ target_compile_options(server-lib-chunk_pools.global PRIVATE
 )
 
 target_link_libraries(server-lib-chunk_pools.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib

@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(Common)
 add_subdirectory(Parsers)
 add_library(contrib-clickhouse-src)
@@ -76,7 +77,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
 )
 
 target_link_libraries(contrib-clickhouse-src PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   clickhouse-contrib-cctz-cmake
   clickhouse-src-Common
@@ -1785,7 +1786,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
 )
 
 target_link_libraries(contrib-clickhouse-src.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   clickhouse-contrib-cctz-cmake
   clickhouse-src-Common

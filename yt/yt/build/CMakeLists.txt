@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 set(
   HAVE_CXXABI_H
   0
@@ -97,7 +98,7 @@ target_include_directories(yt-yt-build PUBLIC
 )
 
 target_link_libraries(yt-yt-build PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
 )

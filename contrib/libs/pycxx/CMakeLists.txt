@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-pycxx)
 
 
@@ -22,7 +23,7 @@ target_include_directories(contrib-libs-pycxx PRIVATE
 )
 
 target_link_libraries(contrib-libs-pycxx PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   Python3::Module
 )

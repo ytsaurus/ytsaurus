@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -16,7 +17,7 @@ add_library(certs INTERFACE)
 
 
 target_link_libraries(certs INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-resource
@@ -30,7 +31,7 @@ add_global_library_for(certs.global
 
 
 target_link_libraries(certs.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-resource

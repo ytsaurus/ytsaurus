@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-liburing)
 
 
@@ -18,7 +19,7 @@ target_include_directories(contrib-libs-liburing PUBLIC
 )
 
 target_link_libraries(contrib-libs-liburing PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(contrib-libs-liburing PRIVATE

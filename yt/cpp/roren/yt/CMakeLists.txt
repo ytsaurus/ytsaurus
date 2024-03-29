@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(proto)
 add_library(cpp-roren-yt)
 
 
 target_link_libraries(cpp-roren-yt PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-threading-future

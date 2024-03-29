@@ -5,12 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(small)
 add_library(library-cpp-getopt INTERFACE)
 
 
 target_link_libraries(library-cpp-getopt INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-getopt-small
@@ -26,7 +27,7 @@ add_global_library_for(library-cpp-getopt.global
 
 
 target_link_libraries(library-cpp-getopt.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-getopt-small

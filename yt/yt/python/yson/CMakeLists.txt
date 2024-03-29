@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(arrow)
 add_library(yt-python-yson)
 
@@ -22,7 +23,7 @@ target_include_directories(yt-python-yson PUBLIC
 )
 
 target_link_libraries(yt-python-yson PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
@@ -78,7 +79,7 @@ target_include_directories(yt-python-yson.global PUBLIC
 )
 
 target_link_libraries(yt-python-yson.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

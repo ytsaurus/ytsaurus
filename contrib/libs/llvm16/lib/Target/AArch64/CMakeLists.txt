@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(AsmParser)
 add_subdirectory(Disassembler)
 add_subdirectory(MCTargetDesc)
@@ -23,7 +24,7 @@ target_include_directories(lib-Target-AArch64 PRIVATE
 )
 
 target_link_libraries(lib-Target-AArch64 PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

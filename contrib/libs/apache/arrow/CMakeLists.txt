@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_flatc_bin
   TOOL_flatc_dependency
@@ -88,7 +89,7 @@ target_include_directories(libs-apache-arrow PRIVATE
 )
 
 target_link_libraries(libs-apache-arrow PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   libs-apache-orc
   libs-brotli-dec

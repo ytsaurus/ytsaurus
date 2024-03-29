@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-restricted-uriparser)
 
 
@@ -22,7 +23,7 @@ target_include_directories(contrib-restricted-uriparser PRIVATE
 )
 
 target_link_libraries(contrib-restricted-uriparser PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-libc_compat
 )
 

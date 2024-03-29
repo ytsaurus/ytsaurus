@@ -5,11 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(cpp-clickhouse_deps-incbin_stub INTERFACE)
 
 
 target_link_libraries(cpp-clickhouse_deps-incbin_stub INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
 )

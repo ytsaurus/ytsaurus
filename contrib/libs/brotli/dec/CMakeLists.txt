@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-brotli-dec)
 
 
@@ -17,7 +18,7 @@ target_include_directories(libs-brotli-dec PUBLIC
 )
 
 target_link_libraries(libs-brotli-dec PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   libs-brotli-common
 )

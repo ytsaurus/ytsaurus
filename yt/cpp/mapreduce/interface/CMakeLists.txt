@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(logging)
 add_subdirectory(ut)
 get_built_tool_path(
@@ -78,7 +79,7 @@ target_compile_options(cpp-mapreduce-interface PRIVATE
 )
 
 target_link_libraries(cpp-mapreduce-interface PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf

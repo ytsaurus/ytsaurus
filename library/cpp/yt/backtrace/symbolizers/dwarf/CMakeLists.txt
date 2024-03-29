@@ -5,11 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(backtrace-symbolizers-dwarf INTERFACE)
 
 
 target_link_libraries(backtrace-symbolizers-dwarf INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace
@@ -24,7 +25,7 @@ add_global_library_for(backtrace-symbolizers-dwarf.global
 
 
 target_link_libraries(backtrace-symbolizers-dwarf.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-dwarf_backtrace

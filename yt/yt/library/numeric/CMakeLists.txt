@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(serialize)
 add_subdirectory(unittests)
 add_library(yt-library-numeric)
@@ -15,7 +16,7 @@ target_compile_options(yt-library-numeric PRIVATE
 )
 
 target_link_libraries(yt-library-numeric PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-yt-small_containers

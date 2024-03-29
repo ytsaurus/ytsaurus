@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(abseil-cpp-absl-random)
 
 
@@ -17,7 +18,7 @@ target_include_directories(abseil-cpp-absl-random PUBLIC
 )
 
 target_link_libraries(abseil-cpp-absl-random PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   abseil-cpp-absl-base
   abseil-cpp-absl-numeric

@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(table_client-unittests-helpers)
 
 
@@ -13,7 +14,7 @@ target_compile_options(table_client-unittests-helpers PRIVATE
 )
 
 target_link_libraries(table_client-unittests-helpers PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-client

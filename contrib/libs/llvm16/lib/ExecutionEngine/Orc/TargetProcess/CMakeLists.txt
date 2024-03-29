@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(ExecutionEngine-Orc-TargetProcess)
 
 
@@ -17,7 +18,7 @@ target_include_directories(ExecutionEngine-Orc-TargetProcess PRIVATE
 )
 
 target_link_libraries(ExecutionEngine-Orc-TargetProcess PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   ExecutionEngine-Orc-Shared

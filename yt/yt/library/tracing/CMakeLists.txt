@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(example)
 add_subdirectory(jaeger)
 add_subdirectory(unittests)
@@ -16,7 +17,7 @@ target_compile_options(yt-library-tracing PRIVATE
 )
 
 target_link_libraries(yt-library-tracing PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-build

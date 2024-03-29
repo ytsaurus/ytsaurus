@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(public-lsm_simulator-lib)
 
 
@@ -13,7 +14,7 @@ target_compile_options(public-lsm_simulator-lib PRIVATE
 )
 
 target_link_libraries(public-lsm_simulator-lib PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   server-lib-hydra

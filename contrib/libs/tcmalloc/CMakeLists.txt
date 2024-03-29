@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(default)
 add_subdirectory(malloc_extension)
 add_subdirectory(no_percpu_cache)
@@ -17,7 +18,7 @@ target_compile_options(contrib-libs-tcmalloc PRIVATE
 )
 
 target_link_libraries(contrib-libs-tcmalloc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension
@@ -40,7 +41,7 @@ target_compile_options(contrib-libs-tcmalloc.global PRIVATE
 )
 
 target_link_libraries(contrib-libs-tcmalloc.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension

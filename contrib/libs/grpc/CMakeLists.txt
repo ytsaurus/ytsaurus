@@ -5,6 +5,7 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(src)
 add_subdirectory(third_party)
 add_library(contrib-libs-grpc)
@@ -29,7 +30,7 @@ target_include_directories(contrib-libs-grpc PRIVATE
 )
 
 target_link_libraries(contrib-libs-grpc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   certs
