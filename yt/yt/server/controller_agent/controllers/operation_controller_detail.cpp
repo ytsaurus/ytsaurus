@@ -1,6 +1,7 @@
 #include "operation_controller_detail.h"
 
 #include "auto_merge_task.h"
+#include "input_transactions_manager.h"
 #include "job_info.h"
 #include "job_helpers.h"
 #include "helpers.h"
@@ -490,11 +491,54 @@ void TOperationControllerBase::InitializeClients()
     SchedulerOutputClient = Client;
 }
 
+void TOperationControllerBase::InitializeInputTransactions()
+{
+    // COMPAT(coteeq): Correct reviving from snapshot relies on order of this vector.
+    std::vector<TRichYPath> filesAndTables = GetInputTablePaths();
+
+    for (const auto& userJobSpec : GetUserJobSpecs()) {
+        for (const auto& path : userJobSpec->FilePaths) {
+            filesAndTables.push_back(path);
+        }
+
+        auto layerPaths = GetLayerPaths(userJobSpec);
+        for (const auto& path : layerPaths) {
+            filesAndTables.push_back(path);
+        }
+    }
+
+    InputTransactions = New<TInputTransactionsManager>(
+        TInputClients {
+            .Client = InputClient,
+            .SchedulerClient = SchedulerInputClient,
+        },
+        OperationId,
+        filesAndTables,
+        HasDiskRequestsWithSpecifiedAccount() || TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs()),
+        GetInputTransactionParentId(),
+        Config,
+        Logger);
+}
+
+IAttributeDictionaryPtr TOperationControllerBase::CreateTransactionAttributes(ETransactionType transactionType) const
+{
+    return BuildAttributeDictionaryFluently()
+        .Item("title").Value(
+            Format("Scheduler %Qlv transaction for operation %v",
+                transactionType,
+                OperationId))
+        .Item("operation_id").Value(OperationId)
+        .OptionalItem("operation_title", Spec_->Title)
+        .Item("operation_type").Value(GetOperationType())
+        .Finish();
+}
+
 TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
 {
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
+    InitializeInputTransactions();
 
     auto attachTransaction = [&] (TTransactionId transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
         if (!transactionId) {
@@ -511,7 +555,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         }
     };
 
-    auto inputTransaction = attachTransaction(transactions.InputId, InputClient, true);
     auto outputTransaction = attachTransaction(transactions.OutputId, OutputClient, true);
     auto debugTransaction = attachTransaction(transactions.DebugId, Client, true);
     // NB: Async and completion transactions are never reused and thus are not pinged.
@@ -519,17 +562,12 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     auto outputCompletionTransaction = attachTransaction(transactions.OutputCompletionId, OutputClient, false);
     auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, Client, false);
 
-    std::vector<ITransactionPtr> nestedInputTransactions;
-    THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
-    for (auto transactionId : transactions.NestedInputIds) {
-        auto it = transactionIdToTransaction.find(transactionId);
-        if (it == transactionIdToTransaction.end()) {
-            auto transaction = attachTransaction(transactionId, InputClient, true);
-            YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
-            nestedInputTransactions.push_back(transaction);
-        } else {
-            nestedInputTransactions.push_back(it->second);
-        }
+    auto inputReviveResult = WaitFor(InputTransactions->Revive(transactions));
+    if (!inputReviveResult.IsOK()) {
+        CleanStart = true;
+        YT_LOG_INFO(
+            inputReviveResult,
+            "Could not reuse input transactions, will use clean start");
     }
 
     // Check transactions.
@@ -557,12 +595,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         };
 
         // NB: Async transaction is not checked.
-        if (IsTransactionNeeded(ETransactionType::Input)) {
-            checkTransaction(inputTransaction, ETransactionType::Input, transactions.InputId);
-            for (int index = 0; index < std::ssize(nestedInputTransactions); ++index) {
-                checkTransaction(nestedInputTransactions[index], ETransactionType::Input, transactions.NestedInputIds[index]);
-            }
-        }
         if (IsTransactionNeeded(ETransactionType::Output)) {
             checkTransaction(outputTransaction, ETransactionType::Output, transactions.OutputId);
         }
@@ -616,20 +648,15 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         if (CleanStart) {
             YT_LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
-            scheduleAbort(inputTransaction, InputClient);
             scheduleAbort(outputTransaction, OutputClient);
             scheduleAbort(debugTransaction, Client);
-            for (const auto& transaction : nestedInputTransactions) {
-                scheduleAbort(transaction, InputClient);
-            }
+            asyncResults.push_back(InputTransactions->Abort());
         } else {
             YT_LOG_INFO("Reusing operation transactions");
-            InputTransaction = inputTransaction;
             OutputTransaction = outputTransaction;
             DebugTransaction = debugTransaction;
             AsyncTransaction = WaitFor(StartTransaction(ETransactionType::Async, Client))
                 .ValueOrThrow();
-            NestedInputTransactions = nestedInputTransactions;
         }
 
         WaitFor(AllSucceeded(asyncResults))
@@ -691,6 +718,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
         ValidateSecureVault();
         InitializeClients();
+        InitializeInputTransactions();
         StartTransactions();
         InitializeStructures();
         LockInputs();
@@ -758,32 +786,6 @@ void TOperationControllerBase::ValidateAccountPermission(const TString& account,
     }
 }
 
-std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
-{
-    // NB: keep it sync with InitializeStructures.
-    std::vector<TTransactionId> inputTransactionIds;
-    for (const auto& path : GetInputTablePaths()) {
-        if (path.GetTransactionId()) {
-            inputTransactionIds.push_back(*path.GetTransactionId());
-        }
-    }
-    for (const auto& userJobSpec : GetUserJobSpecs()) {
-        for (const auto& path : userJobSpec->FilePaths) {
-            if (path.GetTransactionId()) {
-                inputTransactionIds.push_back(*path.GetTransactionId());
-            }
-        }
-
-        auto layerPaths = GetLayerPaths(userJobSpec);
-        for (const auto& path : layerPaths) {
-            if (path.GetTransactionId()) {
-                inputTransactionIds.push_back(*path.GetTransactionId());
-            }
-        }
-    }
-    return inputTransactionIds;
-}
-
 void TOperationControllerBase::InitializeStructures()
 {
     DataFlowGraph_->SetNodeDirectory(InputNodeDirectory_);
@@ -791,14 +793,11 @@ void TOperationControllerBase::InitializeStructures()
 
     InitializeOrchid();
 
-    // NB: keep it sync with GetNonTrivialInputTransactionIds.
-    int nestedInputTransactionIndex = 0;
+    // NB: keep it sync with InitializeInputTransactions.
     for (const auto& path : GetInputTablePaths()) {
         auto table = New<TInputTable>(
             path,
-            path.GetTransactionId()
-            ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
-            : InputTransaction->GetId());
+            InputTransactions->GetTransactionIdForObject(path));
         table->ColumnRenameDescriptors = path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors());
         InputTables_.push_back(std::move(table));
     }
@@ -824,9 +823,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : userJobSpec->FilePaths) {
             files.push_back(TUserFile(
                 path,
-                path.GetTransactionId()
-                ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
-                : InputTransaction->GetId(),
+                InputTransactions->GetTransactionIdForObject(path),
                 false));
         }
 
@@ -835,9 +832,7 @@ void TOperationControllerBase::InitializeStructures()
         for (const auto& path : layerPaths) {
             files.push_back(TUserFile(
                 path,
-                path.GetTransactionId()
-                ? NestedInputTransactions[nestedInputTransactionIndex++]->GetId()
-                : InputTransaction->GetId(),
+                InputTransactions->GetTransactionIdForObject(path),
                 true));
         }
     }
@@ -847,7 +842,7 @@ void TOperationControllerBase::InitializeStructures()
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
-        BaseLayer_ = TUserFile(path, InputTransaction->GetId(), true);
+        BaseLayer_ = TUserFile(path, InputTransactions->GetNativeInputTransactionId(), true);
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
@@ -877,9 +872,6 @@ void TOperationControllerBase::InitUnrecognizedSpec()
 
 void TOperationControllerBase::FillInitializeResult(TOperationControllerInitializeResult* result)
 {
-    result->Attributes.Mutable = BuildYsonStringFluently<EYsonType::MapFragment>()
-        .Do(BIND(&TOperationControllerBase::BuildInitializeMutableAttributes, Unretained(this)))
-        .Finish();
     result->Attributes.BriefSpec = BuildYsonStringFluently<EYsonType::MapFragment>()
         .Do(BIND(&TOperationControllerBase::BuildBriefSpec, Unretained(this)))
         .Finish();
@@ -1516,7 +1508,8 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
         case ETransactionType::Async:
             return IsLegacyIntermediateLivePreviewSupported() || IsLegacyOutputLivePreviewSupported() || GetStderrTablePath();
         case ETransactionType::Input:
-            return !GetInputTablePaths().empty() || HasUserJobFilesOrLayers() || HasDiskRequestsWithSpecifiedAccount();
+            // Input transaction is managed by InputTransactionsManager.
+            YT_ABORT();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:
             // NB: cannot replace with OutputTables_.empty() here because output tables are not ready yet.
@@ -1545,33 +1538,25 @@ void TOperationControllerBase::StartTransactions()
 {
     std::vector<TFuture<NNative::ITransactionPtr>> asyncResults = {
         StartTransaction(ETransactionType::Async, Client),
-        StartTransaction(ETransactionType::Input, InputClient, GetInputTransactionParentId()),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
         // NB: we do not start Debug transaction under User transaction since we want to save debug results
         // even if user transaction is aborted.
         StartTransaction(ETransactionType::Debug, Client),
     };
 
-    THashMap<TTransactionId, int> inputTransactionIdToResultIndex;
-    for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-        if (!inputTransactionIdToResultIndex.contains(transactionId)) {
-            inputTransactionIdToResultIndex[transactionId] = asyncResults.size();
-            asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
-        }
-    }
+    auto inputTransactionsReadyFuture = InputTransactions->Start(
+        CreateTransactionAttributes(ETransactionType::Input));
 
     auto results = WaitFor(AllSet(asyncResults))
         .ValueOrThrow();
 
     {
         AsyncTransaction = results[0].ValueOrThrow();
-        InputTransaction = results[1].ValueOrThrow();
-        OutputTransaction = results[2].ValueOrThrow();
-        DebugTransaction = results[3].ValueOrThrow();
-        for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-            NestedInputTransactions.push_back(results[inputTransactionIdToResultIndex[transactionId]].ValueOrThrow());
-        }
+        OutputTransaction = results[1].ValueOrThrow();
+        DebugTransaction = results[2].ValueOrThrow();
     }
+
+    WaitFor(inputTransactionsReadyFuture).ThrowOnError();
 }
 
 void TOperationControllerBase::InitInputStreamDirectory()
@@ -1700,18 +1685,7 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
     TTransactionStartOptions options;
     options.AutoAbort = false;
     options.PingAncestors = false;
-    auto attributes = CreateEphemeralAttributes();
-    attributes->Set(
-        "title",
-        Format("Scheduler %Qlv transaction for operation %v",
-            type,
-            OperationId));
-    attributes->Set("operation_id", OperationId);
-    if (Spec_->Title) {
-        attributes->Set("operation_title", Spec_->Title);
-    }
-    attributes->Set("operation_type", GetOperationType());
-    options.Attributes = std::move(attributes);
+    options.Attributes = CreateTransactionAttributes(type);
     options.ParentId = parentTransactionId;
     options.Timeout = Config->OperationTransactionTimeout;
     options.PingPeriod = Config->OperationTransactionPingPeriod;
@@ -2648,11 +2622,8 @@ void TOperationControllerBase::CommitTransactions()
             YT_UNUSED_FUTURE(transaction->Abort());
         }
     };
-    abortTransaction(InputTransaction);
+    YT_UNUSED_FUTURE(InputTransactions->Abort());
     abortTransaction(AsyncTransaction);
-    for (const auto& transaction : NestedInputTransactions) {
-        abortTransaction(transaction);
-    }
 }
 
 void TOperationControllerBase::TeleportOutputChunks()
@@ -4322,14 +4293,11 @@ TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
 
     TControllerTransactionIds transactionIds;
     transactionIds.AsyncId = getId(AsyncTransaction);
-    transactionIds.InputId = getId(InputTransaction);
     transactionIds.OutputId = getId(OutputTransaction);
     transactionIds.DebugId = getId(DebugTransaction);
     transactionIds.OutputCompletionId = getId(OutputCompletionTransaction);
     transactionIds.DebugCompletionId = getId(DebugCompletionTransaction);
-    for (const auto& transaction : NestedInputTransactions) {
-        transactionIds.NestedInputIds.push_back(getId(transaction));
-    }
+    InputTransactions->FillSchedulerTransactionIds(&transactionIds);
 
     return transactionIds;
 }
@@ -4417,17 +4385,17 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         }
     };
 
-    // NB: We do not abort input transaction synchronously since
-    // it can belong to an unavailable remote cluster.
+    // NB: We do not abort input transactions synchronously since
+    // some of them can belong to an unavailable remote cluster.
     // Moreover if input transaction abort failed it does not harm anything.
-    abortTransaction(InputTransaction, SchedulerInputClient, /*sync*/ false);
+    if (InputTransactions) {
+        YT_UNUSED_FUTURE(InputTransactions->Abort());
+    }
+
     abortTransaction(OutputTransaction, SchedulerOutputClient);
     abortTransaction(AsyncTransaction, SchedulerClient, /*sync*/ false);
     if (!debugTransactionCommitted) {
         abortTransaction(DebugTransaction, SchedulerClient, /*sync*/ false);
-    }
-    for (const auto& transaction : NestedInputTransactions) {
-        abortTransaction(transaction, SchedulerInputClient, /*sync*/ false);
     }
 
     WaitFor(AllSucceeded(abortTransactionFutures))
@@ -6381,7 +6349,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
     GetUserObjectBasicAttributes(
         InputClient,
         MakeUserObjectList(InputTables_),
-        InputTransaction->GetId(),
+        InputTransactions->GetNativeInputTransactionId(),
         Logger,
         EPermission::Read,
         TGetUserObjectBasicAttributesOptions{
@@ -7448,7 +7416,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         GetUserObjectBasicAttributes(
             Client,
             MakeUserObjectList(files),
-            InputTransaction->GetId(),
+            InputTransactions->GetNativeInputTransactionId(),
             Logger.WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -7462,7 +7430,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         GetUserObjectBasicAttributes(
             Client,
             layers,
-            InputTransaction->GetId(),
+            InputTransactions->GetNativeInputTransactionId(),
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -7922,14 +7890,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
                 auto req = TMasterYPathProxy::CreateObject();
                 SetPrerequisites(req, TPrerequisiteOptions{
-                    .PrerequisiteTransactionIds = {InputTransaction->GetId()},
+                    .PrerequisiteTransactionIds = {InputTransactions->GetNativeInputTransactionId()},
                 });
 
                 req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("account", account);
-                attributes->Set("transaction_id", InputTransaction->GetId());
+                attributes->Set("transaction_id", InputTransactions->GetNativeInputTransactionId());
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 auto rsp = WaitFor(proxy.Execute(req))
@@ -9228,23 +9196,6 @@ bool TOperationControllerBase::HasProgress() const
     }
 }
 
-void TOperationControllerBase::BuildInitializeMutableAttributes(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    fluent
-        .Item("async_scheduler_transaction_id").Value(AsyncTransaction ? AsyncTransaction->GetId() : NullTransactionId)
-        .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
-        .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId)
-        .Item("debug_transaction_id").Value(DebugTransaction ? DebugTransaction->GetId() : NullTransactionId)
-        .Item("nested_input_transaction_ids").DoListFor(NestedInputTransactions,
-            [] (TFluentList fluent, const ITransactionPtr& transaction) {
-                fluent
-                    .Item().Value(transaction->GetId());
-            }
-        );
-}
-
 void TOperationControllerBase::BuildPrepareAttributes(TFluentMap fluent) const
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -9375,7 +9326,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             }))
             .Item("build_time").Value(TInstant::Now())
             .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
-            .Item("input_transaction_id").Value(InputTransaction ? InputTransaction->GetId() : NullTransactionId)
+            .Item("input_transaction_id").Value(InputTransactions->GetNativeInputTransactionId())
             .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }
 }
@@ -10122,7 +10073,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
     ToProto(
         jobSpec->mutable_input_transaction_id(),
-        InputTransaction ? InputTransaction->GetId() : NullTransactionId);
+        InputTransactions->GetNativeInputTransactionId());
 
     jobSpec->set_memory_reserve(joblet->UserJobMemoryReserve);
     jobSpec->set_job_proxy_memory_reserve(

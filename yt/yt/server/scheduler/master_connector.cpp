@@ -1465,49 +1465,13 @@ private:
             }
         };
 
-        TOperationTransactions transactions;
-        TOperationRevivalDescriptor revivalDescriptor;
-        transactions.AsyncTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("async_scheduler_transaction_id", NullTransactionId),
-            true,
-            "async");
-        transactions.InputTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("input_transaction_id", NullTransactionId),
-            true,
-            "input");
-        transactions.OutputTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("output_transaction_id", NullTransactionId),
-            true,
-            "output");
-        transactions.OutputCompletionTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("output_completion_transaction_id", NullTransactionId),
-            true,
-            "output completion");
-        transactions.DebugTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("debug_transaction_id", NullTransactionId),
-            true,
-            "debug");
-        transactions.DebugCompletionTransaction = attachTransaction(
-            attributes->Get<TTransactionId>("debug_completion_transaction_id", NullTransactionId),
-            true,
-            "debug completion");
+        using std::placeholders::_1;
+        using std::placeholders::_2;
 
-        auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
-        THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
-        for (auto transactionId : nestedInputTransactionIds) {
-            auto it = transactionIdToTransaction.find(transactionId);
-            if (it == transactionIdToTransaction.end()) {
-                auto transaction = attachTransaction(
-                    transactionId,
-                    true,
-                    "nested input transaction"
-                );
-                YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
-                transactions.NestedInputTransactions.push_back(transaction);
-            } else {
-                transactions.NestedInputTransactions.push_back(it->second);
-            }
-        }
+        TOperationRevivalDescriptor revivalDescriptor;
+        auto transactions = AttachControllerTransactions(
+            std::bind(attachTransaction, _1, true, _2),
+            TControllerTransactionIds::FromCypressAttributes(attributes));
 
         const auto& userTransactionId = operation->GetUserTransactionId();
         auto userTransaction = attachTransaction(userTransactionId, false);

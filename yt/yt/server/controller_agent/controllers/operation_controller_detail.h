@@ -24,6 +24,7 @@
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/public.h>
@@ -260,7 +261,7 @@ public:
     TOperationControllerReviveResult Revive() override;
 
     TOperationControllerInitializeResult InitializeClean() override;
-    TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
+    TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) override;
 
     bool IsThrottling() const noexcept override;
 
@@ -562,14 +563,14 @@ protected:
     // Maps node ids to descriptors for job input chunks.
     NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
 
+    // NB: Transaction objects are ephemeral and should not be saved to snapshot.
+    TInputTransactionsManagerPtr InputTransactions;
     NApi::ITransactionPtr AsyncTransaction;
-    NApi::ITransactionPtr InputTransaction;
     NApi::ITransactionPtr OutputTransaction;
     NApi::ITransactionPtr DebugTransaction;
     NApi::NNative::ITransactionPtr OutputCompletionTransaction;
     NApi::ITransactionPtr DebugCompletionTransaction;
     NApi::ITransactionPtr UserTransaction;
-    std::vector<NApi::ITransactionPtr> NestedInputTransactions;
 
     bool CommitFinished = false;
 
@@ -693,10 +694,11 @@ protected:
     // Initialization.
     virtual void DoInitialize();
     virtual void InitializeClients();
+    void InitializeInputTransactions();
+    NYTree::IAttributeDictionaryPtr CreateTransactionAttributes(ETransactionType transactionType) const;
     void StartTransactions();
     virtual NTransactionClient::TTransactionId GetInputTransactionParentId();
     virtual NTransactionClient::TTransactionId GetOutputTransactionParentId();
-    std::vector<NTransactionClient::TTransactionId> GetNonTrivialInputTransactionIds();
     virtual void InitializeStructures();
     virtual void LockInputs();
     void InitUnrecognizedSpec();
@@ -1042,7 +1044,6 @@ protected:
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;
 
-    virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
@@ -1402,7 +1403,7 @@ private:
 
     void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 
-    TControllerTransactionIds GetTransactionIds();
+    NScheduler::TControllerTransactionIds GetTransactionIds();
 
     std::optional<TDuration> GetTimeLimit() const;
     TError GetTimeLimitError() const;

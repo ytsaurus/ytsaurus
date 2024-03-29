@@ -3447,38 +3447,8 @@ private:
             initialState == EOperationState::Initializing ||
             initialState == EOperationState::ReviveInitializing;
         if (owningTransactions && operation->Transactions()) {
-            std::vector<TFuture<void>> asyncResults;
-            THashSet<ITransactionPtr> abortedTransactions;
-            auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
-                if (abortedTransactions.contains(transaction)) {
-                    return;
-                }
-
-                if (transaction) {
-                    YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)",
-                        transaction->GetId(),
-                        transactionType,
-                        operation->GetId());
-                    YT_VERIFY(abortedTransactions.emplace(transaction).second);
-                    asyncResults.push_back(transaction->Abort());
-                } else {
-                    YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v, OperationId: %v)",
-                        transactionType,
-                        operation->GetId());
-                }
-            };
-
-            const auto& transactions = *operation->Transactions();
-            scheduleAbort(transactions.AsyncTransaction, "Async");
-            scheduleAbort(transactions.InputTransaction, "Input");
-            scheduleAbort(transactions.OutputTransaction, "Output");
-            scheduleAbort(transactions.DebugTransaction, "Debug");
-            for (const auto& transaction : transactions.NestedInputTransactions) {
-                scheduleAbort(transaction, "NestedInput");
-            }
-
             try {
-                WaitFor(AllSucceeded(asyncResults))
+                WaitFor(operation->AbortCommonTransactions())
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)",
@@ -3577,30 +3547,8 @@ private:
         YT_LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
             operation->GetId());
 
-        THashSet<ITransactionPtr> abortedTransactions;
-        auto abortTransaction = [&] (ITransactionPtr transaction, const TString& type) {
-            if (abortedTransactions.contains(transaction)) {
-                return;
-            }
-
-            if (transaction) {
-                YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)", transaction->GetId(), type, operation->GetId());
-                // Fire-and-forget.
-                YT_UNUSED_FUTURE(transaction->Abort());
-                YT_VERIFY(abortedTransactions.emplace(transaction).second);
-            } else {
-                YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v, OperationId: %v)", type, operation->GetId());
-            }
-        };
-
-        const auto& transactions = *operation->Transactions();
-        abortTransaction(transactions.InputTransaction, "Input");
-        for (const auto& transaction : transactions.NestedInputTransactions) {
-            abortTransaction(transaction, "NestedInput");
-        }
-        abortTransaction(transactions.OutputTransaction, "Output");
-        abortTransaction(transactions.AsyncTransaction, "Async");
-        abortTransaction(transactions.DebugTransaction, "Debug");
+        // Fire-and-forget.
+        YT_UNUSED_FUTURE(operation->AbortCommonTransactions());
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 

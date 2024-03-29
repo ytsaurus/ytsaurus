@@ -40,6 +40,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_memory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_splitter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_transactions_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/live_preview.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp

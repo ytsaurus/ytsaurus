@@ -15,6 +15,7 @@ SRCS(
     helpers.cpp
     job_metrics.cpp
     resource_metering.cpp
+    transactions.cpp
 
     proto/allocation_tracker_service.proto
     proto/controller_agent_tracker_service.proto

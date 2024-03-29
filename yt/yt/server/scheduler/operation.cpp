@@ -63,70 +63,6 @@ void Deserialize(TOperationEvent& event, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(
-    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
-    const TOperationTransactions& transactions)
-{
-    auto getId = [] (const NApi::ITransactionPtr& transaction) {
-        return transaction ? transaction->GetId() : NTransactionClient::TTransactionId();
-    };
-
-    ToProto(transactionIdsProto->mutable_async_id(), getId(transactions.AsyncTransaction));
-    ToProto(transactionIdsProto->mutable_input_id(), getId(transactions.InputTransaction));
-    ToProto(transactionIdsProto->mutable_output_id(), getId(transactions.OutputTransaction));
-    ToProto(transactionIdsProto->mutable_debug_id(), getId(transactions.DebugTransaction));
-    ToProto(transactionIdsProto->mutable_output_completion_id(), getId(transactions.OutputCompletionTransaction));
-    ToProto(transactionIdsProto->mutable_debug_completion_id(), getId(transactions.DebugCompletionTransaction));
-
-    for (const auto& transaction : transactions.NestedInputTransactions) {
-        ToProto(transactionIdsProto->add_nested_input_ids(), getId(transaction));
-    }
-}
-
-void FromProto(
-    TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NNative::IClientPtr(TCellTag)> getClient,
-    TDuration pingPeriod)
-{
-    THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
-    auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
-        if (!transactionId) {
-            return nullptr;
-        }
-
-        auto it = transactionIdToTransaction.find(transactionId);
-        if (it == transactionIdToTransaction.end()) {
-            auto client = getClient(CellTagFromId(transactionId));
-
-            TTransactionAttachOptions options;
-            options.Ping = true;
-            options.PingAncestors = false;
-            options.PingPeriod = pingPeriod;
-
-            auto transaction = client->AttachTransaction(transactionId, options);
-            YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
-            return transaction;
-        } else {
-            return it->second;
-        }
-    };
-
-    transactions->AsyncTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.async_id()));
-    transactions->InputTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.input_id()));
-    transactions->OutputTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.output_id()));
-    transactions->DebugTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_id()));
-    transactions->OutputCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.output_completion_id()));
-    transactions->DebugCompletionTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.debug_completion_id()));
-
-    auto nestedInputTransactionIds = FromProto<std::vector<TTransactionId>>(transactionIdsProto.nested_input_ids());
-    for (auto transactionId : nestedInputTransactionIds) {
-        transactions->NestedInputTransactions.push_back(attachTransaction(transactionId));
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void Deserialize(TOperationAlert& alert, NYTree::INodePtr node)
 {
     Deserialize(alert.Error, node);
@@ -564,6 +500,48 @@ std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
     return jobShell->Owners;
 }
 
+TFuture<void> TOperation::AbortCommonTransactions()
+{
+    YT_VERIFY(Transactions_);
+    const auto Logger = SchedulerLogger.WithTag("OperationId", GetId());
+    std::vector<TFuture<void>> asyncResults;
+    THashSet<ITransactionPtr> abortedTransactions;
+    auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
+        if (abortedTransactions.contains(transaction)) {
+            return;
+        }
+
+        if (transaction) {
+            YT_LOG_DEBUG("Aborting transaction (TransactionId: %v, Type: %v)",
+                transaction->GetId(),
+                transactionType);
+            YT_VERIFY(abortedTransactions.emplace(transaction).second);
+            asyncResults.push_back(transaction->Abort());
+        } else {
+            YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v)",
+                transactionType);
+        }
+    };
+
+    scheduleAbort(Transactions_->AsyncTransaction, "Async");
+    scheduleAbort(Transactions_->InputTransaction, "Input");
+    scheduleAbort(Transactions_->OutputTransaction, "Output");
+    scheduleAbort(Transactions_->DebugTransaction, "Debug");
+    for (const auto& transaction : Transactions_->InputTransactions) {
+        scheduleAbort(transaction, "Input");
+    }
+    for (const auto& transaction : Transactions_->NestedInputTransactions) {
+        scheduleAbort(transaction, "NestedInput");
+    }
+
+    return AllSucceeded(
+        asyncResults,
+        {
+            .PropagateCancelationToInput = false,
+            .CancelInputOnShortcut = false,
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString TrimAnnotations(const IMapNodePtr& annotationsNode)
@@ -672,4 +650,3 @@ IMapNodePtr ConvertSpecStringToNode(const TYsonString& specString)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

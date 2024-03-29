@@ -95,15 +95,15 @@ void BuildFullOperationAttributes(TOperationPtr operation, bool includeOperation
 
 void BuildMutableOperationAttributes(TOperationPtr operation, TFluentMap fluent)
 {
-    auto initializationAttributes = operation->ControllerAttributes().InitializeAttributes;
     fluent
         .Item("state").Value(operation->GetState())
         .Item("suspended").Value(operation->GetSuspended())
         .Item("events").Value(operation->Events())
         .Item("slot_index_per_pool_tree").Value(operation->GetSlotIndices())
-        .DoIf(static_cast<bool>(initializationAttributes), [&] (TFluentMap fluent) {
-            fluent
-                .Items(initializationAttributes->Mutable);
+        .DoIf(operation->Transactions().has_value(), [&] (TFluentMap fluent) {
+            auto transactionIds = operation->Transactions()->ControllerTransactionIds;
+            auto attributes = transactionIds.ToCypressAttributes();
+            fluent.Items(*attributes);
         });
 }
 

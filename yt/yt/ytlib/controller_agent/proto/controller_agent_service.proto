@@ -1,6 +1,7 @@
 package NYT.NControllerAgent.NProto;
 
 import "yt/ytlib/scheduler/proto/resources.proto";
+import "yt/ytlib/scheduler/proto/rich_transaction_id.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
@@ -110,11 +111,11 @@ message TControllerTransactionIds
     optional NYT.NProto.TGuid output_completion_id = 5;
     optional NYT.NProto.TGuid debug_completion_id = 6;
     repeated NYT.NProto.TGuid nested_input_ids = 7;
+    repeated NScheduler.NProto.TRichTransactionId input_ids = 8;
 }
 
 message TInitializeOperationResult
 {
-    required bytes mutable_attributes = 1; // YSON
     required bytes brief_spec = 2; // YSON
     required bytes unrecognized_spec = 3; // YSON
     required bytes full_spec = 4; // YSON

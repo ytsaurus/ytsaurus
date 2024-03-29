@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/lib/scheduler/structs.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
+#include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
@@ -44,29 +45,13 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TControllerTransactionIds
-{
-    NTransactionClient::TTransactionId AsyncId;
-    NTransactionClient::TTransactionId InputId;
-    NTransactionClient::TTransactionId OutputId;
-    NTransactionClient::TTransactionId DebugId;
-    NTransactionClient::TTransactionId OutputCompletionId;
-    NTransactionClient::TTransactionId DebugCompletionId;
-    std::vector<NTransactionClient::TTransactionId> NestedInputIds;
-};
-
-void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds);
-void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto);
-
-////////////////////////////////////////////////////////////////////////////////
-
 using TOperationAlertMap = THashMap<EOperationAlertType, TError>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerInitializeResult
 {
-    TControllerTransactionIds TransactionIds;
+    NScheduler::TControllerTransactionIds TransactionIds;
     NScheduler::TOperationControllerInitializeAttributes Attributes;
     bool EraseOffloadingTrees;
 };
@@ -276,7 +261,7 @@ struct IOperationControllerSchedulerHost
      *
      *  \note Invoker affinity: cancelable Controller invoker
      */
-    virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) = 0;
+    virtual TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) = 0;
 
     //! Performs a lightweight initial preparation.
     /*!

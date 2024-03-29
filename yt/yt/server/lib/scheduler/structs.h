@@ -51,7 +51,6 @@ DEFINE_REFCOUNTED_TYPE(TControllerScheduleAllocationResult)
 
 struct TOperationControllerInitializeAttributes
 {
-    NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;

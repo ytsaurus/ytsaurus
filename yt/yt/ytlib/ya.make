@@ -361,6 +361,7 @@ SRCS(
 
     scheduler/proto/allocation.proto
     scheduler/proto/resources.proto
+    scheduler/proto/rich_transaction_id.proto
     scheduler/proto/pool_ypath.proto
     scheduler/proto/scheduler_service.proto
 

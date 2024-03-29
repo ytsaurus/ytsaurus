@@ -74,6 +74,7 @@ target_sources(server-lib-scheduler PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/job_metrics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/resource_metering.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/scheduler/transactions.cpp
 )
 
 

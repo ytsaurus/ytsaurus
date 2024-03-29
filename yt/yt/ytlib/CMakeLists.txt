@@ -1051,6 +1051,20 @@ get_built_tool_path(
   cpp_styleguide
 )
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-yt-ytlib)
 
 
@@ -1157,6 +1171,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
@@ -1246,6 +1261,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h
