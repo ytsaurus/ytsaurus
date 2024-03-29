@@ -194,31 +194,18 @@ class Column():
         return "Column" + str(self.yson())
 
 class Schema():
-    def __init__(self, sorted, spec):
-        # QWFP
-        self.appearance_probability = 0.95
-        self.aggregate_probability = 0.5
-
-        # XXX
-        if spec.mode == "stateless_write":
-            self.appearance_probability = 1
-
+    @staticmethod
+    def from_spec(sorted, spec):
         if sorted:
-            if spec.schema.key_column_count is not None:
-                key_column_count = spec.schema.key_column_count
-                assert key_column_count > 0
-            else:
-                key_column_count = random.randint(3, 5)
+            key_column_count = spec.schema.key_column_count or random.randint(3, 5)
+            assert key_column_count > 0
             max_inline_hunk_size = spec.sorted.max_inline_hunk_size
         else:
             key_column_count = 0
             max_inline_hunk_size = None
 
-        if spec.schema.value_column_count is not None:
-            value_column_count = spec.schema.value_column_count
-            assert value_column_count > 0
-        else:
-            value_column_count = random.randint(5, 10)
+        value_column_count = spec.schema.value_column_count or random.randint(5, 10)
+        assert value_column_count > 0
 
         def _pick_columns(types, allowed_type_names, count):
             if allowed_type_names is not None:
@@ -230,20 +217,27 @@ class Schema():
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
         data_names = ["v%s" % str(i) for i in range(len(data_columns))]
 
-        self.key_columns = [Column(t, n, "ascending") for (t,n) in zip(key_columns, key_names)]
-
         def aggr(t):
+            aggregate_probability = 0.5
             if not sorted or not spec.schema.allow_aggregates or not t.aggregatable():
                 return None
-            if random.random() < self.aggregate_probability:
+            if random.random() < aggregate_probability:
                 return random.choice(t.aggregatable())
             else:
                 return None
-        self.data_columns = [
-            Column(t, n, None, aggr(t), max_inline_hunk_size)
-            for (t,n) in zip(data_columns, data_names)]
 
-        self.columns = self.key_columns + self.data_columns
+        return Schema(
+            [Column(t, n, "ascending") for (t,n) in zip(key_columns, key_names)],
+            [Column(t, n, None, aggr(t), max_inline_hunk_size) for (t,n) in zip(data_columns, data_names)],
+            1 if spec.mode == "stateless_write" else 0.95)
+
+    def __init__(self, key_columns, data_columns, appearance_probability=0.95):
+        # QWFP
+        self.appearance_probability = appearance_probability
+
+        self.key_columns = key_columns
+        self.data_columns = data_columns
+        self.columns = key_columns + data_columns
 
     def from_yson(self, yson):
         self.key_columns = []
@@ -266,11 +260,14 @@ class Schema():
         new_schema.columns = new_schema.key_columns + new_schema.data_columns
         return new_schema
 
-    def add_key_column(self):
-        type = random.choice(key_types)
-        name = "k{}".format(len(self.key_columns))
-        self.key_columns.append(Column(type, name, "ascending"))
+    def add_key_column(self, column=None):
+        if column is None:
+            type = random.choice(key_types)
+            name = f"k{len(self.key_columns)}"
+            column = Column(type, name, "ascending")
+        self.key_columns.append(column)
         self.columns = self.key_columns + self.data_columns
+        return column
 
     def get_key_column_names(self):
         return [c.name for c in self.key_columns]
@@ -354,8 +351,7 @@ class Schema():
                 return key
             else:
                 raise RuntimeError(
-                        "Failed to generate acceptable pivot key (LowerLimit: {}, UpperLimit: {}".format(
-                            lower_limit, upper_limit))
+                    f"Failed to generate acceptable pivot key (LowerLimit: {lower_limit}, UpperLimit: {upper_limit}")
 
         pivots = [generate_acceptable_pivot_key() for i in range(tablet_count - 1)]
         pivots = sorted(pivots, key=make_comparable_key)

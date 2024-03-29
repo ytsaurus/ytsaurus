@@ -14,6 +14,10 @@ from .lookup import verify_lookup
 from .reshard import reshard_multiple_times
 from .process_runner import process_runner
 from .schema import Schema
+from .secondary_index import (
+    make_random_secondary_index_schema,
+    verify_insert_secondary_index,
+    verify_select_secondary_index)
 
 import yt.wrapper as yt
 import random
@@ -33,6 +37,7 @@ class Registry(object):
         self.iter_deletion = None
         self.result = base + ".result"
         self.dump = base + ".dump"
+        self.index = base + ".index"
 
     def create_iter_tables(self, schema, iteration, aggregate, update, force):
         suffix = str(iteration)
@@ -121,9 +126,9 @@ def write_to_dynamic_table(registry, schema, aggregate, update, with_alter, spec
         assert False, "Not implemented"
         write_data_bulk_insert(schema, registry.iter_data, registry.base, aggregate, update, 5)
     else:
-        raise RuntimeError('Unknown sorted write policy "{}"'.format(spec.sorted.write_policy))
+        raise RuntimeError(f"Unknown sorted write policy \"{spec.sorted.write_policy}\"")
 
-def create_tables(registry, schema, attributes, spec, force):
+def create_tables(registry, schema, index_schema, attributes, spec, force):
     if not spec.testing.skip_generation:
         remove_existing([registry.keys, registry.data], force)
         yt.create("table", registry.keys, attributes={"schema": schema.yson_keys()})
@@ -141,20 +146,50 @@ def create_tables(registry, schema, attributes, spec, force):
             spec.size.tablet_count,
             sorted=True,
             dynamic=not spec.prepare_table_via_alter,
+            skip_mount=spec.index,
             spec=spec)
+
+        assert spec.index != spec.prepare_table_via_alter, "conflicting options"
+        if spec.index:
+            remove_existing([registry.index], force)
+            create_dynamic_table(
+                registry.index,
+                index_schema,
+                attributes,
+                None,
+                sorted=True,
+                dynamic=True,
+                skip_mount=True,
+                spec=spec)
+
+            yt.create("secondary_index", attributes={
+                "table_path": registry.base,
+                "index_table_path": registry.index,
+                "kind": spec.index.kind,
+            })
+
+            logger.info(f"Mounting {registry.base} and {registry.index}")
+
+            mount_table(registry.base)
+            mount_table(registry.index)
 
 def test_sorted_tables(base_path, spec, attributes, force):
     table_path = base_path + "/sorted_table"
     attributes = copy.deepcopy(attributes)
     registry = Registry(table_path)
-    schema = Schema(sorted=True, spec=spec)
+    schema = Schema.from_spec(sorted=True, spec=spec)
     schema.create_pivot_keys(spec.size.tablet_count)
+    if spec.index:
+        index_schema = make_random_secondary_index_schema(schema)
+        index_schema.create_pivot_keys(spec.size.tablet_count)
+    else:
+        index_schema = None
 
     logger.info("Schema data weight is %s", schema.data_weight())
 
     assert not spec.replicas
 
-    create_tables(registry, schema, attributes, spec, force)
+    create_tables(registry, schema, index_schema, attributes, spec, force)
 
     if spec.size.key_count is not None:
         key_count = spec.size.key_count
@@ -218,7 +253,7 @@ def test_sorted_tables(base_path, spec, attributes, force):
                 })
             logger.info("Replace original table with the copied one")
             yt.move(registry.base + ".copy", registry.base, force=True)
-            yt.mount_table(registry.base, sync=True)
+            mount_table(registry.base)
 
         # Verify lookups.
         if not spec.testing.skip_verify and not spec.testing.skip_lookup:
@@ -258,6 +293,23 @@ def test_sorted_tables(base_path, spec, attributes, force):
                     key_columns[:-1],
                     spec)
 
+        # Verify secondary index
+        if spec.index and not spec.testing.skip_verify:
+            verify_insert_secondary_index(
+                registry.base,
+                schema,
+                registry.index,
+                index_schema,
+                registry.dump + ".secondary_index",
+                registry.index + ".insert_mismatch")
+            if  not spec.testing.skip_select:
+                verify_select_secondary_index(
+                    registry.base,
+                    schema,
+                    registry.index,
+                    index_schema.key_columns[0],
+                    registry.index + ".select_mismatch")
+
         if not spec.skip_flush:
             sync_flush_table(registry.base)
 
@@ -288,8 +340,17 @@ def test_sorted_tables(base_path, spec, attributes, force):
             unmount_table(registry.base)
             # TODO: spec
             reshard_multiple_times(registry.base, schema)
+            if spec.index:
+                unmount_table(registry.index)
+                reshard_multiple_times(registry.index, index_schema)
 
         if spec.alter:
+            extra_column = schema.add_key_column()
+            if spec.index:
+                unmount_table(registry.index)
+                index_schema.add_key_column(extra_column)
+                yt.alter_table(registry.index, schema=index_schema.yson_with_unique())
+
             unmount_table(registry.base)
             if len(schema.get_key_columns()) < MAX_KEY_COLUMN_NUMBER:
                 schema.add_key_column()
@@ -306,3 +367,5 @@ def test_sorted_tables(base_path, spec, attributes, force):
                     "title": "Alter data table"})
 
         mount_table(registry.base)
+        if spec.index:
+            mount_table(registry.index)

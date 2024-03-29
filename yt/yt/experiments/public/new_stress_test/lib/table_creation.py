@@ -19,7 +19,7 @@ def set_dynamic_table_attributes(table, spec):
 def create_dynamic_table(
         table, schema, attributes, tablet_count=None, sorted=True, dynamic=True,
         skip_mount=False, object_type="table", spec=None):
-    logger.info("Create dynamic table %s" % table)
+    logger.info(f"Create dynamic table {table}")
     attributes["dynamic"] = dynamic
     attributes["schema"] = schema.yson_with_unique() if sorted else schema.yson()
     yt.create(object_type, table, attributes=attributes, force=True)
@@ -35,7 +35,7 @@ def create_dynamic_table(
         yt.reshard_table(table, tablet_count=tablet_count, sync=True)
 
     if not skip_mount:
-        logger.info("Mounting...")
+        logger.info(f"Mounting {table}")
         mount_table(table)
 
 
@@ -58,12 +58,10 @@ def create_table_if_not_exists(path, schema, force, create_callback, check_callb
 
         def _check_schema_match():
             if len(existing_schema) != len(schema.yson()):
-                return "Schema has invalid length: expected {}, got {}".format(
-                    len(schema.yson()), len(existing_schema))
+                return f"Schema has invalid length: expected {len(schema.yson())}, got {len(existing_schema)}"
             for expected, actual in zip(schema.yson(), existing_schema):
                 if _filter_column(expected) != _filter_column(actual):
-                    return "Column schema mismatch: expected {}, got {}".format(
-                        expected, actual)
+                    return f"Column schema mismatch: expected {expected}, got {actual}"
             return None
 
         msg = _check_schema_match()

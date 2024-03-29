@@ -195,6 +195,7 @@ spec_template = {
 
     "prepare_table_via_alter": BoolVariable(VariationPolicy.PickRandom),
     "skip_flush": False,
+    "index": False,
     "reshard": True,
     "alter": True,
     "remote_copy_to_itself": False,
@@ -324,11 +325,38 @@ indexed_sorted_spec = merge_specs(spec_template, {
     "replicated": Opaque(),
 })
 
+secondary_index_sorted_spec = merge_specs(spec_template, {
+    "table_type": "sorted",
+    "chunk_format": Variable(["table_versioned_simple", "table_versioned_columnar", "table_versioned_slim"], VariationPolicy.PickRandom),
+    "in_memory_mode": "none",
+    "erasure_codec": "none",
+    "compression_codec": "none",
+
+    "size": {
+        "tablet_count": 2,
+    },
+
+    "prepare_table_via_alter": False,
+
+    "sorted": {
+        "enable_lookup_hash_table": False,
+        "enable_data_node_lookup": False,
+        "write_policy": "insert_rows",
+    },
+    "ordered": None,
+    "index": {
+        "kind": "full_sync"
+    },
+    "replicated": Opaque(),
+    "mapreduce": False,
+})
+
 presets = {
     "full": spec_template,
     "simple_sorted": simple_sorted_spec,
     "simple_ordered": simple_ordered_spec,
     "indexed_sorted": indexed_sorted_spec,
+    "secondary_index_sorted": secondary_index_sorted_spec,
 }
 
 ##################################################################
