@@ -144,11 +144,12 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
 
 bool TSequoiaChunkReplica::operator==(const TSequoiaChunkReplica& other) const
 {
-    return ChunkId == other.ChunkId
-        && ReplicaIndex == other.ReplicaIndex
-        && NodeId == other.NodeId
-        && LocationUuid == other.LocationUuid;
+    return std::tie(ChunkId, ReplicaIndex, NodeId, LocationUuid) == std::tie(other.ChunkId, other.ReplicaIndex, other.NodeId, other.LocationUuid);
+}
 
+bool TSequoiaChunkReplica::operator<(const TSequoiaChunkReplica& other) const
+{
+    return std::tie(ChunkId, ReplicaIndex, NodeId, LocationUuid) < std::tie(other.ChunkId, other.ReplicaIndex, other.NodeId, other.LocationUuid);
 }
 
 void TSequoiaChunkReplica::Persist(const TPersistenceContext& context)

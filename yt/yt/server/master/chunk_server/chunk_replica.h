@@ -271,6 +271,7 @@ struct TSequoiaChunkReplica
     NChunkClient::TChunkLocationUuid LocationUuid;
 
     bool operator==(const TSequoiaChunkReplica& other) const;
+    bool operator<(const TSequoiaChunkReplica& other) const;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
