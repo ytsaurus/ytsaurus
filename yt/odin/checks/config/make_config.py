@@ -1223,8 +1223,8 @@ def get_checks_config():
                         "partially_available_strategy": "force_ok"
                     },
                     "long": {
-                        "period": 60,
-                        "threshold": 20,
+                        "period": 41,
+                        "threshold": 1,
                     },
                 },
                 "options": {
