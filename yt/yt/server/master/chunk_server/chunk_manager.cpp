@@ -5585,9 +5585,9 @@ private:
         }
     }
 
-    void OnStartFollowing() override
+    void OnFollowerRecoveryComplete() override
     {
-        TMasterAutomatonPart::OnStartFollowing();
+        TMasterAutomatonPart::OnFollowerRecoveryComplete();
 
         OnEpochStarted();
     }
