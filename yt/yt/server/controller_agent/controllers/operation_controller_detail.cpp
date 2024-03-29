@@ -9133,6 +9133,7 @@ std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterNewMon
     if (MonitoredUserJobCount_ >= Config->UserJobMonitoring->DefaultMaxMonitoredUserJobsPerOperation &&
         !GetOrDefault(Config->UserJobMonitoring->EnableExtendedMaxMonitoredUserJobsPerOperation, OperationType))
     {
+        // NB(omgronny): It's ok to reach default max monitored jobs, so we don't set alert here.
         YT_LOG_DEBUG("Limit of monitored user jobs per operation reached "
             "(OperationType: %v, LimitPerOperation: %v)",
             OperationType,
@@ -10653,6 +10654,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     if (context.GetVersion() >= ESnapshotVersion::JobAbortsUntilOperationFailure) {
         Persist(context, JobAbortsUntilOperationFailure_);
+    }
+    if (context.GetVersion() >= ESnapshotVersion::PersistMonitoringCounts) {
+        Persist(context, MonitoredUserJobCount_);
+        Persist(context, MonitoredUserJobAttemptCount_);
+        Persist(context, RegisteredMonitoringDescriptorCount_);
     }
 }
 
