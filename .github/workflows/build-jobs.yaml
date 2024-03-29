@@ -164,7 +164,7 @@ jobs:
           cd ../ya_build
           rm -rf *
 
-          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo -DSTRIP=yes --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          ../ytsaurus/ytsaurus/ya make -T --build=relwithdebinfo --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
       - name: Build query tracker (ya make, release)
         if: ${{ inputs.build-query-tracker-ya-make-release }}
@@ -173,7 +173,7 @@ jobs:
           cd ../ya_build_release
           rm -rf *
 
-          ../ytsaurus/ytsaurus/ya make -T --build=release --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          ../ytsaurus/ytsaurus/ya make -T --build=release -DSTRIP=yes --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
 
       - name: Build chyt
         if: ${{ inputs.build-chyt }}
