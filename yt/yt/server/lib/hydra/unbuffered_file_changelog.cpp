@@ -160,7 +160,7 @@ public:
                         std::max(guessedRecordReadSize, Config_->RecoveryBufferSize),
                         dataFileLength - currentDataOffset);
 
-                    YT_LOG_DEBUG("Recoverying records (CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
+                    YT_LOG_DEBUG("Recovering records (CurrentRecordIndex: %v, CurrentDataOffset: %v, DataFileLength: %v, GuessedRecordReadSize: %v, BlockSize: %v)",
                         currentRecordIndex,
                         currentDataOffset,
                         dataFileLength,

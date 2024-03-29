@@ -56,7 +56,7 @@ std::unique_ptr<TMutation> CreateMutation(
 {
     auto mutation = std::make_unique<TMutation>(std::move(hydraManager));
     const auto& header = context->GetRequestHeader();
-    // COPMAT(danilalexeev): legacy RPC codecs
+    // COMPAT(danilalexeev): legacy RPC codecs
     TSharedRef requestData;
     if (header.has_request_codec()) {
         YT_VERIFY(header.request_codec() == ToProto<int>(NCompression::ECodec::None));

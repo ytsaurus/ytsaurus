@@ -142,7 +142,7 @@ void TRecovery::DoRun()
         }
 
         auto snapshotMeta = snapshotReader->GetParams().Meta;
-        auto snapshoRandomSeed = snapshotMeta.random_seed();
+        auto snapshotRandomSeed = snapshotMeta.random_seed();
         auto snapshotSequenceNumber = snapshotMeta.sequence_number();
         auto snapshotStateHash = snapshotMeta.state_hash();
         auto snapshotTimestamp = FromProto<TInstant>(snapshotMeta.timestamp());
@@ -179,7 +179,7 @@ void TRecovery::DoRun()
                     {snapshotSegmentId, snapshotRecordId},
                     snapshotSequenceNumber,
                     snapshotReadOnly,
-                    snapshoRandomSeed,
+                    snapshotRandomSeed,
                     snapshotStateHash,
                     snapshotTimestamp,
                     snapshotReader);

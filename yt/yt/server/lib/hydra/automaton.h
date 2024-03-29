@@ -57,7 +57,7 @@ struct IAutomaton
     //! Returns global context version, typically the snapshot version for the component.
     virtual TReign GetCurrentReign() = 0;
 
-    //! Returns action that needs to be done after replaying changelog from a scecific reign.
+    //! Returns action that needs to be done after replaying changelog from a specific reign.
     virtual EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign) = 0;
 
     //! Returns the resulting action that needs to be done after replaying changelog.

@@ -46,7 +46,7 @@ public:
     //! Otherwise prolongs the lease range up to #deadline.
     void Extend(NProfiling::TCpuInstant deadline);
 
-    //! If the lease is valid then returns |true| (and abandones it).
+    //! If the lease is valid then returns |true| (and abandons it).
     //! Otherwise returns |false|.
     bool TryAbandon();
 

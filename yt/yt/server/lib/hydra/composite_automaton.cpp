@@ -567,11 +567,11 @@ void TCompositeAutomaton::DoSaveSnapshot(
         writer,
         strategy,
         SnapshotSaveBufferSize);
-    auto persistencContext = CreateSaveContext(
+    auto persistentContext = CreateSaveContext(
         syncWriter.get(),
         logger);
-    callback(*persistencContext);
-    persistencContext->Finish();
+    callback(*persistentContext);
+    persistentContext->Finish();
 }
 
 void TCompositeAutomaton::DoLoadSnapshot(

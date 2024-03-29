@@ -2461,7 +2461,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Entering discomobulated state");
+        YT_LOG_INFO("Entering discombobulated state");
 
         WaitFor(SyncWithLeader())
             .ThrowOnError();
