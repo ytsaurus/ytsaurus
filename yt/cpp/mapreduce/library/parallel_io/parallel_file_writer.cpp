@@ -53,6 +53,8 @@ public:
 private:
     struct IWriteTask;
 
+    void DoFinish(bool commit);
+
     void DoWriteTask(
         std::unique_ptr<IWriteTask>&& task,
         const TRichYPath& filePath,
@@ -188,7 +190,14 @@ TParallelFileWriter::TParallelFileWriter(
 
 TParallelFileWriter::~TParallelFileWriter()
 {
-    NDetail::FinishOrDie(this, /*autoFinish*/ true, "TParallelFileWriter");
+    if (Options_.AutoFinish_) {
+        NDetail::FinishOrDie(this, /*autoFinish*/ true, "TParallelFileWriter");
+    } else {
+        try {
+            DoFinish(false);
+        } catch (...) {
+        }
+    }
 }
 
 TResourceGuard TParallelFileWriter::LockRamForTask(const std::unique_ptr<IWriteTask>& task) {
@@ -317,6 +326,11 @@ void TParallelFileWriter::ThrowIfDead() {
 
 void TParallelFileWriter::Finish()
 {
+    DoFinish(true);
+}
+
+void TParallelFileWriter::DoFinish(bool commit)
+{
     if (Finished_) {
         return;
     }
@@ -324,9 +338,14 @@ void TParallelFileWriter::Finish()
 
     NThreading::WaitAll(Futures_).GetValueSync();
 
-    if (Exception_) {
+    if (Exception_ || !commit) {
         Transaction_->Abort();
-        std::rethrow_exception(Exception_);
+        if (!commit) {
+            return;
+        }
+        if (Exception_) {
+            std::rethrow_exception(Exception_);
+        }
     }
     auto createOptions = TCreateOptions();
     auto concatenateOptions = TConcatenateOptions();

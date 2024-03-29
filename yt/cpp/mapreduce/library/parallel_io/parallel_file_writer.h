@@ -28,6 +28,16 @@ struct TParallelFileWriterOptions
     /// @brief Directory for temporary files. By default: directory of the output file.
     FLUENT_FIELD_OPTION(TYPath, TmpDirectory);
 
+    ///
+    /// @brief Wheter to call Finish automatically in writer destructor.
+    ///
+    /// If set to true (default) Finish() is called automatically in the destructor of writer.
+    /// It is convenient for simple usecases but might be error-prone if writing exception safe code
+    /// (In case of exceptions it's common to abort writer and not commit partial data).
+    ///
+    /// If set to false Finish() has to be called explicitly.
+    FLUENT_FIELD_DEFAULT(bool, AutoFinish, true);
+
     /// @brief Options for each single-threaded writer.
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
