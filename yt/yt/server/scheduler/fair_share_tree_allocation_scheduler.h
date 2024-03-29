@@ -224,6 +224,7 @@ struct TSchedulingStageProfilingCounters
     NProfiling::TCounter UselessPrescheduleAllocationCount;
     NProfiling::TEventTimer PrescheduleAllocationTime;
     NProfiling::TEventTimer TotalControllerScheduleAllocationTime;
+    NProfiling::TTimeGauge ControllerScheduleAllocationTime;
     NProfiling::TEventTimer ExecControllerScheduleAllocationTime;
     NProfiling::TEventTimer StrategyScheduleAllocationTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
@@ -399,6 +400,8 @@ private:
         NProfiling::TWallTimer Timer;
 
         bool PrescheduleExecuted = false;
+
+        std::vector<TDuration> ScheduleAllocationDurations;
 
         TDuration TotalDuration;
         TDuration PrescheduleDuration;
