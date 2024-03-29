@@ -7,6 +7,7 @@ from yt_commands import (
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    select_paths_from_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -57,9 +58,6 @@ class TestSequoiaInternals(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
-
-    def _get_nonsys_paths(self):
-        return select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)")
 
     @authors("h0pless")
     def test_create_table(self):
@@ -172,7 +170,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/strings/'},
                 {'path': '//tmp/strings/s1/'},
                 {'path': '//tmp/strings/s2/'},
@@ -180,7 +178,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
             # Let's do it twice for good measure.
             copy("//tmp/strings", "//tmp/other_other")
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/other_other/'},
                 {'path': '//tmp/other_other/s1/'},
                 {'path': '//tmp/other_other/s2/'},
@@ -190,7 +188,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/strings", "//tmp/other")
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -212,7 +210,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -221,7 +219,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -245,7 +243,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -254,7 +252,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -268,7 +266,7 @@ class TestSequoiaInternals(YTEnvSetup):
         else:
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
-        assert self._get_nonsys_paths() == [
+        assert select_paths_from_ground() == [
             {'path': '//tmp/'},
             {'path': '//tmp/dst/'},
             {'path': '//tmp/dst/a/'},

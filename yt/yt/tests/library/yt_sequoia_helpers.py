@@ -50,6 +50,13 @@ def select_rows_from_ground(query, **kwargs):
     return select_rows(updated_query, **kwargs)
 
 
+def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
+    query = f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}]"
+    if not fetch_sys_dir:
+        query += " where not is_prefix('//sys', path)"
+    return select_rows_from_ground(query, **kwargs)
+
+
 def _build_children_map_from_tables(id):
     rows = select_rows_from_ground(f"child_key, child_id from [{DESCRIPTORS.child_node.get_default_path()}] where parent_id = \"{id}\"")
     result = YsonMap()

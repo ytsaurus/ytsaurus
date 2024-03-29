@@ -410,7 +410,7 @@ class YTEnvSetup(object):
             return name
 
         if cls._is_ground_cluster(cluster_index):
-            non_ground_cluster_index = cluster_index - cls.GROUND_INDEX_OFFSET
+            non_ground_cluster_index = cluster_index - cls.get_ground_index_offset()
             if non_ground_cluster_index != 0:
                 param_name = f"{name}_REMOTE_{non_ground_cluster_index - 1}_GROUND"
                 if hasattr(cls, param_name):
@@ -776,7 +776,7 @@ class YTEnvSetup(object):
         if ground_driver is None:
             return
 
-        cls._restore_sequoia_bundle_options(cluster_index + cls.GROUND_INDEX_OFFSET)
+        cls._restore_sequoia_bundle_options(cluster_index + cls.get_ground_index_offset())
         # TODO(h0pless): Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
