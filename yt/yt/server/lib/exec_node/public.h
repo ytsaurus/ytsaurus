@@ -43,6 +43,11 @@ DEFINE_ENUM(EUserJobSensorSource,
     (Statistics)
 );
 
+DEFINE_ENUM(EJobProxyLoggingMode,
+    (Simple)
+    (PerJobDirectory)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TEnumIndexedArray<ESandboxKind, TString> SandboxDirectoryNames;
@@ -75,6 +80,7 @@ DECLARE_REFCOUNTED_CLASS(TJobCommonConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TNbdConfig)
 DECLARE_REFCOUNTED_CLASS(TNbdClientConfig)
+DECLARE_REFCOUNTED_CLASS(TJobProxyLoggingConfig)
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TExecNodeDynamicConfig)

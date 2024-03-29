@@ -83,39 +83,9 @@ void TBindConfig::Register(TRegistrar registrar)
         .Default(true);
 }
 
-void TJobProxyLoggingConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("mode", &TThis::Mode)
-        .Default();
-
-    registrar.Parameter("directory", &TThis::Directory)
-        .Default();
-
-    registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
-        .DefaultNew();
-
-    registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
-        .Default()
-        .GreaterThan(0);
-
-    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
-        .Default();
-
-    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
-        .Default();
-}
-
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("slot_index", &TThis::SlotIndex);
-
-    registrar.Parameter("logging_mode", &TThis::LoggingMode)
-        .Default();
-    registrar.Parameter("logging_directory", &TThis::LoggingDirectory)
-        .Default();
-    registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
-        .Default()
-        .GreaterThan(0);
 
     registrar.Parameter("slot_path", &TThis::SlotPath);
 

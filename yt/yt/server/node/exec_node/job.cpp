@@ -2576,33 +2576,31 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     };
 
-    if (proxyConfig->LoggingMode == EJobProxyLoggingMode::PerJobDirectory) {
-        proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
-            auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-            if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
-                return writerConfigNode;
-            }
+    auto jobProxyLoggingConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging;
 
-            auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+    // This replace logic is used for testing puproses.
+    proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
+        auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
+        if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+            return writerConfigNode;
+        }
+
+        auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
+
+        if (jobProxyLoggingConfig->Mode == EJobProxyLoggingMode::Simple) {
+            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+        } else {
             fileLogWriterConfig->FileName = NFS::JoinPaths(
-                NFS::JoinPaths(proxyConfig->LoggingDirectory.value(), calculateShardingKey(proxyConfig->ShardingKeyLength)),
+                NFS::JoinPaths(
+                    jobProxyLoggingConfig->Directory.value(),
+                    calculateShardingKey(jobProxyLoggingConfig->ShardingKeyLength)
+                ),
                 NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
             );
-            return writerConfig->BuildFullConfig(fileLogWriterConfig);
-        });
-    } else {
-        // This replace logic is used for testing puproses.
-        proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
-            auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-            if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
-                return writerConfigNode;
-            }
+        }
 
-            auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
-            return writerConfig->BuildFullConfig(fileLogWriterConfig);
-        });
-    }
+        return writerConfig->BuildFullConfig(fileLogWriterConfig);
+    });
 
     if (proxyConfig->StderrPath) {
         tryReplaceSlotIndex(*proxyConfig->StderrPath);

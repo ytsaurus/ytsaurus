@@ -150,48 +150,12 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobProxyLoggingMode,
-    (Simple)
-    (PerJobDirectory)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJobProxyLoggingConfig
-    : public NYTree::TYsonStruct
-{
-public:
-    EJobProxyLoggingMode Mode;
-
-    std::optional<TString> Directory;
-
-    NLogging::TLogManagerConfigPtr LogManagerTemplate;
-
-    int ShardingKeyLength;
-
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
-
-    REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobProxyLoggingConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobProxyInternalConfig
     : public TNativeServerConfig
 {
 public:
     // Job-specific parameters.
     int SlotIndex = -1;
-
-    // Logging.
-    EJobProxyLoggingMode LoggingMode;
-    std::optional<TString> LoggingDirectory;
-    int ShardingKeyLength;
 
     TString SlotPath;
 

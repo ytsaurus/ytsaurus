@@ -354,15 +354,9 @@ private:
         JobProxyConfigTemplate_->JobEnvironment = SlotManager_->GetJobEnvironmentConfig();
 
         JobProxyConfigTemplate_->Logging = GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate;
-
-        JobProxyConfigTemplate_->LoggingMode = GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode;
-        JobProxyConfigTemplate_->LoggingDirectory = GetConfig()->ExecNode->JobProxy->JobProxyLogging->Directory;
-        JobProxyConfigTemplate_->ShardingKeyLength = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ShardingKeyLength;
-
+        JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
         JobProxyConfigTemplate_->StderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->JobProxyStderrPath;
         JobProxyConfigTemplate_->ExecutorStderrPath = GetConfig()->ExecNode->JobProxy->JobProxyLogging->ExecutorStderrPath;
-
-        JobProxyConfigTemplate_->Jaeger = GetConfig()->ExecNode->JobProxy->JobProxyJaeger;
         JobProxyConfigTemplate_->TestRootFS = GetConfig()->ExecNode->JobProxy->TestRootFS;
         JobProxyConfigTemplate_->AlwaysAbortOnMemoryReserveOverdraft = GetConfig()->ExecNode->JobProxy->AlwaysAbortOnMemoryReserveOverdraft;
 
