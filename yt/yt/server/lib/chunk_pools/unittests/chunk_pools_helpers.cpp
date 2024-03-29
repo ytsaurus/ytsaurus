@@ -43,7 +43,7 @@ TCompletedJobSummary SummaryWithSplitJobCount(TChunkStripeListPtr stripeList, in
             std::back_inserter(jobSummary.UnreadInputDataSlices));
     }
     jobSummary.SplitJobCount = splitJobCount;
-    jobSummary.InterruptReason = EInterruptReason::JobSplit;
+    jobSummary.InterruptionReason = EInterruptReason::JobSplit;
     return jobSummary;
 }
 

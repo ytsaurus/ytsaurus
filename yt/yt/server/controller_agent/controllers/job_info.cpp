@@ -159,6 +159,9 @@ void TJoblet::Persist(const TPersistenceContext& context)
     } else {
         Persist(context, JobState);
     }
+    if (context.GetVersion() >= ESnapshotVersion::InterruptionReasonInJoblet) {
+        Persist(context, InterruptionReason);
+    }
     Persist(context, DebugArtifactsAccount);
     Persist(context, Suspicious);
     Persist(context, LastActivityTime);

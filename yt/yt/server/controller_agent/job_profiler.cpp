@@ -146,7 +146,7 @@ void TJobProfiler::ProfileCompletedJob(const TJoblet& joblet, const TCompletedJo
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto interruptionReason = jobSummary.InterruptReason;
+    auto interruptionReason = jobSummary.InterruptionReason;
 
     auto jobType = joblet.JobType;
     auto treeId = joblet.TreeId;

@@ -61,6 +61,7 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
 TJobSummary::TJobSummary(NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
     , State(CheckedEnumCast<EJobState>(status->state()))
+    , InterruptionReason(CheckedEnumCast<EInterruptReason>(status->interruption_reason()))
     , FinishedOnNode(true)
 {
     Result = std::move(*status->mutable_result());
@@ -192,9 +193,6 @@ void TJobSummary::FillDataStatisticsFromStatistics()
 
 TCompletedJobSummary::TCompletedJobSummary(NControllerAgent::NProto::TJobStatus* status)
     : TJobSummary(status)
-    , InterruptReason(status->has_interruption_reason()
-        ? CheckedEnumCast<EInterruptReason>(status->interruption_reason())
-        : EInterruptReason::None)
 {
     YT_VERIFY(State == ExpectedState);
 }
@@ -206,11 +204,11 @@ void TCompletedJobSummary::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Abandoned);
-    Persist(context, InterruptReason);
+    Persist(context, InterruptionReason);
     // TODO(max42): now we persist only those completed job summaries that correspond
     // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
     // lots of ugly template resolution errors. I wasn't able to fix it :(
-    YT_VERIFY(InterruptReason == EInterruptReason::None);
+    YT_VERIFY(InterruptionReason == EInterruptReason::None);
     Persist(context, SplitJobCount);
 }
 

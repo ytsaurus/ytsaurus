@@ -3199,11 +3199,11 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     }
 
     YT_LOG_DEBUG(
-        "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptReason: %v, Interruptible: %v)",
+        "Job completed (JobId: %v, ResultSize: %v, Abandoned: %v, InterruptionReason: %v, Interruptible: %v)",
         jobId,
         jobSummary->Result ? std::make_optional(jobSummary->GetJobResult().ByteSizeLong()) : std::nullopt,
         jobSummary->Abandoned,
-        jobSummary->InterruptReason,
+        jobSummary->InterruptionReason,
         joblet->JobInterruptible);
 
     // Testing purpose code.
@@ -3229,25 +3229,25 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             if (joblet->Revived) {
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
-                jobSummary->InterruptReason = EInterruptReason::Unknown;
+                jobSummary->InterruptionReason = EInterruptReason::Unknown;
                 YT_LOG_DEBUG(
                     "Overriding job interrupt reason due to revival (JobId: %v, InterruptReason: %v)",
                     jobId,
-                    jobSummary->InterruptReason);
+                    jobSummary->InterruptionReason);
             } else {
                 YT_LOG_DEBUG("Job restart is needed (JobId: %v)", jobId);
             }
-        } else if (jobSummary->InterruptReason != EInterruptReason::None) {
-            jobSummary->InterruptReason = EInterruptReason::None;
+        } else if (jobSummary->InterruptionReason != EInterruptReason::None) {
+            jobSummary->InterruptionReason = EInterruptReason::None;
             YT_LOG_DEBUG(
                 "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptReason: %v)",
                 jobId,
-                jobSummary->InterruptReason);
+                jobSummary->InterruptionReason);
         }
 
         YT_VERIFY(
-            (jobSummary->InterruptReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
-            (jobSummary->InterruptReason != EInterruptReason::None && (
+            (jobSummary->InterruptionReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptionReason != EInterruptReason::None && (
                 jobResultExt.unread_chunk_specs_size() != 0 ||
                 jobResultExt.restart_needed())));
 
@@ -3283,12 +3283,12 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
             CompletedJobIdsReleaseQueue_.Push(jobId);
         }
 
-        if (jobSummary->InterruptReason != EInterruptReason::None) {
+        if (jobSummary->InterruptionReason != EInterruptReason::None) {
             ExtractInterruptDescriptor(*jobSummary, joblet);
             YT_LOG_DEBUG(
-                "Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
+                "Job interrupted (JobId: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
                 jobId,
-                jobSummary->InterruptReason,
+                jobSummary->InterruptionReason,
                 jobSummary->UnreadInputDataSlices.size(),
                 jobSummary->ReadInputDataSlices.size());
         }
@@ -3552,7 +3552,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
         if (wasScheduled) {
             if (joblet->ShouldLogFinishedEvent()) {
-                auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
+                LogFinishedJobFluently(ELogEventType::JobAborted, joblet)
                     .Item("reason").Value(abortReason)
                     .DoIf(jobSummary->Error.has_value(), [&] (TFluentMap fluent) {
                         fluent.Item("error").Value(jobSummary->Error);
@@ -3939,6 +3939,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("statistics").Value(statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
+        .Item("interruption_reason").Value(joblet->InterruptionReason)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])

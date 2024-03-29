@@ -1090,7 +1090,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         const auto& totalInputStatistics = *jobSummary.TotalInputDataStatistics;
         const auto& totalOutputStatistics = *jobSummary.TotalOutputDataStatistics;
         // It's impossible to check row count preservation on interrupted job.
-        if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptReason == EInterruptReason::None) {
+        if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptionReason == EInterruptReason::None) {
             YT_LOG_ERROR_IF(totalInputStatistics.row_count() != totalOutputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 totalInputStatistics.row_count(),
@@ -1115,13 +1115,14 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
 
-    if (jobSummary.InterruptReason != EInterruptReason::None) {
+    if (jobSummary.InterruptionReason != EInterruptReason::None) {
         auto isSplittable = GetChunkPoolOutput()->IsSplittable(joblet->OutputCookie);
         jobSummary.SplitJobCount = isSplittable ? EstimateSplitJobCount(jobSummary, joblet) : 1;
-        YT_LOG_DEBUG("Deciding job splitting (JobId: %v, OutputCookie: %v, InterruptReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
+        YT_LOG_DEBUG(
+            "Deciding job splitting (JobId: %v, OutputCookie: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, IsSplittable: %v, SplitJobCount: %v)",
             jobSummary.Id,
             joblet->OutputCookie,
-            jobSummary.InterruptReason,
+            jobSummary.InterruptionReason,
             jobSummary.UnreadInputDataSlices.size(),
             isSplittable,
             jobSummary.SplitJobCount);
@@ -2162,7 +2163,7 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
         splitJobCount = 1;
     }
 
-    if (jobSummary.InterruptReason == EInterruptReason::JobSplit) {
+    if (jobSummary.InterruptionReason == EInterruptReason::JobSplit) {
         // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
         // Otherwise, the whole splitting thing makes to sense.
         splitJobCount = std::max(2, splitJobCount);

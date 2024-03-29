@@ -235,16 +235,22 @@ void UpdateJobletFromSummary(
 
     // Update other joblet fields.
 
+    if (jobSummary.InterruptionReason != EInterruptReason::None) {
+        joblet->InterruptionReason = jobSummary.InterruptionReason;
+    }
+
     joblet->LastUpdateTime = jobSummary.StatusTimestamp;
     if (jobSummary.FinishTime) {
         joblet->FinishTime = *jobSummary.FinishTime;
     }
-    if (const auto* runningJobSummary = dynamic_cast<const TRunningJobSummary*>(&jobSummary)) {
-        joblet->Progress = runningJobSummary->Progress;
-        joblet->StderrSize = runningJobSummary->StderrSize;
-    } else if (const auto* abortedJobSummary = dynamic_cast<const TAbortedJobSummary*>(&jobSummary)) {
+    if (jobSummary.State == EJobState::Running) {
+        const auto& runningJobSummary = SummaryCast<TRunningJobSummary>(jobSummary);
+        joblet->Progress = runningJobSummary.Progress;
+        joblet->StderrSize = runningJobSummary.StderrSize;
+    } else if (jobSummary.State == EJobState::Aborted) {
+        auto& abortedJobSummary = SummaryCast<TAbortedJobSummary>(jobSummary);
         // TODO(pogorelov): introduce a test for this logic.
-        if (!abortedJobSummary->Scheduled) {
+        if (!abortedJobSummary.Scheduled) {
             joblet->FinishTime = joblet->StartTime;
         }
     }

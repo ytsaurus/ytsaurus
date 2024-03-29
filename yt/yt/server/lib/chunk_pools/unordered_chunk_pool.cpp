@@ -303,10 +303,11 @@ public:
 
     void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        if (jobSummary.InterruptReason != EInterruptReason::None) {
-            YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+        if (jobSummary.InterruptionReason != EInterruptReason::None) {
+            YT_LOG_DEBUG(
+                "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
                 cookie,
-                jobSummary.InterruptReason,
+                jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
         }
@@ -317,7 +318,7 @@ public:
             UpdateFreeJobCounter();
         }
 
-        JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        JobManager_->Completed(cookie, jobSummary.InterruptionReason);
         CheckCompleted();
     }
 
