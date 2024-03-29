@@ -416,7 +416,7 @@ void TChunkReplicator::OnEpochStarted()
         GetDynamicConfig()->FinishedChunkListsRequisitionTraverseFlushPeriod);
     FinishedRequisitionTraverseFlushExecutor_->Start();
 
-    // Just in case.
+    // Just in case. See OnCheckEnabled().
     Enabled_ = false;
 }
 
