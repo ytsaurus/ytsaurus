@@ -1495,6 +1495,7 @@ message TImportLayerRequest {
     optional string private_value = 5;
     optional string compress = 6;
     optional bool verbose_error = 7;
+    optional string container = 8;
 }
 
 
