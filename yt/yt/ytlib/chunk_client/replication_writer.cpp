@@ -41,6 +41,7 @@
 
 #include <yt/yt/core/net/local_address.h>
 
+#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <atomic>
@@ -65,7 +66,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TReplicationWriter)
-DECLARE_REFCOUNTED_STRUCT(TNode)
+DECLARE_REFCOUNTED_CLASS(TNode)
 DECLARE_REFCOUNTED_CLASS(TGroup)
 
 DEFINE_ENUM(EReplicationWriterState,
@@ -77,44 +78,131 @@ DEFINE_ENUM(EReplicationWriterState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNode
+class TNode
     : public TRefCounted
 {
-    const int Index;
-    const TNodeDescriptor Descriptor;
-    const TChunkReplicaWithMedium ChunkReplica;
-    const IChannelPtr Channel;
-    const TChunkLocationUuid TargetLocationUuid;
-
-    TError Error;
-    TPeriodicExecutorPtr PingExecutor;
-
-    bool Closing = false;
-    bool Finished = false;
-
+public:
     TNode(
-        int index,
         TNodeDescriptor descriptor,
-        TChunkReplicaWithMedium chunkReplica,
+        TChunkReplicaWithMedium chunkReplica)
+        : Descriptor_(std::move(descriptor))
+        , ChunkReplica_(chunkReplica)
+    { }
+
+    void SetFinished()
+    {
+        Finished_ = true;
+    }
+
+    bool IsFinished() const
+    {
+        return Finished_;
+    }
+
+    bool IsClosing() const
+    {
+        return Closing_;
+    }
+
+    void SetClosing()
+    {
+        Closing_ = true;
+    }
+
+    int GetIndex() const
+    {
+        return Index_;
+    }
+
+    const IChannelPtr& GetChannel() const
+    {
+        return Channel_;
+    }
+
+    const TChunkLocationUuid& GetTargetLocationUuid() const
+    {
+        return TargetLocationUuid_;
+    }
+
+    const TNodeDescriptor& GetDescriptor() const
+    {
+        return Descriptor_;
+    }
+
+    const TChunkReplicaWithMedium& GetChunkReplica() const
+    {
+        return ChunkReplica_;
+    }
+
+    void SetConnection(
+        int index,
         IChannelPtr channel,
         TChunkLocationUuid targetLocationUuid)
-        : Index(index)
-        , Descriptor(std::move(descriptor))
-        , ChunkReplica(chunkReplica)
-        , Channel(std::move(channel))
-        , TargetLocationUuid(targetLocationUuid)
-    { }
+    {
+        YT_VERIFY(channel);
+        YT_VERIFY(!Channel_);
+
+        Index_ = index;
+        Channel_ = channel;
+        TargetLocationUuid_ = targetLocationUuid;
+    }
+
+    void StartPing(
+        TCallback<void()> pingCallback,
+        TDuration period)
+    {
+        YT_VERIFY(!PingExecutor_);
+
+        PingExecutor_ = New<TPeriodicExecutor>(
+            TDispatcher::Get()->GetWriterInvoker(),
+            pingCallback,
+            period);
+        PingExecutor_->Start();
+    }
+
+    TFuture<void> StopPing()
+    {
+        return PingExecutor_->Stop();
+    }
+
+    void SetError(const TError& error)
+    {
+        Error_.Store(error);
+    }
+
+    TError GetError()
+    {
+        return Error_.Load();
+    }
 
     bool IsAlive() const
     {
-        return Error.IsOK();
+        return Error_.Load().IsOK();
     }
 
+    TString GetDefaultAddress() const
+    {
+        return Descriptor_.GetDefaultAddress();
+    }
+
+private:
+    const TNodeDescriptor Descriptor_;
+    const TChunkReplicaWithMedium ChunkReplica_;
+
+    int Index_;
+    IChannelPtr Channel_;
+    TChunkLocationUuid TargetLocationUuid_;
+
+    TAtomicObject<TError> Error_;
+    TPeriodicExecutorPtr PingExecutor_;
+
+    bool Closing_ = false;
+    bool Finished_ = false;
 };
 
 TString ToString(const TNodePtr& node)
 {
-    return node->Descriptor.GetDefaultAddress();
+    return node->GetDefaultAddress();
 }
 
 DEFINE_REFCOUNTED_TYPE(TNode)
@@ -305,8 +393,8 @@ public:
 
         TChunkReplicaWithLocationList chunkReplicas;
         for (const auto& node : Nodes_) {
-            if (node->IsAlive() && node->Finished) {
-                chunkReplicas.emplace_back(node->ChunkReplica, node->TargetLocationUuid);
+            if (node->IsAlive() && node->IsFinished()) {
+                chunkReplicas.emplace_back(node->GetChunkReplica(), node->GetTargetLocationUuid());
             }
         }
         return chunkReplicas;
@@ -421,7 +509,6 @@ private:
         return result;
     }
 
-
     void DoOpen()
     {
         try {
@@ -504,14 +591,14 @@ private:
         forbiddenAddresses.reserve(Nodes_.size() + BannedNodeAddresses_.size());
         // TODO(gritukan): Do not pass allocated nodes as forbidden when masters will be new.
         for (const auto& node : Nodes_) {
-            forbiddenAddresses.push_back(node->Descriptor.GetDefaultAddress());
+            forbiddenAddresses.push_back(node->GetDefaultAddress());
         }
         forbiddenAddresses.insert(forbiddenAddresses.begin(), BannedNodeAddresses_.begin(), BannedNodeAddresses_.end());
 
         std::vector<TString> allocatedAddresses;
         allocatedAddresses.reserve(Nodes_.size());
         for (const auto& node : Nodes_) {
-            allocatedAddresses.push_back(node->Descriptor.GetDefaultAddress());
+            allocatedAddresses.push_back(node->GetDefaultAddress());
         }
 
         auto preferredHostName = Config_->PreferLocalHost
@@ -578,21 +665,21 @@ private:
         VERIFY_THREAD_AFFINITY(WriterThread);
 
         // Finished flag may have been set in case of reordering of the responses.
-        if (!node->IsAlive() || node->Finished) {
+        if (!node->IsAlive() || node->IsFinished()) {
             return;
         }
 
         auto wrappedError = TError("Node %v failed",
-            node->Descriptor.GetDefaultAddress())
+            node->GetDefaultAddress())
             << error;
         YT_LOG_ERROR(wrappedError);
 
         if (Config_->BanFailedNodes) {
-            BannedNodeAddresses_.push_back(node->Descriptor.GetDefaultAddress());
+            BannedNodeAddresses_.push_back(node->GetDefaultAddress());
         }
 
-        YT_UNUSED_FUTURE(node->PingExecutor->Stop());
-        node->Error = wrappedError;
+        YT_UNUSED_FUTURE(node->StopPing());
+        node->SetError(wrappedError);
         --AliveNodeCount_;
 
         if (!StateError_.IsSet() && AliveNodeCount_ < MinUploadReplicationFactor_) {
@@ -601,7 +688,7 @@ private:
                 "Not enough target nodes to finish upload");
             for (const auto& node : Nodes_) {
                 if (!node->IsAlive()) {
-                    cumulativeError.MutableInnerErrors()->push_back(node->Error);
+                    cumulativeError.MutableInnerErrors()->push_back(node->GetError());
                 }
             }
             YT_LOG_WARNING(cumulativeError, "Chunk writer failed");
@@ -702,9 +789,9 @@ private:
 
         YT_LOG_DEBUG("Flushing block (Block: %v, Address: %v)",
             blockIndex,
-            node->Descriptor.GetDefaultAddress());
+            node->GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(node->Channel);
+        TDataNodeServiceProxy proxy(node->GetChannel());
         auto req = proxy.FlushBlocks();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -713,7 +800,7 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             // See YT-17154.
-            if (rspOrError.GetCode() != NChunkClient::EErrorCode::NoSuchSession || !node->Closing) {
+            if (rspOrError.GetCode() != NChunkClient::EErrorCode::NoSuchSession || !node->IsClosing()) {
                 OnNodeFailed(node, rspOrError);
             }
             return;
@@ -721,11 +808,11 @@ private:
 
         YT_LOG_DEBUG("Block flushed (Block: %v, Address: %v)",
             blockIndex,
-            node->Descriptor.GetDefaultAddress());
+            node->GetDefaultAddress());
 
         const auto& rsp = rspOrError.Value();
         if (rsp->close_demanded()) {
-            YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+            YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->GetDefaultAddress());
             DemandClose();
         }
 
@@ -750,11 +837,17 @@ private:
         const auto& address = nodeDescriptor.GetAddressOrThrow(Networks_);
         YT_LOG_DEBUG("Starting write session (Address: %v)", address);
 
+        auto node = New<TNode>(
+            nodeDescriptor,
+            target);
+
         auto channel = CreateRetryingChannel(
             Config_->NodeChannel,
             Client_->GetChannelFactory()->CreateChannel(address),
-            BIND([] (const TError& error) {
-                return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
+            BIND([weak = MakeWeak(node)] (const TError& error) {
+                auto locked = weak.Lock();
+                return locked && locked->IsAlive() &&
+                    error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
 
         RegisterCandidateNode(channel);
@@ -787,18 +880,13 @@ private:
 
         YT_LOG_DEBUG("Write session started (Address: %v)", address);
 
-        auto node = New<TNode>(
+        node->SetConnection(
             Nodes_.size(),
-            nodeDescriptor,
-            target,
             channel,
             targetLocationUuid);
-
-        node->PingExecutor = New<TPeriodicExecutor>(
-            TDispatcher::Get()->GetWriterInvoker(),
+        node->StartPing(
             BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
             Config_->NodePingPeriod);
-        node->PingExecutor->Start();
 
         Nodes_.push_back(node);
         ++AliveNodeCount_;
@@ -812,9 +900,9 @@ private:
         }
 
         YT_LOG_DEBUG("Sending ping (Address: %v)",
-            node->Descriptor.GetDefaultAddress());
+            node->GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(node->Channel);
+        TDataNodeServiceProxy proxy(node->GetChannel());
         auto req = proxy.PingSession();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
@@ -822,9 +910,9 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG("Ping failed (Address: %v)",
-                node->Descriptor.GetDefaultAddress());
+                node->GetDefaultAddress());
 
-            if (rspOrError.FindMatching(NYT::NChunkClient::EErrorCode::NoSuchSession) && !node->Closing) {
+            if (rspOrError.FindMatching(NYT::NChunkClient::EErrorCode::NoSuchSession) && !node->IsClosing()) {
                 OnNodeFailed(node, rspOrError);
             }
 
@@ -855,15 +943,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
-        if (!node->IsAlive() || node->Closing) {
+        if (!node->IsAlive() || node->IsClosing()) {
             return;
         }
 
-        node->Closing = true;
+        node->SetClosing();
         YT_LOG_DEBUG("Finishing chunk (Address: %v)",
-            node->Descriptor.GetDefaultAddress());
+            node->GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(node->Channel);
+        TDataNodeServiceProxy proxy(node->GetChannel());
         auto req = proxy.FinishChunk();
         req->SetMemoryReferenceTracker(Options_->MemoryReferenceTracker);
         req->SetTimeout(Config_->NodeRpcTimeout);
@@ -897,12 +985,12 @@ private:
         const auto& rsp = rspOrError.Value();
         const auto& chunkInfo = rsp->chunk_info();
         YT_LOG_DEBUG("Chunk finished (Address: %v, DiskSpace: %v)",
-            node->Descriptor.GetDefaultAddress(),
+            node->GetDefaultAddress(),
             chunkInfo.disk_space());
 
-        node->Finished = true;
-        YT_UNUSED_FUTURE(node->PingExecutor->Stop());
-        UnregisterCandidateNode(node->Channel);
+        node->SetFinished();
+        YT_UNUSED_FUTURE(node->StopPing());
+        UnregisterCandidateNode(node->GetChannel());
 
         ChunkInfo_ = chunkInfo;
 
@@ -915,7 +1003,7 @@ private:
         bool hasUnfinishedNode = false;
         for (const auto& node : Nodes_) {
             if (node->IsAlive()) {
-                if (node->Finished) {
+                if (node->IsFinished()) {
                     ++finishedNodeCount;
                 } else {
                     hasUnfinishedNode = true;
@@ -1087,7 +1175,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
         if (std::ssize(selectedNodes) < writer->DirectUploadNodeCount_) {
             selectedNodes.push_back(node);
-        } else if (IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
+        } else if (IsAddressLocal(node->GetDefaultAddress())) {
             // If we are on the same host - this is always the best candidate.
             selectedNodes[0] = node;
         }
@@ -1097,7 +1185,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
     std::vector<TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr>> putBlocksFutures;
     for (const auto& node : selectedNodes) {
-        TDataNodeServiceProxy proxy(node->Channel);
+        TDataNodeServiceProxy proxy(node->GetChannel());
         auto req = proxy.PutBlocks();
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
@@ -1111,11 +1199,11 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
-            node->Descriptor.GetDefaultAddress(),
+            node->GetDefaultAddress(),
             Size_);
 
         TFuture<void> throttleFuture;
-        if (!IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
+        if (!IsAddressLocal(node->GetDefaultAddress())) {
             throttleFuture = writer->Throttler_->Throttle(Size_).Apply(BIND([] (const TError& error) {
                 if (!error.IsOK()) {
                     return TError(
@@ -1141,17 +1229,17 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
         if (rspOrError.IsOK()) {
             if (rspOrError.Value()->close_demanded()) {
-                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
+                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->GetDefaultAddress());
                 writer->DemandClose();
             }
-            SentTo_[node->Index] = true;
+            SentTo_[node->GetIndex()] = true;
 
-            writer->AccountTraffic(Size_, node->Descriptor);
+            writer->AccountTraffic(Size_, node->GetDescriptor());
 
             YT_LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
                 GetStartBlockIndex(),
                 GetEndBlockIndex(),
-                node->Descriptor.GetDefaultAddress());
+                node->GetDefaultAddress());
         } else {
             if (rspOrError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) && !writer->StateError_.IsSet()) {
                 YT_LOG_WARNING(rspOrError, "Chunk writer failed");
@@ -1186,17 +1274,17 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TN
         YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
             GetStartBlockIndex(),
             GetEndBlockIndex(),
-            srcNode->Descriptor.GetDefaultAddress(),
-            dstNode->Descriptor.GetDefaultAddress());
+            srcNode->GetDefaultAddress(),
+            dstNode->GetDefaultAddress());
 
-        TDataNodeServiceProxy proxy(srcNode->Channel);
+        TDataNodeServiceProxy proxy(srcNode->GetChannel());
         auto req = proxy.SendBlocks();
         // Set double timeout for SendBlocks since executing it implies another (src->dst) RPC call.
         req->SetTimeout(writer->Config_->NodeRpcTimeout * 2);
         ToProto(req->mutable_session_id(), writer->SessionId_);
         req->set_first_block_index(FirstBlockIndex_);
         req->set_block_count(Blocks_.size());
-        ToProto(req->mutable_target_descriptor(), dstNode->Descriptor);
+        ToProto(req->mutable_target_descriptor(), dstNode->GetDescriptor());
 
         sendBlocksFutures.push_back(req->Invoke());
     }
@@ -1208,18 +1296,18 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TN
         auto rspOrError = WaitFor(sendBlocksFutures[i]);
         if (rspOrError.IsOK()) {
             if (rspOrError.Value()->close_demanded()) {
-                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->Descriptor.GetDefaultAddress());
+                YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", dstNode->GetDefaultAddress());
                 writer->DemandClose();
             }
-            SentTo_[dstNode->Index] = true;
+            SentTo_[dstNode->GetIndex()] = true;
 
-            writer->AccountTraffic(Size_, srcNode->Descriptor, dstNode->Descriptor);
+            writer->AccountTraffic(Size_, srcNode->GetDescriptor(), dstNode->GetDescriptor());
 
             YT_LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
                 FirstBlockIndex_,
                 GetEndBlockIndex(),
-                srcNode->Descriptor.GetDefaultAddress(),
-                dstNode->Descriptor.GetDefaultAddress());
+                srcNode->GetDefaultAddress(),
+                dstNode->GetDefaultAddress());
         } else {
             auto failedNode = (rspOrError.GetCode() == NChunkClient::EErrorCode::SendBlocksFailed) ? dstNode : srcNode;
             writer->OnNodeFailed(failedNode, rspOrError);
