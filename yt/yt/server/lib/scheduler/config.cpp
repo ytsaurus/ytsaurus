@@ -25,7 +25,7 @@ namespace {
 TJobResourcesConfigPtr GetDefaultRequiredResourceLimitsForRemoteCopy()
 {
     auto config = New<TJobResourcesConfig>();
-    config->UserSlots = 1000;
+    config->UserSlots = 2000;
     return config;
 }
 
