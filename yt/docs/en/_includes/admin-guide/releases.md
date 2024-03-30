@@ -141,19 +141,58 @@ Enhancements:
 
 Publishes as docker images.
 
-**Current release:** 0.0.4 (`ytsaurus/query-tracker:0.0.4-relwithdebinfo`)
+**Current release:** 0.0.5 (`ytsaurus/query-tracker:0.0.5-ya-build-relwithdebinfo`)
 
 **All releases:**
 
+{% cut "**0.0.5**" %}
+
+- Added access control to queries
+- Added support for the in‑memory DQ engine that accelerates small YQL queries
+- Added execution mode setting to query tracker. This allows to run queries in validate and explain modes
+- Fixed a bug that caused queries to be lost in query_tracker
+- Fixed a bug related to yson parsing in YQL queries
+- Reduced the load on the state dyntables by QT
+- Improved authentication in YQL queries.
+- Added authentication in SPYT queries
+- Added reuse of spyt sessions. Speeds up the sequential launch of SPYT queries from a single user
+- Changed the build type of QT images from cmake to ya make
+
+NB:
+- Compatible only with operator version 0.6.0 and later
+- Compatible only with proxies version 23.2 and later
+- Before updating, please read the QT documentation, which contains information about the new query access control.
+
+New related issues:
+- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+
+In case of an error when starting query
+```
+Access control object "nobody" does not exist
+```
+You need to run commands by admin
+```
+yt create access_control_object_namespace --attr '{name=queries}'
+yt create access_control_object --attr '{namespace=queries;name=nobody}'
+```
+
+{% endcut %}
+
 {% cut "**0.0.4**" %}
 
-—
+- Applied YQL defaults from the documentation
+- Fixed a bag in YQL queries that don't use YT tables
+- Fixed a bag in YQL queries that use aggregate functions
+- Supported common UDF functions in YQL
+
+NB: This release is compatible only with the operator 0.5.0 and newer versions.
 
 {% endcut %}
 
 {% cut "**0.0.3**" %}
 
-—
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
+- System query_tracker tables have been moved to sys bundle
 
 {% endcut %}
 
@@ -165,7 +204,13 @@ Publishes as docker images.
 
 {% cut "**0.0.1**" %}
 
-`ytsaurus/query-tracker:0.0.1`
+- Added authentication, now all requests are run on behalf of the user that initiated them.
+- Added support for v3 types in YQL queries.
+- Added the ability to set the default cluster to execute YQL queries on.
+- Changed the format of presenting YQL query errors.
+- Fixed a bug that caused errors during the execution of queries that did not return any result.
+- Fixed a bug that caused errors during the execution of queries that extracted data from dynamic tables.
+- Fixed a bug that caused memory usage errors. YqlAgent no longer crashes for no reason under the load.
 
 {% endcut %}
 
