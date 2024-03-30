@@ -41,6 +41,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 23.2 continues here (YT-21342)
     ((NodeJobStartTimeInJoblet)             (301408))
     ((JobAbortsUntilOperationFailure)       (301409))
+    ((LateJobErrorInJobSummary)             (301410))
     // 24.1 starts here
     ((BumpTo_24_1)                          (301500))
     ((InterruptionReasonInJoblet)           (301501))
