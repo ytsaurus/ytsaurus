@@ -242,22 +242,24 @@ void TBootstrap::DoRun()
         &orchidRoot);
     NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultRpcProxyRole}});
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConfigNode_));
-    SetNodeByYPath(
-        orchidRoot,
-        "/dynamic_config_manager",
-        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/bundle_dynamic_config_manager",
-        CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/cluster_connection",
-        CreateVirtualNode(Connection_->GetOrchidService()));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConfigNode_));
+        SetNodeByYPath(
+            orchidRoot,
+            "/dynamic_config_manager",
+            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/bundle_dynamic_config_manager",
+            CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/cluster_connection",
+            CreateVirtualNode(Connection_->GetOrchidService()));
+    }
     SetNodeByYPath(
         orchidRoot,
         "/disk_monitoring",

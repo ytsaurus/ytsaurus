@@ -1129,26 +1129,32 @@ private:
 
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConfigNode_));
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/cluster_connection",
+                CreateVirtualNode(Connection_->GetOrchidService()));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/bundle_dynamic_config_manager",
+                CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/connected_secondary_masters",
+                CreateVirtualNode(GetSecondaryMasterConnectionConfigsOrchidService()));
+        }
         SetNodeByYPath(
             OrchidRoot_,
             "/restart_manager",
             CreateVirtualNode(RestartManager_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/cluster_connection",
-            CreateVirtualNode(Connection_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/bundle_dynamic_config_manager",
-            CreateVirtualNode(BundleDynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/object_service_cache",
@@ -1157,10 +1163,6 @@ private:
             OrchidRoot_,
             "/node_resource_manager",
             CreateVirtualNode(NodeResourceManager_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/connected_secondary_masters",
-            CreateVirtualNode(GetSecondaryMasterConnectionConfigsOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "node");

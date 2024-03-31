@@ -124,10 +124,12 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        }
         SetBuildAttributes(
             OrchidRoot_,
             "timestamp_provider");
