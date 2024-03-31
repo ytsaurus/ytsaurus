@@ -315,7 +315,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 return transaction->Commit(commitOptions);
             }).AsyncVia(EpochAutomatonInvoker_))));
     }
