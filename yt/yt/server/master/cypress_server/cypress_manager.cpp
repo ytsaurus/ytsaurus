@@ -35,10 +35,6 @@
 // COMPAT(h0pless): RecomputeMasterTableSchemaRefCounters
 #include <yt/yt/server/master/table_server/config.h>
 
-// COMPAT(babenko)
-#include <yt/yt/server/master/journal_server/journal_node.h>
-#include <yt/yt/server/master/chunk_server/chunk_list.h>
-
 // COMPAT(h0pless): Used for schema migration
 #include <yt/yt/server/master/chaos_server/chaos_replicated_table_node.h>
 
