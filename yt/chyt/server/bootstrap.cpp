@@ -120,10 +120,12 @@ void TBootstrap::DoRun()
         &MonitoringManager_,
         &orchidRoot);
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        ConfigNode_);
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            ConfigNode_);
+    }
     SetBuildAttributes(
         orchidRoot,
         "clickhouse_server");

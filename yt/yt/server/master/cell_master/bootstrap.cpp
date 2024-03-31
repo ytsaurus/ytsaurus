@@ -1133,10 +1133,12 @@ void TBootstrap::DoRun()
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+    }
     SetNodeByYPath(
         orchidRoot,
         "/incumbent_manager",

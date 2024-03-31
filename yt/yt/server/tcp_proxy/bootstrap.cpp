@@ -201,18 +201,20 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        }
         SetNodeByYPath(
             OrchidRoot_,
             "/role",
             CreateVirtualNode(ConvertTo<INodePtr>(Config_->Role)));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
