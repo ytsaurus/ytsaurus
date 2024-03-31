@@ -900,7 +900,6 @@ private:
     void InvalidateChunkReaders();
     void ReconfigureHedgingManagerRegistry();
     void ResetRowDigestRequestTime();
-    void ReconfigureChangelogWriteThrottler(const ITabletSlotPtr& slot);
     void ReconfigureCompressionDictionaries();
 };
 
