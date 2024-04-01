@@ -73,9 +73,8 @@ TFuture<void> TInputTransactionsManager::Start(
         transactionFutures.push_back(
             transactionFuture.Apply(
                 BIND(
-                    [=, this, this_ = MakeStrong(this)]
-                    (const TErrorOr<NNative::ITransactionPtr>& transactionOrError)
-                    {
+                    [=, this, this_ = MakeStrong(this), parentTransactionId = parentTransactionId]
+                    (const TErrorOr<NNative::ITransactionPtr>& transactionOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(
                             transactionOrError,
                             "Error starting input transaction");
