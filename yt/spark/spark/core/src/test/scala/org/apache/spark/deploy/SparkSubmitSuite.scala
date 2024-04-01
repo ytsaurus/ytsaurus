@@ -930,22 +930,6 @@ class SparkSubmitSuite
     }
   }
 
-  test("resolves local executable correctly") {
-    val execPath = "/path/to/local/executable"
-    val args = Seq(execPath, "some", "--weird", "args")
-    val appArgs = new SparkSubmitArguments(args)
-
-    appArgs.isExecutable should be (true)
-    appArgs.isPython should be (false)
-    appArgs.isR should be (false)
-
-    val (childArgs, classpath, conf, mainClass) = submit.prepareSubmitEnvironment(appArgs)
-    mainClass should be (SparkSubmit.EXECUTABLE_RUNNER_SUBMIT_CLASS)
-    childArgs should be(args)
-    conf.getBoolean("spark.yt.isExecutable", false) should be(true)
-    conf.get("spark.yt.executableResource") should be (execPath)
-  }
-
   test("user classpath first in driver") {
     val systemJar = TestUtils.createJarWithFiles(Map("test.resource" -> "SYSTEM"))
     val userJar = TestUtils.createJarWithFiles(Map("test.resource" -> "USER"))

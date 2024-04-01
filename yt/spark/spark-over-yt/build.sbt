@@ -15,6 +15,13 @@ lazy val `spark-patch` = (project in file("spark-patch"))
       Package.ManifestAttributes(new java.util.jar.Attributes.Name("PreMain-Class") -> "tech.ytsaurus.spyt.patch.SparkPatchAgent")
   )
 
+lazy val javaAgents = Def.task {
+  Seq(JavaAgent.ResolvedAgent(
+    JavaAgent.AgentModule("spark-patch", null, JavaAgent.AgentScope(test = true, dist = false), ""),
+    (`spark-patch` / Compile / packageBin).value
+  ))
+}
+
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .enablePlugins(BuildInfoPlugin)
   .settings(
@@ -39,10 +46,7 @@ lazy val `data-source` = (project in file("data-source"))
   .settings(
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
-    resolvedJavaAgents := Seq(JavaAgent.ResolvedAgent(
-      JavaAgent.AgentModule("spark-patch", null, JavaAgent.AgentScope(test = true, dist = false), ""),
-      (`spark-patch` / Compile / packageBin).value
-    ))
+    resolvedJavaAgents := javaAgents.value
   )
 
 lazy val `spark-fork` = (project in file("spark-fork"))
@@ -78,8 +82,9 @@ lazy val `spark-fork` = (project in file("spark-fork"))
   )
 
 lazy val `resource-manager` = (project in file("resource-manager"))
+  .dependsOn(`yt-wrapper`)
   .settings(
-    libraryDependencies ++= spark ++ ytsaurusClient ++ sparkTest
+    libraryDependencies ++= spark ++ sparkTest
   )
 
 lazy val `cluster` = (project in file("spark-cluster"))
@@ -92,9 +97,11 @@ lazy val `cluster` = (project in file("spark-cluster"))
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))
-  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided")
+  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `resource-manager` % Test)
+  .enablePlugins(JavaAgent)
   .settings(
     libraryDependencies ++= scaldingArgs,
+    resolvedJavaAgents := javaAgents.value
   )
 
 lazy val `spyt-package` = (project in file("spyt-package"))

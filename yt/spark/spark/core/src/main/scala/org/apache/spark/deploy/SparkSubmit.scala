@@ -234,9 +234,8 @@ private[spark] class SparkSubmit extends Logging {
       case m if m.startsWith("mesos") => MESOS
       case m if m.startsWith("k8s") => KUBERNETES
       case m if m.startsWith("local") => LOCAL
-      case m if m.startsWith("ytsaurus") => YTSAURUS
       case _ =>
-        error("Master must either be yarn or start with spark, mesos, k8s, ytsaurus or local")
+        error("Master must either be yarn or start with spark, mesos, k8s, or local")
         -1
     }
 
@@ -268,25 +267,11 @@ private[spark] class SparkSubmit extends Logging {
       }
     }
 
-    if (clusterManager == YTSAURUS) {
-
-      if (!Utils.classIsLoadable(YTSAURUS_CLUSTER_SUBMIT_CLASS) && !Utils.isTesting) {
-        error(
-          "Could not load YTSAURUS classes. " +
-          "It seems that YTSAURUS libraries are not in the environment. " +
-          "To add them the following steps should be performed:\n\n" +
-          "1. Install ytsaurus-spyt python package via \033[1mpip install ytsaurus-spyt\033[0m\n" +
-          "2. Activate SPYT configuration in environment by running " +
-            "\033[1msource spyt-env\033[0m command\n")
-      }
-
-      // This property is used  to initialize ytsaurus file system which is subclass of
-      // org.apache.hadoop.fs.FileSystem via spark hadoop configuration
-      sparkConf.set("spark.hadoop.yt.proxy", args.master.substring("ytsaurus://".length))
-    }
-
     // Fail fast, the following modes are not supported or applicable
     (clusterManager, deployMode) match {
+      case (STANDALONE, CLUSTER) if args.isPython =>
+        error("Cluster deploy mode is currently not supported for python " +
+          "applications on standalone clusters.")
       case (STANDALONE, CLUSTER) if args.isR =>
         error("Cluster deploy mode is currently not supported for R " +
           "applications on standalone clusters.")
@@ -314,7 +299,6 @@ private[spark] class SparkSubmit extends Logging {
     val isKubernetesClient = clusterManager == KUBERNETES && deployMode == CLIENT
     val isKubernetesClusterModeDriver = isKubernetesClient &&
       sparkConf.getBoolean("spark.kubernetes.submitInDriver", false)
-    val isYTsaurusCluster = clusterManager == YTSAURUS && deployMode == CLUSTER
 
     if (!isMesosCluster && !isStandAloneCluster) {
       // Resolve maven dependencies if there are any and add classpath to jars. Add them to py-files
@@ -356,7 +340,6 @@ private[spark] class SparkSubmit extends Logging {
 
     // update spark config from args
     args.toSparkConf(Option(sparkConf))
-    sys.env.get("SPARK_YT_TOKEN").foreach(token => sparkConf.set("spark.hadoop.yt.token", token))
     val hadoopConf = conf.getOrElse(SparkHadoopUtil.newConfiguration(sparkConf))
     val targetDir = Utils.createTempDir()
 
@@ -486,7 +469,7 @@ private[spark] class SparkSubmit extends Logging {
 
     // At this point, we have attempted to download all remote resources.
     // Now we try to resolve the main class if our primary resource is a JAR.
-    if (args.mainClass == null && !args.isPython && !args.isR && !args.isExecutable) {
+    if (args.mainClass == null && !args.isPython && !args.isR) {
       try {
         val uri = new URI(
           Option(localPrimaryResource).getOrElse(args.primaryResource)
@@ -525,27 +508,6 @@ private[spark] class SparkSubmit extends Logging {
     // Non-PySpark applications can need Python dependencies.
     if (deployMode == CLIENT && clusterManager != YARN) {
       // The YARN backend handles python files differently, so don't merge the lists.
-      args.files = mergeFileLists(args.files, args.pyFiles)
-    }
-
-    if (args.isExecutable && clusterManager == STANDALONE && deployMode == CLUSTER) {
-      sparkConf.set("spark.yt.isExecutable", "true")
-      sparkConf.set("spark.yt.executableResource", args.primaryResource)
-      args.mainClass = EXECUTABLE_RUNNER_SUBMIT_CLASS
-      val submitPyFiles = sparkConf.getOption("spark.submit.pyFiles").orNull
-      // make sure our executable is not in spark.submit.pyFiles: bad things happen when it is
-      sparkConf.set("spark.submit.pyFiles", mergeFileLists(submitPyFiles, args.pyFiles))
-      sparkConf.set(s"spark.executorEnv.${ExecutableEnv.MainArgs.envName}",
-        ExecutableEnv.MainArgs.serialize(args.childArgs))
-      args.pyFiles = mergeFileLists(args.pyFiles, args.primaryResource)
-      args.files = mergeFileLists(args.files, args.pyFiles)
-      args.childArgs = ArrayBuffer("{{USER_JAR}}", "{{PY_FILES}}") ++ args.childArgs
-      sparkConf.set("spark.python.files", Option(args.pyFiles).getOrElse(""))
-    }
-
-    if (args.isPython && clusterManager == STANDALONE && deployMode == CLUSTER) {
-      args.mainClass = "org.apache.spark.deploy.PythonRunner"
-      args.childArgs = ArrayBuffer("{{USER_JAR}}", "{{PY_FILES}}") ++ args.childArgs
       args.files = mergeFileLists(args.files, args.pyFiles)
     }
 
@@ -643,13 +605,13 @@ private[spark] class SparkSubmit extends Logging {
       OptionAssigner(args.pyFiles, ALL_CLUSTER_MGRS, CLUSTER, confKey = SUBMIT_PYTHON_FILES.key),
 
       // Propagate attributes for dependency resolution at the driver side
-      OptionAssigner(args.packages, STANDALONE | MESOS | KUBERNETES | YTSAURUS,
+      OptionAssigner(args.packages, STANDALONE | MESOS | KUBERNETES,
         CLUSTER, confKey = JAR_PACKAGES.key),
-      OptionAssigner(args.repositories, STANDALONE | MESOS | KUBERNETES | YTSAURUS,
+      OptionAssigner(args.repositories, STANDALONE | MESOS | KUBERNETES,
         CLUSTER, confKey = JAR_REPOSITORIES.key),
-      OptionAssigner(args.ivyRepoPath, STANDALONE | MESOS | KUBERNETES | YTSAURUS,
+      OptionAssigner(args.ivyRepoPath, STANDALONE | MESOS | KUBERNETES,
         CLUSTER, confKey = JAR_IVY_REPO_PATH.key),
-      OptionAssigner(args.packagesExclusions, STANDALONE | MESOS | KUBERNETES | YTSAURUS,
+      OptionAssigner(args.packagesExclusions, STANDALONE | MESOS | KUBERNETES,
         CLUSTER, confKey = JAR_PACKAGES_EXCLUSIONS.key),
 
       // Yarn only
@@ -663,28 +625,25 @@ private[spark] class SparkSubmit extends Logging {
       OptionAssigner(args.archives, YARN, ALL_DEPLOY_MODES, confKey = "spark.yarn.dist.archives",
         mergeFn = Some(mergeFileLists(_, _))),
 
-      // YTsaurus only
-      OptionAssigner(args.queue, YTSAURUS, ALL_DEPLOY_MODES, confKey = "spark.ytsaurus.pool"),
-
       // Other options
-      OptionAssigner(args.numExecutors, YARN | KUBERNETES | YTSAURUS, ALL_DEPLOY_MODES,
+      OptionAssigner(args.numExecutors, YARN | KUBERNETES, ALL_DEPLOY_MODES,
         confKey = EXECUTOR_INSTANCES.key),
-      OptionAssigner(args.executorCores, STANDALONE | YARN | KUBERNETES | YTSAURUS,
-        ALL_DEPLOY_MODES, confKey = EXECUTOR_CORES.key),
-      OptionAssigner(args.executorMemory, STANDALONE | MESOS | YARN | KUBERNETES | YTSAURUS,
-        ALL_DEPLOY_MODES, confKey = EXECUTOR_MEMORY.key),
+      OptionAssigner(args.executorCores, STANDALONE | YARN | KUBERNETES, ALL_DEPLOY_MODES,
+        confKey = EXECUTOR_CORES.key),
+      OptionAssigner(args.executorMemory, STANDALONE | MESOS | YARN | KUBERNETES, ALL_DEPLOY_MODES,
+        confKey = EXECUTOR_MEMORY.key),
       OptionAssigner(args.totalExecutorCores, STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
         confKey = CORES_MAX.key),
-      OptionAssigner(args.files, LOCAL | STANDALONE | MESOS | KUBERNETES | YTSAURUS,
-        ALL_DEPLOY_MODES, confKey = FILES.key),
-      OptionAssigner(args.archives, LOCAL | STANDALONE | MESOS | KUBERNETES | YTSAURUS,
-        ALL_DEPLOY_MODES, confKey = ARCHIVES.key),
+      OptionAssigner(args.files, LOCAL | STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
+        confKey = FILES.key),
+      OptionAssigner(args.archives, LOCAL | STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
+        confKey = ARCHIVES.key),
       OptionAssigner(args.jars, LOCAL, CLIENT, confKey = JARS.key),
-      OptionAssigner(args.jars, STANDALONE | MESOS | KUBERNETES | YTSAURUS, ALL_DEPLOY_MODES,
+      OptionAssigner(args.jars, STANDALONE | MESOS | KUBERNETES, ALL_DEPLOY_MODES,
         confKey = JARS.key),
-      OptionAssigner(args.driverMemory, STANDALONE | MESOS | YARN | KUBERNETES | YTSAURUS, CLUSTER,
+      OptionAssigner(args.driverMemory, STANDALONE | MESOS | YARN | KUBERNETES, CLUSTER,
         confKey = DRIVER_MEMORY.key),
-      OptionAssigner(args.driverCores, STANDALONE | MESOS | YARN | KUBERNETES | YTSAURUS, CLUSTER,
+      OptionAssigner(args.driverCores, STANDALONE | MESOS | YARN | KUBERNETES, CLUSTER,
         confKey = DRIVER_CORES.key),
       OptionAssigner(args.supervise.toString, STANDALONE | MESOS, CLUSTER,
         confKey = DRIVER_SUPERVISE.key),
@@ -852,36 +811,6 @@ private[spark] class SparkSubmit extends Logging {
       if (args.proxyUser != null) {
         childArgs += ("--proxy-user", args.proxyUser)
       }
-    }
-
-    if (isYTsaurusCluster) {
-      childMainClass = YTSAURUS_CLUSTER_SUBMIT_CLASS
-      if (args.primaryResource != SparkLauncher.NO_RESOURCE) {
-        if (args.isPython) {
-          childArgs ++= Array("--primary-py-file", args.primaryResource)
-          childArgs ++= Array("--main-class", "org.apache.spark.deploy.PythonRunner")
-        } else if (args.isR) {
-          childArgs ++= Array("--primary-r-file", args.primaryResource)
-          childArgs ++= Array("--main-class", "org.apache.spark.deploy.RRunner")
-        }
-        else {
-          childArgs ++= Array("--primary-java-resource", args.primaryResource)
-          childArgs ++= Array("--main-class", args.mainClass)
-        }
-      } else {
-        childArgs ++= Array("--main-class", args.mainClass)
-      }
-      // TODO look at yarn or k8s cases for some python and r additional options
-      // TODO maybe some YT-specific configuration
-      if (args.childArgs != null) {
-        args.childArgs.foreach { arg =>
-          childArgs += ("--arg", arg)
-        }
-      }
-    }
-
-    if (clusterManager == YTSAURUS) {
-      sparkConf.set("spark.ytsaurus.primary.resource", args.primaryResource)
     }
 
     // Load any properties specified through --conf and the default properties file
@@ -1065,8 +994,7 @@ object SparkSubmit extends CommandLineUtils with Logging {
   private val MESOS = 4
   private val LOCAL = 8
   private val KUBERNETES = 16
-  private val YTSAURUS = 32
-  private val ALL_CLUSTER_MGRS = YARN | STANDALONE | MESOS | LOCAL | KUBERNETES | YTSAURUS
+  private val ALL_CLUSTER_MGRS = YARN | STANDALONE | MESOS | LOCAL | KUBERNETES
 
   // Deploy modes
   private val CLIENT = 1
@@ -1089,10 +1017,6 @@ object SparkSubmit extends CommandLineUtils with Logging {
   private[deploy] val STANDALONE_CLUSTER_SUBMIT_CLASS = classOf[ClientApp].getName()
   private[deploy] val KUBERNETES_CLUSTER_SUBMIT_CLASS =
     "org.apache.spark.deploy.k8s.submit.KubernetesClientApplication"
-  private[deploy] val EXECUTABLE_RUNNER_SUBMIT_CLASS =
-    "org.apache.spark.deploy.ExecutableRunner"
-  private[deploy] val YTSAURUS_CLUSTER_SUBMIT_CLASS =
-    "org.apache.spark.deploy.ytsaurus.YTsaurusClusterApplication"
 
   override def main(args: Array[String]): Unit = {
     val submit = new SparkSubmit() {
@@ -1132,7 +1056,7 @@ object SparkSubmit extends CommandLineUtils with Logging {
    * Return whether the given primary resource represents a user jar.
    */
   private[deploy] def isUserJar(res: String): Boolean = {
-    res != null && res.endsWith(".jar")
+    !isShell(res) && !isPython(res) && !isInternal(res) && !isR(res)
   }
 
   /**
@@ -1168,13 +1092,6 @@ object SparkSubmit extends CommandLineUtils with Logging {
    */
   private[deploy] def isR(res: String): Boolean = {
     res != null && (res.endsWith(".R") || res.endsWith(".r")) || res == SPARKR_SHELL
-  }
-
-  /**
-   * Return whether the given primary resource is an executable.
-   */
-  private[deploy] def isExecutable(res: String): Boolean = {
-    !isShell(res) && !isPython(res) && !isInternal(res) && !isR(res) && !isUserJar(res)
   }
 
   private[deploy] def isInternal(res: String): Boolean = {

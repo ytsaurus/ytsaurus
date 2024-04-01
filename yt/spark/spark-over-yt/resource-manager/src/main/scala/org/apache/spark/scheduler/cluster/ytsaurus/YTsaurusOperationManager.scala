@@ -16,6 +16,7 @@ import tech.ytsaurus.client.operations.{Spec, VanillaSpec}
 import tech.ytsaurus.client.request.{CompleteOperation, GetOperation, UpdateOperationParameters, VanillaOperation}
 import tech.ytsaurus.client.rpc.YTsaurusClientAuth
 import tech.ytsaurus.core.GUID
+import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.ysontree.{YTree, YTreeMapNode, YTreeNode}
 
 import java.nio.file.Paths
@@ -354,10 +355,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
         Seq.empty
       }
 
-    (providedLists ++ primaryResourceSeq)
-      .map(removePrefix)
-      .filter(_.startsWith("//"))
-      .distinct
+    (providedLists ++ primaryResourceSeq).map(YtWrapper.formatPath).distinct
   }
 
   private[ytsaurus] def enrichSparkConf(conf: SparkConf, ytSparkConfig: YTreeMapNode): Unit = {
@@ -382,10 +380,6 @@ private[spark] object YTsaurusOperationManager extends Logging {
         }
       }
     }
-  }
-
-  private[ytsaurus] def removePrefix(path: String): String = {
-    if (path.startsWith("yt:/")) path.substring(4) else path
   }
 
   private val prepareEnvCommand = "./setup-spyt-env.sh --spark-home"

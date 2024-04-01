@@ -67,7 +67,6 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
   var packagesExclusions: String = null
   var verbose: Boolean = false
   var isPython: Boolean = false
-  var isExecutable: Boolean = false
   var pyFiles: String = null
   var isR: Boolean = false
   var action: SparkSubmitAction = null
@@ -113,7 +112,6 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
   // Remove keys that don't start with "spark." from `sparkProperties`.
   ignoreNonSparkProperties()
   // Use `sparkProperties` map along with env vars to fill in any missing parameters
-
   loadEnvironmentArguments()
 
   useRest = sparkProperties.getOrElse("spark.master.rest.enabled", "false").toBoolean
@@ -465,15 +463,13 @@ private[deploy] class SparkSubmitArguments(args: Seq[String], env: Map[String, S
     }
 
     primaryResource =
-      if (!SparkSubmit.isShell(opt) && !SparkSubmit.isInternal(opt) &&
-        !SparkSubmit.isExecutable(opt)) {
+      if (!SparkSubmit.isShell(opt) && !SparkSubmit.isInternal(opt)) {
         Utils.resolveURI(opt).toString
       } else {
         opt
       }
     isPython = SparkSubmit.isPython(opt)
     isR = SparkSubmit.isR(opt)
-    isExecutable = SparkSubmit.isExecutable(opt)
     false
   }
 

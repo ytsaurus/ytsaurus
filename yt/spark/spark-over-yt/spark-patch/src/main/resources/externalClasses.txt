@@ -13,3 +13,4 @@ org/apache/spark/deploy/rest/RestSubmissionClientAppSpyt
 org/apache/spark/sql/SparkSessionBuilderDecorators
 org/apache/spark/sql/catalyst/catalog/SessionCatalogSpyt
 org/apache/spark/sql/internal/SharedStateDecorators$
+org/apache/spark/deploy/SparkSubmitSpyt

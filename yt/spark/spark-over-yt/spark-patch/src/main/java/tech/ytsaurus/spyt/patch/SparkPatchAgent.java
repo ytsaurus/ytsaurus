@@ -2,19 +2,18 @@ package tech.ytsaurus.spyt.patch;
 
 import javassist.*;
 import javassist.bytecode.ClassFile;
+import javassist.expr.ExprEditor;
 import org.apache.commons.io.IOUtils;
 import org.apache.hadoop.shaded.com.google.common.collect.Streams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tech.ytsaurus.spyt.patch.annotations.Decorate;
-import tech.ytsaurus.spyt.patch.annotations.DecoratedMethod;
-import tech.ytsaurus.spyt.patch.annotations.OriginClass;
-import tech.ytsaurus.spyt.patch.annotations.Subclass;
+import tech.ytsaurus.spyt.patch.annotations.*;
 
 import java.io.*;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.Instrumentation;
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.charset.Charset;
 import java.security.ProtectionDomain;
 import java.util.Map;
@@ -168,10 +167,9 @@ class SparkPatchClassTransformer implements ClassFileTransformer {
                     className, classfileBuffer.length, patchedBytes.length);
 
             return patchedBytes;
-        } catch (IOException | ClassNotFoundException | CannotCompileException |
-                 NotFoundException | NoSuchElementException e) {
-            log.error("No patch for class " + className, e);
-            return null;
+        } catch (Exception e) {
+            log.error(String.format("Can't patch class %s because an exception has occured", className), e);
+            throw new SparkPatchException(e);
         }
     }
 
@@ -179,8 +177,7 @@ class SparkPatchClassTransformer implements ClassFileTransformer {
         return patchedClasses.get(className) + ".class";
     }
 
-    private ClassFile processAnnotations(ClassFile cf, ClassLoader loader, byte[] baseClassBytes)
-            throws ClassNotFoundException, CannotCompileException, IOException, NotFoundException {
+    private ClassFile processAnnotations(ClassFile cf, ClassLoader loader, byte[] baseClassBytes) throws Exception {
         CtClass ctClass = ClassPool.getDefault().makeClass(cf);
         String originClass = getOriginClass(ctClass);
         if (originClass == null) {
@@ -215,6 +212,11 @@ class SparkPatchClassTransformer implements ClassFileTransformer {
                         log.debug("Patching decorated method {}", methodName);
                         String innerMethodName = "__" + methodName;
                         baseMethod.setName(innerMethodName);
+
+                        for (Class<? extends MethodProcesor> methodProcessorClass : dmAnnotation.baseMethodProcessors()) {
+                            MethodProcesor procesor = methodProcessorClass.getDeclaredConstructor().newInstance();
+                            procesor.process(baseMethod);
+                        }
 
                         CtMethod newMethod = CtNewMethod.copy(method, baseCtClass, null);
                         baseCtClass.addMethod(newMethod);
