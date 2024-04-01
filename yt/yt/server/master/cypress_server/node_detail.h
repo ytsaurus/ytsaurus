@@ -696,7 +696,6 @@ private:
         TVersionedBuiltinAttribute<NTableClient::EOptimizeFor> OptimizeFor;
         TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         TVersionedBuiltinAttribute<TString> ProfilingTag;
-        TVersionedBuiltinAttribute<bool> EnableChunkMerger;
         TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
         void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);

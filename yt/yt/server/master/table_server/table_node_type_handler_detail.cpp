@@ -32,6 +32,8 @@
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
@@ -609,12 +611,12 @@ template<class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
 {
     static const THashSet<TString> SupportedInheritableAttributes{
-        "atomicity",
-        "commit_ordering",
-        "optimize_for",
-        "hunk_erasure_codec",
-        "profiling_mode",
-        "profiling_tag"
+        EInternedAttributeKey::Atomicity.Unintern(),
+        EInternedAttributeKey::CommitOrdering.Unintern(),
+        EInternedAttributeKey::OptimizeFor.Unintern(),
+        EInternedAttributeKey::HunkErasureCodec.Unintern(),
+        EInternedAttributeKey::ProfilingMode.Unintern(),
+        EInternedAttributeKey::ProfilingTag.Unintern(),
     };
 
     if (SupportedInheritableAttributes.contains(key)) {

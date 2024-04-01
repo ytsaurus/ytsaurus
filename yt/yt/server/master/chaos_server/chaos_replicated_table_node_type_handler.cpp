@@ -17,6 +17,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -144,7 +146,7 @@ private:
     bool IsSupportedInheritableAttribute(const TString& key) const override
     {
         static const THashSet<TString> SupportedInheritableAttributes{
-            "chaos_cell_bundle"
+            EInternedAttributeKey::ChaosCellBundle.Unintern(),
         };
 
         if (SupportedInheritableAttributes.contains(key)) {
