@@ -18,6 +18,7 @@ from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 import yt.yson as yson
 
+from datetime import timedelta
 import pytest
 
 
@@ -721,6 +722,31 @@ class TestPortals(YTEnvSetup):
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")
         remove("//tmp/p2")
+
+    @authors("shakurov")
+    def test_cross_cell_copy_expiration(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 12})
+
+        expiration_time = str(get_current_time() + timedelta(seconds=3))
+        create(
+            "table",
+            "//tmp/p1/t1",
+            attributes={"external_cell_tag": 13, "expiration_time": expiration_time},
+        )
+        copy("//tmp/p1/t1", "//tmp/p2/t1", preserve_expiration_time=True)
+
+        create(
+            "table",
+            "//tmp/p1/t2",
+            attributes={"external_cell_tag": 13, "expiration_timeout": 3000},
+        )
+        copy("//tmp/p1/t2", "//tmp/p2/t2", preserve_expiration_timeout=True)
+
+        wait(
+            lambda: not exists("//tmp/p2/t1") and not exists("//tmp/p2/t2", suppress_expiration_timeout_renewal=True),
+            sleep_backoff=0.5,
+            timeout=5)
 
     @authors("babenko")
     def test_create_portal_in_tx_commit(self):
