@@ -23,8 +23,6 @@ struct IExpressionEvaluator
     virtual TErrorOr<NQueryClient::TValue> Evaluate(
         const TNonOwningAttributePayload& attributePayload,
         NTableClient::TRowBufferPtr rowBuffer = nullptr) = 0;
-
-    virtual const TString& GetQuery() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IExpressionEvaluator)

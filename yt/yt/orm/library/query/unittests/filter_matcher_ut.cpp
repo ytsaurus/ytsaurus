@@ -169,14 +169,13 @@ TEST(TFilterMatcherTest, HashInFilter)
     EXPECT_FALSE(matcherLabelHash->Match(TYsonStringBuf("1")).ValueOrThrow());
     EXPECT_FALSE(matcherLabelHash->Match(TYsonStringBuf("\"aba\"")).ValueOrThrow());
 
-//    Probably EXPECT_TRUE here. Waiting (YP-3472)
-//    EXPECT_FALSE(matcherLabelHash->Match(BuildYsonStringFluently().Entity()).ValueOrThrow());
-//    EXPECT_FALSE(matcherLabelHash->Match(TYsonStringBuf("#")).ValueOrThrow());
+    EXPECT_TRUE(matcherLabelHash->Match(BuildYsonStringFluently().Entity()).ValueOrThrow());
+    EXPECT_TRUE(matcherLabelHash->Match(TYsonStringBuf("#")).ValueOrThrow());
 
-//    Uncomment this code after (YT-15191)
-//    auto matcherWithIn = CreateFilterMatcher("[/labels/a] IN (#)", {"/labels"});
-//    EXPECT_FALSE(matcherWithIn->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
-//    EXPECT_TRUE(matcherWithIn->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
+    // Uncomment this code after (YT-15191)
+    // auto matcherWithIn = CreateFilterMatcher("[/labels/a] IN (#)", {"/labels"});
+    // EXPECT_FALSE(matcherWithIn->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
+    // EXPECT_TRUE(matcherWithIn->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
 
     auto matcherSpecHash = CreateFilterMatcher("[/spec/records] = #", {"/spec"});
     EXPECT_TRUE(matcherSpecHash->Match(TYsonStringBuf("{}")).ValueOrThrow());
@@ -194,6 +193,7 @@ TEST(TFilterMatcherTest, HashInFilter)
     ).ValueOrThrow());
 
     auto matcherSpecRecordsHash = CreateFilterMatcher("[/spec/records] = #", {"/spec/records"});
+    EXPECT_TRUE(matcherSpecRecordsHash->Match(TYsonStringBuf("#")).ValueOrThrow());
     EXPECT_FALSE(matcherSpecRecordsHash->Match(
         BuildYsonStringFluently().BeginList()
             .Item().BeginMap()
@@ -204,9 +204,6 @@ TEST(TFilterMatcherTest, HashInFilter)
             .EndMap()
         .EndList()
     ).ValueOrThrow());
-
-//    Probably EXPECT_TRUE here. Waiting (YP-3472)
-//    EXPECT_FALSE(matcherSpecRecordsHash->Match(TYsonStringBuf("{}")).ValueOrThrow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -50,8 +50,7 @@ public:
         auto resultOrError = Evaluator_->Evaluate(attributePayloads, std::move(rowBuffer));
         if (!resultOrError.IsOK()) {
             return TError("Error matching the filter")
-                << TErrorAttribute("query", Evaluator_->GetQuery())
-                << TError(resultOrError);
+                << resultOrError;
         }
 
         const auto& resultValue = resultOrError.Value();

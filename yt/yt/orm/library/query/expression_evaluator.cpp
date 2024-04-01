@@ -19,18 +19,19 @@
 #include <util/string/cast.h>
 
 namespace NYT::NOrm::NQuery {
+namespace {
 
 using namespace NQueryClient::NAst;
 using namespace NTableClient;
 using namespace NYPath;
 
+////////////////////////////////////////////////////////////////////////////////
+
 using NYson::TYsonStringBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-inline const NLogging::TLogger Logger("ExpressionEvaluator");
+const NLogging::TLogger Logger("ExpressionEvaluator");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,6 +56,34 @@ void ValidateAttributeType(EValueType valueType)
     }
 }
 
+void ValidateAttributePaths(const std::vector<TTypedAttributePath>& typedAttributePaths)
+{
+    if (typedAttributePaths.empty()) {
+        THROW_ERROR_EXCEPTION("At least one attribute path must be provided");
+    }
+
+    for (const auto& typedPath : typedAttributePaths) {
+        ValidateAttributeType(typedPath.Type);
+        NAttributes::ValidateAttributePath(typedPath.Path);
+    }
+
+    for (size_t i = 0; i < typedAttributePaths.size(); ++i) {
+        for (size_t j = 0; j < typedAttributePaths.size(); ++j) {
+            if (i == j) {
+                continue;
+            }
+            if (NYPath::HasPrefix(typedAttributePaths[i].Path, typedAttributePaths[j].Path)) {
+                THROW_ERROR_EXCEPTION(
+                    "Attribute paths must be independent, but %Qv is a prefix of %Qv",
+                    typedAttributePaths[i].Path,
+                    typedAttributePaths[j].Path);
+            }
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUnversionedValue MakeUnversionedValue(
     EValueType valueType,
     const TNonOwningAttributePayload& payload,
@@ -75,7 +104,7 @@ TUnversionedValue MakeUnversionedValue(
             });
     }
 
-    const auto& ysonPayload = std::invoke([&] () -> const TYsonStringBuf& {
+    const auto& ysonPayload = std::invoke([&] () -> const auto& {
         if (const auto* ysonPayloadPtr = std::get_if<TYsonStringBuf>(&payload)) {
             return *ysonPayloadPtr;
         }
@@ -97,6 +126,9 @@ TUnversionedValue MakeUnversionedValue(
             return MakeUnversionedBooleanValue(NYson::ConvertFromYsonString<bool>(ysonPayload));
         }
         case EValueType::Any: {
+            if (ysonPayload == TYsonStringBuf("#")) {
+                return MakeUnversionedNullValue();
+            }
             return MakeUnversionedAnyValue(ysonPayload.AsStringBuf());
         }
         default:
@@ -105,26 +137,23 @@ TUnversionedValue MakeUnversionedValue(
     }
 }
 
-} // anonymous namespace
-
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
 
 class TExpressionEvaluator
     : public IExpressionEvaluator
 {
 public:
-    TExpressionEvaluator(
-        TString query,
-        std::vector<TTypedAttributePath> typedAttributePaths)
+    TExpressionEvaluator(TString query, std::vector<TTypedAttributePath> typedAttributePaths)
         : Query_(std::move(query))
-        , TypedAttributePaths_(std::move(typedAttributePaths))
-    {
-        ValidateAttributePaths();
+        , TypedAttributePaths_(std::invoke([&] {
+            ValidateAttributePaths(typedAttributePaths);
 
-        EvaluationContext_ = CreateFakeTableQueryEvaluationContext(Query_);
-    }
+            return std::move(typedAttributePaths);
+        }))
+        , EvaluationContext_(CreateQueryEvaluationContext(
+            CreateFakeTableFilterExpression(),
+            CreateFakeTableSchema()))
+    { }
 
     TErrorOr<NQueryClient::TValue> Evaluate(
         const std::vector<TNonOwningAttributePayload>& attributePayloads,
@@ -155,8 +184,7 @@ public:
                 MakeRange(inputValues.data(), inputValues.size()),
                 rowBuffer);
         } catch (const std::exception& ex) {
-            return TError("Error evaluating query %Qv",
-                Query_)
+            return TError("Error evaluating query")
                 << TErrorAttribute("query", Query_)
                 << ex;
         }
@@ -171,46 +199,15 @@ public:
             std::move(rowBuffer));
     }
 
-    const TString& GetQuery() const override
-    {
-        return Query_;
-    }
-
 private:
+    TObjectsHolder ObjectsHolder_;
+
     const TString Query_;
     const std::vector<TTypedAttributePath> TypedAttributePaths_;
-
-    std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
-    TObjectsHolder ObjectsHolder_;
+    const std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
 
     struct TRowBufferTag
     { };
-
-    void ValidateAttributePaths()
-    {
-        if (TypedAttributePaths_.empty()) {
-            THROW_ERROR_EXCEPTION("At least one attribute path must be provided");
-        }
-
-        for (const auto& typedPath : TypedAttributePaths_) {
-            ValidateAttributeType(typedPath.Type);
-            NAttributes::ValidateAttributePath(typedPath.Path);
-        }
-
-        for (size_t i = 0; i < TypedAttributePaths_.size(); ++i) {
-            for (size_t j = 0; j < TypedAttributePaths_.size(); ++j) {
-                if (i == j) {
-                    continue;
-                }
-                if (NYPath::HasPrefix(TypedAttributePaths_[i].Path, TypedAttributePaths_[j].Path)) {
-                    THROW_ERROR_EXCEPTION(
-                        "Attribute paths must be independent, but %Qv is a prefix of %Qv",
-                        TypedAttributePaths_[i].Path,
-                        TypedAttributePaths_[j].Path);
-                }
-            }
-        }
-    }
 
     const TString& GetFakeTableColumnName(const NYPath::TYPath& attributePath) const
     {
@@ -238,30 +235,30 @@ private:
             queryAttributePath);
     }
 
-    TExpressionPtr CreateFakeTableAttributeSelector(
-        const TYPath& queryAttributePath)
+    TExpressionPtr CreateFakeTableAttributeSelector(const TYPath& queryAttributePath)
     {
         try {
             auto typedDataAttributePath = GetMatchingAttributePath(queryAttributePath);
             const auto& dataAttributePath = typedDataAttributePath.Path;
             auto queryAttributePathSuffix = queryAttributePath.substr(dataAttributePath.size());
 
-            if (typedDataAttributePath.Type == EValueType::Any) {
-                return ObjectsHolder_.New<TFunctionExpression>(
-                    NQueryClient::NullSourceLocation,
-                    "try_get_any",
-                    TExpressionList{
-                        CreateFakeTableColumnReference(dataAttributePath),
-                        ObjectsHolder_.New<TLiteralExpression>(
-                            NQueryClient::NullSourceLocation,
-                            std::move(queryAttributePathSuffix))});
+            if (queryAttributePathSuffix.Empty()) {
+                return CreateFakeTableColumnReference(dataAttributePath);
             }
-            if (queryAttributePathSuffix) {
+            if (typedDataAttributePath.Type != EValueType::Any) {
                 THROW_ERROR_EXCEPTION(
                     "Attribute path of type %Qlv does not support nested attributes",
                     typedDataAttributePath.Type);
             }
-            return CreateFakeTableColumnReference(dataAttributePath);
+
+            return ObjectsHolder_.New<TFunctionExpression>(
+                NQueryClient::NullSourceLocation,
+                "try_get_any",
+                TExpressionList{
+                    CreateFakeTableColumnReference(dataAttributePath),
+                    ObjectsHolder_.New<TLiteralExpression>(
+                        NQueryClient::NullSourceLocation,
+                        std::move(queryAttributePathSuffix))});
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
                 queryAttributePath)
@@ -269,10 +266,9 @@ private:
         }
     }
 
-    NQueryClient::NAst::TExpressionPtr CreateFakeTableFilterExpression(
-        const TString& query)
+    NQueryClient::NAst::TExpressionPtr CreateFakeTableFilterExpression()
     {
-        auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
+        auto parsedQuery = ParseSource(Query_, NQueryClient::EParseMode::Expression);
         auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
         ObjectsHolder_.Merge(std::move(parsedQuery->AstHead));
@@ -297,14 +293,6 @@ private:
                 typedPath.Type);
         }
         return New<TTableSchema>(std::move(columns));
-    }
-
-    std::unique_ptr<TQueryEvaluationContext> CreateFakeTableQueryEvaluationContext(
-        const TString& query)
-    {
-        return CreateQueryEvaluationContext(
-            CreateFakeTableFilterExpression(query),
-            CreateFakeTableSchema());
     }
 };
 
