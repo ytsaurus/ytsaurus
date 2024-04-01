@@ -304,6 +304,7 @@ private:
                 .CoordinatorCommitMode = NApi::ETransactionCoordinatorCommitMode::Lazy,
                 .GeneratePrepareTimestamp = false,
             };
+
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
         }

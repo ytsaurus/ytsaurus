@@ -131,8 +131,6 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/rpc/dispatcher.h>
-
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -860,7 +858,7 @@ public:
             auto nodeId = replica.GetNodeId();
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
-                YT_LOG_DEBUG("Tried to confirm chunk replica at an unknown node (ChunkId: %v, NodeId: %v)",
+                YT_LOG_DEBUG("Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
                     chunk->GetId(),
                     replica.GetNodeId());
                 continue;
@@ -873,7 +871,7 @@ public:
             }
 
             if (!node->ReportedDataNodeHeartbeat()) {
-                YT_LOG_DEBUG("Tried to confirm chunk replica at node that did not report data node heartbeat yet "
+                YT_LOG_DEBUG("Tried to confirm chunk at node that did not report data node heartbeat yet "
                     "(ChunkId: %v, Address: %v, State: %v)",
                     chunk->GetId(),
                     node->GetDefaultAddress(),
@@ -3574,7 +3572,6 @@ private:
             ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
         }
     }
-
     static void BuildReplicasListYson(
         IYsonConsumer* consumer,
         const std::vector<TChunkReplicaWithLocation>& replicas)
@@ -3615,16 +3612,16 @@ private:
             .EndList();
     }
 
-    TFuture<void> AddSequoiaConfirmReplicas(std::unique_ptr<NProto::TReqAddConfirmReplicas> request) override
+    TFuture<void> AddSequoiaConfirmReplicas(const NProto::TReqAddConfirmReplicas& request) override
     {
-        YT_VERIFY(request->replicas_size() > 0);
+        YT_VERIFY(request.replicas_size() > 0);
 
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
-                auto chunkId = FromProto<TChunkId>(request->chunk_id());
-                auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request->replicas());
+                auto chunkId = FromProto<TChunkId>(request.chunk_id());
+                auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
                 NRecords::TChunkReplicas chunkReplica{
                     .Key = {
                         .IdHash = HashFromId(chunkId),
@@ -3655,40 +3652,41 @@ private:
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
-                    NTransactionClient::MakeTransactionActionData(*request));
+                    NTransactionClient::MakeTransactionActionData(request));
 
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
+
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
                     result.SetCode(NRpc::EErrorCode::TransientFailure);
                 }
                 result.ThrowOnError();
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }));
     }
 
-    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(std::unique_ptr<TReqModifyReplicas> request) override
+    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(const TReqModifyReplicas& request) override
     {
-        YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
+        YT_VERIFY(request.added_chunks_size() + request.removed_chunks_size() > 0);
 
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction()
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
-                auto nodeId = FromProto<TNodeId>(request->node_id());
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                auto nodeId = FromProto<TNodeId>(request.node_id());
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
+                auto locationDirectory = ParseLocationDirectory(dataNodeTracker, request);
 
                 THashSet<TChunkId> deadChunkIds;
-                for (const auto& protoChunkId : request->dead_chunk_ids()) {
+                for (const auto& protoChunkId : request.dead_chunk_ids()) {
                     deadChunkIds.insert(FromProto<TChunkId>(protoChunkId));
                 }
 
-                for (const auto& chunkInfo : request->added_chunks()) {
+                for (const auto& chunkInfo : request.added_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
 
@@ -3731,7 +3729,7 @@ private:
                 }
 
                 std::vector<NRecords::TLocationReplicasKey> keys;
-                for (const auto& chunkInfo : request->removed_chunks()) {
+                for (const auto& chunkInfo : request.removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
 
@@ -3759,7 +3757,7 @@ private:
                     }
                 }
 
-                for (const auto& chunkInfo : request->removed_chunks()) {
+                for (const auto& chunkInfo : request.removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
 
@@ -3801,12 +3799,13 @@ private:
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
-                    NTransactionClient::MakeTransactionActionData(*request));
+                    NTransactionClient::MakeTransactionActionData(request));
 
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
+
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
@@ -3817,7 +3816,7 @@ private:
                 // TODO(aleksandra-zh): add ally replica info.
                 TRspModifyReplicas response;
                 return response;
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }));
     }
 
     std::vector<TChunk*> ProcessAddedReplicas(
@@ -5677,7 +5676,7 @@ private:
                 }
 
                 return replicas;
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }));
     }
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
@@ -5729,26 +5728,27 @@ private:
             return;
         }
 
-        auto request = std::make_unique<NProto::TReqRemoveDeadSequoiaChunkReplicas>();
+        NProto::TReqRemoveDeadSequoiaChunkReplicas request;
         for (const auto& replica : replicasOrError.Value()) {
-            ToProto(request->add_replicas(), replica);
+            ToProto(request.add_replicas(), replica);
         }
-        ToProto(request->mutable_chunk_ids(), chunkIds);
+
+        ToProto(request.mutable_chunk_ids(), chunkIds);
 
         ChunksBeingPurged_ = true;
-        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(std::move(request)));
+        auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(request));
         if (!result.IsOK()) {
-            YT_LOG_ERROR(result, "Error purging dead Sequoia chunks");
+            YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
         }
     }
 
-    TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
+    TFuture<void> RemoveDeadSequoiaChunkReplicas(const NProto::TReqRemoveDeadSequoiaChunkReplicas& request)
     {
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
-                for (const auto& protoChunkId : request->chunk_ids()) {
+                for (const auto& protoChunkId : request.chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
                     NRecords::TChunkReplicasKey chunkReplicaKey{
                         .IdHash = HashFromId(chunkId),
@@ -5757,7 +5757,7 @@ private:
                     transaction->DeleteRow(chunkReplicaKey);
                 }
 
-                for (const auto& protoReplica : request->replicas()) {
+                for (const auto& protoReplica : request.replicas()) {
                     auto locationUuid = FromProto<TChunkLocationUuid>(protoReplica.location_uuid());
                     auto chunkId = FromProto<TChunkId>(protoReplica.chunk_id());
                     auto nodeId = FromProto<TNodeId>(protoReplica.node_id());
@@ -5773,15 +5773,16 @@ private:
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
-                    NTransactionClient::MakeTransactionActionData(*request));
+                    NTransactionClient::MakeTransactionActionData(request));
 
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
+
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
-            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+            }));
     }
 
     void HydraRemoveDeadSequoiaChunkReplicas(
@@ -5880,6 +5881,7 @@ private:
     {
         auto* chunk = replica.GetPtr();
         auto* node = chunkLocation->GetNode();
+        auto nodeId = node->GetId();
 
         if (!chunkLocation->AddReplica(replica)) {
             return;
@@ -5898,8 +5900,8 @@ private:
             Logger,
             reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
-            replica,
-            node->GetId(),
+            replica.GetPtr()->GetId(),
+            nodeId,
             node->GetDefaultAddress(),
             reason);
 
@@ -5922,10 +5924,10 @@ private:
             chunkWithIndexes.GetReplicaIndex(),
             chunkWithIndexes.GetReplicaState());
 
-        YT_LOG_DEBUG("Chunk replica approved (ChunkId: %v, NodeId: %v, Address: %v)",
-            chunkWithIndexes,
+        YT_LOG_DEBUG("Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
             node->GetId(),
-            node->GetDefaultAddress());
+            node->GetDefaultAddress(),
+            chunkWithIndexes);
 
         location->ApproveReplica(chunkWithIndexes);
         chunk->ApproveReplica(locationWithIndexes);

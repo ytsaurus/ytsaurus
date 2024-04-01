@@ -347,9 +347,9 @@ struct IChunkManager
         NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
-        std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;
+        const NDataNodeTrackerClient::NProto::TReqModifyReplicas& request) = 0;
     virtual TFuture<void> AddSequoiaConfirmReplicas(
-        std::unique_ptr<NChunkServer::NProto::TReqAddConfirmReplicas> request) = 0;
+        const NProto::TReqAddConfirmReplicas& request) = 0;
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,

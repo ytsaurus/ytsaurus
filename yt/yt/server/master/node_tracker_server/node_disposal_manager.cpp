@@ -294,9 +294,9 @@ private:
             locationIndex,
             location->GetUuid());
 
-        auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
+        TReqModifyReplicas sequoiaRequest;
         TChunkLocationDirectory locationDirectory;
-        sequoiaRequest->set_node_id(ToProto<ui32>(node->GetId()));
+        sequoiaRequest.set_node_id(ToProto<ui32>(node->GetId()));
         for (const auto& replica : sequoiaReplicas) {
             TChunkRemoveInfo chunkRemoveInfo;
 
@@ -307,10 +307,10 @@ private:
             ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
             chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
 
-            *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
+            *sequoiaRequest.add_removed_chunks() = chunkRemoveInfo;
         }
 
-        ToProto(sequoiaRequest->mutable_location_directory(), locationDirectory);
+        ToProto(sequoiaRequest.mutable_location_directory(), locationDirectory);
 
         TReqDisposeLocation request;
         request.set_node_id(ToProto<ui32>(node->GetId()));
@@ -321,28 +321,27 @@ private:
             &TNodeDisposalManager::HydraDisposeLocation,
             this);
 
-        if (sequoiaRequest->removed_chunks_size() == 0) {
+        if (sequoiaRequest.removed_chunks_size() == 0) {
             YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
             return;
         }
 
-        chunkManager
-            ->ModifySequoiaReplicas(std::move(sequoiaRequest))
-            .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                    auto* node = nodeTracker->FindNode(nodeId);
-                    if (!IsObjectAlive(node)) {
-                        return;
-                    }
-
-                    auto* location = node->RealChunkLocations()[locationIndex];
-                    location->SetBeingDisposed(false);
+        auto future = chunkManager->ModifySequoiaReplicas(sequoiaRequest);
+        YT_UNUSED_FUTURE(future.Apply(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
+            if (!rspOrError.IsOK()) {
+                const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                auto* node = nodeTracker->FindNode(nodeId);
+                if (!IsObjectAlive(node)) {
                     return;
                 }
 
-                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
-            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
+                auto* location = node->RealChunkLocations()[locationIndex];
+                location->SetBeingDisposed(false);
+                return;
+            }
+
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        }).AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker))));
     }
 
     void DoStartNodeDisposal(TNode* node)
@@ -350,7 +349,6 @@ private:
         YT_VERIFY(HasMutationContext());
 
         YT_VERIFY(node->GetLocalState() == ENodeState::Unregistered);
-
         YT_LOG_INFO("Starting node disposal (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());

@@ -5011,6 +5011,7 @@ private:
             NApi::TTransactionCommitOptions commitOptions{
                 .GeneratePrepareTimestamp = false
             };
+
             WaitFor(transaction->Commit(commitOptions))
                 .ThrowOnError();
 
