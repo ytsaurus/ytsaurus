@@ -131,13 +131,6 @@ public:
         YT_ASSERT(cellBundle->MetadataCells().size() <= 2);
 
         for (auto* metadataCell : cellBundle->MetadataCells()) {
-            // COMPAT(shakurov)
-            if (!metadataCell) {
-                YT_LOG_ALERT("Null metadata cell encountered (CellBundleId: %v)",
-                    cellBundle->GetId());
-                continue;
-            }
-
             if (IsMetadataCellInEnabledCluster(metadataCell)) {
                 return metadataCell;
             }
