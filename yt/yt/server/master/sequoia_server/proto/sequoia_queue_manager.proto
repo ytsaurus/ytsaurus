@@ -1,7 +1,5 @@
 package NYT.NSequoiaServer.NProto;
 
-import "yt_proto/yt/core/misc/proto/guid.proto";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqFlushQueue
