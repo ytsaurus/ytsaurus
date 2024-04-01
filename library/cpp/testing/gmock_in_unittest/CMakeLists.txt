@@ -5,12 +5,11 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(cpp-testing-gmock_in_unittest)
 
 
 target_link_libraries(cpp-testing-gmock_in_unittest PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   restricted-googletest-googlemock
@@ -31,7 +30,7 @@ add_global_library_for(cpp-testing-gmock_in_unittest.global
 
 
 target_link_libraries(cpp-testing-gmock_in_unittest.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   restricted-googletest-googlemock

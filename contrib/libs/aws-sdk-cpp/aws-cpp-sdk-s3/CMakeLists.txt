@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(libs-aws-sdk-cpp-aws-cpp-sdk-s3)
 
 
@@ -57,7 +56,7 @@ target_include_directories(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PRIVATE
 )
 
 target_link_libraries(libs-aws-sdk-cpp-aws-cpp-sdk-s3 PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   libs-aws-sdk-cpp-aws-cpp-sdk-core
   restricted-aws-aws-c-auth

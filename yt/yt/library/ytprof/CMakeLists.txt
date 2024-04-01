@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(allocation_tag_profiler)
 add_subdirectory(api)
 add_subdirectory(http)
@@ -19,7 +18,7 @@ target_compile_options(yt-library-ytprof PRIVATE
 )
 
 target_link_libraries(yt-library-ytprof PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-memory

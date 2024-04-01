@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -17,7 +16,7 @@ add_executable(library-cpp-type_info-ut)
 
 
 target_link_libraries(library-cpp-type_info-ut PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

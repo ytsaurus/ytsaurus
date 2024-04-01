@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(library-profiling-perf)
 
 
@@ -14,7 +13,7 @@ target_compile_options(library-profiling-perf PRIVATE
 )
 
 target_link_libraries(library-profiling-perf PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-library-profiling

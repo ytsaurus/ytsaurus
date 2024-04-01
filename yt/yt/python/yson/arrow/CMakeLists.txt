@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(linux-headers-generic REQUIRED)
 add_library(python-yson-arrow INTERFACE)
 
 
@@ -15,7 +14,7 @@ target_include_directories(python-yson-arrow INTERFACE
 )
 
 target_link_libraries(python-yson-arrow INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-python-common
@@ -43,7 +42,7 @@ target_include_directories(python-yson-arrow.global PUBLIC
 )
 
 target_link_libraries(python-yson-arrow.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-python-common

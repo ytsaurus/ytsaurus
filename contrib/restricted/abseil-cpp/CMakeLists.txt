@@ -5,13 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(absl)
 add_library(contrib-restricted-abseil-cpp INTERFACE)
 
 
 target_link_libraries(contrib-restricted-abseil-cpp INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   abseil-cpp-absl-algorithm
   abseil-cpp-absl-base
   abseil-cpp-absl-container

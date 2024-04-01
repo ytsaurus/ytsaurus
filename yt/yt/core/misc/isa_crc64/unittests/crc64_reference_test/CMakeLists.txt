@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_executable(crc64_reference_test)
 
 
@@ -15,7 +14,7 @@ target_compile_options(crc64_reference_test PRIVATE
 )
 
 target_link_libraries(crc64_reference_test PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   isa-l_crc_yt_patch
 )

@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(linux-headers-generic REQUIRED)
 add_shared_library(driver_rpc_lib)
 
 
@@ -18,7 +17,7 @@ target_compile_options(driver_rpc_lib PRIVATE
 )
 
 target_link_libraries(driver_rpc_lib PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   Python3::Module

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(fcontext_impl)
 add_subdirectory(impl_common)
 add_library(restricted-boost-context INTERFACE)
@@ -16,7 +15,7 @@ target_include_directories(restricted-boost-context INTERFACE
 )
 
 target_link_libraries(restricted-boost-context INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   boost-context-fcontext_impl

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(libs-poco-XML)
 
 
@@ -32,7 +31,7 @@ target_include_directories(libs-poco-XML PRIVATE
 )
 
 target_link_libraries(libs-poco-XML PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-expat
   libs-poco-Foundation

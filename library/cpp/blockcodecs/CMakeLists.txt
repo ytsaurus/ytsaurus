@@ -5,14 +5,13 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(codecs)
 add_subdirectory(core)
 add_library(library-cpp-blockcodecs)
 
 
 target_link_libraries(library-cpp-blockcodecs PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-blockcodecs-core

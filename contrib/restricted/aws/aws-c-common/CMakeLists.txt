@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(restricted-aws-aws-c-common)
 
 
@@ -28,7 +27,7 @@ target_include_directories(restricted-aws-aws-c-common PUBLIC
 )
 
 target_link_libraries(restricted-aws-aws-c-common PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
 )
 
 target_sources(restricted-aws-aws-c-common PRIVATE

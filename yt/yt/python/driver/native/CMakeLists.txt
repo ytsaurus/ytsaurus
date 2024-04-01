@@ -6,12 +6,11 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
-find_package(linux-headers-generic REQUIRED)
 add_library(python-driver-native INTERFACE)
 
 
 target_link_libraries(python-driver-native INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-query-engine
@@ -36,7 +35,7 @@ target_compile_options(python-driver-native.global PRIVATE
 )
 
 target_link_libraries(python-driver-native.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-query-engine

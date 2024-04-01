@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(admin)
 add_subdirectory(alert_manager)
 add_subdirectory(cell_server)
@@ -51,7 +50,7 @@ add_library(ytserver INTERFACE)
 
 
 target_link_libraries(ytserver INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl

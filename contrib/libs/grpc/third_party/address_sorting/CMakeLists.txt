@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(grpc-third_party-address_sorting)
 
 
@@ -21,7 +20,7 @@ target_include_directories(grpc-third_party-address_sorting PRIVATE
 )
 
 target_link_libraries(grpc-third_party-address_sorting PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
 )
 
 target_sources(grpc-third_party-address_sorting PRIVATE

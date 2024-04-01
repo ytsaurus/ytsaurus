@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(utils-TableGen-GlobalISel)
 
 
@@ -18,7 +17,7 @@ target_include_directories(utils-TableGen-GlobalISel PRIVATE
 )
 
 target_link_libraries(utils-TableGen-GlobalISel PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-Support

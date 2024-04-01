@@ -5,13 +5,12 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(yt-library-error_skeleton INTERFACE)
 
 
 target_link_libraries(yt-library-error_skeleton INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
@@ -30,7 +29,7 @@ target_compile_options(yt-library-error_skeleton.global PRIVATE
 )
 
 target_link_libraries(yt-library-error_skeleton.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

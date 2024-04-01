@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_executable(formats_test)
 
 
@@ -14,7 +13,7 @@ target_compile_options(formats_test PRIVATE
 )
 
 target_link_libraries(formats_test PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(farmhash-arch-sse41)
 
 
@@ -15,7 +14,7 @@ target_compile_options(farmhash-arch-sse41 PRIVATE
 )
 
 target_link_libraries(farmhash-arch-sse41 PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
 )

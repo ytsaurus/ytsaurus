@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(library-profiling-sensors_owner)
 
@@ -15,7 +14,7 @@ target_compile_options(library-profiling-sensors_owner PRIVATE
 )
 
 target_link_libraries(library-profiling-sensors_owner PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

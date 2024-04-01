@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -18,7 +17,7 @@ add_library(library-cpp-type_info)
 
 
 target_link_libraries(library-cpp-type_info PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime

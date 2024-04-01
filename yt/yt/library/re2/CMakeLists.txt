@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(yt-library-re2)
 
 
@@ -14,7 +13,7 @@ target_compile_options(yt-library-re2 PRIVATE
 )
 
 target_link_libraries(yt-library-re2 PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

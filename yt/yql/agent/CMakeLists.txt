@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_subdirectory(unittests)
 add_library(yt-yql-agent)
@@ -16,7 +15,7 @@ target_compile_options(yt-yql-agent PRIVATE
 )
 
 target_link_libraries(yt-yql-agent PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   cpp-yt-phdr_cache

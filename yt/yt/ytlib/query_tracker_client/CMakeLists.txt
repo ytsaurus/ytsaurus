@@ -6,7 +6,6 @@
 # original buildsystem will not be accepted.
 
 find_package(Python3 REQUIRED)
-find_package(linux-headers-generic REQUIRED)
 add_library(yt-ytlib-query_tracker_client)
 
 
@@ -15,7 +14,7 @@ target_compile_options(yt-ytlib-query_tracker_client PRIVATE
 )
 
 target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-client

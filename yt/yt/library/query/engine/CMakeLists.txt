@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -250,7 +249,7 @@ target_include_directories(library-query-engine PRIVATE
 )
 
 target_link_libraries(library-query-engine PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core
@@ -307,7 +306,7 @@ target_include_directories(library-query-engine.global PRIVATE
 )
 
 target_link_libraries(library-query-engine.global PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

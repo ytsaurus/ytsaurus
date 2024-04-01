@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_executable(joining_reader)
 
 
@@ -14,7 +13,7 @@ target_compile_options(joining_reader PRIVATE
 )
 
 target_link_libraries(joining_reader PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

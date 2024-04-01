@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(llvm16-lib-IR)
 
 
@@ -18,7 +17,7 @@ target_include_directories(llvm16-lib-IR PRIVATE
 )
 
 target_link_libraries(llvm16-lib-IR PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

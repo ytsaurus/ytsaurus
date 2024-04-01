@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_subdirectory(charset)
 add_subdirectory(draft)
 add_library(yutil)
@@ -16,7 +15,7 @@ target_compile_options(yutil PRIVATE
 )
 
 target_link_libraries(yutil PUBLIC
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   util-charset
   contrib-libs-zlib

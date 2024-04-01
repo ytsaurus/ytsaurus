@@ -5,7 +5,6 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-any INTERFACE)
 
 
@@ -14,7 +13,7 @@ target_include_directories(restricted-boost-any INTERFACE
 )
 
 target_link_libraries(restricted-boost-any INTERFACE
-  linux-headers-generic::linux-headers-generic
+  contrib-libs-linux-headers
   contrib-libs-cxxsupp
   restricted-boost-config
   restricted-boost-throw_exception
