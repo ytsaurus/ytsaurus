@@ -113,7 +113,6 @@ target_sources(contrib-libs-lzma PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/armthumb.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/ia64.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/powerpc.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/riscv.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/simple_coder.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/simple_decoder.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/lzma/liblzma/simple/simple_encoder.c
