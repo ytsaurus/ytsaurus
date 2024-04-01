@@ -9,6 +9,7 @@ from yt_env_setup import YTEnvSetup
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1
+    NUM_MASTERS = 1
     NUM_QUERY_TRACKER = 1
     ENABLE_HTTP_PROXY = True
     USE_DYNAMIC_TABLES = True
