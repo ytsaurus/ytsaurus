@@ -149,8 +149,8 @@ def create_tables(registry, schema, index_schema, attributes, spec, force):
             skip_mount=spec.index,
             spec=spec)
 
-        assert spec.index != spec.prepare_table_via_alter, "conflicting options"
         if spec.index:
+            assert not spec.prepare_table_via_alter, "conflicting options"
             remove_existing([registry.index], force)
             create_dynamic_table(
                 registry.index,
@@ -344,17 +344,16 @@ def test_sorted_tables(base_path, spec, attributes, force):
                 unmount_table(registry.index)
                 reshard_multiple_times(registry.index, index_schema)
 
-        if spec.alter:
+        if spec.alter and len(schema.get_key_columns()) < MAX_KEY_COLUMN_NUMBER:
+            logger.info("Altering table")
+
             extra_column = schema.add_key_column()
-            if spec.index:
+            if spec.index and extra_column:
                 unmount_table(registry.index)
                 index_schema.add_key_column(extra_column)
                 yt.alter_table(registry.index, schema=index_schema.yson_with_unique())
 
             unmount_table(registry.base)
-            if len(schema.get_key_columns()) < MAX_KEY_COLUMN_NUMBER:
-                schema.add_key_column()
-            logger.info("Altering table")
             yt.alter_table(registry.base, schema=schema.yson())
             yt.alter_table(registry.data, schema=schema.yson_with_unique())
 
