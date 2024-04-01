@@ -174,8 +174,6 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tablet_action_manager", &TThis::TabletActionManager)
         .DefaultNew();
     registrar.Parameter("multicell_gossip", &TThis::MulticellGossip)
-        // COMPAT(babenko)
-        .Alias("multicell_gossip_config")
         .DefaultNew();
     registrar.Parameter("tablet_cells_cleanup_period", &TThis::TabletCellsCleanupPeriod)
         .Default(TDuration::Seconds(60));
