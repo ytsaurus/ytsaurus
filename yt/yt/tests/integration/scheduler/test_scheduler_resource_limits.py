@@ -1135,11 +1135,6 @@ class TestJobWorkspaceBuilder(TestMemoryReserveFactor):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "job_controller": {
-                    "job_common": {
-                        "use_artifact_binds": True,
-                    },
-                },
             },
         },
     }

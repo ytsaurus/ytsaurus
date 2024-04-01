@@ -56,7 +56,6 @@ class TestGpuJobSetup(YTEnvSetup):
             "exec_node": {
                 "job_controller": {
                     "job_common": {
-                        "use_artifact_binds": True,
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
@@ -196,7 +195,6 @@ class TestSkipGpuJobSetup(YTEnvSetup):
             "exec_node": {
                 "job_controller": {
                     "job_common": {
-                        "use_artifact_binds": True,
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
@@ -286,7 +284,6 @@ class TestGpuLayer(YTEnvSetup):
             "exec_node": {
                 "job_controller": {
                     "job_common": {
-                        "use_artifact_binds": True,
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
@@ -408,11 +405,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "job_controller": {
-                    "job_common": {
-                        "use_artifact_binds": True,
-                    },
-                },
                 "gpu_manager": {
                     "driver_layer_fetching": {
                         "period": 10000,
@@ -535,7 +527,6 @@ class TestCudaLayer(YTEnvSetup):
             "exec_node": {
                 "job_controller": {
                     "job_common": {
-                        "use_artifact_binds": True,
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
                             "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"],
@@ -683,11 +674,6 @@ class TestForceCudaLayer(YTEnvSetup):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "job_controller": {
-                    "job_common": {
-                        "use_artifact_binds": True,
-                    },
-                },
                 "gpu_manager": {
                     "cuda_toolkit_min_driver_version": {"0": "0"},
                     "job_setup_command": {
@@ -859,7 +845,6 @@ class TestSetupUser(YTEnvSetup):
             "exec_node": {
                 "job_controller": {
                     "job_common": {
-                        "use_artifact_binds": True,
                         "job_setup_command": {
                             "path": "/static-bin/static-bash",
                             "args": [
@@ -1043,11 +1028,6 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "job_controller": {
-                    "job_common": {
-                        "use_artifact_binds": True,
-                    },
-                },
                 "job_reporter": {
                     "reporting_period": 10,
                     "min_repeat_delay": 10,
@@ -1401,11 +1381,6 @@ class TestExtraGpuCheckFailure(YTEnvSetup, GpuCheckBase):
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
-                "job_controller": {
-                    "job_common": {
-                        "use_artifact_binds": True,
-                    },
-                },
             },
         }
     }
