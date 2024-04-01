@@ -42,6 +42,12 @@ types:
         cpp_type: i32
         column_name: replica_index
         column_type: Int32
+        sort_order: Ascending
+
+      - cpp_name: Fake
+        cpp_type: bool
+        column_name: fake
+        column_type: Boolean
 
     verbatim: |
         static constexpr auto Table = ESequoiaTable::LocationReplicas;
