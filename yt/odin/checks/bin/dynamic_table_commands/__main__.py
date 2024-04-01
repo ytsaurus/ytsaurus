@@ -20,8 +20,9 @@ def run_check(yt_client, logger, options, states):
     check_result = states.FULLY_AVAILABLE_STATE
 
     if not rpc_client.exists(temp_path):
-        rpc_client.mkdir(temp_path, attributes={"primary_medium": temp_table_primary_medium}, recursive=True)
-        logger.info('Created temp directory %s (primary_medium=%s)', temp_path, temp_table_primary_medium)
+        rpc_client.mkdir(temp_path, recursive=True)
+        rpc_client.rpc_client(temp_path, "primary_medium", temp_table_primary_medium)
+        logger.info('Created temp directory %s (primary_medium: %s)', temp_path, temp_table_primary_medium)
 
     now = datetime.now()
     table_index = (now.second / 10) + now.minute * 6
