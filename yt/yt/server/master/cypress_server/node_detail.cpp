@@ -305,7 +305,8 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     // Copy expiration time.
     auto expirationTime = Load<std::optional<TInstant>>(*context);
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
-        trunkNode->SetExpirationTime(*expirationTime);
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        cypressManager->SetExpirationTime(trunkNode, expirationTime);
     }
 
     // Copy expiration timeout.
