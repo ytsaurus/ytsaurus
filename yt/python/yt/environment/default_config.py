@@ -696,7 +696,6 @@ def get_dynamic_node_config():
                     backoff = 1000;
                 };
                 job_common = {
-                    use_artifact_binds = %true;
                     node_directory_prepare_backoff_time = 100;
                     job_prepare_time_limit = 60000;
                 };

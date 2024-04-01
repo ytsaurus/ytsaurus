@@ -561,8 +561,6 @@ class TJobCommonConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool UseArtifactBinds;
-
     int NodeDirectoryPrepareRetryCount;
 
     TDuration NodeDirectoryPrepareBackoffTime;

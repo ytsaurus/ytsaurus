@@ -635,9 +635,6 @@ void TShellCommandConfig::Register(TRegistrar registrar)
 
 void TJobCommonConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("use_artifact_binds", &TThis::UseArtifactBinds)
-        .Default(true);
-
     registrar.Parameter("node_directory_prepare_retry_count", &TThis::NodeDirectoryPrepareRetryCount)
         .Default(10);
 
