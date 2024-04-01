@@ -352,6 +352,8 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
     Ищет `value` в YSON-списке `list`, имеющем тип `any`. Значение `value` скалярного типа. Список не обязан быть гомогенным (т. е. может содержать значения разных типов), сравнение выполняется с учётом типа.
 3. `any_to_yson_string(yson) :: any -> string`
     Преобразует значение типа `any` в строку, содержащую его binary-[YSON](../../../user-guide/storage/yson.md) представление.
+4. `yson_length(yson) :: any -> int64`
+    Вычисляет количество элементов в списке или словаре.
 
 ##### Формирование YSON
 
