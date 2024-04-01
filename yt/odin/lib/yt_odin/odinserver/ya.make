@@ -1,4 +1,4 @@
-PY23_LIBRARY()
+PY3_LIBRARY()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
