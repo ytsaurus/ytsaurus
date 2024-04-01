@@ -3747,7 +3747,11 @@ private:
                 }
 
                 auto replicasFuture = transaction->LookupRows(keys);
-                auto removedReplicas = WaitFor(replicasFuture)
+                auto removedReplicasOrError = WaitFor(replicasFuture);
+                if (!removedReplicasOrError.IsOK()) {
+                    removedReplicasOrError.SetCode(NRpc::EErrorCode::TransientFailure);
+                }
+                const auto& removedReplicas = removedReplicasOrError
                     .ValueOrThrow();
 
                 THashSet<TChunkId> chunksWithReplicas;
