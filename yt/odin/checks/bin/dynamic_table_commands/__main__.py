@@ -21,7 +21,7 @@ def run_check(yt_client, logger, options, states):
 
     if not rpc_client.exists(temp_path):
         rpc_client.mkdir(temp_path, recursive=True)
-        rpc_client.rpc_client(temp_path, "primary_medium", temp_table_primary_medium)
+        rpc_client.set_attribute(temp_path, "primary_medium", temp_table_primary_medium)
         logger.info('Created temp directory %s (primary_medium: %s)', temp_path, temp_table_primary_medium)
 
     now = datetime.now()
