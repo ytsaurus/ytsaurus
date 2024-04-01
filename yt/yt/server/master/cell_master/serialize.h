@@ -215,6 +215,7 @@ DEFINE_ENUM(EMasterReign,
     ((UsersInSequoia)                                               (2546))  // cherepashka
     ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
     ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
+    ((ChunkMergerModeFix)                                           (2549))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

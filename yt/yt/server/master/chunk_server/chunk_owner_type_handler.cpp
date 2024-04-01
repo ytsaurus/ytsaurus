@@ -27,6 +27,7 @@
 #include <yt/yt/server/master/cell_master/config.h>
 // COMPAT(kvk1920)
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/file_server/file_node.h>
 
@@ -35,12 +36,11 @@
 
 #include <yt/yt/server/master/journal_server/journal_node.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-
-#include <yt/yt/core/ytree/interned_attributes.h>
-#include <yt/yt/server/master/cell_master/serialize.h>
 
 namespace NYT::NChunkServer {
 
@@ -78,15 +78,15 @@ template <class TChunkOwner>
 bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const TString& key) const
 {
     static const THashSet<TString> SupportedInheritableAttributes{
-        "compression_codec",
-        "erasure_codec",
-        "media",
-        "hunk_media",
-        "primary_medium",
-        "hunk_primary_medium",
-        "replication_factor",
-        "vital",
-        "enable_chunk_merger"
+        EInternedAttributeKey::CompressionCodec.Unintern(),
+        EInternedAttributeKey::ErasureCodec.Unintern(),
+        EInternedAttributeKey::Media.Unintern(),
+        EInternedAttributeKey::HunkMedia.Unintern(),
+        EInternedAttributeKey::PrimaryMedium.Unintern(),
+        EInternedAttributeKey::HunkPrimaryMedium.Unintern(),
+        EInternedAttributeKey::ReplicationFactor.Unintern(),
+        EInternedAttributeKey::Vital.Unintern(),
+        EInternedAttributeKey::ChunkMergerMode.Unintern(),
     };
 
     return SupportedInheritableAttributes.contains(key);
@@ -145,8 +145,6 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto nodeHolder = TBase::DoCreate(id, context);
     auto* node = nodeHolder.get();
 
-    auto chunkMergerMode = combinedAttributes->GetAndRemove<EChunkMergerMode>("chunk_merger_mode", EChunkMergerMode::None);
-
     try {
         node->SetPrimaryMediumIndex(primaryMedium->GetIndex());
         node->SetHunkPrimaryMediumIndex(hunkPrimaryMedium->GetIndex());
@@ -156,8 +154,6 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);
         node->SetEnableStripedErasure(enableStripedErasure);
-
-        node->SetChunkMergerMode(chunkMergerMode);
 
         if (securityTags) {
             const auto& securityManager = this->GetBootstrap()->GetSecurityManager();

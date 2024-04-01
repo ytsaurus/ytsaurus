@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCypressServer;
@@ -17,8 +19,8 @@ template<class TImpl>
 bool TTabletOwnerTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
 {
     static const THashSet<TString> SupportedInheritableAttributes{
-        "in_memory_mode",
-        "tablet_cell_bundle",
+        EInternedAttributeKey::InMemoryMode.Unintern(),
+        EInternedAttributeKey::TabletCellBundle.Unintern(),
     };
 
     if (SupportedInheritableAttributes.contains(key)) {
