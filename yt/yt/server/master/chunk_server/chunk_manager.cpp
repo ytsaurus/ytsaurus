@@ -3644,8 +3644,9 @@ private:
                             .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
+                            .ReplicaIndex = replica.GetReplicaIndex(),
                         },
-                        .ReplicaIndex = replica.GetReplicaIndex(),
+                        .Fake = true
                     };
                     transaction->WriteRow(locationReplica);
                 }
@@ -3722,8 +3723,9 @@ private:
                             .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
+                            .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                         },
-                        .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
+                        .Fake = true
                     };
                     transaction->WriteRow(locationReplica);
                 }
@@ -3742,6 +3744,7 @@ private:
                         .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
+                        .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
                     };
                     keys.push_back(locationReplicaKey);
                 }
@@ -3797,6 +3800,7 @@ private:
                         .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
+                        .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
                     };
                     transaction->DeleteRow(locationReplicaKey);
                 }
@@ -5771,6 +5775,7 @@ private:
                         .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
+                        .ReplicaIndex = protoReplica.replica_index()
                     };
                     transaction->DeleteRow(locationReplicaKey);
                 }

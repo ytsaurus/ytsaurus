@@ -299,7 +299,7 @@ private:
 
             TChunkIdWithIndex idWithIndex;
             idWithIndex.Id = replica.Key.ChunkId;
-            idWithIndex.ReplicaIndex = replica.ReplicaIndex;
+            idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
 
             ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
             chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
