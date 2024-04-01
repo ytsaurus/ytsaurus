@@ -1,5 +1,7 @@
 from .common import round_down_to_minute
 
+from yt_odin.common import prctl
+
 from yt_odin.logserver import (
     FULLY_AVAILABLE_STATE,
     PARTIALLY_AVAILABLE_STATE,
@@ -95,12 +97,7 @@ class JugglerPushThread(Thread):
         self._juggler_push_failed = None
 
     def run(self):
-        try:
-            import prctl
-            prctl.set_name("JugglerPush")
-        except ImportError:
-            pass
-
+        prctl.set_name("JugglerPush")
         self._is_running = True
 
         while True:

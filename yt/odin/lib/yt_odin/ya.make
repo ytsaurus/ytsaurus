@@ -9,6 +9,7 @@ PY_SRCS(
 END()
 
 RECURSE(
+    common
     logging
     logserver
     odinserver

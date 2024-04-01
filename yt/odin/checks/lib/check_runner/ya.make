@@ -14,10 +14,4 @@ PEERDIR(
     yt/python/client
 )
 
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        contrib/python/python-prctl
-    )
-ENDIF()
-
 END()

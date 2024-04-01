@@ -1,4 +1,5 @@
 from six.moves import xrange
+from yt_odin.common import prctl
 
 import threading
 import logging
@@ -27,11 +28,7 @@ class AsyncStorageWriter(object):
             raise
 
     def _worker_main_impl(self):
-        try:
-            import prctl
-            prctl.set_name("StorageWriter")
-        except ImportError:
-            pass
+        prctl.set_name("StorageWriter")
 
         while True:
             records = []

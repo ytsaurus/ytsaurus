@@ -3,15 +3,10 @@ PY3_LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
 PEERDIR(
+    yt/odin/lib/yt_odin/common
     yt/odin/lib/yt_odin/logging
     yt/python/client
 )
-
-IF (NOT OPENSOURCE)
-    PEERDIR(
-        contrib/python/python-prctl
-    )
-ENDIF()
 
 PY_SRCS(
     NAMESPACE yt_odin.storage

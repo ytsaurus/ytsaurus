@@ -1,3 +1,4 @@
+from yt_odin.common import prctl
 from yt_odin.odinserver.common import round_down_to_minute
 from yt_odin.logserver import UNKNOWN_STATE, TERMINATED_STATE, FAILED_STATE
 from yt_odin.logging import TaskLoggerAdapter
@@ -89,11 +90,8 @@ class CheckTask(object):
     def start(cls, task_id, service, command, current_timestamp, socket_handler, stdin_arguments, timeout, env):
         rounded_timestamp = round_down_to_minute(current_timestamp)
 
-        try:
-            import prctl
-            preexec_fn = lambda: prctl.set_pdeathsig(signal.SIGTERM)  # noqa
-        except ImportError:
-            preexec_fn = None
+        def preexec_fn():
+            prctl.set_pdeathsig(signal.SIGTERM)
 
         process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, close_fds=True,

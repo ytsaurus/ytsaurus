@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from yt_odin.common import prctl
 from yt_odin.odinserver.common import BoundProcess, get_part
 from yt_odin.odinserver.odin import Odin
 from yt_odin.storage.db import get_cluster_client_factory_from_db_config
@@ -222,12 +223,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    try:
-        import prctl
-        prctl.set_name("Main")
-    except ImportError:
-        pass
-
+    prctl.set_name("Main")
     parser = argparse.ArgumentParser(description="Odin -- service for observing of clusters health")
     parser.add_argument("--config", required=True, help="path to config file (file in json format)")
     args = parser.parse_args()
