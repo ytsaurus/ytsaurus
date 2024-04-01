@@ -35,6 +35,21 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobProxyTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool FailOnJobProxySpawnedCall;
+
+    REGISTER_YSON_STRUCT(TJobProxyTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobThrottlerConfig
     : public NYTree::TYsonStruct
 {
@@ -264,6 +279,8 @@ public:
     //! Supports ability to use direct connection to masters.
     NApi::NNative::TConnectionCompoundConfigPtr OriginalClusterConnection;
 
+    TJobProxyTestingConfigPtr TestingConfig;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
@@ -290,6 +307,8 @@ public:
     bool EnableStderrAndCoreLivePreview;
 
     NYTree::INodePtr JobEnvironment;
+
+    TJobProxyTestingConfigPtr TestingConfig;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 

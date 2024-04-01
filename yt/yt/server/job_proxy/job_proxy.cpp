@@ -305,7 +305,7 @@ void TJobProxy::OnHeartbeatResponse(const TError& error)
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
         YT_LOG_ERROR(error, "Error sending heartbeat to supervisor");
-        Abort(EJobProxyExitCode::HeartbeatFailed);
+        Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
     }
 
     YT_LOG_DEBUG("Successfully reported heartbeat to supervisor");
@@ -1220,18 +1220,29 @@ void TJobProxy::UpdateResourceUsage()
 
 void TJobProxy::OnSpawned()
 {
+    if (Config_->TestingConfig->FailOnJobProxySpawnedCall) {
+        YT_LOG_ERROR("Fail OnJobProxySpawned call for testing purposes");
+        Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
+    }
+
     auto req = SupervisorProxy_->OnJobProxySpawned();
     ToProto(req->mutable_job_id(), JobId_);
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto error = WaitFor(req->Invoke());
+    if (!error.IsOK()) {
+        YT_LOG_ERROR(error, "Failed to notify supervisor about job proxy spawned");
+        Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
+    }
 }
 
 void TJobProxy::OnArtifactsPrepared()
 {
     auto req = SupervisorProxy_->OnArtifactsPrepared();
     ToProto(req->mutable_job_id(), JobId_);
-    WaitFor(req->Invoke())
-        .ThrowOnError();
+    auto error = WaitFor(req->Invoke());
+    if (!error.IsOK()) {
+        YT_LOG_ERROR(error, "Failed to notify supervisor about artifacts preparation");
+        Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
+    }
 }
 
 void TJobProxy::SetUserJobMemoryUsage(i64 memoryUsage)
