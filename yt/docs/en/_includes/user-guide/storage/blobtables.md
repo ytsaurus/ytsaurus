@@ -43,7 +43,7 @@ Starting the operation and reading job stderr from the table with BLOB:
 - CLI
 
    ```
-   yt read-blob-table '<exact={key=["cc26aa85-a694bf6b-3fe0384-963"]}>//tmp/stderr_table'
+   yt read-blob-table '//tmp/stderr_table["cc26aa85-a694bf6b-3fe0384-963"]'
    ```
 
 {% endlist %}
