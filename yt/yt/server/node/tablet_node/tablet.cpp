@@ -910,6 +910,8 @@ void TTablet::Load(TLoadContext& context)
     // during construction. Initialize() will take care of this.
     Initialize();
 
+    auto tabletSizeProfiler = GetTabletSizeProfiler();
+
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
@@ -924,6 +926,8 @@ void TTablet::Load(TLoadContext& context)
                 if (store->IsChunk()) {
                     YT_VERIFY(store->AsChunk()->GetChunkId());
                 }
+
+                tabletSizeProfiler.AddStore(store);
             }
         }
     }
@@ -938,6 +942,8 @@ void TTablet::Load(TLoadContext& context)
             hunkChunk->Load(context);
             hunkChunk->Initialize();
             UpdateDanglingHunkChunks(hunkChunk);
+
+            tabletSizeProfiler.AddHunkChunk(hunkChunk);
         }
     }
 
@@ -1058,7 +1064,6 @@ void TTablet::Load(TLoadContext& context)
         HunkLockManager_->Load(context);
     }
 
-    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 }
@@ -1364,7 +1369,6 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
         existingPartitionIds,
         PartitionList_[firstIndex].get());
 
-    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
 }
 
@@ -1465,7 +1469,6 @@ void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& piv
         index,
         pivotKeys.size());
 
-    UpdateTabletSizeMetrics();
     UpdateOverlappingStoreCount();
 }
 
@@ -1539,7 +1542,7 @@ void TTablet::AddStore(IStorePtr store, bool onFlush, TPartitionId partitionIdHi
         ++DynamicStoreCount_;
     }
 
-    UpdateTabletSizeMetrics();
+    GetTabletSizeProfiler().AddStore(store);
 }
 
 void TTablet::RemoveStore(IStorePtr store)
@@ -1565,7 +1568,7 @@ void TTablet::RemoveStore(IStorePtr store)
         EraseOrCrash(StoreRowIndexMap_, orderedStore->GetStartingRowIndex());
     }
 
-    UpdateTabletSizeMetrics();
+    GetTabletSizeProfiler().RemoveStore(store);
 }
 
 IStorePtr TTablet::FindStore(TStoreId id)
@@ -1598,6 +1601,7 @@ const THashMap<TChunkId, THunkChunkPtr>& TTablet::HunkChunkMap() const
 void TTablet::AddHunkChunk(THunkChunkPtr hunkChunk)
 {
     EmplaceOrCrash(HunkChunkMap_, hunkChunk->GetId(), hunkChunk);
+    GetTabletSizeProfiler().AddHunkChunk(hunkChunk);
 }
 
 void TTablet::RemoveHunkChunk(THunkChunkPtr hunkChunk)
@@ -1605,6 +1609,7 @@ void TTablet::RemoveHunkChunk(THunkChunkPtr hunkChunk)
     EraseOrCrash(HunkChunkMap_, hunkChunk->GetId());
     // NB: May be missing.
     DanglingHunkChunks_.erase(hunkChunk);
+    GetTabletSizeProfiler().RemoveHunkChunk(hunkChunk);
 }
 
 THunkChunkPtr TTablet::FindHunkChunk(TChunkId id)
@@ -1981,6 +1986,65 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     return snapshot;
 }
 
+TTablet::TTabletSizeProfiler::TTabletSizeProfiler(
+    TTabletCounters* tabletCounters,
+    TTabletSizeMetrics* tabletSizeMetrics)
+    : TabletCounters_(tabletCounters)
+    , TabletSizeMetrics_(tabletSizeMetrics)
+{ }
+
+TTablet::TTabletSizeProfiler::~TTabletSizeProfiler()
+{
+    TabletCounters_->DataWeight.Update(TabletSizeMetrics_->DataWeight);
+    TabletCounters_->UncompressedDataSize.Update(TabletSizeMetrics_->UncompressedDataSize);
+    TabletCounters_->CompressedDataSize.Update(TabletSizeMetrics_->CompressedDataSize);
+    TabletCounters_->RowCount.Update(TabletSizeMetrics_->RowCount);
+    TabletCounters_->ChunkCount.Update(TabletSizeMetrics_->ChunkCount);
+    TabletCounters_->HunkCount.Update(TabletSizeMetrics_->HunkCount);
+    TabletCounters_->TotalHunkLength.Update(TabletSizeMetrics_->TotalHunkLength);
+    TabletCounters_->HunkChunkCount.Update(TabletSizeMetrics_->HunkChunkCount);
+}
+
+void TTablet::TTabletSizeProfiler::AddStore(const IStorePtr& store)
+{
+    if (store->IsChunk()) {
+        TabletSizeMetrics_->DataWeight += store->GetDataWeight();
+        TabletSizeMetrics_->UncompressedDataSize += store->GetUncompressedDataSize();
+        TabletSizeMetrics_->CompressedDataSize += store->GetCompressedDataSize();
+        TabletSizeMetrics_->RowCount += store->GetRowCount();
+        ++TabletSizeMetrics_->ChunkCount;
+    }
+}
+
+void TTablet::TTabletSizeProfiler::RemoveStore(const IStorePtr& store)
+{
+    if (store->IsChunk()) {
+        TabletSizeMetrics_->DataWeight -= store->GetDataWeight();
+        TabletSizeMetrics_->UncompressedDataSize -= store->GetUncompressedDataSize();
+        TabletSizeMetrics_->CompressedDataSize -= store->GetCompressedDataSize();
+        TabletSizeMetrics_->RowCount -= store->GetRowCount();
+
+        YT_ASSERT(TabletSizeMetrics_->ChunkCount > 0);
+        --TabletSizeMetrics_->ChunkCount;
+    }
+}
+
+void TTablet::TTabletSizeProfiler::AddHunkChunk(const THunkChunkPtr& hunkChunk)
+{
+    TabletSizeMetrics_->HunkCount += hunkChunk->GetHunkCount();
+    TabletSizeMetrics_->TotalHunkLength += hunkChunk->GetTotalHunkLength();
+    ++TabletSizeMetrics_->HunkChunkCount;
+}
+
+void TTablet::TTabletSizeProfiler::RemoveHunkChunk(const THunkChunkPtr& hunkChunk)
+{
+    TabletSizeMetrics_->HunkCount -= hunkChunk->GetHunkCount();
+    TabletSizeMetrics_->TotalHunkLength -= hunkChunk->GetTotalHunkLength();
+
+    YT_ASSERT(TabletSizeMetrics_->HunkChunkCount > 0);
+    --TabletSizeMetrics_->HunkChunkCount;
+}
+
 void TTablet::Initialize()
 {
     PhysicalSchema_ = IsPhysicallyLog() ? TableSchema_->ToReplicationLog() : TableSchema_;
@@ -2298,57 +2362,9 @@ int TTablet::ComputeDynamicStoreCount() const
     return dynamicStoreCount;
 }
 
-
-void TTablet::UpdateTabletSizeMetrics()
+TTablet::TTabletSizeProfiler TTablet::GetTabletSizeProfiler()
 {
-    i64 dataWeight = 0;
-    i64 uncompressedDataSize = 0;
-    i64 compressedDataSize = 0;
-    i64 rowCount = 0;
-    i64 chunkCount = 0;
-
-    i64 hunkCount = 0;
-    i64 totalHunkLength = 0;
-
-    auto handleStore = [&] (const IStorePtr& store) {
-        if (store->IsChunk()) {
-            dataWeight += store->GetDataWeight();
-            uncompressedDataSize += store->GetUncompressedDataSize();
-            compressedDataSize += store->GetCompressedDataSize();
-            rowCount += store->GetRowCount();
-            ++chunkCount;
-        }
-    };
-
-    if (IsPhysicallySorted()) {
-        for (const auto& partition : PartitionList_) {
-            for (const auto& store : partition->Stores()) {
-                handleStore(store);
-            }
-        }
-        for (const auto& store : Eden_->Stores()) {
-            handleStore(store);
-        }
-    } else {
-        for (const auto& [storeId, store] : StoreIdMap_) {
-            handleStore(store);
-        }
-    }
-
-    for (const auto& [hunkChunkId, hunkChunk] : HunkChunkMap_) {
-        hunkCount += hunkChunk->GetHunkCount();
-        totalHunkLength += hunkChunk->GetTotalHunkLength();
-    }
-
-    TabletCounters_.DataWeight.Update(dataWeight);
-    TabletCounters_.UncompressedDataSize.Update(uncompressedDataSize);
-    TabletCounters_.CompressedDataSize.Update(compressedDataSize);
-    TabletCounters_.RowCount.Update(rowCount);
-    TabletCounters_.ChunkCount.Update(chunkCount);
-
-    TabletCounters_.HunkCount.Update(hunkCount);
-    TabletCounters_.TotalHunkLength.Update(totalHunkLength);
-    TabletCounters_.HunkChunkCount.Update(ssize(HunkChunkMap_));
+    return {&TabletCounters_, &TabletSizeMetrics_};
 }
 
 void TTablet::UpdateOverlappingStoreCount()
