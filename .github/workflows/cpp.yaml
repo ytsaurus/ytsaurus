@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - stable_23_2_dns_fix
 
 jobs:
   start-vm:
