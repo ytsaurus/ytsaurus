@@ -84,9 +84,15 @@ public:
     }
 
     TFuture<ISequoiaTransactionPtr> StartTransaction(
-        const NApi::TTransactionStartOptions& options) override
+        const NApi::TTransactionStartOptions& options,
+        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
     {
-        return NDetail::StartSequoiaTransaction(this, NativeRootClient_, GroundRootClient_, options);
+        return NDetail::StartSequoiaTransaction(
+            this,
+            NativeRootClient_,
+            GroundRootClient_,
+            options,
+            sequencingOptions);
     }
 
     const TLogger& GetLogger() const override

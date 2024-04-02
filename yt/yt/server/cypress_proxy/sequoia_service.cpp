@@ -1,9 +1,11 @@
 #include "sequoia_service.h"
 
+#include "private.h"
+
 #include "bootstrap.h"
+#include "helpers.h"
 #include "node_proxy.h"
 #include "path_resolver.h"
-#include "private.h"
 #include "rootstock_proxy.h"
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
@@ -33,6 +35,7 @@ using namespace NSequoiaClient;
 using namespace NYTree;
 
 using TYPath = NYPath::TYPath;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +53,7 @@ public:
     {
         auto Logger = CypressProxyLogger.WithTag("CypressRequestId: %v", context->GetRequestId());
         auto client = Bootstrap_->GetSequoiaClient();
-        auto transaction = WaitFor(client->StartTransaction())
+        auto transaction = WaitFor(StartCypressProxyTransaction(client))
             .ValueOrThrow();
 
         auto resolveResult = ResolvePath(transaction, path);

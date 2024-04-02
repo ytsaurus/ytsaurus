@@ -101,7 +101,8 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr client,
     NApi::NNative::IClientPtr nativeRootClient,
     NApi::NNative::IClientPtr groundRootClient,
-    const NApi::TTransactionStartOptions& options = {});
+    const NApi::TTransactionStartOptions& options,
+    const TSequoiaTransactionSequencingOptions& sequencingOptions);
 
 } // namespace NDetail
 

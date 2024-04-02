@@ -11,6 +11,31 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: all instances ot this class has to have static lifetime.
+struct ISequoiaTransactionActionSequencer
+{
+    //! Returns priority of a given tx action.
+    virtual int GetActionPriority(TStringBuf actionType) const = 0;
+
+    virtual ~ISequoiaTransactionActionSequencer() = default;
+};
+
+struct TSequoiaTransactionRequestPriorities
+{
+    int DatalessLockRow = 0;
+    int LockRow = 0;
+    int WriteRow = 0;
+    int DeleteRow = 0;
+};
+
+struct TSequoiaTransactionSequencingOptions
+{
+    const ISequoiaTransactionActionSequencer* TransactionActionSequencer = nullptr;
+    std::optional<TSequoiaTransactionRequestPriorities> RequestPriorities;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ISequoiaClient
     : public TRefCounted
 {
@@ -37,7 +62,8 @@ struct ISequoiaClient
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
-        const NApi::TTransactionStartOptions& options = {}) = 0;
+        const NApi::TTransactionStartOptions& options = {},
+        const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
 };
