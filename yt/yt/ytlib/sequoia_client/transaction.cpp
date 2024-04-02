@@ -54,24 +54,9 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 
+using NNative::IClientPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
-
-#define FOR_EACH_TRANSACTION_ACTION_TYPE() \
-    XX(TReqCloneNode, 100) \
-    XX(TReqDetachChild, 200) \
-    XX(TReqRemoveNode, 300) \
-    XX(TReqCreateNode, 400) \
-    XX(TReqAttachChild, 500) \
-    XX(TReqSetNode, 600)
-
-#define XX(type, priority) \
-    {type::GetDescriptor()->full_name(), priority},
-
-static const THashMap<TString, int> MasterActionTypeToExecutionPriority{
-    FOR_EACH_TRANSACTION_ACTION_TYPE()
-};
-#undef XX
-#undef FOR_EACH_TRANSACTION_ACTION_TYPE
 
 struct TDatalessLockRowRequest
 {
@@ -97,33 +82,22 @@ struct TDeleteRowRequest
     TLegacyKey Key;
 };
 
-#define FOR_EACH_REQUEST_TYPE() \
-    XX(TDatalessLockRowRequest, 100) \
-    XX(TLockRowRequest, 200) \
-    XX(TDeleteRowRequest, 300) \
-    XX(TWriteRowRequest, 400)
-
-#define XX(type, priority) \
-    REGISTER_TABLE_REQUEST_TYPE(type, priority)
-
-FOR_EACH_REQUEST_TYPE()
-#undef XX
-#undef FOR_EACH_REQUEST_TYPE
-
 class TSequoiaTransaction
     : public ISequoiaTransaction
 {
 public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
-        NApi::NNative::IClientPtr nativeRootClient,
-        NApi::NNative::IClientPtr groundRootClient)
+        IClientPtr nativeRootClient,
+        IClientPtr groundRootClient,
+        const TSequoiaTransactionSequencingOptions& sequencingOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , NativeRootClient_(std::move(nativeRootClient))
         , GroundRootClient_(std::move(groundRootClient))
         , Logger(SequoiaClient_->GetLogger())
         , SerializedInvoker_(CreateSerializedInvoker(
             NativeRootClient_->GetConnection()->GetInvoker()))
+        , SequencingOptions_(sequencingOptions)
     { }
 
     TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
@@ -334,8 +308,9 @@ private:
 
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
 
-
     const IInvokerPtr SerializedInvoker_;
+
+    const TSequoiaTransactionSequencingOptions SequencingOptions_;
 
     struct TSequoiaTransactionTag
     { };
@@ -476,23 +451,33 @@ private:
 
     void SortRequests()
     {
-        auto getActionPriority = [] (const TTransactionActionData& data) {
-            return GetOrCrash(MasterActionTypeToExecutionPriority, data.Type);
-        };
-        for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
-            auto& actions = masterCellCommitSession->TransactionActions;
-            SortBy(actions, getActionPriority);
+        if (const auto* sequencer = SequencingOptions_.TransactionActionSequencer) {
+            for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
+                auto& actions = masterCellCommitSession->TransactionActions;
+                SortBy(actions, [&] (const TTransactionActionData& actionData) {
+                    return sequencer->GetActionPriority(actionData.Type);
+                });
+            }
         }
 
-        auto getRequestPriority = [] (const TRequest& request) {
-            return Visit(request,
-                [&] <class T> (const T&) {
-                    return TRequestTypeTraits<T>::Priority;
+        if (const auto& priorities = SequencingOptions_.RequestPriorities) {
+            for (auto& [_, session] : TableCommitSessions_) {
+                auto& requests = session->Requests;
+                SortBy(requests, [&] (const TRequest& request) {
+                    #define HANDLE_REQUEST_KIND(RequestKind) \
+                        [&] (const T##RequestKind##Request&) { \
+                            return priorities->RequestKind; \
+                        }
+
+                    return Visit(request,
+                        HANDLE_REQUEST_KIND(DatalessLockRow),
+                        HANDLE_REQUEST_KIND(LockRow),
+                        HANDLE_REQUEST_KIND(WriteRow),
+                        HANDLE_REQUEST_KIND(DeleteRow));
+
+                    #undef HANDLE_REQUEST_KIND
                 });
-        };
-        for (auto& [_, session] : TableCommitSessions_) {
-            auto& requests = session->Requests;
-            SortBy(requests, getRequestPriority);
+            }
         }
     }
 
@@ -672,14 +657,16 @@ namespace NDetail {
 
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
-    NApi::NNative::IClientPtr nativeRootClient,
-    NApi::NNative::IClientPtr groundRootClient,
-    const TTransactionStartOptions& options)
+    IClientPtr nativeRootClient,
+    IClientPtr groundRootClient,
+    const TTransactionStartOptions& options,
+    const TSequoiaTransactionSequencingOptions& sequencingOptions)
 {
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         std::move(nativeRootClient),
-        std::move(groundRootClient));
+        std::move(groundRootClient),
+        sequencingOptions);
     return transaction->Start(options);
 }
 

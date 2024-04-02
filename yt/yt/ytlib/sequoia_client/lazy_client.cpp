@@ -50,9 +50,10 @@ public:
     }
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
-        const NApi::TTransactionStartOptions& options) override
+        const NApi::TTransactionStartOptions& options,
+        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
     {
-        FORWARD_METHOD(StartTransaction, (options))
+        FORWARD_METHOD(StartTransaction, (options, sequencingOptions))
     }
 
     #undef FORWARD_METHOD

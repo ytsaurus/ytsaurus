@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include "action_helpers.h"
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
@@ -17,6 +18,7 @@
 
 namespace NYT::NCypressProxy {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -29,6 +31,54 @@ using TYPathBuf = NYPath::TYPathBuf;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CypressProxyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+struct TSequoiaTransactionActionSequencer
+    : public ISequoiaTransactionActionSequencer
+{
+    int GetActionPriority(TStringBuf actionType) const override
+    {
+        #define HANDLE_ACTION_TYPE(TAction, priority) \
+            if (actionType == NCypressServer::NProto::TAction::GetDescriptor()->full_name()) { \
+                return priority; \
+            }
+
+        HANDLE_ACTION_TYPE(TReqCloneNode, 100)
+        HANDLE_ACTION_TYPE(TReqDetachChild, 200)
+        HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
+        HANDLE_ACTION_TYPE(TReqCreateNode, 400)
+        HANDLE_ACTION_TYPE(TReqAttachChild, 500)
+        HANDLE_ACTION_TYPE(TReqSetNode, 600)
+
+        #undef HANDLE_ACTION_TYPE
+
+        YT_ABORT();
+    }
+};
+
+static const TSequoiaTransactionActionSequencer TransactionActionSequencer;
+
+static const TSequoiaTransactionSequencingOptions SequencingOptions = {
+    .TransactionActionSequencer = &TransactionActionSequencer,
+    .RequestPriorities = TSequoiaTransactionRequestPriorities{
+        .DatalessLockRow = 100,
+        .LockRow = 200,
+        .WriteRow = 400,
+        .DeleteRow = 300,
+    },
+};
+
+} // namespace
+
+TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
+    const ISequoiaClientPtr& sequoiaClient,
+    const TTransactionStartOptions& options)
+{
+    return sequoiaClient->StartTransaction(options, SequencingOptions);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
