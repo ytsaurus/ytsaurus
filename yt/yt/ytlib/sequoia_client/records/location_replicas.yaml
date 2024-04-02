@@ -45,6 +45,7 @@ types:
         cpp_type: bool
         column_name: fake
         column_type: Boolean
+        aggregate: first
 
     verbatim: |
         static constexpr auto Table = ESequoiaTable::LocationReplicas;
