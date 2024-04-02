@@ -833,6 +833,36 @@ public:
         TInstant backoffTime);
 
 private:
+    struct TTabletSizeMetrics
+    {
+        i64 DataWeight = 0;
+        i64 UncompressedDataSize = 0;
+        i64 CompressedDataSize = 0;
+        i64 RowCount = 0;
+        i64 ChunkCount = 0;
+        i64 HunkCount = 0;
+        i64 TotalHunkLength = 0;
+        i64 HunkChunkCount = 0;
+    };
+
+    class TTabletSizeProfiler
+    {
+    public:
+        TTabletSizeProfiler(TTabletCounters* tabletCounters, TTabletSizeMetrics* tabletSizeMetrics);
+
+        ~TTabletSizeProfiler();
+
+        void AddStore(const IStorePtr& store);
+        void RemoveStore(const IStorePtr& store);
+
+        void AddHunkChunk(const THunkChunkPtr& hunkChunk);
+        void RemoveHunkChunk(const THunkChunkPtr& hunkChunk);
+
+    private:
+        TTabletCounters* TabletCounters_;
+        TTabletSizeMetrics* TabletSizeMetrics_;
+    };
+
     ITabletContext* const Context_;
     TIdGenerator IdGenerator_;
 
@@ -880,13 +910,14 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
     TTabletCounters TabletCounters_;
+    TTabletSizeMetrics TabletSizeMetrics_;
     i64 CumulativeDataWeight_ = 0;
 
     void Initialize();
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 
-    void UpdateTabletSizeMetrics();
+    TTabletSizeProfiler GetTabletSizeProfiler();
     void UpdateOverlappingStoreCount();
     int ComputeEdenOverlappingStoreCount() const;
     int ComputeDynamicStoreCount() const;
