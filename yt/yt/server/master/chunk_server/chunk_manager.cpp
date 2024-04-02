@@ -3678,7 +3678,10 @@ private:
                         },
                         .Fake = true
                     };
-                    transaction->WriteRow(locationReplica);
+                    transaction->WriteRow(
+                        locationReplica,
+                        NTableClient::ELockType::SharedWrite,
+                        NTableClient::EValueFlags::Aggregate);
                 }
 
                 transaction->AddTransactionAction(
@@ -3757,7 +3760,10 @@ private:
                         },
                         .Fake = true
                     };
-                    transaction->WriteRow(locationReplica);
+                    transaction->WriteRow(
+                        locationReplica,
+                        NTableClient::ELockType::SharedWrite,
+                        NTableClient::EValueFlags::Aggregate);
                 }
 
                 std::vector<NRecords::TLocationReplicasKey> keys;
