@@ -29,25 +29,54 @@ public:
         IInvokerPtr ioInvoker)
         : SnapshotPath_(std::move(snapshotPath))
         , ChangelogPath_(std::move(changelogPath))
-        , Config_(std::move(config))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(ioInvoker),
-            BIND(&TLocalHydraJanitor::OnCleanup, MakeWeak(this)),
-            Config_->CleanupPeriod))
+            BIND(&TLocalHydraJanitor::OnCleanup, MakeWeak(this))))
+        , Config_(std::move(config))
     { }
 
-    void Start() override
+    void Initialize() override
     {
-        PeriodicExecutor_->Start();
+        PeriodicExecutor_->SetPeriod(GetConfig()->CleanupPeriod);
+
+        if (GetConfig()->EnableLocalJanitor) {
+            PeriodicExecutor_->Start();
+        }
+    }
+
+    void Reconfigure(const TDynamicLocalHydraJanitorConfigPtr& dynamicConfig) override
+    {
+        auto oldConfig = GetConfig();
+        auto newConfig = oldConfig->ApplyDynamic(dynamicConfig);
+
+        PeriodicExecutor_->SetPeriod(newConfig->CleanupPeriod);
+
+        if (newConfig->EnableLocalJanitor != oldConfig->EnableLocalJanitor) {
+            if (newConfig->EnableLocalJanitor) {
+                PeriodicExecutor_->Start();
+            } else {
+                YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
+            }
+
+            YT_LOG_DEBUG("Janitor was %v",
+                newConfig->EnableLocalJanitor ? "enabled" : "disabled");
+        }
+
+        Config_.Store(std::move(newConfig));
+    }
+
+    TLocalHydraJanitorConfigPtr GetConfig() const
+    {
+        return Config_.Acquire();
     }
 
 private:
     const TString SnapshotPath_;
     const TString ChangelogPath_;
-    const TLocalHydraJanitorConfigPtr Config_;
 
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
+    TAtomicIntrusivePtr<TLocalHydraJanitorConfig> Config_;
 
     static int ParseFileId(const TString& fileName, const TString& suffix)
     {
@@ -122,7 +151,7 @@ private:
         auto thresholdId = ComputeJanitorThresholdId(
             snapshots,
             changelogs,
-            Config_);
+            GetConfig());
 
         RemoveFiles(SnapshotPath_, "." + SnapshotExtension, thresholdId);
         RemoveFiles(ChangelogPath_, "." + ChangelogExtension, thresholdId);

@@ -3,10 +3,11 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, build_snapshot,
-    reset_state_hash, discombobulate_nonvoting_peers, get_master_consistent_state)
+    reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, get_master_consistent_state)
 
 from yt.common import YtError
 
+import os
 import pytest
 import time
 
@@ -156,3 +157,38 @@ class TestLamportClock(YTEnvSetup):
         assert len(state) == len(new_state)
         for cell_id in new_state:
             assert new_state[cell_id] >= state[cell_id]
+
+
+class TestLocalJanitor(YTEnvSetup):
+    DELTA_MASTER_CONFIG = {
+        "hydra_manager": {
+            "enable_local_janitor": False,
+            "max_snapshot_count_to_keep": 2,
+            "cleanup_period": 100,
+        }
+    }
+
+    @authors("danilalexeev")
+    def test_janitor_dynamic_config(self):
+        def build_n_snapshots(n):
+            for _ in range(n):
+                build_master_snapshots()
+
+        snapshot_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0", "snapshots")
+        assert os.path.exists(snapshot_dir)
+
+        assert len(os.listdir(snapshot_dir)) == 0
+
+        build_n_snapshots(3)
+        assert len(os.listdir(snapshot_dir)) == 3
+
+        set('//sys/@config/hydra_manager/enable_local_janitor', True)
+        wait(lambda: len(os.listdir(snapshot_dir)) == 2)
+
+        set('//sys/@config/hydra_manager/max_snapshot_count_to_keep', 0)
+        wait(lambda: len(os.listdir(snapshot_dir)) == 1)
+
+        set('//sys/@config/hydra_manager/cleanup_period', 100500)
+        build_n_snapshots(3)
+        time.sleep(1)
+        assert len(os.listdir(snapshot_dir)) == 4

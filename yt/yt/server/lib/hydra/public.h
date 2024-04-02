@@ -74,6 +74,7 @@ class TSaveContext;
 class TLoadContext;
 
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicLocalHydraJanitorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicDistributedHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogConfig)
 DECLARE_REFCOUNTED_CLASS(TFileChangelogDispatcherConfig)

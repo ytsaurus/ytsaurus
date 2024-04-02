@@ -137,10 +137,50 @@ void THydraJanitorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLocalHydraJanitorConfigPtr TLocalHydraJanitorConfig::ApplyDynamic(
+    const TDynamicLocalHydraJanitorConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TLocalHydraJanitorConfig::ApplyDynamicInplace(const TDynamicLocalHydraJanitorConfig& dynamicConfig)
+{
+    UpdateYsonStructField(MaxChangelogCountToKeep, dynamicConfig.MaxChangelogCountToKeep);
+    UpdateYsonStructField(MaxChangelogSizeToKeep, dynamicConfig.MaxChangelogSizeToKeep);
+    UpdateYsonStructField(MaxSnapshotCountToKeep, dynamicConfig.MaxSnapshotCountToKeep);
+    UpdateYsonStructField(MaxSnapshotSizeToKeep, dynamicConfig.MaxSnapshotSizeToKeep);
+
+    UpdateYsonStructField(CleanupPeriod, dynamicConfig.CleanupPeriod);
+    UpdateYsonStructField(EnableLocalJanitor, dynamicConfig.EnableLocalJanitor);
+}
+
 void TLocalHydraJanitorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cleanup_period", &TThis::CleanupPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("enable_local_janitor", &TThis::EnableLocalJanitor)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicLocalHydraJanitorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_snapshot_count_to_keep", &TThis::MaxSnapshotCountToKeep)
+        .Optional();
+    registrar.Parameter("max_snapshot_size_to_keep", &TThis::MaxSnapshotSizeToKeep)
+        .Optional();
+    registrar.Parameter("max_changelog_count_to_keep", &TThis::MaxChangelogCountToKeep)
+        .Optional();
+    registrar.Parameter("max_changelog_size_to_keep", &TThis::MaxChangelogSizeToKeep)
+        .Optional();
+    registrar.Parameter("cleanup_period", &TThis::CleanupPeriod)
+        .Optional();
+    registrar.Parameter("enable_local_janitor", &TThis::EnableLocalJanitor)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

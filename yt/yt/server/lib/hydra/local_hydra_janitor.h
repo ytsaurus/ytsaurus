@@ -11,7 +11,8 @@ namespace NYT::NHydra {
 struct ILocalHydraJanitor
     : public TRefCounted
 {
-    virtual void Start() = 0;
+    virtual void Initialize() = 0;
+    virtual void Reconfigure(const TDynamicLocalHydraJanitorConfigPtr& dynamicConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILocalHydraJanitor)

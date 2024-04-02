@@ -180,7 +180,7 @@ public:
 
         HydraManager_->Initialize();
 
-        LocalJanitor_->Start();
+        LocalJanitor_->Initialize();
     }
 
     const TMasterAutomatonPtr& GetAutomaton() const override
@@ -201,6 +201,11 @@ public:
     const IPersistentResponseKeeperPtr& GetResponseKeeper() const override
     {
         return ResponseKeeper_;
+    }
+
+    const ILocalHydraJanitorPtr& GetLocalJanitor() const override
+    {
+        return LocalJanitor_;
     }
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const override
