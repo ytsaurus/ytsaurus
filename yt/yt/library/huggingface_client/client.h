@@ -11,17 +11,17 @@ namespace NYT::NHuggingface {
 class THuggingfaceClient
 {
 public:
-    explicit THuggingfaceClient(const std::optional<TString>& token);
+    THuggingfaceClient(const std::optional<TString>& token, NConcurrency::IPollerPtr poller);
 
     std::vector<TString> GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split);
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr DownloadFile(const TString& url);
 
 private:
-    static constexpr int MaxRedirectCounts_ = 10;
+    static constexpr int MaxRedirectCounts = 10;
 
-    std::optional<TString> HuggingfaceToken_;
-    NHttp::IClientPtr Client_;
+    const std::optional<TString> Token_;
+    const NHttp::IClientPtr Client_;
 
     std::vector<TString> ParseParquetFileUrls(TStringBuf data);
 };

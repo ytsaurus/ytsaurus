@@ -17,29 +17,40 @@ using namespace NYT::NHttp;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THuggingfaceClient::THuggingfaceClient(const std::optional<TString>& token)
-    : HuggingfaceToken_(token)
+namespace {
+
+NHttp::IClientPtr CreateHttpClient(NConcurrency::IPollerPtr poller, int maxRedirectCounts)
 {
     auto httpsConfig = NYT::New<NYT::NHttps::TClientConfig>();
-    auto poller = NConcurrency::CreateThreadPoolPoller(1, "http_poller");
-    httpsConfig->MaxRedirectCount = MaxRedirectCounts_;
-
-    Client_ = NHttps::CreateClient(httpsConfig, poller);
+    httpsConfig->MaxRedirectCount = maxRedirectCounts;
+    return NHttps::CreateClient(httpsConfig, poller);
 }
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+THuggingfaceClient::THuggingfaceClient(
+    const std::optional<TString>& token,
+    NConcurrency::IPollerPtr poller)
+    : Token_(token)
+    , Client_(CreateHttpClient(std::move(poller), MaxRedirectCounts))
+{ }
 
 std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split)
 {
     auto headers = New<THeaders>();
-    if (HuggingfaceToken_) {
-        headers->Set("Authorization", "Bearer " + *HuggingfaceToken_);
+    if (Token_) {
+        headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    TString url = NYT::Format("https://huggingface.co/api/datasets/%v/parquet/%v/%v", dataset, config, split);
+    auto url = NYT::Format("https://huggingface.co/api/datasets/%v/parquet/%v/%v", dataset, config, split);
 
-    auto response = NConcurrency::WaitFor(Client_->Get(url, headers)).ValueOrThrow();
+    auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
+        .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {
-        THROW_ERROR_EXCEPTION("Failed to get parquet files list, HTTP proxy discovery request returned an error")
+        THROW_ERROR_EXCEPTION("Failed to get Parquet files list, HTTP proxy discovery request returned an error")
             << TErrorAttribute("status_code", response->GetStatusCode());
     }
 
@@ -50,11 +61,12 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
 NConcurrency::IAsyncZeroCopyInputStreamPtr THuggingfaceClient::DownloadFile(const TString& url)
 {
     auto headers = New<THeaders>();
-    if (HuggingfaceToken_) {
-        headers->Set("Authorization", "Bearer " + *HuggingfaceToken_);
+    if (Token_) {
+        headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    auto response = NConcurrency::WaitFor(Client_->Get(url, headers)).ValueOrThrow();
+    auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
+        .ValueOrThrow();
 
     if (response->GetStatusCode() != EStatusCode::OK) {
         THROW_ERROR_EXCEPTION("Failed to download file, HTTP proxy discovery request returned an error")
@@ -68,12 +80,12 @@ std::vector<TString> THuggingfaceClient::ParseParquetFileUrls(TStringBuf data)
 {
     NJson::TJsonValue jsonValue;
     if (!NJson::ReadJsonTree(data, &jsonValue) || !jsonValue.IsArray()) {
-        THROW_ERROR_EXCEPTION("Invalid HTTP response, can't parse http body to json list");
+        THROW_ERROR_EXCEPTION("Invalid HTTP response: cannot parse http body to JSON list");
     }
     std::vector<TString> result;
     for (const auto& fileUrl : jsonValue.GetArray()) {
         if (!fileUrl.IsString()) {
-            THROW_ERROR_EXCEPTION("Invalid HTTP response, expected string element in json list");
+            THROW_ERROR_EXCEPTION("Invalid HTTP response: expected string element in JSON list");
         }
         result.push_back(fileUrl.GetString());
     }

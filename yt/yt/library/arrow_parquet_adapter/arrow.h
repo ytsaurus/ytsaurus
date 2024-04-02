@@ -1,16 +1,12 @@
 #pragma once
 
-#include <yt/cpp/mapreduce/interface/client.h>
+#include <util/generic/fwd.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/io/memory.h>
-#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+#include <util/stream/input.h>
 
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
-#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
+#include <contrib/libs/apache/arrow/cpp/src/arrow/io/interfaces.h>
 
-namespace NYT::NFormats::NArrow {
+namespace NYT::NArrow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,14 +15,12 @@ void ThrowOnError(const arrow::Status& status);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::shared_ptr<arrow::io::RandomAccessFile> CreateParquetAdapter(
-    const TString* metaData,
-    int startMetadataOffset,
-    const std::shared_ptr<IInputStream>& reader = nullptr);
+    const TString* metadata,
+    i64 startMetadataOffset,
+    std::shared_ptr<IInputStream> reader = nullptr);
 
-std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metaData, int startIndex);
-
-TTableSchema CreateYtTableSchemaFromArrowSchema(const std::shared_ptr<arrow::Schema>& arrowSchema);
+std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TString* metadata, i64 startIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NFormats::NArrow
+} // namespace NYT::NArrow

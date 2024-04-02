@@ -1155,7 +1155,7 @@
   "yt/yt/tools/dump_changelog/CMakeLists.txt":"",
   "yt/yt/tools/dump_chunk_meta/CMakeLists.txt":"",
   "yt/yt/tools/force_commit_tx/CMakeLists.txt":"",
-  "yt/yt/tools/importer/CMakeLists.txt":"",
+  "yt/yt/tools/import_table/CMakeLists.txt":"",
   "yt/yt/tools/journal_reader/CMakeLists.txt":"",
   "yt/yt/tools/offline_controller/CMakeLists.txt":"",
   "yt/yt/tools/offline_read/CMakeLists.txt":"",

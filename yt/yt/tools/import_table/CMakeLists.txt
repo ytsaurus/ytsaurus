@@ -5,10 +5,10 @@
 # ya.make files by maintainers. Any complex modifications which can't be ported back to the
 # original buildsystem will not be accepted.
 
-add_executable(importer)
+add_executable(import_table)
 
 
-target_link_libraries(importer PUBLIC
+target_link_libraries(import_table PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
@@ -24,7 +24,7 @@ target_link_libraries(importer PUBLIC
   libs-apache-arrow
 )
 
-target_link_options(importer PRIVATE
+target_link_options(import_table PRIVATE
   -ldl
   -lrt
   -Wl,--no-as-needed
@@ -36,18 +36,18 @@ target_link_options(importer PRIVATE
   -lutil
 )
 
-target_sources(importer PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/importer/main.cpp
+target_sources(import_table PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/main.cpp
 )
 
 
 
-target_allocator(importer
+target_allocator(import_table
   cpp-malloc-tcmalloc
   libs-tcmalloc-no_percpu_cache
 )
 
-vcs_info(importer)
+vcs_info(import_table)
 
 
 

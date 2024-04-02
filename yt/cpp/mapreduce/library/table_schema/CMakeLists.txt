@@ -17,10 +17,12 @@ target_link_libraries(mapreduce-library-table_schema PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
+  libs-apache-arrow
 )
 
 target_sources(mapreduce-library-table_schema PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.h
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/arrow.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/table_schema/protobuf.cpp
 )
 

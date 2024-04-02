@@ -6,6 +6,8 @@
 
 #include <yt/cpp/mapreduce/util/temp_table.h>
 
+#include <yt/cpp/mapreduce/library/table_schema/arrow.h>
+
 #include <yt/yt/client/api/cypress_client.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -23,6 +25,11 @@
 #include <library/cpp/yson/node/node.h>
 
 #include <library/cpp/getopt/modchooser.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/ipc/api.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
+#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/writer.h>
 
 #include <util/system/env.h>
 
@@ -43,7 +50,7 @@ constexpr int SizeOfMagicBytes = 4;
 const TString MetadataColumnName = "metadata";
 const TString StartMetadataOffsetColumnName = "start_metadata_offset";
 const TString PartIndexColumnName = "part_index";
-const TString FileUrlColumnName = "file_url";
+const TString FileIdColumnName = "file_id";
 const TString FileIndexColumnName = "file_index";
 const TString DataColumnName = "data";
 
@@ -134,41 +141,75 @@ std::vector<TString> GetListFilesKeysFromS3(
     return keys;
 }
 
-IAsyncZeroCopyInputStreamPtr DownloadFileFromS3(
-    const TS3Config& s3Config,
-    const TString& accessKeyId,
-    const TString& secretAccessKey,
-    const TString& fileKey)
-{
-    auto s3Client =  CreateS3Client(
-        s3Config,
-        accessKeyId,
-        secretAccessKey);
-
-    return WaitFor(s3Client->GetObjectStream({
-        .Bucket = s3Config.Bucket,
-        .Key = fileKey,
-    })).ValueOrThrow().Stream;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-IAsyncZeroCopyInputStreamPtr DownloadFileFromSource(
-    const TSourceConfig& sourceConfig,
-    const TString& fileId)
+DECLARE_REFCOUNTED_STRUCT(IDownloader)
+
+struct IDownloader
+    : public TRefCounted
+{
+   virtual IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDownloader)
+
+class TS3Downloader
+    : public IDownloader
+{
+public:
+    TS3Downloader(
+        const TS3Config& s3Config,
+        const TString& accessKeyId,
+        const TString& secretAccessKey)
+        : Client_(CreateS3Client(
+            s3Config,
+            accessKeyId,
+            secretAccessKey))
+        , Bucket_(s3Config.Bucket)
+    { }
+
+    IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) override
+    {
+        return WaitFor(Client_->GetObjectStream({
+            .Bucket = Bucket_,
+            .Key = fileId,
+        })).ValueOrThrow().Stream;
+    }
+
+private:
+    NS3::IClientPtr Client_;
+    TString Bucket_;
+};
+
+class THuggingfaceDownloader
+    : public IDownloader
+{
+public:
+    THuggingfaceDownloader(const TString& huggingfaceToken)
+        : Client_(huggingfaceToken, CreateThreadPoolPoller(1, "huggingface_poller"))
+    { }
+
+    IAsyncZeroCopyInputStreamPtr GetFile(const TString& fileId) override
+    {
+        return Client_.DownloadFile(fileId);
+    }
+
+private:
+    NHuggingface::THuggingfaceClient Client_;
+};
+
+IDownloaderPtr CreateDownloader(const TSourceConfig& sourceConfig)
 {
     if (sourceConfig.S3Config) {
         TString accessKeyId = GetEnv("YT_SECURE_VAULT_ACCESS_KEY_ID");
         TString secretAccessKey = GetEnv("YT_SECURE_VAULT_SECRET_ACCESS_KEY");
-        return DownloadFileFromS3(
+        return New<TS3Downloader>(
             *sourceConfig.S3Config,
             accessKeyId,
-            secretAccessKey,
-            fileId);
+            secretAccessKey);
     } else if (sourceConfig.HuggingfaceConfig) {
         TString huggingfaceToken = GetEnv("YT_SECURE_VAULT_HUGGINGFACE_TOKEN");
-        NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken);
-        return huggingfaceClient.DownloadFile(fileId);
+        return New<THuggingfaceDownloader>(huggingfaceToken);
     } else {
         THROW_ERROR_EXCEPTION("The importer source is not defined");
     }
@@ -259,6 +300,11 @@ public:
         : SourceConfig_(std::move(sourceConfig))
     { }
 
+    void Start(TWriter* /*writer*/) override
+    {
+        Downloader_ = CreateDownloader(SourceConfig_);
+    }
+
     void Do(TReader* reader, TWriter* writer) override
     {
         TBlobTableSchema blobTableSchema;
@@ -266,7 +312,7 @@ public:
 
         for (auto& cursor : *reader) {
             const auto& curRow = cursor.GetRow();
-            auto url = curRow[FileUrlColumnName].AsString();
+            auto fileId = curRow[FileIdColumnName].AsString();
             auto fileIndex = curRow[FileIndexColumnName].AsInt64();
 
             BufferPosition_ = 0;
@@ -283,7 +329,7 @@ public:
 
             FileSize_ = 0;
 
-            auto stream = DownloadFileFromSource(SourceConfig_, url);
+            auto stream = Downloader_->GetFile(fileId);
             while (auto data = WaitFor(stream->Read()).ValueOrThrow()) {
                 DownloadFilePart(data);
             }
@@ -300,6 +346,7 @@ private:
     int FileSize_;
     IFileWriterPtr BlobTableWriter_;
     TSourceConfig SourceConfig_;
+    IDownloaderPtr Downloader_;
 
     // A ring buffer in which we save the current end of the file.
     char RingBuffer_[BufferSize];
@@ -355,7 +402,7 @@ private:
         int metadataSize = *(reinterpret_cast<int*>(metadataSizeData)) + (SizeOfMagicBytes + SizeOfMetadataSize);
         metadataSize = std::max(DefaultFooterReadSize + SizeOfMagicBytes + SizeOfMetadataSize, metadataSize);
         if (metadataSize > BufferSize) {
-            THROW_ERROR_EXCEPTION("Meta data size of parquet file is too big");
+            THROW_ERROR_EXCEPTION("Meta data size of Parquet file is too big");
         }
 
         auto metadataStartOffset = (BufferPosition_ + BufferSize - metadataSize) % BufferSize;
@@ -410,13 +457,13 @@ public:
 
         auto stream = std::make_shared<TFileReader>(reader);
 
-        auto parquetAdapter = NFormats::NArrow::CreateParquetAdapter(&metadata, startIndex, stream);
+        auto parquetAdapter = NArrow::CreateParquetAdapter(&metadata, startIndex, stream);
 
         auto* pool = arrow::default_memory_pool();
 
         std::unique_ptr<parquet::arrow::FileReader> arrowFileReader;
 
-        NFormats::NArrow::ThrowOnError(parquet::arrow::FileReader::Make(
+        NArrow::ThrowOnError(parquet::arrow::FileReader::Make(
             pool,
             parquet::ParquetFileReader::Open(parquetAdapter),
             parquet::ArrowReaderProperties{},
@@ -427,23 +474,23 @@ public:
         TArrowOutputStream outputStream(&output);
 
         std::shared_ptr<arrow::Schema> arrowSchema;
-        NFormats::NArrow::ThrowOnError(arrowFileReader->GetSchema(&arrowSchema));
+        NArrow::ThrowOnError(arrowFileReader->GetSchema(&arrowSchema));
 
         auto recordBatchWriterOrError = arrow::ipc::MakeStreamWriter(&outputStream, arrowSchema);
-        NFormats::NArrow::ThrowOnError(recordBatchWriterOrError.status());
+        NArrow::ThrowOnError(recordBatchWriterOrError.status());
         auto recordBatchWriter = recordBatchWriterOrError.ValueOrDie();
         for (int rowGroupIndex = 0; rowGroupIndex < numRowGroups; rowGroupIndex++) {
             std::vector<int> rowGroup = {rowGroupIndex};
 
             std::shared_ptr<arrow::Table> table;
-            NFormats::NArrow::ThrowOnError(arrowFileReader->ReadRowGroups(rowGroup, &table));
+            NArrow::ThrowOnError(arrowFileReader->ReadRowGroups(rowGroup, &table));
             arrow::TableBatchReader tableBatchReader(*table);
             std::shared_ptr<arrow::RecordBatch> batch;
-            NFormats::NArrow::ThrowOnError(tableBatchReader.ReadNext(&batch));
+            NArrow::ThrowOnError(tableBatchReader.ReadNext(&batch));
 
             while (batch) {
-                NFormats::NArrow::ThrowOnError(recordBatchWriter->WriteRecordBatch(*batch));
-                NFormats::NArrow::ThrowOnError(tableBatchReader.ReadNext(&batch));
+                NArrow::ThrowOnError(recordBatchWriter->WriteRecordBatch(*batch));
+                NArrow::ThrowOnError(tableBatchReader.ReadNext(&batch));
             }
         }
     }
@@ -535,15 +582,15 @@ TTableSchema CreateResultTableSchema(IClientPtr ytClient, const TString& metadat
     // Extract metadata to find out the schema.
     auto reader = ytClient->CreateTableReader<TNode>(metadataOfParquetTable);
     if (!reader->IsValid()) {
-        THROW_ERROR_EXCEPTION("Can't read metadata of parquet file");
+        THROW_ERROR_EXCEPTION("Can't read metadata of Parquet file");
     }
 
     auto& row = reader->GetRow();
     auto metadata = row[MetadataColumnName].AsString();
     auto metadataStartOffset = row[StartMetadataOffsetColumnName].AsInt64();
 
-    auto arrowSchema = NFormats::NArrow::CreateArrowSchemaFromParquetMetadata(&metadata, metadataStartOffset);
-    return NFormats::NArrow::CreateYtTableSchemaFromArrowSchema(arrowSchema);
+    auto arrowSchema = NArrow::CreateArrowSchemaFromParquetMetadata(&metadata, metadataStartOffset);
+    return CreateYTTableSchemaFromArrowSchema(arrowSchema);
 }
 
 void ImportParquetFilesFromSource(
@@ -562,7 +609,7 @@ void ImportParquetFilesFromSource(
         /*path*/ TString(),
         TCreateOptions().Attributes(TNode()("schema", TTableSchema()
             .AddColumn(TColumnSchema()
-                .Name(FileUrlColumnName)
+                .Name(FileIdColumnName)
                 .Type(VT_STRING, true))
             .AddColumn(TColumnSchema()
                 .Name(FileIndexColumnName)
@@ -571,12 +618,12 @@ void ImportParquetFilesFromSource(
     auto writer = ytClient->CreateTableWriter<TNode>(metaInformationTable.Name());
     int fileIndex = 0;
     for (const auto& fileName : fileIds) {
-        writer->AddRow(TNode()(FileUrlColumnName, fileName)(FileIndexColumnName, fileIndex));
+        writer->AddRow(TNode()(FileIdColumnName, fileName)(FileIndexColumnName, fileIndex));
         ++fileIndex;
     }
     writer->Finish();
 
-    YT_LOG_INFO("Create tables with data and meta parquet information from parquet files");
+    YT_LOG_INFO("Create tables with data and meta Parquet information from Parquet files");
 
     TBlobTableSchema blobTableSchema;
     blobTableSchema.BlobIdColumns({TColumnSchema().Name(FileIndexColumnName).Type(VT_INT64)});
@@ -675,7 +722,7 @@ void ImportFilesFromSource(
             cluster,
             sourceConfig);
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, only parquet is supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
     }
 }
 
@@ -718,13 +765,14 @@ int ImportFilesFromHuggingface(int argc, const char** argv)
     if (opts.Format == "parquet") {
         YT_LOG_INFO("Start getting list of files");
 
-        NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken);
+        auto poller = CreateThreadPoolPoller(1, "huggingface_poller");
+        NHuggingface::THuggingfaceClient huggingfaceClient(huggingfaceToken, poller);
 
         fileIds = huggingfaceClient.GetParquetFileUrls(opts.Dataset, opts.Config, opts.Split);
 
         YT_LOG_INFO("Successfully received %v file names from huggingface", fileIds.size());
     } else {
-        THROW_ERROR_EXCEPTION("Unsupported format, only parquet is supported now");
+        THROW_ERROR_EXCEPTION("Unsupported format, only Parquet is supported now");
     }
 
     ImportFilesFromSource(
@@ -758,13 +806,13 @@ void ImportFiles(int argc, const char** argv)
 } // namespace NYT::NTools::NImporter
 
 // Huggingface token must be placed in an environment variable $HUGGINGFACE_TOKEN
-// Usage example: ./importer huggingface \
+// Usage example: ./import_table huggingface \
 //     --proxy <cluster-name> \
 //     --dataset Deysi/spanish-chinese \
 //     --split train \
 //     --output //tmp/result_parquet_table
 // or
-//     ./importer huggingface \
+//     ./import_table huggingface \
 //     --proxy <cluster-name> \
 //     --dataset Deysi/spanish-chinese \
 //     --config not_default \
@@ -772,7 +820,7 @@ void ImportFiles(int argc, const char** argv)
 //     --output //tmp/result_parquet_table
 
 // S3 access keys must be placed in an environment variables $ACCESS_KEY_ID and $SECRET_ACCESS_KEY
-// Usage example for yandex cloud: ./importer s3 \
+// Usage example for yandex cloud: ./import_table s3 \
 //     --proxy <cluster-name> \
 //     --url https://s3.yandexcloud.net \
 //     --region ru-central1 \ # optional param
@@ -780,7 +828,7 @@ void ImportFiles(int argc, const char** argv)
 //     --prefix common_parquet_files_prefix \ # would be empty by default
 //     --output //tmp/result_parquet_table
 
-// Usage example for amazon: ./importer s3 \
+// Usage example for amazon: ./import_table s3 \
 //     --proxy <cluster-name> \
 //     --url https://s3-us-west-2.amazonaws.com \
 //     --bucket bucket_name \

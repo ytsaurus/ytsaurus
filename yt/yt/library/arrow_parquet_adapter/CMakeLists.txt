@@ -12,7 +12,6 @@ target_link_libraries(yt-library-arrow_parquet_adapter PUBLIC
   contrib-libs-linux-headers
   contrib-libs-cxxsupp
   yutil
-  cpp-mapreduce-client
   cpp-yt-assert
   libs-apache-arrow
 )
