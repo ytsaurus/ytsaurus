@@ -297,19 +297,20 @@ class YtClient(ClientState):
     def alter_table_replica(
             self,
             replica_id,
-            enabled=None, mode=None):
+            enabled=None, mode=None, enable_replicated_table_tracker=None):
         """
-        Changes mode and enables or disables a table replica.
+        Changes mode and enables or disables a table replica or replicated table tracker for table replica.
 
         :param str replica_id: replica id.
         :param bool enabled: enable or disable the replica.
         :param str mode: switch the replica to sync or async mode.
+        :param bool enable_replicated_table_tracker: enable or disable replicated table tracker.
 
         """
         return client_api.alter_table_replica(
             replica_id,
             client=self,
-            enabled=enabled, mode=mode)
+            enabled=enabled, mode=mode, enable_replicated_table_tracker=enable_replicated_table_tracker)
 
     def balance_tablet_cells(
             self,

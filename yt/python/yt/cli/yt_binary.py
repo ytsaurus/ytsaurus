@@ -995,8 +995,12 @@ def alter_table_replica(**kwargs):
     if kwargs["disable"]:
         kwargs["enabled"] = False
 
+    if kwargs["disable_replicated_table_tracker"]:
+        kwargs["enable_replicated_table_tracker"] = False
+
     kwargs.pop("enable")
     kwargs.pop("disable")
+    kwargs.pop("disable_replicated_table_tracker")
 
     yt.alter_table_replica(**kwargs)
 
@@ -1007,6 +1011,13 @@ def add_alter_table_replica_parser(add_parser):
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--enable", action="store_true", help="enable table replica")
     group.add_argument("--disable", action="store_true", help="disable table replica")
+
+    replicated_table_tracker_group = parser.add_mutually_exclusive_group()
+    replicated_table_tracker_group.add_argument("--enable-replicated-table-tracker", action="store_true",
+                                                help="enable replicated table tracker for table replica")
+    replicated_table_tracker_group.add_argument("--disable-replicated-table-tracker", action="store_true",
+                                                help="disable replicated table tracker for table replica")
+
     parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
 
 

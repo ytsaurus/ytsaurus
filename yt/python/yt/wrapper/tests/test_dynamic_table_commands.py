@@ -296,6 +296,14 @@ class TestDynamicTableCommands(object):
             assert len(attributes["tablets"]) == 1
             assert attributes["tablets"][0]["state"] == "none"
 
+            yt.alter_table_replica(replica_id, enable_replicated_table_tracker=False)
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["enable_replicated_table_tracker"])
+            assert not attributes["enable_replicated_table_tracker"]
+
+            yt.alter_table_replica(replica_id, enable_replicated_table_tracker=True)
+            attributes = yt.get("#{0}/@".format(replica_id), attributes=["enable_replicated_table_tracker"])
+            assert attributes["enable_replicated_table_tracker"]
+
         finally:
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
