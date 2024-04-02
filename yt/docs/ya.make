@@ -1,11 +1,9 @@
 DOCS()
 
 DOCS_VARS(
-    version=0
     audience=public
     product-name=YTsaurus
     source-root=https://github.com/ytsaurus/ytsaurus/tree/main
-    prestable-cluster=<cluster-name>
     testing-cluster=<cluster-name>
     production-cluster=<cluster-name>
     package-name=ytsaurus-client

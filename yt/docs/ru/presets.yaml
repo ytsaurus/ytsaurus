@@ -1,6 +1,6 @@
 default:
-    web-interface: 'веб-интерфейс'
 public:
+    web-interface: 'веб-интерфейс'
     audience: public
     product-name: YTsaurus
     source-root: https://github.com/ytsaurus/ytsaurus/tree/main
