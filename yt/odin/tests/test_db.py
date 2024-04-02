@@ -80,7 +80,7 @@ def test_yt_db_for_cluster(yt_env):  # noqa
     client = yt_env.yt_client
     TABLE = "//tmp/test_table_two"
     CLUSTER = "hahahn"
-    init_yt_table(TABLE, client, bundle="default")
+    init_yt_table(TABLE, client, bundle="default", primary_medium="default")
     proxy = client.config["proxy"]["url"]
     token = client.config["token"]
     db_table_client_for_cluster = create_yt_table_client_for_cluster(table=TABLE, cluster=CLUSTER,
