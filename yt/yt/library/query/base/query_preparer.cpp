@@ -2280,6 +2280,13 @@ TUntypedExpression TBuilderCtx::OnInOp(
         "IN",
         inExpr->GetSource(Source));
 
+    for (auto type : argTypes) {
+        if (IsAnyOrComposite(type)) {
+            THROW_ERROR_EXCEPTION("Cannot use expression of type %Qlv with IN operator", type)
+                << TErrorAttribute("source", source);
+        }
+    }
+
     auto capturedRows = LiteralTupleListToRows(inExpr->Values, argTypes, source);
     auto result = New<TInExpression>(std::move(typedArguments), std::move(capturedRows));
 
