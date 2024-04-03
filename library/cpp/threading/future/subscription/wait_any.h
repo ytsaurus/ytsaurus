@@ -1,18 +1,21 @@
-﻿#pragma once
+#pragma once
 
 #include "wait.h"
 
 namespace NThreading::NWait {
 
 template <typename TFutures, typename TCallbackExecutor>
+[[nodiscard("This method creates TFuture, wait for it")]]
 TFuture<void> WaitAny(TFutures const& futures, TSubscriptionManagerPtr manager = TSubscriptionManager::Default()
                         , TCallbackExecutor&& executor = TCallbackExecutor());
 
 template <typename T, typename TCallbackExecutor>
+[[nodiscard("This method creates TFuture, wait for it")]]
 TFuture<void> WaitAny(std::initializer_list<TFuture<T> const> futures, TSubscriptionManagerPtr manager = TSubscriptionManager::Default()
                         , TCallbackExecutor&& executor = TCallbackExecutor());
 
 template <typename T, typename TCallbackExecutor>
+[[nodiscard("This method creates TFuture, wait for it")]]
 TFuture<void> WaitAny(TFuture<T> const& future1, TFuture<T> const& future2, TSubscriptionManagerPtr manager = TSubscriptionManager::Default()
                         , TCallbackExecutor&& executor = TCallbackExecutor());
 
