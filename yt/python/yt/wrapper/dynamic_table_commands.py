@@ -751,7 +751,6 @@ def alter_table_replica(replica_id, enabled=None, mode=None, enable_replicated_t
     :param bool enabled: enable or disable the replica.
     :param str mode: switch the replica to sync or async mode.
     :param bool enable_replicated_table_tracker: enable or disable replicated table tracker.
-
     """
 
     if mode is not None:
