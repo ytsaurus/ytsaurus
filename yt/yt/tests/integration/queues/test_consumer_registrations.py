@@ -2,8 +2,9 @@ from yt_queue_agent_test_base import (TestQueueAgentBase, ReplicatedObjectBase, 
 
 from yt_commands import (authors, wait, get, set, create, sync_mount_table, get_driver, select_rows, print_debug, link,
                          check_permission, register_queue_consumer, unregister_queue_consumer, commit_transaction,
-                         list_queue_consumer_registrations, raises_yt_error, create_user, sync_create_cells, remove,
-                         pull_queue, pull_consumer, advance_consumer, insert_rows, start_transaction)
+                         list_queue_consumer_registrations, raises_yt_error, retry_yt_error, create_user,
+                         sync_create_cells, remove, pull_queue, pull_consumer, advance_consumer, insert_rows,
+                         start_transaction)
 
 from yt_env_setup import (
     Restarter,
@@ -672,8 +673,11 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         attrs = {"dynamic": True, "schema": [{"name": "a", "type": "string"}]}
         create("table", "//tmp/q", attributes=attrs, driver=get_driver(cluster=queue_cluster))
         create("table", "//tmp/c", attributes=attrs, driver=get_driver(cluster=consumer_cluster))
-        register_queue_consumer(f"{queue_cluster}://tmp/q", f"{consumer_cluster}://tmp/c", vital=True,
-                                driver=get_driver(cluster=queue_cluster))
+
+        # Retry on errors caused by replicated table tracker switches that might be in progress
+        with retry_yt_error(codes=[yt_error_codes.SyncReplicaNotInSync]):
+            register_queue_consumer(f"{queue_cluster}://tmp/q", f"{consumer_cluster}://tmp/c", vital=True,
+                                    driver=get_driver(cluster=queue_cluster))
 
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, {
             (queue_cluster, "//tmp/q", consumer_cluster, "//tmp/c", True),
