@@ -236,9 +236,8 @@ TJob::TJob(
 TJob::~TJob()
 {
     // Offload job spec destruction to a large thread pool.
-    auto jobSpec = std::make_unique<TJobSpec>(std::move(JobSpec_));
     NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
-        BIND([jobSpec = std::move(jobSpec)] () mutable { jobSpec.reset(); }));
+        BIND_NO_PROPAGATE([jobSpec = std::move(JobSpec_)]{ }));
 }
 
 void TJob::DoStart()
@@ -249,7 +248,7 @@ void TJob::DoStart()
         "DoStart",
         [&] () {
             auto now = TInstant::Now();
-            PrepareStartTime_ = now;
+            PreparationStartTime_ = now;
 
             StartUserJobMonitoring();
 
@@ -319,8 +318,6 @@ void TJob::Start() noexcept
 
     TCurrentTraceContextGuard guard(TraceContext_);
 
-    YT_VERIFY(!std::exchange(Started_, true));
-
     if (JobPhase_ != EJobPhase::Created) {
         YT_LOG_FATAL("Cannot start job, unexpected job phase (JobState: %v, JobPhase: %v)",
             JobState_,
@@ -328,7 +325,11 @@ void TJob::Start() noexcept
         return;
     }
 
-    YT_LOG_INFO("Start job");
+    YT_VERIFY(!std::exchange(Started_, true));
+
+    ResourcesAcquiredTime_ = TInstant::Now();
+
+    YT_LOG_INFO("Starting job");
 
     SetJobState(EJobState::Running);
 
@@ -829,17 +830,25 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    auto getWaitForResourcesDuration = [&] () -> std::optional<TDuration> {
+        if (!ResourcesAcquiredTime_) {
+            return TInstant::Now() - CreationTime_;
+        }
+
+        return *ResourcesAcquiredTime_ - CreationTime_;
+    };
+
     auto getPrepareDuration = [&] () -> std::optional<TDuration> {
         // TODO(arkady-e1ppa): Fix PrepareStartTime semantics.
         if (!StartTime_) {
             return std::nullopt;
         }
-        if (!PrepareStartTime_) {
+        if (!PreparationStartTime_) {
             return std::nullopt;
         } else if (!ExecStartTime_) {
-            return TInstant::Now() - *PrepareStartTime_;
+            return TInstant::Now() - *PreparationStartTime_;
         } else {
-            return *ExecStartTime_ - *PrepareStartTime_;
+            return *ExecStartTime_ - *PreparationStartTime_;
         }
     };
     auto getPrepareRootFSDuration = [&] () -> std::optional<TDuration> {
@@ -852,12 +861,12 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
     auto getArtifactsDownloadDuration = [&] () -> std::optional<TDuration> {
-        if (!PrepareStartTime_) {
+        if (!PreparationStartTime_) {
             return std::nullopt;
         } else if (!CopyFinishTime_) {
-            return TInstant::Now() - *PrepareStartTime_;
+            return TInstant::Now() - *PreparationStartTime_;
         } else {
-            return *CopyFinishTime_ - *PrepareStartTime_;
+            return *CopyFinishTime_ - *PreparationStartTime_;
         }
     };
     auto getExecDuration = [&] () -> std::optional<TDuration> {
@@ -899,12 +908,14 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
 
-    return NJobAgent::TTimeStatistics{
+    return {
+        .WaitingForResourcesDuration = getWaitForResourcesDuration(),
         .PrepareDuration = getPrepareDuration(),
         .ArtifactsDownloadDuration = getArtifactsDownloadDuration(),
         .PrepareRootFSDuration = getPrepareRootFSDuration(),
         .ExecDuration = getExecDuration(),
-        .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())};
+        .GpuCheckDuration = sumOptionals(getPreliminaryGpuCheckDuration(), getExtraGpuCheckDuration())
+    };
 }
 
 std::optional<TInstant> TJob::GetStartTime() const

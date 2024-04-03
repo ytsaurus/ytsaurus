@@ -61,6 +61,7 @@ message TJobToRemove
 
 message TTimeStatistics
 {
+    optional int64 waiting_for_resources_duration = 6;
     optional int64 prepare_duration = 1;
     optional int64 exec_duration = 2;
     optional int64 artifacts_download_duration = 3;

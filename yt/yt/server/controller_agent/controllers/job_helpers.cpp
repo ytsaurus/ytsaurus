@@ -235,6 +235,10 @@ void UpdateJobletFromSummary(
 
     // Update other joblet fields.
 
+    if (joblet->WaitingForResourcesDuration < jobSummary.TimeStatistics.WaitingForResourcesDuration) {
+        joblet->WaitingForResourcesDuration = jobSummary.TimeStatistics.WaitingForResourcesDuration;
+    }
+
     joblet->LastUpdateTime = jobSummary.StatusTimestamp;
     if (jobSummary.FinishTime) {
         joblet->FinishTime = *jobSummary.FinishTime;
