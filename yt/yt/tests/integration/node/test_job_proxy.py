@@ -4,8 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    write_table, map)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table)
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
@@ -389,24 +388,48 @@ class TestJobProxyLogging(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            },
             "job_proxy": {
                 "job_proxy_logging": {
                     "mode": "per_job_directory",
                 },
             },
-        }
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
     }
 
     @authors("tagirhamitov")
     def test_separate_directory(self):
-        create("table", "//tmp/input", attributes={"replication_factor": 1})
-        create("table", "//tmp/output", attributes={"replication_factor": 1})
-        write_table("//tmp/input", [{"a": 1}, {"b": 2}, {"c": 3}])
-        op = map(
-            command="cat",
-            in_="//tmp/input",
-            out="//tmp/output"
-        )
-        op.complete()
-        job_proxy_logs_dir = os.path.join(self.path_to_run, "logs/job_proxy-0")
-        assert os.path.isdir(job_proxy_logs_dir)
+        job_count = 3
+
+        op = run_test_vanilla("sleep 1", job_count=job_count)
+        wait(lambda: len(op.list_jobs()) == job_count)
+        job_ids = op.list_jobs()
+        assert len(job_ids) == job_count
+
+        for job_id in job_ids:
+            sharding_key = job_id.split("-")[0]
+            if len(sharding_key) < 8:
+                sharding_key = "0"
+            else:
+                sharding_key = sharding_key[0]
+            log_path = os.path.join(
+                self.path_to_run,
+                "logs/job_proxy-0",
+                sharding_key,
+                job_id,
+                "job_proxy.log"
+            )
+            assert os.path.exists(log_path)
