@@ -245,7 +245,7 @@ items:
              - name: Functions
                href: user-guide/data-processing/chyt/reference/functions.md
              - name: User-defined SQL functions (UDF)
-               href: user-guide/data-processing/chyt/reference/user-defined-functions.md 
+               href: user-guide/data-processing/chyt/reference/user-defined-functions.md
            - name: Controller
              href: user-guide/data-processing/chyt/cliques/controller.md
            - name: Performance and recommendations
@@ -277,6 +277,8 @@ items:
                  href: user-guide/data-processing/spyt/logs.md
                - name: Troubleshooting
                  href: user-guide/data-processing/spyt/problems.md
+             - name: Spark SQL
+               href: user-guide/data-processing/spyt/spark-sql.md
              - name: API
                items:
                  - name: SPYT in Python
