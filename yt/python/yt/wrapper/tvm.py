@@ -35,3 +35,38 @@ class ServiceTicketAuth(AuthBase):
         for k, v in self.__dict__.items():
             setattr(result, k, deepcopy(v, memo))
         return result
+
+
+class UserTicketFixedAuth(AuthBase):
+
+    def __init__(self, user_ticket=None):
+        if user_ticket is not None:
+            self.set_user_ticket(user_ticket)
+        else:
+            self._user_ticket = None
+
+    def _validate_user_ticket(self, user_ticket):
+        if user_ticket:
+            parts = user_ticket.split(":", 3)
+            if len(parts) == 3 and parts[1] == "user":
+                return True
+        return False
+
+    def set_user_ticket(self, user_ticket):
+        if self._validate_user_ticket(user_ticket):
+            self._user_ticket = user_ticket
+        else:
+            raise ValueError()
+
+    def _set_user_ticket(self, request):
+        if self._user_ticket is not None:
+            request.headers["X-Ya-User-Ticket"] = self._user_ticket
+
+    def handle_redirect(self, request, **kwargs):
+        self._set_user_ticket(request)
+        return request
+
+    def __call__(self, request):
+        self._set_user_ticket(request)
+        request.register_hook("response", self.handle_redirect)
+        return request

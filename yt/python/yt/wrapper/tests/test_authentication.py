@@ -1,7 +1,10 @@
 from .helpers import get_tests_sandbox
 from .conftest import YtTestEnvironment, authors
 
+import mock
+
 import yt.wrapper as yt
+import yt.wrapper.tvm as tvm
 
 
 @authors("ignat")
@@ -23,3 +26,32 @@ def test_cypress_authentication_using_rpc_proxy():
     finally:
         if environment is not None:
             environment.cleanup()
+
+
+@authors("denvr")
+def test_tvm_user_ticket():
+
+    tvm_auth = tvm.UserTicketFixedAuth()
+    client = yt.YtClient(
+        "localhost",
+        config={
+            "tvm_auth": tvm_auth,
+            "proxy": {
+                "retries": {
+                    "enable": False,
+                },
+            },
+        },
+    )
+
+    # skip client prepare
+    client._api_version = "v4"
+    client._commands = {"get": yt.command.Command(name="get", input_type=None, output_type="output_type", is_volatile=False, is_heavy=False)}
+
+    with mock.patch('yt.packages.urllib3.connectionpool.HTTPConnectionPool.urlopen') as m:
+        try:
+            tvm_auth.set_user_ticket("3:user:AAA")
+            client.get('//')
+        except Exception:
+            pass
+        assert m.call_args.kwargs["headers"]["X-Ya-User-Ticket"] == "3:user:AAA"

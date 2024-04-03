@@ -111,6 +111,8 @@ def hide_auth_headers(headers):
         headers["Authorization"] = "x" * 32
     if "X-Ya-Service-Ticket" in headers:
         headers["X-Ya-Service-Ticket"] = "x" * 32
+    if "X-Ya-User-Ticket" in headers:
+        headers["X-Ya-User-Ticket"] = "x" * 32
 
     return headers
 

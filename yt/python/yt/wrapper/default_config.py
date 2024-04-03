@@ -218,7 +218,7 @@ default_config = {
     # Tokens for receiving token by current ssh session.
     "oauth_client_id": "23b4f83306e3469abdee07054d307e7c",
     "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
-    # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client).
+    # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client) or yt.wrapper.tvm.UserTicketFixedAuth()
     "tvm_auth": None,
 
     # Force using this version of api.
