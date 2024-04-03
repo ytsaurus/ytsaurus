@@ -17,8 +17,9 @@ def set_dynamic_table_attributes(table, spec):
 
 
 def create_dynamic_table(
-        table, schema, attributes, tablet_count=None, sorted=True, dynamic=True,
-        skip_mount=False, object_type="table", spec=None):
+    table, schema, attributes, tablet_count=None, sorted=True, dynamic=True,
+    skip_mount=False, object_type="table", spec=None
+):
     logger.info(f"Create dynamic table {table}")
     attributes["dynamic"] = dynamic
     attributes["schema"] = schema.yson_with_unique() if sorted else schema.yson()

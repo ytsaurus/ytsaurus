@@ -17,7 +17,8 @@ from .schema import Schema
 from .secondary_index import (
     make_random_secondary_index_schema,
     verify_insert_secondary_index,
-    verify_select_secondary_index)
+    verify_select_secondary_index,
+    FilterMapper)
 
 import yt.wrapper as yt
 import random
@@ -85,17 +86,21 @@ def generate_iter_data(registry, schema, extra_key_count, aggregate, update, spe
         update)
     yt.remove(registry.prev_data)
 
-def write_to_dynamic_table(registry, schema, aggregate, update, with_alter, spec):
+def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate, update, with_alter, force, spec):
     if with_alter:
+        attributes = copy.deepcopy(attributes)
         assert yt.get(registry.base + "/@dynamic") == False
 
         # YT-18930
+
         if spec.chunk_format in ("table_versioned_simple", "table_versioned_slim", "table_versioned_indexed"):
-            yt.set(registry.base + "/@chunk_format", "table_unversioned_schemaless_horizontal")
-            assert yt.get(registry.base + "/@optimize_for") == "lookup"
+            chunk_format = "table_unversioned_schemaless_horizontal"
+            optimize_for = "lookup"
         else:
-            yt.set(registry.base + "/@chunk_format", "table_unversioned_columnar")
-            assert yt.get(registry.base + "/@optimize_for") == "scan"
+            chunk_format = "table_unversioned_columnar"
+            optimize_for = "scan"
+        yt.set(registry.base + "/@chunk_format", chunk_format)
+        assert yt.get(registry.base + "/@optimize_for") == optimize_for
 
         yt.run_merge(
             registry.iter_data,
@@ -107,14 +112,43 @@ def write_to_dynamic_table(registry, schema, aggregate, update, with_alter, spec
                     "block_size": 256 * 2**10}},
                 "force_transform": True,
                 "title": "Initial merge during table creation"})
+
+        if spec.index:
+            logger.info(f"Creating index table {registry.index}")
+
+            remove_existing([registry.index], force)
+            attributes["schema"] = index_schema.yson_with_unique()
+            attributes["dynamic"] = False
+            attributes["chunk_format"] = chunk_format
+            attributes["optimize_for"] = optimize_for
+            yt.create("table", registry.index, attributes=attributes)
+            attributes["schema"] = [{"name": column.name, "type": column.type.str()} for column in index_schema.columns]
+            with yt.TempTable(attributes=attributes) as tmp:
+                yt.run_map(FilterMapper(index_schema.yson()), registry.base, tmp)
+                yt.run_sort(tmp, registry.index, sort_by=index_schema.get_key_column_names())
+
+            yt.alter_table(registry.index, dynamic=True)
+            set_dynamic_table_attributes(registry.index, spec)
+            yt.reshard_table(registry.index, index_schema.get_pivot_keys(), sync=True)
+
         yt.alter_table(registry.base, dynamic=True)
         set_dynamic_table_attributes(registry.base, spec)
         yt.reshard_table(registry.base, schema.get_pivot_keys(), sync=True)
 
         # YT-18930
         yt.set(registry.base + "/@chunk_format", spec.chunk_format)
+        yt.set(registry.index + "/@chunk_format", spec.chunk_format)
+
+        if spec.index:
+            yt.create("secondary_index", attributes={
+                "table_path": registry.base,
+                "index_table_path": registry.index,
+                "kind": spec.index.kind,
+            })
+            mount_table(registry.index)
 
         mount_table(registry.base)
+
     elif spec.sorted.write_policy == "insert_rows":
         write_data(schema, registry.iter_data, registry.base, aggregate, update, spec)
     elif spec.sorted.write_policy == "bulk_insert":
@@ -146,12 +180,10 @@ def create_tables(registry, schema, index_schema, attributes, spec, force):
             spec.size.tablet_count,
             sorted=True,
             dynamic=not spec.prepare_table_via_alter,
-            skip_mount=spec.index,
+            skip_mount=bool(spec.index),
             spec=spec)
 
-        if spec.index:
-            assert not spec.prepare_table_via_alter, "conflicting options"
-            remove_existing([registry.index], force)
+        if spec.index and not spec.prepare_table_via_alter:
             create_dynamic_table(
                 registry.index,
                 index_schema,
@@ -168,8 +200,10 @@ def create_tables(registry, schema, index_schema, attributes, spec, force):
                 "kind": spec.index.kind,
             })
 
-            logger.info(f"Mounting {registry.base} and {registry.index}")
+            set_dynamic_table_attributes(registry.index, spec)
+            yt.reshard_table(registry.index, index_schema.get_pivot_keys(), sync=True)
 
+            logger.info(f"Mounting {registry.base} and {registry.index}")
             mount_table(registry.base)
             mount_table(registry.index)
 
@@ -226,7 +260,8 @@ def test_sorted_tables(base_path, spec, attributes, force):
         # Write (and delete) data into the dynamic table.
         if not spec.testing.skip_write:
             with_alter = iteration == 0 and spec.prepare_table_via_alter
-            write_to_dynamic_table(registry, schema, aggregate, update, with_alter, spec)
+            write_to_dynamic_table(
+                registry, attributes, schema, index_schema, aggregate, update, with_alter, force, spec)
             delete_data(registry.iter_deletion, registry.base, spec)
 
         # Disturb the table with remote copy.

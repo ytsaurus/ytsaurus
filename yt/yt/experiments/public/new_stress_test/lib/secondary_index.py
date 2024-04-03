@@ -14,6 +14,17 @@ SYSTEM_EMPTY_COLUMN_NAME = "$empty"
 ROW_LIMIT = 20000000
 
 
+class FilterMapper:
+    def __init__(self, index_table_schema):
+        self.index_columns = [
+            column["name"]
+            for column in index_table_schema
+            if column["name"] != SYSTEM_EMPTY_COLUMN_NAME]
+
+    def __call__(self, row: dict):
+        yield {key: row.get(key, None) for key in self.index_columns}
+
+
 def make_random_secondary_index_schema(table_schema: Schema):
     index_key_columns = []
     index_value_columns = []
