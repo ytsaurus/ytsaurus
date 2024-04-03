@@ -239,6 +239,10 @@ void UpdateJobletFromSummary(
         joblet->InterruptionReason = jobSummary.InterruptionReason;
     }
 
+    if (joblet->WaitingForResourcesDuration < jobSummary.TimeStatistics.WaitingForResourcesDuration) {
+        joblet->WaitingForResourcesDuration = jobSummary.TimeStatistics.WaitingForResourcesDuration;
+    }
+
     joblet->LastUpdateTime = jobSummary.StatusTimestamp;
     if (jobSummary.FinishTime) {
         joblet->FinishTime = *jobSummary.FinishTime;

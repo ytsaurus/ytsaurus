@@ -21,13 +21,12 @@ struct TJobProfile
 
 struct TTimeStatistics
 {
+    std::optional<TDuration> WaitingForResourcesDuration;
     std::optional<TDuration> PrepareDuration;
     std::optional<TDuration> ArtifactsDownloadDuration;
     std::optional<TDuration> PrepareRootFSDuration;
     std::optional<TDuration> ExecDuration;
     std::optional<TDuration> GpuCheckDuration;
-
-    void Persist(const TStreamPersistenceContext& context);
 
     void AddSamplesTo(TStatistics* statistics) const;
 

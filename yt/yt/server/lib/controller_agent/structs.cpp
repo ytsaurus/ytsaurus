@@ -50,6 +50,22 @@ EAbortReason GetAbortReason(const TError& resultError, const TLogger& Logger)
 
 } // namespace
 
+// TODO(pogorelov): Move TTimeStatistics to NControllerAgent.
+static void Persist(const TPersistenceContext& context, NJobAgent::TTimeStatistics& timeStatistics)
+{
+    using NYT::Persist;
+
+    Persist(context, timeStatistics.PrepareDuration);
+    Persist(context, timeStatistics.ArtifactsDownloadDuration);
+    Persist(context, timeStatistics.PrepareRootFSDuration);
+    Persist(context, timeStatistics.ExecDuration);
+    Persist(context, timeStatistics.GpuCheckDuration);
+
+    if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
+        Persist(context, timeStatistics.WaitingForResourcesDuration);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobSummary::TJobSummary(TJobId id, EJobState state)

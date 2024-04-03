@@ -12,19 +12,11 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTimeStatistics::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, PrepareDuration);
-    Persist(context, ArtifactsDownloadDuration);
-    Persist(context, PrepareRootFSDuration);
-    Persist(context, ExecDuration);
-    Persist(context, GpuCheckDuration);
-}
-
 void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
 {
+    if (WaitingForResourcesDuration) {
+        statistics->AddSample("/time/wait_for_resources", WaitingForResourcesDuration->MilliSeconds());
+    }
     if (PrepareDuration) {
         statistics->AddSample("/time/prepare", PrepareDuration->MilliSeconds());
     }
@@ -44,13 +36,21 @@ void TTimeStatistics::AddSamplesTo(TStatistics* statistics) const
 
 bool TTimeStatistics::IsEmpty() const
 {
-    return !PrepareDuration && !ArtifactsDownloadDuration && !PrepareRootFSDuration && !GpuCheckDuration;
+    return
+        !WaitingForResourcesDuration &&
+        !PrepareDuration &&
+        !ArtifactsDownloadDuration &&
+        !PrepareRootFSDuration &&
+        !GpuCheckDuration;
 }
 
 void ToProto(
     NControllerAgent::NProto::TTimeStatistics* timeStatisticsProto,
     const TTimeStatistics& timeStatistics)
 {
+    if (timeStatistics.WaitingForResourcesDuration) {
+        timeStatisticsProto->set_waiting_for_resources_duration(ToProto<i64>(*timeStatistics.WaitingForResourcesDuration));
+    }
     if (timeStatistics.PrepareDuration) {
         timeStatisticsProto->set_prepare_duration(ToProto<i64>(*timeStatistics.PrepareDuration));
     }
@@ -72,6 +72,9 @@ void FromProto(
     TTimeStatistics* timeStatistics,
     const NControllerAgent::NProto::TTimeStatistics& timeStatisticsProto)
 {
+    if (timeStatisticsProto.has_waiting_for_resources_duration()) {
+        timeStatistics->WaitingForResourcesDuration = FromProto<TDuration>(timeStatisticsProto.waiting_for_resources_duration());
+    }
     if (timeStatisticsProto.has_prepare_duration()) {
         timeStatistics->PrepareDuration = FromProto<TDuration>(timeStatisticsProto.prepare_duration());
     }
@@ -93,6 +96,9 @@ void Serialize(const TTimeStatistics& timeStatistics, NYson::IYsonConsumer* cons
 {
     BuildYsonFluently(consumer)
         .BeginMap()
+            .DoIf(static_cast<bool>(timeStatistics.WaitingForResourcesDuration), [&] (auto fluent) {
+                fluent.Item("wait_for_resources").Value(*timeStatistics.WaitingForResourcesDuration);
+            })
             .DoIf(static_cast<bool>(timeStatistics.PrepareDuration), [&] (auto fluent) {
                 fluent.Item("prepare").Value(*timeStatistics.PrepareDuration);
             })

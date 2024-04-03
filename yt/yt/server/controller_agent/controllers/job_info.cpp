@@ -149,6 +149,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
         Persist(context, NodeJobStartTime);
     }
     // COMPAT(pogorelov)
+    if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
+        Persist(context, WaitingForResourcesDuration);
+    }
+    // COMPAT(pogorelov)
     if (context.GetVersion() < ESnapshotVersion::JobStateInJoblet) {
         bool isStarted;
         Persist(context, isStarted);

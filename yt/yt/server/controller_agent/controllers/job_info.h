@@ -56,6 +56,8 @@ struct TJoblet
     TInstant LastStatisticsUpdateTime;
     TInstant NodeJobStartTime;
 
+    std::optional<TDuration> WaitingForResourcesDuration;
+
     // There are no joblets for finished jobs, JobState may not contain finished states.
     std::optional<EJobState> JobState;
 
