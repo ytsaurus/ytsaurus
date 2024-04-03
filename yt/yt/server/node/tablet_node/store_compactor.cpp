@@ -714,9 +714,6 @@ public:
         , PartitioningOrchid_(New<TCompactionOrchid>(
             Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->StoreCompactor->Orchid))
         , OrchidService_(CreateOrchidService())
-    { }
-
-    void Start() override
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TStoreCompactor::OnDynamicConfigChanged, MakeWeak(this)));

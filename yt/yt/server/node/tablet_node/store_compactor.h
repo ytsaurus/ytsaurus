@@ -14,7 +14,6 @@ struct IStoreCompactor
     : public virtual TRefCounted
 {
     // TODO(ifsmirnov): check for semaphores availability.
-    virtual void Start() = 0;
     virtual void OnBeginSlotScan() = 0;
     virtual void ProcessLsmActionBatch(
         const ITabletSlotPtr& slot,
