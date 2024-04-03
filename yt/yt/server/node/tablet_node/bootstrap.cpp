@@ -368,7 +368,6 @@ public:
             "/disk_monitoring",
             CreateVirtualNode(DiskChangeChecker_->GetOrchidService()));
 
-        StoreCompactor_->Start();
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
         HunkChunkSweeper_->Start();
