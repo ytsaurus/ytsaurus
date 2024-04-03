@@ -4,8 +4,10 @@ import logging
 import signal
 import time
 import dateutil.parser
+
 from copy import deepcopy
 from multiprocessing import Process
+from yt_odin.common import prctl
 
 odin_logger = logging.getLogger("Odin")
 
@@ -70,13 +72,9 @@ class BoundProcess(Process):
                 return
 
         def safe_run(*args, **kwargs):
-            try:
-                import prctl
-                prctl.set_pdeathsig(pdeathsig)
-                if name:
-                    prctl.set_name(name)
-            except ImportError:
-                pass
+            prctl.set_pdeathsig(pdeathsig)
+            if name:
+                prctl.set_name(name)
 
             try:
                 target(*args, **kwargs)

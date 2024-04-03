@@ -3,6 +3,7 @@ from .juggler_client import JugglerClient
 from .alerts import AlertsManager
 from .check_discovery import CheckDiscovery
 
+from yt_odin.common import prctl
 from yt_odin.logserver import run_logserver, OdinSocketHandler
 
 from six import iteritems
@@ -116,7 +117,7 @@ class Odin(object):
             target=run_logserver,
             args=(log_server_socket_path, self.create_db_client(), max_write_batch_size,
                   messages_max_size),
-            name="Log[{}]".format(cluster_name)
+            name="log:{}".format(cluster_name[:prctl.TASK_NAME_LEN - 4])
         )
         self.logserver_process.daemon = True
         self.logserver_process.start()
