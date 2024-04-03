@@ -69,7 +69,7 @@ def _check_record(record, reference):
 def test_yt_db(yt_env):  # noqa
     client = yt_env.yt_client
     TABLE = "//tmp/test_table_one"
-    init_yt_table(TABLE, client, bundle="default")
+    init_yt_table(TABLE, client, bundle="default", primary_medium="default")
     proxy = client.config["proxy"]["url"]
     token = client.config["token"]
     db_table_client = create_yt_table_client(table=TABLE, proxy=proxy, token=token)
