@@ -308,7 +308,9 @@ private:
     std::optional<TError> Error_;
     std::optional<NControllerAgent::NProto::TJobResultExt> JobResultExtension_;
 
-    std::optional<TInstant> PrepareStartTime_;
+    std::optional<TInstant> ResourcesAcquiredTime_;
+
+    std::optional<TInstant> PreparationStartTime_;
     std::optional<TInstant> CopyFinishTime_;
     std::optional<TInstant> StartTime_;
     std::optional<TInstant> ExecStartTime_;

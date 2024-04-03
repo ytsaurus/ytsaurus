@@ -3935,6 +3935,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("operation_id").Value(OperationId)
         .Item("start_time").Value(joblet->StartTime)
         .Item("finish_time").Value(joblet->FinishTime)
+        .Item("waiting_for_resources_duration").Value(joblet->WaitingForResourcesDuration)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("statistics").Value(statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
