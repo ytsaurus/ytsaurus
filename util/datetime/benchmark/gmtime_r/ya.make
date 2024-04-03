@@ -1,5 +1,3 @@
-SUBSCRIBER(g:util-subscribers)
-
 Y_BENCHMARK()
 
 PEERDIR(
