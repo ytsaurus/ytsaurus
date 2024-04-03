@@ -138,16 +138,10 @@ private:
                 << TErrorAttribute("estimated_throttler_wait_time", waitTime);
         }
 
-        auto throttlerFuture = throttler->Throttle(count)
-            .WithTimeout(maxThrottleTime);
+        auto throttlerFuture = throttler->Throttle(count);
 
-        auto throttleResult = WaitForFast(throttlerFuture);
-        if (!throttleResult.IsOK()) {
-            THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::RequestThrottled,
-                "Journal media write is throttled")
-                << TErrorAttribute("max_throttle_wait_timeout", maxThrottleTime)
-                << throttleResult;
-        }
+        WaitForFast(throttlerFuture)
+            .ThrowOnError();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
