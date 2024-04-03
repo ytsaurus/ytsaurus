@@ -122,7 +122,7 @@ public:
 
         HydraManager_->Initialize();
 
-        LocalJanitor_->Start();
+        LocalJanitor_->Initialize();
     }
 
     void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)

@@ -31,6 +31,7 @@ public:
     virtual const NElection::IElectionManagerPtr& GetElectionManager() const = 0;
     virtual const NHydra::IHydraManagerPtr& GetHydraManager() const = 0;
     virtual const NHydra::IPersistentResponseKeeperPtr& GetResponseKeeper() const = 0;
+    virtual const NHydra::ILocalHydraJanitorPtr& GetLocalJanitor() const = 0;
 
     virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
     virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;

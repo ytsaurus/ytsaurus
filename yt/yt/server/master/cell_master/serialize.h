@@ -216,6 +216,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
     ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
     ((ChunkMergerModeFix)                                           (2549))  // cherepashka
+    ((DynamizeLocalJanitorConfig)                                   (2550))  // danilalexeev
     // 24.2 starts here.
 );
 

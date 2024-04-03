@@ -180,6 +180,11 @@ class TLocalHydraJanitorConfig
 public:
     TDuration CleanupPeriod;
 
+    bool EnableLocalJanitor;
+
+    TLocalHydraJanitorConfigPtr ApplyDynamic(const TDynamicLocalHydraJanitorConfigPtr& dynamicConfig) const;
+    void ApplyDynamicInplace(const TDynamicLocalHydraJanitorConfig& dynamicConfig);
+
     REGISTER_YSON_STRUCT(TLocalHydraJanitorConfig);
 
     static void Register(TRegistrar registrar);
@@ -189,8 +194,30 @@ DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicDistributedHydraManagerConfig
+class TDynamicLocalHydraJanitorConfig
     : public virtual NYTree::TYsonStruct
+{
+public:
+    std::optional<int> MaxSnapshotCountToKeep;
+    std::optional<i64> MaxSnapshotSizeToKeep;
+    std::optional<int> MaxChangelogCountToKeep;
+    std::optional<i64> MaxChangelogSizeToKeep;
+
+    std::optional<TDuration> CleanupPeriod;
+
+    std::optional<bool> EnableLocalJanitor;
+
+    REGISTER_YSON_STRUCT(TDynamicLocalHydraJanitorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicLocalHydraJanitorConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicDistributedHydraManagerConfig
+    : public TDynamicLocalHydraJanitorConfig
 {
 public:
     std::optional<TDuration> ControlRpcTimeout;
