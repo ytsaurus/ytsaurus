@@ -128,3 +128,45 @@ class TestJobsDisabled(YTEnvSetup):
 
         op1.abort()
         op2.abort()
+
+
+class TestJobProxyCallFailed(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_on_job_proxy_spawned_call": True,
+                        },
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("pogorelov")
+    def test_on_job_proxy_spawned_call_fail(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "other"})
+
+        op = run_test_vanilla("sleep 1", job_count=1)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() >= 1)
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "testing_config": {
+                            "fail_on_job_proxy_spawned_call": False,
+                        },
+                    },
+                },
+            },
+        })
+
+        op.track()

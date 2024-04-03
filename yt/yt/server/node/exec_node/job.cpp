@@ -2663,6 +2663,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         if (proxyDynamicConfig->JobEnvironment) {
             proxyConfig->JobEnvironment = PatchNode(proxyConfig->JobEnvironment, proxyDynamicConfig->JobEnvironment);
         }
+
+        proxyConfig->TestingConfig = proxyDynamicConfig->TestingConfig;
     }
 
     proxyConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
@@ -2670,7 +2672,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
-    YT_LOG_DEBUG("Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
+    YT_LOG_DEBUG(
+        "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,
         JobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
@@ -3024,7 +3027,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
             auto exitCode = NExecNode::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
             switch (exitCode) {
-                case EJobProxyExitCode::HeartbeatFailed:
+                case EJobProxyExitCode::SupervisorCommunicationFailed:
                 case EJobProxyExitCode::ResultReportFailed:
                 case EJobProxyExitCode::ResourcesUpdateFailed:
                 case EJobProxyExitCode::GetJobSpecFailed:

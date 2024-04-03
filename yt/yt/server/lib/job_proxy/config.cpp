@@ -4,6 +4,14 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("fail_on_job_proxy_spawned_call", &TThis::FailOnJobProxySpawnedCall)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobThrottlerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_backoff_time", &TThis::MinBackoffTime)
@@ -30,6 +38,8 @@ void TJobThrottlerConfig::Register(TRegistrar registrar)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TCoreWatcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("period", &TThis::Period)
@@ -46,6 +56,8 @@ void TCoreWatcherConfig::Register(TRegistrar registrar)
         .GreaterThan(TDuration::Zero());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobNetworkAddress::Register(TRegistrar registrar)
 {
     registrar.Parameter("address", &TThis::Address)
@@ -55,11 +67,15 @@ void TUserJobNetworkAddress::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TTmpfsManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tmpfs_paths", &TThis::TmpfsPaths)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TMemoryTrackerConfig::Register(TRegistrar registrar)
 {
@@ -73,6 +89,8 @@ void TMemoryTrackerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Zero());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TBindConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("external_path", &TThis::ExternalPath);
@@ -82,6 +100,8 @@ void TBindConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_only", &TThis::ReadOnly)
         .Default(true);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TJobProxyInternalConfig::Register(TRegistrar registrar)
 {
@@ -225,6 +245,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("container_cpu_limit", &TThis::ContainerCpuLimit)
         .Default();
 
+    registrar.Parameter("testing_config", &TThis::TestingConfig)
+        .DefaultNew();
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -232,6 +255,8 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         config->Stockpile->ThreadCount = 0;
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 {
@@ -255,6 +280,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .Default(nullptr);
+
+    registrar.Parameter("testing_config", &TThis::TestingConfig)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
