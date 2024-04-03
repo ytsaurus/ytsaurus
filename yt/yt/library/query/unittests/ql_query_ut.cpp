@@ -195,6 +195,26 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         ContainsRegex("Type mismatch in expression"));
 }
 
+TEST_F(TQueryPrepareTest, AnyInNull)
+{
+    {
+        TDataSplit dataSplit;
+
+        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
+
+        dataSplit.TableSchema = New<TTableSchema>(std::vector{
+            TColumnSchema("any_value", EValueType::Any).SetRequired(false),
+        });
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+    ExpectPrepareThrowsWithDiagnostics(
+        "* from [//t] where any_value in (#)",
+        ContainsRegex("Cannot use expression of type"));
+}
+
 #if !defined(_asan_enabled_) && !defined(_msan_enabled_)
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
