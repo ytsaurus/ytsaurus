@@ -297,8 +297,7 @@ public class YTsaurusClientConfig {
                     .beginMap()
                     .key("layer_paths").value(Arrays.asList(
                             "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                            "//porto_layers/base/precise/" +
-                                    "porto_layer_search_ubuntu_precise_app_lastest.tar.gz"
+                            "//porto_layers/base/focal/porto_layer_search_ubuntu_focal_app_lastest.tar.gz"
                     ))
                     .endMap()
                     .build();
