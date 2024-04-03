@@ -1,3 +1,3 @@
-# {{product-name}} Queues API
+# {{product-name}} Queue API
 
-{% include [YT Queues API](../../_includes/user-guide/dynamic-tables/queues.md) %}
+{% include [YT Queue API](../../_includes/user-guide/dynamic-tables/queues.md) %}
