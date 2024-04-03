@@ -92,7 +92,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
 ## Работа с использованием внутреннего Spark кластера { #use }
 
 - **spark-launch-yt**
-   
+
    Запуск Spark кластера внутри {{product-name}}:
 
     ```bash
@@ -103,7 +103,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     --worker-cores 16 \
     --worker-num 5 \
     --worker-memory 64G \
-    --spyt-version 1.76.1
+    --spyt-version {{spyt-version}}
     ```
 
 - **spark-discovery-yt**
@@ -117,7 +117,7 @@ $ spark-submit --master ytsaurus://<cluster-name> --deploy-mode cluster --num-ex
     ```
 
 - **spark-submit-yt**
-   
+
    Запуск задач на кластере:
 
    ```bash

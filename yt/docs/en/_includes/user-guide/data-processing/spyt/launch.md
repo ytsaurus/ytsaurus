@@ -101,7 +101,7 @@ For launching an inner standalone Spark cluster follow these steps:
    --worker-cores 16 \
    --worker-num 5 \
    --worker-memory 64G \
-   --spark-cluster-version 1.76.1
+   --spark-cluster-version {{spyt-version}}
    ```
 
 - **spark-discovery-yt**
@@ -121,7 +121,7 @@ For launching an inner standalone Spark cluster follow these steps:
    --proxy <cluster-name> \
    --discovery-path my_discovery_path \
    --deploy-mode cluster \
-   --spyt-version 1.76.1 \
+   --spyt-version {{spyt-version}} \
    yt:///sys/spark/examples/smoke_test.py
    ```
 

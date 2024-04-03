@@ -177,9 +177,9 @@ spec:
 | `tabletNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
 | `schedulers` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo`  |
 | `controllerAgents` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
-| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
-| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `0.0.11` |
+| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}-relwithdebinfo` |
+| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}` |
+| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `{{strawberry-version}}` |
 | `ui` | [ytsaurus/ui](https://hub.docker.com/r/ytsaurus/ui/tags) | `stable` |
 
 Помимо указанных образов выкладывается общий образ для всех серверных компонент сразу (кроме `ui`). Такой образ достаточно указать один раз в `coreImage`, не указывая ничего в поле `image` компонент явно.

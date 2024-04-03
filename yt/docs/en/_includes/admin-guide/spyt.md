@@ -12,7 +12,7 @@ spec:
   ytsaurus:
     name:
       minisaurus
-  image: ytsaurus/spyt:1.76.1
+  image: ytsaurus/spyt:{{spyt-version}}
 ```
 
 You can start the specification using `kubectl`:

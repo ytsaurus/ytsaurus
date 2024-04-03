@@ -398,9 +398,9 @@ items:
     items:
       - name: Компоненты кластера
         href: admin-guide/components.md
-      - name: Установка YTsaurus
+      - name: Установка {{product-name}}
         href: admin-guide/install-ytsaurus.md
-      - name: Подготовка спецификации YTsaurus
+      - name: Подготовка спецификации {{product-name}}
         items:
           - name: Описание
             href: admin-guide/prepare-spec.md

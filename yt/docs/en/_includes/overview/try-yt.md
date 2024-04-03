@@ -36,7 +36,7 @@ This section describes the installation of {{product-name}} in a Kubernetes clus
 
 1. Install the [helm utility](https://helm.sh/docs/intro/install/).
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.6.0`.
+3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```
@@ -81,7 +81,7 @@ As a result, the `kubectl cluster-info` command should be executed successfully.
 
 1. Install the [helm utility](https://helm.sh/docs/intro/install/).
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.4.1`.
+3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```
@@ -127,12 +127,12 @@ Password: password
 
 The second link allows you to connect to the cluster from the [command line](../../api/cli/install.md) and [python client](../../api/python/start.md):
 ```bash
-export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}' 
+export YT_CONFIG_PATCHES='{proxy={enable_proxy_discovery=%false}}'
 export YT_TOKEN=password
 export YT_PROXY=192.168.49.2:30228
 
 echo '{a=b}' | yt write-table //home/t1 --format yson
-yt map cat --src //home/t1 --dst //home/t2 --format json 
+yt map cat --src //home/t1 --dst //home/t2 --format json
 ```
 
 ### Deleting a cluster

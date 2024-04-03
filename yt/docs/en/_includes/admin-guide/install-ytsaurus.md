@@ -20,7 +20,7 @@ Additionally, [helm charts](https://hub.docker.com/r/ytsaurus/ytop-chart/tags) a
 
 1. Install the [helm](https://helm.sh/docs/intro/install/) utility.
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
-3. Install the charts `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version 0.6.0`.
+3. Install the charts `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```bash

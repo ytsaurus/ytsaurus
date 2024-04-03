@@ -12,8 +12,8 @@ All possible values for `spytVersion` can be found [here](https://github.com/yts
 
 ```scala
 
-val sparkVersion = "3.2.2"
-val spytVersion = "1.76.1"
+val sparkVersion = "{{spark-version}}"
+val spytVersion = "{{spyt-version}}"
 
 libraryDependencies ++= Seq(
     // Spark dependencies

@@ -12,8 +12,8 @@ SPYT работает с Java 11 и Scala 2.12.
 
 ```scala
 
-val sparkVersion = "3.2.2"
-val spytVersion = "1.76.1"
+val sparkVersion = "{{spark-version}}"
+val spytVersion = "{{spyt-version}}"
 
 libraryDependencies ++= Seq(
     // зависимости от Spark

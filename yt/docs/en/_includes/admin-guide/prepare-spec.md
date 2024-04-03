@@ -177,9 +177,9 @@ The `image` for each component is taken primarily from the component's image fie
 | `tabletNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
 | `schedulers` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
 | `controllerAgents` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
-| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `0.0.4-relwithdebinfo` |
-| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `0.0.11` |
+| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}-relwithdebinfo` |
+| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}-relwithdebinfo` |
+| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `{{strawberry-version}}` |
 | `ui` | [ytsaurus/ui](https://hub.docker.com/r/ytsaurus/ui/tags) | `stable` |
 
 In addition, a common image is provided for all server components at once (except `ui`). You only need to specify it once in `coreImage`, without explicitly specifying anything in the component's `image` field.

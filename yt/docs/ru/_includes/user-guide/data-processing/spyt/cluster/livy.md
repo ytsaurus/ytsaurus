@@ -6,7 +6,7 @@
 
 ## Запуск {#start}
 
-Для запуска Livy сервера необходимо в команде запуска кластера SPYT указать опцию `--enable-livy`. Максимальное количество одновременных соединений с сервером регулируется опцией `--livy-max-sessions`. Попытка установить соединение сверх лимита повлечет ошибку. 
+Для запуска Livy сервера необходимо в команде запуска кластера SPYT указать опцию `--enable-livy`. Максимальное количество одновременных соединений с сервером регулируется опцией `--livy-max-sessions`. Попытка установить соединение сверх лимита повлечет ошибку.
 
 Драйвер для Spark задач, запущенных через Livy, поднимается в том же контейнере, что и сервер. Поэтому для корректного подсчета и резервирования ресурсов в {{product-name}} количество ядер и размер памяти драйвера устанавливаются при старте кластера — с помощью опций `--livy-driver-cores` и `--livy-driver-memory`.
 
@@ -33,7 +33,7 @@ $ spark-launch-yt ... --enable-livy --livy-max-sessions 5 --livy-driver-cores 1 
 Для работы с {{product-name}} при инициализации Livy сессии в `spark_conf` необходимо указать два конфигурационных параметра — путь к Java (`spark.yt.jars`) и Python (`spark.yt.pyFiles`) библиотекам:
 
 ```python
-data = {'kind': 'spark', 'conf': {'spark.yt.version': '1.75.4', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/1.75.4/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/1.75.4/spyt.zip'}}
+data = {'kind': 'spark', 'conf': {'spark.yt.version': '{{spyt-version}}', 'spark.yt.jars': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spark-yt-data-source.jar', 'spark.yt.pyFiles': 'yt:///home/spark/spyt/releases/{{spyt-version}}/spyt.zip'}}
 req = requests.post(host + '/sessions', data=json.dumps(data))
 resp = req.json()
 ```

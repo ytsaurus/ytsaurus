@@ -2,7 +2,7 @@
 
 ## Selecting an image and starting the update
 
-The service regularly receives new releases as well as fixes to the existing stable releases. For more information about existing releases, see [this section](../../admin-guide/releases.md). Docker images with stable releases follow the format `ytsaurus/ytsaurus:23.N.M` (for example, `ytsaurus/ytsaurus:23.1.0`).
+The service regularly receives new releases as well as fixes to the existing stable releases. For more information about existing releases, see [this section](../../admin-guide/releases.md). Docker images with stable releases follow the format `ytsaurus/ytsaurus:23.N.M` (for example, `ytsaurus/ytsaurus:{{yt-server}}`).
 
 A Kubernetes operator supports updates to Docker images used for server components. To update them, change `coreImage` in the {{product-name}} specification and push it to K8s using the command `kubectl apply -f my_ytsaurus_spec.yaml -n <namespace>`.
 
