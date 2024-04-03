@@ -137,9 +137,9 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
 
         # YT-18930
         yt.set(registry.base + "/@chunk_format", spec.chunk_format)
-        yt.set(registry.index + "/@chunk_format", spec.chunk_format)
 
         if spec.index:
+            yt.set(registry.index + "/@chunk_format", spec.chunk_format)
             yt.create("secondary_index", attributes={
                 "table_path": registry.base,
                 "index_table_path": registry.index,
