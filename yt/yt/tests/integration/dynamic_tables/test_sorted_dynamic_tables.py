@@ -329,13 +329,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("lock_type", ["exclusive", "shared_write", "shared_strong"])
     def test_tablet_locks_persist_in_snapshots(self, lock_type):
-        if self.DRIVER_BACKEND == "rpc":
-            if lock_type == "exclusive":
-                # TODO(ponasenko-rs): Remove after YT-20282.
-                pytest.skip("Rpc proxy client drops exclusive locks without data")
-            elif lock_type == "shared_write":
-                # Shared write locks aren't supported on rpc proxy.
-                pytest.skip()
+        if self.DRIVER_BACKEND == "rpc" and lock_type == "exclusive":
+            # TODO(ponasenko-rs): Remove after YT-20282.
+            pytest.skip("Rpc proxy client drops exclusive locks without data")
 
         sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
@@ -367,10 +363,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("ponasenko-rs")
     def test_transaction_shared_write_locks(self):
-        if self.DRIVER_BACKEND == "rpc":
-            # Shared write locks aren't supported on rpc proxy.
-            pytest.skip()
-
         sync_create_cells(1)
 
         schema = [
@@ -435,10 +427,6 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("has_explicit_lock_group", [True, False])
     def test_aggregate_shared_write_locks(self, has_explicit_lock_group):
-        if self.DRIVER_BACKEND == "rpc":
-            # Shared write locks aren't supported on rpc proxy.
-            pytest.skip()
-
         sync_create_cells(1)
 
         schema = [

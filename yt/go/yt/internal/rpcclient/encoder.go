@@ -617,7 +617,8 @@ func (e *Encoder) InsertRowBatch(
 		TransactionId:        getTxID(opts.TransactionOptions),
 		Path:                 ptr.String(path.String()),
 		RowModificationTypes: modificationTypes,
-		RowReadLocks:         nil, // todo
+		RowLegacyReadLocks:   nil, // todo
+		RowLegacyLocks:       nil, // todo
 		RowLocks:             nil, // todo
 		RequireSyncReplica:   opts.RequireSyncReplica,
 		UpstreamReplicaId:    nil, // todo
@@ -675,7 +676,8 @@ func (e *Encoder) DeleteRows(
 		TransactionId:        getTxID(opts.TransactionOptions),
 		Path:                 ptr.String(path.String()),
 		RowModificationTypes: modificationTypes,
-		RowReadLocks:         nil, // todo
+		RowLegacyReadLocks:   nil, // todo
+		RowLegacyLocks:       nil, // todo
 		RowLocks:             nil, // todo
 		RequireSyncReplica:   opts.RequireSyncReplica,
 		UpstreamReplicaId:    nil, // todo

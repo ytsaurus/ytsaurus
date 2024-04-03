@@ -5,4 +5,5 @@ RECURSE(
     chunk_client
     discovery_client
     hive
+    tablet_client
 )
