@@ -15,7 +15,7 @@ Different formats enable users to work with different types of data.
 ### Structured data { #structured_data }
 
 Structured data is a node tree with attributes, where nodes correspond to [YSON types](../../../user-guide/storage/yson.md) (map, list, primitive types) with attributes.
-Structured data can be obtained using the `get` command.
+Structured data can be obtained using the [`get`](../../../api/commands.md#get) command.
 
 Supported formats: `json`, `yson`.
 
@@ -25,9 +25,9 @@ Example: [Cypress](../../../user-guide/storage/cypress.md) nodes, their attribut
 
 Table data is a sequence of rows where each row is logically a key-value pair, the key being a string, and the value is structured data.
 
-Supported formats: `json`, `yson`, `dsv`, `schemaful_dsv`, `protobuf`.
+Supported formats: `json`, `yson`, `dsv`, `schemaful_dsv`, `protobuf`, `arrow`.
 
-Examples: Input and output data in operations, input data of the `write` command, output data of the `read` command.
+Examples: Input and output data in operations, input data of the [`write_table`](../../../api/commands.md#write_table) command, output data of the [`read_table`](../../../api/commands.md#read_table) command.
 
 ### Binary data { #binary_data }
 
@@ -35,12 +35,12 @@ Binary data is a sequence of bytes. For example, files store binary data.
 
 Supported formats: Cannot set a format. Representation only as a byte array.
 
-Examples: Input data of the `upload` command and output data of the `download` command.
+Examples: Input data of the [`upload`](../../../api/commands.md#write_file) command and output data of the [`download`](../../../api/commands.md#read_file) command.
 
 ## Table data representation formats { #table_formats }
 
 {{product-name}} supports several data formats, which determine in what form data is transmitted to or received from the system.
-The format must be specified for all `yt` utility commands that return or take in data.
+A format must be specified for all [`yt` utility](../../../api/cli/cli.md) commands that return or accept data.
 
 Reading a table in DSV format:
 
@@ -54,6 +54,10 @@ yt read //some/table --format dsv
 * [JSON](#json)
 * [DSV (TSKV)](#dsv)
 * [SCHEMAFUL_DSV](#schemaful_dsv)
+
+{% if audience == "internal" %}
+For illustration purposes, let's see how the same [table](https://yt.{{internal-domain}}/{{prestable-cluster}}/navigation?path=//home/tutorial/staff_unsorted_sample) will look in different formats.
+{% endif %}
 
 ## Example { #example }
 
@@ -80,7 +84,7 @@ For a detailed specification, see the [YSON](../../../user-guide/storage/yson.md
 To read a table in YSON format:
 
 ```bash
-yt read --proxy <cluster-name> --format '<format=pretty>yson' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<format=pretty>yson' '//home/tutorial/staff_unsorted_sample'
 ```
 
 Table representation in YSON format:
@@ -141,6 +145,13 @@ The values are specified in parentheses by default.
 - **enable_integral_type_conversion** (`true`) — enable conversion of `uint64` to `int64` and vice versa. This option is enabled by default. If an overflow occurs during conversion, you will see a corresponding error.
 - **enable_integral_to_double_conversion** (`false`) — enable conversion of `uint64` and `int64` to `double`. For example, integer `42` becomes decimal number `42.0`.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
+- **complex_type_mode** (`named`) — representation of composite types, structs, and variants.
+   Possible values are `named` and `positional`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+- **string_keyed_dict_mode** (`positional`) — representation of dictionaries with string keys. Possible values are `named` and `positional`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+- **decimal_mode** (`binary`) — representation of the `decimal` type.
+   Possible values are `text` and `binary`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+- **time_mode** (`binary`) — representation of `date`, `datetime`, and `timestamp` types. Possible values are `text` and `binary`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
+- **uuid_mode** (`binary`) — representation of the `uuid` type. Possible values are `binary`, `text_yql`, and `text_yt`. For more information, see [this section](../../../user-guide/storage/data-types.md#yson).
 
 ## JSON { #json }
 
@@ -159,25 +170,25 @@ For example, `<attr=10>{x=y}` is represented as `{"$value": {"x": "y"}, "$attrib
 The strings in {{product-name}} — YSON strings — are byte strings, while JSON uses Unicode encoding.
 The format has an `encode_utf8` setting that allows you to manage conversions. The `encode_utf8` defaults to `%true`.
 
-### encode_utf8=%true { #utf8-true }
+- encode_utf8=%true { #utf8-true }
 
-To convert a YSON string to a JSON string, convert each byte to a Unicode character with the corresponding number and encode it in UTF-8. This conversion occurs, for example, when reading table data using the `read-table` command.
+To convert a YSON string to a JSON string, convert each byte to a Unicode character with the corresponding number and encode it in UTF-8. This conversion occurs, for example, when reading table data using the [`read_table`](../../../api/commands.md#read_table) command.
 
-When a JSON string is converted to a YSON string, the sequence of Unicode characters of the JSON string is checked to make sure each of them is in the 0–255 range. They are then converted to the appropriate bytes. This conversion is performed when writing table data using the `write-table` command.
+When a JSON string is converted to a YSON string, the sequence of Unicode characters of the JSON string is checked to make sure each of them is in the 0–255 range. They are then converted to the appropriate bytes. This conversion is performed when writing table data using the [`write_table`](../../../api/commands.md#write_table) command.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 With `encode_utf8=%true`, Unicode characters outside the 0..255 range in the JSON string are not allowed.
 
 {% endnote %}
 
-### encode_utf8=%false { #utf8-false }
+- encode_utf8=%false { #utf8-false }
 
 To convert a YSON string to a JSON string, the YSON string must contain a valid UTF-8 sequence. It will be converted to a Unicode JSON string.
 
-During JSON string to YSON string conversion, UTF-8 Unicode characters are encoded into byte sequences. This conversion is done with the `write-table` command.
+During JSON string to YSON string conversion, UTF-8 Unicode characters are encoded into byte sequences. This conversion is performed with the [`write_table`](../../../api/commands.md#write_table) command.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 In general, byte sequences in tables are not always UTF-8 sequences. Therefore, with `encode_utf8=%false` not all YSON strings are readable.
 
@@ -195,7 +206,7 @@ UTF-8 strings:
 - CLI
 
    ```bash
-   echo "'{"key": "Ivan"}{"key":"Ivanov"}'" | YT_PROXY=cluster-name yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
+   echo '{"key": "Jane"}{"key":"Doe"}' | YT_PROXY={{production-cluster}} yt write --table "//path/to/table" --format="<encode_utf8=%false>json"
    ```
 {% endlist %}
 
@@ -208,7 +219,7 @@ When the user reads the table in JSON format, each record is made in a separate 
 Reading a table in JSON format:
 
 ```bash
-yt read --proxy <cluster-name> --format json '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format json '//home/tutorial/staff_unsorted_sample'
 ```
 
 Table representation in JSON format:
@@ -249,7 +260,7 @@ The values are specified in parentheses by default.
 - **enable_integral_to_double_conversion** (`false`) — enable conversion of `uint64` and `int64` to `double`. For example, integer `42` becomes decimal number `42.0`.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 JSON represents bytes numbered 0–32 (namely \u00XX) in a non-compact way. When you try to write a long string with such data, an **Out of memory** error may occur in the Yajl library, because the memory amount limit is `2 * row_weight`. In that case, the JSON format is not recommended.
 
@@ -263,10 +274,11 @@ JSON represents bytes numbered 0–32 (namely \u00XX) in a non-compact way. When
 A format that is widely used for storing logs and working with them. DSV and TSKV are two names of the same format.
 This format only supports flat records with an arbitrary column set and string values. Records are separated by the line break character `\n`.
 Fields in a record are separated by the tab character `\t`.
+For more information, read below.
 
 Example record: `time=10\tday=monday\n`.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 The format does not support attributes and typed values. In the example, `10` will be recognized by the system as a string, not a number.
 
@@ -275,7 +287,7 @@ The format does not support attributes and typed values. In the example, `10` wi
 Reading a table in DSV format:
 
 ```bash
-yt read --proxy <cluster-name> --format dsv '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format dsv '//home/tutorial/staff_unsorted_sample'
 ```
 
 Table representation in DSV format:
@@ -293,10 +305,10 @@ name=Nikolai	uid=45320538587295288
 name=Karina	uid=20364947097122776
 ```
 
-Reading the table with some parameters:
+Reading a table with some parameters:
 
 ```bash
-yt read --proxy <cluster-name> --format '<field_separator=";";key_value_separator=":">dsv' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<field_separator=";";key_value_separator=":">dsv' '//home/tutorial/staff_unsorted_sample'
 ```
 
 **Parameters:**
@@ -340,7 +352,7 @@ When working with {{product-name}} CLI, attributes must be written in quotes. Fo
 Reading a table in SCHEMAFUL_DSV format:
 
 ```bash
-yt read --proxy <cluster-name> --format '<columns=[name;uid]>schemaful_dsv' '//home/tutorial/staff_unsorted_sample'
+yt read --proxy {{prestable-cluster}} --format '<columns=[name;uid]>schemaful_dsv' '//home/tutorial/staff_unsorted_sample'
 ```
 
 Table representation in SCHEMAFUL_DSV format:
@@ -379,5 +391,113 @@ The values are specified in parentheses by default.
 - **enable_integral_to_double_conversion** (`false`) — enable conversion of `uint64` and `int64` to `double`. For example, integer `42` becomes decimal number `42.0`.
 - **enable_type_conversion** (`false`) — enable all of the above options. In most cases, this option will suffice.
 
+## ARROW { #Arrow }
+
+[Apache Arrow](https://arrow.apache.org/overview) is a binary format developed as a language-agnostic standard for columnar memory representation to facilitate interoperability.
+
+Format advantages:
+
+- Unlike row-based representation, where the data in each row is stored together, Arrow organizes data into columns. This improves the performance of some analytical queries.
+
+- Arrow supports composite data types, such as structs, lists, dictionaries, and others.
+
+### Arrow in {{product-name}}
+
+Reading a table in Arrow format returns a concatenation of multiple [IPC Streaming Format](https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format) streams.
+
+```
+<SCHEMA>
+<DICTIONARY 0>
+...
+<DICTIONARY k - 1>
+<RECORD BATCH 0>
+...
+<DICTIONARY x DELTA>
+...
+<DICTIONARY y DELTA>
+...
+<RECORD BATCH n - 1>
+<EOS 0x00000000>
+<SCHEMA>
+...
+<EOS 0x00000000>
+...
+<EOS 0x00000000>
+```
+
+This returns a concatenation of multiple streams instead of a single stream, because {{product-name}} can store the same column differently across different chunks. For example, column data can be stored either explicitly in its entirety or as a dictionary (similar to an [Arrow dictionary](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout)). When representing data in Arrow format, we store the encoding as a dictionary and return a concatenation of multiple streams if a column is encoded in its entirety in one chunk and as a dictionary in another.
+
+Limitations and notes:
+
+- Reading and writing is only available for schematized tables.
+
+- For more efficient reading, we recommend reading Arrow tables with columnar chunk storage (`optimize_for = scan`).
+
+{% note warning "Attention" %}
+
+Writing to Arrow isn't currently optimized for tables with columnar chunk storage and involves two-fold conversion of data: from columnar to row-based representation and back.
+
+{% endnote %}
+
+### Types
+
+Table reads currently support the following types:
+
+- `string` is displayed as [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE).
+- `integer` is displayed as one of the [arrow::integer](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5UINT8E) types depending on its
+   bit count and signedness.
+- `boolean` is displayed as [arrow::bool](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4BOOLE).
+- `float` is displayed as [arrow::float](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5FLOATE).
+- `double` is displayed as [arrow::double](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DOUBLEE).
+- `date` is displayed as [arrow::date32](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE32E).
+- `datetime` is displayed as [arrow::date64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6DATE64E).
+- `timestamp` is displayed as [arrow::timestamp](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type9TIMESTAMPE).
+- `interval` is displayed as [arrow::int64](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type5INT64E).
+- `Complex types` are represented as [arrow::binary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6BINARYE) with [YSON representation](https://yt.yandex-team.ru/docs/user-guide/storage/data-types#yson) of these types.
+
+Writes support the same types as reads, as well as the following:
+
+- [arrow::list](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type4LISTE) is represented as `list`.
+- [arrow::map](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type3MAPE) is represented as `dict`.
+- [arrow::struct](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type6STRUCTE) is represented as `struct`.
+
+Other notes for working with types:
+
+- When reading a table, almost any type can be returned as [arrow::dictionary](https://arrow.apache.org/docs/cpp/api/datatype.html#_CPPv4N5arrow4Type4type10DICTIONARYE), where the dictionary elements are the column values, and the indexes specify the order of those values. For more information, see [this section](https://arrow.apache.org/docs/format/Columnar.html#dictionary-encoded-layout).
+
+- The Arrow format supports one level of nesting, "optional". Deeper nesting is returned as the binary type during reads, same as for other composite data types.
+
+### Examples of operations
+
+Reading an Arrow table:
+
+{% list tabs %}
+- Python
+
+   ```python
+   yt.read_table("//path/to/table", format=yt.format.ArrowFormat(), raw=True)
+   ```
+
+- CLI
+
+   ```bash
+    yt read --table "//path/to/table" --format arrow
+   ```
+{% endlist %}
+
+Arrow map operation:
+
+```bash
+yt map --input-format arrow --output-format arrow  --src "//path/to/input_table" "cat" --dst '<schema=[{name=item_1;type=int64};{name=item_2;type=string}]>//path/to/output_table'
+```
+
+### Operations with multiple tables
+
+If you pass multiple tables as input to an Arrow operation, it will output a stream of multiple concatenated IPC Streaming Format streams, where each segment of the stream may belong to one of the tables. The table index is passed as [schema metadata](https://arrow.apache.org/docs/format/Columnar.html#schema-message) under the name `TableId`. Learn more about [Arrow metadata](https://arrow.apache.org/docs/format/Columnar.html#custom-application-metadata).
+
+
 ## PROTOBUF { #PROTOBUF }
-For more information, see the [Protobuf](../../../api/cpp/protobuf.md) section.
+
+Protobuf is a structured data transfer protocol for working with tables in the C++ API.
+
+Learn more about [Protobuf](../../../api/cpp/protobuf.md).
