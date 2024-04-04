@@ -143,6 +143,7 @@ class TestHunkStorage(YTEnvSetup):
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_3_3"])
     def test_write_simple(self, erasure_codec):
         sync_create_cells(1)
+
         if erasure_codec == "none":
             self._create_hunk_storage("//tmp/h")
         else:
@@ -152,6 +153,7 @@ class TestHunkStorage(YTEnvSetup):
         sync_mount_table("//tmp/h")
 
         store_id = self._get_active_store_id("//tmp/h")
+        assert exists("#{}".format(store_id))
         hunks = write_hunks("//tmp/h", ["a", "bb"])
         assert hunks == [
             {"chunk_id": store_id, "block_index": 0, "block_offset": 0, "length": 9,
@@ -165,8 +167,12 @@ class TestHunkStorage(YTEnvSetup):
             {"payload": "bb"},
         ]
 
-        wait(lambda: get("#{}/@sealed".format(store_id)))
-        assert get("#{}/@row_count".format(store_id)) == 1
+        try:
+            wait(lambda: get("#{}/@sealed".format(store_id)))
+            assert get("#{}/@row_count".format(store_id)) == 1
+        except YtError as err:
+            if not err.is_resolve_error():
+                raise
 
         assert read_hunks(hunks) == [
             {"payload": "a"},

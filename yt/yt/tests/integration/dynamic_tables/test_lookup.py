@@ -660,11 +660,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
-        sync_flush_table("//tmp/t")
-
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
-
         iter = 0
         while iter < 10:
             row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
@@ -680,6 +675,11 @@ class TestLookup(TestSortedDynamicTablesBase):
                 break
             iter += 1
         assert iter < 10
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
+        sync_flush_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}, {"key": 2, "value": "22"}])
 
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
