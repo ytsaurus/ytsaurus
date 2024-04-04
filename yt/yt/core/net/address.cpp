@@ -938,7 +938,6 @@ public:
             /*logger*/ {},
             DnsProfiler.WithPrefix("/resolve_cache"))
     {
-        SetDnsResolver(CreateAresDnsResolver(config));
         Configure(std::move(config));
     }
 
@@ -995,6 +994,9 @@ public:
     void Configure(TAddressResolverConfigPtr config)
     {
         Config_ = std::move(config);
+
+        SetDnsResolver(CreateAresDnsResolver(Config_));
+        TAsyncExpiringCache::Reconfigure(Config_);
 
         if (Config_->LocalHostNameOverride) {
             WriteLocalHostName(*Config_->LocalHostNameOverride);
