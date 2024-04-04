@@ -820,28 +820,19 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         }
     };
 
-    auto formatAcosInString = [] (const std::vector<TString>& accessControlObjects) {
-        TStringBuilder builder;
-        for (int index = 0; index < std::ssize(accessControlObjects); ++index) {
-            builder.AppendString("\"");
-            builder.AppendString(accessControlObjects[index]);
-            builder.AppendString("\"");
-            if (index + 1 != std::ssize(accessControlObjects)) {
-                builder.AppendString(",");
-            }
-        }
-        return builder.Flush();
-    };
-
-    auto addFilterConditions = [&] (TQueryBuilder& builder) {
+    auto addFilterConditions = [&] (TQueryBuilder& builder, TYsonString& placeholderValues) {
+        auto placeholdersFluentMap = BuildYsonNodeFluently().BeginMap();
         if (options.UserFilter) {
-            builder.AddWhereConjunct("[user] = \"" + *options.UserFilter + "\"");
+            builder.AddWhereConjunct("[user] = {UserFilter}");
+            placeholdersFluentMap.Item("UserFilter").Value(*options.UserFilter);
         }
         if (options.EngineFilter) {
-            builder.AddWhereConjunct("[engine] = \"" + FormatEnum(*options.EngineFilter) + "\"");
+            builder.AddWhereConjunct("[engine] = {EngineFilter}");
+            placeholdersFluentMap.Item("EngineFilter").Value(*options.EngineFilter);
         }
         if (options.StateFilter) {
-            builder.AddWhereConjunct("[state] = \"" + FormatEnum(*options.StateFilter) + "\"");
+            builder.AddWhereConjunct("[state] = {StateFilter}");
+            placeholdersFluentMap.Item("StateFilter").Value(*options.StateFilter);
         }
         if (options.FromTime) {
             builder.AddWhereConjunct("[start_time] >= " + ToString(options.FromTime->MicroSeconds()));
@@ -850,26 +841,36 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
             builder.AddWhereConjunct("[start_time] <= " + ToString(options.ToTime->MicroSeconds()));
         }
         if (options.SubstrFilter) {
-            builder.AddWhereConjunct(Format("is_substr(%Qv, filter_factors)", *options.SubstrFilter));
+            builder.AddWhereConjunct("is_substr({SubstrFilter}, filter_factors)");
+            placeholdersFluentMap.Item("SubstrFilter").Value(*options.SubstrFilter);
         }
         if (!isSuperuser) {
+            placeholdersFluentMap.Item("User").Value(*Options_.User);
+
             if (acosForUser.empty()) {
-                builder.AddWhereConjunct(Format("user = %Qv", *Options_.User));
+                builder.AddWhereConjunct("user = {User}");
             } else {
-                builder.AddWhereConjunct(Format("user = %Qv OR access_control_object IN (%v)", *Options_.User, formatAcosInString(acosForUser)));
+                builder.AddWhereConjunct("user = {User} OR access_control_object IN {acosForUser}");
+                placeholdersFluentMap.Item("acosForUser").DoListFor(acosForUser, [] (TFluentList fluent, const TString& aco) {
+                    fluent.Item().Value(aco);
+                });
             }
         }
+
+        placeholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
     };
 
     auto selectActiveQueries = [=, this, this_ = MakeStrong(this)] {
         try {
             TQueryBuilder builder;
+            TYsonString placeholderValues;
             builder.SetSource(root + "/active_queries");
-            addFilterConditions(builder);
+            addFilterConditions(builder, placeholderValues);
             addSelectExpressionsFromAttributes(builder, TActiveQueryDescriptor::Get()->GetNameTable());
             addSelectExpressionsForMerging(builder);
             TSelectRowsOptions options;
             options.Timestamp = timestamp;
+            options.PlaceholderValues = placeholderValues;
             auto query = builder.Build();
             YT_LOG_DEBUG("Selecting active queries (Query: %v)", query);
             auto selectResult = WaitFor(client->SelectRows(query, options))
@@ -887,11 +888,13 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
             TStringBuilder admittedQueryIds;
             {
                 TQueryBuilder builder;
+                TYsonString placeholderValues;
                 builder.SetSource(root + "/finished_queries_by_start_time");
-                addFilterConditions(builder);
+                addFilterConditions(builder, placeholderValues);
                 builder.AddSelectExpression("[query_id]");
                 TSelectRowsOptions options;
                 options.Timestamp = timestamp;
+                options.PlaceholderValues = placeholderValues;
                 auto query = builder.Build();
                 YT_LOG_DEBUG("Selecting finished queries by start time (Query: %v)", query);
                 auto selectResult = WaitFor(client->SelectRows(query, options))
