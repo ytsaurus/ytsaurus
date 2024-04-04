@@ -1661,12 +1661,16 @@ class YTInstance(object):
                     return False, "No active scheduler found"
 
                 try:
-                    master_cell_id = client.get("//sys/@cell_id")
-                    scheduler_cell_id = client.get(
-                        active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
-                    if master_cell_id != scheduler_cell_id:
-                        return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}"\
-                                      .format(scheduler_cell_id, master_cell_id)
+                    # Don't run the check below if the config is not exposed in the scheduler's Orchid
+                    # (e.g. due to expose_config_in_orchid = %false in scheduler's config).
+                    orchid_keys = client.list(active_scheduler_orchid_path)
+                    if "config" in orchid_keys:
+                        master_cell_id = client.get("//sys/@cell_id")
+                        scheduler_cell_id = client.get(
+                            active_scheduler_orchid_path + "/config/cluster_connection/primary_master/cell_id")
+                        if master_cell_id != scheduler_cell_id:
+                            return False, "Incorrect scheduler connected, its cell_id {0} does not match master cell {1}"\
+                                          .format(scheduler_cell_id, master_cell_id)
                 except YtResponseError as error:
                     if error.is_resolve_error():
                         return False, "Failed to request primary master cell id from master and scheduler" + str(error)
@@ -2128,6 +2132,9 @@ class YTInstance(object):
         self._wait_for_dynamic_config_update({}, client, config_node_name="bundle_dynamic_config_manager")
 
     def _wait_for_dynamic_config_update(self, expected_config, client, instance_type="cluster_nodes", config_node_name="dynamic_config_manager"):
+        if not self.yt_config.wait_for_dynamic_config:
+            return
+
         nodes = client.list("//sys/{0}".format(instance_type))
 
         if not nodes:
