@@ -119,10 +119,6 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         &MonitoringManager_,
         &orchidRoot);
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConfigNode_));
     SetBuildAttributes(
         orchidRoot,
         "http_proxy");
@@ -164,14 +160,20 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
     DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/dynamic_config_manager",
-        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/cluster_connection",
-        CreateVirtualNode(Connection_->GetOrchidService()));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConfigNode_));
+        SetNodeByYPath(
+            orchidRoot,
+            "/dynamic_config_manager",
+            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/cluster_connection",
+            CreateVirtualNode(Connection_->GetOrchidService()));
+    }
     SetNodeByYPath(
         orchidRoot,
         "/disk_monitoring",

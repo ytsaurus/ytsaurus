@@ -157,10 +157,12 @@ void TBootstrap::DoRun()
         &MonitoringManager_,
         &orchidRoot);
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConfigNode_));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConfigNode_));
+    }
     SetNodeByYPath(
         orchidRoot,
         "/scheduler",

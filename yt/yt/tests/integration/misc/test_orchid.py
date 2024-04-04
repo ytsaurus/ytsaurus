@@ -7,6 +7,8 @@ import yt.yson as yson
 
 import pytest
 
+import builtins
+
 ##################################################################
 
 
@@ -108,3 +110,74 @@ class TestOrchidMulticell(TestOrchid):
     @authors("rebenkoy")
     def test_at_cluster_masters(self):
         self._check_orchid("//sys/cluster_masters", self.NUM_MASTERS * (self.NUM_SECONDARY_MASTER_CELLS + 1), "master")
+
+
+##################################################################
+
+
+class TestConfigExposureInOrchid(YTEnvSetup):
+    DELTA_CELL_BALANCER_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_MASTER_CACHE_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_MASTER_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_NODE_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_PROXY_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_RPC_PROXY_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    DELTA_SCHEDULER_CONFIG = {
+        "expose_config_in_orchid": False,
+    }
+    NUM_MASTER_CACHES = 1
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+    NUM_CELL_BALANCERS = 1
+    NUM_QUEUE_AGENTS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    WAIT_FOR_DYNAMIC_CONFIG = False
+
+    @authors("max42")
+    def test_config_exposure_in_orchid(self):
+        component_roots = [
+            "//sys/master_caches",
+            "//sys/http_proxies",
+            "//sys/rpc_proxies",
+            "//sys/cell_balancers/instances",
+            "//sys/queue_agents/instances",
+            "//sys/cluster_nodes",
+            "//sys/primary_masters",
+            "//sys/scheduler/instances",
+            "//sys/controller_agents/instances",
+        ]
+
+        forbidden_keys = {
+            "config", "dynamic_config_manager", "bundle_dynamic_config_manager",
+            "cluster_connection", "connected_secondary_masters",
+        }
+
+        def check_orchid(path):
+            orchid_keys = ls(path)
+            assert forbidden_keys & builtins.set(orchid_keys) == builtins.set()
+
+        for path in component_roots:
+            instances = ls(path)
+            assert len(instances) > 0
+            for instance in instances:
+                check_orchid(path + "/" + instance + "/orchid")

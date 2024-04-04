@@ -48,6 +48,8 @@ void TServerConfig::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0)
         .LessThan(65536);
+    registrar.Parameter("expose_config_in_orchid", &TThis::ExposeConfigInOrchid)
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->RpcPort > 0) {

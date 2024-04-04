@@ -162,10 +162,12 @@ void TBootstrap::DoRun()
 
     ControllerAgent_->Initialize();
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConfigNode_));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConfigNode_));
+    }
     SetNodeByYPath(
         orchidRoot,
         "/controller_agent",
