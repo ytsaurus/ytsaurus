@@ -217,6 +217,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
     ((ChunkMergerModeFix)                                           (2549))  // cherepashka
     ((DynamizeLocalJanitorConfig)                                   (2550))  // danilalexeev
+    ((SchemalessEndUploadPreservesTableSchemaByDefault)             (2551))  // shakurov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
