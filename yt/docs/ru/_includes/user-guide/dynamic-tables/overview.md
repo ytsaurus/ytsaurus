@@ -107,7 +107,7 @@ In-memory режим настраивается с помощью атрибут
 
 Вебинары:
 
-- [Обзор динамических таблиц, част 1](https://www.youtube.com/watch?v=vxKD0lLS4mM)
-- [Обзор динамических таблиц, част 2](https://www.youtube.com/watch?v=JZGTUjyJw38)
+- [Обзор динамических таблиц, часть 1](https://www.youtube.com/watch?v=vxKD0lLS4mM)
+- [Обзор динамических таблиц, часть 2](https://www.youtube.com/watch?v=JZGTUjyJw38)
 
 [**]: Параметр встречается в ответе несколько раз.
