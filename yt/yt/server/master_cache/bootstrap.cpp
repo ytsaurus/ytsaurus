@@ -237,14 +237,16 @@ private:
             GetControlInvoker(),
             Logger);
 
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        }
         SetNodeByYPath(
             OrchidRoot_,
             "/disk_monitoring",

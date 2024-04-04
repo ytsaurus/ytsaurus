@@ -198,10 +198,12 @@ private:
             &MonitoringManager_,
             &OrchidRoot_);
 
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        }
         SetNodeByYPath(
             OrchidRoot_,
             "/cell_balancer",

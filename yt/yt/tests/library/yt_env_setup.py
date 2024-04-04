@@ -331,6 +331,8 @@ class YTEnvSetup(object):
     # COMPAT(kvk1920)
     TEST_MAINTENANCE_FLAGS = False
 
+    WAIT_FOR_DYNAMIC_CONFIG = True
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -519,6 +521,7 @@ class YTEnvSetup(object):
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
+            wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -1582,6 +1585,9 @@ class YTEnvSetup(object):
             self._wait_for_scheduler_state_restored(driver=driver)
 
     def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
+        if not self.WAIT_FOR_DYNAMIC_CONFIG:
+            return
+
         def check():
             responses = yt_commands.execute_batch(
                 [
