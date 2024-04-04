@@ -20,9 +20,9 @@ types:
         column_type: String
         sort_order: Ascending
 
-      - cpp_name: Replicas
+      - cpp_name: StoredReplicas
         cpp_type: NYson::TYsonString
-        column_name: replicas
+        column_name: stored_replicas
         column_type: Any
         aggregate: True
 

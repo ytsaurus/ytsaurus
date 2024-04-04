@@ -3657,7 +3657,7 @@ private:
                         .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     },
-                    .Replicas = GetReplicasYson(replicas, {}),
+                    .StoredReplicas = GetReplicasYson(replicas, {}),
                     .LastSeenReplicas = GetReplicasListYson(replicas),
                 };
                 transaction->WriteRow(
@@ -3741,7 +3741,7 @@ private:
                             .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                         },
-                        .Replicas = GetReplicasYson({replica}, {}),
+                        .StoredReplicas = GetReplicasYson({replica}, {}),
                         .LastSeenReplicas = GetReplicasListYson({replica}),
                     };
                     transaction->WriteRow(
@@ -3822,7 +3822,7 @@ private:
                             .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                         },
-                        .Replicas = GetReplicasYson({}, {replica}),
+                        .StoredReplicas = GetReplicasYson({}, {replica}),
                         .LastSeenReplicas = GetReplicasListYson({}),
                     };
                     transaction->WriteRow(
@@ -5681,10 +5681,10 @@ private:
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const
     {
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
-        YT_VERIFY(idMapping.ChunkId && idMapping.Replicas);
-        TColumnFilter filter({*idMapping.ChunkId, *idMapping.Replicas});
+        YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
+        TColumnFilter filter({*idMapping.ChunkId, *idMapping.StoredReplicas});
         return DoGetSequoiaReplicas(chunkIds, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
-            return replicaRecord.Replicas;
+            return replicaRecord.StoredReplicas;
         });
     }
 
