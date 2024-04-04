@@ -2947,7 +2947,6 @@ private:
         const std::vector<TChunkId>& sequoiaChunkIds) const
     {
         TChunkToLocationPtrWithReplicaInfoList result;
-
         if (!sequoiaReplicasOrError.IsOK()) {
             for (auto chunkId : sequoiaChunkIds) {
                 EmplaceOrCrash(result, chunkId, TError(sequoiaReplicasOrError));
@@ -2974,23 +2973,20 @@ private:
             auto& replicas = it->second.Value();
             replicas.insert(replicas.end(), masterReplicas.begin(), masterReplicas.end());
 
-            // TODO(aleksandra-zh): remove lambda when there are no imaginary locations.
-            SortUnique(replicas, [] (const auto& lhs, const auto& rhs) {
-                auto lhsLocation = lhs.GetPtr();
-                auto lhsImaginary = lhsLocation->IsImaginary();
+            // TODO(aleksandra-zh): remove lambda (or some stuff from it) when there are no imaginary locations.
+            SortUniqueBy(replicas, [] (const auto& replica) {
+                auto location = replica.GetPtr();
 
-                auto rhsLocation = rhs.GetPtr();
-                auto rhsImaginary = rhsLocation->IsImaginary();
+                auto replicaIndex = replica.GetReplicaIndex();
+                auto isImaginary = location->IsImaginary();
 
-                if (lhsImaginary != rhsImaginary) {
-                    return lhsImaginary < rhsImaginary;
-                }
+                // These are for imaginary.
+                auto nodeId = GetObjectId(location->GetNode());
+                auto effectiveMediumIndex = isImaginary ? location->GetEffectiveMediumIndex() : 0;
 
-                if (lhsImaginary) {
-                    return *lhsLocation->AsImaginary() < *rhsLocation->AsImaginary();
-                }
-
-                return *lhsLocation->AsReal() < *rhsLocation->AsReal();
+                // This is for real.
+                auto uuid = isImaginary ? TChunkLocationUuid() : location->AsReal()->GetUuid();
+                return std::tuple(replicaIndex, isImaginary, nodeId, effectiveMediumIndex, uuid);
             });
         }
 
@@ -3720,6 +3716,13 @@ private:
                     deadChunkIds.insert(FromProto<TChunkId>(protoChunkId));
                 }
 
+                struct TReplicaList
+                {
+                    std::vector<TChunkReplicaWithLocation> AddedReplicas;
+                    std::vector<TChunkReplicaWithLocation> RemovedReplicas;
+                };
+
+                THashMap<TChunkId, TReplicaList> modifiedReplicas;
                 for (const auto& chunkInfo : request.added_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
                     auto chunkId = chunkIdWithIndex.Id;
@@ -3736,34 +3739,8 @@ private:
                         GenericMediumIndex,
                         locationUuid);
 
-                    NRecords::TChunkReplicas chunkReplica{
-                        .Key = {
-                            .IdHash = HashFromId(chunkId),
-                            .ChunkId = chunkId,
-                        },
-                        .StoredReplicas = GetReplicasYson({replica}, {}),
-                        .LastSeenReplicas = GetReplicasListYson({replica}),
-                    };
-                    transaction->WriteRow(
-                        chunkReplica,
-                        ELockType::SharedWrite,
-                        NTableClient::EValueFlags::Aggregate);
 
-                    NRecords::TLocationReplicas locationReplica{
-                        .Key = {
-                            .CellTag = Bootstrap_->GetCellTag(),
-                            .NodeId = nodeId,
-                            .IdHash = HashFromId(locationUuid),
-                            .LocationUuid = locationUuid,
-                            .ChunkId = chunkId,
-                            .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
-                        },
-                        .Fake = true
-                    };
-                    transaction->WriteRow(
-                        locationReplica,
-                        NTableClient::ELockType::SharedWrite,
-                        NTableClient::EValueFlags::Aggregate);
+                    modifiedReplicas[chunkId].AddedReplicas.push_back(replica);
                 }
 
                 std::vector<NRecords::TLocationReplicasKey> keys;
@@ -3816,29 +3793,50 @@ private:
                         chunkIdWithIndex.ReplicaIndex,
                         GenericMediumIndex,
                         locationUuid);
+                    modifiedReplicas[chunkId].RemovedReplicas.push_back(replica);
+                }
 
-                    NRecords::TChunkReplicas chunkReplica{
+                for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
+                    NRecords::TChunkReplicas chunkReplicas{
                         .Key = {
                             .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                         },
-                        .StoredReplicas = GetReplicasYson({}, {replica}),
-                        .LastSeenReplicas = GetReplicasListYson({}),
+                        .StoredReplicas = GetReplicasYson(chunkModifiedReplicas.AddedReplicas, chunkModifiedReplicas.RemovedReplicas),
+                        .LastSeenReplicas = GetReplicasListYson(chunkModifiedReplicas.AddedReplicas),
                     };
+                    YT_VERIFY(chunkModifiedReplicas.AddedReplicas.size() + chunkModifiedReplicas.RemovedReplicas.size() > 0);
                     transaction->WriteRow(
-                        chunkReplica,
-                        ELockType::SharedWrite,
+                        chunkReplicas,
+                        NTableClient::ELockType::SharedWrite,
                         NTableClient::EValueFlags::Aggregate);
 
-                    NRecords::TLocationReplicasKey locationReplicaKey{
-                        .CellTag = Bootstrap_->GetCellTag(),
-                        .NodeId = nodeId,
-                        .IdHash = HashFromId(locationUuid),
-                        .LocationUuid = locationUuid,
-                        .ChunkId = chunkId,
-                        .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
-                    };
-                    transaction->DeleteRow(locationReplicaKey);
+                    for (const auto& addedReplica : chunkModifiedReplicas.AddedReplicas) {
+                        NRecords::TLocationReplicas locationReplica{
+                            .Key = {
+                                .CellTag = Bootstrap_->GetCellTag(),
+                                .NodeId = nodeId,
+                                .IdHash = HashFromId(addedReplica.GetChunkLocationUuid()),
+                                .LocationUuid = addedReplica.GetChunkLocationUuid(),
+                                .ChunkId = chunkId,
+                                .ReplicaIndex = addedReplica.GetReplicaIndex(),
+                            },
+                            .Fake = true
+                        };
+                        transaction->WriteRow(locationReplica);
+                    }
+
+                    for (const auto& removedReplica : chunkModifiedReplicas.RemovedReplicas) {
+                        NRecords::TLocationReplicasKey locationReplicaKey{
+                            .CellTag = Bootstrap_->GetCellTag(),
+                            .NodeId = nodeId,
+                            .IdHash = HashFromId(removedReplica.GetChunkLocationUuid()),
+                            .LocationUuid = removedReplica.GetChunkLocationUuid(),
+                            .ChunkId = chunkId,
+                            .ReplicaIndex = removedReplica.GetReplicaIndex(),
+                        };
+                        transaction->DeleteRow(locationReplicaKey);
+                    }
                 }
 
                 transaction->AddTransactionAction(

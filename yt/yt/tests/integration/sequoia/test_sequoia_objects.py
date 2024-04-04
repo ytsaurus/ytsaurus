@@ -4,6 +4,8 @@ from yt_commands import (
     authors, create, get, remove, get_singular_chunk_id, write_table, wait,
     select_rows, create_domestic_medium, ls, set, get_driver)
 
+import pytest
+
 ##################################################################
 
 
@@ -25,6 +27,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True,
+        },
+    }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
@@ -59,7 +67,6 @@ class TestSequoiaReplicas(YTEnvSetup):
     def teardown_method(self, method):
         wait(sequoia_tables_empty)
         super(TestSequoiaReplicas, self).teardown_method(method)
-
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     DELTA_DYNAMIC_MASTER_CONFIG = {
