@@ -5721,6 +5721,8 @@ private:
             return;
         }
 
+        YT_LOG_DEBUG("Starting Sequoia replica removal");
+
         if (ChunksBeingPurged_) {
             return;
         }
@@ -5753,6 +5755,7 @@ private:
         auto result = WaitFor(RemoveDeadSequoiaChunkReplicas(request));
         if (!result.IsOK()) {
             YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
+            ChunksBeingPurged_ = false;
         }
     }
 
@@ -5762,6 +5765,7 @@ private:
             ->GetSequoiaClient()
             ->StartTransaction()
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+                YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request.chunk_ids_size());
                 for (const auto& protoChunkId : request.chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
                     NRecords::TChunkReplicasKey chunkReplicaKey{
@@ -6343,6 +6347,7 @@ private:
             buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
             buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
             buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
+            buffer.AddCounter("/sequoia_chunk_purgatory", SequoiaChunkPurgatory_.size());
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
