@@ -578,7 +578,7 @@ def remount_table(path, first_tablet_index=None, last_tablet_index=None, client=
     unmount+mount and does not cause any downtime.
     """
 
-    params = {"path": path}
+    params = {"path": TablePath(path, client=client)}
     set_param(params, "first_tablet_index", first_tablet_index)
     set_param(params, "last_tablet_index", last_tablet_index)
 
@@ -818,7 +818,7 @@ def get_tablet_infos(path, tablet_indexes, format=None, client=None):
     :param indexes: tablet indexes.
     """
 
-    params = {"path": path, "tablet_indexes": tablet_indexes}
+    params = {"path": TablePath(path, client=client), "tablet_indexes": tablet_indexes}
     return make_formatted_request("get_tablet_infos", params, format=format, client=client)
 
 
@@ -829,7 +829,7 @@ def get_tablet_errors(path, limit=None, format=None, client=None):
     :param int limit: maximum number of returned errors of any kind.
     """
 
-    params = {"path": path}
+    params = {"path": TablePath(path, client=client)}
     set_param(params, "limit", limit)
 
     return make_formatted_request("get_tablet_errors", params, format=format, client=client)
