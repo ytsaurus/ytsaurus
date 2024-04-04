@@ -1333,7 +1333,6 @@ def get_checks_config():
                 skynet_manager,
                 codicils,
                 snapshot_validation,
-                clock_quorum_health,
                 map_with_ssd_sandbox_result_check,
                 enable_discovery,
                 enable_nightly_compression,
