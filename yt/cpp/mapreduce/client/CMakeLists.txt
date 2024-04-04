@@ -41,7 +41,6 @@ target_link_libraries(cpp-mapreduce-client PUBLIC
   cpp-mapreduce-http
   cpp-mapreduce-interface
   cpp-mapreduce-io
-  mapreduce-library-table_schema
   cpp-mapreduce-raw_client
   yt-yt-core
   yt-core-http

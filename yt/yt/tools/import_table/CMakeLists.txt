@@ -24,6 +24,7 @@ target_link_libraries(import_table PUBLIC
   cpp-mapreduce-client
   cpp-mapreduce-util
   mapreduce-library-blob_table
+  mapreduce-library-table_schema
   yt-library-arrow_parquet_adapter
   yt-library-huggingface_client
   yt-library-s3

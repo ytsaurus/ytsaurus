@@ -25,7 +25,6 @@ target_link_libraries(mapreduce-library-lambda PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-mapreduce-interface
-  mapreduce-library-table_schema
 )
 
 target_sources(mapreduce-library-lambda PRIVATE
