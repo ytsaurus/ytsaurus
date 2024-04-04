@@ -95,7 +95,6 @@ void ToProto(NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
 void FromProto(TPreemptedFor* preemptedFor, const NProto::TPreemptedFor& proto);
 
 void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
-void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
