@@ -8,9 +8,9 @@ Author-email: snaury@gmail.com
 Maintainer: Jason Madden
 Maintainer-email: jason@nextthought.com
 License: MIT License
-Project-URL: Bug Tracker, https://github.com/python-greenlet/greenlet/issues
 Project-URL: Source Code, https://github.com/python-greenlet/greenlet/
 Project-URL: Documentation, https://greenlet.readthedocs.io/
+Project-URL: Bug Tracker, https://github.com/python-greenlet/greenlet/issues
 Keywords: greenlet coroutine concurrency threads cooperative
 Platform: any
 Classifier: Development Status :: 5 - Production/Stable
@@ -33,9 +33,6 @@ Classifier: Operating System :: OS Independent
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
 Requires-Python: >=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*
 Description-Content-Type: text/x-rst
-License-File: LICENSE
-License-File: LICENSE.PSF
-License-File: AUTHORS
 Provides-Extra: docs
 Requires-Dist: Sphinx ; extra == 'docs'
 Provides-Extra: test
@@ -101,3 +98,5 @@ https://github.com/python-greenlet/greenlet
 
 Documentation is available on readthedocs.org:
 https://greenlet.readthedocs.io
+
+
