@@ -109,16 +109,11 @@ void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
+            // COMPAT(pogorelov)
             .Item("job_id").Value(preemptedFor.AllocationId)
+            .Item("allocation_id").Value(preemptedFor.AllocationId)
             .Item("operation_id").Value(preemptedFor.OperationId)
         .EndMap();
-}
-
-// TODO(pogorelov): Use allocation_id here
-void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
-{
-    Deserialize(preemptedFor.AllocationId, node->AsMap()->GetChildOrThrow("job_id"));
-    Deserialize(preemptedFor.OperationId, node->AsMap()->GetChildOrThrow("operation_id"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

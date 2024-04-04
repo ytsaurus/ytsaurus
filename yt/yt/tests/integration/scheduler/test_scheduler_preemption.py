@@ -400,7 +400,7 @@ class TestSchedulerPreemption(YTEnvSetup):
                 event_type = row["event_type"]
                 if event_type == "job_aborted" and row["operation_id"] == op0.id:
                     assert row["preempted_for"]["operation_id"] == op1.id
-                    assert row["preempted_for"]["job_id"] == preemptor_job_id
+                    assert row["preempted_for"]["allocation_id"] == preemptor_job_id
                     return True
             return False
 
