@@ -224,7 +224,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "scheduler": {
             "operations_update_period": 100,
             "schedule_allocation_time_limit": 3000,
-            "event_log": {"flush_period": 1000},
+            "event_log": {
+                "enable": True,
+                "flush_period": 1000,
+            },
         }
     }
 
@@ -248,7 +251,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "queue_average_wait_time_threshold": 1500,
             },
             "map_reduce_operation_options": {"min_uncompressed_block_size": 1},
-            "event_log": {"flush_period": 1000},
+            "event_log": {
+                "enable": True,
+                "flush_period": 1000,
+            },
         }
     }
 

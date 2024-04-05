@@ -360,11 +360,23 @@ class TestSchedulingTags(YTEnvSetup):
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {"scheduler": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}}
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "event_log": {
+                "enable": True,
+                "flush_period": 300,
+                "retry_backoff_time": 300,
+            },
+        },
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
+            "event_log": {
+                "enable": True,
+                "flush_period": 300,
+                "retry_backoff_time": 300,
+            },
             "available_exec_nodes_check_period": 100,
             "max_available_exec_node_resources_update_period": 100,
             "snapshot_period": 500,
