@@ -233,7 +233,6 @@ public:
     {
         return false;
     }
-
 };
 
 class TIfNullCodegen
@@ -291,7 +290,6 @@ public:
         YT_VERIFY(nullableArgs.size() == 2);
         return nullableArgs[1];
     }
-
 };
 
 class TIsNaNCodegen
@@ -340,7 +338,6 @@ public:
     {
         return false;
     }
-
 };
 
 class TCoalesceCodegen

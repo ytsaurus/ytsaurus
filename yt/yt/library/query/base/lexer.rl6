@@ -64,6 +64,7 @@ typedef TParser::token_type TToken;
     kw_case_then = 'then'i;
     kw_case_else = 'else'i;
     kw_case_end = 'end'i;
+    kw_inf = 'inf'i;
 
     keyword = kw_select | kw_from | kw_where | kw_having | kw_offset | kw_limit | kw_join | kw_array | kw_using | kw_group_by
         | kw_with_totals | kw_order_by | kw_asc | kw_desc | kw_left | kw_as | kw_on | kw_and | kw_or | kw_is | kw_not
@@ -147,6 +148,7 @@ typedef TParser::token_type TToken;
         kw_case_then => { type = TToken::KwCaseThen; fbreak; };
         kw_case_else => { type = TToken::KwCaseElse; fbreak; };
         kw_case_end => { type = TToken::KwCaseEnd; fbreak; };
+        kw_inf => { type = TToken::KwInf; fbreak; };
 
         identifier => {
             type = TToken::Identifier;
@@ -188,7 +190,7 @@ typedef TParser::token_type TToken;
         '[' => {
             if (SyntaxVersion_ >= 2) {
                 type = TToken::LeftSquareBracket;
-                fbreak; 
+                fbreak;
             } else {
                 fhold;
                 fgoto square_bracket_quoted_identifier;
@@ -197,7 +199,7 @@ typedef TParser::token_type TToken;
         ']' => {
             if (SyntaxVersion_ >= 2) {
                 type = TToken::RightSquareBracket;
-                fbreak; 
+                fbreak;
             } else {
                 THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);
             }

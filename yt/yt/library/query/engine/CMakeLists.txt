@@ -192,6 +192,12 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
@@ -297,6 +303,7 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/737152a993bed557c44fc80c57b4770a.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/70f91f505af875ed195810036e510f1e.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/ddb6d2ed0678e1cd1cf0421f38baada1.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/7fddc2602551831b55f37ff47c414d74.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/6f9672363d86885757d05d833295f5b0.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/3ec77e425a852b536353a21a8ea196a4.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/47ee53635911ccb5e9e2ee208b131e5e.cpp
@@ -676,6 +683,30 @@ add_custom_command(
 )
 add_custom_command(
   OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_optimized.bc
+  -internalize-public-api-list=is_finite
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/is_finite.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/is_finite.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_merged.bc
+)
+add_custom_command(
+  OUTPUT
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/to_any_optimized.bc
   DEPENDS
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/to_any_merged.bc
@@ -756,7 +787,7 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sleep_merged.bc
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/sleep_optimized.bc
-  -internalize-public-api-list=sleep#sleep
+  -internalize-public-api-list=sleep
   -passes="default<O2>,globalopt,globaldce,internalize"
 )
 add_custom_command(
@@ -1227,6 +1258,13 @@ llvm_compile_cxx(library-query-engine.global
   -emit-llvm
 )
 llvm_compile_cxx(library-query-engine.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/is_finite.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/is_finite.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/to_any.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/to_any.cpp.bc
   ${CLANGPLUSPLUS}
@@ -1379,6 +1417,13 @@ resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_substr_optimized.bc
   KEYS
   /llvm_bc/is_substr
+)
+resources(library-query-engine.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/7fddc2602551831b55f37ff47c414d74.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/is_finite_optimized.bc
+  KEYS
+  /llvm_bc/is_finite
 )
 resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/6f9672363d86885757d05d833295f5b0.cpp

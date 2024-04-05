@@ -194,6 +194,13 @@ LLVM_BC(
 )
 
 LLVM_BC(
+    udf/is_finite.cpp
+    NAME is_finite
+    SYMBOLS
+      is_finite
+)
+
+LLVM_BC(
     udf/to_any.cpp
     NAME to_any
     SYMBOLS
@@ -224,7 +231,6 @@ LLVM_BC(
     udf/sleep.c
     NAME sleep
     SYMBOLS
-        sleep
         sleep
 )
 
