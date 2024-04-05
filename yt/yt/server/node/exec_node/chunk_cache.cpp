@@ -1186,8 +1186,14 @@ private:
             TBlock block;
             while (reader->ReadBlock(&block)) {
                 if (block.Data.Empty()) {
-                    WaitFor(reader->GetReadyEvent())
-                        .ThrowOnError();
+                    auto error = WaitFor(reader->GetReadyEvent());
+                    if (!error.IsOK()) {
+                        THROW_ERROR_EXCEPTION(
+                            NExecNode::EErrorCode::ArtifactFetchFailed,
+                            "Error while fetching artifact chunks (Arifact: %v)",
+                            ToString(key))
+                                << std::move(error);
+                    }
                 } else {
                     output->Write(block.Data.Begin(), block.Size());
                     WaitFor(throttler->Throttle(block.Size()))
@@ -1337,6 +1343,13 @@ private:
             TPipeReaderToWriterOptions options;
             options.BufferRowCount = TableArtifactBufferRowCount;
             options.Throttler = throttler;
+            options.ReaderErrorWrapper = [key] (const TError& readerError) {
+                return TError(
+                    NExecNode::EErrorCode::ArtifactFetchFailed,
+                    "Error while fetching artifact chunks (Arifact: %v)",
+                    ToString(key))
+                    << std::move(readerError);
+            };
             PipeReaderToWriter(
                 reader,
                 writer,

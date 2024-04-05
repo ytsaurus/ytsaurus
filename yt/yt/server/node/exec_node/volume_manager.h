@@ -74,6 +74,8 @@ struct IVolumeManager
     virtual TFuture<void> GetVolumeReleaseEvent() = 0;
 
     virtual TFuture<void> DisableLayerCache(const TError& reason) = 0;
+
+    virtual bool IsEnabled() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)

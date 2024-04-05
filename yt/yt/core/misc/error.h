@@ -186,6 +186,8 @@ public:
 
     std::optional<TError> FindMatching(TErrorCode code) const;
 
+    std::optional<TError> FindMatching(const THashSet<TErrorCode>& codes) const;
+
     template <class... TArgs>
         requires std::constructible_from<TError, TArgs...>
     TError Wrap(TArgs&&... args) const &;

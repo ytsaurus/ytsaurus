@@ -42,6 +42,8 @@ YT_DEFINE_ERROR_ENUM(
     ((InvalidImage)                          (1133))
     ((AbortByControllerAgent)                (1134))
     ((NoSuchJob)                             (1135))
+    ((NoLayerLocationAvailable)              (1136))
+    ((ArtifactFetchFailed)                   (1137))
 );
 
 DEFINE_ENUM(EJobPhase,
