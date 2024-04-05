@@ -309,6 +309,9 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("location_is_absolute", &TThis::LocationIsAbsolute)
         .Default(true);
+
+    registrar.Parameter("resides_on_tmpfs", &TThis::ResidesOnTmpfs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

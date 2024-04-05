@@ -300,6 +300,8 @@ public:
 
     bool LocationIsAbsolute;
 
+    bool ResidesOnTmpfs;
+
     REGISTER_YSON_STRUCT(TLayerLocationConfig);
 
     static void Register(TRegistrar registrar);

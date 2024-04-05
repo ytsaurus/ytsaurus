@@ -478,16 +478,9 @@ public:
             .Run();
     }
 
-    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
+    TFuture<TLayerMeta> ImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TGuid tag)
     {
-        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, tag)
-            .AsyncVia(LocationQueue_->GetInvoker())
-            .Run();
-    }
-
-    TFuture<TLayerMeta> InternalizeLayer(const TLayerMeta& layerMeta, TGuid tag)
-    {
-        return BIND(&TLayerLocation::DoInternalizeLayer, MakeStrong(this), layerMeta, tag)
+        return BIND(&TLayerLocation::DoImportLayer, MakeStrong(this), artifactKey, archivePath, container, tag)
             .AsyncVia(LocationQueue_->GetInvoker())
             .Run();
     }
@@ -913,44 +906,6 @@ private:
         }
     }
 
-    TLayerMeta DoInternalizeLayer(const TLayerMeta& layerMeta, TGuid tag)
-    {
-        ValidateEnabled();
-        auto layerDirectory = GetLayerPath(layerMeta.Id);
-
-        try {
-            YT_LOG_DEBUG("Copy layer (Destination: %v, Source: %v, Tag: %v)",
-                layerDirectory,
-                layerMeta.Path,
-                tag);
-            auto config = New<TCopyDirectoryContentConfig>();
-            config->Source = layerMeta.Path;
-            config->Destination = LayersPath_;
-            RunTool<TCopyDirectoryContentTool>(config);
-
-            TLayerMeta newMeta = layerMeta;
-            newMeta.Path = layerDirectory;
-
-            DoFinalizeLayerImport(newMeta, tag);
-            return newMeta;
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Layer internalization failed (LayerId: %v, SourcePath: %v, Tag: %v)",
-                layerMeta.Id,
-                layerMeta.Path,
-                tag);
-
-            try {
-                RunTool<TRemoveDirAsRootTool>(layerDirectory);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to cleanup directory after failed layer internalization");
-            }
-
-            THROW_ERROR_EXCEPTION(EErrorCode::LayerUnpackingFailed, "Layer internalization failed")
-                << TErrorAttribute("layer_path", layerMeta.artifact_key().data_source().path())
-                << ex;
-        }
-    }
-
     void DoFinalizeLayerImport(const TLayerMeta& layerMeta, TGuid tag)
     {
         auto metaBlob = SerializeProtoToRefWithEnvelope(layerMeta);
@@ -993,7 +948,7 @@ private:
             tag);
     }
 
-    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, TGuid tag)
+    TLayerMeta DoImportLayer(const TArtifactKey& artifactKey, const TString& archivePath, const TString& container, TGuid tag)
     {
         ValidateEnabled();
 
@@ -1025,7 +980,7 @@ private:
                     tag);
 
                 TEventTimerGuard timer(PerformanceCounters_.ImportLayerTimer);
-                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_))
+                WaitFor(LayerExecutor_->ImportLayer(archivePath, ToString(id), PlacePath_, container))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Layer unpacking failed (LayerId: %v, ArchivePath: %v, Tag: %v)",
@@ -1068,6 +1023,11 @@ private:
 
             auto innerError = TError(ex);
             if (innerError.GetCode() == EErrorCode::LayerUnpackingFailed) {
+                THROW_ERROR(error);
+            }
+
+            if (Config_->ResidesOnTmpfs) {
+                // Don't disable location if it resides on tmpfs.
                 THROW_ERROR(error);
             }
 
@@ -1653,6 +1613,7 @@ public:
             locationConfig->MinDiskSpace = 0;
             locationConfig->Path = path;
             locationConfig->LocationIsAbsolute = false;
+            locationConfig->ResidesOnTmpfs = true;
 
             TmpfsLocation_ = New<TLayerLocation>(
                 std::move(locationConfig),
@@ -2211,15 +2172,15 @@ private:
         const TArtifactKey& artifactKey,
         const TArtifactDownloadOptions& downloadOptions,
         TGuid tag,
-        TLayerLocationPtr targetLocation)
+        TLayerLocationPtr location)
     {
         YT_LOG_DEBUG("Start loading layer into cache (Tag: %v, ArtifactPath: %v, HasTargetLocation: %v)",
             tag,
             artifactKey.data_source().path(),
-            static_cast<bool>(targetLocation));
+            static_cast<bool>(location));
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) mutable {
                 YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
                     tag,
                     artifactKey.data_source().path());
@@ -2233,29 +2194,18 @@ private:
                         .ThrowOnError();
                 }
 
-                auto location = this_->PickLocation();
-                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), tag))
-                    .ValueOrThrow();
-
-                if (targetLocation) {
-                    // For tmpfs layers we cannot import them directly to tmpfs location,
-                    // since tar/gzip are run in special /portod-helpers cgroup, which suffers from
-                    // OOM when importing into tmpfs. To workaround this, we first import to disk locations
-                    // and then copy into in-memory.
-
-                    auto finally = Finally(BIND([=] () {
-                        location->RemoveLayer(layerMeta.Id)
-                            .Subscribe(BIND([] (const TError& result) {
-                                YT_LOG_ERROR_IF(!result.IsOK(), result, "Layer remove failed");
-                            }));
-                    }));
-
-                    auto tmpfsLayerMeta = WaitFor(targetLocation->InternalizeLayer(layerMeta, tag))
-                        .ValueOrThrow();
-                    return New<TLayer>(tmpfsLayerMeta, artifactKey, targetLocation);
+                TString container;
+                if (location) {
+                    // Import layer in context of self container, i.e. account memory allocations to self container.
+                    container = "self";
                 } else {
-                    return New<TLayer>(layerMeta, artifactKey, location);
+                    // Empty container means to import layer in context of porto daemon, i.e. account memory allocation to porto daemon.
+                    location = this_->PickLocation();
                 }
+
+                auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), container, tag))
+                    .ValueOrThrow();
+                return New<TLayer>(layerMeta, artifactKey, location);
             })
             // We must pass this action through invoker to avoid synchronous execution.
             // WaitFor calls inside this action can ruin context-switch-free handlers inside TJob.
