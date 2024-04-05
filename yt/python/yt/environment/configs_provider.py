@@ -829,6 +829,9 @@ def _build_node_configs(node_dirs,
         else:
             cache_location_config["path"] = os.path.join(node_dirs[index], "chunk_cache")
 
+        if os.path.exists("{}/disabled".format(cache_location_config["path"])):
+            os.remove("{}/disabled".format(cache_location_config["path"]))
+
         set_at(config, "data_node/cache_locations", [cache_location_config])
 
         if yt_config.jobs_environment_type is not None:
@@ -879,6 +882,9 @@ def _build_node_configs(node_dirs,
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store/{0}".format(location_index))
 
+            if os.path.exists("{}/disabled".format(store_location_config["path"])):
+                os.remove("{}/disabled".format(store_location_config["path"]))
+
             store_location_configs.append(store_location_config)
 
         set_at(config, "data_node/store_locations", store_location_configs)
@@ -893,6 +899,9 @@ def _build_node_configs(node_dirs,
             layer_location_config["path"] = os.path.join(node_tmpfs_dirs[index], "layers")
         else:
             layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
+
+        if os.path.exists("{}/disabled".format(layer_location_config["path"])):
+            os.remove("{}/disabled".format(layer_location_config["path"]))
 
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 

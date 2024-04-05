@@ -187,6 +187,7 @@ private:
     std::vector<TNumaNodeState> NumaNodeStates_;
 
     IJobEnvironmentPtr JobEnvironment_;
+    EJobEnvironmentType JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
     TRingQueue<int> FreeSlots_;
