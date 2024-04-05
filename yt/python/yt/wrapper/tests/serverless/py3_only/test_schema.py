@@ -6,6 +6,7 @@ from yt.wrapper.schema import _create_row_py_schema, SortColumn, ColumnSchema, T
 from yt.wrapper.schema.types import Uint8, Int32, YsonBytes
 from yt.wrapper.format import StructuredSkiffFormat
 from yt.common import YtError
+from yt import yson
 
 from typing import Optional, List, Tuple
 
@@ -41,6 +42,15 @@ class MyClass:
     my_other_subclass: Optional[MyOtherSubclass]
 
 
+@yt_dataclass
+class MySmallClass:
+    my_int: Optional[int]
+    my_bool: bool
+    my_uint8: Uint8
+    my_yson: YsonBytes
+    my_optional: Optional[int]
+
+
 @authors("ignat")
 def test_yt_dataclass():
     table_schema = TableSchema.from_row_type(MyClass)
@@ -68,6 +78,24 @@ def test_yt_dataclass():
             {"name": "time", "type": "int64"},
         ]}}},
     ]
+
+    assert TableSchema.from_yson_type(yson_repr) == table_schema
+
+
+@authors("nadya02")
+def test_schema_without_type_v3():
+    table_schema = TableSchema.from_row_type(MySmallClass)
+
+    yson_repr = yson.to_yson_type(
+        [
+            {"name": "my_int", "type": "int64"},
+            {"name": "my_bool", "type": "boolean", "required" : True},
+            {"name": "my_uint8", "type": "uint8", "required" : True},
+            {"name": "my_yson", "type": "any", "required" : True},
+            {"name": "my_optional", "type": "int64", "required" : False},
+        ],
+        attributes={"strict": True, "unique_keys": False},
+    )
 
     assert TableSchema.from_yson_type(yson_repr) == table_schema
 

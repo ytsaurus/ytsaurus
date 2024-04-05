@@ -70,7 +70,12 @@ class ColumnSchema(object):
 
     @classmethod
     def from_yson_type(cls, obj):
-        type = ti.deserialize_yson(yt.yson.dumps(obj["type_v3"]))
+        if "type_v3" in obj:
+            type = ti.deserialize_yson(yt.yson.dumps(obj["type_v3"]))
+        else:
+            required = obj.get("required", False)
+            type = ti.deserialize_yson_v1(yt.yson.dumps(obj["type"]), required)
+
         return ColumnSchema(obj["name"], type, sort_order=obj.get("sort_order"), group=obj.get("group"))
 
     def __eq__(self, other):
