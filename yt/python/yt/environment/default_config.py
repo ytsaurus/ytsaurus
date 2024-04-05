@@ -401,6 +401,8 @@ def get_controller_agent_config():
 
         set_committed_attribute_via_transaction_action = %false;
         commit_operation_cypress_node_changes_via_system_transaction = %true;
+
+        job_id_unequal_to_allocation_id = %true;
     };
 }
 """)

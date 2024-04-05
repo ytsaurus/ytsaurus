@@ -6,7 +6,9 @@ namespace NYT::NScheduler {
 
 TAllocationId AllocationIdFromJobId(TJobId jobId)
 {
-    return TAllocationId(jobId.Underlying());
+    auto allocationIdGuid = jobId.Underlying();
+    allocationIdGuid.Parts32[0] &= (1 << 24) - 1;
+    return TAllocationId(allocationIdGuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

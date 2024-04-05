@@ -12,7 +12,7 @@ from yt_commands import (
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
     sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
     update_scheduler_config, update_op_parameters, create_test_tables, retry, create_domestic_medium,
-    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node)
+    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, get_allocation_id_from_job_id)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
@@ -400,7 +400,7 @@ class TestSchedulerPreemption(YTEnvSetup):
                 event_type = row["event_type"]
                 if event_type == "job_aborted" and row["operation_id"] == op0.id:
                     assert row["preempted_for"]["operation_id"] == op1.id
-                    assert row["preempted_for"]["allocation_id"] == preemptor_job_id
+                    assert row["preempted_for"]["allocation_id"] == get_allocation_id_from_job_id(preemptor_job_id)
                     return True
             return False
 

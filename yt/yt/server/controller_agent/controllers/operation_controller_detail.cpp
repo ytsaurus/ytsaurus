@@ -5709,7 +5709,18 @@ TJobExperimentBasePtr TOperationControllerBase::GetJobExperiment()
 
 TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId)
 {
-    return TJobId(allocationId.Underlying());
+    auto jobIdGuid = allocationId.Underlying();
+
+    if (Config->JobIdUnequalToAllocationId) {
+        jobIdGuid.Parts32[0] |= 1 << 24;
+
+        YT_LOG_DEBUG(
+            "Generating job id different from allocation id (JobId: %v, AllocationId: %v)",
+            jobIdGuid,
+            allocationId);
+    }
+
+    return TJobId(jobIdGuid);
 }
 
 void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortReason)

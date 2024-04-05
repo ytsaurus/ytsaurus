@@ -39,6 +39,7 @@ import yt.test_helpers.cleanup as test_cleanup
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
+from yt_commands import print_debug
 from yt_driver_bindings import reopen_logs
 from yt_helpers import master_exit_read_only_sync
 
@@ -829,6 +830,10 @@ class YTEnvSetup(object):
             # COMPAT(arkady-e1ppa)
             if "nodes" not in artifact_components_23_2:
                 config["controller_agent"]["job_tracker"]["enable_graceful_abort"] = True
+
+            if "node" in artifact_components_23_2:
+                print_debug("Turning off job_id_unequal_to_allocation_id flag")
+                config["controller_agent"]["job_id_unequal_to_allocation_id"] = False
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
