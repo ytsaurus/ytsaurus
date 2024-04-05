@@ -140,7 +140,8 @@ def _configure_client_mode(spark_conf,
     spark_conf.set("spark.master", master)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
     os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
-    os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
+    if "SPARK_CONF_DIR" not in os.environ:
+        os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
     spyt_version = spyt_version or SELF_VERSION
