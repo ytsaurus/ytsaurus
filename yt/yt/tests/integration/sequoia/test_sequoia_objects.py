@@ -18,6 +18,8 @@ from yt_commands import (
 
 from yt.wrapper import yson
 
+import pytest
+
 ##################################################################
 
 
@@ -37,6 +39,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True,
+        },
+    }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
@@ -73,26 +81,29 @@ class TestSequoiaReplicas(YTEnvSetup):
         super(TestSequoiaReplicas, self).teardown_method(method)
 
     @authors("aleksandra-zh")
-    def test_chunk_replicas_node_offline1(self):
+    @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
+    def test_chunk_replicas_node_offline1(self, erasure_codec):
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
 
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
+        desired_replica_count = 3 if erasure_codec == "none" else 16
         assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
         rows = select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")
         assert len(rows) == 1
-        assert len(rows[0]["replicas"]) == 3
+        assert len(rows[0]["stored_replicas"]) == desired_replica_count
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
-            pass
+            assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0
+            assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}] where yson_length(stored_replicas) > 0")) == 0
 
         remove("//tmp/t")
 
