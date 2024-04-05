@@ -1025,6 +1025,7 @@ EError TPortoApi::ImportLayer(const TString &layer,
                               bool merge,
                               const TString &place,
                               const TString &private_value,
+                              const TString &container,
                               bool verboseError) {
     Req.Clear();
     auto req = Req.mutable_importlayer();
@@ -1037,6 +1038,8 @@ EError TPortoApi::ImportLayer(const TString &layer,
         req->set_place(place);
     if (private_value.size())
         req->set_private_value(private_value);
+    if (container.size())
+        req->set_container(container);
 
     return Call(DiskTimeout);
 }
