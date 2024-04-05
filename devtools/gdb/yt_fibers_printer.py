@@ -107,6 +107,65 @@ def search_stack_for_symbol(eval_func, depth=10):
     return None
 
 
+def get_fiber_from_address(address):
+    def eval_func():
+        return gdb.parse_and_eval('{{NYT::NConcurrency::TFiber}} {}'.format(address))
+    return search_stack_for_symbol(eval_func)
+
+
+def is_intrusive_list(fibers):
+    return str(fibers).find("Head_") != -1
+
+
+def get_first_node(fibers):
+    words = str(fibers).split(' ')
+
+    for idx, word in enumerate(words):
+        if word.find("Next") != -1:
+            return words[idx + 2].replace(',', '')
+
+
+def is_sentinel(node):
+    return str(node).find("TFiberRegistry") != -1
+
+
+# Given address is that of node.
+# Since fiber has ITrampoline base its address
+# is 8 bytes left of the node's one
+def obtain_fiber_address(node_address):
+    vptr_size = 8
+    int_addr = int(node_address, base=16)
+    int_addr -= vptr_size
+    return hex(int_addr)
+
+def get_prev_next_from_node(node_address):
+    fiber = get_fiber_from_address(obtain_fiber_address(node_address))
+
+    base_type = gdb.lookup_type('NYT::TIntrusiveNode<NYT::NConcurrency::TFiber, NYT::NConcurrency::NDetail::TFiberRegisterTag>')
+    prev = str(fiber.cast(base_type)['Prev'])
+    next = str(fiber.cast(base_type)['Next'])
+
+    return (prev, next)
+
+
+def parse_intrusive_list(addresses, fibers):
+    node = get_first_node(fibers)
+
+    while not is_sentinel(node):
+        addresses.append(obtain_fiber_address(node))
+
+        (_, next) = get_prev_next_from_node(node)
+        node = next
+
+
+def parse_vector(addresses, fibers):
+    for line in format_string_multiline(fibers).split('\n'):
+        if line.find('[') == -1:
+            continue
+        address = line.split(' ')[-1].replace(',', '')
+        addresses.append(address)
+
+
 def get_registered_fiber_addresses():
     def eval_func():
         return gdb.parse_and_eval('NYT::NConcurrency::TFiberRegistry::Get()->Fibers_')
@@ -115,11 +174,12 @@ def get_registered_fiber_addresses():
         gdb.write('Could not find fiber registry\n')
         return []
     addresses = []
-    for line in format_string_multiline(fibers).split('\n'):
-        if line.find('[') == -1:
-            continue
-        address = line.split(' ')[-1].replace(',', '')
-        addresses.append(address)
+
+    if is_intrusive_list(fibers):
+        parse_intrusive_list(addresses, fibers)
+    else:
+        parse_vector(addresses, fibers)
+
     return addresses
 
 
@@ -130,7 +190,7 @@ def get_running_fiber_addresses():
     for thread in inferior.threads():
         thread.switch()
         def eval_func():
-            return str(gdb.parse_and_eval('NYT::NConcurrency::NDetail::FiberContext->CurrentFiber.T_'))
+            return str(gdb.parse_and_eval('NYT::NConcurrency::NDetail::FiberContext->CurrentFiber'))
         address = search_stack_for_symbol(eval_func)
         if not address is None:
             addresses.append(address)
@@ -147,12 +207,6 @@ def format_string_multiline(value):
         gdb.execute('set max-value-size unlimited')
         gdb.execute('set print pretty on')
         return str(value)
-
-
-def get_fiber_from_address(address):
-    def eval_func():
-        return gdb.parse_and_eval('{{NYT::NConcurrency::TFiber}} {}'.format(address))
-    return search_stack_for_symbol(eval_func)
 
 
 def get_waiting_fibers():
