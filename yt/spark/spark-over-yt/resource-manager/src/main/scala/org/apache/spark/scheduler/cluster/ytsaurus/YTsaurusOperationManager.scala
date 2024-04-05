@@ -355,7 +355,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
         Seq.empty
       }
 
-    (providedLists ++ primaryResourceSeq).map(YtWrapper.formatPath).distinct
+    (providedLists ++ primaryResourceSeq).filter(_.startsWith("yt:/")).map(YtWrapper.formatPath).distinct
   }
 
   private[ytsaurus] def enrichSparkConf(conf: SparkConf, ytSparkConfig: YTreeMapNode): Unit = {
