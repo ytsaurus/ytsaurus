@@ -58,7 +58,7 @@ DEPENDS(
 IF (NOT OPENSOURCE)
     # Containers images for porto tests.
     DATA(
-        sbr://6038867631 # Layers.
+        sbr://6123196153 # Layers.
         sbr://1703335903 # Rootfs.
     )
 ENDIF()

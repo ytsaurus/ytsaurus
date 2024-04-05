@@ -783,6 +783,111 @@ class TestTmpfsLayerCache(YTEnvSetup):
             wait(lambda: get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
 
+@authors("yuryalekseev")
+class TestTmpfsLayers(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "regular_tmpfs_layer_cache": {
+                    "capacity": 10 * 1024 * 1024,
+                    "layers_update_period": 100,
+                },
+                "nirvana_tmpfs_layer_cache": {
+                    "capacity": 10 * 1024 * 1024,
+                    "layers_update_period": 100,
+                }
+            }
+        },
+    }
+
+    USE_PORTO = True
+
+    def setup_files(self):
+        create("file", "//tmp/upper_layer", attributes={"replication_factor": 1})
+        file_name = "layers/upper.tgz"
+        write_file("//tmp/upper_layer", open(file_name, "rb").read())
+
+        create("file", "//tmp/lower_layer", attributes={"replication_factor": 1})
+        file_name = "layers/lower.tgz"
+        write_file("//tmp/lower_layer", open(file_name, "rb").read())
+
+        create("file", "//tmp/static_cat", attributes={"replication_factor": 1})
+        file_name = "layers/static_cat"
+        write_file("//tmp/static_cat", open(file_name, "rb").read())
+
+        set("//tmp/static_cat/@executable", True)
+
+    def test_trusted_overlay_opaque_extended_attributes(self):
+        self.setup_files()
+
+        orchid_path = "orchid/exec_node/slot_manager/root_volume_manager"
+
+        for node in ls("//sys/cluster_nodes"):
+            assert get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 0
+            assert get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 0
+
+        create("map_node", "//tmp/cached_layers")
+        link("//tmp/upper_layer", "//tmp/cached_layers/upper_layer")
+
+        with Restarter(self.Env, NODES_SERVICE):
+            # First we create cypress map node for cached layers,
+            # and then add it to node config with node restart.
+            # Otherwise environment starter will consider node as dead, since
+            # it will not be able to initialize tmpfs layer cache and will
+            # report zero user job slots.
+            for i, config in enumerate(self.Env.configs["node"]):
+                config["data_node"]["volume_manager"]["regular_tmpfs_layer_cache"]["layers_directory_path"] = "//tmp/cached_layers"
+                config["data_node"]["volume_manager"]["nirvana_tmpfs_layer_cache"]["layers_directory_path"] = "//tmp/cached_layers"
+                config_path = self.Env.config_paths["node"][i]
+                with open(config_path, "wb") as fout:
+                    yson.dump(config, fout)
+
+        wait_for_nodes()
+        for node in ls("//sys/cluster_nodes"):
+            # After node restart we must wait for async root volume manager initialization.
+            wait(lambda: exists("//sys/cluster_nodes/{0}/{1}".format(node, orchid_path)))
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/regular_tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/nirvana_tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="./static_cat; ls $YT_ROOT_FS/dir 1>&2",
+            file="//tmp/static_cat",
+            spec={
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "layer_paths": ["//tmp/upper_layer", "//tmp/lower_layer"],
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+        job_stderr = op.read_stderr(job_id)
+        # The trusted.overlay.opaque xattr is set on dir so ls should see upper file
+        # from the upper layer and should not see lower file from the lower layer.
+        assert b"upper" in job_stderr
+        assert b"lower" not in job_stderr
+
+
 @authors("ignat")
 class TestJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
