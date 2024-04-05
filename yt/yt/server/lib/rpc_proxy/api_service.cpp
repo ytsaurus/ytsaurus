@@ -791,6 +791,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckClusterLiveness));
 
         DeclareServerFeature(ERpcProxyFeature::GetInSyncWithoutKeys);
+        DeclareServerFeature(ERpcProxyFeature::WideLocks);
     }
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
@@ -4284,18 +4285,20 @@ private:
         modifications.reserve(rowsetSize);
         for (ssize_t index = 0; index < rowsetSize; ++index) {
             TLockMask lockMask;
-            if (index < request.row_read_locks_size()) {
-                TLegacyLockBitmap readLockMask = request.row_read_locks(index);
+            if (index < request.row_legacy_read_locks_size()) {
+                TLegacyLockBitmap readLockMask = request.row_legacy_read_locks(index);
                 for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
                     if (readLockMask & (1u << index)) {
                         lockMask.Set(index, ELockType::SharedWeak);
                     }
                 }
-            } else if (index < request.row_locks_size()) {
-                auto legacyLocks = TLegacyLockMask(request.row_locks(index));
+            } else if (index < request.row_legacy_locks_size()) {
+                auto legacyLocks = TLegacyLockMask(request.row_legacy_locks(index));
                 for (int index = 0; index < TLegacyLockMask::MaxCount; ++index) {
                     lockMask.Set(index, legacyLocks.Get(index));
                 }
+            } else if (index < request.row_locks_size()) {
+                FromProto(&lockMask, request.row_locks(index));
             }
 
             modifications.push_back({

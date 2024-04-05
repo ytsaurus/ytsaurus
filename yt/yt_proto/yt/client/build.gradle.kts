@@ -56,6 +56,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto")
         include("yt/yt_proto/yt/client/table_chunk_format/proto/column_meta.proto")
         include("yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto")
+        include("yt/yt_proto/yt/client/tablet_client/proto/lock_mask.proto")
         include("yt/yt_proto/yt/client/transaction_client/proto/timestamp_service.proto")
         include("yt/yt_proto/yt/client/query_client/proto/query_statistics.proto")
         include("yt/yt_proto/yt/client/misc/proto/workload.proto")
