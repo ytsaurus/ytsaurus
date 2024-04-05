@@ -132,7 +132,7 @@ void TSlotLocation::DoInitialize()
 
     MakeDirRecursive(Config_->Path, 0755);
 
-    WaitFor(HealthChecker_->RunCheck())
+    HealthChecker_->RunCheck()
         .ThrowOnError();
 
     ValidateMinimumSpace();
@@ -837,9 +837,8 @@ void TSlotLocation::OnArtifactPreparationFailed(
     bool destinationInsideTmpfs = destinationPath && IsInsideTmpfs(*destinationPath);
 
     bool brokenPipe = static_cast<bool>(error.FindMatching(ELinuxErrorCode::PIPE));
-    bool noSpace =
-        static_cast<bool>(error.FindMatching(ELinuxErrorCode::NOSPC)) ||
-        static_cast<bool>(error.FindMatching(ELinuxErrorCode::DQUOT));
+    bool noSpace = static_cast<bool>(error.FindMatching({ELinuxErrorCode::NOSPC, ELinuxErrorCode::DQUOT}));
+    bool isReaderError = static_cast<bool>(error.FindMatching(NExecNode::EErrorCode::ArtifactFetchFailed));
 
     // NB: Broken pipe error usually means that job proxy exited abnormally during artifact preparation.
     // We silently ignore it and wait for the job proxy exit error.
@@ -866,6 +865,14 @@ void TSlotLocation::OnArtifactPreparationFailed(
 
         THROW_ERROR_EXCEPTION(
             "Failed to build file %Qv in sandbox %Qv: disk space limit is too small",
+            artifactName,
+            sandboxKind)
+            << error;
+    } else if (isReaderError) {
+        YT_LOG_INFO(error, "Failed to build file in sandbox: chunk fetching failed");
+
+        THROW_ERROR_EXCEPTION(
+            "Failed to build file %Qv in sandbox %Qv: chunk fetching failed",
             artifactName,
             sandboxKind)
             << error;
@@ -951,6 +958,8 @@ void TSlotLocation::Disable(const TError& error)
 
         DiskResourcesUpdateExecutor_->Stop();
         SlotLocationStatisticsUpdateExecutor_->Stop();
+
+        YT_UNUSED_FUTURE(WaitFor(HealthChecker_->Stop()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->DataNode;

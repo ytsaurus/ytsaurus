@@ -31,6 +31,8 @@ public:
     //! The first invocation happens with a delay defined by the class heir.
     void Start();
 
+    bool IsStarted() const;
+
     //! Stops the instance, cancels all subsequent invocations.
     //! Returns a future that becomes set when all outstanding callback
     //! invocations are finished and no more invocations are expected to happen.

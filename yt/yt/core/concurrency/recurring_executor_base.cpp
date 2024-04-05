@@ -33,6 +33,12 @@ void TRecurringExecutorBase::Start()
     ScheduleFirstCallback();
 }
 
+bool TRecurringExecutorBase::IsStarted() const
+{
+    auto guard = Guard(SpinLock_);
+    return Started_;
+}
+
 void TRecurringExecutorBase::DoStop(TGuard<NThreading::TSpinLock>& guard)
 {
     if (!Started_) {

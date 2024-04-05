@@ -100,6 +100,12 @@ void TSlotManager::OnPortoHealthCheckSuccess()
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
+        auto volumeManager = RootVolumeManager_.Acquire();
+        if (volumeManager && !volumeManager->IsEnabled() && IsInitialized()) {
+            Disable(TError("Layer cache is disabled"));
+            return;
+        }
+
         WaitFor(Resurrect())
             .ThrowOnError();
     }
@@ -422,12 +428,16 @@ bool TSlotManager::IsEnabled() const
 
     auto guard = ReaderGuard(AliveLocationsLock_);
 
+    auto volumeManager = RootVolumeManager_.Acquire();
+    auto isVolumeManagerEnabled = JobEnvironmentType_ != EJobEnvironmentType::Porto || volumeManager && volumeManager->IsEnabled();
+
     bool enabled =
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
-        JobEnvironment_->IsEnabled();
+        JobEnvironment_->IsEnabled() &&
+        isVolumeManagerEnabled;
 
     return enabled && !HasSlotDisablingAlert();
 }
@@ -912,6 +922,7 @@ void TSlotManager::AsyncInitialize()
         // To this moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        JobEnvironmentType_ = environmentConfig->Type;
         if (environmentConfig->Type == EJobEnvironmentType::Porto) {
             auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
                 Bootstrap_->GetConfig()->DataNode,

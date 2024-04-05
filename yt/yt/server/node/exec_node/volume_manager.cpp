@@ -36,6 +36,8 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
+#include <yt/yt/ytlib/exec_node/public.h>
+
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -559,24 +561,21 @@ public:
             .ToUncancelable();
     }
 
-    void StopHealthChecker()
-    {
-        if (HealthChecker_) {
-            HealthChecker_->Stop();
-        }
-    }
-
     void Disable(const TError& error, bool persistentDisable = true)
     {
         // TODO(don-dron): Research and fix unconditional Disabled.
-        auto guard = Guard(SpinLock_);
         if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             return;
         }
 
         YT_LOG_WARNING("Layer location disabled (Path: %v)", Config_->Path);
 
-        StopHealthChecker();
+        if (HealthChecker_) {
+            auto result = WaitFor(HealthChecker_->Stop());
+            YT_LOG_WARNING_IF(!result.IsOK(), result, "Layer location health checker stopping failed");
+        }
+
+        auto guard = Guard(SpinLock_);
 
         if (persistentDisable) {
             // Save the reason in a file and exit.
@@ -856,7 +855,7 @@ private:
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
             if (HealthChecker_) {
-                WaitFor(HealthChecker_->RunCheck())
+                HealthChecker_->RunCheck()
                     .ThrowOnError();
             }
 
@@ -1490,7 +1489,8 @@ TLayerLocationPtr DoPickLocation(
     }
 
     if (!location) {
-        THROW_ERROR_EXCEPTION("Failed to get layer location; all locations are disabled");
+        THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::NoLayerLocationAvailable,
+            "Failed to get layer location; all locations are disabled");
     }
 
     return location;
@@ -2043,11 +2043,29 @@ public:
         });
     }
 
+    bool IsEnabled() const
+    {
+        for (const auto& location : LayerLocations_) {
+            if (location->IsEnabled()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    TLayerLocationPtr PickLocation()
+    {
+        return DoPickLocation(LayerLocations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
+            return candidate->GetVolumeCount() < current->GetVolumeCount();
+        });
+    }
+
     TFuture<void> Disable(const TError& reason)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        YT_LOG_WARNING(reason, "Layer cache disabled");
+        YT_LOG_WARNING(reason, "Layer cache is disabled");
 
         for (const auto& location : LayerLocations_) {
             location->Disable(reason, false);
@@ -2091,6 +2109,18 @@ public:
         }
 
         return value;
+    }
+
+    TFuture<void> GetVolumeReleaseEvent()
+    {
+        std::vector<TFuture<void>> futures;
+        for (const auto& location : LayerLocations_) {
+            futures.push_back(location->GetVolumeReleaseEvent());
+        }
+
+        return AllSet(std::move(futures))
+            .AsVoid()
+            .ToUncancelable();
     }
 
     bool IsLayerCached(const TArtifactKey& artifactKey)
@@ -2574,6 +2604,7 @@ public:
 
         std::vector<TFuture<void>> initLocationResults;
         std::vector<TLayerLocationPtr> locations;
+        std::vector<TLayerLocationPtr> locationResults;
         for (int index = 0; index < std::ssize(Config_->VolumeManager->LayerLocations); ++index) {
             const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
             auto id = Format("layer%v", index);
@@ -2608,13 +2639,13 @@ public:
             auto wrappedError = TError("Failed to initialize layer locations") << errorOrResults;
             YT_LOG_WARNING(wrappedError);
             Alerts_.push_back(wrappedError);
-            Locations_.clear();
+            locationResults.clear();
         }
 
         for (int index = 0; index < std::ssize(errorOrResults.Value()); ++index) {
             const auto& error = errorOrResults.Value()[index];
             if (error.IsOK()) {
-                Locations_.push_back(locations[index]);
+                locationResults.push_back(locations[index]);
             } else {
                 const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
                 auto wrappedError = TError("Layer location async initialization failed (Path: %v)", locationConfig->Path)
@@ -2631,7 +2662,7 @@ public:
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
-            Locations_,
+            std::move(locationResults),
             tmpfsExecutor,
             ChunkCache_,
             ControlInvoker_,
@@ -2642,25 +2673,19 @@ public:
 
     TFuture<void> GetVolumeReleaseEvent() override
     {
-        std::vector<TFuture<void>> futures;
-        for (const auto& location : Locations_) {
-            futures.push_back(location->GetVolumeReleaseEvent());
-        }
-
-        return AllSet(std::move(futures))
-            .AsVoid()
-            .ToUncancelable();
+        return LayerCache_->GetVolumeReleaseEvent();
     }
 
     TFuture<void> DisableLayerCache(const TError& reason) override
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-        return LayerCache_->Disable(reason)
-            .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
-                Locations_.clear();
-            })
-            .AsyncVia(ControlInvoker_));
+        return LayerCache_->Disable(reason);
+    }
+
+    bool IsEnabled() const override
+    {
+        return LayerCache_->IsEnabled();
     }
 
     TFuture<IVolumePtr> PrepareVolume(
@@ -2768,17 +2793,8 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
-    std::vector<TLayerLocationPtr> Locations_;
-
     TLayerCachePtr LayerCache_;
     std::vector<TError> Alerts_;
-
-    TLayerLocationPtr PickLocation()
-    {
-        return DoPickLocation(Locations_, [] (const TLayerLocationPtr& candidate, const TLayerLocationPtr& current) {
-            return candidate->GetVolumeCount() < current->GetVolumeCount();
-        });
-    }
 
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
@@ -2990,7 +3006,7 @@ private:
                 THROW_ERROR(error);
             }
 
-            auto location = PickLocation();
+            auto location = LayerCache_->PickLocation();
             auto volumeMetaFuture = location->CreateNbdVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, nbdConfig);
             auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
                 [
@@ -3062,7 +3078,7 @@ private:
             }
         }
 
-        auto location = PickLocation();
+        auto location = LayerCache_->PickLocation();
         auto volumeMetaFuture = location->CreateOverlayVolume(tag, tagSet, std::move(volumeCreateTimeGuard), options, overlayDataArray);
         // This future is intentionally uncancellable: we don't want to interrupt invoked volume creation,
         // until it is completed and the OverlayVolume object is fully created.
@@ -3102,7 +3118,7 @@ private:
             tag,
             squashFSFilePath);
 
-        auto location = PickLocation();
+        auto location = LayerCache_->PickLocation();
         auto volumeMetaFuture = location->CreateSquashFSVolume(tag, tagSet, std::move(volumeCreateTimeGuard), artifactKey, squashFSFilePath);
         auto volumeFuture = volumeMetaFuture.ApplyUnique(BIND(
             [
@@ -3135,6 +3151,12 @@ private:
     void PopulateAlerts(std::vector<TError>* alerts)
     {
         std::copy(Alerts_.begin(), Alerts_.end(), std::back_inserter(*alerts));
+
+        if (LayerCache_ && !LayerCache_->IsEnabled()) {
+            Alerts_.emplace_back(
+                NExecNode::EErrorCode::NoLayerLocationAvailable,
+                "Layer cache is disabled");
+        }
     }
 };
 

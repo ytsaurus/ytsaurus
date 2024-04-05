@@ -411,6 +411,8 @@ protected:
     TAtomicObject<TError> LocationDisabledAlert_;
     TAtomicObject<TError> LocationDiskFailedAlert_;
 
+    TDiskHealthCheckerPtr HealthChecker_;
+
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
     TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
@@ -465,8 +467,6 @@ private:
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
-
-    TDiskHealthCheckerPtr HealthChecker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;

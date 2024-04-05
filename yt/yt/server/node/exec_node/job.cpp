@@ -2815,6 +2815,36 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     const auto& resultError = *Error_;
 
+    static THashSet<TErrorCode> otherAbortErrorCodes = {
+        NChunkClient::EErrorCode::AllTargetNodesFailed,
+        NChunkClient::EErrorCode::ReaderThrottlingFailed,
+        NChunkClient::EErrorCode::MasterCommunicationFailed,
+        NChunkClient::EErrorCode::MasterNotConnected,
+        NChunkClient::EErrorCode::ReaderTimeout,
+        NChunkClient::EErrorCode::ChunkBlockFetchFailed,
+        NChunkClient::EErrorCode::ChunkMetaFetchFailed,
+        NChunkClient::EErrorCode::AutoRepairFailed,
+        NExecNode::EErrorCode::ConfigCreationFailed,
+        NExecNode::EErrorCode::SlotNotFound,
+        NExecNode::EErrorCode::JobEnvironmentDisabled,
+        NExecNode::EErrorCode::ArtifactCopyingFailed,
+        NExecNode::EErrorCode::ArtifactDownloadFailed,
+        NExecNode::EErrorCode::NodeDirectoryPreparationFailed,
+        NExecNode::EErrorCode::SlotLocationDisabled,
+        NExecNode::EErrorCode::NoLayerLocationAvailable,
+        NExecNode::EErrorCode::NotEnoughDiskSpace,
+        NJobProxy::EErrorCode::MemoryCheckFailed,
+        NContainers::EErrorCode::FailedToStartContainer,
+        EProcessErrorCode::CannotResolveBinary,
+        NNet::EErrorCode::ResolveTimedOut,
+        NExecNode::EErrorCode::JobProxyPreparationTimeout,
+        NExecNode::EErrorCode::JobPreparationTimeout,
+        NExecNode::EErrorCode::GpuCheckCommandFailed,
+        NExecNode::EErrorCode::GpuLayerNotFetched,
+        NJobProxy::EErrorCode::JobNotRunning,
+        NExecNode::EErrorCode::ArtifactFetchFailed,
+    };
+
     if (JobResultExtension_) {
         const auto& schedulerResultExt = *JobResultExtension_;
 
@@ -2904,7 +2934,8 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         resultError.FindMatching(NExecNode::EErrorCode::JobPreparationTimeout) ||
         resultError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) ||
         resultError.FindMatching(NExecNode::EErrorCode::GpuLayerNotFetched) ||
-        resultError.FindMatching(NJobProxy::EErrorCode::JobNotRunning))
+        resultError.FindMatching(NJobProxy::EErrorCode::JobNotRunning) || 
+        resultError.FindMatching(NExecNode::EErrorCode::ArtifactFetchFailed))
     {
         return EAbortReason::Other;
     }

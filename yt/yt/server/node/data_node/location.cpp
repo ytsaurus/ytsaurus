@@ -981,7 +981,7 @@ void TChunkLocation::ValidateWritable()
     NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
-    WaitFor(HealthChecker_->RunCheck())
+    HealthChecker_->RunCheck()
         .ThrowOnError();
 }
 
@@ -1917,6 +1917,10 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
             // Additional removal of chunks that were recorded in unfinished sessions.
             RemoveLocationChunks();
+
+            WaitFor(HealthChecker_->Stop())
+                .ThrowOnError();
+
             UnlockChunkLocks();
             ResetLocationStatistic();
             ChunkStoreHost_->ScheduleMasterHeartbeat();

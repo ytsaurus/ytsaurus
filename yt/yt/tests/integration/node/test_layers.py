@@ -65,22 +65,44 @@ class TestLayers(TestLayersBase):
 
     @authors("ilpauzner")
     def test_disabled_layer_locations(self):
+        for node in self.Env.configs["node"]:
+            for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
+                try:
+                    disabled_path = layer_location["path"]
+                    os.mkdir(layer_location["path"])
+                except OSError:
+                    pass
+                with open(layer_location["path"] + "/disabled", "w"):
+                    pass
+
         with Restarter(self.Env, NODES_SERVICE):
-            disabled_path = None
-            for node in self.Env.configs["node"][:1]:
-                for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
-                    try:
-                        disabled_path = layer_location["path"]
-                        os.mkdir(layer_location["path"])
-                    except OSError:
-                        pass
-                    with open(layer_location["path"] + "/disabled", "w"):
-                        pass
+            pass
 
         wait_for_nodes()
 
+        nodes = ls("//sys/cluster_nodes")
+
+        def check_layer_cache_disable():
+            for node in nodes:
+                alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+                return any([alert["message"] == "Layer cache is disabled" for alert in alerts])
+
+        wait(lambda: check_layer_cache_disable())
+
+        for node in nodes:
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) == 0)
+
+        for node in self.Env.configs["node"]:
+            for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
+                try:
+                    disabled_path = layer_location["path"]
+                    os.unlink(disabled_path + "/disabled")
+                except OSError:
+                    pass
+
         with Restarter(self.Env, NODES_SERVICE):
-            os.unlink(disabled_path + "/disabled")
+            pass
+
         wait_for_nodes()
 
         time.sleep(5)

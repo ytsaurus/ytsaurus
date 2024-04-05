@@ -31,42 +31,48 @@ TDiskHealthChecker::TDiskHealthChecker(
     , WriteTimer_(profiler.Timer("/disk_health_check/write_time"))
 {
     Logger.AddTag("Path: %v", Path_);
-}
-
-void TDiskHealthChecker::Start()
-{
-    CheckerCookie_ = TDelayedExecutor::Submit(
+    PeriodicExecutor_ = New<TPeriodicExecutor>(
+        CheckInvoker_,
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
         Config_->CheckPeriod);
 }
 
-void TDiskHealthChecker::Stop()
+void TDiskHealthChecker::Start()
 {
-    TDelayedExecutor::CancelAndClear(CheckerCookie_);
+    PeriodicExecutor_->Start();
 }
 
-TFuture<void> TDiskHealthChecker::RunCheck()
+TFuture<void> TDiskHealthChecker::Stop()
 {
-    return BIND(&TDiskHealthChecker::DoRunCheck, MakeStrong(this))
+    return PeriodicExecutor_->Stop();
+}
+
+TError TDiskHealthChecker::RunCheck()
+{
+    YT_VERIFY(!PeriodicExecutor_->IsStarted());
+    return RunCheckWithTimeout();
+}
+
+TError TDiskHealthChecker::RunCheckWithTimeout()
+{
+    return WaitFor(BIND_NO_PROPAGATE(&TDiskHealthChecker::DoRunCheck, MakeStrong(this))
         .AsyncVia(CheckInvoker_)
         .Run()
-        .WithTimeout(Config_->Timeout);
+        .WithTimeout(Config_->Timeout));
 }
 
 void TDiskHealthChecker::OnCheck()
 {
-    RunCheck().Subscribe(BIND(&TDiskHealthChecker::OnCheckCompleted, MakeWeak(this)));
+    OnCheckCompleted(RunCheckWithTimeout());
 }
 
 void TDiskHealthChecker::OnCheckCompleted(const TError& error)
 {
     if (error.IsOK()) {
-        TDelayedExecutor::Submit(
-            BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
-            Config_->CheckPeriod);
-
         return;
     }
+
+    YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
 
     auto actualError = error.GetCode() == NYT::EErrorCode::Timeout
         ? TError("Disk health check timed out at %v", Path_)

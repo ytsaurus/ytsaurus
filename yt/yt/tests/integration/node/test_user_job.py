@@ -2453,6 +2453,26 @@ class TestHealExecNode(YTEnvSetup):
         },
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "enable_job_environment_resurrection": True
+                },
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
+                    },
+                },
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 200,  # 200 msec
+                    }
+                }
+            }
+        }
+    }
+
     @authors("alexkolodezny")
     def test_heal_locations(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
@@ -2490,8 +2510,26 @@ class TestHealExecNode(YTEnvSetup):
 
         wait(lambda: not is_disabled())
 
+        op.track()
+
+        wait(lambda: op.get_state() == "completed")
+
+        for location in locations:
+            if os.path.exists("{}/disabled".format(location["path"])):
+                os.remove("{}/disabled".format(location["path"]))
+
     @authors("ignat")
     def test_reset_alerts(self):
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
+
+        node_address = ls("//sys/cluster_nodes")[0]
+
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
+
+        for location in locations:
+            if os.path.exists("{}/disabled".format(location["path"])):
+                os.remove("{}/disabled".format(location["path"]))
+
         job_proxy_path = os.path.join(self.bin_path, "ytserver-job-proxy")
         assert os.path.exists(job_proxy_path)
 
@@ -2526,9 +2564,22 @@ class TestHealExecNode(YTEnvSetup):
         heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
 
+        for location in locations:
+            if os.path.exists("{}/disabled".format(location["path"])):
+                os.remove("{}/disabled".format(location["path"]))
+
     @authors("ignat")
     def test_reset_fatal_alert(self):
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
+
         node_address = ls("//sys/cluster_nodes")[0]
+
+        locations = get("//sys/cluster_nodes/{0}/orchid/config/exec_node/slot_manager/locations".format(node_address))
+
+        for location in locations:
+            if os.path.exists("{}/disabled".format(location["path"])):
+                os.remove("{}/disabled".format(location["path"]))
+
         assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
 
         update_nodes_dynamic_config({
@@ -2558,7 +2609,19 @@ class TestHealExecNode(YTEnvSetup):
         heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
 
+        def check_resurrect():
+            node = ls("//sys/cluster_nodes")[0]
+            alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+
+            return len(alerts) == 0
+
+        wait(lambda: check_resurrect())
+
         op.track()
+
+        for location in locations:
+            if os.path.exists("{}/disabled".format(location["path"])):
+                os.remove("{}/disabled".format(location["path"]))
 
 
 ##################################################################
