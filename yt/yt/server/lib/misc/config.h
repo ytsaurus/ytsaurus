@@ -41,6 +41,9 @@ public:
     int RpcPort;
     int TvmOnlyRpcPort;
     int MonitoringPort;
+    //! This option may be used to prevent config-containing nodes to be exposed in Orchid as a mean of security
+    //! (disclosing less information about YT servers to a potential attacker).
+    bool ExposeConfigInOrchid;
 
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
 

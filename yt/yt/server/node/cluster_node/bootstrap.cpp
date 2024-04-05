@@ -1122,26 +1122,29 @@ private:
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/config",
+                CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/cluster_connection",
+                CreateVirtualNode(Connection_->GetOrchidService()));
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        }
+
         SetNodeByYPath(
             OrchidRoot_,
             "/tcp_dispatcher",
             CreateVirtualNode(NYT::NBus::TTcpDispatcher::Get()->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
-            "/config",
-            CreateVirtualNode(ConfigNode_));
-        SetNodeByYPath(
-            OrchidRoot_,
             "/restart_manager",
             CreateVirtualNode(RestartManager_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/cluster_connection",
-            CreateVirtualNode(Connection_->GetOrchidService()));
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         SetNodeByYPath(
             OrchidRoot_,
             "/object_service_cache",
