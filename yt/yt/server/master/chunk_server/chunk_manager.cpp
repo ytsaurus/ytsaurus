@@ -1720,6 +1720,21 @@ public:
         }
     }
 
+    // To remove potential users data from error and secure them.
+    TError SanitizeError(TError error)
+    {
+        static const std::vector<TString> ForbiddenAttributes = {
+            "lhs_value",
+            "rhs_value",
+        };
+
+        for (const auto& attribute : ForbiddenAttributes) {
+            if (error.MutableAttributes()->Contains(attribute)) {
+                error.MutableAttributes()->Remove(attribute);
+            }
+        }
+        return error;
+    }
 
     void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) override
     {
@@ -1780,7 +1795,7 @@ public:
 
                 switch (state) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG(jobError, "Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1791,7 +1806,7 @@ public:
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_WARNING(jobError, "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_WARNING(SanitizeError(std::move(jobError)), "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1802,7 +1817,7 @@ public:
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_WARNING(jobError, "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_WARNING(SanitizeError(std::move(jobError)), "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1829,21 +1844,21 @@ public:
                 // Unknown jobs are aborted and removed.
                 switch (state) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG(jobError, "Unknown job has completed, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Unknown job has completed, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_DEBUG(jobError, "Unknown job has failed, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Unknown job has failed, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_DEBUG(jobError, "Job aborted, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Job aborted, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
