@@ -34,7 +34,7 @@ Agent controllers represent the second element of the scheduling subsystem. They
 
 `Exec Nodes` are directly involved in executing jobs on the cluster's computing resources. They send heartbeats to the scheduler, informing it about the initiated/completed jobs and the available resources.`` In response, `Exec Nodes` receive requests from the scheduler to initiate new jobs. `Exec Nodes` are responsible for preparing the job environment, launching containers to isolate processes, managing the lifecycle of user processes, and much more.
 
-To function, `Exec Nodes` require access to the disk. First, this is necessary to create directories for initiating user processes and loading files that the user specified in the operation. Second, the disk contains a `Chunk Cache`, or an artifact cache that stores the files that were loaded to a job for reuse in different jobs as part of one or multiple operations. Such disks don't have to be reliable: unlike masters or `Data Nodes`, an `Exec Node` losing its state results in a loss of progress only for the jobs that were executed on that node.
+To function, `Exec Nodes` require access to the disk. First, this is necessary to create directories for initiating user processes and loading files that the user specified in the operation. Second, the disk contains a `Chunk Cache` and `Image Cache` - caches for artifacts and container images. Caches store the files that were loaded to a job for reuse in different jobs as part of one or multiple operations. Such disks don't have to be reliable: unlike masters or `Data Nodes`, an `Exec Node` losing its state results in a loss of progress only for the jobs that were executed on that node.
 
 ## Tablet Nodes
 
