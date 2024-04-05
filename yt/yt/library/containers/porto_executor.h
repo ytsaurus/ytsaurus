@@ -118,7 +118,8 @@ struct IPortoExecutor
     virtual TFuture<void> ImportLayer(
         const TString& archivePath,
         const TString& layerId,
-        const TString& place) = 0;
+        const TString& place,
+        const TString& container) = 0;
     virtual TFuture<void> RemoveLayer(
         const TString& layerId,
         const TString& place,
