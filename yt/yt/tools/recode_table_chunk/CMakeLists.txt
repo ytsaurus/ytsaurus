@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(recode-table-chunk)
 
 
@@ -21,7 +22,7 @@ target_compile_options(recode-table-chunk PRIVATE
 )
 
 target_link_libraries(recode-table-chunk PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

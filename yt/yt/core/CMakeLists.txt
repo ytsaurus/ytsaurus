@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(actions)
 add_subdirectory(bus)
 add_subdirectory(compression)
@@ -41,7 +42,7 @@ target_compile_options(yt-yt-core PRIVATE
 )
 
 target_link_libraries(yt-yt-core PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-snappy
@@ -355,7 +356,7 @@ target_compile_options(yt-yt-core.global PRIVATE
 )
 
 target_link_libraries(yt-yt-core.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-snappy

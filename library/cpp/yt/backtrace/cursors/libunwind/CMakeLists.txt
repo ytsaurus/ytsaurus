@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(backtrace-cursors-libunwind)
 
 
@@ -21,7 +22,7 @@ target_compile_options(backtrace-cursors-libunwind PRIVATE
 )
 
 target_link_libraries(backtrace-cursors-libunwind PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-libunwind

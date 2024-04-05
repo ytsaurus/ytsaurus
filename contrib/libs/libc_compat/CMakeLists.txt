@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-libc_compat)
 
 
@@ -27,7 +28,7 @@ target_include_directories(contrib-libs-libc_compat PUBLIC
 )
 
 target_link_libraries(contrib-libs-libc_compat PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   cpp-sanitizer-include
 )
 

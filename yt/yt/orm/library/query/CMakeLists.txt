@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(orm-library-query)
 
 
@@ -21,7 +22,7 @@ target_compile_options(orm-library-query PRIVATE
 )
 
 target_link_libraries(orm-library-query PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   orm-library-attributes

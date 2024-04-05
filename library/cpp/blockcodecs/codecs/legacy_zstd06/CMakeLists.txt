@@ -13,11 +13,12 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(blockcodecs-codecs-legacy_zstd06 INTERFACE)
 
 
 target_link_libraries(blockcodecs-codecs-legacy_zstd06 INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-zstd06
@@ -32,7 +33,7 @@ add_global_library_for(blockcodecs-codecs-legacy_zstd06.global
 
 
 target_link_libraries(blockcodecs-codecs-legacy_zstd06.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-zstd06

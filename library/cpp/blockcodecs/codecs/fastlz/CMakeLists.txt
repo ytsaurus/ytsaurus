@@ -13,11 +13,12 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(blockcodecs-codecs-fastlz INTERFACE)
 
 
 target_link_libraries(blockcodecs-codecs-fastlz INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-fastlz
@@ -32,7 +33,7 @@ add_global_library_for(blockcodecs-codecs-fastlz.global
 
 
 target_link_libraries(blockcodecs-codecs-fastlz.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-fastlz

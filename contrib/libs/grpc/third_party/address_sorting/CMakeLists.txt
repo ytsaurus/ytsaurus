@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(grpc-third_party-address_sorting)
 
 
@@ -28,7 +29,7 @@ target_include_directories(grpc-third_party-address_sorting PRIVATE
 )
 
 target_link_libraries(grpc-third_party-address_sorting PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(grpc-third_party-address_sorting PRIVATE

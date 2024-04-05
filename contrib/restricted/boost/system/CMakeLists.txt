@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-system INTERFACE)
 
 
@@ -21,7 +22,7 @@ target_include_directories(restricted-boost-system INTERFACE
 )
 
 target_link_libraries(restricted-boost-system INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   restricted-boost-assert
   restricted-boost-config

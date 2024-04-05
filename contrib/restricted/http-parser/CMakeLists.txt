@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-restricted-http-parser)
 
 
@@ -27,7 +28,7 @@ target_include_directories(contrib-restricted-http-parser PRIVATE
 )
 
 target_link_libraries(contrib-restricted-http-parser PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(contrib-restricted-http-parser PRIVATE

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(restricted-boost-regex)
 
 
@@ -27,7 +28,7 @@ target_include_directories(restricted-boost-regex PUBLIC
 )
 
 target_link_libraries(restricted-boost-regex PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-icu
   restricted-boost-assert

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(server-lib-misc)
 
@@ -22,7 +23,7 @@ target_compile_options(server-lib-misc PRIVATE
 )
 
 target_link_libraries(server-lib-misc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib
@@ -63,7 +64,7 @@ target_compile_options(server-lib-misc.global PRIVATE
 )
 
 target_link_libraries(server-lib-misc.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-ytlib

@@ -14,6 +14,7 @@
 # system may be rejected.
 
 find_package(Python3 REQUIRED)
+find_package(linux-headers-generic REQUIRED)
 set(
   KOSHER_SVN_VERSION
   
@@ -37,7 +38,7 @@ target_include_directories(library-cpp-build_info PUBLIC
 )
 
 target_link_libraries(library-cpp-build_info PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-string_utils-base64

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-protobuf)
 
 
@@ -28,7 +29,7 @@ target_include_directories(contrib-libs-protobuf PUBLIC
 )
 
 target_link_libraries(contrib-libs-protobuf PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-zlib
@@ -207,7 +208,7 @@ target_include_directories(contrib-libs-protobuf.global PUBLIC
 )
 
 target_link_libraries(contrib-libs-protobuf.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-zlib

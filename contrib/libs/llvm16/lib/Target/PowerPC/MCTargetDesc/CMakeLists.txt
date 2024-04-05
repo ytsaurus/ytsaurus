@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(Target-PowerPC-MCTargetDesc)
 
 
@@ -27,7 +28,7 @@ target_include_directories(Target-PowerPC-MCTargetDesc PRIVATE
 )
 
 target_link_libraries(Target-PowerPC-MCTargetDesc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

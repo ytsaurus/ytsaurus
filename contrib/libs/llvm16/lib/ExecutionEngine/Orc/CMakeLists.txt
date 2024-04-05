@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(Shared)
 add_subdirectory(TargetProcess)
 add_library(lib-ExecutionEngine-Orc)
@@ -27,7 +28,7 @@ target_include_directories(lib-ExecutionEngine-Orc PRIVATE
 )
 
 target_link_libraries(lib-ExecutionEngine-Orc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

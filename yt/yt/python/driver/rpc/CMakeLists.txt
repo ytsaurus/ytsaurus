@@ -14,11 +14,12 @@
 # system may be rejected.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(linux-headers-generic REQUIRED)
 add_library(python-driver-rpc INTERFACE)
 
 
 target_link_libraries(python-driver-rpc INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   python-driver-lib
@@ -40,7 +41,7 @@ target_compile_options(python-driver-rpc.global PRIVATE
 )
 
 target_link_libraries(python-driver-rpc.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   python-driver-lib

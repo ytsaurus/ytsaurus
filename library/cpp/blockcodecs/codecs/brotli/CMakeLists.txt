@@ -13,11 +13,12 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(blockcodecs-codecs-brotli INTERFACE)
 
 
 target_link_libraries(blockcodecs-codecs-brotli INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   libs-brotli-enc
@@ -33,7 +34,7 @@ add_global_library_for(blockcodecs-codecs-brotli.global
 
 
 target_link_libraries(blockcodecs-codecs-brotli.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   libs-brotli-enc

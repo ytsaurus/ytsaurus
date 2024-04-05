@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(arch)
 add_library(contrib-libs-farmhash)
 
@@ -26,7 +27,7 @@ target_include_directories(contrib-libs-farmhash PUBLIC
 )
 
 target_link_libraries(contrib-libs-farmhash PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   farmhash-arch-sse41

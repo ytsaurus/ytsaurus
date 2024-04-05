@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(yt-library-undumpable)
 
@@ -22,7 +23,7 @@ target_compile_options(yt-library-undumpable PRIVATE
 )
 
 target_link_libraries(yt-library-undumpable PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-cxxsupp-libcxx)
 
 
@@ -34,7 +35,7 @@ target_include_directories(libs-cxxsupp-libcxx PRIVATE
 )
 
 target_link_libraries(libs-cxxsupp-libcxx PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   libs-cxxsupp-libcxxabi-parts
   libs-cxxsupp-libcxxrt
   libs-cxxsupp-builtins

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(pcre16)
 add_subdirectory(pcre32)
 add_library(contrib-libs-pcre)
@@ -32,7 +33,7 @@ target_include_directories(contrib-libs-pcre PRIVATE
 )
 
 target_link_libraries(contrib-libs-pcre PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(contrib-libs-pcre PRIVATE

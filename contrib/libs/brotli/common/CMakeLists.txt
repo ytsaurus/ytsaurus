@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-brotli-common)
 
 
@@ -26,7 +27,7 @@ target_include_directories(libs-brotli-common PRIVATE
 )
 
 target_link_libraries(libs-brotli-common PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
 )
 

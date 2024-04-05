@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(admin)
 add_subdirectory(alert_manager)
 add_subdirectory(cell_server)
@@ -58,7 +59,7 @@ add_library(ytserver INTERFACE)
 
 
 target_link_libraries(ytserver INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-openssl

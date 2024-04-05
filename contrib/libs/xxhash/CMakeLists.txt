@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-xxhash)
 
 
@@ -21,7 +22,7 @@ target_compile_options(contrib-libs-xxhash PRIVATE
 )
 
 target_link_libraries(contrib-libs-xxhash PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 target_sources(contrib-libs-xxhash PRIVATE

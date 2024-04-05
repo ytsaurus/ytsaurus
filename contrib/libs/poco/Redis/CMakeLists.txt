@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-poco-Redis)
 
 
@@ -36,7 +37,7 @@ target_include_directories(libs-poco-Redis PRIVATE
 )
 
 target_link_libraries(libs-poco-Redis PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   libs-poco-Foundation
   libs-poco-Net

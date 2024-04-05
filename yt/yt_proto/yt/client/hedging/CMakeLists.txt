@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
@@ -31,7 +32,7 @@ add_library(yt-client-hedging-proto)
 
 
 target_link_libraries(yt-client-hedging-proto PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt_proto-yt-core

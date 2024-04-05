@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(backtrace-cursors-interop)
 
 
@@ -21,7 +22,7 @@ target_compile_options(backtrace-cursors-interop PRIVATE
 )
 
 target_link_libraries(backtrace-cursors-interop PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   backtrace-cursors-frame_pointer

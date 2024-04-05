@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-re2)
 
 
@@ -28,7 +29,7 @@ target_include_directories(contrib-libs-re2 PRIVATE
 )
 
 target_link_libraries(contrib-libs-re2 PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   abseil-cpp-absl-base

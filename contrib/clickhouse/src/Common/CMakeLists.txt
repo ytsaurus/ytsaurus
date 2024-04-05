@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(clickhouse-src-Common)
 
 
@@ -65,7 +66,7 @@ target_include_directories(clickhouse-src-Common PRIVATE
 )
 
 target_link_libraries(clickhouse-src-Common PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   clickhouse-base-base
   clickhouse-base-widechar_width
