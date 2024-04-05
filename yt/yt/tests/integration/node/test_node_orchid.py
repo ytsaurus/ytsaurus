@@ -1,7 +1,9 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, run_test_vanilla, with_breakpoint, wait_breakpoint, get, ls, release_breakpoint, exists)
+    authors, run_test_vanilla, with_breakpoint,
+    wait_breakpoint, get, ls, release_breakpoint, exists,
+    get_allocation_id_from_job_id)
 
 
 class TestJobControllerOrchid(YTEnvSetup):
@@ -40,8 +42,8 @@ class TestJobResourceManagerOrchid(YTEnvSetup):
     # TODO(arkady-e1ppa): Make jobs request additional resources so that additional_resource_usage comparison is non-trivial
     @authors("arkady-e1ppa")
     def test_resource_manager_consistency(self):
-        def jrm_resource_usage(node, job_id):
-            resource_holder = get("//sys/cluster_nodes/{0}/orchid/exec_node/job_resource_manager/resource_holders/{1}".format(node, job_id))
+        def jrm_resource_usage(node, allocation_id):
+            resource_holder = get("//sys/cluster_nodes/{0}/orchid/exec_node/job_resource_manager/resource_holders/{1}".format(node, allocation_id))
             return (
                 resource_holder["base_resource_usage"],
                 resource_holder["additional_resource_usage"],
@@ -63,7 +65,7 @@ class TestJobResourceManagerOrchid(YTEnvSetup):
 
         node = ls("//sys/cluster_nodes")[0]
 
-        assert all([jrm_resource_usage(node, job_id) == jc_resource_usage(node, job_id) for job_id in job_ids])
+        assert all([jrm_resource_usage(node, get_allocation_id_from_job_id(job_id)) == jc_resource_usage(node, job_id) for job_id in job_ids])
 
         release_breakpoint()
 

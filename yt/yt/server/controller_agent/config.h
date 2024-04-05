@@ -1196,6 +1196,8 @@ public:
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
+    bool JobIdUnequalToAllocationId;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);
