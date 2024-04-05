@@ -59,6 +59,7 @@ class TestSchedulerPreemption(YTEnvSetup):
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
             "event_log": {
+                "enable": True,
                 "flush_period": 300,
                 "retry_backoff_time": 300,
             },
@@ -71,6 +72,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "event_log": {
+                "enable": True,
                 "flush_period": 300,
                 "retry_backoff_time": 300
             },

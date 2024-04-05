@@ -2380,12 +2380,22 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             "fair_share_update_period": 300,
             "profiling_update_period": 300,
             "fair_share_profiling_period": 300,
-            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
+            "event_log": {
+                "enable": True,
+                "flush_period": 300,
+                "retry_backoff_time": 300,
+            },
         }
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
+        "controller_agent": {
+            "event_log": {
+                "enable": True,
+                "flush_period": 300,
+                "retry_backoff_time": 300,
+            },
+        },
     }
 
     @authors("ignat")
