@@ -124,6 +124,82 @@ private:
         return result;
     }
 
+    void VerifyInstanceSize(
+        const std::vector<NBundleControllerClient::TInstanceSizePtr>& availableSizes,
+        const NBundleControllerClient::TInstanceResourcesPtr& instanceSize,
+        const TString& instanceType)
+    {
+        if (instanceSize) {
+            return;
+        }
+
+        bool found = std::any_of(availableSizes.begin(), availableSizes.end(), [&] (const auto& available) {
+            return *instanceSize == *available->ResourceGuarantee;
+        });
+
+        if (!found) {
+            THROW_ERROR_EXCEPTION("Invalid instance size")
+                << TErrorAttribute("provided_instance_size", instanceSize)
+                << TErrorAttribute("instance_type", instanceType);
+        }
+    }
+
+    void ValidateInputConfig(const TString& bundleName, const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig, std::optional<TDuration> timeout) {
+        auto resourceQuota = GetResourceQuota(bundleName, timeout);
+        auto bundleConstraints = GetBundleConstraints(bundleName, timeout);
+
+        VerifyInstanceSize(bundleConstraints->RpcProxySizes, bundleConfig->RpcProxyResourceGuarantee, "RpcProxy");
+        VerifyInstanceSize(bundleConstraints->TabletNodeSizes, bundleConfig->TabletNodeResourceGuarantee, "TabNode");
+
+        // Checking for total resource usage
+        i64 currentMemory = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Memory + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Memory;
+        i64 currentVcpu = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Vcpu + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Vcpu;
+
+        if (currentMemory > resourceQuota->Memory) {
+            THROW_ERROR_EXCEPTION("Cannot allocate new instance: quota memory exceed")
+                << TErrorAttribute("current_memory", currentMemory)
+                << TErrorAttribute("quota_memory", resourceQuota->Memory);
+        }
+
+        if (currentVcpu > resourceQuota->Vcpu) {
+            THROW_ERROR_EXCEPTION("Cannot allocate new instance: quota vcpu exceed")
+                << TErrorAttribute("current_vcpu", currentVcpu)
+                << TErrorAttribute("quota_vcpu", resourceQuota->Vcpu);
+        }
+
+        // Checking memory categories oversubscription
+        const auto& memoryLimits = bundleConfig->MemoryLimits;
+
+        i64 sumMemoryLimits = memoryLimits->CompressedBlockCache.value_or(0) +
+            memoryLimits->KeyFilterBlockCache.value_or(0) +
+            memoryLimits->LookupRowCache.value_or(0) +
+            memoryLimits->TabletDynamic.value_or(0) +
+            memoryLimits->TabletStatic.value_or(0) +
+            memoryLimits->UncompressedBlockCache.value_or(0) +
+            memoryLimits->VersionedChunkMeta.value_or(0) +
+            memoryLimits->Reserved.value_or(0);
+
+        if (sumMemoryLimits > bundleConfig->TabletNodeResourceGuarantee->Memory) {
+            THROW_ERROR_EXCEPTION("The sum of the memory limits exceeds the allowed values")
+                << TErrorAttribute("current_memory", sumMemoryLimits)
+                << TErrorAttribute("tablet_node_memory", bundleConfig->TabletNodeResourceGuarantee->Memory);
+        }
+
+        // Check for cpu oversubscription
+        const auto& cpuLimits = bundleConfig->CpuLimits;
+        int sumVcpuLimits = cpuLimits->LookupThreadPoolSize.value_or(0) +
+            cpuLimits->QueryThreadPoolSize.value_or(0) +
+            cpuLimits->WriteThreadPoolSize.value_or(0);
+
+        if (sumVcpuLimits > bundleConfig->TabletNodeResourceGuarantee->Vcpu) {
+            THROW_ERROR_EXCEPTION("The sum of the cpu limits thread pools exceeds the allowed values")
+                << TErrorAttribute("current_vcpu", sumVcpuLimits)
+                << TErrorAttribute("tablet_node_vcpu", bundleConfig->TabletNodeResourceGuarantee->Vcpu);
+        }
+
+        //TODO(capone212): multi-dc logic
+    }
+
     void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
@@ -171,6 +247,7 @@ private:
         auto bundleConfig = GetBundleConfig(bundleName, timeout);
         NBundleControllerClient::NProto::FromProto(bundleConfig, &patchConfig);
 
+        ValidateInputConfig(bundleName, bundleConfig, timeout);
         SetBundleConfig(bundleName, bundleConfig, timeout);
 
         context->Reply();
