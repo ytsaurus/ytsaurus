@@ -650,11 +650,7 @@ func (a *API) EditOptions(
 	}
 
 	for _, key := range optionsToRemove {
-		if _, ok := node.Speclet[key]; ok {
-			delete(node.Speclet, key)
-		} else {
-			return yterrors.Err("key you want to remove is not present in speclet")
-		}
+		delete(node.Speclet, key)
 	}
 
 	for key, value := range optionsToSet {
