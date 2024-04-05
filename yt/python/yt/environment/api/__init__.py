@@ -23,6 +23,7 @@ class LocalYtConfig(object):
     local_cypress_dir = attr.ib(None)
     meta_files_suffix = attr.ib(".meta")
     cluster_name = attr.ib(None)
+    wait_for_dynamic_config = attr.ib(True)
 
     """High level master configuration"""
     primary_cell_tag = attr.ib(1)

@@ -277,10 +277,12 @@ void TBootstrap::DoRun()
         "/election",
         HydraFacade_->GetElectionManager()->GetMonitoringProducer());
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/config",
-        CreateVirtualNode(ConfigNode_));
+    if (Config_->ExposeConfigInOrchid) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/config",
+            CreateVirtualNode(ConfigNode_));
+    }
     SetBuildAttributes(
         orchidRoot,
         "clock");
