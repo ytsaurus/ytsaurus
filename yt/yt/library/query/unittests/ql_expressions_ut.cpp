@@ -2344,7 +2344,8 @@ void EvaluateExpression(
     const TString& rowString,
     const TTableSchemaPtr& schema,
     TUnversionedValue* result,
-    TRowBufferPtr buffer)
+    TRowBufferPtr buffer,
+    bool enableWebAssembly = true)
 {
     TCGVariables variables;
 
@@ -2354,7 +2355,7 @@ void EvaluateExpression(
         /*id*/ nullptr,
         &variables,
         /*useCanonicalNullRelations*/ false,
-        EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native)();
+        EnableWebAssemblyInUnitTests() && enableWebAssembly ? EExecutionBackend::WebAssembly : EExecutionBackend::Native)();
     auto instance = image.Instantiate();
 
     auto row = YsonToSchemafulRow(rowString, *schema, true);
@@ -2385,6 +2386,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
         TColumnSchema("i2", EValueType::Int64),
         TColumnSchema("u1", EValueType::Uint64),
         TColumnSchema("u2", EValueType::Uint64),
+        TColumnSchema("d1", EValueType::Double),
         TColumnSchema("s1", EValueType::String),
         TColumnSchema("s2", EValueType::String),
         TColumnSchema("any", EValueType::Any)
@@ -2394,7 +2396,12 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     auto buffer = New<TRowBuffer>();
     TUnversionedValue result{};
-    EvaluateExpression(expr, rowString, schema, &result, buffer);
+    bool enableWebAssembly = true;
+    // TODO(dtorilov): build and link is_finite udf
+    if (auto function = expr->As<TFunctionExpression>(); function && function->FunctionName == "is_finite") {
+        enableWebAssembly = false;
+    }
+    EvaluateExpression(expr, rowString, schema, &result, buffer, enableWebAssembly);
 
     EXPECT_EQ(result, expected);
 }
@@ -2618,7 +2625,23 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i2=100",
             "coalesce(i1, i2)",
-            MakeInt64(100))));
+            MakeInt64(100)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "d1=%inf",
+            "is_finite(d1)",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "d1=%nan",
+            "is_finite(d1)",
+            MakeBoolean(false)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "d1=5.0",
+            "is_finite(d1)",
+            MakeBoolean(true)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "",
+            "is_finite(d1)",
+            MakeNull())));
 
 class TEvaluateLikeExpressionTest
     : public ::testing::Test

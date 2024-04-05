@@ -335,6 +335,7 @@ std::vector<TStringBuf> GetKeywords()
     XX(escape)
     XX(false)
     XX(true)
+    XX(inf)
 
 #undef XX
 

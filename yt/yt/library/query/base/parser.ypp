@@ -101,6 +101,8 @@
 %token KwRegexp "keyword `REGEXP`"
 %token KwEscape "keyword `ESCAPE`"
 
+%token KwInf "keyword `INF`"
+
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
 
@@ -823,6 +825,8 @@ literal-value
         { $$ = $1.AsDouble(); }
     | StringLiteral
         { $$ = $1; }
+    | KwInf
+        { $$ = std::numeric_limits<double>::infinity(); }
     | KwFalse
         { $$ = false; }
     | KwTrue
