@@ -658,6 +658,11 @@ public:
         return AvailableSpace_;
     }
 
+    bool ResidesOnTmpfs() const
+    {
+        return Config_->ResidesOnTmpfs;
+    }
+
 private:
     const TLayerLocationConfigPtr Config_;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -1026,7 +1031,7 @@ private:
                 THROW_ERROR(error);
             }
 
-            if (Config_->ResidesOnTmpfs) {
+            if (ResidesOnTmpfs()) {
                 // Don't disable location if it resides on tmpfs.
                 THROW_ERROR(error);
             }
@@ -2194,13 +2199,15 @@ private:
                         .ThrowOnError();
                 }
 
-                TString container;
-                if (location) {
-                    // Import layer in context of self container, i.e. account memory allocations to self container.
-                    container = "self";
-                } else {
-                    // Empty container means to import layer in context of porto daemon, i.e. account memory allocation to porto daemon.
+                if (!location) {
                     location = this_->PickLocation();
+                }
+
+                // Import layer in context of container, i.e. account memory allocations to container, e.g.
+                // "self" container. If container is empty, memory allocations are accounted to porto daemon.
+                TString container;
+                if (location->ResidesOnTmpfs()) {
+                    container = "self";
                 }
 
                 auto layerMeta = WaitFor(location->ImportLayer(artifactKey, artifactChunk->GetFileName(), container, tag))
