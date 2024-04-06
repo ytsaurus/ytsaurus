@@ -636,6 +636,10 @@ public:
     // COMPAT(psushin): only works in porto environment.
     bool ShouldCloseDescriptors;
 
+    bool EnableContainerDeviceChecker;
+
+    bool RestartContainerAfterFailedDeviceCheck;
+
     REGISTER_YSON_STRUCT(TSlotManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

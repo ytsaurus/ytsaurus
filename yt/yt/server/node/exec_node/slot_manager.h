@@ -150,6 +150,8 @@ public:
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
+    void OnContainerDevicesCheckFinished(const TError& error);
+
 private:
     const TSlotManagerConfigPtr Config_;
     IBootstrap* const Bootstrap_;
@@ -163,6 +165,7 @@ private:
 
     TAtomicIntrusivePtr<TSlotManagerDynamicConfig> DynamicConfig_;
     TAtomicIntrusivePtr<NClusterNode::TClusterNodeDynamicConfig> ClusterConfig_;
+    TAtomicObject<TError> TestContainerCreationError_;
 
     TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 

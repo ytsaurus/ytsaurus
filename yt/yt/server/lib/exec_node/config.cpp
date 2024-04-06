@@ -717,6 +717,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
         .Default(false);
 
+    registrar.Parameter("enable_container_device_checker", &TThis::EnableContainerDeviceChecker)
+        .Default(true);
+
+    registrar.Parameter("restart_container_after_failed_device_check", &TThis::RestartContainerAfterFailedDeviceCheck)
+        .Default(true);
+
     registrar.Parameter("should_close_descriptors", &TThis::ShouldCloseDescriptors)
         .Default(false);
 }

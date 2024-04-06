@@ -24,7 +24,9 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/porto_health_checker.h>
+#include <yt/yt/library/containers/container_devices_checker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -87,6 +89,32 @@ TFuture<void> TSlotManager::Resurrect()
                 YT_LOG_ERROR(result, "Slot manager resurrection failed");
             }
         }));
+}
+
+void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
+{
+    auto config = DynamicConfig_.Acquire();
+
+    TError result;
+    if (config->EnableContainerDeviceChecker && !error.IsOK()) {
+        auto message = error.GetMessage();
+
+        if (error.FindMatching(NContainers::EErrorCode::FailedToStartContainer) &&
+            message.StartsWith("Operation not permitted: mknod"))
+        {
+            if (!Bootstrap_->IsDataNode() && !Bootstrap_->IsTabletNode() && config->RestartContainerAfterFailedDeviceCheck) {
+                if (auto restartManager = Bootstrap_->GetRestartManager()) {
+                    YT_LOG_ERROR(error, "Request restart after test volume creation failed");
+                    restartManager->RequestRestart();
+                }
+            }
+
+            result = TError("Test container could not be created, snapshot container needs to be restarted")
+                << error;
+        }
+    }
+
+    TestContainerCreationError_.Store(result);
 }
 
 void TSlotManager::OnPortoHealthCheckSuccess()
@@ -797,6 +825,12 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
         if (!alert.IsOK()) {
             alerts->push_back(alert);
         }
+    }
+
+    if (auto error = TestContainerCreationError_.Load();
+        !error.IsOK())
+    {
+        alerts->push_back(error);
     }
 }
 
