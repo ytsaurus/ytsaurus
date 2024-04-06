@@ -6,6 +6,7 @@ SRCS(
     cgroup.cpp
     cgroups_new.cpp
     config.cpp
+    container_devices_checker.cpp
     helpers.cpp
     instance.cpp
     instance_limits_tracker.cpp

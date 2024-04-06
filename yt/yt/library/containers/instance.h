@@ -114,6 +114,8 @@ struct IInstanceLauncher
         const TString& path,
         const std::vector<TString>& args,
         const THashMap<TString, TString>& env) = 0;
+    virtual TFuture<IInstancePtr> LaunchMeta(
+        const THashMap<TString, TString>& env) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInstanceLauncher)

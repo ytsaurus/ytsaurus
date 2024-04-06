@@ -87,6 +87,7 @@
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/instance_limits_tracker.h>
 #include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/container_devices_checker.h>
 #endif
 
 #include <yt/yt/library/coredumper/coredumper.h>
@@ -183,6 +184,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <util/system/fs.h>
 
 namespace NYT::NClusterNode {
 
@@ -696,6 +699,9 @@ private:
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
+
+    TActionQueuePtr ContainerDevicesCheckerQueue_;
+    NContainers::TContainerDevicesCheckerPtr ContainerDevicesChecker_;
 #endif
 
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -1046,6 +1052,15 @@ private:
                     }
                 }));
             }
+
+            if (IsExecNode()) {
+                ContainerDevicesCheckerQueue_ = New<TActionQueue>("ContainerDevicesCheck");
+                ContainerDevicesChecker_ = CreateContainerDevicesChecker(
+                    NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "test_containers"),
+                    New<TPortoExecutorDynamicConfig>(),
+                    ContainerDevicesCheckerQueue_->GetInvoker(),
+                    Logger);
+            }
         }
     #endif
 
@@ -1208,6 +1223,14 @@ private:
 
         RpcServer_->Start();
         HttpServer_->Start();
+
+#ifdef __linux__
+        if (ContainerDevicesChecker_) {
+            ContainerDevicesChecker_->SubscribeCheck(BIND_NO_PROPAGATE(&TSlotManager::OnContainerDevicesCheckFinished, ExecNodeBootstrap_->GetSlotManager())
+                .Via(GetControlInvoker()));
+            ContainerDevicesChecker_->Start();
+        }
+#endif
 
         YT_LOG_INFO("Node started successfully");
     }
@@ -1397,6 +1420,15 @@ private:
                 InstanceLimitsTracker_->Start();
             } else {
                 InstanceLimitsTracker_->Stop();
+            }
+        }
+
+        if (ContainerDevicesChecker_ && newConfig->ExecNode->SlotManager) {
+            auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
+
+            if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+                auto portoEnvironmentConfig = NYTree::ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
+                ContainerDevicesChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
             }
         }
     #endif

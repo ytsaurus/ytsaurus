@@ -38,6 +38,7 @@ target_sources(yt-library-containers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroups_new.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/container_devices_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp
