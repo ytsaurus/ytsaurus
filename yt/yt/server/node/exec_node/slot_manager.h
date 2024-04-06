@@ -161,6 +161,8 @@ public:
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
+    void OnContainerDevicesCheckFinished(const TError& error);
+
 private:
     IBootstrap* const Bootstrap_;
     const TSlotManagerConfigPtr StaticConfig_;
@@ -175,6 +177,8 @@ private:
     std::atomic<ESlotManagerState> State_ = ESlotManagerState::Disabled;
 
     std::atomic<bool> JobProxyReady_ = false;
+
+    TAtomicObject<TError> TestContainerCreationError_;
 
     TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 

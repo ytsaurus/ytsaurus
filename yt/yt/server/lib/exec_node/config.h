@@ -302,6 +302,10 @@ public:
 
     bool AbortOnJobsDisabled;
 
+    bool EnableContainerDeviceChecker;
+
+    bool RestartContainerAfterFailedDeviceCheck;
+
     //! Polymorphic job environment configuration.
     NYTree::INodePtr JobEnvironment;
 
