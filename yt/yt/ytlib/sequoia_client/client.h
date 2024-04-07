@@ -53,12 +53,12 @@ struct ISequoiaClient
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const TSelectRowsRequest& request,
+        const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) = 0;
 
     template <class TRecord>
     TFuture<std::vector<TRecord>> SelectRows(
-        const TSelectRowsRequest& request,
+        const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(

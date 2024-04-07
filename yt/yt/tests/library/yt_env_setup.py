@@ -295,6 +295,7 @@ class YTEnvSetup(object):
     USE_PRIMARY_CLOCKS = True
 
     USE_SEQUOIA = False
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
     # Ground cluster should be lean by default.
@@ -1127,7 +1128,7 @@ class YTEnvSetup(object):
                 "//tmp",
                 attributes={"scion_cell_tag": 10},
                 force=True,
-                driver=driver
+                driver=driver,
             )
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.create(
@@ -1236,6 +1237,9 @@ class YTEnvSetup(object):
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver) == [])
+
+                for table in DESCRIPTORS.get_group("transactions"):
+                    wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
@@ -1500,6 +1504,8 @@ class YTEnvSetup(object):
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
             dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
+            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+                dynamic_master_config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
 
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")

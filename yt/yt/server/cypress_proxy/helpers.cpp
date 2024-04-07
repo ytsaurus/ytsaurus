@@ -172,7 +172,7 @@ std::vector<NRecords::TPathToNodeId> SelectSubtree(
 {
     auto mangledPath = MangleSequoiaPath(path);
     return WaitFor(transaction->SelectRows<NRecords::TPathToNodeIdKey>({
-        .Where = {
+        .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),
             Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
         },
@@ -313,7 +313,7 @@ TFuture<void> RemoveSubtree(
 
     auto mangledPath = MangleSequoiaPath(path);
     return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
-        .Where = {
+        .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),
             Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
         },

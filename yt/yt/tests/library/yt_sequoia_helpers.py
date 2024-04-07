@@ -1,8 +1,8 @@
-from yt_commands import lookup_rows, select_rows, get_driver, get
+from yt_commands import lookup_rows, select_rows, get_driver, get, delete_rows
 
 from yt.yson import YsonMap
 
-from yt.sequoia_tools import DESCRIPTORS
+from yt.sequoia_tools import DESCRIPTORS, TableDescriptor
 
 
 ################################################################################
@@ -57,9 +57,20 @@ def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
     return select_rows_from_ground(query, **kwargs)
 
 
+def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):
+    _use_ground_driver(kwargs)
+    keys = [c["name"] for c in descriptor.schema if "sort_order" in c]
+    rows = select_rows_from_ground(", ".join(keys) + f" from [{descriptor.get_default_path()}]")
+    delete_rows(descriptor.get_default_path(), rows, **kwargs)
+
+
+################################################################################
+
+
 def _build_children_map_from_tables(id):
     rows = select_rows_from_ground(f"child_key, child_id from [{DESCRIPTORS.child_node.get_default_path()}] where parent_id = \"{id}\"")
     result = YsonMap()
+
     for row in rows:
         result[row["child_key"]] = row["child_id"]
     return result
@@ -96,10 +107,6 @@ def validate_sequoia_tree_consistency(cluster="primary"):
 ################################################################################
 
 
-def get_sequoia_table_path(name):
-    return f"//sys/sequoia/{name}"
-
-
 def mangle_sequoia_path(path):
     assert not path.endswith('/')
     return path + '/'
@@ -127,3 +134,33 @@ def resolve_sequoia_id(node_id):
 def resolve_sequoia_children(node_id):
     return select_rows_from_ground(
         f"child_key, child_id from [{DESCRIPTORS.child_node.get_default_path()}] where node_id == \"{node_id}\"")
+
+
+def lookup_cypress_transaction(transaction_id):
+    result = lookup_rows_in_ground(DESCRIPTORS.transactions.get_default_path(), [{"transaction_id": transaction_id}])
+    return result[0] if result else None
+
+
+def select_cypress_transaction_replicas(transaction_id):
+    return [
+        record["cell_tag"] for record in
+        select_rows_from_ground(f"cell_tag from [{DESCRIPTORS.transaction_replicas.get_default_path()}] "
+                                f"where transaction_id = \"{transaction_id}\"")
+    ]
+
+
+def select_cypress_transaction_descendants(ancestor_id):
+    return [
+        record["descendant_id"] for record in
+        select_rows_from_ground(f"descendant_id from [{DESCRIPTORS.transaction_descendants.get_default_path()}] "
+                                f"where transaction_id = \"{ancestor_id}\"")
+    ]
+
+
+def select_cypress_transaction_prerequisites(transaction_id):
+    return [
+        record["transaction_id"] for record in
+        select_rows_from_ground(
+            f"transaction_id from [{DESCRIPTORS.dependent_transactions.get_default_path()}] "
+            f"where dependent_transaction_id = \"{transaction_id}\"")
+    ]

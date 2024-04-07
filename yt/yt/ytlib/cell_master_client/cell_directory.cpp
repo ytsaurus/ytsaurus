@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -506,6 +508,12 @@ private:
         const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
+            if (options.RetrySequoiaErrors &&
+                error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError)
+            {
+                return true;
+            }
+
             const auto* effectiveError = &error;
             if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
                 !error.InnerErrors().empty())

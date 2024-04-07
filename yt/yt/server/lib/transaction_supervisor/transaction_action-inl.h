@@ -4,9 +4,9 @@
 #include "transaction_action.h"
 #endif
 
-#include <yt/yt/core/actions/callback.h>
-
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/actions/bind.h>
 
 namespace NYT::NTransactionSupervisor {
 

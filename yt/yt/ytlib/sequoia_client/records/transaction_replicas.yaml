@@ -1,0 +1,26 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - table_name: transaction_replicas
+    table_group: transaction_tables
+    type_name: TTransactionReplicas
+    fields:
+      - cpp_name: TransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: transaction_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: CellTag
+        cpp_type: NObjectClient::TCellTag
+        column_name: cell_tag
+        column_type: Uint16
+        sort_order: Ascending
+
+      - cpp_name: FakeNonKeyColumn
+        cpp_type: int
+        column_name: fake_non_key_column
+        column_type: Int32
+
+    verbatim: |
+        static constexpr auto Table = ESequoiaTable::TransactionReplicas;

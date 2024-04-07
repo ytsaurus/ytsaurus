@@ -38,6 +38,8 @@ public:
 
     TDynamicSequoiaQueueConfigPtr SequoiaQueue;
 
+    bool EnableCypressTransactionsInSequoia;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaManagerConfig);
 
     static void Register(TRegistrar registrar);

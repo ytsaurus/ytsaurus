@@ -1,6 +1,7 @@
 #include "transaction_replication_session.h"
 
 #include "private.h"
+#include "sequoia_integration.h"
 #include "transaction_manager.h"
 #include "transaction_presence_cache.h"
 
@@ -35,7 +36,42 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
+namespace {
+
+const auto& Logger = TransactionServerLogger;
+
+std::vector<TTransactionId> NormalizedTransactionIds(std::vector<TTransactionId> transactionIds)
+{
+    transactionIds.erase(
+        std::remove(transactionIds.begin(), transactionIds.end(), NullTransactionId),
+        transactionIds.end());
+    SortUnique(transactionIds);
+    return transactionIds;
+}
+
+bool IsSubsequenceOf(TRange<TTransactionId> subsequence, TRange<TTransactionId> sequence)
+{
+    YT_ASSERT(std::is_sorted(subsequence.begin(), subsequence.end()));
+    YT_ASSERT(std::is_sorted(sequence.begin(), sequence.end()));
+
+    if (subsequence.size() > sequence.size()) {
+        return false;
+    }
+
+    auto sequenceIt = sequence.begin();
+    for (auto transactionId : subsequence) {
+        while (sequenceIt != sequence.end() && *sequenceIt < transactionId) {
+            ++sequenceIt;
+        }
+        if (sequenceIt == sequence.end() || *sequenceIt != transactionId) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,56 +96,68 @@ void FormatValue(TStringBuilderBase* builder, TInitiatorRequestLogInfo logInfo, 
 TTransactionReplicationSessionBase::TTransactionReplicationSessionBase(
     TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    const TInitiatorRequestLogInfo& logInfo)
+    const TInitiatorRequestLogInfo& logInfo,
+    bool enableMirroringToSequoia)
     : Bootstrap_(bootstrap)
     , InitiatorRequest_(logInfo)
-    , TransactionIds_(std::move(transactionIds))
+    , AllTransactionIds_(NormalizedTransactionIds(std::move(transactionIds)))
+    , MirroringToSequoiaEnabled_(enableMirroringToSequoia)
 {
+    Initialize();
+}
+
+void TTransactionReplicationSessionBase::Initialize()
+{
+    ValidateTransactionCellTags();
+
+    LocalTransactionIds_ = AllTransactionIds_;
+
+    // NB: by default all transactions are treated as local. Next steps
+    // segregate mirrored to Sequoia and remote transactions from local ones.
+
+    SegregateMirroredTransactions();
     InitRemoteTransactions();
     InitReplicationRequestCellTags();
 }
 
 void TTransactionReplicationSessionBase::Reset(std::vector<TTransactionId> transactionIds)
 {
-    auto oldTransactionIds = TransactionIds_;
-    SortUnique(oldTransactionIds);
-    SortUnique(transactionIds);
+    auto newTransactionIds = NormalizedTransactionIds(std::move(transactionIds));
+    auto oldTransactionIdCount =
+        LocalTransactionIds_.size() + RemoteTransactionIds_.size() + MirroredTransactionIds_.size();
 
     // NB: the whole point of having a dedicated Reset method is this optimization.
-    if (oldTransactionIds == transactionIds) {
+    if (oldTransactionIdCount == newTransactionIds.size() &&
+        IsSubsequenceOf(LocalTransactionIds_, newTransactionIds) &&
+        IsSubsequenceOf(RemoteTransactionIds_, newTransactionIds) &&
+        IsSubsequenceOf(MirroredTransactionIds_, newTransactionIds))
+    {
         return;
     }
 
-    TransactionIds_ = std::move(transactionIds);
-    InitRemoteTransactions();
-    InitReplicationRequestCellTags();
+    AllTransactionIds_ = std::move(newTransactionIds);
+    Initialize();
 }
 
 void TTransactionReplicationSessionBase::InitRemoteTransactions()
 {
-    SortUnique(TransactionIds_);
-
-    TransactionIds_.erase(
-        std::remove(TransactionIds_.begin(), TransactionIds_.end(), TTransactionId{}),
-        TransactionIds_.end());
-
-    ValidateTransactionCellTags();
-
-    // Stability isn't really a requirement, but it's nice to keep remote transactions sorted.
-    auto localTransactionBegin = std::stable_partition(
-        TransactionIds_.begin(),
-        TransactionIds_.end(),
-        [&] (TTransactionId transactionId) {
+    auto remoteTransactionCount = std::stable_partition(
+        LocalTransactionIds_.begin(),
+        LocalTransactionIds_.end(),
+        [this] (TTransactionId transactionId) {
             return IsTransactionRemote(transactionId);
-        });
+        }) - LocalTransactionIds_.begin();
 
-    RemoteTransactionIds_ = MakeRange(TransactionIds_.data(), &*localTransactionBegin);
+    RemoteTransactionIds_ = LocalTransactionIds_.Slice(0, remoteTransactionCount);
+    LocalTransactionIds_ = LocalTransactionIds_.Slice(remoteTransactionCount, LocalTransactionIds_.size());
 
-    UnsyncedLocalTransactionCells_.clear();
-    for (auto it = localTransactionBegin; it != TransactionIds_.end(); ++it) {
-        auto localTransactionId = *it;
-        UnsyncedLocalTransactionCells_.push_back(CellTagFromId(localTransactionId));
-    }
+    UnsyncedLocalTransactionCells_.resize(LocalTransactionIds_.size());
+    std::transform(
+        LocalTransactionIds_.begin(),
+        LocalTransactionIds_.end(),
+        UnsyncedLocalTransactionCells_.begin(),
+        CellTagFromId);
+
     SortUnique(UnsyncedLocalTransactionCells_);
 }
 
@@ -131,7 +179,7 @@ void TTransactionReplicationSessionBase::ValidateTransactionCellTags() const
         return false;
     };
 
-    for (auto transactionId : TransactionIds_) {
+    for (auto transactionId : AllTransactionIds_) {
         auto cellTag = CellTagFromId(transactionId);
         if (!isKnownCellTag(cellTag)) {
             THROW_ERROR_EXCEPTION("Unknown transaction cell tag")
@@ -153,9 +201,37 @@ void TTransactionReplicationSessionBase::InitReplicationRequestCellTags()
     SortUnique(ReplicationRequestCellTags_);
 }
 
+bool TTransactionReplicationSessionBase::IsMirroredToSequoia(TTransactionId transactionId)
+{
+    return IsCypressTransactionType(TypeFromId(transactionId)) && IsSequoiaId(transactionId);
+}
+
+void TTransactionReplicationSessionBase::SegregateMirroredTransactions()
+{
+    // NB: it's not fast path: when mirroring to Sequoia is disabled there is no
+    // way for function IsMirroredToSequoia() to work correctly. See comment
+    // near MirroringToSequoiaEnabled_.
+    if (!MirroringToSequoiaEnabled_) {
+        MirroredTransactionIds_ = {};
+        return;
+    }
+
+    auto mirroredTransactionCount = std::stable_partition(
+        AllTransactionIds_.begin(),
+        AllTransactionIds_.end(),
+        IsMirroredToSequoia) - AllTransactionIds_.begin();
+
+    MirroredTransactionIds_ = TRange(AllTransactionIds_.data(), mirroredTransactionCount);
+    LocalTransactionIds_ = TMutableRange(
+        AllTransactionIds_.data() + mirroredTransactionCount,
+        AllTransactionIds_.size() - mirroredTransactionCount);
+}
+
 TCellTagList TTransactionReplicationSessionBase::GetCellTagsToSyncWithBeforeInvocation() const
 {
-    // TODO(shakurov): support tx coordinator decommissioning.
+    // NB: Note that even if |TransactionIds_| is empty sync with tx coordinator
+    // is still necessary.
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto transactionCoordinatorCells = multicellManager->GetRoleMasterCells(EMasterCellRole::TransactionCoordinator);
     YT_VERIFY(std::is_sorted(transactionCoordinatorCells.begin(), transactionCoordinatorCells.end()));
@@ -265,7 +341,8 @@ void TTransactionReplicationSessionBase::LogAndThrowUnknownTransactionPresenceEr
         << TErrorAttribute("transaction_id", transactionId);
 }
 
-std::vector<TFuture<TTransactionServiceProxy::TRspReplicateTransactionsPtr>> TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
+TTransactionReplicationSessionBase::TReplicationResponse
+TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
 {
     ConstructReplicationRequests();
 
@@ -281,7 +358,14 @@ std::vector<TFuture<TTransactionServiceProxy::TRspReplicateTransactionsPtr>> TTr
         asyncResults.emplace_back(request->Invoke());
     }
 
-    return asyncResults;
+    return {
+        .NonMirrored = asyncResults,
+        .Mirrored = MirroredTransactionIds_.empty()
+            ? VoidFuture
+            : ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
+                Bootstrap_,
+                MirroredTransactionIds_),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,8 +373,13 @@ std::vector<TFuture<TTransactionServiceProxy::TRspReplicateTransactionsPtr>> TTr
 TTransactionReplicationSessionWithoutBoomerangs::TTransactionReplicationSessionWithoutBoomerangs(
     TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    const TInitiatorRequestLogInfo& logInfo)
-    : TTransactionReplicationSessionBase(bootstrap, std::move(transactionIds), logInfo)
+    const TInitiatorRequestLogInfo& logInfo,
+    bool enableMirroringToSequoia)
+    : TTransactionReplicationSessionBase(
+        bootstrap,
+        std::move(transactionIds),
+        logInfo,
+        enableMirroringToSequoia)
 { }
 
 void TTransactionReplicationSessionWithoutBoomerangs::ConstructReplicationRequests()
@@ -348,15 +437,15 @@ NObjectClient::TCellTagList TTransactionReplicationSessionWithoutBoomerangs::Get
 TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionWithoutBoomerangs::InvokeReplicationRequests()
 {
     auto asyncResults = DoInvokeReplicationRequests();
-    if (asyncResults.empty()) {
+
+    if (asyncResults.NonMirrored.empty() && MirroredTransactionIds_.empty()) {
         return {};
     }
 
-    return AllSet(std::move(asyncResults))
+    return AllSet(std::move(asyncResults.NonMirrored))
         .Apply(BIND(
-            [this, this_ = MakeStrong(this)]
-            (const std::vector<TTransactionServiceProxy::TErrorOrRspReplicateTransactionsPtr>& responsesOrErrors)
-            {
+            [this, this_ = MakeStrong(this), resultForMirrored = std::move(asyncResults.Mirrored)]
+            (const std::vector<TTransactionServiceProxy::TErrorOrRspReplicateTransactionsPtr>& responsesOrErrors) {
                 YT_VERIFY(responsesOrErrors.size() == ReplicationRequestCellTags_.size());
 
                 const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -396,7 +485,14 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
 
                 SortUnique(UnsyncedRemoteTransactionCells_);
 
-                return result;
+                return resultForMirrored.Apply(BIND([
+                    this, this_ = MakeStrong(this), result = std::move(result)
+                ] () mutable {
+                    for (auto mirroredTransactionId : MirroredTransactionIds_) {
+                        EmplaceOrCrash(result, mirroredTransactionId, VoidFuture);
+                    }
+                    return result;
+                }));
             }));
 }
 
@@ -411,8 +507,13 @@ TTransactionReplicationSessionWithBoomerangs::TTransactionReplicationSessionWith
     TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
     const TInitiatorRequestLogInfo& logInfo,
+    bool enableMirroringToSequoia,
     std::unique_ptr<TMutation> mutation)
-    : TTransactionReplicationSessionBase(bootstrap, std::move(transactionIds), logInfo)
+    : TTransactionReplicationSessionBase(
+        bootstrap,
+        std::move(transactionIds),
+        logInfo,
+        enableMirroringToSequoia)
 {
     if (mutation) {
         SetMutation(std::move(mutation));
@@ -512,10 +613,20 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
 
 TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests(std::optional<TDuration> timeout)
 {
-    if (ReplicationRequestCellTags_.empty()) {
+    if (ReplicationRequestCellTags_.empty() && MirroredTransactionIds_.empty()) {
         return timeout
             ? Mutation_->Commit().WithTimeout(*timeout)
             : Mutation_->Commit();
+    }
+
+    // TODO(kvk1920): Implement boomerang-like optimization for mirrored
+    // transactions. See YT-21270.
+    if (ReplicationRequestCellTags_.empty()) {
+        auto asyncResult = DoInvokeReplicationRequests();
+        YT_VERIFY(asyncResult.NonMirrored.empty());
+        return asyncResult.Mirrored.Apply(BIND([this, this_ = MakeStrong(this)] () {
+            return Mutation_->Commit();
+        }));
     }
 
     auto keptResult = BeginRequestInResponseKeeper();
@@ -533,10 +644,10 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     YT_VERIFY(keptResult);
 
     auto asyncResults = DoInvokeReplicationRequests();
-    YT_VERIFY(!asyncResults.empty());
+    YT_VERIFY(!asyncResults.NonMirrored.empty());
     // NB: this loop is just for logging.
-    for (auto requestIndex = 0; requestIndex < std::ssize(asyncResults); ++requestIndex) {
-        auto& future = asyncResults[requestIndex];
+    for (auto requestIndex = 0; requestIndex < std::ssize(asyncResults.NonMirrored); ++requestIndex) {
+        auto& future = asyncResults.NonMirrored[requestIndex];
         future.Subscribe(BIND([requestIndex, this, this_ = MakeStrong(this)] (const TErrorOr<TRspReplicateTransactionsPtr>& rspOrError)
         {
             if (!rspOrError.IsOK()) {
@@ -556,6 +667,18 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
         }));
     }
 
+    asyncResults.Mirrored.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+        if (error.IsOK()) {
+            return;
+        }
+
+        for (auto transactionId : MirroredTransactionIds_) {
+            YT_LOG_DEBUG(error, "Remote transaction replication failed (InitiatorRequest: %v, TransactionId: %v)",
+                InitiatorRequest_,
+                transactionId);
+        }
+    }));
+
     YT_LOG_DEBUG("Request is awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
         InitiatorRequest_,
         Mutation_->GetMutationId());
@@ -563,7 +686,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     // NB: the actual responses are irrelevant, because boomerang arrival
     // implicitly signifies a sync with corresponding cell. Absence of errors,
     // on the other hand, is crucial.
-    auto result = AllSucceeded(std::move(asyncResults)).AsVoid()
+    auto result = AllSucceeded(std::vector{AllSucceeded(std::move(asyncResults.NonMirrored)).AsVoid(), asyncResults.Mirrored})
         .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
             if (!error.IsOK()) {
                 YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
@@ -623,13 +746,14 @@ void TTransactionReplicationSessionWithBoomerangs::EndRequestInResponseKeeper(co
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> RunTransactionReplicationSession(
+void RunTransactionReplicationSessionAndReply(
     bool syncWithUpstream,
     TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
     const IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
-    bool enableMutationBoomerangs)
+    bool enableMutationBoomerangs,
+    bool enableMirroringToSequoia)
 {
     YT_VERIFY(context);
 
@@ -638,15 +762,17 @@ TFuture<void> RunTransactionReplicationSession(
             bootstrap,
             std::move(transactionIds),
             TInitiatorRequestLogInfo(context->GetRequestId()),
+            enableMirroringToSequoia,
             std::move(mutation));
-        return replicationSession->Run(syncWithUpstream, context);
+        YT_UNUSED_FUTURE(replicationSession->Run(syncWithUpstream, context));
     } else {
         auto automatonInvoker = bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
         auto replicationSession = New<TTransactionReplicationSessionWithoutBoomerangs>(
             bootstrap,
             std::move(transactionIds),
-            TInitiatorRequestLogInfo(context->GetRequestId()));
-        return replicationSession->Run(syncWithUpstream)
+            TInitiatorRequestLogInfo(context->GetRequestId()),
+            enableMirroringToSequoia);
+        YT_UNUSED_FUTURE(replicationSession->Run(syncWithUpstream)
             .Apply(BIND([=, mutation=std::move(mutation)] (const TError& error) {
                 if (error.IsOK()) {
                     YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
@@ -654,7 +780,7 @@ TFuture<void> RunTransactionReplicationSession(
                     context->Reply(error);
                 }
             })
-            .AsyncVia(std::move(automatonInvoker)));
+            .AsyncVia(std::move(automatonInvoker))));
     }
 }
 
@@ -662,12 +788,14 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    TRequestId requestId)
+    TRequestId requestId,
+    bool enableMirroringToSequoia)
 {
     auto replicationSession = New<TTransactionReplicationSessionWithoutBoomerangs>(
         bootstrap,
         std::move(transactionIds),
-        TInitiatorRequestLogInfo(requestId));
+        TInitiatorRequestLogInfo(requestId),
+        enableMirroringToSequoia);
     return replicationSession->Run(syncWithUpstream);
 }
 

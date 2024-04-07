@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/master/sequoia_server/sequoia_queue_manager.h>
 
-#include <yt/yt/ytlib/sequoia_client/helpers.cpp>
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>

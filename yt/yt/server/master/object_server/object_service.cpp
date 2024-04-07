@@ -20,6 +20,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/server/master/sequoia_server/config.h>
+
 #include <yt/yt/server/master/transaction_server/transaction_replication_session.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
@@ -278,6 +280,7 @@ private:
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableLocalReadExecutor_ = true;
+    std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
     std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
 
     static IInvokerPtr GetRpcInvoker()
@@ -1148,6 +1151,7 @@ private:
                         Bootstrap_,
                         std::move(writeSubrequestTransactions),
                         TInitiatorRequestLogInfo(RequestId_, subrequestIndex),
+                        Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire),
                         std::move(subrequest.Mutation));
                 } else {
                     // Pre-phase-two.
@@ -1166,7 +1170,8 @@ private:
             RemoteTransactionReplicationSession_ = New<TTransactionReplicationSessionWithoutBoomerangs>(
                 Bootstrap_,
                 std::move(transactionsToReplicateWithoutBoomerangs),
-                TInitiatorRequestLogInfo(RequestId_));
+                TInitiatorRequestLogInfo(RequestId_),
+                Owner_->EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire));
         } else {
             // Pre-phase-two.
             RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
@@ -2285,6 +2290,11 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     EnableTwoLevelCache_ = config->EnableTwoLevelCache;
     EnableLocalReadExecutor_ = config->EnableLocalReadExecutor && Config_->EnableLocalReadExecutor;
     ScheduleReplyRetryBackoff_ = config->ScheduleReplyRetryBackoff;
+
+    const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+    EnableCypressTransactionsInSequoia_.store(
+        sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
+        std::memory_order::release);
 
     LocalReadExecutor_->Reconfigure(config->LocalReadWorkerCount);
     LocalReadOffloadPool_->Configure(config->LocalReadOffloadThreadCount);

@@ -10,9 +10,9 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSelectRowsRequest
+struct TSelectRowsQuery
 {
-    std::vector<TString> Where;
+    std::vector<TString> WhereConjuncts;
     std::vector<TString> OrderBy;
     std::optional<int> Limit;
 };
@@ -24,6 +24,10 @@ TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsRetriableSequoiaError(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 

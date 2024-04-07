@@ -111,7 +111,7 @@ public:
     void RegisterTransactionActionHandlers(
         TTransactionActionDescriptor<TTransaction> descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(std::move(descriptor));
+        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(std::move(descriptor));
     }
 
     // ITransactionManager implementation.

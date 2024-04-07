@@ -12,7 +12,7 @@ template <class TProto>
 void ITransactionManager::RegisterTransactionActionHandlers(
     NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor)
 {
-    RegisterTransactionActionHandlers(
+    DoRegisterTransactionActionHandlers(
         NTransactionSupervisor::TTransactionActionDescriptor<TTransaction>(std::move(descriptor)));
 }
 

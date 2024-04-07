@@ -1,10 +1,12 @@
 #pragma once
 
-#include <yt/yt/client/table_client/public.h>
-
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/sequoia_client/public.h>
+
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/ypath/public.h>
 
@@ -18,6 +20,10 @@ DEFINE_ENUM(ESequoiaTable,
     (ChunkReplicas)
     (LocationReplicas)
     (ChildNode)
+    (Transactions)
+    (TransactionDescendants)
+    (TransactionReplicas)
+    (DependentTransactions)
 );
 
 namespace NRecords {
@@ -28,6 +34,11 @@ struct TChildNode;
 
 struct TChunkReplicas;
 struct TLocationReplicas;
+
+struct TTransactions;
+struct TTransactionDescendants;
+struct TTransactionReplicas;
+struct TDependentTransactions;
 
 } // namespace NRecords
 
@@ -47,9 +58,10 @@ class TYPathBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_ERROR_ENUM(
-    ((SequoiaClientNotReady)    (6000))
-);
+struct ISequoiaTransactionActionOrderer
+{
+    virtual int GetPriority(TStringBuf actionType) const = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

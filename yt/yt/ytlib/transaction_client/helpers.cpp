@@ -95,11 +95,14 @@ TTransactionId MakeExternalizedTransactionId(
         : EObjectType::ExternalizedNestedTransaction;
 
     auto nativeCellTag = CellTagFromId(originalId);
-    return TTransactionId(
-        (originalId.Parts32[0] &  0xffff) | (static_cast<ui32>(nativeCellTag.Underlying()) << 16), // keep the original cell tag
-        (static_cast<ui32>(externalizingCellTag.Underlying()) << 16) | static_cast<ui32>(externalizedType), // replace type and native cell tag
-        originalId.Parts32[2],
-        originalId.Parts32[3]);
+
+    // Replace type and native cell tag, keep the original cell tag as part of
+    // hash and ensure that result ID will be non-Sequoia.
+    return MakeId(
+        externalizedType,
+        externalizingCellTag,
+        CounterFromId(originalId) & ~SequoiaCounterMask,
+        (HashFromId(originalId) & (0xffff)) | static_cast<ui32>(nativeCellTag.Underlying()) << 16);
 }
 
 TTransactionId OriginalFromExternalizedTransactionId(TTransactionId externalizedId)

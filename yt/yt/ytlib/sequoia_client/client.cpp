@@ -53,23 +53,23 @@ public:
 
         TFuture<NApi::TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const TSelectRowsRequest& request,
+        const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
         auto* tableDescriptor = ITableDescriptor::Get(table);
         TQueryBuilder builder;
         builder.SetSource(GetSequoiaTablePath(NativeRootClient_, tableDescriptor));
         builder.AddSelectExpression("*");
-        for (const auto& whereConjunct : request.Where) {
+        for (const auto& whereConjunct : query.WhereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
         }
-        for (const auto& orderByExpression : request.OrderBy) {
+        for (const auto& orderByExpression : query.OrderBy) {
             builder.AddOrderByExpression(orderByExpression);
         }
-        auto limit = request.Limit;
+        auto limit = query.Limit;
         if (limit) {
             builder.SetLimit(*limit);
-        } else if (!request.OrderBy.empty()) {
+        } else if (!query.OrderBy.empty()) {
             // TODO(h0pless): This is an arbitrary value. Remove it once ORDER BY will work with an unspecified limit.
             // For details see YT-16489.
             builder.SetLimit(100'000);

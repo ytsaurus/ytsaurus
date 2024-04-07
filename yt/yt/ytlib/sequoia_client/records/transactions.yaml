@@ -1,0 +1,30 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - table_name: transactions
+    table_group: transaction_tables
+    type_name: TTransactions
+    fields:
+      - cpp_name: TransactionId
+        cpp_type: NCypressClient::TTransactionId
+        column_name: transaction_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: AncestorIds
+        cpp_type: std::vector<NCypressClient::TTransactionId>
+        column_name: ancestor_ids
+        column_type: Any
+
+      - cpp_name: Attributes
+        cpp_type: NYTree::IMapNodePtr
+        column_name: attributes
+        column_type: Any
+
+      - cpp_name: PrerequisiteTransactionIds
+        cpp_type: std::vector<NCypressClient::TTransactionId>
+        column_name: prerequisite_transaction_ids
+        column_type: Any
+
+    verbatim: |
+        static constexpr auto Table = ESequoiaTable::Transactions;

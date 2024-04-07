@@ -2988,7 +2988,7 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                .Where = {
+                .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
                     Format("id_hash = %v", HashFromId(locationUuid)),
@@ -3009,7 +3009,7 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                .Where = {
+                .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId)
                 }
