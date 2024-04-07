@@ -74,8 +74,9 @@ public:
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             auto cellId = masterConfig->CellId;
-            SecondaryMasterConnectionConfigs_[CellTagFromId(cellId)] = masterConfig;
-            SecondaryMasterCellTags_.push_back(CellTagFromId(cellId));
+            auto cellTag = CellTagFromId(cellId);
+            EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
+            SecondaryMasterCellTags_.push_back(cellTag);
             SecondaryMasterCellIds_.push_back(cellId);
         }
         // Sort tag list to simplify subsequent equality checks.
@@ -180,7 +181,6 @@ public:
             TMasterConnectionConfigPtr masterConnectionConfig;
             FromProto(&masterConnectionConfig, item);
             YT_VERIFY(masterConnectionConfig->Addresses);
-            Sort(*masterConnectionConfig->Addresses);
 
             auto cellId = masterConnectionConfig->CellId;
             auto cellTag = CellTagFromId(cellId);
@@ -232,7 +232,6 @@ public:
         } else {
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
-                Sort(expectedPrimaryCellAddresses);
                 const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
                 YT_LOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
@@ -243,7 +242,6 @@ public:
                 for (auto [_, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (cellConfig->Addresses) {
                         auto expectedCellAddresses = *cellConfig->Addresses;
-                        Sort(expectedCellAddresses);
                         const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
                         YT_LOG_WARNING_UNLESS(
