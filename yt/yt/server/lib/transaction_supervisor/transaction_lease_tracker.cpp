@@ -372,7 +372,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
     auto now = TInstant::Now();
     while (!DeadlineMap_.empty()) {
         auto it = DeadlineMap_.begin();
-        auto& descriptor = *it;
+        auto* descriptor = *it;
         if (descriptor->Deadline > now) {
             break;
         }
