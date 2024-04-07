@@ -127,7 +127,7 @@ TEST(TStripedErasureTest, SegmentsSimple)
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(
-    ((InterceptingMemoryWriterFailure) (123))
+    ((InterceptingMemoryWriterFailure) (2000000123))
 );
 
 DECLARE_REFCOUNTED_CLASS(TInterceptingMemoryWriter)
