@@ -16,7 +16,6 @@ using namespace NRpc;
 TEST(TParsing, ServiceDiscoveryEndpointsConfig)
 {
     NProto::TServiceDiscoveryEndpointsConfig expectedEndpointsProto;
-    expectedEndpointsProto.set_cluster("aaa");
     *expectedEndpointsProto.add_clusters() = "aba";
     *expectedEndpointsProto.add_clusters() = "caba";
     expectedEndpointsProto.set_endpoint_set_id("a-b-c-d");
@@ -32,7 +31,6 @@ TEST(TParsing, ServiceDiscoveryEndpointsConfig)
 TEST(TParsing, CellDirectoryItem)
 {
     NProto::TServiceDiscoveryEndpointsConfig endpoints;
-    endpoints.set_cluster("aaa");
     *endpoints.add_clusters() = "aba";
     *endpoints.add_clusters() = "caba";
     endpoints.set_endpoint_set_id("a-b-c-d");
@@ -45,7 +43,6 @@ TEST(TParsing, CellDirectoryItem)
     *expectedConfigProto.add_addresses() = "localhost:4242";
     *expectedConfigProto.add_addresses() = "localhost:4343";
     expectedConfigProto.set_disable_balancing_on_single_address(false);
-    *expectedConfigProto.mutable_endpoints() = std::move(endpoints);
     expectedConfigProto.set_hedging_delay(23);
     expectedConfigProto.set_cancel_primary_request_on_hedging(true);
     expectedConfigProto.set_max_concurrent_discover_requests(33);
@@ -70,11 +67,23 @@ TEST(TParsing, CellDirectoryItem)
     expectedConfigProto.set_retry_attempts(35);
     expectedConfigProto.set_retry_timeout(95);
 
-    NProto::TCellDirectoryItem resultedConfigProto;
-    NApi::NNative::TMasterConnectionConfigPtr parsedConfig;
-    FromProto(&parsedConfig, expectedConfigProto);
-    ToProto(&resultedConfigProto, parsedConfig);
-    EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(resultedConfigProto, expectedConfigProto));
+    {
+        NProto::TCellDirectoryItem resultedConfigProto;
+        NApi::NNative::TMasterConnectionConfigPtr parsedConfig;
+        FromProto(&parsedConfig, expectedConfigProto);
+        ToProto(&resultedConfigProto, parsedConfig);
+        EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(resultedConfigProto, expectedConfigProto));
+    }
+
+    {
+        NProto::TCellDirectoryItem resultedConfigProto;
+        NApi::NNative::TMasterConnectionConfigPtr parsedConfig;
+        expectedConfigProto.clear_addresses();
+        *expectedConfigProto.mutable_endpoints() = std::move(endpoints);
+        FromProto(&parsedConfig, expectedConfigProto);
+        ToProto(&resultedConfigProto, parsedConfig);
+        EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(resultedConfigProto, expectedConfigProto));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
