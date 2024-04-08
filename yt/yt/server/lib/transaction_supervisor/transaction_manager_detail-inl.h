@@ -26,20 +26,23 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     const TTransactionPrepareOptions& options,
     bool requireLegacyBehavior)
 {
-    // It is _not_ just a fast path. The reason of this early return is to avoid
-    // nested transaction action check.
-    if (transaction->Actions().empty()) {
-        return;
-    }
-
     auto rememberPreparedTransactionActionCount = !requireLegacyBehavior && options.Persistent;
 
-    TTransactionActionGuard transactionActionGuard;
     // |PreparedActionCount| should never be |nullopt| after update to current
     // version until |requireLegacyBehavior| is |true|.
     if (rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }
+
+    // It is _not_ just a fast path. The reason of this early return is to avoid
+    // nested transaction action check inside |TTransactionActionGuard|.
+    // NB: this early return _cannot_ be moved several lines upper because we
+    // have to set prepared action count to zero.
+    if (transaction->Actions().empty()) {
+        return;
+    }
+
+    TTransactionActionGuard transactionActionGuard;
 
     for (const auto& action : transaction->Actions()) {
         try {

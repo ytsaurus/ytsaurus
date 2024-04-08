@@ -944,7 +944,8 @@ public:
         CurrentTransactions_.push_back(TargetTransaction_.Key.TransactionId);
 
         return CollectMoreTransactions()
-            .Apply(BIND(&TDependentTransactionsCollector::MakeResult, MakeStrong(this)));
+            .Apply(BIND(&TDependentTransactionsCollector::MakeResult, MakeStrong(this))
+                .AsyncVia(Invoker_));
     }
 
 private:
