@@ -81,7 +81,7 @@ private:
             /*deadline*/ std::nullopt,
             title,
             *attributes,
-            /*isSequoiaTransaction*/ false,
+            /*isCypressTransaction*/ false,
             transactionId);
         transaction->SetIsSequoiaTransaction(true);
         transaction->SequoiaWriteSet().CopyFrom(request->write_set());
