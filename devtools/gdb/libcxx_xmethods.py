@@ -1,7 +1,7 @@
 import gdb
 import gdb.xmethod
 import re
-from libcxx_printers import destructure_compressed_pair
+from libcxx_printers import destructure_compressed_pair, get_variant_value
 
 _versioned_namespace = 'std::__y1::'
 
@@ -509,6 +509,70 @@ class OptionalMatcher(gdb.xmethod.XMethodMatcher):
         return method(class_type, value_type)
 
 
+class VariantValueWorker(gdb.xmethod.XMethodWorker):
+    def get_arg_types(self):
+        return None
+
+    def get_result_type(self, obj):
+        # get_result_type can accept args, but they are not real values, and result type must be fixed.
+        # Currently it seems like it's used only for ptype.
+        return None
+
+    def __call__(self, obj):
+        _, value = get_variant_value(obj)
+        if value is None:
+            raise Exception('Trying to access data of valueless std::variant')
+        return value.reference_value()
+
+
+class VariantValuePointerWorker(gdb.xmethod.XMethodWorker):
+    def get_arg_types(self):
+        return None
+
+    def get_result_type(self, obj):
+        # See VariantValueWorker.get_result_type
+        return None
+
+    def __call__(self, obj):
+        _, value = get_variant_value(obj)
+        if value is None:
+            raise Exception('Trying to access data of valueless std::variant')
+        return value.address
+
+
+class VariantIsValuelessWorker(gdb.xmethod.XMethodWorker):
+    def get_arg_types(self):
+        return None
+
+    def get_result_type(self, obj):
+        return gdb.lookup_type('bool')
+
+    def __call__(self, obj):
+        _, value = get_variant_value(obj)
+        return value is None
+
+
+class VariantMatcher(gdb.xmethod.XMethodMatcher):
+    def __init__(self):
+        gdb.xmethod.XMethodMatcher.__init__(self, 'std::variant')
+        self.class_name = _versioned_namespace + 'variant'
+        self.method_workers = {
+            'value': VariantValueWorker,  # Equivalent to `std::get<variant.index>(variant)` (yes, this isn't real code)
+            'operator*': VariantValueWorker,
+            'operator->': VariantValuePointerWorker,
+            'valueless_by_exception': VariantIsValuelessWorker,
+        }
+        self.methods = [gdb.xmethod.XMethod(key) for key in self.method_workers.keys()]
+
+    def match(self, class_type, method_name):
+        if not class_type.tag.startswith(self.class_name + '<'):
+            return None
+        method = self.method_workers.get(method_name)
+        if method is None:
+            return None
+        return method()
+
+
 class AtomicLoadWorker(gdb.xmethod.XMethodWorker):
     def __init__(self, class_type, value_type):
         gdb.xmethod.XMethodWorker.__init__(self)
@@ -555,4 +619,5 @@ def register_xmethods():
     gdb.xmethod.register_xmethod_matcher(None, SharedPtrMatcher())
     gdb.xmethod.register_xmethod_matcher(None, DequeMatcher())
     gdb.xmethod.register_xmethod_matcher(None, OptionalMatcher())
+    gdb.xmethod.register_xmethod_matcher(None, VariantMatcher())
     gdb.xmethod.register_xmethod_matcher(None, AtomicMatcher())

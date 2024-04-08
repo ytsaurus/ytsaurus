@@ -118,6 +118,21 @@ def destructure_compressed_pair(val):
     return (get_pair_element(val.cast(base_type_first), base_type_first),
             get_pair_element(val.cast(base_type_second), base_type_second))
 
+def get_variant_value(val):
+    """
+    val must be a std::variant.
+    Returns (index, value) or (-1, None) if val is valueless.
+    """
+    impl = val['__impl_']
+    index = impl['__index']
+    valueless_index = (1 << (index.type.sizeof * 8)) - 1  # static_cast<_IndexType>(-1), assuming index is unsigned
+    if index == valueless_index:
+        return -1, None
+    storage = impl['__data']  # A union. `__head` is (wrapped) ith value, `__tail` is another union.
+    for _ in range(index):
+        storage = storage['__tail']
+    return index, storage['__head']['__value']
+
 # Starting with the type ORIG, search for the member type NAME.  This
 # handles searching upward through superclasses.  This is needed to
 # work around http://sourceware.org/bugzilla/show_bug.cgi?id=13615.
@@ -893,14 +908,10 @@ class StdVariantPrinter(object):
     def __init__(self, typename, val):
         self.typename = typename
         self.val = val
-        impl = val['__impl_']
-        index = impl['__index']
-        if index < 20000000000000000:
+        index, item = get_variant_value(val)
+        if index != -1:
             self.itemtype = val.type.template_argument(index)
-            x = impl['__data']
-            for i in range(index):
-                x = x['__tail']
-            self.item = x['__head']['__value']
+            self.item = item
         else:
             self.itemtype = None
             self.item = None
