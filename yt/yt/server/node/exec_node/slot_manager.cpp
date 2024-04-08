@@ -85,7 +85,7 @@ void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
         auto message = error.GetMessage();
 
         if (error.FindMatching(NContainers::EErrorCode::FailedToStartContainer) &&
-            message.StartsWith("Operation not permitted: mknod"))
+            message.Contains("Operation not permitted: mknod"))
         {
             if (!Bootstrap_->IsDataNode() && !Bootstrap_->IsTabletNode() && config->RestartContainerAfterFailedDeviceCheck) {
                 if (auto restartManager = Bootstrap_->GetRestartManager()) {
