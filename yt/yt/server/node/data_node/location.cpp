@@ -662,12 +662,12 @@ i64 TChunkLocation::GetAvailableSpace() const
     }
 }
 
-const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
+const IMemoryUsageTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
 {
     return ReadMemoryTracker_;
 }
 
-const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
+const IMemoryUsageTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
 {
     return WriteMemoryTracker_;
 }

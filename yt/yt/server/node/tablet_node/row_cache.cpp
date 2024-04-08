@@ -58,6 +58,26 @@ public:
         return Size_.load();
     }
 
+    i64 GetLimit() const override
+    {
+        return Underlying_->GetLimit();
+    }
+
+    i64 GetUsed() const override
+    {
+        return Underlying_->GetUsed();
+    }
+
+    i64 GetFree() const override
+    {
+        return Underlying_->GetFree();
+    }
+
+    bool IsExceeded() const override
+    {
+        return Underlying_->IsExceeded();
+    }
+
 private:
     const IMemoryUsageTrackerPtr Underlying_;
     std::atomic<i64> Size_ = 0;

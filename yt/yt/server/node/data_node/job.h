@@ -69,7 +69,7 @@ protected:
     const TString JobTrackerAddress_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
-    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     const TInstant StartTime_;
     bool Started_ = false;

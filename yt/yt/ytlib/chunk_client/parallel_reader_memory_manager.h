@@ -68,7 +68,7 @@ struct TParallelReaderMemoryManagerOptions
 
     bool EnableDetailedLogging = false;
 
-    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker = nullptr;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

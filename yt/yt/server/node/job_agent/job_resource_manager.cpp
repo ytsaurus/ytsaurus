@@ -239,7 +239,7 @@ public:
 
         // NB: Some categories can have no explicit limit.
         // Therefore we need bound memory limit by actually available memory.
-        auto getUsedMemory = [&] (ITypedNodeMemoryTracker* memoryUsageTracker) {
+        auto getUsedMemory = [&] (IMemoryUsageTracker* memoryUsageTracker) {
             return std::max<i64>(
                 0,
                 memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - GetFreeMemoryWatermark());
@@ -921,8 +921,8 @@ private:
     TAtomicObject<TNodeResourceLimitsOverrides> ResourceLimitsOverrides_;
 
     const INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
-    const ITypedNodeMemoryTrackerPtr SystemMemoryUsageTracker_;
-    const ITypedNodeMemoryTrackerPtr UserMemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr SystemMemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr UserMemoryUsageTracker_;
     THashSet<int> FreePorts_;
 
     TEnumIndexedArray<EResourcesConsumerType, TCallbackList<void()>> ResourcesConsumerCallbacks_;

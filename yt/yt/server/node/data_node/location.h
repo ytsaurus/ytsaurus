@@ -291,10 +291,10 @@ public:
     i64 GetAvailableSpace() const;
 
     //! Returns the memory tracking for pending reads.
-    const ITypedNodeMemoryTrackerPtr& GetReadMemoryTracker() const;
+    const IMemoryUsageTrackerPtr& GetReadMemoryTracker() const;
 
     //! Returns the memory tracking for pending writes.
-    const ITypedNodeMemoryTrackerPtr& GetWriteMemoryTracker() const;
+    const IMemoryUsageTrackerPtr& GetWriteMemoryTracker() const;
 
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
@@ -448,8 +448,8 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    const ITypedNodeMemoryTrackerPtr ReadMemoryTracker_;
-    const ITypedNodeMemoryTrackerPtr WriteMemoryTracker_;
+    const IMemoryUsageTrackerPtr ReadMemoryTracker_;
+    const IMemoryUsageTrackerPtr WriteMemoryTracker_;
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 

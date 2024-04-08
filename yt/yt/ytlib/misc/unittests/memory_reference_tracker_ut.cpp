@@ -23,7 +23,7 @@ TSharedRef CreateReference(i64 size)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypedMemoryTracker
-    : public ITypedNodeMemoryTracker
+    : public IMemoryUsageTracker
 {
 public:
     TTypedMemoryTracker(
@@ -187,7 +187,7 @@ public:
         YT_ABORT();
     }
 
-    ITypedNodeMemoryTrackerPtr WithCategory(
+    IMemoryUsageTrackerPtr WithCategory(
         EMemoryCategory category,
         std::optional<TPoolTag> poolTag)
     {
