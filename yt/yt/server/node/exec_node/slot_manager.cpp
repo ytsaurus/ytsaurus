@@ -82,7 +82,7 @@ void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
 
     TError result;
     if (config->EnableContainerDeviceChecker && !error.IsOK()) {
-        auto message = error.GetMessage();
+        auto message = ToString(error);
 
         if (error.FindMatching(NContainers::EErrorCode::FailedToStartContainer) &&
             message.Contains("Operation not permitted: mknod"))
