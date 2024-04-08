@@ -423,10 +423,14 @@ message TReqGetChunkSliceDataWeights
         required NYT.NProto.TGuid chunk_id = 1;
         optional TReadLimit lower_limit = 2;
         optional TReadLimit upper_limit = 3;
+        optional NTableClient.NProto.TColumnFilter column_filter = 4;
     }
 
     repeated TChunkSlice chunk_requests = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
+    // Name table for mapping column ids to column names across the whole request.
+    // Required if any column filters are set.
+    optional NYT.NTableClient.NProto.TNameTableExt name_table = 5;
 }
 
 message TRspGetChunkSliceDataWeights

@@ -44,6 +44,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ForceAllowJobInterruption)            (301504))
     ((BatchRowCount_24_1)                   (301505))
     ((InputManagerIntroduction)             (301506))
+    ((ChunkSliceStatistics)                 (301507))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

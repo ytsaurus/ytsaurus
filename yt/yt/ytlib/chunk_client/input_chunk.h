@@ -67,7 +67,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(double, ColumnSelectivityFactor, 1.0);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, StripedErasure, false);
-
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;
@@ -112,6 +111,11 @@ public:
     using TInputChunkHeavyColumnarStatisticsExt = std::unique_ptr<NTableClient::NProto::THeavyColumnStatisticsExt>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkHeavyColumnarStatisticsExt, HeavyColumnarStatisticsExt);
 
+    //! Factor providing a ratio of data weight inferred from limits to the total data weight.
+    //! It is used to propagate the reduction of a chunk total weight to chunk and data slices that are formed from it.
+    //! NB: Setting this factor overrides generic logic which computes a row selectivity factor based on a limit-inferred row count.
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<double>, BlockSelectivityFactor);
+
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
@@ -140,10 +144,12 @@ public:
     i64 GetUncompressedDataSize() const;
     i64 GetCompressedDataSize() const;
 
+    double GetSelectivityFactor() const;
+
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
 
 private:
-    i64 ApplySelectivityFactors(i64 dataSize) const;
+    i64 ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelectivityToNonColumnarFormats) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunk)

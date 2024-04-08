@@ -1019,6 +1019,11 @@ public:
     //! Note that turning this on may significantly affect workload partitioning for existing operations.
     bool UseColumnarStatistics;
 
+    //! If true, enables more accurate job size estimation for operations on tables with key-bounds.
+    //! This is achieved by computing more precise data weights for slices with non-trivial limits based on data node block key bounds.
+    //! Note that turning this on might significantly affect workload partitioning for existing operations.
+    bool UseChunkSliceStatistics;
+
     //! If true, node is banned each time a job is failed there.
     bool BanNodesWithFailedJobs;
 

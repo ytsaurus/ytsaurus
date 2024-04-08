@@ -2437,6 +2437,11 @@ protected:
         TOperationControllerBase::OnOperationCompleted(interrupted);
     }
 
+    TError GetUseChunkSliceStatisticsError() const override
+    {
+        return TError();
+    }
+
     void OnFinalPartitionCompleted(TPartitionPtr partition)
     {
         YT_VERIFY(partition->IsFinal());

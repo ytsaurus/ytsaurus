@@ -18,6 +18,8 @@ from yt.common import YtError
 import yt.yson as yson
 
 import pytest
+import string
+import random
 
 from time import sleep
 
@@ -2347,6 +2349,76 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t") == rows
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_chunk_slice_statistics(self, merge_mode):
+        create("table", "//tmp/t", attributes={
+            "optimize_for": "lookup",
+            "schema": [
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "//tmp/t",
+            [{"a": f"x{i:02d}", "b": "y" * 100} for i in range(50)],
+            table_writer={"block_size": 100}
+        )
+
+        create("table", "//tmp/d")
+
+        op = merge(
+            in_=[f"//tmp/t[x{i:02d}:x{i + 1:02d}]" for i in range(50)],
+            out="//tmp/d",
+            spec={
+                "data_size_per_job": 5000,
+                "force_transform": True,
+                "use_chunk_slice_statistics": True,
+                # NB: In sorted mode this behaviour is facilitated by TChunkSliceFetcher and not by the option above.
+                "mode": merge_mode,
+            }
+        )
+
+        op.track()
+
+        assert get("//tmp/d/@chunk_count") < 5
+
+    @authors("achulkov2")
+    # TODO(achulkov2): Add sorted mode to check once columns are supported by TChunkSliceFetcher.
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_chunk_slice_statistics_work_as_columnar_statistics(self, merge_mode):
+        create("table", "//tmp/t", attributes={
+            "optimize_for": "scan",
+            "schema": [
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "//tmp/t",
+            [{"a": f"x{i:02d}", "b": "".join(random.choices(string.ascii_lowercase, k=300))} for i in range(10)],
+            table_writer={"block_size": 10}
+        )
+
+        create("table", "//tmp/d")
+
+        op = merge(
+            in_=[f"//tmp/t{{a}}[x{i:02d}:x{i + 1:02d}]" for i in range(0, 10)],
+            out="//tmp/d",
+            spec={
+                "data_size_per_job": 200,
+                "force_transform": True,
+                "use_chunk_slice_statistics": True,
+                "mode": merge_mode,
+            }
+        )
+
+        op.track()
+
+        assert get("//tmp/d/@chunk_count") == 1
 
 ##################################################################
 
