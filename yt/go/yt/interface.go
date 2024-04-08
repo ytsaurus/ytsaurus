@@ -799,6 +799,14 @@ type RemoveMemberOptions struct {
 	*PrerequisiteOptions
 }
 
+type SetUserPasswordOptions struct{}
+
+type IssueTokenOptions struct{}
+
+type RevokeTokenOptions struct{}
+
+type ListUserTokensOptions struct{}
+
 type AddMaintenanceOptions struct {
 }
 
@@ -1510,6 +1518,46 @@ type GenerateTimestampOptions struct{}
 
 type GetInSyncReplicasOptions struct{}
 
+type AuthClient interface {
+	// http:verb:"set_user_password"
+	// http:params:"user","new_password_sha256","current_password_sha256"
+	SetUserPassword(
+		ctx context.Context,
+		user string,
+		newPassword string,
+		currentPassword string,
+		options *SetUserPasswordOptions,
+	) (err error)
+
+	// http:verb:"issue_token"
+	// http:params:"user","password_sha256"
+	IssueToken(
+		ctx context.Context,
+		user string,
+		password string,
+		options *IssueTokenOptions,
+	) (token string, err error)
+
+	// http:verb:"revoke_token"
+	// http:params:"user","password_sha256","token_sha256"
+	RevokeToken(
+		ctx context.Context,
+		user string,
+		password string,
+		token string,
+		options *RevokeTokenOptions,
+	) error
+
+	// http:verb:"list_user_tokens"
+	// http:params:"user","password_sha256"
+	ListUserTokens(
+		ctx context.Context,
+		user string,
+		password string,
+		options *ListUserTokensOptions,
+	) (tokens []string, err error)
+}
+
 type Client interface {
 	CypressClient
 	FileClient
@@ -1542,6 +1590,7 @@ type Client interface {
 	LowLevelSchedulerClient
 
 	AdminClient
+	AuthClient
 
 	QueryTrackerClient
 
