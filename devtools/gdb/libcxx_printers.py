@@ -145,11 +145,6 @@ class StdStringPrinter:
         self.typename = typename
 
     def to_string(self):
-        # Make sure &string works, too.
-        type = self.val.type
-        if type.code == gdb.TYPE_CODE_REF:
-            type = type.target()
-
         ss = destructure_compressed_pair(self.val['__r_'])[0]['__s']
         is_long = ss['__is_long_']
         if is_long:

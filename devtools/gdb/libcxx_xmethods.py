@@ -16,7 +16,7 @@ class ArraySizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -33,7 +33,7 @@ class ArrayIndexWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, index):
         return self.element_type.reference()
 
     def __call__(self, obj, index):
@@ -49,7 +49,7 @@ class ArrayDataWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -66,7 +66,7 @@ class VectorSizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -83,7 +83,7 @@ class VectorIndexWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, index):
         return self.element_type.reference()
 
     def __call__(self, obj, index):
@@ -99,7 +99,7 @@ class VectorDataWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -116,7 +116,7 @@ class StringSizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -139,7 +139,7 @@ class StringIndexWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, idx):
         return self.result_type
 
     def __call__(self, obj, idx):
@@ -161,7 +161,7 @@ class StringDataWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -264,7 +264,7 @@ class UniquePtrGetWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.value_type.pointer()
 
     def __call__(self, obj):
@@ -280,7 +280,7 @@ class UniquePtrGetRefWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.value_type.reference()
 
     def __call__(self, obj):
@@ -321,7 +321,7 @@ class SharedPtrGetWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.value_type
 
     def __call__(self, obj):
@@ -337,7 +337,7 @@ class SharedPtrGetRefWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.value_type.reference()
 
     def __call__(self, obj):
@@ -378,7 +378,7 @@ class DequeSizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -396,7 +396,7 @@ class DequeIndexWorker(gdb.xmethod.XMethodMatcher):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, idx):
         return self.result_type
 
     def __call__(self, obj, idx):
@@ -406,7 +406,6 @@ class DequeIndexWorker(gdb.xmethod.XMethodMatcher):
         block_idx = int(idx2 / block_size)
         block_ptr = (obj['__map_']['__begin_'] + block_idx).dereference()
         return (block_ptr + idx2 % block_size).dereference().reference_value()
-
 
 
 class DequeMatcher(gdb.xmethod.XMethodMatcher):
@@ -431,6 +430,7 @@ class DequeMatcher(gdb.xmethod.XMethodMatcher):
             return None
         return method(class_type, value_type)
 
+
 class OptionalValueWorker(gdb.xmethod.XMethodWorker):
     def __init__(self, class_type, element_type):
         gdb.xmethod.XMethodWorker.__init__(self)
@@ -440,13 +440,14 @@ class OptionalValueWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.element_type.reference()
 
     def __call__(self, obj):
         if obj['__engaged_']:
             return obj['__val_'].reference_value()
         raise Exception('Trying to access data of empty std::optional')
+
 
 class OptionalValuePointerWorker(gdb.xmethod.XMethodWorker):
     def __init__(self, class_type, element_type):
@@ -457,13 +458,14 @@ class OptionalValuePointerWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.element_type.pointer()
 
     def __call__(self, obj):
         if obj['__engaged_']:
             return obj['__val_'].address
         raise Exception('Trying to access data of empty std::optional')
+
 
 class OptionalHasValueWorker(gdb.xmethod.XMethodWorker):
     def __init__(self, class_type, element_type):
@@ -474,11 +476,12 @@ class OptionalHasValueWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return gdb.lookup_type('bool')
 
     def __call__(self, obj):
         return obj['__engaged_']
+
 
 class OptionalMatcher(gdb.xmethod.XMethodMatcher):
     def __init__(self):
@@ -515,7 +518,7 @@ class AtomicLoadWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.value_type
 
     def __call__(self, obj):
