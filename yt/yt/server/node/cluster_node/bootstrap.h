@@ -130,6 +130,8 @@ struct IBootstrapBase
 
     // Block tracker.
     virtual const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const = 0;
+    virtual const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const = 0;
+    virtual const IMemoryReferenceTrackerPtr& GetRpcMemoryReferenceTracker() const = 0;
     virtual const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const = 0;
     virtual const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const = 0;
 
@@ -278,6 +280,8 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const override;
 
     const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override;
+    const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const override;
+    const IMemoryReferenceTrackerPtr& GetRpcMemoryReferenceTracker() const override;
     const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override;
     const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const override;
 

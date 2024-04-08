@@ -507,6 +507,16 @@ public:
         return NodeMemoryReferenceTracker_;
     }
 
+    const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const override
+    {
+        return RpcMemoryUsageTracker_;
+    }
+
+    const IMemoryReferenceTrackerPtr& GetRpcMemoryReferenceTracker() const override
+    {
+        return RpcMemoryReferenceTracker_;
+    }
+
     const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override
     {
         return ReadBlockMemoryReferenceTracker_;
@@ -671,6 +681,7 @@ private:
     IMapNodePtr OrchidRoot_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
+    IMemoryUsageTrackerPtr RpcMemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
@@ -719,6 +730,7 @@ private:
 
     INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
     IMemoryReferenceTrackerPtr ReadBlockMemoryReferenceTracker_;
+    IMemoryReferenceTrackerPtr RpcMemoryReferenceTracker_;
     IMemoryReferenceTrackerPtr SystemJobsMemoryReferenceTracker_;
 
     IBlockCachePtr BlockCache_;
@@ -873,8 +885,10 @@ private:
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
         NodeMemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
+        RpcMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::Rpc);
         ReadBlockMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
         SystemJobsMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::SystemJobs);
+        RpcMemoryUsageTracker_ = MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
@@ -1791,6 +1805,16 @@ const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
 const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTracker() const
 {
     return Bootstrap_->GetNodeMemoryReferenceTracker();
+}
+
+const IMemoryUsageTrackerPtr& TBootstrapBase::GetRpcMemoryUsageTracker() const
+{
+    return Bootstrap_->GetRpcMemoryUsageTracker();
+}
+
+const IMemoryReferenceTrackerPtr& TBootstrapBase::GetRpcMemoryReferenceTracker() const
+{
+    return Bootstrap_->GetRpcMemoryReferenceTracker();
 }
 
 const IMemoryReferenceTrackerPtr& TBootstrapBase::GetReadBlockMemoryReferenceTracker() const

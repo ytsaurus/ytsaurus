@@ -1250,7 +1250,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobSystemMemoryUsageTracker
-    : public ITypedNodeMemoryTracker
+    : public IMemoryUsageTracker
 {
 public:
     TJobSystemMemoryUsageTracker(
@@ -1360,7 +1360,7 @@ public:
 private:
     const TMergeChunksJobSpecExt JobSpecExt_;
     const TCellTag CellTag_;
-    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
     const i64 ReadMemoryLimit_;
     const TMergeChunksJobDynamicConfigPtr DynamicConfig_;
 

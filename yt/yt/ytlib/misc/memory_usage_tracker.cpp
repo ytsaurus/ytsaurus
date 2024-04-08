@@ -54,7 +54,7 @@ public:
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     i64 UpdateUsage(ECategory category, i64 newUsage) override;
 
-    ITypedNodeMemoryTrackerPtr WithCategory(
+    IMemoryUsageTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) override;
 
@@ -93,8 +93,8 @@ private:
     THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
     std::atomic<i64> TotalPoolWeight_ = 0;
 
-    TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> CategoryTrackers_;
-    THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr>> PoolTrackers_;
+    TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> CategoryTrackers_;
+    THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr>> PoolTrackers_;
 
     void InitCategoryTrackers();
 
@@ -118,7 +118,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTypedMemoryTracker
-    : public ITypedNodeMemoryTracker
+    : public IMemoryUsageTracker
 {
 public:
     TTypedMemoryTracker(
@@ -567,7 +567,7 @@ i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
     return oldUsage;
 }
 
-ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
+IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
 {
@@ -577,7 +577,7 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
         auto it = PoolTrackers_.find(poolTag.value());
 
         if (it.IsEnd()) {
-            TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> trackers;
+            TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> trackers;
             auto tracker = New<TTypedMemoryTracker>(
                 this,
                 category,
@@ -685,7 +685,7 @@ Y_FORCE_INLINE void Unref(const TNodeMemoryTracker* obj)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypedNodeMemoryTrackerPtr WithCategory(
+IMemoryUsageTrackerPtr WithCategory(
     const INodeMemoryTrackerPtr& memoryTracker,
     EMemoryCategory category,
     std::optional<INodeMemoryTracker::TPoolTag> poolTag)

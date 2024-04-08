@@ -17,7 +17,7 @@ class TMemoryTrackingServiceBase
 public:
     template <typename... TArgs>
     TMemoryTrackingServiceBase(
-        ITypedNodeMemoryTrackerPtr memoryTracker,
+        IMemoryUsageTrackerPtr memoryTracker,
         IMemoryReferenceTrackerPtr memoryReferenceTracker,
         TArgs&&... args);
 
@@ -28,7 +28,7 @@ protected:
         NBus::IBusPtr replyBus) override;
 
 private:
-    ITypedNodeMemoryTrackerPtr MemoryTracker_;
+    IMemoryUsageTrackerPtr MemoryTracker_;
     IMemoryReferenceTrackerPtr MemoryReferenceTracker_;
 };
 

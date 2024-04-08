@@ -17,7 +17,7 @@ TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(
     i64 bufferSize,
     NProfiling::TTagList profilingTagList,
     bool enableDetailedLogging,
-    ITypedNodeMemoryTrackerPtr memoryUsageTracker)
+    IMemoryUsageTrackerPtr memoryUsageTracker)
     : BufferSize(bufferSize)
     , ProfilingTagList(std::move(profilingTagList))
     , EnableDetailedLogging(enableDetailedLogging)

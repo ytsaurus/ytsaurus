@@ -11,7 +11,7 @@ namespace NYT::NRpc {
 template <class TBaseService>
 template <typename... TArgs>
 TMemoryTrackingServiceBase<TBaseService>::TMemoryTrackingServiceBase(
-    ITypedNodeMemoryTrackerPtr memoryTracker,
+    IMemoryUsageTrackerPtr memoryTracker,
     IMemoryReferenceTrackerPtr memoryReferenceTracker,
     TArgs&&... args)
     : TBaseService(std::forward<TArgs>(args)...)
