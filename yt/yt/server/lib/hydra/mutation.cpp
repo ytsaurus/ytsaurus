@@ -21,7 +21,8 @@ TFuture<TMutationResponse> TMutation::Commit()
 
 TFuture<TMutationResponse> TMutation::CommitAndLog(NLogging::TLogger logger)
 {
-    return Commit().Apply(
+    // NB: We need to capture the type before calling Commit as the latter will move the request.
+    auto callback =
         BIND([Logger = std::move(logger), type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
                 YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
@@ -29,12 +30,14 @@ TFuture<TMutationResponse> TMutation::CommitAndLog(NLogging::TLogger logger)
                 YT_LOG_DEBUG(result, "Mutation commit failed (MutationType: %v)", type);
             }
             return result;
-        }));
+        });
+    return Commit().Apply(std::move(callback));
 }
 
 TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr context)
 {
-    return Commit().Apply(
+    // NB: Just for the symmetry with CommitAndLog.
+    auto callback =
         BIND([context = std::move(context)] (const TErrorOr<TMutationResponse>& result) {
             if (!context->IsReplied()) {
                 if (result.IsOK()) {
@@ -49,7 +52,8 @@ TFuture<TMutationResponse> TMutation::CommitAndReply(NRpc::IServiceContextPtr co
                 }
             }
             return result;
-        }));
+        });
+    return Commit().Apply(std::move(callback));
 }
 
 void TMutation::SetRequestData(TSharedRef data, TString type)
