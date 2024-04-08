@@ -245,7 +245,8 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton(),
         GetCellTag(),
-        /*authenticator*/ nullptr);
+        /*authenticator*/ nullptr,
+        Config_->ClockClusterTag);
 
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(CreateAdminService(

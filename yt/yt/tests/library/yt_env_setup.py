@@ -349,6 +349,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def modify_clock_config(cls, config, cluster_index, master_cell_tag):
+        pass
+
+    @classmethod
     def modify_scheduler_config(cls, config, cluster_index):
         pass
 
@@ -839,6 +843,8 @@ class YTEnvSetup(object):
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
+        for config in configs["clock"][configs["clock"]["cell_tag"]]:
+            cls.modify_clock_config(config, cluster_index, configs["master"]["primary_cell_tag"])
         for index, config in enumerate(configs["queue_agent"]):
             config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
             configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
