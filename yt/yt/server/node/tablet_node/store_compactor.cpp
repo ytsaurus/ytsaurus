@@ -1057,7 +1057,7 @@ private:
         }
 
         if (request.DiscardStores && tablet->GetTableSchema()->HasTtlColumn()) {
-            YT_LOG_DEBUG("Compaction task declined: tablet has ttl column and has been compacted "
+            YT_LOG_DEBUG("Compaction task declined: tablet has TTL column and has been compacted "
                 "by discard stores (%v)",
                 tablet->GetLoggingTag());
             return nullptr;
