@@ -269,7 +269,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     if (Config_->HttpsServer) {
         Config_->HttpsServer->ServerName = "HttpsApi";
-        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
+        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_, GetControlInvoker());
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -281,7 +281,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     if (Config_->TvmOnlyHttpsServer) {
         Config_->TvmOnlyHttpsServer->ServerName = "TvmOnlyHttpsApi";
-        TvmOnlyApiHttpsServer_ = NHttps::CreateServer(Config_->TvmOnlyHttpsServer, Poller_, Acceptor_);
+        TvmOnlyApiHttpsServer_ = NHttps::CreateServer(Config_->TvmOnlyHttpsServer, Poller_, Acceptor_, GetControlInvoker());
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 

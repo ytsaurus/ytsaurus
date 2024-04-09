@@ -95,7 +95,7 @@ struct TSslContextImpl
 #endif
     }
 
-    void Commit()
+    void Commit(TInstant time)
     {
         SSL_CTX* oldCtx;
         YT_ASSERT(Ctx);
@@ -104,10 +104,17 @@ struct TSslContextImpl
             oldCtx = ActiveCtx_;
             ActiveCtx_ = Ctx;
             Ctx = nullptr;
+            CommitTime_ = time;
         }
         if (oldCtx) {
             SSL_CTX_free(oldCtx);
         }
+    }
+
+    TInstant GetCommitTime() const
+    {
+        auto guard = ReaderGuard(Lock_);
+        return CommitTime_;
     }
 
     SSL* NewSsl()
@@ -126,6 +133,7 @@ struct TSslContextImpl
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
     SSL_CTX* ActiveCtx_ = nullptr;
+    TInstant CommitTime_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSslContextImpl)
@@ -608,13 +616,12 @@ void TSslContext::Reset()
 
 void TSslContext::Commit(TInstant time)
 {
-    CommitTime_ = time;
-    Impl_->Commit();
+    Impl_->Commit(time);
 }
 
-TInstant TSslContext::GetCommitTime()
+TInstant TSslContext::GetCommitTime() const
 {
-    return CommitTime_;
+    return Impl_->GetCommitTime();
 }
 
 void TSslContext::UseBuiltinOpenSslX509Store()
