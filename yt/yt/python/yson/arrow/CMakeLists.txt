@@ -27,6 +27,8 @@ target_link_libraries(python-yson-arrow INTERFACE
   contrib-libs-cxxsupp
   yutil
   yt-python-common
+  mapreduce-library-table_schema
+  cpp-yson-node
   contrib-libs-pycxx
   libs-apache-arrow
   Python3::Module
@@ -55,6 +57,8 @@ target_link_libraries(python-yson-arrow.global PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-python-common
+  mapreduce-library-table_schema
+  cpp-yson-node
   contrib-libs-pycxx
   libs-apache-arrow
   Python3::Module

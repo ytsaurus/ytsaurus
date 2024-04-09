@@ -2,13 +2,30 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/cpp/mapreduce/library/table_schema/arrow.h>
+
+#include <library/cpp/yson/node/node.h>
+
 #include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
 
 namespace NYT::NPython {
 
 using namespace arrow;
 
+namespace {
+
 ////////////////////////////////////////////////////////////////////////////////
+
+void ThrowOnError(const Status& status)
+{
+    if (!status.ok()) {
+        throw Py::RuntimeError(status.message());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 Status TArrowOutputStream::Write(const void* data, int64_t nbytes)
 {
@@ -52,15 +69,6 @@ PyObject* TArrowOutputStream::Get()
     object.increment_reference_count();
     Data_.pop();
     return object.ptr();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ThrowOnError(const Status& status)
-{
-    if (!status.ok()) {
-        throw Py::RuntimeError(status.message());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,6 +122,16 @@ PyObject* TArrowRawIterator::iternext()
     return Pipe_.Get();
 }
 
+Py::Object TArrowRawIterator::GetSchema(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/)
+{
+    auto schema = CreateYTTableSchemaFromArrowSchema(RecordBatchReader_->schema()).ToNode();
+    TString bytesSchema;
+    TStringOutput output(bytesSchema);
+    schema.Save(&output);
+    output.Finish();
+    return Py::Bytes(bytesSchema);
+}
+
 void TArrowRawIterator::InitType()
 {
     behaviors().name("yt_yson_bindings.yson_lib.ArrowIterator");
@@ -121,6 +139,8 @@ void TArrowRawIterator::InitType()
     behaviors().supportGetattro();
     behaviors().supportSetattro();
     behaviors().supportIter();
+
+    PYCXX_ADD_KEYWORDS_METHOD(get_schema, GetSchema, "Get schema in yson type");
 
     behaviors().readyType();
 }

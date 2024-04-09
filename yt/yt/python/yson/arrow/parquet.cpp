@@ -231,7 +231,7 @@ void WriteParquet(const std::string& outputFilePath, IInputStream* stream)
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
-    auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "pathToFile"));
+    auto outputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "output_file"));
 
     auto streamArg = ExtractArgument(args, kwargs, "stream");
     auto stream = CreateInputStreamWrapper(streamArg);
@@ -247,7 +247,7 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
-    auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "pathToFile"));
+    auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
 
     ValidateArgumentsEmpty(args, kwargs);
 
