@@ -1138,7 +1138,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
-        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 10}}));
+        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}}));
 
     registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
         .Default(false);
