@@ -1126,7 +1126,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
-        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 10}}));
+        .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}}));
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
