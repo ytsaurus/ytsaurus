@@ -8,6 +8,7 @@
 #include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/misc/error.h>
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -231,10 +232,23 @@ public:
         TStringBuilder cgroup;
         cgroup.AppendString(Config_->BaseCgroup);
         cgroup.AppendString("/");
-        cgroup.AppendString(podName);
+
         if (Config_->BaseCgroup.EndsWith(SystemdSliceSuffix)) {
+            auto sliceName = podName;
+
+            // Build name of nested slice in systemd notaion, see manpage systemd.slice.
+            SubstGlobal(sliceName, "-", "_");
+            auto parentSlice = NFS::GetFileNameWithoutExtension(Config_->BaseCgroup);
+            if (parentSlice != "-") {
+                sliceName = Format("%v-%v", parentSlice, sliceName);
+            }
+
+            cgroup.AppendString(sliceName);
             cgroup.AppendString(SystemdSliceSuffix);
+        } else {
+            cgroup.AppendString(podName);
         }
+
         return cgroup.Flush();
     }
 
