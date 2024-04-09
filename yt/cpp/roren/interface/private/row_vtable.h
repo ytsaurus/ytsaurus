@@ -2,6 +2,7 @@
 
 #include "fwd.h"
 #include "raw_coder.h"
+#include "hash.h"
 
 #include "../coder.h"
 
@@ -31,6 +32,7 @@ public:
     using TRawCoderFactoryFunction = IRawCoderPtr (*)();
     using TRowVtableFactoryFunction = TRowVtable (*)();
     using TCopyToUniquePtrFunction = TUniquePtr (*)(const void*);
+    using THashFunction = size_t (*)(const void*);
 
 public:
     static constexpr ssize_t NotKv = -1;
@@ -43,6 +45,7 @@ public:
     TUniDataFunction Destructor = nullptr;
     TCopyDataFunction CopyConstructor = nullptr;
     TCopyToUniquePtrFunction CopyToUniquePtr = nullptr;
+    THashFunction Hash = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
@@ -55,7 +58,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
+template <typename T, bool isKey = false, bool isValue = false>
 TRowVtable MakeRowVtable()
 {
     TRowVtable vtable;
@@ -92,12 +95,18 @@ TRowVtable MakeRowVtable()
                 [] (void* p) { delete static_cast<T*>(p); }
             );
         };
+        if constexpr (isKey && IsHashable<T>) {
+            vtable.Hash = [] (const void* p) -> size_t {
+                const T* obj = reinterpret_cast<const T*>(p);
+                return NRoren::NPrivate::TRorenHash<T>()(*obj);
+            };
+        }
 
         if constexpr (NTraits::IsTKV<T>) {
             vtable.KeyOffset = T::KeyOffset;
             vtable.ValueOffset = T::ValueOffset;
-            vtable.KeyVtableFactory = &MakeRowVtable<NTraits::TKeyOfT<T>>;
-            vtable.ValueVtableFactory = &MakeRowVtable<NTraits::TValueOfT<T>>;
+            vtable.KeyVtableFactory = &MakeRowVtable<NTraits::TKeyOfT<T>, true, false>;
+            vtable.ValueVtableFactory = &MakeRowVtable<NTraits::TValueOfT<T>, false, true>;
         }
     }
     return vtable;

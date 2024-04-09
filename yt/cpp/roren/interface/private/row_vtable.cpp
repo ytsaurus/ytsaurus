@@ -69,6 +69,7 @@ void TSerializer<NRoren::NPrivate::TRowVtable>::Save(IOutputStream* output, cons
     ::Save(output, reinterpret_cast<ui64>(rowVtable.CopyConstructor));
     ::Save(output, reinterpret_cast<ui64>(rowVtable.RawCoderFactory));
     ::Save(output, reinterpret_cast<ui64>(rowVtable.CopyToUniquePtr));
+    ::Save(output, reinterpret_cast<ui64>(rowVtable.Hash));
     ::Save(output, static_cast<ui64>(rowVtable.KeyOffset));
     ::Save(output, static_cast<ui64>(rowVtable.ValueOffset));
     ::Save(output, reinterpret_cast<ui64>(rowVtable.KeyVtableFactory));
@@ -81,7 +82,7 @@ void TSerializer<NRoren::NPrivate::TRowVtable>::Load(
 {
     using namespace NRoren::NPrivate;
     i64 dataSize, keyOffset, valueOffset;
-    ui64 defaultConstructor, destructor, copyConstructor, rawCoderFactory, copyToUniquePtr, keyVtableFactory, valueVtableFactory;
+    ui64 defaultConstructor, destructor, copyConstructor, rawCoderFactory, copyToUniquePtr, hash, keyVtableFactory, valueVtableFactory;
 
     ::Load(input, rowVtable.TypeName);
     ::Load(input, rowVtable.TypeHash);
@@ -91,6 +92,7 @@ void TSerializer<NRoren::NPrivate::TRowVtable>::Load(
     ::Load(input, copyConstructor);
     ::Load(input, rawCoderFactory);
     ::Load(input, copyToUniquePtr);
+    ::Load(input, hash);
     ::Load(input, keyOffset);
     ::Load(input, valueOffset);
     ::Load(input, keyVtableFactory);
@@ -102,6 +104,7 @@ void TSerializer<NRoren::NPrivate::TRowVtable>::Load(
     rowVtable.CopyConstructor = reinterpret_cast<TRowVtable::TCopyDataFunction>(copyConstructor);
     rowVtable.RawCoderFactory = reinterpret_cast<TRowVtable::TRawCoderFactoryFunction>(rawCoderFactory);
     rowVtable.CopyToUniquePtr = reinterpret_cast<TRowVtable::TCopyToUniquePtrFunction>(copyToUniquePtr);
+    rowVtable.Hash = reinterpret_cast<TRowVtable::THashFunction>(hash);
     rowVtable.KeyOffset = keyOffset;
     rowVtable.ValueOffset = valueOffset;
     rowVtable.KeyVtableFactory = reinterpret_cast<TRowVtable::TRowVtableFactoryFunction>(keyVtableFactory);
