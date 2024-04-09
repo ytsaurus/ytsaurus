@@ -304,6 +304,7 @@ void SplitRangesByTablets(
         }
     };
 
+    // TODO(lukyan): Remove.
     auto croppedRanges = CropItems(
         ranges,
         [&] (const TRowRange* itemIt) {
@@ -368,6 +369,7 @@ void SplitKeysByTablets(
         }
     };
 
+    // TODO(lukyan): Remove.
     auto croppedKeys = CropItems(
         keys,
         [&] (const TRow* itemIt) {

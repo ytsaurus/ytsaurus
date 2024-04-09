@@ -700,7 +700,7 @@ void EnrichKeyRange(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRangeInferrer CreateHeavyRangeInferrer(
+TSharedRange<TRowRange> CreateHeavyRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
@@ -750,7 +750,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
         ? options.RangeExpansionLimit - ranges.size()
         : 0;
 
-    std::vector<TRowRange> enrichedRanges;
+    TRowRanges enrichedRanges;
     for (auto range : ranges) {
         EnrichKeyRange(
             *evaluator,
@@ -766,45 +766,20 @@ TRangeInferrer CreateHeavyRangeInferrer(
         MergeOverlappingRanges(enrichedRanges.begin(), enrichedRanges.end()),
         enrichedRanges.end());
 
-    return [
-        enrichedRanges = std::move(enrichedRanges),
-        buffer = std::move(buffer)
-    ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
-        auto subrange = CropItems(
-            MakeRange(enrichedRanges),
-            [&] (auto it) {
-                return !(keyRange.first < it->second);
-            },
-            [&] (auto it) {
-                return it->first < keyRange.second;
-            });
-
-        std::vector<TMutableRowRange> result;
-        if (!subrange.Empty()) {
-            auto lower = std::max(subrange.Front().first, keyRange.first);
-            auto upper = std::min(subrange.Back().second, keyRange.second);
-
-            ForEachRange(subrange, TRowRange(lower, upper), [&] (auto item) {
-                auto [lower, upper] = item;
-                result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
-            });
-        }
-
-        return result;
-    };
+    return MakeSharedRange(enrichedRanges, buffer);
 }
 
-TRangeInferrer CreateLightRangeInferrer(
+TSharedRange<TRowRange> CreateLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {
-    auto keyTrieBuffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keyTrie = ExtractMultipleConstraints(
         predicate,
         keyColumns,
-        keyTrieBuffer,
+        rowBuffer,
         rangeExtractors);
 
     YT_LOG_DEBUG_IF(
@@ -813,13 +788,11 @@ TRangeInferrer CreateLightRangeInferrer(
         InferName(predicate),
         keyTrie);
 
-    return [
-        keyTrieBuffer = std::move(keyTrieBuffer),
-        keyTrie = std::move(keyTrie),
-        rangeExpansionLimit = options.RangeExpansionLimit
-    ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) {
-        return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer, false, rangeExpansionLimit);
-    };
+    auto mutableRanges = GetRangesFromTrieWithinRange(TRowRange(MinKey(), MaxKey()), keyTrie, rowBuffer, false, options.RangeExpansionLimit);
+
+    TRowRanges resultRanges(mutableRanges.begin(), mutableRanges.end());
+
+    return MakeSharedRange(resultRanges, rowBuffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -828,7 +801,7 @@ TRangeInferrer CreateLightRangeInferrer(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRangeInferrer CreateRangeInferrer(
+TSharedRange<TRowRange> CreateRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,

@@ -92,7 +92,7 @@ void GetQueryInfo(
             queryOptions.NewRangeInference = options.NewRangeInference;
             queryOptions.MaxSubqueries = options.MaxSubqueries;
 
-            if (ranges) {
+            if (query->InferRanges) {
                 auto prunedRanges = GetPrunedRanges(
                     query,
                     tableId,

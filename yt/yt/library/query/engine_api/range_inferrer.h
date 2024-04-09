@@ -30,11 +30,7 @@ TKeyTriePtr ExtractMultipleConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRangeInferrer = std::function<std::vector<TMutableRowRange>(
-    const TRowRange& keyRange,
-    const TRowBufferPtr& rowBuffer)>;
-
-TRangeInferrer CreateRangeInferrer(
+TSharedRange<TRowRange> CreateRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,

@@ -15,6 +15,8 @@
 
 #include <yt/yt/library/query/engine/folding_profiler.h>
 
+#include <yt/yt/core/misc/range_formatters.h>
+
 #include <util/random/fast.h>
 
 // Tests:
@@ -1675,7 +1677,7 @@ TEST_P(TInferRangesTest, Stress)
                 rowBuffer);
 
             // Validate row in ranges.
-            auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (TRowRange* rowRange) {
+            auto foundIt = BinarySearch(inferredRanges.begin(), inferredRanges.end(), [&] (const TRowRange* rowRange) {
                 return rowRange->second <= row;
             });
 

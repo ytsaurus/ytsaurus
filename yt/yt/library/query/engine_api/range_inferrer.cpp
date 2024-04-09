@@ -212,7 +212,7 @@ TKeyTriePtr ExtractMultipleConstraints(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK TRangeInferrer CreateRangeInferrer(
+Y_WEAK TSharedRange<TRowRange> CreateRangeInferrer(
     TConstExpressionPtr /*predicate*/,
     const TTableSchemaPtr& /*schema*/,
     const TKeyColumns& /*keyColumns*/,

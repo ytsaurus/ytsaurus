@@ -73,13 +73,13 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
     return std::pair(topQuery, subqueries);
 }
 
-TRowRanges GetPrunedRanges(
+TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& predicate,
     const TTableSchemaPtr& tableSchema,
     const TKeyColumns& keyColumns,
     TObjectId tableId,
-    const TSharedRange<TRowRange>& ranges,
-    const TRowBufferPtr& rowBuffer,
+    const TSharedRange<TRowRange>& /*ranges*/,
+    const TRowBufferPtr& /*rowBuffer*/,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
@@ -89,10 +89,10 @@ TRowRanges GetPrunedRanges(
 
     YT_LOG_DEBUG("Inferring ranges from predicate");
 
-    TRangeInferrer rangeInferrer;
+    TSharedRange<TRowRange> result;
 
     if (options.NewRangeInference) {
-        rangeInferrer = CreateNewRangeInferrer(
+        result = CreateNewRangeInferrer(
             predicate,
             tableSchema,
             keyColumns,
@@ -100,7 +100,7 @@ TRowRanges GetPrunedRanges(
             GetBuiltinConstraintExtractors(),
             options);
     } else {
-        rangeInferrer = CreateRangeInferrer(
+        result = CreateRangeInferrer(
             predicate,
             tableSchema,
             keyColumns,
@@ -115,25 +115,16 @@ TRowRanges GetPrunedRanges(
             range.second);
     };
 
-    YT_LOG_DEBUG("Splitting %v sources according to ranges", ranges.Size());
-
-    TRowRanges result;
-    for (const auto& originalRange : ranges) {
-        auto inferred = rangeInferrer(originalRange, rowBuffer);
-        result.insert(result.end(), inferred.begin(), inferred.end());
-
-        for (const auto& range : inferred) {
-            YT_LOG_DEBUG_IF(options.VerboseLogging, "Narrowing source %v key range from %v to %v",
-                tableId,
-                keyRangeFormatter(originalRange),
-                keyRangeFormatter(range));
-        }
+    for (const auto& range : result) {
+        YT_LOG_DEBUG_IF(options.VerboseLogging, "Inferred range (TableId: %v, Range: %v)",
+            tableId,
+            keyRangeFormatter(range));
     }
 
     return result;
 }
 
-TRowRanges GetPrunedRanges(
+TSharedRange<TRowRange> GetPrunedRanges(
     const TConstQueryPtr& query,
     TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,
@@ -147,7 +138,7 @@ TRowRanges GetPrunedRanges(
         query->Schema.Original,
         query->GetKeyColumns(),
         tableId,
-        std::move(ranges),
+        ranges,
         rowBuffer,
         evaluatorCache,
         rangeExtractors,

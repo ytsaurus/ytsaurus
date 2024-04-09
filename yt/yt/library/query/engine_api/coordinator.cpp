@@ -12,7 +12,7 @@ Y_WEAK std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQue
     YT_ABORT();
 }
 
-Y_WEAK TRowRanges GetPrunedRanges(
+Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& /*predicate*/,
     const TTableSchemaPtr& /*tableSchema*/,
     const TKeyColumns& /*keyColumns*/,
@@ -28,7 +28,7 @@ Y_WEAK TRowRanges GetPrunedRanges(
     YT_ABORT();
 }
 
-Y_WEAK TRowRanges GetPrunedRanges(
+Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const TConstQueryPtr& /*query*/,
     NObjectClient::TObjectId /*tableId*/,
     const TSharedRange<TRowRange>& /*ranges*/,

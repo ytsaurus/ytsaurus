@@ -934,7 +934,7 @@ TCompactVector<EValueType, 16> GetKeyTypes(const TTableSchemaPtr& tableSchema)
     return keyTypes;
 }
 
-TRangeInferrer CreateNewHeavyRangeInferrer(
+TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
@@ -944,7 +944,6 @@ TRangeInferrer CreateNewHeavyRangeInferrer(
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keySize = schema->GetKeyColumnCount();
-
     auto evaluator = evaluatorCache->Find(schema);
 
     // TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
@@ -1011,104 +1010,93 @@ TRangeInferrer CreateNewHeavyRangeInferrer(
         YT_VERIFY(enrichedRanges[index].second <= enrichedRanges[index + 1].first);
     }
 
-    return [
-        enrichedRanges,
-        buffer
-    ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
-        return CropRanges(keyRange, enrichedRanges, rowBuffer);
-    };
+    return MakeSharedRange(enrichedRanges, buffer);
 }
 
-TRangeInferrer CreateNewLightRangeInferrer(
+TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
     const TQueryOptions& options)
 {
-    return [
-        predicate,
-        keyColumns,
-        constraintExtractors,
-        options
-    ] (const TRowRange& keyRange, const TRowBufferPtr& buffer) {
-        TConstraintsHolder constraints(keyColumns.size());
-        auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
+    auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
+    TConstraintsHolder constraints(keyColumns.size());
+    auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
-        YT_LOG_DEBUG_IF(
-            options.VerboseLogging,
-            "Predicate %Qv defines key constraints %Qv",
-            InferName(predicate),
-            ToString(constraints, constraintRef));
+    YT_LOG_DEBUG_IF(
+        options.VerboseLogging,
+        "Predicate %Qv defines key constraints %Qv",
+        InferName(predicate),
+        ToString(constraints, constraintRef));
 
-        std::vector<TRowRange> resultRanges;
+    TRowRanges resultRanges;
 
-        TReadRangesGenerator rangesGenerator(constraints);
-        rangesGenerator.GenerateReadRanges(
-            constraintRef,
-            [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
-                YT_LOG_DEBUG_IF(
-                    options.VerboseLogging,
-                    "ConstraintRow: %v",
-                    MakeFormattableView(
-                        constraintRow,
-                        [] (TStringBuilderBase* builder, const TColumnConstraint& constraint) {
-                            builder->AppendString("[");
-                            FormatValue(builder, constraint.Lower.Value, "%k");
-                            builder->AppendString(", ");
-                            FormatValue(builder, constraint.Upper.Value, "%k");
-                            builder->AppendString("]");
-                        }));
+    TReadRangesGenerator rangesGenerator(constraints);
+    rangesGenerator.GenerateReadRanges(
+        constraintRef,
+        [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
+            YT_LOG_DEBUG_IF(
+                options.VerboseLogging,
+                "ConstraintRow: %v",
+                MakeFormattableView(
+                    constraintRow,
+                    [] (TStringBuilderBase* builder, const TColumnConstraint& constraint) {
+                        builder->AppendString("[");
+                        FormatValue(builder, constraint.Lower.Value, "%k");
+                        builder->AppendString(", ");
+                        FormatValue(builder, constraint.Upper.Value, "%k");
+                        builder->AppendString("]");
+                    }));
 
-                auto boundRow = buffer->AllocateUnversioned(std::ssize(keyColumns));
+            auto boundRow = buffer->AllocateUnversioned(std::ssize(keyColumns));
 
-                int columnId = 0;
-                while (columnId < std::ssize(constraintRow) && constraintRow[columnId].IsExact()) {
-                    boundRow[columnId] = constraintRow[columnId].GetValue();
-                    ++columnId;
-                }
+            int columnId = 0;
+            while (columnId < std::ssize(constraintRow) && constraintRow[columnId].IsExact()) {
+                boundRow[columnId] = constraintRow[columnId].GetValue();
+                ++columnId;
+            }
 
-                auto prefixSize = columnId;
-                auto keyColumnCount = std::ssize(constraintRow);
+            auto prefixSize = columnId;
+            auto keyColumnCount = std::ssize(constraintRow);
 
-                TRowRange rowRange;
-                if (prefixSize < keyColumnCount) {
-                    auto lowerBound = MakeLowerBound(
-                        buffer.Get(),
-                        MakeRange(boundRow.Begin(), prefixSize),
-                        constraintRow[prefixSize].Lower);
-                    auto upperBound = MakeUpperBound(
-                        buffer.Get(),
-                        MakeRange(boundRow.Begin(), prefixSize),
-                        constraintRow[prefixSize].Upper);
+            TRowRange rowRange;
+            if (prefixSize < keyColumnCount) {
+                auto lowerBound = MakeLowerBound(
+                    buffer.Get(),
+                    MakeRange(boundRow.Begin(), prefixSize),
+                    constraintRow[prefixSize].Lower);
+                auto upperBound = MakeUpperBound(
+                    buffer.Get(),
+                    MakeRange(boundRow.Begin(), prefixSize),
+                    constraintRow[prefixSize].Upper);
 
-                    rowRange = std::pair(lowerBound, upperBound);
-                } else {
-                    rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
-                }
+                rowRange = std::pair(lowerBound, upperBound);
+            } else {
+                rowRange = RowRangeFromPrefix(buffer.Get(), MakeRange(boundRow.Begin(), prefixSize));
+            }
 
-                if (resultRanges.empty()) {
-                    resultRanges.push_back(rowRange);
-                    return;
-                }
+            if (resultRanges.empty()) {
+                resultRanges.push_back(rowRange);
+                return;
+            }
 
-                if (resultRanges.back().second == rowRange.first) {
-                    resultRanges.back().second = rowRange.second;
-                } else if (resultRanges.back() == rowRange) {
-                    // Skip.
-                } else if (resultRanges.back().second == rowRange.second) {
-                    YT_VERIFY(resultRanges.back().first <= rowRange.first);
-                } else {
-                    YT_VERIFY(resultRanges.back().second < rowRange.first);
-                    resultRanges.push_back(rowRange);
-                }
-            },
-            options.RangeExpansionLimit);
+            if (resultRanges.back().second == rowRange.first) {
+                resultRanges.back().second = rowRange.second;
+            } else if (resultRanges.back() == rowRange) {
+                // Skip.
+            } else if (resultRanges.back().second == rowRange.second) {
+                YT_VERIFY(resultRanges.back().first <= rowRange.first);
+            } else {
+                YT_VERIFY(resultRanges.back().second < rowRange.first);
+                resultRanges.push_back(rowRange);
+            }
+        },
+        options.RangeExpansionLimit);
 
-        return CropRanges(keyRange, resultRanges, buffer);
-    };
+    return MakeSharedRange(resultRanges, buffer);
 }
 
-TRangeInferrer CreateNewRangeInferrer(
+TSharedRange<TRowRange> CreateNewRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
