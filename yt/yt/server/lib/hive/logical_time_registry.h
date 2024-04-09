@@ -56,6 +56,7 @@ private:
         TInstant Timestamp;
     };
     std::map<TLogicalTime, TTimeInfo> TimeInfoMap_;
+    std::atomic<int> TimeInfoMapSize_;
 
     NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
 
