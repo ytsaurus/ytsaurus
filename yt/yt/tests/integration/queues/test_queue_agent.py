@@ -1542,7 +1542,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         wait(lambda: len(get("//tmp/c/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
         wait(lambda: get("//tmp/c/@queue_consumer_status").get("queues").get("primary://tmp/q").get("partition_count") == 1, ignore_exceptions=True)
 
-        assert len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1
+        wait(lambda: len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1, ignore_exceptions=True)
 
         # Check that consumer attributes are opaque.
         full_attributes = get("//tmp/c/@")
