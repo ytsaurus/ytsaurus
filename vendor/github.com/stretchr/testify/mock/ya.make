@@ -1,8 +1,8 @@
 GO_LIBRARY()
 
-OWNER(g:go-contrib)
-
 LICENSE(MIT)
+
+OWNER(g:go-contrib)
 
 GO_SKIP_TESTS(
     Test_Mock_Chained_On

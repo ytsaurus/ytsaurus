@@ -1,8 +1,8 @@
 GO_LIBRARY()
 
-OWNER(g:go-contrib)
-
 LICENSE(MIT)
+
+OWNER(g:go-contrib)
 
 SRCS(doc.go)
 
