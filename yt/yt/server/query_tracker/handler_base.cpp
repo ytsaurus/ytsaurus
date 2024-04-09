@@ -44,23 +44,69 @@ namespace NDetail {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+TSharedRef TruncateRowset(TSharedRange<NTableClient::TUnversionedRow>& rows)
+{
+    if (rows.Empty()) {
+        return TSharedRef::MakeEmpty();
+    }
+
+    auto baseWeight = GetUnversionedRowByteSize(rows.Size());
+
+    // Wire format doesn't provide result size before serializing, so we have to make some estimations and verify them.
+    i64 estimationThresholds[] = {MaxStringValueLength, MaxStringValueLength - 1_MB, 1_MB, (i64)baseWeight + (i64)GetDataWeight(rows[0])};
+    for (auto threshold : estimationThresholds) {
+        auto weight = baseWeight;
+        i64 rowCount = 0;
+        for (const auto& row : rows) {
+            if (weight + GetDataWeight(row) <= (size_t)threshold) {
+                rowCount++;
+                weight += GetDataWeight(row);
+            } else {
+                break;
+            }
+        }
+
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteSchemafulRowset(rows.Slice(0, rowCount));
+        auto refs = writer->Finish();
+        struct THandlerTag { };
+        auto truncatedRowset = MergeRefsToRef<THandlerTag>(refs);
+        if (truncatedRowset.Size() <= MaxStringValueLength) {
+            return truncatedRowset;
+        }
+    }
+
+    return TSharedRef::MakeEmpty();
+}
+
 void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchemaAndSchemafulRowset)
 {
+    // Process schema.
     auto reader = CreateWireProtocolReader(wireSchemaAndSchemafulRowset.Rowset);
     auto schema = reader->ReadTableSchema();
-    auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
     auto schemaNode = ConvertToNode(schema);
     // Values in tables cannot have top-level attributes, but we do not need them anyway.
     schemaNode->MutableAttributes()->Clear();
     newRecord.Schema = ConvertToYsonString(schemaNode);
-    newRecord.Rowset = TString(rowset.ToStringBuf());
-    newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
+
+    // Process schemaful rowset.
+    auto rowset = reader->Slice(reader->GetCurrent(), reader->GetEnd());
     auto schemaData = IWireProtocolReader::GetSchemaData(schema);
     auto rows = reader->ReadSchemafulRowset(schemaData, /*captureValues*/ false);
     TDataStatistics dataStatistics;
     dataStatistics.set_row_count(rows.size());
     dataStatistics.set_data_weight(GetDataWeight(rows));
     newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
+    newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
+    if (rowset.Size() <= MaxStringValueLength) {
+        // Fast path. Copy full rowset.
+        newRecord.Rowset = TString(rowset.ToStringBuf());
+    } else {
+        // Slow path. Truncate rowset.
+        newRecord.IsTruncated = true;
+        auto truncatedRowset = TruncateRowset(rows);
+        newRecord.Rowset = TString(truncatedRowset.ToStringBuf());
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

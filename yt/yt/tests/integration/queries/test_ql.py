@@ -13,6 +13,8 @@ from decimal_helpers import encode_decimal
 
 from yt.wrapper import yson
 
+import pytest
+
 
 class TestQueriesQL(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
@@ -104,6 +106,45 @@ class TestQueriesQL(YTEnvSetup):
         ]
         assert result_info["schema"] == expected_schema
         assert_items_equal(q.read_result(0), rows)
+
+    @authors("aleksandr.gaev")
+    @pytest.mark.timeout(300)
+    def test_big_outputs(self, query_tracker):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+
+        value_size = 1024 * 1024  # 1 MB
+        rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(15)]
+        insert_rows("//tmp/t", rows)
+
+        settings = {"cluster": "primary"}
+
+        # 15 MB
+        q = start_query("ql", "* from [//tmp/t]", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows)
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(False)
+
+        # 16 MB
+        new_rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(15, 16)]
+        insert_rows("//tmp/t", new_rows)
+        rows += new_rows
+        q = start_query("ql", "* from [//tmp/t]", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:15])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
+
+        # 17 MB
+        new_rows = [{"key": i, "value": ''.join(['a' for _ in range(value_size)])} for i in range(16, 17)]
+        insert_rows("//tmp/t", new_rows)
+        rows += new_rows
+        q = start_query("ql", "* from [//tmp/t]", settings=settings)
+        q.track()
+        assert q.get()["result_count"] == 1
+        assert_items_equal(q.read_result(0), rows[:15])
+        assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(True)
 
 
 ##################################################################
