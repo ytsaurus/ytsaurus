@@ -1495,6 +1495,14 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_job_aborts_until_operation_failure": {
+                "root_volume_preparation_failed": 2,
+            },
+        }
+    }
+
     USE_PORTO = True
 
     def setup_files(self):
