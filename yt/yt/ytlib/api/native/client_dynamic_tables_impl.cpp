@@ -2201,7 +2201,7 @@ void TClient::DoTrimTable(
     const TYPath& path,
     int tabletIndex,
     i64 trimmedRowCount,
-    const TTrimTableOptions& /*options*/)
+    const TTrimTableOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -2224,7 +2224,7 @@ void TClient::DoTrimTable(
     auto channel = GetCellChannelOrThrow(tabletInfo->CellId);
 
     TTabletServiceProxy proxy(channel);
-    proxy.SetDefaultTimeout(Connection_->GetConfig()->DefaultTrimTableTimeout);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultTrimTableTimeout));
 
     auto req = proxy.Trim();
     ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
