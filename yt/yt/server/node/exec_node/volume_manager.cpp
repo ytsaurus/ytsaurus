@@ -3110,7 +3110,7 @@ private:
         std::copy(Alerts_.begin(), Alerts_.end(), std::back_inserter(*alerts));
 
         if (LayerCache_ && !LayerCache_->IsEnabled()) {
-            Alerts_.emplace_back(
+            alerts->emplace_back(
                 NExecNode::EErrorCode::NoLayerLocationAvailable,
                 "Layer cache is disabled");
         }
