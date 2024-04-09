@@ -1646,6 +1646,11 @@ TFuture<TCellIdToSnapshotIdMap> TClient::BuildMasterSnapshots(const TBuildMaster
     ThrowUnimplemented("BuildMasterSnapshots");
 }
 
+TFuture<TCellIdToSequenceNumberMap> TClient::GetMasterConsistentState(const TGetMasterConsistentStateOptions& /*options*/)
+{
+    ThrowUnimplemented("GetMasterConsistentState");
+}
+
 TFuture<void> TClient::ExitReadOnly(
     NHydra::TCellId cellId,
     const TExitReadOnlyOptions& /*options*/)

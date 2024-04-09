@@ -43,6 +43,7 @@ target_sources(server-lib-hive PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/hive_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/logical_time_registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/mailbox.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/hive/public.cpp
 )

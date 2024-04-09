@@ -8,6 +8,23 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLogicalTimeRegistryConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration EvictionPeriod;
+
+    TDuration ExpirationTimeout;
+
+    REGISTER_YSON_STRUCT(TLogicalTimeRegistryConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLogicalTimeRegistryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THiveManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -45,6 +62,8 @@ public:
 
     //! Maximum time to wait before syncing with another instance.
     TDuration SyncTimeout;
+
+    TLogicalTimeRegistryConfigPtr LogicalTimeRegistry;
 
     REGISTER_YSON_STRUCT(THiveManagerConfig);
 

@@ -110,6 +110,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(write_operation_controller_core_dump, WriteOperationControllerCoreDump, "Write a core dump of a controller agent holding the operation controller for a given operation id");
         PYCXX_ADD_KEYWORDS_METHOD(build_snapshot, BuildSnapshot, "Forces to build a snapshot");
         PYCXX_ADD_KEYWORDS_METHOD(build_master_snapshots, BuildMasterSnapshots, "Forces to build snapshots for all master cells");
+        PYCXX_ADD_KEYWORDS_METHOD(get_master_consistent_state, GetMasterConsistentState, "Records a consistent global state");
         PYCXX_ADD_KEYWORDS_METHOD(exit_read_only, ExitReadOnly, "Exits read-only mode at given cell");
         PYCXX_ADD_KEYWORDS_METHOD(master_exit_read_only, MasterExitReadOnly, "Exits read-only mode at all master cells");
         PYCXX_ADD_KEYWORDS_METHOD(discombobulate_nonvoting_peers, DiscombobulateNonvotingPeers, "Do not restart nonvoting peers in leader`s absence");
@@ -277,6 +278,19 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to build master snapshots");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, BuildMasterSnapshots)
+
+    Py::Object GetMasterConsistentState(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            WaitFor(client->GetMasterConsistentState())
+                .ThrowOnError();
+            return Py::None();
+        } CATCH_AND_CREATE_YT_ERROR("Failed to get master consistent state");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, GetMasterConsistentState)
 
     Py::Object ExitReadOnly(Py::Tuple& args, Py::Dict& kwargs)
     {

@@ -1,9 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, get, set, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
+    authors, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address,
-    reset_state_hash, build_snapshot, build_master_snapshots, discombobulate_nonvoting_peers)
+    reset_state_hash, build_snapshot, build_master_snapshots, discombobulate_nonvoting_peers, get_master_consistent_state)
 
 from yt.common import YtError
 
@@ -137,6 +137,26 @@ class TestDiscombobulate(YTEnvSetup):
             assert not get(
                 "{}/{}/orchid/monitoring/hydra/discombobulated".format("//sys/primary_masters", address),
                 default=True)
+
+
+class TestLamportClock(YTEnvSetup):
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    @authors("danilalexeev")
+    def test_get_consistent_state(self):
+        def convert_to_map(yson_map):
+            result = {}
+            for m in yson_map:
+                result[m["cell_id"]] = int(m["sequence_number"])
+            return result
+
+        state = convert_to_map(get_master_consistent_state())
+        assert len(state) == len(ls("//sys/secondary_masters")) + 1
+
+        new_state = convert_to_map(get_master_consistent_state())
+        assert len(state) == len(new_state)
+        for cell_id in new_state:
+            assert new_state[cell_id] >= state[cell_id]
 
 
 class TestLocalJanitor(YTEnvSetup):
