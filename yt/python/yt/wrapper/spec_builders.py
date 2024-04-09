@@ -419,6 +419,10 @@ class UserJobSpecBuilder(object):
     def output_format(self, format):
         return _set_spec_value(self, "output_format", format)
 
+    @spec_option("The list of the output tables")
+    def output_table_paths(self, paths):
+        return _set_spec_value(self, "output_table_paths", paths)
+
     @spec_option("The dictionary of environment variables that will be mentioned during operation running")
     def environment(self, environment_dict):
         return _set_spec_value(self, "environment", environment_dict)
