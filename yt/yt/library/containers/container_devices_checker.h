@@ -49,6 +49,9 @@ private:
 
     TString RootContainerName_;
 
+    bool DirectoryPrepared_ = false;
+
+    void PrepareDirectory();
     TError CreateTestContainer();
     void OnCheck();
 };
