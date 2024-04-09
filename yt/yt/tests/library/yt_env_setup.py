@@ -26,6 +26,7 @@ from yt.environment.helpers import (  # noqa
     NODES_SERVICE,
     CHAOS_NODES_SERVICE,
     MASTERS_SERVICE,
+    MASTER_CACHES_SERVICE,
     QUEUE_AGENTS_SERVICE,
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
@@ -1770,3 +1771,17 @@ def get_custom_rootfs_delta_node_config():
             },
         }
     }
+
+
+def get_service_component_name(service):
+    return {
+        SCHEDULERS_SERVICE: "scheduler",
+        CONTROLLER_AGENTS_SERVICE: "controller-agent",
+        NODES_SERVICE: "node",
+        CHAOS_NODES_SERVICE: "node",
+        MASTERS_SERVICE: "master",
+        MASTER_CACHES_SERVICE: "master-cache",
+        QUEUE_AGENTS_SERVICE: "queue-agent",
+        RPC_PROXIES_SERVICE: "proxy",
+        HTTP_PROXIES_SERVICE: "http-proxy",
+    }[service]
