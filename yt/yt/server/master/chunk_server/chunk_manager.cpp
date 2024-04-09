@@ -3673,7 +3673,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
@@ -3831,7 +3830,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
@@ -5803,7 +5801,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
             }));

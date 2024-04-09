@@ -842,7 +842,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         context->SetRequestInfo(
-            "ChunkId: %v, ",
+            "ChunkId: %v",
             chunkId);
 
         ValidateClusterInitialized();
@@ -858,7 +858,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo(
-            "TransactionId: %v, ",
+            "TransactionId: %v",
             transactionId);
 
         ValidateClusterInitialized();
@@ -892,7 +892,7 @@ private:
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         context->SetRequestInfo(
-            "ChunkId: %v, ",
+            "ChunkId: %v",
             chunkId);
 
         ValidateClusterInitialized();

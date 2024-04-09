@@ -521,7 +521,6 @@ private:
                     .Force2PC = true,
                     .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late
                 };
-
                 return transaction->Commit(commitOptions);
             }))
             .Subscribe(BIND([=, this] (const TErrorOr<NApi::TTransactionCommitResult>& resultOrError) {
