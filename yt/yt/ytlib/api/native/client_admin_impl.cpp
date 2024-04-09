@@ -171,7 +171,7 @@ TCellIdToSnapshotIdMap TClient::DoBuildMasterSnapshots(const TBuildMasterSnapsho
     return cellIdToSnapshotId;
 }
 
-TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
+TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
     const TGetMasterConsistentStateOptions& options)
 {
     ValidatePermissionsWithAcn(
@@ -195,7 +195,7 @@ TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
         return req;
     };
 
-    TCellIdToSequenceNumberMap cellIdToSequenceNumber;
+    TCellIdToConsistentStateMap cellIdToConsistentState;
 
     auto primaryCellId = Connection_->GetPrimaryMasterCellId();
     std::vector<TCellId> secondaryCellIds;
@@ -219,7 +219,7 @@ TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
     };
 
     auto resetState = [&] {
-        cellIdToSequenceNumber.clear();
+        cellIdToConsistentState.clear();
         {
             std::queue<TGetMasterConsistentStateRequest> queue;
             requestQueue.swap(queue);
@@ -233,7 +233,10 @@ TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
             rsp->logical_time(),
             rsp->sequence_number());
         logicalTime = rsp->logical_time();
-        EmplaceOrCrash(cellIdToSequenceNumber, primaryCellId, rsp->sequence_number());
+        EmplaceOrCrash(cellIdToConsistentState, primaryCellId, TMasterConsistentState{
+            .SequenceNumber = rsp->sequence_number(),
+            .SegmentId = rsp->segment_id(),
+        });
 
         for (auto cellId : secondaryCellIds) {
             enqueueRequest(cellId);
@@ -249,15 +252,19 @@ TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
         auto cellId = request.CellId;
         auto responseOrError = WaitFor(request.Future);
         if (responseOrError.IsOK()) {
-            auto sequenceNumber = responseOrError.Value()->sequence_number();
-            YT_LOG_INFO("Recieved consistent state (CellId: %v, SequenceNumber: %v)",
+            auto response = responseOrError.Value();
+            YT_LOG_INFO("Recieved consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
                 cellId,
-                sequenceNumber);
-            EmplaceOrCrash(cellIdToSequenceNumber, cellId, sequenceNumber);
+                response->sequence_number(),
+                response->segment_id());
+            EmplaceOrCrash(cellIdToConsistentState, cellId, TMasterConsistentState{
+                .SequenceNumber = response->sequence_number(),
+                .SegmentId = response->segment_id(),
+            });
             continue;
         }
         if (responseOrError.GetCode() == NHiveClient::EErrorCode::EntryNotFound) {
-            YT_LOG_INFO("Requested time is missing; reseting (CellId: %v)",
+            YT_LOG_INFO("Requested time is missing; retrying (CellId: %v)",
                 primaryCellId);
             resetState();
         } else {
@@ -265,7 +272,7 @@ TCellIdToSequenceNumberMap TClient::DoGetMasterConsistentState(
         }
     }
 
-    return cellIdToSequenceNumber;
+    return cellIdToConsistentState;
 }
 
 void TClient::DoExitReadOnly(
