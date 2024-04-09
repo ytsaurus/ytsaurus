@@ -47,7 +47,33 @@ TContainerDevicesChecker::TContainerDevicesChecker(
 void TContainerDevicesChecker::Start()
 {
     YT_VERIFY(!PeriodicExecutor_->IsStarted());
+    PeriodicExecutor_->Start();
+}
 
+void TContainerDevicesChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
+{
+    YT_LOG_DEBUG(
+        "Container devices checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
+        Config_->EnableTestPortoFailures,
+        Config_->StubErrorCode);
+
+    Executor_->OnDynamicConfigChanged(newConfig);
+}
+
+void TContainerDevicesChecker::OnCheck()
+{
+    YT_LOG_DEBUG("Run container devices check");
+
+    try {
+        auto result = CreateTestContainer();
+        Check_.Fire(result);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Container devices check failed");
+    }
+}
+
+void TContainerDevicesChecker::PrepareDirectory()
+{
     YT_LOG_DEBUG("Container devices checker started");
 
     NFS::MakeDirRecursive(TestDirectoryPath_, 0755);
@@ -95,33 +121,20 @@ void TContainerDevicesChecker::Start()
     NFS::MakeDirRecursive(PortoStoragePath_ , 0755);
 
     RootContainerName_ = GetSelfContainerName(Executor_);
-    PeriodicExecutor_->Start();
-}
-
-void TContainerDevicesChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
-{
-    YT_LOG_DEBUG(
-        "Container devices checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
-        Config_->EnableTestPortoFailures,
-        Config_->StubErrorCode);
-
-    Executor_->OnDynamicConfigChanged(newConfig);
-}
-
-void TContainerDevicesChecker::OnCheck()
-{
-    YT_LOG_DEBUG("Run container devices check");
-
-    try {
-        auto result = CreateTestContainer();
-        Check_.Fire(result);
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Container devices check failed");
-    }
 }
 
 TError TContainerDevicesChecker::CreateTestContainer()
 {
+    if (!DirectoryPrepared_) {
+        try {
+            PrepareDirectory();
+            DirectoryPrepared_ = true;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Directory preparation failed");
+            WaitFor(PeriodicExecutor_->Stop()).ThrowOnError();
+        }
+    }
+
     TFile lock(LockPath, CreateAlways | WrOnly | Seq | CloseOnExec);
     lock.Flock(LOCK_EX);
 
