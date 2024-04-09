@@ -630,7 +630,7 @@ public: \
     IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
         const TBuildMasterSnapshotsOptions& options),
         (options))
-    IMPLEMENT_METHOD(TCellIdToSequenceNumberMap, GetMasterConsistentState, (
+    IMPLEMENT_METHOD(TCellIdToConsistentStateMap, GetMasterConsistentState, (
         const TGetMasterConsistentStateOptions& options),
         (options))
     IMPLEMENT_METHOD(void, ExitReadOnly, (
