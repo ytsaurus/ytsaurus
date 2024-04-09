@@ -61,6 +61,7 @@ using namespace NTableServer;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NChunkClient;
+using namespace NLogging;
 using namespace NNodeTrackerClient::NProto;
 using namespace NTableClient::NProto;
 
@@ -246,7 +247,8 @@ public:
         TEphemeralObjectPtr<TChunkOwnerBase> node,
         i64 configVersion,
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
-        : Bootstrap_(bootstrap)
+        : Logger(ChunkServerLogger.WithTag("NodeId: %v, AccountId: %v", node->GetId(), node->Account()->GetId()))
+        , Bootstrap_(bootstrap)
         , Node_(std::move(node))
         , NodeId_(Node_->GetId())
         , ConfigVersion_(configVersion)
@@ -276,8 +278,7 @@ public:
 
         NChunkClient::TReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(TraversalInfo_.ChunkCount);
-        YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v, LowerLimit: %v)",
-            NodeId_,
+        YT_LOG_DEBUG("Traversal started (RootChunkListId: %v, LowerLimit: %v)",
             Node_->GetChunkList()->GetId(),
             lowerLimit);
 
@@ -309,6 +310,7 @@ public:
     }
 
 private:
+    const TLogger Logger;
     TBootstrap* const Bootstrap_;
     const TEphemeralObjectPtr<TChunkOwnerBase> Node_;
     const TObjectId NodeId_;
@@ -422,14 +424,12 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* firstChunk = chunkManager->FindChunk(ChunkIds_.front());
         if (!IsObjectAlive(firstChunk)) {
-            YT_LOG_DEBUG("Shallow merge criteria violated: chunk is dead (NodeId: %v, ChunkId: %v)",
-                NodeId_,
+            YT_LOG_DEBUG("Shallow merge criteria violated: chunk is dead (ChunkId: %v)",
                 ChunkIds_.front());
             return false;
         }
         if (!ChunkMetaEqual(firstChunk, chunk)) {
-            YT_LOG_DEBUG("Shallow merge criteria violated: chunk metas differ (NodeId: %v, ChunkId: %v, ChunkId: %v)",
-                NodeId_,
+            YT_LOG_DEBUG("Shallow merge criteria violated: chunk metas differ (ChunkId: %v, ChunkId: %v)",
                 ChunkIds_.front(),
                 chunk->GetId());
             return false;
@@ -458,9 +458,8 @@ private:
         const auto& config = GetDynamicConfig();
 
         if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
-            YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit (NodeId: %v, "
-                "ChunkListId: %v, JobsForLastChunkList: %v, MaxJobsPerChunkList: %v)",
-                NodeId_,
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit "
+                "(ChunkListId: %v, JobsForLastChunkList: %v, MaxJobsPerChunkList: %v)",
                 LastChunkListId_,
                 JobsForLastChunkList_,
                 config->MaxJobsPerChunkList);
@@ -479,8 +478,7 @@ private:
         }
 
         if (chunk->GetSystemBlockCount() != 0) {
-            YT_LOG_DEBUG("Cannot add chunk to merge job due to nonzero system block count (NodeId: %v, ChunkId: %v, SystemBlockCount: %v)",
-                NodeId_,
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to nonzero system block count (ChunkId: %v, SystemBlockCount: %v)",
                 chunk->GetId(),
                 chunk->GetSystemBlockCount());
             return false;
@@ -501,31 +499,46 @@ private:
         const auto targetSatisfiedCriteriaCount = 7;
 
         auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
-        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount) {
+        std::vector<TString> violatedCriterias;
+        violatedCriterias.reserve(targetSatisfiedCriteriaCount);
+        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criteriaName) {
             if (condition) {
                 ++satisfiedCriteriaCount;
             } else {
                 ++violatedCriteriaCount;
+                violatedCriterias.emplace_back(std::move(criteriaName));
             }
         };
 
-        incrementSatisfiedOrViolatedCriteriaCount(CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
-            statistics.MaxRowCountViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
+            statistics.MaxRowCountViolatedCriteria,
+            "RowCountCriteria");
 
-        incrementSatisfiedOrViolatedCriteriaCount(CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
-            statistics.MaxDataWeightViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
+            statistics.MaxDataWeightViolatedCriteria,
+            "DataWeightCriteria");
 
-        incrementSatisfiedOrViolatedCriteriaCount(CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
-            statistics.MaxCompressedDataSizeViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
+            statistics.MaxCompressedDataSizeViolatedCriteria,
+            "CompressedDataSizeCriteria");
 
-        incrementSatisfiedOrViolatedCriteriaCount(CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
-            statistics.MaxUncompressedDataSizeViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
+            statistics.MaxUncompressedDataSizeViolatedCriteria,
+            "UncompressedDataSizeCriteria");
 
-        incrementSatisfiedOrViolatedCriteriaCount(std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
-            statistics.MaxChunkCountViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
+            statistics.MaxChunkCountViolatedCriteria,
+            "ChunkCountCriteria");
 
-        incrementSatisfiedOrViolatedCriteriaCount(chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
-            statistics.MaxInputChunkDataWeightViolatedCriteria);
+        incrementSatisfiedOrViolatedCriteriaCount(
+            chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
+            statistics.MaxInputChunkDataWeightViolatedCriteria,
+            "InputChunkDataWeightCriteria");
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -540,14 +553,15 @@ private:
             ChunkIds_.push_back(chunk->GetId());
             return true;
         } else {
-            YT_LOG_DEBUG("Cannot add chunk to merge job due to limits violation (NodeId: %v, "
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to limits violation ("
+                "ViolatedCriterias: %v, "
                 "CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v, "
                 "CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v, MaxInputChunkDataWeight: %v, "
                 "CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v, "
                 "CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v, "
                 "CurrentChunkCount: %v, MaxChunkCount: %v, "
                 "DesiredParentChunkListId: %v, ParentChunkListId: %v)",
-                NodeId_,
+                violatedCriterias,
                 CurrentRowCount_,
                 chunk->GetRowCount(),
                 *mergerCriteria.MaxRowCount,
@@ -1107,9 +1121,10 @@ void TChunkMerger::FinalizeJob(
     auto nodeId = jobInfo.NodeId;
     auto parentChunkListId = jobInfo.ParentChunkListId;
 
-    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v)",
+    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v, AccountId: %v)",
         nodeId,
-        jobId);
+        jobId,
+        jobInfo.AccountId);
 
     auto& session = GetOrCrash(RunningSessions_, jobInfo.NodeId);
     session.Result = std::max(session.Result, result);
@@ -1147,13 +1162,14 @@ void TChunkMerger::FinalizeReplacement(
         return;
     }
 
-    YT_LOG_DEBUG("Finalizing chunk merge replacement (NodeId: %v, ChunkListId: %v, Result: %v)",
-        nodeId,
-        chunkListId,
-        result);
-
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.Result = std::max(session.Result, result);
+
+    YT_LOG_DEBUG("Finalizing chunk merge replacement (NodeId: %v, ChunkListId: %v, Result: %v, AccountId: %v)",
+        nodeId,
+        chunkListId,
+        result,
+        session.AccountId);
     EraseOrCrash(session.ChunkListIdToCompletedJobs, chunkListId);
 
     if (session.IsReadyForFinalization()) {
@@ -1218,10 +1234,11 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
         &TAccountQueuesUsage::JobsAwaitingChunkCreation,
         accountId);
 
-    YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, ParentChunkListId: %v)",
+    YT_LOG_DEBUG("Planning merge job (JobId: %v, NodeId: %v, ParentChunkListId: %v, AccountId: %v)",
         jobId,
         nodeId,
-        parentChunkListId);
+        parentChunkListId,
+        accountId);
 
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     InsertOrCrash(session.ChunkListIdToRunningJobs[parentChunkListId], jobId);
@@ -1253,10 +1270,11 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
 
     YT_VERIFY(session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty());
     YT_LOG_DEBUG(
-        "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalInfo: %v)",
+        "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalInfo: %v, AccountId: %v)",
         nodeId,
         session.Result,
-        session.TraversalInfo);
+        session.TraversalInfo,
+        session.AccountId);
 
     SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
@@ -1841,8 +1859,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     auto replacementCount = request->replacements_size();
     auto* chunkOwner = FindChunkOwner(nodeId);
     if (!chunkOwner) {
-        YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
-            nodeId);
+        YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk owner node (NodeId: %v, AccountId: %v)",
+            nodeId,
+            accountId);
         updateFailedReplacements(replacementCount);
         FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
         return;
@@ -1851,8 +1870,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     if (chunkOwner->GetType() == EObjectType::Table) {
         auto* table = chunkOwner->As<TTableNode>();
         if (table->IsDynamic()) {
-            YT_LOG_DEBUG("Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
-                chunkOwner->GetId());
+            YT_LOG_DEBUG("Cannot replace chunks after merge: table is dynamic (NodeId: %v, AccountId: %v)",
+                chunkOwner->GetId(),
+                accountId);
             updateFailedReplacements(replacementCount);
             FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
             return;
@@ -1860,16 +1880,18 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     auto* rootChunkList = chunkOwner->GetChunkList();
-    YT_LOG_DEBUG("Replacing chunks after merge (NodeId: %v, ChunkListId: %v)",
+    YT_LOG_DEBUG("Replacing chunks after merge (NodeId: %v, ChunkListId: %v, AccountId: %v)",
         nodeId,
-        chunkListId);
+        chunkListId,
+        accountId);
 
     TChunkReplacer chunkReplacer(ChunkReplacerCallbacks_, Logger);
     if (!chunkReplacer.FindChunkList(rootChunkList, chunkListId)) {
         YT_LOG_DEBUG(
-            "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v)",
+            "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v, AccountId: %v)",
             nodeId,
-            chunkListId);
+            chunkListId,
+            accountId);
         updateFailedReplacements(replacementCount);
         FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::TransientFailure);
         return;
@@ -1882,17 +1904,19 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
         auto* newChunk = chunkManager->FindChunk(newChunkId);
         if (!IsObjectAlive(newChunk)) {
-            YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
+            YT_LOG_DEBUG("Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v, AccountId: %v)",
                 nodeId,
-                newChunkId);
+                newChunkId,
+                accountId);
             updateFailedReplacements(1);
             continue;
         }
 
         if (!newChunk->IsConfirmed()) {
-            YT_LOG_ALERT("Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v)",
+            YT_LOG_ALERT("Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v, AccountId: %v)",
                 nodeId,
-                newChunkId);
+                newChunkId,
+                accountId);
             updateFailedReplacements(1);
             continue;
         }
@@ -1900,10 +1924,11 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         auto chunkIds = FromProto<std::vector<TChunkId>>(replacement.old_chunk_ids());
         if (chunkReplacer.ReplaceChunkSequence(newChunk, chunkIds)) {
             YT_LOG_DEBUG(
-                "Replaced chunks after merge (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
+                "Replaced chunks after merge (NodeId: %v, InputChunkIds: %v, ChunkId: %v, AccountId: %v)",
                 nodeId,
                 chunkIds,
-                newChunkId);
+                newChunkId,
+                accountId);
 
             ++chunkReplacementsSucceeded;
             if (IsLeader()) {
@@ -1951,10 +1976,11 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     chunkManager->ScheduleChunkRequisitionUpdate(newRootChunkList);
 
     YT_LOG_DEBUG(
-        "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v)",
+        "Chunk list replaced after merge (NodeId: %v, OldChunkListId: %v, NewChunkListId: %v, AccountId: %v)",
         nodeId,
         rootChunkList->GetId(),
-        newRootChunkList->GetId());
+        newRootChunkList->GetId(),
+        accountId);
 
     // NB: this may destroy old chunk list, so be sure to schedule requisition
     // update beforehand.
@@ -2017,11 +2043,12 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         auto jobCount = subrequest.job_count();
 
         YT_LOG_DEBUG(
-            "Finalizing merge session (NodeId: %v, NodeTouched: %v, Result: %v, JobCount: %v)",
+            "Finalizing merge session (NodeId: %v, NodeTouched: %v, Result: %v, JobCount: %v, AccountId: %v)",
             nodeId,
             nodeTouched,
             result,
-            jobCount);
+            jobCount,
+            accountId);
 
         const auto& config = GetDynamicConfig();
         if (config->RescheduleMergeOnSuccess && result == EMergeSessionResult::OK && jobCount > 0) {
