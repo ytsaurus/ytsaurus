@@ -47,37 +47,5 @@ target_sources(contrib-libs-pycxx PRIVATE
 
 
 
-add_library(contrib-libs-pycxx)
-
-
-target_compile_options(contrib-libs-pycxx PRIVATE
-  -DY_PYCXX_BUILD=1
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(contrib-libs-pycxx PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
-)
-
-target_link_libraries(contrib-libs-pycxx PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  Python3::Module
-)
-
-target_sources(contrib-libs-pycxx PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/IndirectPythonInterface.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_exceptions.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxx_extensions.cxx
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxextensions.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx/Src/cxxsupport.cxx
-)
-
-
-
-
 
 

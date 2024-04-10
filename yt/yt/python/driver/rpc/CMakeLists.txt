@@ -55,45 +55,5 @@ target_sources(python-driver-rpc.global PRIVATE
 
 
 
-add_library(python-driver-rpc INTERFACE)
-
-
-target_link_libraries(python-driver-rpc INTERFACE
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  python-driver-lib
-  Python3::Module
-)
-
-
-
-
-add_global_library_for(python-driver-rpc.global
-  python-driver-rpc)
-
-
-target_compile_options(python-driver-rpc.global PRIVATE
-  -DPYCXX_PYTHON_2TO3
-  -DPYCXX_6_2_COMPATIBILITY
-  -DPy_LIMITED_API=0x03040000
-  -Wno-register
-)
-
-target_link_libraries(python-driver-rpc.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  python-driver-lib
-  Python3::Module
-)
-
-target_sources(python-driver-rpc.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/rpc/driver_rpc.cpp
-)
-
-
-
-
 
 
