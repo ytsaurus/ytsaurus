@@ -34,7 +34,6 @@ GLOBAL_CONFIG = {
         "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB": "1",
         "ARROW_ENABLE_NULL_CHECK_FOR_GET": "false",
         "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS": "true",
-        "SOLOMON_PUSH_PORT": "27099"
     },
     'operation_spec': {
         "job_cpu_monitor": {"enable_cpu_reclaim": "false"}
@@ -106,17 +105,11 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
     launch_config['spark_conf']['spark.yt.version'] = versions.spyt_version.scala
     launch_config['spark_conf']['spark.hadoop.yt.byop.enabled'] = "false"
     launch_config['spark_conf']['spark.hadoop.yt.read.arrow.enabled'] = "true"
-    launch_config['spark_conf']['spark.hadoop.yt.profiling.enabled'] = "false"
-    launch_config['spark_conf']['spark.hadoop.yt.mtn.enabled'] = "false"
-    launch_config['spark_conf']['spark.hadoop.yt.solomonAgent.enabled'] = "false" if os_release else "true"
     launch_config['spark_conf']['spark.hadoop.yt.preferenceIpv6.enabled'] = "false" if os_release else "true"
-    launch_config['spark_conf']['spark.hadoop.yt.tcpProxy.enabled'] = "false"
     launch_config['spark_yt_base_path'] = client.resolve_from_root(spyt_remote_dir(versions))
     launch_config['file_paths'] = get_file_paths(conf_local_dir, client.root_path, versions)
     launch_config['enablers'] = {
         "spark.hadoop.yt.byop.enabled": not os_release,
-        "spark.hadoop.yt.preferenceIpv6.enabled": True,
-        "spark.hadoop.yt.read.arrow.enabled": True,
         "spark.hadoop.yt.solomonAgent.enabled": not os_release,
         "spark.hadoop.yt.mtn.enabled": not os_release,
         "spark.hadoop.yt.tcpProxy.enabled": os_release

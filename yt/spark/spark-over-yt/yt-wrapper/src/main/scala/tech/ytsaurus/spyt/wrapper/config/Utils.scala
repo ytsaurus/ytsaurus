@@ -7,8 +7,8 @@ import tech.ytsaurus.client.CompoundClient
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 
 object Utils {
-  def parseRemoteConfig(path: String, yt: CompoundClient): Map[String, String] = {
-    val remoteConfig = YtWrapper.readDocument(path)(yt).asMap().getOption("spark_conf")
+  def parseRemoteConfig(path: String, yt: CompoundClient, key: String = "spark_conf"): Map[String, String] = {
+    val remoteConfig = YtWrapper.readDocument(path)(yt).asMap().getOption(key)
     remoteConfig.map { config =>
       config.asMap().asScala.toMap.mapValues(_.stringValue())
     }.getOrElse(Map.empty)

@@ -26,7 +26,7 @@ object MasterLauncher extends App
   val additionalMetrics: MetricRegistry = new MetricRegistry
   AdditionalMetrics.register(additionalMetrics, "master")
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
+  withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
     val tcpRouter = TcpProxyService.register("HOST", "WEBUI", "REST", "WRAPPER")(yt)
     val reverseProxyUrl = tcpRouter.map(x => "http://" + x.getExternalAddress("WEBUI").toString)
     withService(startMaster(reverseProxyUrl)) { master =>
@@ -79,14 +79,14 @@ object MasterLauncher extends App
 }
 
 case class MasterLauncherArgs(ytConfig: YtClientConfiguration,
-                              discoveryPath: String,
+                              baseDiscoveryPath: String,
                               operationId: String,
                               clusterVersion: String)
 
 object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
     YtClientConfiguration(args.optional),
-    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
+    args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
     args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID")),
     args.optional("cluster-version").getOrElse(sys.env("SPYT_CLUSTER_VERSION"))
   )

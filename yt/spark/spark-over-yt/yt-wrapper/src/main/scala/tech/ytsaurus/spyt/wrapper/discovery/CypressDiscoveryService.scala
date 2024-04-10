@@ -14,8 +14,10 @@ import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 import scala.util.{Failure, Success, Try}
 
-class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient) extends DiscoveryService {
+class CypressDiscoveryService(baseDiscoveryPath: String)(implicit yt: CompoundClient) extends DiscoveryService {
   private val log = LoggerFactory.getLogger(getClass)
+
+  private val discoveryPath: String = s"$baseDiscoveryPath/discovery"
 
   private def addressPath: String = s"$discoveryPath/spark_address"
 

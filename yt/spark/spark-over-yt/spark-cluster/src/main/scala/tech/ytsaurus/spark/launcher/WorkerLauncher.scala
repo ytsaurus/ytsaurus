@@ -36,7 +36,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
   }
 
   withOptionalService(byopConfig.map(startByop)) { byop =>
-    withDiscovery(ytConfig, discoveryPath) { case (discoveryService, client) =>
+    withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, client) =>
       withOptionalService(startWorkerLogService(client)) { workerLog =>
         val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
         discoveryService.registerWorker(operationId)
@@ -68,7 +68,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 case class WorkerLauncherArgs(cores: Int,
                               memory: String,
                               ytConfig: YtClientConfiguration,
-                              discoveryPath: String,
+                              baseDiscoveryPath: String,
                               waitMasterTimeout: Duration,
                               operationId: String)
 
@@ -77,7 +77,7 @@ object WorkerLauncherArgs {
     args.required("cores").toInt,
     args.required("memory"),
     YtClientConfiguration(args.optional),
-    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
+    args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
     args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes),
     args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID"))
   )

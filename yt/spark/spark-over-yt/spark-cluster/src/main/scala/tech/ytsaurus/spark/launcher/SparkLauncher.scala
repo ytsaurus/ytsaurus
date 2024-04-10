@@ -71,7 +71,9 @@ trait SparkLauncher {
     Files.copy(preparedConfPath, dst)
   }
 
-  private val isIpv6PreferenceEnabled: Boolean = sys.env.get("SPARK_YT_IPV6_PREFERENCE_ENABLED").exists(_.toBoolean)
+  private val isIpv6PreferenceEnabled: Boolean = {
+    sparkSystemProperties.get("spark.hadoop.yt.preferenceIpv6.enabled").exists(_.toBoolean)
+  }
 
   private def getLivyClientSparkConf(): Seq[String] = {
     if (isIpv6PreferenceEnabled) {
@@ -309,11 +311,11 @@ trait SparkLauncher {
     }
   }
 
-  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)
+  def withDiscovery(ytConfig: YtClientConfiguration, baseDiscoveryPath: String)
                    (f: (DiscoveryService, CompoundClient) => Unit): Unit = {
     val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
-      val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
+      val discoveryService = new CypressDiscoveryService(baseDiscoveryPath)(client.yt)
       f(discoveryService, client.yt)
     } finally {
       log.info("Close yt client")
