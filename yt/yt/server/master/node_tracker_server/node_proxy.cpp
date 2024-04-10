@@ -439,7 +439,7 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(node->Cellars(), [] (TFluentMap fluent, const auto& it) {
                         fluent
-                            .Item(CamelCaseToUnderscoreCase(ToString(it.first)))
+                            .Item(FormatEnum(it.first))
                             .Do(BIND(&TClusterNodeProxy::BuildYsonCellar, it.second));
                     });
                 return true;
