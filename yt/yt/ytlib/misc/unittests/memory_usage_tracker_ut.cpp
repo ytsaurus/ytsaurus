@@ -248,6 +248,7 @@ TEST(TMemoryUsageTrackerHelpersTest, Tracker)
     tracker->Acquire(category, 1, std::nullopt);
     EXPECT_TRUE(tracker->CheckMemoryUsage(category, 1));
     EXPECT_FALSE(tracker->IsEmpty());
+    tracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, Register)
@@ -264,6 +265,7 @@ TEST(TMemoryUsageTrackerTest, Register)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, Acquire)
@@ -284,6 +286,7 @@ TEST(TMemoryUsageTrackerTest, Acquire)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, AcquireRelease)
@@ -310,6 +313,7 @@ TEST(TMemoryUsageTrackerTest, AcquireRelease)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, BlockCache)
@@ -339,6 +343,7 @@ TEST(TMemoryUsageTrackerTest, BlockCache)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, ResetCategory)
@@ -355,6 +360,7 @@ TEST(TMemoryUsageTrackerTest, ResetCategory)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 TEST(TMemoryUsageTrackerTest, AttachCategory)
@@ -371,6 +377,7 @@ TEST(TMemoryUsageTrackerTest, AttachCategory)
     }
 
     EXPECT_TRUE(memoryTracker->IsEmpty());
+    memoryTracker->ClearTrackers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
