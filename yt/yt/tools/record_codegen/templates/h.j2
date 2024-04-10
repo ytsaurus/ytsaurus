@@ -27,7 +27,7 @@ struct {{type.type_name}}IdMapping
 {
     explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 
-{% for field in type.fields %}
+{% for field in type.fields if not field.expression %}
     const std::optional<int> {{field.cpp_name}};
 {%- endfor %}
 };
@@ -73,7 +73,7 @@ struct {{type.type_name}}Key
 {% if type.key_verbatim %}
 {{type.key_verbatim}}
 {% endif %}
-{%- for field in type.fields if field.sort_order %}
+{%- for field in type.fields if field.sort_order and not field.expression %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
 
@@ -91,7 +91,7 @@ struct {{type.type_name}}
 {{type.record_verbatim}}
 {% endif %}
     {{type.type_name}}Key Key;
-{% for field in type.fields if not(field.sort_order)%}
+{% for field in type.fields if not field.sort_order and not field.expression %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
 
@@ -114,7 +114,7 @@ struct {{type.type_name}}Partial
 {{type.record_verbatim}}
 {% endif %}
     {{type.type_name}}Key Key;
-{% for field in type.fields if not(field.sort_order)%}
+{% for field in type.fields if not field.sort_order and not field.expression %}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}
 

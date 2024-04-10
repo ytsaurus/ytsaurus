@@ -57,7 +57,9 @@ def _build_column_from_field(field: Field) -> Dict[str, Any]:
     if field.sort_order is not None:
         column["sort_order"] = field.sort_order.lower()
     if field.aggregate is not None:
-        column["aggregate"] = field.aggregate.lower()
+        column["aggregate"] = field.aggregate
+    if field.expression is not None:
+        column["expression"] = field.expression
     return column
 
 

@@ -2991,7 +2991,6 @@ private:
                 .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
-                    Format("id_hash = %v", HashFromId(locationUuid)),
                     Format("location_uuid = %Qv", locationUuid)
                 }
             });
@@ -3635,7 +3634,6 @@ private:
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
                 NRecords::TChunkReplicas chunkReplica{
                     .Key = {
-                        .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     },
                     .StoredReplicas = GetReplicasYson(replicas, {}),
@@ -3652,7 +3650,6 @@ private:
                         .Key = {
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = replica.GetNodeId(),
-                            .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
                             .ReplicaIndex = replica.GetReplicaIndex(),
@@ -3737,7 +3734,6 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                         .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
@@ -3782,7 +3778,6 @@ private:
                 for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
                     NRecords::TChunkReplicas chunkReplicas{
                         .Key = {
-                            .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                         },
                         .StoredReplicas = GetReplicasYson(chunkModifiedReplicas.AddedReplicas, chunkModifiedReplicas.RemovedReplicas),
@@ -3799,7 +3794,6 @@ private:
                             .Key = {
                                 .CellTag = Bootstrap_->GetCellTag(),
                                 .NodeId = nodeId,
-                                .IdHash = HashFromId(addedReplica.GetChunkLocationUuid()),
                                 .LocationUuid = addedReplica.GetChunkLocationUuid(),
                                 .ChunkId = chunkId,
                                 .ReplicaIndex = addedReplica.GetReplicaIndex(),
@@ -3813,7 +3807,6 @@ private:
                         NRecords::TLocationReplicasKey locationReplicaKey{
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = nodeId,
-                            .IdHash = HashFromId(removedReplica.GetChunkLocationUuid()),
                             .LocationUuid = removedReplica.GetChunkLocationUuid(),
                             .ChunkId = chunkId,
                             .ReplicaIndex = removedReplica.GetReplicaIndex(),
@@ -5670,7 +5663,6 @@ private:
         std::vector<NRecords::TChunkReplicasKey> keys;
         for (auto chunkId : chunkIds) {
             NRecords::TChunkReplicasKey chunkReplicasKey{
-                .IdHash = HashFromId(chunkId),
                 .ChunkId = chunkId,
             };
             keys.push_back(chunkReplicasKey);
@@ -5772,7 +5764,6 @@ private:
                 for (const auto& protoChunkId : request.chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
                     NRecords::TChunkReplicasKey chunkReplicaKey{
-                        .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     };
                     transaction->DeleteRow(chunkReplicaKey);
@@ -5785,7 +5776,6 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                         .ReplicaIndex = protoReplica.replica_index()

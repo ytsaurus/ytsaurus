@@ -5,11 +5,12 @@ types:
     table_group: chunk_tables
     type_name: TChunkReplicas
     fields:
-      - cpp_name: IdHash
-        cpp_type: ui32
-        column_name: id_hash
-        column_type: Uint32
+      - cpp_name: ChunkIdHash
+        cpp_type: ui64
+        column_name: chunk_id_hash
+        column_type: Uint64
         sort_order: Ascending
+        expression: farm_hash(chunk_id)
 
       - cpp_name: ChunkId
         cpp_type: NChunkClient::TChunkId
