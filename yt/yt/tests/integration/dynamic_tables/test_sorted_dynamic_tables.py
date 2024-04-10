@@ -342,6 +342,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         ]
 
         create_dynamic_table("//tmp/t", schema=schema)
+        # TODO(ponasenko-rs): Remove after YT-21404.
+        set("//tmp/t/@dynamic_store_auto_flush_period", None)
         sync_mount_table("//tmp/t")
 
         tx = start_transaction(type="tablet")
