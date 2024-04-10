@@ -897,9 +897,8 @@ private:
 
             if (HealthChecker_) {
                 HealthChecker_->SubscribeFailed(BIND([=, this, this_ = MakeWeak(this)] (const TError& result) {
-                    Disable(result, true);
-                })
-                    .Via(LocationQueue_->GetInvoker()));
+                    Disable(result, /*persistentDisable*/ true);
+                }).Via(LocationQueue_->GetInvoker()));
                 HealthChecker_->Start();
             }
         } catch (const std::exception& ex) {
@@ -2057,8 +2056,8 @@ public:
 
         return AllSucceeded(std::vector<TFuture<void>>{
             ProfilingExecutor_->Stop(),
-            RegularTmpfsLayerCache_->Disable(reason, false),
-            NirvanaTmpfsLayerCache_->Disable(reason, false)
+            RegularTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false),
+            NirvanaTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false)
         }).Apply(BIND([=, this, this_ = MakeStrong(this)] () {
             OnProfiling();
         }));
@@ -2579,7 +2578,7 @@ public:
 
         std::vector<TFuture<void>> initLocationResults;
         std::vector<TLayerLocationPtr> locations;
-        std::vector<TLayerLocationPtr> locationResults;
+        std::vector<TLayerLocationPtr> initializedLocations;
         for (int index = 0; index < std::ssize(Config_->VolumeManager->LayerLocations); ++index) {
             const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
             auto id = Format("layer%v", index);
@@ -2614,13 +2613,13 @@ public:
             auto wrappedError = TError("Failed to initialize layer locations") << errorOrResults;
             YT_LOG_WARNING(wrappedError);
             Alerts_.push_back(wrappedError);
-            locationResults.clear();
+            initializedLocations.clear();
         }
 
         for (int index = 0; index < std::ssize(errorOrResults.Value()); ++index) {
             const auto& error = errorOrResults.Value()[index];
             if (error.IsOK()) {
-                locationResults.push_back(locations[index]);
+                initializedLocations.push_back(locations[index]);
             } else {
                 const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
                 auto wrappedError = TError("Layer location async initialization failed (Path: %v)", locationConfig->Path)
@@ -2637,7 +2636,7 @@ public:
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
-            std::move(locationResults),
+            std::move(initializedLocations),
             tmpfsExecutor,
             ChunkCache_,
             ControlInvoker_,

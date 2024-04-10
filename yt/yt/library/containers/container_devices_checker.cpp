@@ -40,7 +40,7 @@ TContainerDevicesChecker::TContainerDevicesChecker(
         "container_devices_check"))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         CheckInvoker_,
-        BIND(&TContainerDevicesChecker::OnCheck, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TContainerDevicesChecker::OnCheck, MakeWeak(this)),
         Config_->ApiTimeout))
 { }
 
@@ -103,7 +103,7 @@ void TContainerDevicesChecker::PrepareDirectory()
         if (!unlinkError.IsOK() && unlinkError.GetCode() != EPortoErrorCode::VolumeNotLinked &&
             unlinkError.GetCode() != EPortoErrorCode::VolumeNotFound)
         {
-            YT_LOG_ERROR(unlinkError);
+            YT_LOG_ERROR(unlinkError, "Remove existing volume failed");
         }
     }
 
@@ -165,7 +165,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
             YT_VERIFY(createVolumeResult.Value() == mountPath);
             YT_LOG_DEBUG("Test volume created (VolumePath: %v)", createVolumeResult.Value());
         } else {
-            YT_LOG_DEBUG("Test volume creation finished with error");
+            YT_LOG_DEBUG(createVolumeResult, "Test volume creation finished with error");
             return {};
         }
     }
@@ -234,10 +234,10 @@ TContainerDevicesCheckerPtr CreateContainerDevicesChecker(
     NLogging::TLogger logger)
 {
     return New<TContainerDevicesChecker>(
-        testDirectoryPath,
-        config,
-        invoker,
-        logger);
+        std::move(testDirectoryPath),
+        std::move(config),
+        std::move(invoker),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3034,7 +3034,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         return EAbortReason::RootVolumePreparationFailed;
     }
 
-    if (resultError.FindMatching(NJobProxy::EErrorCode::UserJobPortoAPIError)) {
+    if (resultError.FindMatching(NJobProxy::EErrorCode::UserJobPortoApiError)) {
         return EAbortReason::Other;
     }
 

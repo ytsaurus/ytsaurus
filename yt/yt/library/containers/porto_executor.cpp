@@ -73,7 +73,7 @@ static const std::vector<TDevice> DefaultContainerDevices = {
         .Access = "rw",
         // It is necessary for the consistency of default devices in the container, but access must be denied.
         // See porto/src/device.cpp::TDevices::InitDefault and https://docs.kernel.org/admin-guide/serial-console.html.
-        .Path = "/dev/console"
+        .Path = "/dev/console",
     }
 };
 

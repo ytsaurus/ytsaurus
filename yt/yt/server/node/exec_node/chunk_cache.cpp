@@ -1192,7 +1192,7 @@ private:
                             NExecNode::EErrorCode::ArtifactFetchFailed,
                             "Error while fetching artifact chunks (Arifact: %v)",
                             ToString(key))
-                                << std::move(error);
+                            << std::move(error);
                     }
                 } else {
                     output->Write(block.Data.Begin(), block.Size());
@@ -1343,7 +1343,7 @@ private:
             TPipeReaderToWriterOptions options;
             options.BufferRowCount = TableArtifactBufferRowCount;
             options.Throttler = throttler;
-            options.ReaderErrorWrapper = [key] (const TError& readerError) {
+            options.ReaderErrorWrapper = [key] (TError readerError) {
                 return TError(
                     NExecNode::EErrorCode::ArtifactFetchFailed,
                     "Error while fetching artifact chunks (Arifact: %v)",

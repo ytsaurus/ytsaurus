@@ -348,7 +348,7 @@ public:
             return GetPortoInstance(Executor_, Spec_.Name);
         };
 
-        return Executor_->CreateContainer(Spec_, /* start */ true)
+        return Executor_->CreateContainer(Spec_, /*start*/ true)
             .Apply(BIND(onContainerCreated));
     }
 
@@ -365,7 +365,7 @@ public:
             return GetPortoInstance(Executor_, Spec_.Name);
         };
 
-        return Executor_->CreateContainer(Spec_, /* start */ true)
+        return Executor_->CreateContainer(Spec_, /*start*/ true)
             .Apply(BIND(onContainerCreated));
     }
 

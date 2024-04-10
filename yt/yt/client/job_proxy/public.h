@@ -18,7 +18,7 @@ YT_DEFINE_ERROR_ENUM(
     ((JobNotRunning)             (1208))
     ((InterruptionUnsupported)   (1209))
     ((InterruptionTimeout)       (1210))
-    ((UserJobPortoAPIError)      (1211))
+    ((UserJobPortoApiError)      (1211))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
