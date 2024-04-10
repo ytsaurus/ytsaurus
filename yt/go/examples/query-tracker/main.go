@@ -22,7 +22,7 @@ const (
 
 var (
 	logger = ytlog.Must()
-	stage  = ptr.String(cluster + ":testing")
+	stage  = ptr.String("testing")
 	path   = ypath.Path("//tmp/query-tracker")
 )
 

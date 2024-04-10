@@ -67,6 +67,14 @@ const (
 	VerbLocateSkynetShare Verb = "locate_skynet_share"
 
 	VerbGetInSyncReplicas Verb = "get_in_sync_replicas"
+
+	VerbStartQuery      Verb = "start_query"
+	VerbAbortQuery      Verb = "abort_query"
+	VerbGetQuery        Verb = "get_query"
+	VerbListQueries     Verb = "list_queries"
+	VerbGetQueryResult  Verb = "get_query_result"
+	VerbReadQueryResult Verb = "read_query_result"
+	VerbAlterQuery      Verb = "alter_query"
 )
 
 func (v Verb) hasInput() bool {
@@ -100,6 +108,9 @@ func (v Verb) IsHeavy() bool {
 
 	case VerbGetInSyncReplicas:
 		return true
+
+	case VerbReadQueryResult:
+		return true
 	}
 
 	return false
@@ -120,6 +131,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbGetInSyncReplicas:
+		return false
+
+	case VerbStartQuery, VerbAbortQuery, VerbGetQuery, VerbListQueries, VerbGetQueryResult, VerbReadQueryResult, VerbAlterQuery:
 		return false
 	}
 

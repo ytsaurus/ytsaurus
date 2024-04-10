@@ -2,6 +2,7 @@ package yt
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"golang.org/x/exp/slices"
@@ -107,7 +108,9 @@ func TrackQuery(
 		opts.Logger.Debug("Query", log.Any("query_id", id), log.Any("state", *state))
 
 		if slices.Contains([]QueryState{QueryStateFailed, QueryStateAborted}, *state) {
-			return false, query.Err.Unwrap()
+			opts.Logger.Debug(fmt.Sprintf("Query %s", *state), log.Error(query.Err.Unwrap()))
+
+			return true, query.Err.Unwrap()
 		}
 		if *state == QueryStateCompleted {
 			return true, nil
