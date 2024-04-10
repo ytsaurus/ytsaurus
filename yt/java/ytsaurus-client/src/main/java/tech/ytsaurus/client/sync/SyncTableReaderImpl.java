@@ -4,20 +4,16 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 
 import tech.ytsaurus.client.AsyncReader;
 
 class SyncTableReaderImpl<T> implements SyncTableReader<T> {
     private final AsyncReader<T> reader;
-    private final ExecutorService executor;
     private Iterator<T> iterator;
+    private boolean noMoreRows;
 
     private SyncTableReaderImpl(AsyncReader<T> reader) {
         this.reader = reader;
-        this.executor = Executors.newSingleThreadExecutor();
         this.iterator = Collections.emptyIterator();
     }
 
@@ -35,25 +31,25 @@ class SyncTableReaderImpl<T> implements SyncTableReader<T> {
 
     @Override
     public boolean hasNext() {
-        if (!iterator.hasNext()) {
-            var rows = reader.next().join();
-            if (rows == null) {
-                return false;
-            }
-            this.iterator = rows.iterator();
+        if (noMoreRows) {
+            return false;
+        }
+        if (iterator.hasNext()) {
+            return true;
         }
 
-        return true;
-    }
+        var rows = reader.next().join();
+        if (rows == null || rows.size() == 0) {
+            noMoreRows = true;
+            return false;
+        }
 
-    @Override
-    public void forEachRemaining(Consumer<? super T> action) {
-        reader.acceptAllAsync(action, executor).join();
+        this.iterator = rows.iterator();
+        return true;
     }
 
     @Override
     public void close() throws IOException {
         reader.close();
-        executor.shutdown();
     }
 }

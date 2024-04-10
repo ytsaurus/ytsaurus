@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.sync.SyncYTsaurusClient;
 import tech.ytsaurus.core.common.YTsaurusError;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 
@@ -26,23 +27,38 @@ import static org.junit.Assert.assertThrows;
 
 public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
     @Test
-    public void testReadWrite() {
+    public void testWriteRead() {
         var ytFixture = createYtFixture();
         var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
 
-        var table = ytFixture.getTestDirectory().child("sync-yt-read-write");
+        YPath table = ytFixture.getTestDirectory().child("sync-yt-read-write");
 
-        List<TableRow> rows = List.of(
-                new TableRow("one", "один"),
-                new TableRow("two", "два"));
+        List<TableRow> rows = writeRows(client, table);
+
         List<TableRow> receivedRows = new ArrayList<>();
-
-        try (var writer = client.writeTable(new WriteTable<>(table, TableRow.class))) {
-            rows.forEach(writer);
-        }
-
         try (var reader = client.readTable(new ReadTable<>(table, TableRow.class))) {
             reader.forEachRemaining(receivedRows::add);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        Assert.assertEquals(rows, receivedRows);
+    }
+
+    @Test
+    public void testWriteReadNext() {
+        var ytFixture = createYtFixture();
+        var client = SyncYTsaurusClient.wrap(ytFixture.getYt());
+
+        YPath table = ytFixture.getTestDirectory().child("sync-yt-read-write-next");
+
+        List<TableRow> rows = writeRows(client, table);
+
+        List<TableRow> receivedRows = new ArrayList<>();
+        try (var reader = client.readTable(new ReadTable<>(table, TableRow.class))) {
+            while (reader.hasNext()) {
+                receivedRows.add(reader.next());
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -107,6 +123,7 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
 
     @Entity
     static class TableRow {
+
         private String english;
         private String russian;
 
@@ -134,10 +151,12 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
         public int hashCode() {
             return Objects.hash(english, russian);
         }
+
     }
 
     @Entity
     private static class InputType {
+
         String name;
         int count;
 
@@ -148,10 +167,12 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
             this.name = name;
             this.count = count;
         }
+
     }
 
     @Entity
     private static class OutputType {
+
         String name;
         @Column(name = "new_count")
         int newCount;
@@ -180,9 +201,11 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
         public int hashCode() {
             return Objects.hash(name, newCount);
         }
+
     }
 
     public static class SimpleMapper implements Mapper<InputType, OutputType> {
+
         @Override
         public void map(InputType entry, Yield<OutputType> yield, Statistics statistics,
                         OperationContext context) {
@@ -195,5 +218,17 @@ public class SyncYTsaurusClientIntegrationTest extends YTsaurusClientTestBase {
 
             yield.yield(outputType);
         }
+    }
+
+    private List<TableRow> writeRows(SyncYTsaurusClient client, YPath table) {
+        List<TableRow> rows = List.of(
+                new TableRow("one", "один"),
+                new TableRow("two", "два")
+        );
+
+        try (var writer = client.writeTable(new WriteTable<>(table, TableRow.class))) {
+            rows.forEach(writer);
+        }
+        return rows;
     }
 }
