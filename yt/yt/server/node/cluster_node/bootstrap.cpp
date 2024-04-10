@@ -883,7 +883,7 @@ private:
 
         BusServer_ = CreateBusServer(
             Config_->BusServer,
-            GetYTPacketTranscoderFactory(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc)),
+            GetYTPacketTranscoderFactory(),
             NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);

@@ -46,19 +46,6 @@ DEFINE_REFCOUNTED_TYPE(TAsyncBlockCacheEntry)
 
 TCachedBlock PrepareBlockToCache(TCachedBlock block, const IMemoryUsageTrackerPtr& tracker)
 {
-    static constexpr double ToleratedOverheadThreshold = 1.05;
-
-    if (const auto& holder = block.Data.GetHolder()) {
-        auto totalMemory = holder->GetTotalByteSize();
-
-        if (totalMemory && *totalMemory > block.Data.Size() * ToleratedOverheadThreshold) {
-            struct TCopiedBlockCache
-            { };
-
-            block.Data = TSharedMutableRef::MakeCopy<TCopiedBlockCache>(block.Data);
-        }
-    }
-
     block.Data = TrackMemory(tracker, std::move(block.Data));
     return block;
 }

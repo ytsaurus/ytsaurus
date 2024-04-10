@@ -446,12 +446,9 @@ class TestRpcDecoderMemoryTracking(BaseTestRpcMemoryTracking):
             rct_read = find_in_rct("NYT::NBus::TTcpServerConnectionWriteBufferTag")
             rct_decoder = find_in_rct("NYT::NBus::TPacketDecoderTag")
 
-            if rct_read is None or rct_write is None or rct_decoder is None:
-                return False
-
-            rct_write_bytes_alive = rct_write['bytes_alive']
-            rct_read_bytes_alive = rct_read['bytes_alive']
-            rct_decoder_bytes_alive = rct_read['bytes_alive']
+            rct_write_bytes_alive = 0 if rct_write is None else rct_write['bytes_alive']
+            rct_read_bytes_alive = 0 if rct_read is None else rct_read['bytes_alive']
+            rct_decoder_bytes_alive = 0 if rct_decoder is None else rct_read['bytes_alive']
 
             used = self.get_rpc_memory_used(node)
 
