@@ -14,27 +14,12 @@ import java.util.UUID
 
 object SessionUtils {
   private val log = LoggerFactory.getLogger(getClass)
-  private val sparkDefaults = Map(
-    "spark.hadoop.yt.byop.enabled" -> "true",
-    "spark.hadoop.yt.read.arrow.enabled" -> "true",
-    "spark.hadoop.yt.profiling.enabled" -> "false",
-    "spark.hadoop.yt.mtn.enabled" -> "false",
-    "spark.hadoop.yt.solomonAgent.enabled" -> "true",
-    "spark.hadoop.yt.preferenceIpv6.enabled" -> "true",
-    "spark.hadoop.yt.tcpProxy.enabled" -> "false",
-    "spark.yt.enablers" -> Seq("byop", "read.arrow", "profiling", "mtn", "solomonAgent", "preferenceIpv6", "tcpProxy")
-      .map(s => s"spark.hadoop.yt.$s.enabled").mkString(",")
-  )
 
   implicit class RichSparkConf(conf: SparkConf) {
-    def setEnabler(name: String, clusterConf: Map[String, String]): SparkConf = {
-      val enableApp = conf.getOption(name).getOrElse(sparkDefaults(name)).toBoolean
-      val enableCluster = clusterConf.get(name).exists(_.toBoolean)
-      conf.set(name, (enableApp && enableCluster).toString)
-    }
-
-    def setEnablers(names: Set[String], clusterConf: Map[String, String]): SparkConf = {
-      names.foldLeft(conf) { case (res, next) => res.setEnabler(next, clusterConf) }
+    def setEnablers(enablers: Map[String, String]): SparkConf = {
+      enablers.foldLeft(conf) { case (res, (key, value)) =>
+        if (res.contains(key)) res.set(key, (res.get(key).toBoolean && value.toBoolean).toString) else res
+      }
     }
 
     def setAllNoOverride(settings: Map[String, String]): SparkConf = {
@@ -42,19 +27,16 @@ object SessionUtils {
         if (!res.contains(key)) res.set(key, value) else res
       }
     }
-
-    def setIfEquals(key: String, expectedValue: String, newValue: String): SparkConf = {
-      if (conf.getOption(key).forall(_ == expectedValue)) {
-        conf.set(key, newValue)
-      } else conf
-    }
   }
 
-  private def parseEnablers(conf: Map[String, String]): Set[String] = {
+  private[ytsaurus] def mergeConfs(conf: SparkConf, remoteGlobalConfig: Map[String, String],
+                                   remoteVersionConfig: Map[String, String], remoteClusterConfig: Map[String, String],
+                                   enablerMap: Map[String, String]): SparkConf = {
     conf
-      .get("spark.yt.enablers")
-      .map(_.split(",").map(_.trim).toSet)
-      .getOrElse(Set.empty[String])
+      .setAllNoOverride(remoteClusterConfig)
+      .setAllNoOverride(remoteVersionConfig)
+      .setAllNoOverride(remoteGlobalConfig)
+      .setEnablers(enablerMap)
   }
 
   def prepareSparkConf(): SparkConf = {
@@ -67,14 +49,8 @@ object SessionUtils {
       val remoteGlobalConfig = parseRemoteConfig(remoteGlobalConfigPath, yt)
       val remoteVersionConfig = parseRemoteConfig(remoteVersionConfigPath(sparkClusterVersion), yt)
       val remoteClusterConfig = sparkClusterConfPath.map(parseRemoteConfig(_, yt)).getOrElse(Map.empty[String, String])
-      val enablers = parseEnablers(remoteClusterConfig).union(parseEnablers(sparkDefaults))
-
-      conf
-        .setAllNoOverride(remoteClusterConfig.filterKeys(k => !enablers.contains(k)))
-        .setAllNoOverride(remoteVersionConfig)
-        .setAllNoOverride(remoteGlobalConfig)
-        .setEnablers(enablers, remoteClusterConfig)
-        .setIfEquals(FILES_MAX_PARTITION_BYTES.key, "5000000", "512Mb") // backward compatibility of SPYT-48
+      val enablerMap = parseRemoteConfig(remoteVersionConfigPath(sparkClusterVersion), yt, "enablers")
+      mergeConfs(conf, remoteGlobalConfig, remoteVersionConfig, remoteClusterConfig, enablerMap)
     } finally {
       YtClientProvider.close(id)
     }

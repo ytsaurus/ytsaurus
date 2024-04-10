@@ -17,19 +17,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ITypedNodeMemoryTracker
-    : public IMemoryUsageTracker
-{
-    virtual i64 GetLimit() const = 0;
-    virtual i64 GetUsed() const = 0;
-    virtual i64 GetFree() const = 0;
-    virtual bool IsExceeded() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ITypedNodeMemoryTracker)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct INodeMemoryTracker
     : public TRefCounted
 {
@@ -58,7 +45,9 @@ struct INodeMemoryTracker
     virtual void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) = 0;
     virtual i64 UpdateUsage(ECategory category, i64 newUsage) = 0;
 
-    virtual ITypedNodeMemoryTrackerPtr WithCategory(
+    virtual TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) = 0;
+
+    virtual IMemoryUsageTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) = 0;
 
@@ -67,8 +56,32 @@ struct INodeMemoryTracker
 
 DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
+/////////////////////////////////////////////////////////////////////////////
 
-ITypedNodeMemoryTrackerPtr WithCategory(
+class TDelayedReferenceHolder
+    : public TSharedRangeHolder
+{
+public:
+    TDelayedReferenceHolder(
+        TSharedRef underlying,
+        TDuration delayBeforeFree,
+        IInvokerPtr dtorInvoker);
+
+    TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override;
+
+    std::optional<size_t> GetTotalByteSize() const override;
+
+    ~TDelayedReferenceHolder() override;
+
+private:
+    TSharedRef Underlying_;
+    const TDuration DelayBeforeFree_;
+    const IInvokerPtr DtorInvoker_;
+};
+
+/////////////////////////////////////////////////////////////////////////////
+
+IMemoryUsageTrackerPtr WithCategory(
     const INodeMemoryTrackerPtr& memoryTracker,
     EMemoryCategory category,
     std::optional<INodeMemoryTracker::TPoolTag> poolTag = {});
@@ -78,6 +91,19 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     const std::vector<std::pair<EMemoryCategory, i64>>& limits = {},
     const NLogging::TLogger& logger = {},
     const NProfiling::TProfiler& profiler = {});
+
+/////////////////////////////////////////////////////////////////////////////
+
+TSharedRef TrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRef reference,
+    bool keepExistingTracking = false);
+TSharedRefArray TrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRefArray array,
+    bool keepExistingTracking = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

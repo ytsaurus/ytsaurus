@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(pass_table_as_file)
 
 
@@ -21,7 +22,7 @@ target_compile_options(pass_table_as_file PRIVATE
 )
 
 target_link_libraries(pass_table_as_file PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

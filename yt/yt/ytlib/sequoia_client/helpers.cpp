@@ -1,5 +1,9 @@
 #include "helpers.h"
 
+#include <yt/yt/client/tablet_client/public.h>
+
+#include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NSequoiaClient {
@@ -28,6 +32,19 @@ NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix)
 {
     return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr TErrorCode RetriableSequoiaErrors[] = {
+    NTabletClient::EErrorCode::TransactionLockConflict,
+};
+
+bool IsRetriableSequoiaError(const TError& error)
+{
+    return AnyOf(RetriableSequoiaErrors, [&] (auto errorCode) {
+        return error.FindMatching(errorCode);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

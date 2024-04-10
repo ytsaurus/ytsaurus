@@ -19,7 +19,7 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
 
   prepareProfiler()
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
+  withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
     val tcpRouter = TcpProxyService.register("SHS")(yt)
 
@@ -49,7 +49,7 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
 case class HistoryServerLauncherArgs(logPath: String,
                                      memory: String,
                                      ytConfig: YtClientConfiguration,
-                                     discoveryPath: String,
+                                     baseDiscoveryPath: String,
                                      waitMasterTimeout: Duration)
 
 object HistoryServerLauncherArgs {
@@ -57,7 +57,7 @@ object HistoryServerLauncherArgs {
     args.required("log-path"),
     args.optional("memory").getOrElse("16G"),
     YtClientConfiguration(args.optional),
-    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
+    args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
     args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
   )
 

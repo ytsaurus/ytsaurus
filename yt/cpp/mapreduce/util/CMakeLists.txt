@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(ut)
 get_built_tool_path(
   TOOL_enum_parser_bin
@@ -29,7 +30,7 @@ target_compile_options(cpp-mapreduce-util PRIVATE
 )
 
 target_link_libraries(cpp-mapreduce-util PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime

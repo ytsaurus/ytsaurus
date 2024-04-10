@@ -99,7 +99,7 @@ public:
             .Run();
     }
 
-    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept override
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) override
     {
         if (request.DelegationToken.empty()
             || request.Signature.empty()

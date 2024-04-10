@@ -291,10 +291,10 @@ public:
     i64 GetAvailableSpace() const;
 
     //! Returns the memory tracking for pending reads.
-    const ITypedNodeMemoryTrackerPtr& GetReadMemoryTracker() const;
+    const IMemoryUsageTrackerPtr& GetReadMemoryTracker() const;
 
     //! Returns the memory tracking for pending writes.
-    const ITypedNodeMemoryTrackerPtr& GetWriteMemoryTracker() const;
+    const IMemoryUsageTrackerPtr& GetWriteMemoryTracker() const;
 
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
@@ -411,6 +411,8 @@ protected:
     TAtomicObject<TError> LocationDisabledAlert_;
     TAtomicObject<TError> LocationDiskFailedAlert_;
 
+    TDiskHealthCheckerPtr HealthChecker_;
+
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
     TEnumIndexedArray<ESessionType, std::atomic<int>> PerTypeSessionCount_;
@@ -446,8 +448,8 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    const ITypedNodeMemoryTrackerPtr ReadMemoryTracker_;
-    const ITypedNodeMemoryTrackerPtr WriteMemoryTracker_;
+    const IMemoryUsageTrackerPtr ReadMemoryTracker_;
+    const IMemoryUsageTrackerPtr WriteMemoryTracker_;
 
     TAtomicPtr<TChunkLocationConfig, /*EnableAcquireHazard*/ true> RuntimeConfig_;
 
@@ -465,8 +467,6 @@ private:
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;
-
-    TDiskHealthCheckerPtr HealthChecker_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;

@@ -172,10 +172,9 @@ TEST(TFilterMatcherTest, HashInFilter)
     EXPECT_TRUE(matcherLabelHash->Match(BuildYsonStringFluently().Entity()).ValueOrThrow());
     EXPECT_TRUE(matcherLabelHash->Match(TYsonStringBuf("#")).ValueOrThrow());
 
-    // Uncomment this code after (YT-15191)
-    // auto matcherWithIn = CreateFilterMatcher("[/labels/a] IN (#)", {"/labels"});
-    // EXPECT_FALSE(matcherWithIn->Match(TYsonStringBuf("{a=1}")).ValueOrThrow());
-    // EXPECT_TRUE(matcherWithIn->Match(TYsonStringBuf("{b=1}")).ValueOrThrow());
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateFilterMatcher("[/labels/a] IN (#)", {"/labels"}),
+        "Cannot use expression of type");
 
     auto matcherSpecHash = CreateFilterMatcher("[/spec/records] = #", {"/spec"});
     EXPECT_TRUE(matcherSpecHash->Match(TYsonStringBuf("{}")).ValueOrThrow());

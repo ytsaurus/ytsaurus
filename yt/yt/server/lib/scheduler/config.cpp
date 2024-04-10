@@ -1064,7 +1064,13 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("event_log", &TThis::EventLog)
-        .DefaultNew();
+        .DefaultCtor([] {
+            auto config = New<NEventLog::TEventLogManagerConfig>();
+            config->Enable = false;
+            config->MaxRowWeight = 128_MB;
+            config->Path = "//sys/scheduler/event_log";
+            return config;
+        });
 
     registrar.Parameter("spec_template", &TThis::SpecTemplate)
         .Default();
@@ -1188,10 +1194,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
-        config->EventLog->MaxRowWeight = 128_MB;
-        if (!config->EventLog->Path) {
-            config->EventLog->Path = "//sys/scheduler/event_log";
-        }
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });
 

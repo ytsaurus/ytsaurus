@@ -57,7 +57,9 @@ def _build_column_from_field(field: Field) -> Dict[str, Any]:
     if field.sort_order is not None:
         column["sort_order"] = field.sort_order.lower()
     if field.aggregate is not None:
-        column["aggregate"] = field.aggregate.lower()
+        column["aggregate"] = field.aggregate
+    if field.expression is not None:
+        column["expression"] = field.expression
     return column
 
 
@@ -88,6 +90,8 @@ for text in records_text:
     manifest = from_dict(Manifest, manifest_dict)
     for record in manifest.types:
         name = record.table_name
+        if name is None:
+            raise RuntimeError("\"table_name\" field is required for sequoia tables")
         group = record.table_group
         schema = _build_schema_from_fields(record.fields)
         setattr(DESCRIPTORS, name, TableDescriptor(name, group, schema))

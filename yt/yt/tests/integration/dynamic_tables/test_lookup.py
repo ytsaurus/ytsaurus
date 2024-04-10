@@ -670,8 +670,8 @@ class TestLookup(TestSortedDynamicTablesBase):
                 name="lookup/unmerged_row_count")
             unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/unmerged_missing_row_count")
-            if row_count.get_delta() == 0 and missing_row_count.get_delta() == 0 and \
-               unmerged_row_count.get_delta() == 0 and unmerged_missing_row_count.get_delta() == 0:
+            if row_count.start_value == 0 and missing_row_count.start_value == 0 and \
+               unmerged_row_count.start_value == 0 and unmerged_missing_row_count.start_value == 0:
                 break
             iter += 1
         assert iter < 10

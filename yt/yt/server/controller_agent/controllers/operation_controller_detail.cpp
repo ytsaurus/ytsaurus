@@ -94,6 +94,7 @@
 
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
@@ -5679,7 +5680,18 @@ TJobExperimentBasePtr TOperationControllerBase::GetJobExperiment()
 
 TJobId TOperationControllerBase::GenerateJobId(NScheduler::TAllocationId allocationId)
 {
-    return TJobId(allocationId.Underlying());
+    auto jobIdGuid = allocationId.Underlying();
+
+    if (Config->JobIdUnequalToAllocationId) {
+        jobIdGuid.Parts32[0] |= 1 << 24;
+
+        YT_LOG_DEBUG(
+            "Generating job id different from allocation id (JobId: %v, AllocationId: %v)",
+            jobIdGuid,
+            allocationId);
+    }
+
+    return TJobId(jobIdGuid);
 }
 
 void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortReason)
@@ -7951,7 +7963,7 @@ void TOperationControllerBase::InferInputRanges()
             continue;
         }
 
-        auto rangeInferrer = CreateRangeInferrer(
+        auto inferredRanges = CreateRangeInferrer(
             InputQuery->Query->WhereClause,
             table->Schema,
             table->Schema->GetKeyColumns(),
@@ -7959,31 +7971,48 @@ void TOperationControllerBase::InferInputRanges()
             GetBuiltinRangeExtractors(),
             queryOptions);
 
-        std::vector<TReadRange> inferredRanges;
+
+        std::vector<TReadRange> resultRanges;
         for (const auto& range : ranges) {
             yielder.TryYield();
 
             auto legacyRange = ReadRangeToLegacyReadRange(range);
-            auto lower = legacyRange.LowerLimit().HasLegacyKey()
+            auto lowerInitial = legacyRange.LowerLimit().HasLegacyKey()
                 ? legacyRange.LowerLimit().GetLegacyKey()
                 : MinKey();
-            auto upper = legacyRange.UpperLimit().HasLegacyKey()
+            auto upperInitial = legacyRange.UpperLimit().HasLegacyKey()
                 ? legacyRange.UpperLimit().GetLegacyKey()
                 : MaxKey();
-            auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
-            for (const auto& inferred : result) {
-                auto inferredRange = legacyRange;
-                inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(inferred.first));
-                inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(inferred.second));
-                inferredRanges.push_back(ReadRangeFromLegacyReadRange(inferredRange, table->Comparator.GetLength()));
+
+            auto subrange = CropItems(
+                MakeRange(inferredRanges),
+                [&] (auto it) {
+                    return !(lowerInitial < it->second);
+                },
+                [&] (auto it) {
+                    return it->first < upperInitial;
+                });
+
+            if (!subrange.Empty()) {
+                auto lower = std::max<TUnversionedRow>(subrange.Front().first, lowerInitial);
+                auto upper = std::min<TUnversionedRow>(subrange.Back().second, upperInitial);
+
+                ForEachRange(subrange, TRowRange(lower, upper), [&] (auto item) {
+                    auto [lower, upper] = item;
+
+                    auto inferredRange = legacyRange;
+                    inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(lower));
+                    inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(upper));
+                    resultRanges.push_back(ReadRangeFromLegacyReadRange(inferredRange, table->Comparator.GetLength()));
+                });
             }
         }
-        table->Path.SetRanges(inferredRanges);
+        table->Path.SetRanges(resultRanges);
 
         YT_LOG_DEBUG("Input table ranges inferred (Path: %v, RangeCount: %v, InferredRangeCount: %v)",
             table->GetPath(),
             ranges.size(),
-            inferredRanges.size());
+            resultRanges.size());
     }
 }
 

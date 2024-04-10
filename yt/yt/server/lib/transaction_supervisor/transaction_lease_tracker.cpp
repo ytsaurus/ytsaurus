@@ -372,7 +372,7 @@ void TTransactionLeaseTracker::ProcessDeadlines()
     auto now = TInstant::Now();
     while (!DeadlineMap_.empty()) {
         auto it = DeadlineMap_.begin();
-        auto& descriptor = *it;
+        auto* descriptor = *it;
         if (descriptor->Deadline > now) {
             break;
         }
@@ -380,9 +380,11 @@ void TTransactionLeaseTracker::ProcessDeadlines()
         YT_LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
             descriptor->TransactionId);
 
+        // NB: it's important to erase deadline before calling handler since
+        // handler may want to register this transaction again.
+        DeadlineMap_.erase(it);
         descriptor->TimedOut = true;
         descriptor->ExpirationHandler.Run(descriptor->TransactionId);
-        DeadlineMap_.erase(it);
     }
 }
 

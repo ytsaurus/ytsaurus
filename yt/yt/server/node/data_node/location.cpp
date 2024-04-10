@@ -284,8 +284,8 @@ TChunkLocation::TChunkLocation(
     , ChunkStoreHost_(std::move(chunkStoreHost))
     , Type_(type)
     , StaticConfig_(std::move(config))
-    , ReadMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
-    , WriteMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
+    , ReadMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
+    , WriteMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
     , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
         .Name = StaticConfig_->MediumName
@@ -662,12 +662,12 @@ i64 TChunkLocation::GetAvailableSpace() const
     }
 }
 
-const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
+const IMemoryUsageTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
 {
     return ReadMemoryTracker_;
 }
 
-const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
+const IMemoryUsageTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
 {
     return WriteMemoryTracker_;
 }
@@ -960,7 +960,7 @@ void TChunkLocation::ValidateWritable()
     NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
-    WaitFor(HealthChecker_->RunCheck())
+    HealthChecker_->RunCheck()
         .ThrowOnError();
 }
 
@@ -1544,7 +1544,7 @@ TStoreLocation::TStoreLocation(
         BuildJournalManagerConfig(ChunkContext_->DataNodeConfig, config),
         this,
         ChunkContext_,
-        ChunkStoreHost_->GetMemoryUsageTracker()))
+        ChunkStoreHost_->GetNodeMemoryUsageTracker()))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", Id_)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
@@ -1897,6 +1897,10 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
             // Additional removal of chunks that were recorded in unfinished sessions.
             RemoveLocationChunks();
+
+            WaitFor(HealthChecker_->Stop())
+                .ThrowOnError();
+
             UnlockChunkLocks();
             ResetLocationStatistic();
             ChunkStoreHost_->ScheduleMasterHeartbeat();

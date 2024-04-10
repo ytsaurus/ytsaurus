@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(charset)
 add_subdirectory(draft)
 add_library(yutil)
@@ -23,7 +24,7 @@ target_compile_options(yutil PRIVATE
 )
 
 target_link_libraries(yutil PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   util-charset
   contrib-libs-zlib

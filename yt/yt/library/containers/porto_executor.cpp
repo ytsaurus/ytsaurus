@@ -73,7 +73,7 @@ static const std::vector<TDevice> DefaultContainerDevices = {
         .Access = "rw",
         // It is necessary for the consistency of default devices in the container, but access must be denied.
         // See porto/src/device.cpp::TDevices::InitDefault and https://docs.kernel.org/admin-guide/serial-console.html.
-        .Path = "/dev/console"
+        .Path = "/dev/console",
     }
 };
 
@@ -411,14 +411,15 @@ public:
     }
 
     // This method allocates Porto "resources", so it should be uncancellable.
-    TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) override
+    TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place, const TString& container) override
     {
         return ExecutePortoApiAction(
             &TPortoExecutor::DoImportLayer,
             "ImportLayer",
             archivePath,
             layerId,
-            place)
+            place,
+            container)
             .ToUncancelable();
     }
 
@@ -990,10 +991,10 @@ private:
         return specs;
     }
 
-    void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place)
+    void DoImportLayer(const TString& archivePath, const TString& layerId, const TString& place, const TString& container)
     {
         ExecuteApiCall(
-            [&] { return Api_->ImportLayer(layerId, archivePath, false, place); },
+            [&] { return Api_->ImportLayer(layerId, archivePath, false, place, "", container); },
             "ImportLayer",
             /*idempotent*/ false);
         LayerSurplus_ += 1;

@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(restricted-aws-aws-crt-cpp)
 
 
@@ -52,7 +53,7 @@ target_include_directories(restricted-aws-aws-crt-cpp PUBLIC
 )
 
 target_link_libraries(restricted-aws-aws-crt-cpp PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-cal

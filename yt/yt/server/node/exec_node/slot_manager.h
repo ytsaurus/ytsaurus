@@ -161,6 +161,8 @@ public:
 
     static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
+    void OnContainerDevicesCheckFinished(const TError& error);
+
 private:
     IBootstrap* const Bootstrap_;
     const TSlotManagerConfigPtr StaticConfig_;
@@ -176,6 +178,8 @@ private:
 
     std::atomic<bool> JobProxyReady_ = false;
 
+    TAtomicObject<TError> TestContainerCreationError_;
+
     TAtomicIntrusivePtr<IVolumeManager> RootVolumeManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, LocationsLock_);
@@ -187,6 +191,7 @@ private:
     std::vector<TNumaNodeState> NumaNodeStates_;
 
     IJobEnvironmentPtr JobEnvironment_;
+    EJobEnvironmentType JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
     TRingQueue<int> FreeSlots_;

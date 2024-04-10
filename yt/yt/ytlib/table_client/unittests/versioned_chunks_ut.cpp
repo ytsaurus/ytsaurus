@@ -342,7 +342,8 @@ protected:
         systemBlockCacheConfig->HashTableChunkIndex->Capacity = 10_MB;
         SystemBlockCache = CreateClientBlockCache(
             systemBlockCacheConfig,
-            EBlockType::HashTableChunkIndex);
+            EBlockType::HashTableChunkIndex,
+            GetNullMemoryUsageTracker());
         YT_VERIFY(SystemBlockCache->IsBlockTypeActive(EBlockType::HashTableChunkIndex));
     }
 
@@ -748,7 +749,8 @@ protected:
         systemBlockCacheConfig->HashTableChunkIndex->Capacity = 10_MB;
         SystemBlockCache_ = CreateClientBlockCache(
             systemBlockCacheConfig,
-            EBlockType::HashTableChunkIndex);
+            EBlockType::HashTableChunkIndex,
+            GetNullMemoryUsageTracker());
         YT_VERIFY(SystemBlockCache_->IsBlockTypeActive(EBlockType::HashTableChunkIndex));
     }
 

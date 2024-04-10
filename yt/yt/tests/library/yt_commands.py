@@ -1272,9 +1272,11 @@ def get_scheduler_version():
 ##################################################################
 
 
-# Allocation id is currently equal to job id
 def get_allocation_id_from_job_id(job_id):
-    return job_id
+    parts = [int(x, 16) for x in job_id.split('-')]
+    parts[-1] &= (1 << 24) - 1
+    allocation_id = "-".join(["{:x}".format(x) for x in parts])
+    return allocation_id
 
 
 ##################################################################

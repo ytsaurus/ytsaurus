@@ -13,7 +13,7 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/checksum.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -55,7 +55,7 @@ void TEncodingWriter::WriteBlock(
     EBlockType blockType,
     std::optional<int> groupIndex)
 {
-    block = TrackMemory(Options_->MemoryReferenceTracker, std::move(block));
+    block = TrackMemory(Options_->MemoryUsageTracker, std::move(block));
 
     EnsureOpen();
 
@@ -84,7 +84,7 @@ void TEncodingWriter::WriteBlock(
     std::optional<int> groupIndex)
 {
     for (auto& part : vectorizedBlock) {
-        part = TrackMemory(Options_->MemoryReferenceTracker, std::move(part));
+        part = TrackMemory(Options_->MemoryUsageTracker, std::move(part));
     }
 
     EnsureOpen();
@@ -159,7 +159,7 @@ TBlock TEncodingWriter::DoCompressBlock(
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
 
-    compressedBlock.Data = TrackMemory(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
+    compressedBlock.Data = TrackMemory(Options_->MemoryUsageTracker, std::move(compressedBlock.Data));
 
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
@@ -210,7 +210,7 @@ TBlock TEncodingWriter::DoCompressVector(
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
 
-    compressedBlock.Data = TrackMemory(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
+    compressedBlock.Data = TrackMemory(Options_->MemoryUsageTracker, std::move(compressedBlock.Data));
 
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);

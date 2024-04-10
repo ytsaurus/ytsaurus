@@ -33,7 +33,7 @@ struct IChunkStoreHost
     virtual NObjectClient::TCellId GetCellId() = 0;
     virtual void SubscribePopulateAlerts(TCallback<void(std::vector<TError>*)> alerts) = 0;
     virtual NClusterNode::TMasterEpoch GetMasterEpoch() = 0;
-    virtual INodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
+    virtual INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() = 0;
     virtual void CancelLocationSessions(const TChunkLocationPtr& location) = 0;
 };
 

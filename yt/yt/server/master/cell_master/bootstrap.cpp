@@ -946,7 +946,8 @@ void TBootstrap::DoInitialize()
             HydraFacade_->GetHydraManager(),
             HydraFacade_->GetAutomaton(),
             GetCellTag(),
-            /*authenticator*/ nullptr);
+            /*authenticator*/ nullptr,
+            InvalidCellTag);
     }
 
     LeaseManager_ = CreateLeaseManager(

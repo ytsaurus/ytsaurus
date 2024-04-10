@@ -37,7 +37,7 @@ class TestQueueAgent(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_other_stages_are_ignored(self):
         queue_orchid = QueueAgentOrchid()
 
@@ -100,7 +100,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_polling_loop(self):
         orchid = QueueAgentOrchid()
 
@@ -123,7 +123,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         orchid.wait_fresh_pass()
         orchid.validate_no_pass_error()
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_queue_state(self):
         orchid = QueueAgentOrchid()
 
@@ -184,7 +184,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         queues = orchid.get_queues()
         assert len(queues) == 0
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_consumer_state(self):
         orchid = QueueAgentOrchid()
 
@@ -202,7 +202,7 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
         assert "target" not in status
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_alerts(self):
         orchid = QueueAgentOrchid()
         alert_orchid = AlertManagerOrchid()
@@ -215,13 +215,13 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert_yt_error(YtError.from_dict(alert_orchid.get_alerts()["queue_agent_pass_failed"]),
                         "Error while reading dynamic state")
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_no_alerts(self):
         alert_orchid = AlertManagerOrchid()
 
         wait(lambda: not alert_orchid.get_alerts())
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_controller_reuse(self):
         orchid = QueueAgentOrchid()
 
@@ -267,7 +267,7 @@ class TestQueueController(TestQueueAgentBase):
         dt = datetime.datetime.fromtimestamp(unix_ts, tz=pytz.UTC)
         return dt.isoformat().replace("+00:00", ".000000Z")
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_queue_status(self, without_meta):
         orchid = QueueAgentOrchid()
@@ -349,7 +349,7 @@ class TestQueueController(TestQueueAgentBase):
         assert 89 * 20 <= queue_partitions[0]["trimmed_data_weight"] <= 92 * 20
         assert 9 * 20 <= queue_partitions[0]["available_data_weight"] <= 11 * 20
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     @pytest.mark.parametrize("trim", [False, True])
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_consumer_status(self, trim, without_meta):
@@ -414,7 +414,7 @@ class TestQueueController(TestQueueAgentBase):
 
         assert_partition(consumer_partitions[1], 2)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_null_columns(self, without_meta):
         orchid = QueueAgentOrchid()
@@ -435,7 +435,7 @@ class TestQueueController(TestQueueAgentBase):
         assert orchid.get_queue_orchid("primary://tmp/q").get_status()["partition_count"] == 1
         assert orchid.get_consumer_orchid("primary://tmp/c").get_status()["queues"]["primary://tmp/q"]["partition_count"] == 1
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_consumer_partition_disposition(self, without_meta):
         orchid = QueueAgentOrchid()
@@ -457,7 +457,7 @@ class TestQueueController(TestQueueAgentBase):
             assert partition["disposition"] == expected_disposition
             assert partition["unread_row_count"] == 3 - offset
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_inconsistent_partitions_in_consumer_table(self, without_meta):
         orchid = QueueAgentOrchid()
@@ -514,7 +514,7 @@ class TestRates(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_rates(self, without_meta):
         eps = 1e-2
@@ -619,7 +619,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_basic(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -671,7 +671,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         # Nothing should have changed here.
         self._wait_for_row_count("//tmp/q", 0, 2)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_retained_rows(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -919,7 +919,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         set("//tmp/q/@auto_trim_config", {"enable": True})
         self._wait_for_row_count("//tmp/q", 0, 3)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_vitality_changes(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -968,7 +968,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._wait_for_row_count("//tmp/q", 0, 4)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_erroneous_vital_consumer(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -1009,7 +1009,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._wait_for_row_count("//tmp/q", 0, 3)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_erroneous_partition(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -1042,7 +1042,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._wait_for_row_count("//tmp/q", 0, 3)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_erroneous_queue(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -1084,7 +1084,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._wait_for_row_count("//tmp/q2", 0, 3)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_configuration_changes(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -1252,7 +1252,7 @@ class TestMultipleAgents(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_leader_election(self):
         instances = self._wait_for_instances()
         # Will validate that exactly one cypress synchronizer and queue agent manager is leading.
@@ -1315,7 +1315,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             "vital": vital,
         })
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("restart_victim_policy", ["heavy", "leader"])
     @pytest.mark.timeout(300)
     def test_sharding(self, restart_victim_policy):
@@ -1416,7 +1416,7 @@ class TestMultipleAgents(TestQueueAgentBase):
 
             perform_checks(ignore_instances=(victim,))
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_trimming_with_sharded_objects(self):
         consumer_count = 10
 
@@ -1449,7 +1449,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             register_queue_consumer(queue, consumers[i], vital=False)
             self._wait_for_row_count(queue, 0, len(consumers) - i - 1)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_queue_agent_sharding_manager_alerts(self):
         leading_queue_agent_sharding_manager = QueueAgentShardingManagerOrchid.get_leaders()[0]
 
@@ -1482,7 +1482,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_queue_attributes(self):
         self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
@@ -1516,7 +1516,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         for attribute in ("queue_status", "queue_partitions"):
             assert full_attributes[attribute] == YsonEntity()
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_consumer_attributes(self):
         self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
@@ -1542,14 +1542,14 @@ class TestMasterIntegration(TestQueueAgentBase):
         wait(lambda: len(get("//tmp/c/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
         wait(lambda: get("//tmp/c/@queue_consumer_status").get("queues").get("primary://tmp/q").get("partition_count") == 1, ignore_exceptions=True)
 
-        assert len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1
+        wait(lambda: len(get("//tmp/c/@queue_consumer_partitions").get("primary://tmp/q")) == 1, ignore_exceptions=True)
 
         # Check that consumer attributes are opaque.
         full_attributes = get("//tmp/c/@")
         for attribute in ("queue_consumer_status", "queue_consumer_partitions"):
             assert full_attributes[attribute] == YsonEntity()
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_queue_agent_stage(self):
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
@@ -1576,7 +1576,7 @@ class TestMasterIntegration(TestQueueAgentBase):
         with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/q/@queue_agent_stage", "value_under_tx", tx=tx)
 
-    @authors("nadya73")
+    @authors("max42", "nadya73")
     def test_non_queues(self):
         create("table", "//tmp/q_static",
                attributes={"schema": [{"name": "data", "type": "string"}]})
@@ -1607,14 +1607,14 @@ class TestMasterIntegration(TestQueueAgentBase):
         assert get(f"{path}/@{attribute}") == value
         assert get(f"{path}/@attribute_revision") > old_revision
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_revision_changes_on_queue_attribute_change(self):
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
 
         self._set_and_assert_revision_change("//tmp/q", "queue_agent_stage", "testing")
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_revision_changes_on_consumer_attribute_change(self):
         self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
@@ -1746,7 +1746,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
 
 
 class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("policy", ["polling", "watching"])
     def test_alerts(self, policy):
         self._apply_dynamic_config_patch({
@@ -1776,7 +1776,7 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
         wait(lambda: "cypress_synchronizer_pass_failed" in alert_orchid.get_alerts())
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("policy", ["polling", "watching"])
     def test_no_alerts(self, policy):
         self._apply_dynamic_config_patch({
@@ -1841,7 +1841,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -1913,7 +1913,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
                 self._assert_increased_revision(consumer)
                 assert consumer["queue_agent_stage"] == "bar"
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_content_change(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -1940,7 +1940,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         # This checks that the revision doesn't change when dynamic stores are flushed.
         self._assert_constant_revision(queues[0])
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_synchronization_errors(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -1996,7 +1996,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         },
     }
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -2078,7 +2078,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         self._get_queues_and_check_invariants(expected_count=1)
 
     # TODO(achulkov2): Unify this test with its copy once https://a.yandex-team.ru/review/2527564 is merged.
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_content_change(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -2105,7 +2105,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         # This checks that the revision doesn't change when dynamic stores are flushed.
         self._assert_constant_revision(queues[0])
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_synchronization_errors(self):
         orchid = CypressSynchronizerOrchid()
 
@@ -2280,7 +2280,7 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         return (replicated_queue, self._create_replicated_queue(replicated_queue),
                 replicated_consumer, self._create_replicated_consumer(replicated_consumer))
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
         _create_chaos_queue_consumer_pair,
         _create_replicated_queue_consumer_pair,
@@ -2470,7 +2470,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         consumers = builtins.set(map(itemgetter("path"), select_rows("[path] from [//sys/queue_agents/consumers]")))
         assert consumers == builtins.set(expected_consumers)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_basic(self):
         replicated_queue = "//tmp/replicated_queue"
         replicated_consumer = "//tmp/replicated_consumer"
@@ -2590,7 +2590,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
 
 
 class TestDynamicConfig(TestQueueAgentBase):
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
         orchid.wait_fresh_pass()
@@ -2718,7 +2718,7 @@ class TestQueueStaticExportBase(TestQueueAgentBase):
 
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
-    @authors("cherepashka", "nadya73")
+    @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
     def test_multicell_export(self, queue_external_cell_tag):
         if getattr(self, "ENABLE_TMP_PORTAL", False) and queue_external_cell_tag == 10:
@@ -2764,7 +2764,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     # TODO(achulkov2): Add test that replicated/chaos queues are not exported.
 
-    @authors("cherepashka", "nadya73")
+    @authors("cherepashka", "achulkov2", "nadya73")
     def test_export_order(self):
         _, queue_id = self._create_queue("//tmp/q", partition_count=3)
 
@@ -2794,7 +2794,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
-    @authors("cherepashka", "nadya73")
+    @authors("cherepashka", "achulkov2", "nadya73")
     def test_export_to_the_same_folder(self):
         export_dir = "//tmp/export"
         create("map_node", export_dir)
@@ -2925,7 +2925,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir_2)
         self.remove_export_destination(export_dir_3)
 
-    @authors("cherepashka", "nadya73")
+    @authors("cherepashka", "achulkov2", "nadya73")
     def test_wrong_originating_queue(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_orchid = CypressSynchronizerOrchid()
@@ -2962,7 +2962,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("use_upper_bound_for_table_names", [False, True])
     def test_table_name_formatting(self, use_upper_bound_for_table_names):
         export_dir = "//tmp/export"
@@ -2996,7 +2996,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_lower_bound_naming(self):
         _, queue_id = self._create_queue("//tmp/q")
 
@@ -3026,7 +3026,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_export_ttl(self):
         _, queue_id = self._create_queue("//tmp/q")
 
@@ -3057,7 +3057,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
-    @authors("nadya73")
+    @authors("achulkov2", "nadya73")
     def test_different_native_cells(self):
         _, queue_id = self._create_queue("//portals/q")
 
@@ -3095,7 +3095,7 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         },
     }
 
-    @authors("achulkov2")
+    @authors("achulkov2", "nadya73")
     def test_alert_combinations(self):
         queue_agent_orchid = QueueAgentOrchid()
 

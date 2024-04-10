@@ -64,6 +64,18 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
                 GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->key_type()),
                 GetYTType(std::reinterpret_pointer_cast<arrow::MapType>(arrowType)->item_type()));
 
+        case arrow::Type::type::STRUCT:
+        {
+            auto structType = std::reinterpret_pointer_cast<arrow::StructType>(arrowType);
+            TVector<NTi::TStructType::TOwnedMember> members;
+            members.reserve(structType->num_fields());
+            for (auto fieldIndex = 0; fieldIndex < structType->num_fields(); ++fieldIndex) {
+                auto field = structType->field(fieldIndex);
+                members.push_back({TString(field->name()), GetYTType(field->type())});
+            }
+            return NTi::Struct(std::move(members));
+        }
+
         default:
             THROW_ERROR_EXCEPTION("Unsupported arrow type: %v", arrowType->ToString());
     }

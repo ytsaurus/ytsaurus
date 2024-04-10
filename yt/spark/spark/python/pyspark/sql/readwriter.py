@@ -20,7 +20,7 @@ from py4j.java_gateway import JavaClass
 
 from pyspark import RDD, since
 from pyspark.sql.column import _to_seq, _to_java_column
-from pyspark.sql.types import *
+from pyspark.sql.types import StructType
 from pyspark.sql import utils
 from pyspark.sql.utils import to_str
 
@@ -299,30 +299,6 @@ class DataFrameReader(OptionUtils):
                        int96RebaseMode=int96RebaseMode)
 
         return self._df(self._jreader.parquet(_to_seq(self._spark._sc, paths)))
-
-    def yt(self, *paths):
-        def fix_path(path):
-            return path[1:] if path.startswith("//") else path
-        return self.format("yt").load(path=[fix_path(path) for path in paths])
-
-    def _dict_to_struct(self, dict_type):
-        return StructType([StructField(name, data_type) for (name, data_type) in dict_type.items()])
-
-    def schema_hint(self, fields):
-        from pyspark.sql import SparkSession
-        spark = SparkSession.builder.getOrCreate()
-
-        struct_fields = []
-        for name, data_type in fields.items():
-            if isinstance(data_type, dict):
-                data_type = self._dict_to_struct(data_type)
-            field = StructField(name, data_type)
-            struct_fields.append(field)
-        schema = StructType(struct_fields)
-
-        jschema = spark._jsparkSession.parseDataType(schema.json())
-        self._jreader = spark._jvm.tech.ytsaurus.spyt.PythonUtils.schemaHint(self._jreader, jschema)
-        return self
 
     def text(self, paths, wholetext=False, lineSep=None, pathGlobFilter=None,
              recursiveFileLookup=None, modifiedBefore=None,
@@ -868,20 +844,6 @@ class DataFrameWriter(OptionUtils):
             compression=compression, dateFormat=dateFormat, timestampFormat=timestampFormat,
             lineSep=lineSep, encoding=encoding, ignoreNullFields=ignoreNullFields)
         self._jwrite.json(path)
-
-    def yt(self, path, mode=None):
-        def fix_path(path):
-            return path[1:] if path.startswith("//") else path
-        self.mode(mode)
-        self.format("yt").save(fix_path(path))
-
-    def sorted_by(self, *cols, **kwargs):
-        unique_keys = kwargs.get("unique_keys") or False
-        import json
-        return self.option("sort_columns", json.dumps(cols)).option("unique_keys", str(unique_keys))
-
-    def optimize_for(self, optimize_mode):
-        return self.option("optimize_for", optimize_mode)
 
     def parquet(self, path, mode=None, partitionBy=None, compression=None):
         """Saves the content of the :class:`DataFrame` in Parquet format at the specified path.

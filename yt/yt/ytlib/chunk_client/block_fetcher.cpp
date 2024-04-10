@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -268,7 +268,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
                 cachedBlock.Size(),
                 std::memory_order::relaxed);
 
-            cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
+            cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryUsageTracker, std::move(cachedBlock.Data));
 
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
@@ -366,7 +366,7 @@ void TBlockFetcher::DecompressBlocks(
         CompressedDataSize_ += compressedBlockSize;
 
         uncompressedBlock = TrackMemory(
-            ChunkReadOptions_.MemoryReferenceTracker,
+            ChunkReadOptions_.MemoryUsageTracker,
             std::move(uncompressedBlock));
 
         auto& windowSlot = Window_[windowIndex];
@@ -439,7 +439,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     cachedBlock.Size(),
                     std::memory_order::relaxed);
 
-                cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
+                cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryUsageTracker, std::move(cachedBlock.Data));
 
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
 

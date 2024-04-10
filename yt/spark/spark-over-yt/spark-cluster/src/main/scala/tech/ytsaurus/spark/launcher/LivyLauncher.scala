@@ -20,7 +20,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
 
   prepareLivyLog4jConfig()
 
-  withDiscovery(ytConfig, discoveryPath) { case (discoveryService, yt) =>
+  withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
     val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
     log.info(s"Starting livy server for master $masterAddress")
     val tcpRouter = TcpProxyService.register("LIVY")(yt)
@@ -50,7 +50,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
 
 case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration,
                             driverCores: Int, driverMemory: String, maxSessions: Int,
-                            discoveryPath: String, waitMasterTimeout: Duration)
+                            baseDiscoveryPath: String, waitMasterTimeout: Duration)
 
 object LivyLauncherArgs {
   def apply(args: Args): LivyLauncherArgs = LivyLauncherArgs(
@@ -60,7 +60,7 @@ object LivyLauncherArgs {
     args.required("driver-cores").toInt,
     args.required("driver-memory"),
     args.required("max-sessions").toInt,
-    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
+    args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
     args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
   )
 

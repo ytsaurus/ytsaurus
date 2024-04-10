@@ -140,9 +140,9 @@ PyObject* TSkiffStructuredIterator::iternext()
         PyObjectPtr obj = Converters_[tableIndex](Parser_.get(), &RowContext_);
 
         if (Raw_) {
-            size_t curRowBytesSize = Parser_->GetReadBytesCount() - numParsedBytes;
+            size_t curRowByteSize = Parser_->GetReadBytesCount() - numParsedBytes;
             TmpBuffer_.Clear();
-            BufferedStreamRepeater_->ExtractFromBuffer(&TmpBuffer_, curRowBytesSize);
+            BufferedStreamRepeater_->ExtractFromBuffer(&TmpBuffer_, curRowByteSize);
             PyObject* bytes = PyBytes_FromStringAndSize(TmpBuffer_.data(), TmpBuffer_.size());
             return bytes;
         } else {

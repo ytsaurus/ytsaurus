@@ -12,7 +12,7 @@ class PtrGetWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.pointer_type
 
     def __call__(self, obj):
@@ -27,7 +27,7 @@ class PtrGetRefWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.pointer_type.dereference()
 
     def __call__(self, obj):
@@ -73,7 +73,7 @@ class TMaybeGetWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.element_type.pointer()
 
     def __call__(self, obj):
@@ -90,7 +90,7 @@ class TMaybeGetRefWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.element_type.reference()
 
     def __call__(self, obj):
@@ -134,7 +134,7 @@ class TStringSizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -154,7 +154,7 @@ class TStringIndexWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, idx):
         return self.result_type
 
     def __call__(self, obj, idx):
@@ -173,7 +173,7 @@ class TStringDataWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -232,7 +232,7 @@ class TStringBufSizeWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):
@@ -249,7 +249,7 @@ class TStringBufIndexWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return self.index_type
 
-    def get_result_type(self):
+    def get_result_type(self, obj, idx):
         return self.result_type
 
     def __call__(self, obj, idx):
@@ -265,7 +265,7 @@ class TStringBufDataWorker(gdb.xmethod.XMethodWorker):
     def get_arg_types(self):
         return None
 
-    def get_result_type(self):
+    def get_result_type(self, obj):
         return self.result_type
 
     def __call__(self, obj):

@@ -667,8 +667,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("schemaless_end_upload_preserves_table_schema", &TThis::SchemalessEndUploadPreservesTableSchema)
-        .Default(false)
-        .DontSerializeDefault();
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

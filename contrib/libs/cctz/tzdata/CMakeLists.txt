@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_rescompiler_bin
   TOOL_rescompiler_dependency
@@ -24,7 +25,7 @@ add_library(libs-cctz-tzdata INTERFACE)
 
 
 target_link_libraries(libs-cctz-tzdata INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-cctz
@@ -39,7 +40,7 @@ add_global_library_for(libs-cctz-tzdata.global
 
 
 target_link_libraries(libs-cctz-tzdata.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-cctz

@@ -88,7 +88,7 @@ class TestParquet(object):
             assert table[column_names[1]].to_pylist() == [1, 2, 3]
 
     @authors("nadya02")
-    def test_multi_chunks_parquet(self):
+    def test_multi_chunks_dump_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -107,7 +107,7 @@ class TestParquet(object):
             assert table[column_names[0]].to_pylist() == [0, 1, 2, 3, 4]
 
     @authors("nadya02")
-    def test_dictionary_parquet(self):
+    def test_dictionary_dump_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/table"
@@ -150,7 +150,7 @@ class TestParquet(object):
             assert table[column_names[1]].to_pylist() == [1, 2, 3, 4, 5, 6, 1, 2, 3]
 
     @authors("nadya02")
-    def test_empty_parquet(self):
+    def test_empty_dump_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
             table = TEST_DIR + "/empty_table"
@@ -162,7 +162,7 @@ class TestParquet(object):
             assert yt.read_file(destination).read() == b""
 
     @authors("nadya02")
-    def test_complex_parquet(self):
+    def test_complex_dump_parquet(self):
         random.seed(10)
 
         with tempfile.NamedTemporaryFile() as temp_file:
@@ -222,19 +222,21 @@ class TestParquet(object):
             filename = temp_file.name
             table = TEST_DIR + "/table"
             schema = TableSchema() \
-                .add_column("key", type_info.Int64) \
-                .add_column("value", type_info.String)
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String]) \
+                .add_column("bool", type_info.Optional[type_info.Bool])
 
             yt.create("table", table, attributes={"schema": schema})
-            row = {"key": 1, "value": "one"}
+            row = {"key": 1, "value": "one", "bool" : True}
             yt.write_table(table, [row])
             yt.dump_parquet(table, filename)
 
             output_table = TEST_DIR + "/output_table"
 
-            yt.create("table", output_table, attributes={"schema": schema})
-
             yt.upload_parquet(output_table, filename)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == list(yt.read_table(table))
 
@@ -245,8 +247,8 @@ class TestParquet(object):
             input_table = TEST_DIR + "/table"
 
             schema = TableSchema() \
-                .add_column("key", type_info.Int64) \
-                .add_column("value", type_info.String)
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String])
 
             yt.create("table", input_table, attributes={"schema": schema})
             rows_in_chunk = 10
@@ -261,9 +263,10 @@ class TestParquet(object):
 
             output_table = TEST_DIR + "/output_table"
 
-            yt.create("table", output_table, attributes={"schema": schema})
-
             yt.upload_parquet(output_table, filename)
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
 
@@ -271,9 +274,6 @@ class TestParquet(object):
     def test_optional_upload_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
-            schema = TableSchema() \
-                .add_column("x", type_info.Int64) \
-                .add_column("y", type_info.Optional[type_info.Double])
 
             data = [
                 pyarrow.array([1, 2, 3]),
@@ -292,20 +292,21 @@ class TestParquet(object):
 
             output_table = TEST_DIR + "/output_table"
 
-            yt.create("table", output_table, attributes={"schema": schema})
-
             yt.upload_parquet(output_table, filename)
+
+            schema = TableSchema() \
+                .add_column("x", type_info.Optional[type_info.Int64]) \
+                .add_column("y", type_info.Optional[type_info.Double])
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == [{"x": 1, "y": 1.4}, {"x": 2, "y": None}, {"x": 3, "y": 2.5}]
 
     @authors("nadya02")
-    def test_double_list_upload_parquet(self):
+    def test_double_list_with_struct_upload_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
-
-            schema = TableSchema() \
-                .add_column("x", type_info.Int64) \
-                .add_column("y", type_info.List[type_info.List[type_info.Struct["foo": type_info.Int64]]])
 
             data = {
                 "x": [1, 2],
@@ -320,9 +321,15 @@ class TestParquet(object):
 
             output_table = TEST_DIR + "/output_table"
 
-            yt.create("table", output_table, attributes={"schema": schema})
-
             yt.upload_parquet(output_table, filename)
+
+            schema = TableSchema() \
+                .add_column("x", type_info.Optional[type_info.Int64]) \
+                .add_column("y", type_info.Optional[type_info.List[
+                    type_info.List[type_info.Struct["foo": type_info.Int64]]]])
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == [
                 {"x": 1, "y": [[{"foo": 1}, {"foo": 3}]]},
@@ -330,16 +337,42 @@ class TestParquet(object):
             ]
 
     @authors("nadya02")
-    def test_double_struct_upload_parquet(self):
+    def test_double_list_upload_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
 
+            data = {
+                "x": [1, 2],
+                "y": [[[1, 3]], [[5], []]]
+            }
+
+            df = pandas.DataFrame(data)
+
+            table = pyarrow.Table.from_pandas(df)
+
+            pyarrow.parquet.write_table(table, filename)
+
+            output_table = TEST_DIR + "/output_table"
+
+            yt.upload_parquet(output_table, filename)
+
             schema = TableSchema() \
-                .add_column("x", type_info.Int64) \
-                .add_column("y", type_info.Optional[type_info.Double]) \
-                .add_column("z", type_info.Struct[
-                    "foo": type_info.Struct["a": type_info.Uint8, "b": type_info.String],
-                    "bar": type_info.String])
+                .add_column("x", type_info.Optional[type_info.Int64]) \
+                .add_column("y", type_info.Optional[
+                    type_info.List[type_info.List[type_info.Int64]]])
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
+
+            assert list(yt.read_table(output_table)) == [
+                {"x": 1, "y": [[1, 3]]},
+                {"x": 2, "y": [[5], []]}
+            ]
+
+    @authors("nadya02")
+    def test_double_struct_upload_parquet(self):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
 
             struct_data = [
                 {"foo": {"a": 1, "b": "one"}, "bar": "ten"},
@@ -374,9 +407,17 @@ class TestParquet(object):
 
             output_table = TEST_DIR + "/output_table"
 
-            yt.create("table", output_table, attributes={"schema": schema})
-
             yt.upload_parquet(output_table, filename)
+
+            schema = TableSchema() \
+                .add_column("x", type_info.Optional[type_info.Int64]) \
+                .add_column("y", type_info.Optional[type_info.Double]) \
+                .add_column("z", type_info.Optional[type_info.Struct[
+                    "foo": type_info.Struct["a": type_info.Uint8, "b": type_info.String],
+                    "bar": type_info.String]])
+
+            schema_from_attr = TableSchema.from_yson_type(yt.get(output_table + "/@schema"))
+            assert schema == schema_from_attr
 
             assert list(yt.read_table(output_table)) == [
                 {"x": 1, "y": 1.4, "z": struct_data[0]},

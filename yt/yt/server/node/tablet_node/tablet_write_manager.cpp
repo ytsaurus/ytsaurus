@@ -44,7 +44,7 @@ public:
         , Logger(TabletNodeLogger.WithTag("TabletId: %v", Tablet_->GetId()))
     {
         // May be null in unittests.
-        if (const auto& memoryUsageTracker = Context_->GetMemoryUsageTracker()) {
+        if (const auto& memoryUsageTracker = Context_->GetNodeMemoryUsageTracker()) {
             WriteLogsMemoryTrackerGuard_ = TMemoryUsageTrackerGuard::Acquire(
                 memoryUsageTracker->WithCategory(EMemoryCategory::TabletDynamic),
                 0 /*size*/,

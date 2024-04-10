@@ -14,11 +14,12 @@
 # system may be rejected.
 
 find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(linux-headers-generic REQUIRED)
 add_library(python-driver-native INTERFACE)
 
 
 target_link_libraries(python-driver-native INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine
@@ -43,7 +44,53 @@ target_compile_options(python-driver-native.global PRIVATE
 )
 
 target_link_libraries(python-driver-native.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  library-query-engine
+  python-driver-lib
+  yt-yt-ytlib
+  server-lib-chunk_pools
+  Python3::Module
+)
+
+target_sources(python-driver-native.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/native/driver.cpp
+)
+
+
+
+
+add_library(python-driver-native INTERFACE)
+
+
+target_link_libraries(python-driver-native INTERFACE
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  library-query-engine
+  python-driver-lib
+  yt-yt-ytlib
+  server-lib-chunk_pools
+  Python3::Module
+)
+
+
+
+
+add_global_library_for(python-driver-native.global
+  python-driver-native)
+
+
+target_compile_options(python-driver-native.global PRIVATE
+  -DPYCXX_PYTHON_2TO3
+  -DPYCXX_6_2_COMPATIBILITY
+  -DPy_LIMITED_API=0x03040000
+  -Wno-register
+)
+
+target_link_libraries(python-driver-native.global PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine

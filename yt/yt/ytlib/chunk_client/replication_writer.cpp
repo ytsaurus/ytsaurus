@@ -134,7 +134,7 @@ public:
         return ChunkReplica_;
     }
 
-    void SetConnection(
+    void InitializeSession(
         int index,
         IChannelPtr channel,
         TChunkLocationUuid targetLocationUuid)
@@ -880,7 +880,7 @@ private:
 
         YT_LOG_DEBUG("Write session started (Address: %v)", address);
 
-        node->SetConnection(
+        node->InitializeSession(
             Nodes_.size(),
             channel,
             targetLocationUuid);
@@ -970,7 +970,7 @@ private:
         *req->mutable_chunk_meta() = *ChunkMeta_;
 
         auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
-            Options_->MemoryTracker,
+            Options_->MemoryUsageTracker,
             req->mutable_chunk_meta()->ByteSize());
 
         req->set_block_count(BlockCount_);

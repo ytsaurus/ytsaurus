@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(clickhouse-contrib-cctz-cmake)
 
 
@@ -31,7 +32,7 @@ target_include_directories(clickhouse-contrib-cctz-cmake PRIVATE
 )
 
 target_link_libraries(clickhouse-contrib-cctz-cmake PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   cpp-clickhouse_deps-incbin_stub
 )

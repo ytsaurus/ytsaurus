@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-tcmalloc-no_percpu_cache)
 
 
@@ -23,7 +24,7 @@ target_compile_options(libs-tcmalloc-no_percpu_cache PRIVATE
 )
 
 target_link_libraries(libs-tcmalloc-no_percpu_cache PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension
@@ -47,7 +48,7 @@ target_compile_options(libs-tcmalloc-no_percpu_cache.global PRIVATE
 )
 
 target_link_libraries(libs-tcmalloc-no_percpu_cache.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-restricted-abseil-cpp
   libs-tcmalloc-malloc_extension

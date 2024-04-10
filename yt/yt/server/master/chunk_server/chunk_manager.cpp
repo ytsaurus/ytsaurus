@@ -1720,6 +1720,21 @@ public:
         }
     }
 
+    // To remove potential users data from error and secure them.
+    TError SanitizeError(TError error)
+    {
+        static const std::vector<TString> ForbiddenAttributes = {
+            "lhs_value",
+            "rhs_value",
+        };
+
+        for (const auto& attribute : ForbiddenAttributes) {
+            if (error.MutableAttributes()->Contains(attribute)) {
+                error.MutableAttributes()->Remove(attribute);
+            }
+        }
+        return error;
+    }
 
     void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) override
     {
@@ -1780,7 +1795,7 @@ public:
 
                 switch (state) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG(jobError, "Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Job completed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1791,7 +1806,7 @@ public:
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_WARNING(jobError, "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_WARNING(SanitizeError(std::move(jobError)), "Job failed (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1802,7 +1817,7 @@ public:
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_WARNING(jobError, "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
+                        YT_LOG_WARNING(SanitizeError(std::move(jobError)), "Job aborted (JobId: %v, JobType: %v, Address: %v, ChunkId: %v)",
                             jobId,
                             jobType,
                             address,
@@ -1829,21 +1844,21 @@ public:
                 // Unknown jobs are aborted and removed.
                 switch (state) {
                     case EJobState::Completed:
-                        YT_LOG_DEBUG(jobError, "Unknown job has completed, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Unknown job has completed, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
                         break;
 
                     case EJobState::Failed:
-                        YT_LOG_DEBUG(jobError, "Unknown job has failed, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Unknown job has failed, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
                         break;
 
                     case EJobState::Aborted:
-                        YT_LOG_DEBUG(jobError, "Job aborted, removal scheduled (JobId: %v, Address: %v)",
+                        YT_LOG_DEBUG(SanitizeError(std::move(jobError)), "Job aborted, removal scheduled (JobId: %v, Address: %v)",
                             jobId,
                             address);
                         removeJob(jobId);
@@ -2973,10 +2988,9 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                .Where = {
+                .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
-                    Format("id_hash = %v", HashFromId(locationUuid)),
                     Format("location_uuid = %Qv", locationUuid)
                 }
             });
@@ -2994,7 +3008,7 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->SelectRows<NRecords::TLocationReplicas>({
-                .Where = {
+                .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId)
                 }
@@ -3614,13 +3628,12 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
                 NRecords::TChunkReplicas chunkReplica{
                     .Key = {
-                        .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     },
                     .StoredReplicas = GetReplicasYson(replicas, {}),
@@ -3637,7 +3650,6 @@ private:
                         .Key = {
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = replica.GetNodeId(),
-                            .IdHash = HashFromId(locationUuid),
                             .LocationUuid = locationUuid,
                             .ChunkId = chunkId,
                             .ReplicaIndex = replica.GetReplicaIndex(),
@@ -3658,7 +3670,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
@@ -3674,7 +3685,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
 
@@ -3723,7 +3734,6 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                         .ReplicaIndex = chunkIdWithIndex.ReplicaIndex
@@ -3768,7 +3778,6 @@ private:
                 for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
                     NRecords::TChunkReplicas chunkReplicas{
                         .Key = {
-                            .IdHash = HashFromId(chunkId),
                             .ChunkId = chunkId,
                         },
                         .StoredReplicas = GetReplicasYson(chunkModifiedReplicas.AddedReplicas, chunkModifiedReplicas.RemovedReplicas),
@@ -3785,7 +3794,6 @@ private:
                             .Key = {
                                 .CellTag = Bootstrap_->GetCellTag(),
                                 .NodeId = nodeId,
-                                .IdHash = HashFromId(addedReplica.GetChunkLocationUuid()),
                                 .LocationUuid = addedReplica.GetChunkLocationUuid(),
                                 .ChunkId = chunkId,
                                 .ReplicaIndex = addedReplica.GetReplicaIndex(),
@@ -3799,7 +3807,6 @@ private:
                         NRecords::TLocationReplicasKey locationReplicaKey{
                             .CellTag = Bootstrap_->GetCellTag(),
                             .NodeId = nodeId,
-                            .IdHash = HashFromId(removedReplica.GetChunkLocationUuid()),
                             .LocationUuid = removedReplica.GetChunkLocationUuid(),
                             .ChunkId = chunkId,
                             .ReplicaIndex = removedReplica.GetReplicaIndex(),
@@ -3816,7 +3823,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 // TODO(aleksandra-zh): whitelist retriable errors.
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (!result.IsOK()) {
@@ -4549,15 +4555,8 @@ private:
                 if (importData.has_chunk_schema_id()) {
                     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
 
-                    auto* existingChunkSchema = tableManager->FindMasterTableSchema(chunkSchemaId);
-                    if (IsObjectAlive(existingChunkSchema)) {
-                        tableManager->SetChunkSchema(chunk, existingChunkSchema);
-                    } else {
-                        YT_LOG_ALERT("Failed to find specified chunk schema while importing chunk, assuming null "
-                            "(ChunkId: %v, SchemaId: %v)",
-                            chunkId,
-                            chunkSchemaId);
-                    }
+                    auto* existingChunkSchema = tableManager->GetMasterTableSchemaOrThrow(chunkSchemaId);
+                    tableManager->SetChunkSchema(chunk, existingChunkSchema);
                 }
 
                 chunk->Confirm(importData.info(), importData.meta());
@@ -5664,7 +5663,6 @@ private:
         std::vector<NRecords::TChunkReplicasKey> keys;
         for (auto chunkId : chunkIds) {
             NRecords::TChunkReplicasKey chunkReplicasKey{
-                .IdHash = HashFromId(chunkId),
                 .ChunkId = chunkId,
             };
             keys.push_back(chunkReplicasKey);
@@ -5760,13 +5758,12 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request.chunk_ids_size());
                 for (const auto& protoChunkId : request.chunk_ids()) {
                     auto chunkId = FromProto<TChunkId>(protoChunkId);
                     NRecords::TChunkReplicasKey chunkReplicaKey{
-                        .IdHash = HashFromId(chunkId),
                         .ChunkId = chunkId,
                     };
                     transaction->DeleteRow(chunkReplicaKey);
@@ -5779,7 +5776,6 @@ private:
                     NRecords::TLocationReplicasKey locationReplicaKey{
                         .CellTag = Bootstrap_->GetCellTag(),
                         .NodeId = nodeId,
-                        .IdHash = HashFromId(locationUuid),
                         .LocationUuid = locationUuid,
                         .ChunkId = chunkId,
                         .ReplicaIndex = protoReplica.replica_index()
@@ -5795,7 +5791,6 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
-
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
             }));

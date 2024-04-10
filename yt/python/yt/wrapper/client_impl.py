@@ -643,13 +643,12 @@ class YtClient(ClientState):
             self,
             table, output_file):
         """
-        Dump parquet into a file from table with a strict schema
-        `parquet doc <https://parquet.apache.org/docs>`_
+        Dump table with a strict schema as `Parquet <https://parquet.apache.org/docs>` file
 
         :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param output_file: path to output file
-        :type path: str
+        :type output_file: str
 
         """
         return client_api.dump_parquet(
@@ -2866,13 +2865,12 @@ class YtClient(ClientState):
             self,
             table, input_file):
         """
-        Upload parquet from a file into a table that must be created with a strict schema
-        `parquet doc <https://parquet.apache.org/docs>`_
+        Upload `Parquet <https://parquet.apache.org/docs>` file as a table
 
         :param table: table
         :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param input_file: path to input file
-        :type path: str
+        :type input_file: str
 
         """
         return client_api.upload_parquet(

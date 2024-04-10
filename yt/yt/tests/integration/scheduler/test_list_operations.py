@@ -1082,14 +1082,42 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
                 "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
+                # Wait each batch to remove not more than 100ms
+                "remove_batch_timeout": 100,
+                # Wait each batch to archive not more than 100ms
+                "archive_batch_timeout": 100,
+                # Retry sleeps
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
                 # Cleanup all operations
                 "hard_retained_operation_count": 0,
                 "clean_delay": 0,
             },
+            "fair_share_update_period": 100,
             "static_orchid_cache_update_period": 100,
             "alerts_update_period": 100,
             "watchers_update_period": 100,
         },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "scheduler_connector": {
+                    "heartbeat_executor": {
+                        "period": 100,  # 100 msec
+                    },
+                },
+            }
+        }
     }
 
     def setup_method(self, method):

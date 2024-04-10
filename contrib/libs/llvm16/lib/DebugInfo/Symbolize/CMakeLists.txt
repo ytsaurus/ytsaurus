@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(lib-DebugInfo-Symbolize)
 
 
@@ -25,7 +26,7 @@ target_include_directories(lib-DebugInfo-Symbolize PRIVATE
 )
 
 target_link_libraries(lib-DebugInfo-Symbolize PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   lib-DebugInfo-DWARF

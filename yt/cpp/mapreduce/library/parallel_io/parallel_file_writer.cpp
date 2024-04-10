@@ -250,7 +250,6 @@ void TParallelFileWriter::DoWriteTask(
         } catch (...) {
             // Never mind if tx is already dead - we won't commit it anyway => no data will be written.
         }
-        Finished_ = true;
     }
 }
 

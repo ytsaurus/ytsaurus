@@ -290,8 +290,6 @@ SRCS(
 
     lease_client/proto/lease_service.proto
 
-    misc/config.cpp
-    misc/memory_reference_tracker.cpp
     misc/memory_usage_tracker.cpp
     misc/synchronizer_detail.cpp
 
@@ -541,6 +539,31 @@ GENERATE_YT_RECORD(
 
 GENERATE_YT_RECORD(
     sequoia_client/records/path_to_node_id.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/transactions.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+        yt/yt/core/ytree/attributes.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/transaction_descendants.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/transaction_replicas.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/dependent_transactions.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h
 )

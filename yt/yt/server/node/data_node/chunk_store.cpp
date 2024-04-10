@@ -72,9 +72,9 @@ public:
         return Bootstrap_->GetMasterEpoch();
     }
 
-    INodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() override
     {
-        return Bootstrap_->GetMemoryUsageTracker();
+        return Bootstrap_->GetNodeMemoryUsageTracker();
     }
 
     void CancelLocationSessions(const TChunkLocationPtr& location) override

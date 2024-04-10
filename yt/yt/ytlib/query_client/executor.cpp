@@ -79,6 +79,181 @@ TRow GetPivotKey(const TTabletInfoPtr& shard)
     return shard->PivotKey;
 }
 
+std::vector<std::pair<TDataSource, TString>> DoInferRanges(
+    const NHiveClient::ICellDirectoryPtr& cellDirectory,
+    const NNodeTrackerClient::TNetworkPreferenceList& networks,
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
+    const TTableMountInfoPtr& tableInfo,
+    TConstQueryPtr query,
+    const TDataSource& dataSource,
+    const TQueryOptions& options,
+    TRowBufferPtr rowBuffer,
+    const NLogging::TLogger& Logger)
+{
+    auto tableId = dataSource.ObjectId;
+    auto ranges = dataSource.Ranges;
+    auto keys = dataSource.Keys;
+
+    // TODO(lukyan): Infer ranges if no initial ranges or keys?
+    if (!keys && query->InferRanges) {
+        ranges = GetPrunedRanges(
+            query,
+            tableId,
+            ranges,
+            rowBuffer,
+            columnEvaluatorCache,
+            GetBuiltinRangeExtractors(),
+            options);
+
+        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
+            ranges.Size(),
+            tableId);
+    }
+
+    if (*query->Schema.Original != *tableInfo->Schemas[ETableSchemaKind::Query]) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::InvalidMountRevision,
+            "Invalid revision for table info; schema has changed")
+            << TErrorAttribute("path", tableInfo->Path)
+            << TErrorAttribute("original_schema", *query->Schema.Original)
+            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
+    }
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateNotPhysicallyLog();
+
+    THashMap<NTabletClient::TTabletCellId, TCellDescriptorPtr> tabletCellReplicas;
+
+    auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
+        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+
+        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptorPtr());
+        auto& descriptor = insertResult.first->second;
+
+        if (insertResult.second) {
+            descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
+        }
+
+        // TODO(babenko): pass proper read options
+        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(*descriptor);
+        return peerDescriptor.GetAddressOrThrow(networks);
+    };
+
+    std::vector<std::pair<TDataSource, TString>> subsources;
+    auto makeSubsource = [&] (TShardIt it) {
+        // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
+        // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
+
+        YT_VERIFY(it != tableInfo->Tablets.begin()); // But can be equal to end.
+
+        const auto& tabletInfo = *(it - 1);
+
+        TDataSource dataSubsource;
+
+        dataSubsource.ObjectId = tabletInfo->TabletId;
+        dataSubsource.CellId = tabletInfo->CellId;
+        dataSubsource.MountRevision = tabletInfo->MountRevision;
+
+        const auto& address = getAddress(tabletInfo);
+
+        return &subsources.emplace_back(std::move(dataSubsource), address).first;
+    };
+
+    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
+        ranges ? "ranges" : "keys",
+        ranges ? ranges.size() : keys.size(),
+        tableInfo->Tablets.size(),
+        tableInfo->LowerCapBound,
+        tableInfo->UpperCapBound);
+
+    if (options.VerboseLogging) {
+        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
+            ranges ? "ranges" : "keys",
+            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
+                builder->AppendFormat("%v", tablet->PivotKey.Get());
+            }));
+    }
+
+    if (ranges) {
+        YT_VERIFY(!keys);
+
+        SplitRangesByTablets(
+            ranges,
+            MakeRange(tableInfo->Tablets),
+            tableInfo->LowerCapBound,
+            tableInfo->UpperCapBound,
+            [&] (auto shardIt, auto rangesIt, auto rangesItEnd) {
+                if (tableInfo->IsOrdered()) {
+                    // Crop ranges for ordered table.
+                    auto nextPivotKey = shardIt != MakeRange(tableInfo->Tablets).end()
+                        ? GetPivotKey(*shardIt)
+                        : tableInfo->UpperCapBound;
+
+                    auto lower = std::max(rangesIt->first, GetPivotKey(*(shardIt - 1)));
+                    auto upper = std::min((rangesItEnd - 1)->second, nextPivotKey);
+
+                    std::vector<TRowRange> result;
+                    ForEachRange(TRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
+                        auto [lower, upper] = item;
+                        result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
+                    });
+
+                    makeSubsource(shardIt)->Ranges = MakeSharedRange(
+                        result,
+                        ranges.GetHolder());
+                } else {
+                    makeSubsource(shardIt)->Ranges = MakeSharedRange(
+                        MakeRange(rangesIt, rangesItEnd),
+                        ranges.GetHolder());
+                }
+            });
+    } else if (keys) {
+        YT_VERIFY(tableInfo->IsSorted());
+        YT_VERIFY(!ranges);
+        size_t keyWidth = keys.Front().GetCount();
+
+        auto fullKeySize = tableInfo->Schemas[ETableSchemaKind::Query]->GetKeyColumnCount();
+
+        SplitKeysByTablets(
+            keys,
+            keyWidth,
+            fullKeySize,
+            MakeRange(tableInfo->Tablets),
+            tableInfo->LowerCapBound,
+            tableInfo->UpperCapBound,
+            [&] (auto shardIt, auto keysIt, auto keysItEnd) {
+                makeSubsource(shardIt)->Keys = MakeSharedRange(
+                    MakeRange(keysIt, keysItEnd),
+                    keys.GetHolder());
+            });
+    }
+
+    return subsources;
+}
+
+std::vector<std::pair<TDataSource, TString>> InferRanges(
+    NApi::NNative::IConnectionPtr connection,
+    TConstQueryPtr query,
+    const TDataSource& dataSource,
+    const TQueryOptions& options,
+    TRowBufferPtr rowBuffer,
+    const NLogging::TLogger& Logger)
+{
+    auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
+        .ValueOrThrow();
+
+    return DoInferRanges(
+        connection->GetCellDirectory(),
+        connection->GetNetworks(),
+        connection->GetColumnEvaluatorCache(),
+        tableInfo,
+        query,
+        dataSource,
+        options,
+        rowBuffer,
+        Logger);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryResponseReader
@@ -183,7 +358,7 @@ public:
         : MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Connection_(std::move(connection))
         , Invoker_(std::move(invoker))
-        , ColumnEvaluatorCache(std::move(columnEvaluatorCache))
+        , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
         , FunctionImplCache_(std::move(functionImplCache))
@@ -215,7 +390,7 @@ private:
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const NNative::IConnectionPtr Connection_;
     const IInvokerPtr Invoker_;
-    const IColumnEvaluatorCachePtr ColumnEvaluatorCache;
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     const IEvaluatorPtr Evaluator_;
     const INodeChannelFactoryPtr NodeChannelFactory_;
     const TFunctionImplCachePtr FunctionImplCache_;
@@ -225,6 +400,7 @@ private:
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         const IUnversionedRowsetWriterPtr& writer,
+        bool sortedDataSource,
         int subrangesCount,
         std::function<std::pair<std::vector<TDataSource>, TString>(int)> getSubsources)
     {
@@ -272,6 +448,7 @@ private:
                     externalCGInfo,
                     options,
                     std::move(dataSources),
+                    sortedDataSource,
                     address);
             },
             [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
@@ -300,16 +477,42 @@ private:
         auto rowBuffer = New<TRowBuffer>(
             TQueryExecutorRowBufferTag{},
             MemoryChunkProvider_);
-        auto allSplits = InferRanges(
-            Connection_,
+
+        auto tableInfo = WaitFor(Connection_->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
+            .ValueOrThrow();
+
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        const auto& networks = Connection_->GetNetworks();
+
+        auto allSplits = DoInferRanges(
+            cellDirectory,
+            networks,
+            Connection_->GetColumnEvaluatorCache(),
+            tableInfo,
             query,
             dataSource,
             options,
             rowBuffer,
             Logger);
 
-        for (const auto& split : allSplits) {
-            if (split.first.KeyWidth == 0 && !query->IsOrdered()) {
+        if (!query->IsOrdered()) {
+            size_t minKeyWidth = std::numeric_limits<size_t>::max();
+            for (const auto& [split, address] : allSplits) {
+                for (const auto& range : split.Ranges) {
+                    minKeyWidth = std::min({
+                        minKeyWidth,
+                        GetSignificantWidth(range.first),
+                        GetSignificantWidth(range.second)});
+                }
+
+                for (const auto& key : split.Keys) {
+                    minKeyWidth = std::min(
+                        minKeyWidth,
+                        static_cast<size_t>(key.GetCount()));
+                }
+            }
+
+            if (minKeyWidth == 0) {
                 if (!options.AllowFullScan) {
                     THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
                         "the query is inefficient, consider rewriting it");
@@ -342,6 +545,7 @@ private:
             externalCGInfo,
             options,
             writer,
+            tableInfo->IsSorted(),
             groupedSplits.size(),
             [&] (int index) {
                 return groupedSplits[index];
@@ -360,8 +564,18 @@ private:
         auto rowBuffer = New<TRowBuffer>(
             TQueryExecutorRowBufferTag(),
             MemoryChunkProvider_);
-        auto allSplits = InferRanges(
-            Connection_,
+
+        auto tableInfo = WaitFor(Connection_->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
+            .ValueOrThrow();
+
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        const auto& networks = Connection_->GetNetworks();
+
+        auto allSplits = DoInferRanges(
+            cellDirectory,
+            networks,
+            Connection_->GetColumnEvaluatorCache(),
+            tableInfo,
             query,
             dataSource,
             options,
@@ -376,6 +590,7 @@ private:
             externalCGInfo,
             options,
             writer,
+            tableInfo->IsSorted(),
             allSplits.size(),
             [&] (int index) {
                 const auto& split = allSplits[index];
@@ -395,6 +610,7 @@ private:
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
         std::vector<TDataSource> dataSources,
+        bool sortedDataSource,
         const TString& address)
     {
         auto Logger = MakeQueryLogger(query);
@@ -429,7 +645,30 @@ private:
             ToProto(req->mutable_external_functions(), externalCGInfo->Functions);
             externalCGInfo->NodeDirectory->DumpTo(req->mutable_node_directory());
             ToProto(req->mutable_options(), options);
-            ToProto(req->mutable_data_sources(), dataSources);
+
+            std::vector<NTableClient::TLogicalTypePtr> schema;
+            for (int index = 0; index < query->Schema.Original->GetKeyColumnCount(); ++index) {
+                schema.push_back(query->Schema.Original->Columns()[index].LogicalType());
+            }
+
+            auto lookupSupported = sortedDataSource;
+            size_t minKeyWidth = std::numeric_limits<size_t>::max();
+            for (const auto& split : dataSources) {
+                for (const auto& range : split.Ranges) {
+                    minKeyWidth = std::min({
+                        minKeyWidth,
+                        GetSignificantWidth(range.first),
+                        GetSignificantWidth(range.second)});
+                }
+
+                for (const auto& key : split.Keys) {
+                    minKeyWidth = std::min(
+                        minKeyWidth,
+                        static_cast<size_t>(key.GetCount()));
+                }
+            }
+
+            ToProto(req->mutable_data_sources(), dataSources, schema, lookupSupported, minKeyWidth);
             req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
         }
 
@@ -456,175 +695,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
-
-std::vector<std::pair<TDataSource, TString>> InferRanges(
-    NNative::IConnectionPtr connection,
-    TConstQueryPtr query,
-    const TDataSource& dataSource,
-    const TQueryOptions& options,
-    TRowBufferPtr rowBuffer,
-    const NLogging::TLogger& Logger)
-{
-    auto tableId = dataSource.ObjectId;
-    auto ranges = dataSource.Ranges;
-    auto keys = dataSource.Keys;
-
-    if (ranges) {
-        auto prunedRanges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            connection->GetColumnEvaluatorCache(),
-            GetBuiltinRangeExtractors(),
-            options);
-
-        YT_LOG_DEBUG("Ranges are refined (PrunedRangeCount: %v, OriginalRangeCount: %v, TableId: %v)",
-            prunedRanges.size(),
-            ranges.Size(),
-            tableId);
-
-        ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
-    }
-
-    auto tableMountCache = connection->GetTableMountCache();
-    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
-        .ValueOrThrow();
-
-    if (*query->Schema.Original != *tableInfo->Schemas[ETableSchemaKind::Query]) {
-        THROW_ERROR_EXCEPTION(
-            NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid revision for table info; schema has changed")
-            << TErrorAttribute("path", tableInfo->Path)
-            << TErrorAttribute("original_schema", *query->Schema.Original)
-            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
-    }
-
-    tableInfo->ValidateDynamic();
-    tableInfo->ValidateNotPhysicallyLog();
-
-    THashMap<NTabletClient::TTabletCellId, TCellDescriptorPtr> tabletCellReplicas;
-
-    auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
-        const auto& cellDirectory = connection->GetCellDirectory();
-        const auto& networks = connection->GetNetworks();
-
-        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
-
-        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptorPtr());
-        auto& descriptor = insertResult.first->second;
-
-        if (insertResult.second) {
-            descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(tabletInfo->CellId);
-        }
-
-        // TODO(babenko): pass proper read options
-        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(*descriptor);
-        return peerDescriptor.GetAddressOrThrow(networks);
-    };
-
-    std::vector<std::pair<TDataSource, TString>> subsources;
-    auto makeSubsource = [&] (TShardIt it, size_t keyWidth) {
-        // `.Slice(1, tablets.size())`, `*(it - 1)` and `(*shardIt)->PivotKey` are related.
-        // If there would be (*shardIt)->NextPivotKey then no .Slice(1, tablets.size()) and *(it - 1) are needed.
-
-        YT_VERIFY(it != tableInfo->Tablets.begin()); // But can be equal to end.
-
-        const auto& tabletInfo = *(it - 1);
-
-        TDataSource dataSubsource;
-
-        dataSubsource.Schema = dataSource.Schema;
-        dataSubsource.LookupSupported = tableInfo->IsSorted();
-
-        dataSubsource.ObjectId = tabletInfo->TabletId;
-        dataSubsource.CellId = tabletInfo->CellId;
-        dataSubsource.MountRevision = tabletInfo->MountRevision;
-        dataSubsource.KeyWidth = keyWidth;
-
-        const auto& address = getAddress(tabletInfo);
-
-        return &subsources.emplace_back(std::move(dataSubsource), address).first;
-    };
-
-    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
-        ranges ? "ranges" : "keys",
-        ranges ? ranges.size() : keys.size(),
-        tableInfo->Tablets.size(),
-        tableInfo->LowerCapBound,
-        tableInfo->UpperCapBound);
-
-    if (options.VerboseLogging) {
-        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
-            ranges ? "ranges" : "keys",
-            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
-                builder->AppendFormat("%v", tablet->PivotKey.Get());
-            }));
-    }
-
-    if (dataSource.Ranges) {
-        YT_VERIFY(!dataSource.Keys);
-
-        size_t keyWidth = std::numeric_limits<size_t>::max();
-        for (const auto& range : ranges) {
-            keyWidth = std::min({keyWidth, GetSignificantWidth(range.first), GetSignificantWidth(range.second)});
-        }
-
-        SplitRangesByTablets(
-            ranges,
-            MakeRange(tableInfo->Tablets),
-            tableInfo->LowerCapBound,
-            tableInfo->UpperCapBound,
-            [&] (auto shardIt, auto rangesIt, auto rangesItEnd) {
-                if (tableInfo->IsOrdered()) {
-                    // Crop ranges for ordered table.
-                    auto nextPivotKey = shardIt != MakeRange(tableInfo->Tablets).end()
-                        ? GetPivotKey(*shardIt)
-                        : tableInfo->UpperCapBound;
-
-                    auto lower = std::max(rangesIt->first, GetPivotKey(*(shardIt - 1)));
-                    auto upper = std::min((rangesItEnd - 1)->second, nextPivotKey);
-
-                    std::vector<TRowRange> result;
-                    ForEachRange(TRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
-                        auto [lower, upper] = item;
-                        result.emplace_back(rowBuffer->CaptureRow(lower), rowBuffer->CaptureRow(upper));
-                    });
-
-                    makeSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
-                        result,
-                        ranges.GetHolder());
-                } else {
-                    makeSubsource(shardIt, keyWidth)->Ranges = MakeSharedRange(
-                        MakeRange(rangesIt, rangesItEnd),
-                        ranges.GetHolder());
-                }
-            });
-    } else {
-        YT_VERIFY(tableInfo->IsSorted());
-        YT_VERIFY(!dataSource.Ranges);
-        YT_VERIFY(!dataSource.Schema.empty());
-        size_t keyWidth = dataSource.Schema.size();
-
-        auto fullKeySize = tableInfo->Schemas[ETableSchemaKind::Query]->GetKeyColumnCount();
-
-        SplitKeysByTablets(
-            keys,
-            keyWidth,
-            fullKeySize,
-            MakeRange(tableInfo->Tablets),
-            tableInfo->LowerCapBound,
-            tableInfo->UpperCapBound,
-            [&] (auto shardIt, auto keysIt, auto keysItEnd) {
-                makeSubsource(shardIt, fullKeySize)->Keys = MakeSharedRange(
-                    MakeRange(keysIt, keysItEnd),
-                    keys.GetHolder());
-            });
-    }
-
-    return subsources;
-}
-
 
 IExecutorPtr CreateQueryExecutor(
     IMemoryChunkProviderPtr memoryChunkProvider,

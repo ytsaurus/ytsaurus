@@ -239,6 +239,12 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);
 
+    registrar.Parameter("enable_container_device_checker", &TThis::EnableContainerDeviceChecker)
+        .Default(true);
+
+    registrar.Parameter("restart_container_after_failed_device_check", &TThis::RestartContainerAfterFailedDeviceCheck)
+        .Default(true);
+
     registrar.Parameter("job_environment", &TThis::JobEnvironment)
         .DefaultCtor([] { return ConvertToNode(New<TSimpleJobEnvironmentConfig>()); });
 }

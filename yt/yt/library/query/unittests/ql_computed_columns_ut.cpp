@@ -37,7 +37,7 @@ protected:
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
     }
 
-    std::vector<TKeyRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
+    TSharedRange<TRowRange> Coordinate(const TString& source, ui64 rangeExpansionLimit = 1000)
     {
         auto fragment = PreparePlanFragment(
             &PrepareMock_,
@@ -51,7 +51,7 @@ protected:
         options.RangeExpansionLimit = rangeExpansionLimit;
         options.VerboseLogging = true;
 
-        auto prunedSplits = GetPrunedRanges(
+        return GetPrunedRanges(
             query,
             dataSource.ObjectId,
             dataSource.Ranges,
@@ -59,11 +59,9 @@ protected:
             ColumnEvaluatorCache_,
             GetBuiltinRangeExtractors(),
             options);
-
-        return GetRangesFromSources(prunedSplits);
     }
 
-    std::vector<TKeyRange> CoordinateForeign(const TString& source)
+    TSharedRange<TRowRange> CoordinateForeign(const TString& source)
     {
         auto fragment = PreparePlanFragment(
             &PrepareMock_,
@@ -82,7 +80,7 @@ protected:
         options.RangeExpansionLimit = 1000;
         options.VerboseLogging = true;
 
-        auto prunedSplits = GetPrunedRanges(
+        return GetPrunedRanges(
             query->WhereClause,
             query->JoinClauses[0]->Schema.Original,
             query->JoinClauses[0]->GetKeyColumns(),
@@ -92,8 +90,6 @@ protected:
             ColumnEvaluatorCache_,
             GetBuiltinRangeExtractors(),
             options);
-
-        return GetRangesFromSources(prunedSplits);
     }
 
     void SetSchema(const TTableSchema& schema)
@@ -136,18 +132,6 @@ private:
         return MakeFuture(dataSplit);
     }
 
-    std::vector<TKeyRange> GetRangesFromSources(const TRowRanges& rowRanges)
-    {
-        std::vector<TKeyRange> ranges;
-
-        for (const auto& range : rowRanges) {
-            ranges.push_back(TKeyRange(TLegacyOwningKey(range.first), TLegacyOwningKey(range.second)));
-        }
-
-        std::sort(ranges.begin(), ranges.end());
-        return ranges;
-    }
-
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     TTableSchema Schema_;
@@ -161,7 +145,7 @@ TEST_F(TComputedColumnTest, NoKeyColumnsInPredicate)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -183,7 +167,7 @@ TEST_F(TComputedColumnTest, Inequality)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -377,7 +361,7 @@ TEST_F(TComputedColumnTest, Far0)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -508,7 +492,7 @@ TEST_F(TComputedColumnTest, NoComputedColumns)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -530,7 +514,7 @@ TEST_F(TComputedColumnTest, Modulo0)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -616,7 +600,7 @@ TEST_F(TComputedColumnTest, Modulo3)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -1087,7 +1071,7 @@ TEST_F(TComputedColumnTest, EstimationOverflow)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -1520,7 +1504,7 @@ TEST_F(TComputedColumnTest, YabsGoodEvent)
 
     EXPECT_EQ(1u, result.size());
 
-    EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+    EXPECT_EQ(YsonToKey(""), result[0].first);
     EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
 }
 
@@ -1560,7 +1544,7 @@ TEST_F(TComputedColumnTest, Null)
 
         EXPECT_EQ(1u, result.size());
 
-        EXPECT_EQ(YsonToKey(_MIN_), result[0].first);
+        EXPECT_EQ(YsonToKey(""), result[0].first);
         EXPECT_EQ(YsonToKey(_MAX_), result[0].second);
     }
 

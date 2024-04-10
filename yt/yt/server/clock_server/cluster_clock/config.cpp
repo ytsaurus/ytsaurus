@@ -25,6 +25,8 @@ void TClusterClockConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
+    registrar.Parameter("clock_cluster_tag", &TThis::ClockClusterTag)
+        .Default(InvalidCellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

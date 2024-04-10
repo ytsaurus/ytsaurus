@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(Target-X86-MCTargetDesc)
 
 
@@ -27,7 +28,7 @@ target_include_directories(Target-X86-MCTargetDesc PRIVATE
 )
 
 target_link_libraries(Target-X86-MCTargetDesc PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

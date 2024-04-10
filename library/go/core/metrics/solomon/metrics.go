@@ -105,7 +105,7 @@ type Metric interface {
 //	cntvec := r.CounterVec("mycounter", []string{"mytag"})
 //	Rated(cntvec)
 //
-// For additional info: https://docs.yandex-team.ru/solomon/data-collection/dataformat/json
+// For additional info: https://m.yandex-team.ru/docs/concepts/data-model#rate
 func Rated(s interface{}) {
 	switch st := s.(type) {
 	case *Counter:
@@ -122,7 +122,7 @@ func Rated(s interface{}) {
 	case *DurationHistogramVec:
 		st.vec.rated = true
 	}
-	// any other metrics types are unrateable
+	// All other metric types cannot be rated
 }
 
 var (

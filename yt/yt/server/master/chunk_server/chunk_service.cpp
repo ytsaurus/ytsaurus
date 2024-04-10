@@ -59,6 +59,7 @@ using namespace NSecurityServer;
 using namespace NCellMaster;
 using namespace NHydra;
 using namespace NTransactionClient;
+using namespace NTransactionServer;
 using namespace NRpc;
 using namespace NDataNodeTrackerClient;
 
@@ -150,6 +151,8 @@ private:
     TPerUserRequestQueueProviderPtr CreateChunkRequestQueueProvider_;
     TPerUserRequestQueueProviderPtr ExecuteBatchRequestQueueProvider_;
 
+    std::atomic<bool> EnableCypressTransactionsInSequoia_;
+
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
         return [=] (TString userName, TRequestQueuePtr queue) {
@@ -204,9 +207,26 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkService;
     }
 
+    void UpdateTransactionMirroringToSequoia()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
+        EnableCypressTransactionsInSequoia_.store(
+            newConfig->Enable && newConfig->EnableCypressTransactionsInSequoia,
+            std::memory_order::release);
+    }
+
+    bool GetEnableCypressTransactionsInSequoia() const noexcept
+    {
+        return EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire);
+    }
+
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        UpdateTransactionMirroringToSequoia();
 
         const auto& config = GetDynamicConfig();
 
@@ -732,14 +752,14 @@ private:
         // just the Object Service ones), then enable boomerangs here.
         const auto enableMutationBoomerangs = false;
 
-        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+        NTransactionServer::RunTransactionReplicationSessionAndReply(
             !suppressUpstreamSync,
             Bootstrap_,
             std::move(transactionIds),
             context,
             chunkManager->CreateExecuteBatchMutation(context),
-            enableMutationBoomerangs);
-        YT_VERIFY(preparationFuture);
+            enableMutationBoomerangs,
+            GetEnableCypressTransactionsInSequoia());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, AttachChunkTrees)
@@ -761,14 +781,15 @@ private:
         // TODO(shakurov): use mutation idempotizer for all mutations (not
         // just the Object Service ones), then enable boomerangs here.
         const auto enableMutationBoomerangs = false;
-        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+
+        NTransactionServer::RunTransactionReplicationSessionAndReply(
             !suppressUpstreamSync,
             Bootstrap_,
             {transactionId},
             context,
             chunkManager->CreateAttachChunkTreesMutation(context),
-            enableMutationBoomerangs);
-        YT_VERIFY(preparationFuture);
+            enableMutationBoomerangs,
+            GetEnableCypressTransactionsInSequoia());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UnstageChunkTree)
@@ -806,21 +827,22 @@ private:
         // TODO(shakurov): use mutation idempotizer for all mutations (not
         // just the Object Service ones), then enable boomerangs here.
         const auto enableMutationBoomerangs = false;
-        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+
+        NTransactionServer::RunTransactionReplicationSessionAndReply(
             !suppressUpstreamSync,
             Bootstrap_,
             {transactionId},
             context,
             chunkManager->CreateCreateChunkListsMutation(context),
-            enableMutationBoomerangs);
-        YT_VERIFY(preparationFuture);
+            enableMutationBoomerangs,
+            GetEnableCypressTransactionsInSequoia());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SealChunk)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         context->SetRequestInfo(
-            "ChunkId: %v, ",
+            "ChunkId: %v",
             chunkId);
 
         ValidateClusterInitialized();
@@ -836,7 +858,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo(
-            "TransactionId: %v, ",
+            "TransactionId: %v",
             transactionId);
 
         ValidateClusterInitialized();
@@ -856,21 +878,21 @@ private:
         // just the Object Service ones), then enable boomerangs here.
         const auto enableMutationBoomerangs = false;
 
-        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+        NTransactionServer::RunTransactionReplicationSessionAndReply(
             !suppressUpstreamSync,
             Bootstrap_,
             {transactionId},
             context,
             chunkManager->CreateCreateChunkMutation(context),
-            enableMutationBoomerangs);
-        YT_VERIFY(preparationFuture);
+            enableMutationBoomerangs,
+            GetEnableCypressTransactionsInSequoia());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ConfirmChunk)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         context->SetRequestInfo(
-            "ChunkId: %v, ",
+            "ChunkId: %v",
             chunkId);
 
         ValidateClusterInitialized();

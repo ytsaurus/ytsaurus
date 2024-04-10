@@ -26,6 +26,7 @@ from yt.environment.helpers import (  # noqa
     NODES_SERVICE,
     CHAOS_NODES_SERVICE,
     MASTERS_SERVICE,
+    MASTER_CACHES_SERVICE,
     QUEUE_AGENTS_SERVICE,
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
@@ -39,6 +40,7 @@ import yt.test_helpers.cleanup as test_cleanup
 from yt.common import YtResponseError, format_error, update_inplace
 import yt.logger
 
+from yt_commands import print_debug
 from yt_driver_bindings import reopen_logs
 from yt_helpers import master_exit_read_only_sync
 
@@ -294,6 +296,7 @@ class YTEnvSetup(object):
     USE_PRIMARY_CLOCKS = True
 
     USE_SEQUOIA = False
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
     # Ground cluster should be lean by default.
@@ -344,6 +347,10 @@ class YTEnvSetup(object):
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config, tag, peer_index, cluster_index):
+        pass
+
+    @classmethod
+    def modify_clock_config(cls, config, cluster_index, master_cell_tag):
         pass
 
     @classmethod
@@ -837,6 +844,8 @@ class YTEnvSetup(object):
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
+        for config in configs["clock"][configs["clock"]["cell_tag"]]:
+            cls.modify_clock_config(config, cluster_index, configs["master"]["primary_cell_tag"])
         for index, config in enumerate(configs["queue_agent"]):
             config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
             configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
@@ -875,6 +884,10 @@ class YTEnvSetup(object):
             # COMPAT(arkady-e1ppa)
             if "nodes" not in artifact_components_23_2:
                 config["controller_agent"]["job_tracker"]["enable_graceful_abort"] = True
+
+            if "node" in artifact_components_23_2:
+                print_debug("Turning off job_id_unequal_to_allocation_id flag")
+                config["controller_agent"]["job_id_unequal_to_allocation_id"] = False
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
@@ -1122,7 +1135,7 @@ class YTEnvSetup(object):
                 "//tmp",
                 attributes={"scion_cell_tag": 10},
                 force=True,
-                driver=driver
+                driver=driver,
             )
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.create(
@@ -1231,6 +1244,9 @@ class YTEnvSetup(object):
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver) == [])
+
+                for table in DESCRIPTORS.get_group("transactions"):
+                    wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
@@ -1495,6 +1511,8 @@ class YTEnvSetup(object):
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
             dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
+            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+                dynamic_master_config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
 
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
@@ -1823,3 +1841,17 @@ def get_custom_rootfs_delta_node_config():
             },
         }
     }
+
+
+def get_service_component_name(service):
+    return {
+        SCHEDULERS_SERVICE: "scheduler",
+        CONTROLLER_AGENTS_SERVICE: "controller-agent",
+        NODES_SERVICE: "node",
+        CHAOS_NODES_SERVICE: "node",
+        MASTERS_SERVICE: "master",
+        MASTER_CACHES_SERVICE: "master-cache",
+        QUEUE_AGENTS_SERVICE: "queue-agent",
+        RPC_PROXIES_SERVICE: "proxy",
+        HTTP_PROXIES_SERVICE: "http-proxy",
+    }[service]

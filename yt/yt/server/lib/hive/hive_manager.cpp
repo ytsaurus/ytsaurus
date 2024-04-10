@@ -715,13 +715,15 @@ private:
         context->SetRequestInfo("LogicalTime: %v",
             requestTime);
 
-        auto [logicalTime, sequenceNumber] = LogicalTimeRegistry_->GetConsistentState(requestTime);
+        auto [logicalTime, state] = LogicalTimeRegistry_->GetConsistentState(requestTime);
         response->set_logical_time(logicalTime.Underlying());
-        response->set_sequence_number(sequenceNumber);
+        response->set_sequence_number(state.SequenceNumber);
+        response->set_segment_id(state.SegmentId);
 
-        context->SetResponseInfo("StateLogicalTime: %v, StateSequenceNumber: %v",
+        context->SetResponseInfo("StateLogicalTime: %v, StateSequenceNumber: %v, StateSegmentId: %v",
             logicalTime,
-            sequenceNumber);
+            state.SequenceNumber,
+            state.SegmentId);
         context->Reply();
     }
 

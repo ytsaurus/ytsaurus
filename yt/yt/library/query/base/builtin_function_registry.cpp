@@ -145,6 +145,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterFunction(
+        "is_finite",
+        std::vector<TType>{EValueType::Double},
+        EValueType::Boolean,
+        "is_finite",
+        ECallingConvention::Simple);
+
+    builder->RegisterFunction(
         "regex_full_match",
         "regex_full_match",
         std::unordered_map<TTypeParameter, TUnionType>(),

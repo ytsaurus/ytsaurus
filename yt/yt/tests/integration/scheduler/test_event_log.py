@@ -32,6 +32,7 @@ class TestEventLog(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "event_log": {
+                "enable": True,
                 "flush_period": 1000,
             },
             "accumulated_usage_log_period": 1000,
@@ -39,7 +40,14 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"event_log": {"flush_period": 1000}}}
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "event_log": {
+                "enable": True,
+                "flush_period": 1000,
+            },
+        },
+    }
 
     LOG_WRITE_WAIT_TIME = 0.5
 

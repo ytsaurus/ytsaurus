@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(backends)
 add_subdirectory(plain_text_formatter)
 add_library(cpp-yt-logging)
@@ -23,7 +24,7 @@ target_compile_options(cpp-yt-logging PRIVATE
 )
 
 target_link_libraries(cpp-yt-logging PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-yt-assert

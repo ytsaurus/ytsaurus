@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(fastops-fastops-avx2)
 
 
@@ -28,7 +29,7 @@ target_compile_options(fastops-fastops-avx2 PRIVATE
 )
 
 target_link_libraries(fastops-fastops-avx2 PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   fastops-fastops-core
 )

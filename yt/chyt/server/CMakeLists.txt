@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(bin)
 add_subdirectory(protos)
 add_subdirectory(unittests)
@@ -36,7 +37,7 @@ target_include_directories(yt-chyt-server PRIVATE
 )
 
 target_link_libraries(yt-chyt-server PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine
@@ -147,7 +148,7 @@ target_include_directories(yt-chyt-server.global PRIVATE
 )
 
 target_link_libraries(yt-chyt-server.global PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine

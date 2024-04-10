@@ -550,7 +550,18 @@ private:
 
                     size_t minKeyWidth = std::numeric_limits<size_t>::max();
                     for (const auto& split : dataSplits) {
-                        minKeyWidth = std::min(minKeyWidth, split.KeyWidth);
+                        for (const auto& range : split.Ranges) {
+                            minKeyWidth = std::min({
+                                minKeyWidth,
+                                GetSignificantWidth(range.first),
+                                GetSignificantWidth(range.second)});
+                        }
+
+                        for (const auto& key : split.Keys) {
+                            minKeyWidth = std::min(
+                                minKeyWidth,
+                                static_cast<size_t>(key.GetCount()));
+                        }
                     }
 
                     YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v)",
@@ -565,7 +576,6 @@ private:
                         bool isRanges = false;
                         bool isKeys = false;
 
-                        std::vector<TLogicalTypePtr> schema;
                         for (const auto& split : dataSplits) {
                             for (int index = 0; index < std::ssize(split.Ranges); ++index) {
                                 isRanges = true;
@@ -599,8 +609,6 @@ private:
                                     upperBound);
                             }
 
-                            schema = split.Schema;
-
                             for (int index = 0; index < std::ssize(split.Keys); ++index) {
                                 isKeys = true;
                                 YT_VERIFY(!isRanges);
@@ -632,7 +640,6 @@ private:
                         if (isKeys) {
                             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
                             dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
-                            dataSource.Schema = schema;
                         }
 
                         // COMPAT(lukyan): Use ordered read without modification of protocol
@@ -958,20 +965,22 @@ private:
         YT_LOG_DEBUG("Classifying data sources into ranges and lookup keys");
 
         std::vector<TDataSource> classifiedDataSources;
+
         auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
-        std::vector<TLogicalTypePtr> keySchema;
-        for (ssize_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->Schema.Original->Columns()[index].LogicalType());
-        }
+        bool lookupSupported;
 
         bool hasRanges = false;
         for (const auto& source : DataSources_) {
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(source.ObjectId);
+
+            lookupSupported = tabletSnapshot->TableSchema->IsSorted();
+
             for (const auto& range : source.Ranges) {
                 auto lowerBound = range.first;
                 auto upperBound = range.second;
 
-                if (source.LookupSupported &&
+                if (lookupSupported &&
                     keySize == static_cast<int>(lowerBound.GetCount()) &&
                     keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
                     upperBound[keySize].Type == EValueType::Max &&
@@ -998,8 +1007,6 @@ private:
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
                         .Ranges = MakeSharedRange(std::move(rowRanges), source.Ranges.GetHolder(), rowBuffer),
-                        .LookupSupported = source.LookupSupported,
-                        .KeyWidth = source.KeyWidth,
                     });
                 }
             };
@@ -1010,10 +1017,7 @@ private:
                     classifiedDataSources.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
-                        .Schema = keySchema,
                         .Keys = MakeSharedRange(std::move(keys), source.Ranges.GetHolder()),
-                        .LookupSupported = source.LookupSupported,
-                        .KeyWidth = source.KeyWidth,
                     });
                 }
             };
@@ -1022,7 +1026,7 @@ private:
                 auto lowerBound = range.first;
                 auto upperBound = range.second;
 
-                if (source.LookupSupported &&
+                if (lookupSupported &&
                     !hasRanges &&
                     keySize == static_cast<int>(lowerBound.GetCount()) &&
                     keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
@@ -1039,7 +1043,7 @@ private:
 
             for (const auto& key : source.Keys) {
                 auto rowSize = key.GetCount();
-                if (source.LookupSupported &&
+                if (lookupSupported &&
                     !hasRanges &&
                     keySize == static_cast<int>(key.GetCount()))
                 {
@@ -1050,7 +1054,6 @@ private:
                     rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, rowBuffer, false));
                 }
             }
-
             pushRanges();
             pushKeys();
         }
@@ -1066,7 +1069,7 @@ private:
     {
         std::vector<TDataSource> groupedSplits;
 
-        bool isSortedTable = false;
+        bool sortedDataSource = false;
 
         for (auto& tabletIdRange : dataSourcesByTablet) {
             auto tabletId = tabletIdRange.ObjectId;
@@ -1082,7 +1085,7 @@ private:
                 continue;
             }
 
-            isSortedTable = true;
+            sortedDataSource = true;
 
             for (auto it = ranges.begin(), itEnd = ranges.end(); it + 1 < itEnd; ++it) {
                 YT_QL_CHECK(it->second <= (it + 1)->first);
@@ -1104,13 +1107,11 @@ private:
                     .ObjectId = tabletId,
                     .CellId = cellId,
                     .Ranges = split,
-                    .LookupSupported = tabletIdRange.LookupSupported,
-                    .KeyWidth = tabletIdRange.KeyWidth,
                 });
             }
         }
 
-        if (isSortedTable) {
+        if (sortedDataSource) {
             for (const auto& split : groupedSplits) {
                 for (auto it = split.Ranges.begin(), itEnd = split.Ranges.end(); it + 1 < itEnd; ++it) {
                     YT_QL_CHECK(it->second <= (it + 1)->first);

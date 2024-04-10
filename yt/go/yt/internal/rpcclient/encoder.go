@@ -1157,6 +1157,44 @@ func (e *Encoder) AddMember(
 	return
 }
 
+func (e *Encoder) SetUserPassword(
+	ctx context.Context,
+	user string,
+	newPassword string,
+	currentPassword string,
+	opts *yt.SetUserPasswordOptions,
+) (err error) {
+	return xerrors.Errorf("Unimplemented method: SetUserPassword")
+}
+
+func (e *Encoder) IssueToken(
+	ctx context.Context,
+	user string,
+	password string,
+	opts *yt.IssueTokenOptions,
+) (token string, err error) {
+	return "", xerrors.Errorf("Unimplemented method: IssueToken")
+}
+
+func (e *Encoder) RevokeToken(
+	ctx context.Context,
+	user string,
+	password string,
+	token string,
+	opts *yt.RevokeTokenOptions,
+) (err error) {
+	return xerrors.Errorf("Unimplemented method: RevokeToken")
+}
+
+func (e *Encoder) ListUserTokens(
+	ctx context.Context,
+	user string,
+	password string,
+	opts *yt.ListUserTokensOptions,
+) (tokens []string, err error) {
+	return nil, xerrors.Errorf("Unimplemented method: ListUserTokens")
+}
+
 func (e *Encoder) RemoveMember(
 	ctx context.Context,
 	group string,

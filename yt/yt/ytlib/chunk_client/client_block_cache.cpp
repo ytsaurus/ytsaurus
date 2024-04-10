@@ -4,7 +4,7 @@
 #include "config.h"
 #include "block_id.h"
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -12,7 +12,7 @@
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/config.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/property.h>
 
 namespace NYT::NChunkClient {
@@ -44,7 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TAsyncBlockCacheEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedBlock PrepareBlockToCache(TCachedBlock block, const INodeMemoryReferenceTrackerPtr& tracker)
+TCachedBlock PrepareBlockToCache(TCachedBlock block, const IMemoryUsageTrackerPtr& tracker)
 {
     static constexpr double ToleratedOverheadThreshold = 1.05;
 
@@ -59,7 +59,7 @@ TCachedBlock PrepareBlockToCache(TCachedBlock block, const INodeMemoryReferenceT
         }
     }
 
-    block.Data = TrackMemory(tracker, EMemoryCategory::BlockCache, std::move(block.Data));
+    block.Data = TrackMemory(tracker, std::move(block.Data));
     return block;
 }
 
@@ -74,8 +74,8 @@ public:
 public:
     explicit TCachedBlockCookie(
         TAsyncCacheCookie cookie,
-        INodeMemoryReferenceTrackerPtr memoryReferenceTracker)
-        : MemoryReferenceTracker_(std::move(memoryReferenceTracker))
+        IMemoryUsageTrackerPtr memoryUsageTracker)
+        : MemoryUsageTracker_(std::move(memoryUsageTracker))
         , Cookie_(std::move(cookie))
     { }
 
@@ -103,7 +103,7 @@ public:
         }
 
         if (blockOrError.IsOK()) {
-            auto block = PrepareBlockToCache(std::move(blockOrError).Value(), MemoryReferenceTracker_);
+            auto block = PrepareBlockToCache(std::move(blockOrError).Value(), MemoryUsageTracker_);
             auto entry = New<TAsyncBlockCacheEntry>(Cookie_.GetKey(), std::move(block));
             Cookie_.EndInsert(std::move(entry));
         } else {
@@ -112,7 +112,7 @@ public:
     }
 
 private:
-    const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TAsyncCacheCookie Cookie_;
     std::atomic<bool> BlockSet_ = false;
@@ -130,12 +130,12 @@ public:
         EBlockType type,
         TSlruCacheConfigPtr config,
         const NProfiling::TProfiler& profiler,
-        INodeMemoryReferenceTrackerPtr memoryReferenceTracker)
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : TAsyncSlruCacheBase(
             std::move(config),
             profiler)
         , Type_(type)
-        , MemoryReferenceTracker_(std::move(memoryReferenceTracker))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
     void PutBlock(const TBlockId& id, const TBlock& block)
@@ -192,7 +192,7 @@ public:
         }
 
         auto cookie = BeginInsert(id);
-        return std::make_unique<TCachedBlockCookie>(std::move(cookie), MemoryReferenceTracker_);
+        return std::make_unique<TCachedBlockCookie>(std::move(cookie), MemoryUsageTracker_);
     }
 
     bool IsBlockTypeActive(EBlockType type) const
@@ -202,7 +202,7 @@ public:
 
 private:
     const EBlockType Type_;
-    const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
     {
@@ -229,10 +229,8 @@ public:
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
         IMemoryUsageTrackerPtr memoryTracker,
-        INodeMemoryReferenceTrackerPtr memoryReferenceTracker,
         const NProfiling::TProfiler& profiler)
-        : MemoryReferenceTracker_(std::move(memoryReferenceTracker))
-        , MemoryTracker_(std::move(memoryTracker))
+        : MemoryUsageTracker_(std::move(memoryTracker))
         , SupportedBlockTypes_(supportedBlockTypes)
     {
         i64 capacity = 0;
@@ -242,7 +240,7 @@ public:
                     type,
                     config,
                     profiler.WithPrefix("/" + FormatEnum(type)),
-                    MemoryReferenceTracker_);
+                    MemoryUsageTracker_);
                 EmplaceOrCrash(PerTypeCaches_, type, cache);
                 capacity += cache->GetCapacity();
             } else {
@@ -256,7 +254,7 @@ public:
         initType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
 
         // NB: We simply override the limit as underlying per-type caches are unaware of this cascading structure.
-        MemoryTracker_->SetLimit(capacity);
+        MemoryUsageTracker_->SetLimit(capacity);
     }
 
     void PutBlock(
@@ -265,7 +263,7 @@ public:
         const TBlock& block) override
     {
         if (const auto& cache = GetOrCrash(PerTypeCaches_, type)) {
-            auto cachingBlock = PrepareBlockToCache(block, MemoryReferenceTracker_);
+            auto cachingBlock = PrepareBlockToCache(block, MemoryUsageTracker_);
             cache->PutBlock(id, std::move(cachingBlock));
         }
     }
@@ -320,12 +318,11 @@ public:
         reconfigureType(EBlockType::ChunkFragmentsData, config->ChunkFragmentsData);
 
         // NB: We simply override the limit as underlying per-type caches know nothing about this cascading structure.
-        MemoryTracker_->SetLimit(newCapacity);
+        MemoryUsageTracker_->SetLimit(newCapacity);
     }
 
 private:
-    const INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
-    const IMemoryUsageTrackerPtr MemoryTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     const EBlockType SupportedBlockTypes_;
 
@@ -337,19 +334,14 @@ private:
 IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
-    IMemoryUsageTrackerPtr memoryTracker,
-    INodeMemoryReferenceTrackerPtr memoryReferenceTracker,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     const NProfiling::TProfiler& profiler)
 {
-    if (!memoryTracker) {
-        memoryTracker = GetNullMemoryUsageTracker();
-    }
-
+    YT_VERIFY(memoryUsageTracker);
     return New<TClientBlockCache>(
         std::move(config),
         supportedBlockTypes,
-        std::move(memoryTracker),
-        std::move(memoryReferenceTracker),
+        std::move(memoryUsageTracker),
         profiler);
 }
 

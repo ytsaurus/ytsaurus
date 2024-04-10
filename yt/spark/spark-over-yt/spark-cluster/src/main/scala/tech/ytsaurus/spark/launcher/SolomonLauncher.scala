@@ -81,7 +81,7 @@ object SolomonConfig extends SidecarConfigUtils {
         configDirectory = optionArg("config-dir").getOrElse("$HOME"),
         solomonConfigFile = optionArg("service-config-file").getOrElse(serviceConfig.replace(".template", "")),
         port = optionArg("port").map(_.toInt).getOrElse(27100),
-        pushPort =  optionArg("push-port").map(_.toInt).getOrElse(sys.env("SOLOMON_PUSH_PORT").toInt),
+        pushPort = optionArg("push-port").map(_.toInt).getOrElse(sys.env("SOLOMON_PUSH_PORT").toInt),
         monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27101),
         operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
         ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE")),

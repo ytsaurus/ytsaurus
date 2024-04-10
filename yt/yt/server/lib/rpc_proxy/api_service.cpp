@@ -607,11 +607,9 @@ public:
         NLogging::TLogger logger,
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
-        INodeMemoryReferenceTrackerPtr nodeMemoryReferenceTracker,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TMemoryTrackingServiceBase(
             WithCategory(memoryTracker, EMemoryCategory::Rpc),
-            WithCategory(nodeMemoryReferenceTracker, EMemoryCategory::Rpc),
             std::move(workerInvoker),
             GetServiceDescriptor(),
             std::move(logger),
@@ -848,7 +846,7 @@ private:
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
 
-    const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
     struct TDetailedProfilingCountersKey
     {
@@ -1225,15 +1223,19 @@ private:
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
-                            !providerResult.FindMatching(NTransactionServer::EErrorCode::UnknownClockClusterTag))
+                            !(providerResult.FindMatching(NRpc::EErrorCode::UnknownClockClusterTag) ||
+                                providerResult.FindMatching(NRpc::EErrorCode::ClockClusterTagMismatch)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }
-                        YT_LOG_DEBUG("Unknown clock cluster tag %v, trying to generate timestamps via direct call",
+
+                        YT_LOG_DEBUG(
+                            providerResult,
+                            "Wrong clock cluster tag %v, trying to generate timestamps via direct call",
                             clockClusterTag);
 
                         auto alienClient = connection->GetClockManager()->GetTimestampProviderOrThrow(clockClusterTag);
-                        return alienClient->GenerateTimestamps(count);
+                        return alienClient->GenerateTimestamps(count, clockClusterTag);
                     }));
             },
             [clockClusterTag] (const auto& context, const TTimestamp& timestamp) {
@@ -1269,6 +1271,10 @@ private:
         }
         if (request->has_parent_id()) {
             FromProto(&options.ParentId, request->parent_id());
+        }
+        if (request->has_replicate_to_master_cell_tags()) {
+            options.ReplicateToMasterCellTags =
+                FromProto<TCellTagList>(request->replicate_to_master_cell_tags().cell_tags());
         }
         options.AutoAbort = false;
         options.Sticky = request->sticky();
@@ -6308,7 +6314,6 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     TProfiler profiler,
     INodeMemoryTrackerPtr memoryUsageTracker,
-    INodeMemoryReferenceTrackerPtr memoryReferenceTracker,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(
@@ -6324,7 +6329,6 @@ IApiServicePtr CreateApiService(
         std::move(logger),
         std::move(profiler),
         std::move(memoryUsageTracker),
-        std::move(memoryReferenceTracker),
         std::move(stickyTransactionPool));
 }
 

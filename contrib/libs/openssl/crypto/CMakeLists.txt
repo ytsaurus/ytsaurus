@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-openssl-crypto)
 
 
@@ -53,7 +54,7 @@ target_include_directories(libs-openssl-crypto PRIVATE
 )
 
 target_link_libraries(libs-openssl-crypto PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-zlib
   cpp-sanitizer-include
 )

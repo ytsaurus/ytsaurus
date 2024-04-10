@@ -349,6 +349,7 @@ private:
         YT_VERIFY(HasMutationContext());
 
         YT_VERIFY(node->GetLocalState() == ENodeState::Unregistered);
+
         YT_LOG_INFO("Starting node disposal (NodeId: %v, Address: %v)",
             node->GetId(),
             node->GetDefaultAddress());

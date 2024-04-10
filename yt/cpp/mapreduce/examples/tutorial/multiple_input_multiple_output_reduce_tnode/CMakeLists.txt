@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(multiple_input_multiple_output_reduce_tnode)
 
 
@@ -21,7 +22,7 @@ target_compile_options(multiple_input_multiple_output_reduce_tnode PRIVATE
 )
 
 target_link_libraries(multiple_input_multiple_output_reduce_tnode PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

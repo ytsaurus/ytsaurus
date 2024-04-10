@@ -14,7 +14,6 @@ from .utils import default_token, default_discovery_dir, get_spark_master, set_c
     SparkDiscovery, parse_memory, format_memory, base_spark_conf, parse_bool, get_spyt_home  # noqa: E402
 from .conf import read_remote_conf, read_global_conf, validate_versions_compatibility, \
     read_cluster_conf, SELF_VERSION  # noqa: E402
-from .enabler import set_enablers, set_except_enablers, get_enablers_list  # noqa: E402
 
 
 logger = logging.getLogger(__name__)
@@ -32,8 +31,7 @@ class SparkInfo(object):
     def _repr_html_(self):
         yt_proxy = self.spark.conf.get("spark.hadoop.yt.proxy")
         client = yt_client(self.spark)
-        discovery_path = self.spark.conf.get("spark.yt.master.discoveryPath")
-        discovery = SparkDiscovery(discovery_path=discovery_path)
+        discovery = SparkDiscovery()
         shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
         app_id = self.spark.conf.get("spark.app.id")
         master_web_ui = SparkDiscovery.get(discovery.master_webui(), client=client)
@@ -140,8 +138,8 @@ def _configure_client_mode(spark_conf,
     spark_conf.set("spark.master", master)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
     os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
-    os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
-    spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
+    if "SPARK_CONF_DIR" not in os.environ:
+        os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
 
     spyt_version = spyt_version or SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
@@ -243,7 +241,7 @@ def _build_spark_conf(num_executors=None,
         spark_cluster_conf_path = spark_conf.get("spark.yt.cluster.confPath")
     else:
         client = client or create_yt_client_spark_conf(yt_proxy, spark_conf)
-        spark_cluster_version = os.getenv("SPARK_CLUSTER_VERSION")
+        spark_cluster_version = os.getenv("SPARK_CLUSTER_VERSION") or os.getenv("SPYT_CLUSTER_VERSION")
         spark_cluster_conf_path = os.getenv("SPARK_YT_CLUSTER_CONF_PATH")
 
     _set_none_safe(spark_conf, "spark.app.name", app_name)
@@ -259,10 +257,14 @@ def _build_spark_conf(num_executors=None,
         Environment.configure_python_path(remote_conf["python_cluster_paths"])
 
     spark_cluster_conf = read_cluster_conf(spark_cluster_conf_path, client=client).get("spark_conf") or {}
-    enablers = get_enablers_list(spark_cluster_conf)
-    set_enablers(spark_conf, spark_conf_args, spark_cluster_conf, enablers)
-    set_except_enablers(spark_conf, spark_cluster_conf, enablers)
-    set_except_enablers(spark_conf, spark_conf_args, enablers)
+    spark_conf.setAll(spark_cluster_conf.items())
+    if spark_conf_args is not None:
+        spark_conf.setAll(spark_conf_args.items())
+    enabler_map = remote_conf["enablers"]
+    for key, value in enabler_map.items():
+        if spark_conf.contains(key):
+            new_value = parse_bool(spark_conf.get(key)) and parse_bool(str(value))
+            spark_conf.set(key, str(new_value))
 
     ipv6_preference_enabled = parse_bool(spark_conf.get('spark.hadoop.yt.preferenceIpv6.enabled'))
     if ipv6_preference_enabled:
@@ -321,12 +323,9 @@ def connect(num_executors=5,
 
 
 def _shs_url(discovery_path, spark):
-    discovery_path = discovery_path or \
-        spark.conf.get("spark.yt.master.discoveryPath", default=None) or \
-        os.getenv("SPARK_BASE_DISCOVERY_PATH")
-    client = yt_client(spark)
-    if discovery_path is not None:
-        discovery = SparkDiscovery(discovery_path=discovery_path)
+    discovery = SparkDiscovery(discovery_path=discovery_path)
+    if discovery.base_discovery_path is not None:
+        client = yt_client(spark)
         shs_url = SparkDiscovery.getOption(discovery.shs(), client=client)
         if shs_url is not None:
             app_id = spark.conf.get("spark.app.id")

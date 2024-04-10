@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(restricted-aws-aws-c-io)
 
 
@@ -42,7 +43,7 @@ target_include_directories(restricted-aws-aws-c-io PUBLIC
 )
 
 target_link_libraries(restricted-aws-aws-c-io PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   restricted-aws-aws-c-cal
   restricted-aws-aws-c-common
   restricted-aws-s2n

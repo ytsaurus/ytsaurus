@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(Target-BPF-TargetInfo)
 
 
@@ -26,7 +27,7 @@ target_include_directories(Target-BPF-TargetInfo PRIVATE
 )
 
 target_link_libraries(Target-BPF-TargetInfo PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   llvm16-lib-MC

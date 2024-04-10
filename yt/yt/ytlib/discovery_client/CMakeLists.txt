@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(yt-ytlib-discovery_client)
 
 
@@ -25,7 +26,7 @@ target_include_directories(yt-ytlib-discovery_client PUBLIC
 )
 
 target_link_libraries(yt-ytlib-discovery_client PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   contrib-libs-protobuf

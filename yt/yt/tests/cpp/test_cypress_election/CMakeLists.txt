@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(cpp-integration-test-cypress-election)
 
 
@@ -21,7 +22,7 @@ target_compile_options(cpp-integration-test-cypress-election PRIVATE
 )
 
 target_link_libraries(cpp-integration-test-cypress-election PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

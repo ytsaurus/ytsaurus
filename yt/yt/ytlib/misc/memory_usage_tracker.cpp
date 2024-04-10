@@ -20,7 +20,14 @@ namespace NYT {
 using ECategory = INodeMemoryTracker::ECategory;
 using TPoolTag = INodeMemoryTracker::TPoolTag;
 
+/////////////////////////////////////////////////////////////////////////////
+
+constexpr int ReferenceAddressMapShardCount = 256;
+constexpr int ReferenceAddressExpectedAlignmentLog = 4;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TNodeMemoryTracker)
 
 class TNodeMemoryTracker
     : public INodeMemoryTracker
@@ -54,13 +61,53 @@ public:
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {}) override;
     i64 UpdateUsage(ECategory category, i64 newUsage) override;
 
-    ITypedNodeMemoryTrackerPtr WithCategory(
+    IMemoryUsageTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) override;
 
     void ClearTrackers() override;
 
+    TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking) override;
+
 private:
+    class TTrackedReferenceHolder
+        : public TSharedRangeHolder
+    {
+    public:
+        TTrackedReferenceHolder(
+            TNodeMemoryTrackerPtr tracker,
+            TSharedRef underlying,
+            EMemoryCategory category)
+            : Tracker_(std::move(tracker))
+            , Underlying_(std::move(underlying))
+            , Category_(category)
+        { }
+
+        ~TTrackedReferenceHolder() override
+        {
+            Tracker_->RemoveStateOrDecreaseUsageConter(Underlying_, Category_);
+        }
+
+        // TSharedRangeHolder overrides.
+        TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override
+        {
+            if (options.KeepMemoryReferenceTracking) {
+                return this;
+            }
+            return Underlying_.GetHolder()->Clone(options);
+        }
+
+        std::optional<size_t> GetTotalByteSize() const override
+        {
+            return Underlying_.GetHolder()->GetTotalByteSize();
+        }
+
+    private:
+        const TNodeMemoryTrackerPtr Tracker_;
+        const TSharedRef Underlying_;
+        const EMemoryCategory Category_;
+    };
+
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
@@ -93,8 +140,25 @@ private:
     THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
     std::atomic<i64> TotalPoolWeight_ = 0;
 
-    TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> CategoryTrackers_;
-    THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr>> PoolTrackers_;
+    struct TState
+    {
+        TRef Reference;
+        THashMap<EMemoryCategory, i64> CategoryToUsage;
+        TMemoryUsageTrackerGuard MemoryGuard;
+    };
+
+    using TReferenceKey = std::pair<uintptr_t, size_t>;
+
+    struct TReferenceAddressMapShard
+    {
+        THashMap<TReferenceKey, TState> Map;
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock);
+    };
+
+    std::array<TReferenceAddressMapShard, ReferenceAddressMapShardCount> ReferenceAddressToState_;
+
+    TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> CategoryTrackers_;
+    THashMap<TPoolTag, TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr>> PoolTrackers_;
 
     void InitCategoryTrackers();
 
@@ -113,15 +177,22 @@ private:
     const TPool* FindPool(const TPoolTag& poolTag) const;
     TPool* GetOrRegisterPool(const TPoolTag& poolTag);
     TPool* GetOrRegisterPool(const std::optional<TPoolTag>& poolTag);
+
+    TReferenceKey GetReferenceKey(TRef ref);
+    TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
+    void CreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category);
+    void RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category);
+    void ChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta);
+    std::optional<EMemoryCategory> GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTypedMemoryTracker
-    : public ITypedNodeMemoryTracker
+class TMemoryUsageTracker
+    : public IMemoryUsageTracker
 {
 public:
-    TTypedMemoryTracker(
+    TMemoryUsageTracker(
         INodeMemoryTrackerPtr memoryTracker,
         ECategory category,
         std::optional<TPoolTag> poolTag)
@@ -175,6 +246,13 @@ public:
         return MemoryTracker_->IsExceeded(Category_, PoolTag_);
     }
 
+    TSharedRef Track(
+        TSharedRef reference,
+        bool keepHolder) override
+    {
+        return MemoryTracker_->Track(reference, Category_, keepHolder);
+    }
+
 private:
     const INodeMemoryTrackerPtr MemoryTracker_;
     const ECategory Category_;
@@ -225,7 +303,7 @@ TNodeMemoryTracker::TNodeMemoryTracker(
 void TNodeMemoryTracker::InitCategoryTrackers()
 {
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        CategoryTrackers_[category] = New<TTypedMemoryTracker>(this, category, std::nullopt);
+        CategoryTrackers_[category] = New<TMemoryUsageTracker>(this, category, std::nullopt);
     }
 }
 
@@ -567,7 +645,7 @@ i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
     return oldUsage;
 }
 
-ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
+IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
 {
@@ -577,8 +655,8 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
         auto it = PoolTrackers_.find(poolTag.value());
 
         if (it.IsEnd()) {
-            TEnumIndexedArray<EMemoryCategory, ITypedNodeMemoryTrackerPtr> trackers;
-            auto tracker = New<TTypedMemoryTracker>(
+            TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> trackers;
+            auto tracker = New<TMemoryUsageTracker>(
                 this,
                 category,
                 std::move(poolTag));
@@ -591,7 +669,7 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
             if (auto tracker = trackers[category]) {
                 return tracker;
             } else {
-                tracker = New<TTypedMemoryTracker>(
+                tracker = New<TMemoryUsageTracker>(
                     this,
                     category,
                     std::move(poolTag));
@@ -606,6 +684,145 @@ ITypedNodeMemoryTrackerPtr TNodeMemoryTracker::WithCategory(
 
         return tracker;
     }
+}
+
+TNodeMemoryTracker::TReferenceKey TNodeMemoryTracker::GetReferenceKey(TRef ref)
+{
+    YT_VERIFY(ref);
+    return TReferenceKey(reinterpret_cast<uintptr_t>(ref.Begin()), ref.Size());
+}
+
+TNodeMemoryTracker::TReferenceAddressMapShard& TNodeMemoryTracker::GetReferenceAddressMapShard(TReferenceKey key)
+{
+    return ReferenceAddressToState_[(key.first >> ReferenceAddressExpectedAlignmentLog) % ReferenceAddressMapShardCount];
+}
+
+TSharedRef TNodeMemoryTracker::Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking)
+{
+    if (!reference) {
+        return reference;
+    }
+
+    auto rawReference = TRef(reference);
+    const auto& holder = reference.GetHolder();
+
+    // Reference could be without a holder, e.g. empty reference.
+    if (!holder) {
+        YT_VERIFY(reference.Begin() == TRef::MakeEmpty().Begin());
+        return reference;
+    }
+
+    CreateStateOrIncrementUsageCounter(rawReference, category);
+
+    auto underlyingHolder = holder->Clone({.KeepMemoryReferenceTracking = keepExistingTracking});
+    auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
+    return TSharedRef(
+        rawReference,
+        New<TTrackedReferenceHolder>(this, std::move(underlyingReference), category));
+}
+
+void TNodeMemoryTracker::CreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category)
+{
+    auto key = GetReferenceKey(rawReference);
+    auto& shard = GetReferenceAddressMapShard(key);
+
+    auto guard = Guard(shard.SpinLock);
+
+    if (auto it = shard.Map.find(key); it != shard.Map.end()) {
+        ChangeCategoryUsage(&it->second, category, 1);
+        return;
+    }
+
+    auto it = EmplaceOrCrash(shard.Map, key, TState{.Reference = rawReference});
+    ChangeCategoryUsage(&it->second, category, 1);
+}
+
+void TNodeMemoryTracker::RemoveStateOrDecreaseUsageConter(TRef rawReference, EMemoryCategory category)
+{
+    auto key = GetReferenceKey(rawReference);
+    auto& shard = GetReferenceAddressMapShard(key);
+    auto guard = Guard(shard.SpinLock);
+
+    auto it = GetIteratorOrCrash(shard.Map, key);
+    auto& state = it->second;
+
+    ChangeCategoryUsage(&state, category, -1);
+    if (state.CategoryToUsage.empty()) {
+        shard.Map.erase(it);
+    }
+}
+
+void TNodeMemoryTracker::ChangeCategoryUsage(TState* state, EMemoryCategory category, i64 delta)
+{
+    auto oldCategory = GetCategoryByUsage(state->CategoryToUsage);
+
+    if (state->CategoryToUsage.contains(category) &&
+        state->CategoryToUsage[category] + delta != 0)
+    {
+        state->CategoryToUsage[category] += delta;
+        return;
+    }
+
+    state->CategoryToUsage[category] += delta;
+
+    if (state->CategoryToUsage[category] == 0) {
+        state->CategoryToUsage.erase(category);
+    }
+
+    auto newCategory = GetCategoryByUsage(state->CategoryToUsage);
+    if (!newCategory) {
+        state->MemoryGuard.Release();
+        return;
+    }
+
+    if ((oldCategory && newCategory && *oldCategory != *newCategory) || !oldCategory) {
+        state->MemoryGuard = TMemoryUsageTrackerGuard::Acquire(
+            WithCategory(*newCategory),
+            static_cast<i64>(state->Reference.Size()));
+    }
+}
+
+std::optional<EMemoryCategory> TNodeMemoryTracker::GetCategoryByUsage(const THashMap<EMemoryCategory, i64>& usage)
+{
+    auto anotherCategory = [&] (EMemoryCategory skipCategory) {
+        for (auto& [category, _]: usage) {
+            if (category != skipCategory) {
+                return category;
+            }
+        }
+        YT_ABORT();
+    };
+
+    if (usage.empty()) {
+        return std::nullopt;
+    }
+
+    if (usage.size() == 1) {
+        return usage.begin()->first;
+    }
+
+    if (usage.size() == 2) {
+        if (usage.contains(EMemoryCategory::Unknown)) {
+            return anotherCategory(EMemoryCategory::Unknown);
+        }
+        if (usage.contains(EMemoryCategory::BlockCache)) {
+            return anotherCategory(EMemoryCategory::BlockCache);
+        }
+        return EMemoryCategory::Mixed;
+    }
+
+    if (usage.size() == 3) {
+        if (usage.contains(EMemoryCategory::Unknown) && usage.contains(EMemoryCategory::BlockCache)) {
+            for (auto [category, _]: usage) {
+                if (category != EMemoryCategory::Unknown && category != EMemoryCategory::BlockCache) {
+                    return category;
+                }
+            }
+        }
+        return EMemoryCategory::Mixed;
+    }
+
+    return EMemoryCategory::Mixed;
 }
 
 typename TNodeMemoryTracker::TPool*
@@ -685,7 +902,7 @@ Y_FORCE_INLINE void Unref(const TNodeMemoryTracker* obj)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypedNodeMemoryTrackerPtr WithCategory(
+IMemoryUsageTrackerPtr WithCategory(
     const INodeMemoryTrackerPtr& memoryTracker,
     EMemoryCategory category,
     std::optional<INodeMemoryTracker::TPoolTag> poolTag)
@@ -710,6 +927,72 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
         limits,
         logger,
         profiler);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDelayedReferenceHolder::TDelayedReferenceHolder(
+    TSharedRef underlying,
+    TDuration delayBeforeFree,
+    IInvokerPtr dtorInvoker)
+    : Underlying_(std::move(underlying))
+    , DelayBeforeFree_(delayBeforeFree)
+    , DtorInvoker_(std::move(dtorInvoker))
+{ }
+
+TSharedRangeHolderPtr TDelayedReferenceHolder::Clone(const TSharedRangeHolderCloneOptions& options)
+{
+    if (options.KeepMemoryReferenceTracking) {
+        return this;
+    }
+    return Underlying_.GetHolder()->Clone(options);
+}
+
+std::optional<size_t> TDelayedReferenceHolder::GetTotalByteSize() const
+{
+    return Underlying_.GetHolder()->GetTotalByteSize();
+}
+
+TDelayedReferenceHolder::~TDelayedReferenceHolder()
+{
+    NConcurrency::TDelayedExecutor::Submit(
+        BIND([] (TSharedRef reference) {
+            reference.ReleaseHolder();
+        }, Passed(std::move(Underlying_))),
+        DelayBeforeFree_,
+        DtorInvoker_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef TrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRef reference,
+    bool keepExistingTracking)
+{
+    if (!tracker) {
+        return reference;
+    }
+    return TrackMemory(
+        tracker->WithCategory(category),
+        std::move(reference),
+        keepExistingTracking);
+}
+
+TSharedRefArray TrackMemory(
+    const INodeMemoryTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRefArray array,
+    bool keepExistingTracking)
+{
+    if (!tracker) {
+        return array;
+    }
+    return TrackMemory(
+        tracker->WithCategory(category),
+        std::move(array),
+        keepExistingTracking);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

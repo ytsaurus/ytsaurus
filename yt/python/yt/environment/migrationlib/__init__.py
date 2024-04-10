@@ -200,14 +200,18 @@ class Conversion(object):
         name of the table before the conversion, for cases when it differs from the "table" parameter
     :param use_default_mapper:
         whether to use the default mapper for map operations if the "mapper" parameter is not specified
+    :param filter_callback:
+        a callback called with "client" and "table_path" arguments used to ignore some conversions
+        for re-using migration in different environments
     """
 
-    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False):
+    def __init__(self, table, table_info=None, mapper=None, source=None, use_default_mapper=False, filter_callback=None):
         self.table = table
         self.table_info = table_info
         self.mapper = mapper
         self.source = source
         self.use_default_mapper = use_default_mapper
+        self.filter_callback = filter_callback
 
     def __call__(self, client, table_info, target_table, source_table, tables_path, shard_count):
         if self.table_info:
@@ -346,7 +350,13 @@ class Migration(object):
             if version in self.transforms:
                 for conversion in self.transforms[version]:
                     table = conversion.table
-                    table_exists = client.exists(ypath_join(tables_path, table))
+                    table_path = ypath_join(tables_path, table)
+
+                    # Filters out conversions according to their filter_callback, if present.
+                    if conversion.filter_callback and not conversion.filter_callback(client=client, table_path=table_path):
+                        continue
+
+                    table_exists = client.exists(table_path)
                     tmp_path = "{0}/{1}.tmp.{2}".format(tables_path, table, version)
                     if force and client.exists(tmp_path):
                         client.remove(tmp_path)
@@ -359,7 +369,7 @@ class Migration(object):
                         shard_count=shard_count,
                     )
                     if not in_place:
-                        swap_tasks.append((ypath_join(tables_path, table), tmp_path))
+                        swap_tasks.append((table_path, tmp_path))
                     if conversion.table_info:
                         table_infos[table] = conversion.table_info
 

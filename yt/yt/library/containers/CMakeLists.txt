@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(cri)
 add_subdirectory(disk_manager)
 add_subdirectory(unittests)
@@ -24,7 +25,7 @@ target_compile_options(yt-library-containers PRIVATE
 )
 
 target_link_libraries(yt-library-containers PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-porto-proto
@@ -37,6 +38,7 @@ target_sources(yt-library-containers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroup.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/cgroups_new.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/container_devices_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/containers/instance_limits_tracker.cpp

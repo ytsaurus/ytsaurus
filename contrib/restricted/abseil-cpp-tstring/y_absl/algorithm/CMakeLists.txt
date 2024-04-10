@@ -13,11 +13,12 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(abseil-cpp-tstring-y_absl-algorithm INTERFACE)
 
 
 target_link_libraries(abseil-cpp-tstring-y_absl-algorithm INTERFACE
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
 )
 
 

@@ -318,6 +318,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
             "event_log": {
+                "enable": True,
                 "flush_period": 100,
             },
             "nodes_info_logging_period": 100,
@@ -328,6 +329,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "event_log": {
+                "enable": True,
                 "flush_period": 100,
             }
         }

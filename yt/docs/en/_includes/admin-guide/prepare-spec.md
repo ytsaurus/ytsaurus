@@ -111,7 +111,7 @@ spec:
 
 {% endcut %}
 
-Table 1 shows some general `Ytsaurus` settings.
+Table 1 shows some general `Ytsaurus` settings. Full description: [YtsaurusSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#ytsaurusspec).
 
 <small>Table 1 — Basic `Ytsaurus` specification fields </small>
 
@@ -190,6 +190,10 @@ A proper logging configuration is essential for diagnosing problems and facilita
 ## Locations
 
 There are recommendations for disk layout and location configuration on a separate [page](../../admin-guide/locations.md).
+
+## Job environment
+
+`Exec Nodes` are able to execute jobs in isolated containers to handle operation option `docker_image`. Required configurations are located in sections `jobResources` and `jobEnvironment` in [ExecNodeSpec](https://github.com/ytsaurus/yt-k8s-operator/blob/main/docs/api.md#execnodesspec). See sample [cluster config](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/cluster_v1_cri.yaml).
 
 ## Setting up tablet cell bundles
 

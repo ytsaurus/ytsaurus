@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 get_built_tool_path(
   TOOL_llvm-tblgen_bin
   TOOL_llvm-tblgen_dependency
@@ -1015,7 +1016,7 @@ set_property(TARGET libs-llvm16-include PROPERTY
 )
 
 target_link_libraries(libs-llvm16-include PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
 )

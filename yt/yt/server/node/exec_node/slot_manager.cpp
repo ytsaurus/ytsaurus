@@ -24,7 +24,9 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/porto_health_checker.h>
+#include <yt/yt/library/containers/container_devices_checker.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -74,6 +76,32 @@ bool TSlotManager::IsJobEnvironmentResurrectionEnabled()
         ->EnableJobEnvironmentResurrection;
 }
 
+void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
+{
+    auto config = DynamicConfig_.Acquire();
+
+    TError result;
+    if (config->EnableContainerDeviceChecker && !error.IsOK()) {
+        auto message = ToString(error);
+
+        if (error.FindMatching(NContainers::EErrorCode::FailedToStartContainer) &&
+            message.Contains("Operation not permitted: mknod"))
+        {
+            if (!Bootstrap_->IsDataNode() && !Bootstrap_->IsTabletNode() && config->RestartContainerAfterFailedDeviceCheck) {
+                if (auto restartManager = Bootstrap_->GetRestartManager()) {
+                    YT_LOG_ERROR(error, "Request restart after test volume creation failed");
+                    restartManager->RequestRestart();
+                }
+            }
+
+            result = TError("Test container could not be created, snapshot container needs to be restarted")
+                << error;
+        }
+    }
+
+    TestContainerCreationError_.Store(result);
+}
+
 void TSlotManager::OnPortoHealthCheckSuccess()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -84,6 +112,12 @@ void TSlotManager::OnPortoHealthCheckSuccess()
         YT_LOG_INFO("Porto health check succeeded, try to resurrect slot manager");
 
         YT_VERIFY(Bootstrap_->IsExecNode());
+
+        auto volumeManager = RootVolumeManager_.Acquire();
+        if (volumeManager && !volumeManager->IsEnabled() && IsInitialized()) {
+            Disable(TError("Layer cache is disabled"));
+            return;
+        }
 
         auto result = WaitFor(InitializeEnvironment());
 
@@ -414,12 +448,16 @@ bool TSlotManager::IsEnabled() const
 
     auto guard = ReaderGuard(AliveLocationsLock_);
 
+    auto volumeManager = RootVolumeManager_.Acquire();
+    auto isVolumeManagerEnabled = JobEnvironmentType_ != EJobEnvironmentType::Porto || volumeManager && volumeManager->IsEnabled();
+
     bool enabled =
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
-        JobEnvironment_->IsEnabled();
+        JobEnvironment_->IsEnabled() &&
+        isVolumeManagerEnabled;
 
     return enabled && !HasSlotDisablingAlert();
 }
@@ -799,6 +837,12 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
             alerts->push_back(alert);
         }
     }
+
+    if (auto error = TestContainerCreationError_.Load();
+        !error.IsOK())
+    {
+        alerts->push_back(error);
+    }
 }
 
 IYPathServicePtr TSlotManager::GetOrchidService() const
@@ -937,13 +981,14 @@ void TSlotManager::AsyncInitialize()
         // To this moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
+        JobEnvironmentType_ = environmentConfig->Type;
         if (environmentConfig->Type == EJobEnvironmentType::Porto) {
             auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
                 Bootstrap_->GetConfig()->DataNode,
                 Bootstrap_->GetDynamicConfigManager(),
                 CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
                 Bootstrap_->GetControlInvoker(),
-                Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
+                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
                 Bootstrap_));
             if (volumeManagerOrError.IsOK()) {
                 RootVolumeManager_.Store(volumeManagerOrError.Value());

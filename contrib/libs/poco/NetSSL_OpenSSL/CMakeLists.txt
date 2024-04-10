@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(libs-poco-NetSSL_OpenSSL)
 
 
@@ -38,7 +39,7 @@ target_include_directories(libs-poco-NetSSL_OpenSSL PRIVATE
 )
 
 target_link_libraries(libs-poco-NetSSL_OpenSSL PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-openssl
   libs-poco-Crypto

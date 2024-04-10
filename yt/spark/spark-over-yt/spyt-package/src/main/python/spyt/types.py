@@ -1,4 +1,4 @@
-from pyspark.sql.types import UserDefinedType, BinaryType, LongType
+from pyspark.sql.types import UserDefinedType, BinaryType, IntegralType
 from pyspark import SparkContext
 from pyspark.sql.column import _to_java_column, Column
 
@@ -33,34 +33,31 @@ class YsonType(UserDefinedType):
         return 'yson'
 
 
-class UInt64Type(UserDefinedType):
+UINT64_MAX = 0xffffffffffffffff
+
+
+class UInt64Type(IntegralType):
+    """Unsigned 64-bit integer type
+    """
+    def simpleString(self):
+        return 'uint64'
+
     @classmethod
     def typeName(cls):
         return "uint64"
 
-    @classmethod
-    def sqlType(cls):
-        return LongType()
-
-    @classmethod
-    def module(cls):
-        return 'spyt.types'
-
-    @classmethod
-    def scalaUDT(cls):
-        return 'org.apache.spark.sql.yson.UInt64Type'
-
     def needConversion(self):
         return True
 
-    def serialize(self, obj):
-        return obj
+    def toInternal(self, py_integer):
+        if py_integer is None:
+            return None
+        if py_integer < 0 or py_integer > UINT64_MAX:
+            raise ValueError(f"object of UInt64Type out of range, got: {py_integer}")
+        return py_integer if py_integer <= 0x7fffffffffffffff else py_integer - UINT64_MAX - 1
 
-    def deserialize(self, datum):
-        return datum
-
-    def simpleString(self):
-        return 'uint64'
+    def fromInternal(self, j_long):
+        return j_long if j_long is None or j_long >= 0 else (j_long & UINT64_MAX)
 
 
 def uint64_to_string(number):
@@ -68,7 +65,7 @@ def uint64_to_string(number):
         return None
     else:
         # convert to unsigned value
-        return str(number & 0xffffffffffffffff)
+        return str(number & UINT64_MAX)
 
 
 def string_to_uint64(number):

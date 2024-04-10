@@ -11,12 +11,10 @@ namespace NYT::NRpc {
 template <class TBaseService>
 template <typename... TArgs>
 TMemoryTrackingServiceBase<TBaseService>::TMemoryTrackingServiceBase(
-    ITypedNodeMemoryTrackerPtr memoryTracker,
-    IMemoryReferenceTrackerPtr memoryReferenceTracker,
+    IMemoryUsageTrackerPtr memoryTracker,
     TArgs&&... args)
     : TBaseService(std::forward<TArgs>(args)...)
     , MemoryTracker_(std::move(memoryTracker))
-    , MemoryReferenceTracker_(std::move(memoryReferenceTracker))
 { }
 
 template <class TBaseService>
@@ -34,8 +32,8 @@ void TMemoryTrackingServiceBase<TBaseService>::HandleRequest(
             replyBus);
     }
 
-    if (MemoryReferenceTracker_) {
-        message = TrackMemory(MemoryReferenceTracker_, std::move(message));
+    if (MemoryTracker_) {
+        message = TrackMemory(MemoryTracker_, std::move(message));
     }
 
     TBaseService::HandleRequest(std::move(header), std::move(message), std::move(replyBus));

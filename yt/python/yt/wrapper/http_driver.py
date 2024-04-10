@@ -237,6 +237,8 @@ def make_request(command_name,
             accept_encoding = "br, gzip, identity"
         else:
             accept_encoding = "gzip, identity"
+            if command_name in ["read_table", "read_file"]:
+                logger.tip("To improve performance, install the \"brotli\" library")
 
     headers = {"User-Agent": get_user_agent(),
                "Accept-Encoding": accept_encoding,
@@ -269,7 +271,12 @@ def make_request(command_name,
     if command.input_type in ["binary", "tabular"]:
         content_encoding = get_config(client)["proxy"]["content_encoding"]
         if content_encoding is None:
-            content_encoding = "br" if has_compressor("br") else "gzip"
+            if has_compressor("br"):
+                content_encoding = "br"
+            else:
+                content_encoding = "gzip"
+                if command_name in ["write_table", "write_file"]:
+                    logger.tip("To improve performance, install the \"brotli\" library")
 
         headers["Content-Encoding"] = content_encoding
 

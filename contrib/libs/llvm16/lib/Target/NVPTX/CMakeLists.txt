@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)
 add_library(lib-Target-NVPTX)
@@ -28,7 +29,7 @@ target_include_directories(lib-Target-NVPTX PRIVATE
 )
 
 target_link_libraries(lib-Target-NVPTX PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   contrib-libs-llvm16
   libs-llvm16-include

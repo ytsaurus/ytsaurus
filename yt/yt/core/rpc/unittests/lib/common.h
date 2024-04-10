@@ -115,10 +115,10 @@ class TTestNodeMemoryTracker
 public:
     explicit TTestNodeMemoryTracker(size_t limit);
 
-    i64 GetLimit() const;
-    i64 GetUsed() const;
-    i64 GetFree() const;
-    bool IsExceeded() const;
+    i64 GetLimit() const override;
+    i64 GetUsed() const override;
+    i64 GetFree() const override;
+    bool IsExceeded() const override;
 
     TError TryAcquire(i64 size) override;
     TError TryChange(i64 size) override;
@@ -129,6 +129,9 @@ public:
     void ClearTotalUsage();
     i64 GetTotalUsage() const;
 
+    TSharedRef Track(
+        TSharedRef reference,
+        bool keepHolder = false) override;
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     i64 Usage_;
@@ -170,7 +173,7 @@ public:
         TTestServerHost::TearDown();
     }
 
-    TTestNodeMemoryTrackerPtr GetMemoryUsageTracker()
+    TTestNodeMemoryTrackerPtr GetNodeMemoryUsageTracker()
     {
         return MemoryUsageTracker_;
     }

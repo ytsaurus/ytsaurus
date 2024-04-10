@@ -326,7 +326,7 @@ private:
             *req->mutable_chunk_meta() = *ChunkMeta_;
 
             auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
-                Options_->MemoryTracker,
+                Options_->MemoryUsageTracker,
                 req->mutable_chunk_meta()->ByteSize());
 
             FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());

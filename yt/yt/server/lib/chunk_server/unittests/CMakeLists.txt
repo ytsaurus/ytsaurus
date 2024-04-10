@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_executable(unittester-server-lib-chunk-server)
 
 
@@ -21,7 +22,7 @@ target_compile_options(unittester-server-lib-chunk-server PRIVATE
 )
 
 target_link_libraries(unittester-server-lib-chunk-server PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check

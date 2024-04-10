@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(library-profiling-sensors_owner)
 
@@ -22,7 +23,7 @@ target_compile_options(library-profiling-sensors_owner PRIVATE
 )
 
 target_link_libraries(library-profiling-sensors_owner PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-yt-core

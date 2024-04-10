@@ -41,9 +41,9 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
 
 template <class TRecordKey>
 TFuture<std::vector<typename TRecordKey::TRecordDescriptor::TRecord>> ISequoiaTransaction::SelectRows(
-    const TSelectRowsRequest& request)
+    const TSelectRowsQuery& query)
 {
-    auto resultFuture = SelectRows(TRecordKey::Table, request);
+    auto resultFuture = SelectRows(TRecordKey::Table, query);
     return resultFuture.Apply(BIND([] (const NApi::TSelectRowsResult& result) {
         return NTableClient::ToRecords<typename TRecordKey::TRecordDescriptor::TRecord>(result.Rowset);
     }));

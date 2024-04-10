@@ -1,4 +1,5 @@
 [requires]
+linux-headers-generic/6.5.9
 
 [tool_requires]
 bison/3.8.2

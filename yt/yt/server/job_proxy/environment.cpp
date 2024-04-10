@@ -270,7 +270,7 @@ public:
     TString HandleVolumeCreationError(TErrorOr<TString> volumeCreationResult)
     {
         if (!volumeCreationResult.IsOK()) {
-            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UserJobPortoAPIError, "Creation of user job volume failed", volumeCreationResult);
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::UserJobPortoApiError, "Creation of user job volume failed", volumeCreationResult);
         } else {
             return volumeCreationResult.Value();
         }
@@ -309,7 +309,7 @@ public:
                 rootFS.Binds.push_back(TBind{
                     .SourcePath = ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
                     .TargetPath = RootFSBinaryDirectory + ExecProgramName,
-                    .ReadOnly = true
+                    .ReadOnly = true,
                 });
             }
 
@@ -322,7 +322,7 @@ public:
             if (std::find(Options_.GpuIndexes.begin(), Options_.GpuIndexes.end(), deviceIndex) == Options_.GpuIndexes.end()) {
                 devices.push_back(TDevice{
                     .DeviceName = GetGpuDeviceName(deviceIndex),
-                    .Access = "-"
+                    .Access = "-",
                 });
             }
         }

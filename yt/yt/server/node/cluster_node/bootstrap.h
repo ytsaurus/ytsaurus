@@ -70,7 +70,7 @@ struct IBootstrapBase
     virtual ~IBootstrapBase() = default;
 
     // Resource management.
-    virtual const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
+    virtual const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() const = 0;
     virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
 
     virtual const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const = 0;
@@ -129,9 +129,9 @@ struct IBootstrapBase
     virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
 
     // Block tracker.
-    virtual const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const = 0;
-    virtual const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const = 0;
-    virtual const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const = 0;
+    virtual const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const = 0;
+    virtual const IMemoryUsageTrackerPtr& GetReadBlockMemoryUsageTracker() const = 0;
+    virtual const IMemoryUsageTrackerPtr& GetSystemJobsMemoryUsageTracker() const = 0;
 
     // Common node caches.
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() const = 0;
@@ -228,7 +228,7 @@ public:
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);
 
-    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const override;
+    const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() const override;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const override;
 
     const NConcurrency::IThroughputThrottlerPtr& GetDefaultInThrottler() const override;
@@ -277,9 +277,9 @@ public:
     const NHttp::IServerPtr& GetHttpServer() const override;
     const NRpc::IServerPtr& GetRpcServer() const override;
 
-    const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override;
-    const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override;
-    const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const override;
+    const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const override;
+    const IMemoryUsageTrackerPtr& GetReadBlockMemoryUsageTracker() const override;
+    const IMemoryUsageTrackerPtr& GetSystemJobsMemoryUsageTracker() const override;
 
     const NChunkClient::IBlockCachePtr& GetBlockCache() const override;
     const NDataNode::IChunkMetaManagerPtr& GetChunkMetaManager() const override;

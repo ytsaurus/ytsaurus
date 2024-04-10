@@ -13,13 +13,14 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(codecs)
 add_subdirectory(core)
 add_library(library-cpp-blockcodecs)
 
 
 target_link_libraries(library-cpp-blockcodecs PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   cpp-blockcodecs-core

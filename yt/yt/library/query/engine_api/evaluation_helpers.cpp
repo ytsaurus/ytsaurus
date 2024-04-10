@@ -416,10 +416,6 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
         }
 
-        for (size_t index = 0; index < foreignKeyPrefix; ++index) {
-            dataSource.Schema.push_back(foreignEquations[index]->LogicalType);
-        }
-
         newQuery->InferRanges = false;
         // COMPAT(lukyan): Use ordered read without modification of protocol
         newQuery->Limit = std::numeric_limits<i64>::max() - 1;

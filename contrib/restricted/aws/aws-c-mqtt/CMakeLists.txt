@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_library(restricted-aws-aws-c-mqtt)
 
 
@@ -46,7 +47,7 @@ target_include_directories(restricted-aws-aws-c-mqtt PUBLIC
 )
 
 target_link_libraries(restricted-aws-aws-c-mqtt PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   restricted-aws-aws-c-common
   restricted-aws-aws-c-http
   restricted-aws-aws-c-io

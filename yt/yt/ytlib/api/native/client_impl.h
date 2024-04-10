@@ -630,7 +630,7 @@ public: \
     IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
         const TBuildMasterSnapshotsOptions& options),
         (options))
-    IMPLEMENT_METHOD(TCellIdToSequenceNumberMap, GetMasterConsistentState, (
+    IMPLEMENT_METHOD(TCellIdToConsistentStateMap, GetMasterConsistentState, (
         const TGetMasterConsistentStateOptions& options),
         (options))
     IMPLEMENT_METHOD(void, ExitReadOnly, (
@@ -900,8 +900,8 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-    const ITypedNodeMemoryTrackerPtr LookupMemoryTracker_;
-    const ITypedNodeMemoryTrackerPtr QueryMemoryTracker_;
+    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
     const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     struct TReplicaClient final

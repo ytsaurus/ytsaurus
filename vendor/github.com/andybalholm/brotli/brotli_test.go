@@ -16,6 +16,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/andybalholm/brotli/matchfinder"
 )
 
 func checkCompressedData(compressedData, wantOriginalData []byte) error {
@@ -67,46 +69,6 @@ func TestEncoderEmptyWrite(t *testing.T) {
 		t.Errorf("Close()=%v, want nil", err)
 	}
 }
-
-func TestWriter(t *testing.T) {
-	for level := BestSpeed; level <= BestCompression; level++ {
-		// Test basic encoder usage.
-		input := []byte("<html><body><H1>Hello world</H1></body></html>")
-		out := bytes.Buffer{}
-		e := NewWriterOptions(&out, WriterOptions{Quality: level})
-		in := bytes.NewReader([]byte(input))
-		n, err := io.Copy(e, in)
-		if err != nil {
-			t.Errorf("Copy Error: %v", err)
-		}
-		if int(n) != len(input) {
-			t.Errorf("Copy() n=%v, want %v", n, len(input))
-		}
-		if err := e.Close(); err != nil {
-			t.Errorf("Close Error after copied %d bytes: %v", n, err)
-		}
-		if err := checkCompressedData(out.Bytes(), input); err != nil {
-			t.Error(err)
-		}
-
-		out2 := bytes.Buffer{}
-		e.Reset(&out2)
-		n2, err := e.Write(input)
-		if err != nil {
-			t.Errorf("Write error after Reset: %v", err)
-		}
-		if n2 != len(input) {
-			t.Errorf("Write() after Reset n=%d, want %d", n2, len(input))
-		}
-		if err := e.Close(); err != nil {
-			t.Errorf("Close error after Reset (copied %d) bytes: %v", n2, err)
-		}
-		if !bytes.Equal(out.Bytes(), out2.Bytes()) {
-			t.Error("Compressed data after Reset doesn't equal first time")
-		}
-	}
-}
-
 func TestIssue22(t *testing.T) {
 	f, err := os.Open("testdata/issue22.gz")
 	if err != nil {
@@ -143,6 +105,45 @@ func TestIssue22(t *testing.T) {
 		}
 		if err := checkCompressedData(out.Bytes(), data); err != nil {
 			t.Errorf("Error decompressing data at level %d: %v", level, err)
+		}
+	}
+}
+
+func TestWriterV2(t *testing.T) {
+	for level := BestSpeed; level <= BestCompression; level++ {
+		// Test basic encoder usage.
+		input := []byte("<html><body><H1>Hello world</H1></body></html>")
+		out := bytes.Buffer{}
+		e := NewWriterV2(&out, level)
+		in := bytes.NewReader([]byte(input))
+		n, err := io.Copy(e, in)
+		if err != nil {
+			t.Errorf("Copy Error: %v", err)
+		}
+		if int(n) != len(input) {
+			t.Errorf("Copy() n=%v, want %v", n, len(input))
+		}
+		if err := e.Close(); err != nil {
+			t.Errorf("Close Error after copied %d bytes: %v", n, err)
+		}
+		if err := checkCompressedData(out.Bytes(), input); err != nil {
+			t.Error(err)
+		}
+
+		out2 := bytes.Buffer{}
+		e.Reset(&out2)
+		n2, err := e.Write(input)
+		if err != nil {
+			t.Errorf("Write error after Reset: %v", err)
+		}
+		if n2 != len(input) {
+			t.Errorf("Write() after Reset n=%d, want %d", n2, len(input))
+		}
+		if err := e.Close(); err != nil {
+			t.Errorf("Close error after Reset (copied %d) bytes: %v", n2, err)
+		}
+		if !bytes.Equal(out.Bytes(), out2.Bytes()) {
+			t.Error("Compressed data after Reset doesn't equal first time")
 		}
 	}
 }
@@ -345,6 +346,22 @@ func TestReader(t *testing.T) {
 			"<%d bytes>",
 			got, len(content))
 	}
+
+	r.Reset(bytes.NewReader(encoded))
+	decodedOutput.Reset()
+	n, err = io.Copy(&decodedOutput, r)
+	if err != nil {
+		t.Fatalf("After Reset: Copy(): n=%v, err=%v", n, err)
+	}
+	if got := decodedOutput.Bytes(); !bytes.Equal(got, content) {
+		t.Errorf("After Reset: "+
+			"Reader output:\n"+
+			"%q\n"+
+			"want:\n"+
+			"<%d bytes>",
+			got, len(content))
+	}
+
 }
 
 func TestDecode(t *testing.T) {
@@ -456,6 +473,48 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
+func TestErrorReset(t *testing.T) {
+	compress := func(input []byte) []byte {
+		var buf bytes.Buffer
+		writer := new(Writer)
+		writer.Reset(&buf)
+		writer.Write(input)
+		writer.Close()
+
+		return buf.Bytes()
+	}
+
+	corruptReader := func(reader *Reader) {
+		buf := bytes.NewBuffer([]byte("trash"))
+		reader.Reset(buf)
+		_, err := io.ReadAll(reader)
+		if err == nil {
+			t.Fatalf("successively decompressed invalid input")
+		}
+	}
+
+	decompress := func(input []byte, reader *Reader) []byte {
+		buf := bytes.NewBuffer(input)
+		reader.Reset(buf)
+		output, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("failed to decompress data %s", err.Error())
+		}
+
+		return output
+	}
+
+	source := []byte("text")
+
+	compressed := compress(source)
+	reader := new(Reader)
+	corruptReader(reader)
+	decompressed := decompress(compressed, reader)
+	if string(source) != string(decompressed) {
+		t.Fatalf("decompressed data does not match original state")
+	}
+}
+
 // Encode returns content encoded with Brotli.
 func Encode(content []byte, options WriterOptions) ([]byte, error) {
 	var buf bytes.Buffer
@@ -516,6 +575,30 @@ func BenchmarkEncodeLevelsReset(b *testing.B) {
 	}
 }
 
+func BenchmarkEncodeLevelsResetV2(b *testing.B) {
+	opticks, err := ioutil.ReadFile("testdata/Isaac.Newton-Opticks.txt")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	for level := BestSpeed; level <= 7; level++ {
+		buf := new(bytes.Buffer)
+		w := NewWriterV2(buf, level)
+		w.Write(opticks)
+		w.Close()
+		b.Run(fmt.Sprintf("%d", level), func(b *testing.B) {
+			b.ReportAllocs()
+			b.ReportMetric(float64(len(opticks))/float64(buf.Len()), "ratio")
+			b.SetBytes(int64(len(opticks)))
+			for i := 0; i < b.N; i++ {
+				w.Reset(ioutil.Discard)
+				w.Write(opticks)
+				w.Close()
+			}
+		})
+	}
+}
+
 func BenchmarkDecodeLevels(b *testing.B) {
 	opticks, err := ioutil.ReadFile("testdata/Isaac.Newton-Opticks.txt")
 	if err != nil {
@@ -536,4 +619,120 @@ func BenchmarkDecodeLevels(b *testing.B) {
 			}
 		})
 	}
+}
+
+func test(t *testing.T, filename string, m matchfinder.MatchFinder, blockSize int) {
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := new(bytes.Buffer)
+	w := &matchfinder.Writer{
+		Dest:        b,
+		MatchFinder: m,
+		Encoder:     &Encoder{},
+		BlockSize:   blockSize,
+	}
+	w.Write(data)
+	w.Close()
+	compressed := b.Bytes()
+	sr := NewReader(bytes.NewReader(compressed))
+	decompressed, err := ioutil.ReadAll(sr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(decompressed, data) {
+		t.Fatal("decompressed output doesn't match")
+	}
+}
+
+func benchmark(b *testing.B, filename string, m matchfinder.MatchFinder, blockSize int) {
+	b.StopTimer()
+	b.ReportAllocs()
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.SetBytes(int64(len(data)))
+	buf := new(bytes.Buffer)
+	w := &matchfinder.Writer{
+		Dest:        buf,
+		MatchFinder: m,
+		Encoder:     &Encoder{},
+		BlockSize:   blockSize,
+	}
+	w.Write(data)
+	w.Close()
+	b.ReportMetric(float64(len(data))/float64(buf.Len()), "ratio")
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		w.Reset(ioutil.Discard)
+		w.Write(data)
+		w.Close()
+	}
+}
+
+func TestEncodeM4(t *testing.T) {
+	test(t, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 18, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, DistanceBitCost: 57}, 1<<16)
+}
+
+func TestEncodeM4Chain1(t *testing.T) {
+	test(t, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 18, ChainLength: 1, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain1(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 1, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain2(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 2, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain4(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 4, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain8(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 8, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain16(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 16, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain32(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 32, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain64(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 64, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain128(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 128, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func BenchmarkEncodeM4Chain256(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", &matchfinder.M4{MaxDistance: 1 << 20, ChainLength: 256, HashLen: 5, DistanceBitCost: 57}, 1<<16)
+}
+
+func TestEncodeM0(t *testing.T) {
+	test(t, "testdata/Isaac.Newton-Opticks.txt", matchfinder.M0{}, 1<<16)
+}
+
+func BenchmarkEncodeM0(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", matchfinder.M0{}, 1<<16)
+}
+
+func TestEncodeM0Lazy(t *testing.T) {
+	test(t, "testdata/Isaac.Newton-Opticks.txt", matchfinder.M0{Lazy: true}, 1<<16)
+}
+
+func BenchmarkEncodeM0Lazy(b *testing.B) {
+	benchmark(b, "testdata/Isaac.Newton-Opticks.txt", matchfinder.M0{Lazy: true}, 1<<16)
 }

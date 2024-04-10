@@ -24,7 +24,8 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton,
         NObjectClient::TCellTag cellTag,
-        NRpc::IAuthenticatorPtr authenticator);
+        NRpc::IAuthenticatorPtr authenticator,
+        NObjectClient::TCellTag clockClusterTag);
 
     ~TTimestampManager();
 

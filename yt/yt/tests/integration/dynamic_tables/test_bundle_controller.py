@@ -176,6 +176,7 @@ class TestBundleController(YTEnvSetup):
             "compressed_block_cache": 17179869184,
             "key_filter_block_cache": 1024,
             "lookup_row_cache": 1024,
+            "reserved": 1024,
             "tablet_dynamic": 10737418240,
             "tablet_static": 10737418240,
             "uncompressed_block_cache": 17179869184,
@@ -218,6 +219,7 @@ class TestBundleController(YTEnvSetup):
         config["bundle_config"]["memory_limits"] = {
             "compressed_block_cache": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/compressed_block_cache"),
             "key_filter_block_cache": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/key_filter_block_cache"),
+            "reserved": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/reserved"),
             "lookup_row_cache": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/lookup_row_cache"),
             "tablet_dynamic": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/tablet_dynamic"),
             "tablet_static": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/memory_limits/tablet_static"),
@@ -272,33 +274,34 @@ class TestBundleController(YTEnvSetup):
         self._check_configs(expected_config, config)
 
         # check all fields set query
-        expected_config["bundle_config"]["rpc_proxy_count"] = 5
-        expected_config["bundle_config"]["tablet_node_count"] = 5
+        expected_config["bundle_config"]["rpc_proxy_count"] = 1
+        expected_config["bundle_config"]["tablet_node_count"] = 1
         expected_config["bundle_config"]["cpu_limits"] = {
-            "lookup_thread_pool_size": 5,
-            "query_thread_pool_size": 5,
-            "write_thread_pool_size": 5,
+            "lookup_thread_pool_size": 1,
+            "query_thread_pool_size": 1,
+            "write_thread_pool_size": 1,
         }
         expected_config["bundle_config"]["memory_limits"] = {
-            "compressed_block_cache": 5,
-            "key_filter_block_cache": 5,
-            "lookup_row_cache": 5,
-            "tablet_dynamic": 5,
-            "tablet_static": 5,
-            "uncompressed_block_cache": 5,
-            "versioned_chunk_meta": 5,
+            "compressed_block_cache": 1073741824,
+            "lookup_row_cache": 1073741824,
+            "key_filter_block_cache": 1024,
+            "reserved": 8589934592,
+            "tablet_dynamic": 2147483648,
+            "tablet_static": 4294967296,
+            "uncompressed_block_cache": 1073741824,
+            "versioned_chunk_meta": 2147483648,
         }
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"] = {
-            "memory": 5,
-            "net": 5,
-            "type": "kek",
-            "vcpu": 5,
+            "memory": 21474836480,
+            "net": 545259520,
+            "type": "small",
+            "vcpu": 4000,
         }
         expected_config["bundle_config"]["tablet_node_resource_guarantee"] = {
-            "memory": 5,
-            "net": 5,
-            "type": "kek",
-            "vcpu": 5,
+            "memory": 21474836480,
+            "net": 104857600,
+            "vcpu": 4000,
+            "type": "tiny",
         }
         self._set_bundle_config(expected_config)
         config = self._get_cypress_config("default")
@@ -316,37 +319,41 @@ class TestBundleController(YTEnvSetup):
             "bundle_name": "default",
             "bundle_config": {
                 "cpu_limits": {
-                    "query_thread_pool_size": 15,
+                    "query_thread_pool_size": 4,
                 },
                 "memory_limits": {
-                    "compressed_block_cache": 15,
-                    "lookup_row_cache": 15,
-                    "tablet_static": 15,
+                    "compressed_block_cache": 8589934592,
+                    "lookup_row_cache": 0,
+                    "tablet_static": 42949672960,
                 },
                 "rpc_proxy_resource_guarantee": {
-                    "memory": 15,
-                    "type": "lol",
-                    "vcpu": 15,
+                    "memory": 21474836480,
+                    "net": 545259520,
+                    "type": "small",
+                    "vcpu": 4000
                 },
                 "tablet_node_resource_guarantee": {
-                    "memory": 15,
-                    "type": "lol",
-                    "vcpu": 15,
+                    "memory": 107374182400,
+                    "net": 2684354560,
+                    "type": "medium",
+                    "vcpu": 14000
                 }
             }
         }
-        expected_config["bundle_config"]["cpu_limits"]["query_thread_pool_size"] = 15
-        expected_config["bundle_config"]["memory_limits"]["compressed_block_cache"] = 15
-        expected_config["bundle_config"]["memory_limits"]["lookup_row_cache"] = 15
-        expected_config["bundle_config"]["memory_limits"]["tablet_static"] = 15
+        expected_config["bundle_config"]["cpu_limits"]["query_thread_pool_size"] = 4
+        expected_config["bundle_config"]["memory_limits"]["compressed_block_cache"] = 8589934592
+        expected_config["bundle_config"]["memory_limits"]["lookup_row_cache"] = 0
+        expected_config["bundle_config"]["memory_limits"]["tablet_static"] = 42949672960
 
-        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["memory"] = 15
-        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["type"] = "lol"
-        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["vcpu"] = 15
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["memory"] = 21474836480
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["net"] = 545259520
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["type"] = "small"
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["vcpu"] = 4000
 
-        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["memory"] = 15
-        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["type"] = "lol"
-        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["vcpu"] = 15
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["memory"] = 107374182400
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["net"] = 2684354560
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["type"] = "medium"
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["vcpu"] = 14000
 
         self._set_bundle_config(update_config)
         config = self._get_cypress_config("default")

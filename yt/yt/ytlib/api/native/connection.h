@@ -195,6 +195,15 @@ struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
 
+    //! If |true| all Sequoia retriable errors are handled in the same way as
+    //! low-level RPC retriable errors.
+    /*!
+     *  This option is mainly used to distinguish native client and HTTP/RPC
+     *  proxy: since the client is responsible for retries proxies should not
+     *  do retries themselves.
+     */
+    bool RetrySequoiaErrors = true;
+
     //! If non-null, provides an externally-controlled block cache.
     NChunkClient::IBlockCachePtr BlockCache;
 

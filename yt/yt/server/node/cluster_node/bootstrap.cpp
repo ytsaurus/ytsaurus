@@ -87,6 +87,7 @@
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/instance_limits_tracker.h>
 #include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/container_devices_checker.h>
 #endif
 
 #include <yt/yt/library/coredumper/coredumper.h>
@@ -116,8 +117,6 @@
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/misc/config.h>
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -183,6 +182,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
+
+#include <util/system/fs.h>
 
 namespace NYT::NClusterNode {
 
@@ -292,9 +293,9 @@ public:
     }
 
     // IBootstrapBase implementation.
-    const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const override
+    const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() const override
     {
-        return MemoryUsageTracker_;
+        return NodeMemoryUsageTracker_;
     }
 
     const TNodeResourceManagerPtr& GetNodeResourceManager() const override
@@ -499,19 +500,19 @@ public:
         return BlockCache_;
     }
 
-    const INodeMemoryReferenceTrackerPtr& GetNodeMemoryReferenceTracker() const override
+    const IMemoryUsageTrackerPtr& GetRpcMemoryUsageTracker() const override
     {
-        return NodeMemoryReferenceTracker_;
+        return RpcMemoryUsageTracker_;
     }
 
-    const IMemoryReferenceTrackerPtr& GetReadBlockMemoryReferenceTracker() const override
+    const IMemoryUsageTrackerPtr& GetReadBlockMemoryUsageTracker() const override
     {
-        return ReadBlockMemoryReferenceTracker_;
+        return ReadBlockMemoryUsageTracker_;
     }
 
-    const IMemoryReferenceTrackerPtr& GetSystemJobsMemoryReferenceTracker() const override
+    const IMemoryUsageTrackerPtr& GetSystemJobsMemoryUsageTracker() const override
     {
-        return SystemJobsMemoryReferenceTracker_;
+        return SystemJobsMemoryUsageTracker_;
     }
 
     const IChunkMetaManagerPtr& GetChunkMetaManager() const override
@@ -667,7 +668,7 @@ private:
 
     IMapNodePtr OrchidRoot_;
 
-    INodeMemoryTrackerPtr MemoryUsageTracker_;
+    INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
     TNodeResourceManagerPtr NodeResourceManager_;
     TBufferedProducerPtr BufferedProducer_;
 
@@ -696,6 +697,9 @@ private:
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
+
+    TActionQueuePtr ContainerDevicesCheckerQueue_;
+    NContainers::TContainerDevicesCheckerPtr ContainerDevicesChecker_;
 #endif
 
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -711,9 +715,9 @@ private:
 
     IMasterConnectorPtr MasterConnector_;
 
-    INodeMemoryReferenceTrackerPtr NodeMemoryReferenceTracker_;
-    IMemoryReferenceTrackerPtr ReadBlockMemoryReferenceTracker_;
-    IMemoryReferenceTrackerPtr SystemJobsMemoryReferenceTracker_;
+    IMemoryUsageTrackerPtr ReadBlockMemoryUsageTracker_;
+    IMemoryUsageTrackerPtr RpcMemoryUsageTracker_;
+    IMemoryUsageTrackerPtr SystemJobsMemoryUsageTracker_;
 
     IBlockCachePtr BlockCache_;
     IClientBlockCachePtr ClientBlockCache_;
@@ -793,7 +797,7 @@ private:
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-        MemoryUsageTracker_ = CreateNodeMemoryTracker(
+        NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
             /*limits*/ {},
             Logger,
@@ -866,22 +870,21 @@ private:
             ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
-        NodeMemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
-        ReadBlockMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
-        SystemJobsMemoryReferenceTracker_ = NodeMemoryReferenceTracker_->WithCategory(EMemoryCategory::SystemJobs);
+        ReadBlockMemoryUsageTracker_ = NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::PendingDiskRead);
+        SystemJobsMemoryUsageTracker_ = NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs);
+        RpcMemoryUsageTracker_ = NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc);
 
         BlockCache_ = ClientBlockCache_ = CreateClientBlockCache(
             Config_->DataNode->BlockCache,
             EBlockType::UncompressedData | EBlockType::CompressedData |
                 EBlockType::HashTableChunkIndex | EBlockType::XorFilter | EBlockType::ChunkFragmentsData,
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
-            NodeMemoryReferenceTracker_,
+            NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::BlockCache),
             DataNodeProfiler.WithPrefix("/block_cache"));
 
         BusServer_ = CreateBusServer(
             Config_->BusServer,
-            GetYTPacketTranscoderFactory(MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc)),
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+            GetYTPacketTranscoderFactory(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc)),
+            NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
 
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         RpcServer_->Configure(Config_->RpcServer);
@@ -917,7 +920,7 @@ private:
         ChunkMetaManager_ = CreateChunkMetaManager(
             Config_->DataNode,
             GetDynamicConfigManager(),
-            GetMemoryUsageTracker());
+            GetNodeMemoryUsageTracker());
 
         BlobReaderCache_ = CreateBlobReaderCache(
             GetConfig()->DataNode,
@@ -926,7 +929,7 @@ private:
 
         VersionedChunkMetaManager_ = CreateVersionedChunkMetaManager(
             Config_->TabletNode->VersionedChunkMetaCache,
-            GetMemoryUsageTracker()->WithCategory(EMemoryCategory::VersionedChunkMeta));
+            GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::VersionedChunkMeta));
 
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
@@ -963,7 +966,7 @@ private:
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,
-            MemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
+            NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
             Logger,
             ClusterNodeProfiler.WithPrefix("/object_service_cache"));
 
@@ -1045,6 +1048,15 @@ private:
                         YT_LOG_ALERT(ex, "Failed to set self memory guarantee (MemoryGuarantee: %v)", memoryGuarantee);
                     }
                 }));
+            }
+
+            if (IsExecNode()) {
+                ContainerDevicesCheckerQueue_ = New<TActionQueue>("ContainerDevicesCheck");
+                ContainerDevicesChecker_ = CreateContainerDevicesChecker(
+                    NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "test_containers"),
+                    New<TPortoExecutorDynamicConfig>(),
+                    ContainerDevicesCheckerQueue_->GetInvoker(),
+                    Logger);
             }
         }
     #endif
@@ -1208,6 +1220,14 @@ private:
 
         RpcServer_->Start();
         HttpServer_->Start();
+
+#ifdef __linux__
+        if (ContainerDevicesChecker_) {
+            ContainerDevicesChecker_->SubscribeCheck(BIND_NO_PROPAGATE(&TSlotManager::OnContainerDevicesCheckFinished, ExecNodeBootstrap_->GetSlotManager())
+                .Via(GetControlInvoker()));
+            ContainerDevicesChecker_->Start();
+        }
+#endif
 
         YT_LOG_INFO("Node started successfully");
     }
@@ -1386,10 +1406,6 @@ private:
 
         IOTracker_->SetConfig(newConfig->IOTracker);
 
-        auto memoryReferenceTrackerConfig = New<TNodeMemoryReferenceTrackerConfig>();
-        memoryReferenceTrackerConfig->EnableMemoryReferenceTracker = newConfig->EnableMemoryReferenceTracker;
-        NodeMemoryReferenceTracker_->Reconfigure(std::move(memoryReferenceTrackerConfig));
-
     #ifdef __linux__
         if (InstanceLimitsTracker_) {
             auto useInstanceLimitsTracker = newConfig->ResourceLimits->UseInstanceLimitsTracker;
@@ -1397,6 +1413,15 @@ private:
                 InstanceLimitsTracker_->Start();
             } else {
                 InstanceLimitsTracker_->Stop();
+            }
+        }
+
+        if (ContainerDevicesChecker_ && newConfig->ExecNode->SlotManager) {
+            auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
+
+            if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+                auto portoEnvironmentConfig = NYTree::ConvertTo<TPortoJobEnvironmentConfigPtr>(newConfig->ExecNode->SlotManager->JobEnvironment);
+                ContainerDevicesChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
             }
         }
     #endif
@@ -1414,8 +1439,8 @@ private:
         PopulateAlerts_.Fire(alerts);
 
         // NB: Don't expect IsXXXExceeded helpers to be atomic.
-        auto totalUsed = MemoryUsageTracker_->GetTotalUsed();
-        auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+        auto totalUsed = NodeMemoryUsageTracker_->GetTotalUsed();
+        auto totalLimit = NodeMemoryUsageTracker_->GetTotalLimit();
 
         if (DynamicConfigManager_->GetConfig()->TotalMemoryLimitExceededThreshold * totalUsed > totalLimit) {
             alerts->push_back(TError("Total memory limit exceeded")
@@ -1428,8 +1453,8 @@ private:
         }
 
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-            auto used = MemoryUsageTracker_->GetUsed(category);
-            auto limit = MemoryUsageTracker_->GetLimit(category);
+            auto used = NodeMemoryUsageTracker_->GetUsed(category);
+            auto limit = NodeMemoryUsageTracker_->GetLimit(category);
             if (used > limit * DynamicConfigManager_->GetConfig()->MemoryLimitExceededForCategoryThreshold) {
                 alerts->push_back(TError("Memory limit exceeded for category %Qlv",
                     category)
@@ -1579,11 +1604,6 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
         BIND_NO_PROPAGATE([this] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);
         }));
-}
-
-const INodeMemoryTrackerPtr& TBootstrapBase::GetMemoryUsageTracker() const
-{
-    return Bootstrap_->GetMemoryUsageTracker();
 }
 
 const TNodeResourceManagerPtr& TBootstrapBase::GetNodeResourceManager() const
@@ -1756,19 +1776,24 @@ const IBlockCachePtr& TBootstrapBase::GetBlockCache() const
     return Bootstrap_->GetBlockCache();
 }
 
-const INodeMemoryReferenceTrackerPtr& TBootstrapBase::GetNodeMemoryReferenceTracker() const
+const INodeMemoryTrackerPtr& TBootstrapBase::GetNodeMemoryUsageTracker() const
 {
-    return Bootstrap_->GetNodeMemoryReferenceTracker();
+    return Bootstrap_->GetNodeMemoryUsageTracker();
 }
 
-const IMemoryReferenceTrackerPtr& TBootstrapBase::GetReadBlockMemoryReferenceTracker() const
+const IMemoryUsageTrackerPtr& TBootstrapBase::GetRpcMemoryUsageTracker() const
 {
-    return Bootstrap_->GetReadBlockMemoryReferenceTracker();
+    return Bootstrap_->GetRpcMemoryUsageTracker();
 }
 
-const IMemoryReferenceTrackerPtr& TBootstrapBase::GetSystemJobsMemoryReferenceTracker() const
+const IMemoryUsageTrackerPtr& TBootstrapBase::GetReadBlockMemoryUsageTracker() const
 {
-    return Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+    return Bootstrap_->GetReadBlockMemoryUsageTracker();
+}
+
+const IMemoryUsageTrackerPtr& TBootstrapBase::GetSystemJobsMemoryUsageTracker() const
+{
+    return Bootstrap_->GetSystemJobsMemoryUsageTracker();
 }
 
 const IChunkMetaManagerPtr& TBootstrapBase::GetChunkMetaManager() const

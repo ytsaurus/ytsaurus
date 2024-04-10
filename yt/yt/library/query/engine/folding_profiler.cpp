@@ -81,14 +81,43 @@ public:
     void Profile(const TTableSchemaPtr& tableSchema);
 
 protected:
+    void Fold(EFoldingObjectType type);
+    void Fold(EValueType type);
+    void Fold(EExecutionBackend backend);
+    void Fold(ETotalsMode backend);
+    void Fold(bool boolean);
     void Fold(int numeric);
     void Fold(size_t numeric);
     void Fold(const char* str);
     void Fold(const llvm::FoldingSetNodeID& id);
 
     llvm::FoldingSetNodeID* Id_;
-
 };
+
+void TSchemaProfiler::Fold(EFoldingObjectType type)
+{
+    Fold(static_cast<int>(type));
+}
+
+void TSchemaProfiler::Fold(EValueType type)
+{
+    Fold(static_cast<int>(type));
+}
+
+void TSchemaProfiler::Fold(EExecutionBackend backend)
+{
+    Fold(static_cast<int>(backend));
+}
+
+void TSchemaProfiler::Fold(ETotalsMode mode)
+{
+    Fold(static_cast<int>(mode));
+}
+
+void TSchemaProfiler::Fold(bool boolean)
+{
+    Fold(static_cast<int>(boolean));
+}
 
 void TSchemaProfiler::Fold(int numeric)
 {
@@ -121,7 +150,7 @@ void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
 void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
     const auto& columns = tableSchema->Columns();
-    Fold(static_cast<int>(EFoldingObjectType::TableSchema));
+    Fold(EFoldingObjectType::TableSchema);
     for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui8>(column.GetWireType()));
@@ -1218,7 +1247,7 @@ void TQueryProfiler::Profile(
     TTableSchemaPtr schema,
     bool mergeMode)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
+    Fold(ExecutionBackend_);
     size_t dummySlot = (*slotCount)++;
 
     size_t finalSlot = dummySlot;
@@ -1227,15 +1256,15 @@ void TQueryProfiler::Profile(
 
     bool finalMode = query->IsFinal;
 
-    Fold(static_cast<int>(EFoldingObjectType::FinalMode));
-    Fold(static_cast<int>(finalMode));
-    Fold(static_cast<int>(EFoldingObjectType::MergeMode));
-    Fold(static_cast<int>(mergeMode));
+    Fold(EFoldingObjectType::FinalMode);
+    Fold(finalMode);
+    Fold(EFoldingObjectType::MergeMode);
+    Fold(mergeMode);
 
     if (auto groupClause = query->GroupClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::GroupOp));
-        Fold(static_cast<int>(groupClause->CommonPrefixWithPrimaryKey));
-        Fold(static_cast<int>(query->UseDisjointGroupBy));
+        Fold(EFoldingObjectType::GroupOp);
+        Fold(groupClause->CommonPrefixWithPrimaryKey);
+        Fold(query->UseDisjointGroupBy);
 
         std::vector<EValueType> keyTypes;
         std::vector<EValueType> stateTypes;
@@ -1264,7 +1293,7 @@ void TQueryProfiler::Profile(
 
         bool allAggregatesFirst = true;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
-            Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
+            Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
             Fold(aggregateItem.Name.c_str());
 
@@ -1334,8 +1363,8 @@ void TQueryProfiler::Profile(
         size_t deltaFinalSlot = fragmentSlots.DeltaFinal;
         totalsSlot = fragmentSlots.Totals;
 
-        Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
-        Fold(static_cast<int>(groupClause->TotalsMode));
+        Fold(EFoldingObjectType::TotalsMode);
+        Fold(groupClause->TotalsMode);
 
         schema = groupClause->GetTableSchema(query->IsFinal);
 
@@ -1377,7 +1406,7 @@ void TQueryProfiler::Profile(
 
         if (!mergeMode || finalMode) {
             if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                Fold(EFoldingObjectType::HavingOp);
 
                 // Finalizes row to evaluate predicate and filters source values.
                 deltaFinalSlot = MakeCodegenFilterFinalizedOp(
@@ -1418,7 +1447,7 @@ void TQueryProfiler::Profile(
                 stateTypes);
 
             if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
-                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                Fold(EFoldingObjectType::HavingOp);
                 deltaFinalSlot = MakeCodegenFilterOp(
                     codegenSource,
                     slotCount,
@@ -1477,7 +1506,7 @@ void TQueryProfiler::Profile(
     totalsSlot = MakeCodegenOnceOp(codegenSource, slotCount, totalsSlot);
 
     if (auto orderClause = query->OrderClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
+        Fold(EFoldingObjectType::OrderOp);
 
         int orderItemCount = orderClause->OrderItems.size();
         std::vector<size_t> orderExprIds(orderItemCount);
@@ -1514,7 +1543,7 @@ void TQueryProfiler::Profile(
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
+        Fold(EFoldingObjectType::ProjectOp);
 
         std::vector<size_t> projectExprIds;
         projectExprIds.reserve(projectClause->Projections.size());
@@ -1536,7 +1565,7 @@ void TQueryProfiler::Profile(
     }
 
     bool considerLimit = query->IsOrdered() && !query->GroupClause;
-    Fold(static_cast<int>(considerLimit));
+    Fold(considerLimit);
     if (considerLimit) {
         // TODO(dtorilov): Since we have already applied filters to queries with `having` at this stage,
         // it is safe to apply `limit` to the finalSlot of grouping queries.
@@ -1584,7 +1613,7 @@ void TQueryProfiler::Profile(
 
     //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
-    Fold(static_cast<int>(EFoldingObjectType::WriteOp));
+    Fold(EFoldingObjectType::WriteOp);
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
@@ -1623,8 +1652,8 @@ void TQueryProfiler::Profile(
     size_t* slotCount,
     TJoinSubqueryProfiler joinProfiler)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
@@ -1660,7 +1689,7 @@ void TQueryProfiler::Profile(
         std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, *schema);
 
         if (selfFilter && !IsTrue(selfFilter)) {
-            Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+            Fold(EFoldingObjectType::FilterOp);
             TExpressionFragments filterExprFragments;
             size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
             auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
@@ -1679,7 +1708,7 @@ void TQueryProfiler::Profile(
             YT_ASSERT(joinGroupSize == 1);
 
             joinIndex++;
-            Fold(static_cast<int>(EFoldingObjectType::ArrayJoinOp));
+            Fold(EFoldingObjectType::ArrayJoinOp);
 
             const auto& arrayExpressions = arrayJoinClause->ArrayExpressions;
             auto renamedJoinSchema = arrayJoinClause->GetRenamedSchema();
@@ -1750,7 +1779,7 @@ void TQueryProfiler::Profile(
             continue;
         }
 
-        Fold(static_cast<int>(EFoldingObjectType::JoinOp));
+        Fold(EFoldingObjectType::JoinOp);
         TExpressionFragments equationFragments;
 
         size_t joinBatchSize = MaxJoinBatchSize;
@@ -1854,7 +1883,7 @@ void TQueryProfiler::Profile(
                 primaryColumns.emplace_back(index, selfTableColumns[index].GetWireType());
 
                 Fold(index);
-                Fold(static_cast<int>(selfTableColumns[index].GetWireType()));
+                Fold(selfTableColumns[index].GetWireType());
             }
         }
 
@@ -1887,7 +1916,7 @@ void TQueryProfiler::Profile(
     }
 
     if (whereClause && !IsTrue(whereClause)) {
-        Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+        Fold(EFoldingObjectType::FilterOp);
         TExpressionFragments filterExprFragments;
         size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);
 
@@ -1911,8 +1940,8 @@ void TQueryProfiler::Profile(
     const TConstFrontQueryPtr& query,
     size_t* slotCount)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
@@ -1942,8 +1971,8 @@ size_t TQueryProfiler::Profile(
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::NamedExpression);
 
     size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
     Fold(resultId);

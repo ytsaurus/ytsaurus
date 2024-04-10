@@ -32,13 +32,13 @@ class TArrowOutputStream
     : public arrow::io::OutputStream
 {
 public:
-    arrow::Status Write(const void* data, int64_t nbytes) override; // Use int64_t, because of DEVTOOLSSUPPORT-41558.
+    arrow::Status Write(const void* data, int64_t nbytes) override;
 
     arrow::Status Flush() override;
 
     arrow::Status Close() override;
 
-    arrow::Result<int64_t> Tell() const override; // Use int64_t, because of DEVTOOLSSUPPORT-41558.
+    arrow::Result<int64_t> Tell() const override;
 
     bool closed() const override;
 
@@ -66,6 +66,10 @@ public:
     PyObject* iternext() override;
 
     static void InitType();
+
+    Py::Object GetSchema(Py::Tuple& args, Py::Dict& kwargs);
+
+    PYCXX_KEYWORDS_METHOD_DECL(TArrowRawIterator, GetSchema)
 
 private:
     std::shared_ptr<arrow::ipc::RecordBatchWriter> RecordBatchWriter_;

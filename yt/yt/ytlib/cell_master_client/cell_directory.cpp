@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt_proto/yt/client/cell_master/proto/cell_directory.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -74,8 +76,9 @@ public:
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             auto cellId = masterConfig->CellId;
-            SecondaryMasterConnectionConfigs_[CellTagFromId(cellId)] = masterConfig;
-            SecondaryMasterCellTags_.push_back(CellTagFromId(cellId));
+            auto cellTag = CellTagFromId(cellId);
+            EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
+            SecondaryMasterCellTags_.push_back(cellTag);
             SecondaryMasterCellIds_.push_back(cellId);
         }
         // Sort tag list to simplify subsequent equality checks.
@@ -180,7 +183,6 @@ public:
             TMasterConnectionConfigPtr masterConnectionConfig;
             FromProto(&masterConnectionConfig, item);
             YT_VERIFY(masterConnectionConfig->Addresses);
-            Sort(*masterConnectionConfig->Addresses);
 
             auto cellId = masterConnectionConfig->CellId;
             auto cellTag = CellTagFromId(cellId);
@@ -232,7 +234,6 @@ public:
         } else {
             if (Config_->PrimaryMaster->Addresses) {
                 auto expectedPrimaryCellAddresses = *Config_->PrimaryMaster->Addresses;
-                Sort(expectedPrimaryCellAddresses);
                 const auto& actualPrimaryCellAddresses = cellAddresses[PrimaryMasterCellTag_];
                 YT_LOG_WARNING_UNLESS(
                     expectedPrimaryCellAddresses == actualPrimaryCellAddresses,
@@ -243,7 +244,6 @@ public:
                 for (auto [_, cellConfig] : oldSecondaryMasterConnectionConfigs) {
                     if (cellConfig->Addresses) {
                         auto expectedCellAddresses = *cellConfig->Addresses;
-                        Sort(expectedCellAddresses);
                         const auto& actualCellAddresses = cellAddresses[CellTagFromId(cellConfig->CellId)];
 
                         YT_LOG_WARNING_UNLESS(
@@ -508,6 +508,12 @@ private:
         const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
+            if (options.RetrySequoiaErrors &&
+                error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError)
+            {
+                return true;
+            }
+
             const auto* effectiveError = &error;
             if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
                 !error.InnerErrors().empty())

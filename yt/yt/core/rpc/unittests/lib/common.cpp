@@ -34,7 +34,7 @@ i64 TTestNodeMemoryTracker::GetFree() const
 bool TTestNodeMemoryTracker::IsExceeded() const
 {
     auto guard = Guard(Lock_);
-    return GetFree() > 0;
+    return Limit_ - Usage_ <= 0;
 }
 
 TError TTestNodeMemoryTracker::TryAcquire(i64 size)
@@ -106,6 +106,13 @@ void TTestNodeMemoryTracker::ClearTotalUsage()
 i64 TTestNodeMemoryTracker::GetTotalUsage() const
 {
     return TotalUsage_;
+}
+
+TSharedRef TTestNodeMemoryTracker::Track(
+    TSharedRef reference,
+    bool /*keepHolder*/)
+{
+    return reference;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

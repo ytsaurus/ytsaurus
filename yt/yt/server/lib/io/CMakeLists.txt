@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 add_library(server-lib-io)
 
@@ -26,7 +27,7 @@ target_include_directories(server-lib-io PUBLIC
 )
 
 target_link_libraries(server-lib-io PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   yt-core-test_framework

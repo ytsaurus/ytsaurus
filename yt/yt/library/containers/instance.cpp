@@ -348,7 +348,24 @@ public:
             return GetPortoInstance(Executor_, Spec_.Name);
         };
 
-        return Executor_->CreateContainer(Spec_, /* start */ true)
+        return Executor_->CreateContainer(Spec_, /*start*/ true)
+            .Apply(BIND(onContainerCreated));
+    }
+
+    TFuture<IInstancePtr> LaunchMeta(const THashMap<TString, TString>& env) override
+    {
+        Spec_.Env = env;
+
+        auto onContainerCreated = [this, this_ = MakeStrong(this)] (const TError& error) -> IInstancePtr {
+            if (!error.IsOK()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::FailedToStartContainer, "Unable to create container")
+                    << error;
+            }
+
+            return GetPortoInstance(Executor_, Spec_.Name);
+        };
+
+        return Executor_->CreateContainer(Spec_, /*start*/ true)
             .Apply(BIND(onContainerCreated));
     }
 

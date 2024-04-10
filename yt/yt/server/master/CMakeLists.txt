@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(unittests)
 get_built_tool_path(
   TOOL_protoc_bin
@@ -306,7 +307,7 @@ target_include_directories(yt-server-master PUBLIC
 )
 
 target_link_libraries(yt-server-master PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-cpp-getopt
@@ -735,6 +736,8 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_transaction_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/sequoia_integration.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_presence_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_proxy.cpp

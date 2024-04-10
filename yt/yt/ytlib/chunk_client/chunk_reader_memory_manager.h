@@ -22,7 +22,7 @@ struct TChunkReaderMemoryManagerOptions
         i64 bufferSize,
         NProfiling::TTagList profilingTagList = {},
         bool enableDetailedLogging = false,
-        ITypedNodeMemoryTrackerPtr memoryUsageTracker = nullptr);
+        IMemoryUsageTrackerPtr memoryUsageTracker = nullptr);
 
     i64 BufferSize;
 
@@ -30,7 +30,7 @@ struct TChunkReaderMemoryManagerOptions
 
     const bool EnableDetailedLogging;
 
-    const ITypedNodeMemoryTrackerPtr MemoryUsageTracker;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +148,7 @@ private:
 
     TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
 
-    ITypedNodeMemoryTrackerPtr MemoryUsageTracker_;
+    IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     NProfiling::TTagList ProfilingTagList_;
 

@@ -119,6 +119,10 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         std::vector<TType>{EValueType::Double},
         EValueType::Boolean));
 
+    result->emplace("is_finite", New<TFunctionTypeInferrer>(
+        std::vector<TType>{EValueType::Double},
+        EValueType::Boolean));
+
     const TTypeParameter castable = 1;
 
     {

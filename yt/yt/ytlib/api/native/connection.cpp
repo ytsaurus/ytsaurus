@@ -80,6 +80,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -311,8 +313,7 @@ public:
             BlockCache_ = CreateClientBlockCache(
                 config->BlockCache,
                 EBlockType::CompressedData | EBlockType::UncompressedData,
-                /*memoryTracker*/ nullptr,
-                /*blockTracker*/ nullptr,
+                GetNullMemoryUsageTracker(),
                 Profiler_.WithPrefix("/block_cache"));
         }
 
@@ -978,7 +979,18 @@ private:
             ChannelFactory_,
             std::move(endpointDescription),
             std::move(endpointAttributes));
-        channel = CreateRetryingChannel(config, std::move(channel));
+        channel = CreateRetryingChannel(
+            config,
+            std::move(channel),
+            BIND([retrySequoiaErrors = Options_.RetrySequoiaErrors] (const TError& error) {
+                if (retrySequoiaErrors &&
+                    error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError)
+                {
+                    return true;
+                }
+
+                return NRpc::IsRetriableError(error);
+            }));
         channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
         CypressProxyChannel_ = std::move(channel);
     }

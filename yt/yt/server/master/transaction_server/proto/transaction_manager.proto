@@ -38,7 +38,7 @@ message TReqPrepareTransactionCommit
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    required uint64 commit_timestamp = 2;
+    required uint64 commit_timestamp = 2; // NTransactionClient::TTimestamp
     optional uint64 native_commit_mutation_revision = 3;
 }
 
@@ -82,8 +82,8 @@ message TReqRemoveStuckBoomerangWaves
 
 message TReqStartCypressTransaction
 {
-    required int64 timeout = 1;
-    optional uint64 deadline = 2;
+    required int64 timeout = 1;  // TDuration
+    optional uint64 deadline = 2;  // TInstant
 
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 3;
     optional string title = 4;
@@ -95,6 +95,9 @@ message TReqStartCypressTransaction
 
     required string user = 8;
     optional string user_tag = 9;
+
+    // Used _only_ for transactions mirrored to Sequoia.
+    optional NYT.NProto.TGuid hint_id = 10;
 }
 
 message TReqCommitCypressTransaction
@@ -112,7 +115,24 @@ message TReqAbortCypressTransaction
     required bool force = 2;
     required string user = 3;
     optional string user_tag = 4;
+
+    // Used for transactions mirrored to Sequoia.
+    // COMPAT(kvk1920): make it required after 24.2.
+    optional bool replicate_via_hive = 5 [default = true];
 }
+
+message TReqMarkCypressTransactionsReplicatedToCell
+{
+    required int32 destination_cell_tag = 1;
+    repeated NYT.NProto.TGuid transaction_ids = 2;
+}
+
+message TReqMaterializeCypressTransactionReplicas
+{
+    repeated TReqStartForeignTransaction transactions = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqRevokeLeases
 {
@@ -120,4 +140,3 @@ message TReqRevokeLeases
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

@@ -2801,7 +2801,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             schema=self.SIMPLE_SCHEMA_SORTED,
             replicated_table_options={"enable_replicated_table_tracker": True},
             external_cell_tag=11)
-        create_table_collocation(table_paths=["//tmp/t1", "//tmp/t2"])
+        collocation_id = create_table_collocation(table_paths=["//tmp/t1", "//tmp/t2"])
 
         def _create_replica(replicated_table, replica_table, cluster, mode):
             replica_id = create_table_replica(
@@ -2850,6 +2850,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
              get("#{}/@mode".format(replica2)) == expected_replica2_mode and
              get("#{}/@mode".format(replica3)) == expected_replica1_mode and
              get("#{}/@mode".format(replica4)) == expected_replica2_mode)
+
+        remove("#{}".format(collocation_id))
 
     @authors("akozhikhov")
     def test_preferred_replica_clusters(self):

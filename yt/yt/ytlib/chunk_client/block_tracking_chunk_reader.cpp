@@ -1,6 +1,6 @@
 #include "block_tracking_chunk_reader.h"
 
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -14,7 +14,7 @@ class TBlockTrackingChunkReader
 public:
     TBlockTrackingChunkReader(
         IChunkReaderPtr underlying,
-        IMemoryReferenceTrackerPtr tracker)
+        IMemoryUsageTrackerPtr tracker)
         : Underlying_(std::move(underlying))
         , Tracker_(std::move(tracker))
     {
@@ -57,7 +57,7 @@ public:
 
 private:
     const IChunkReaderPtr Underlying_;
-    const IMemoryReferenceTrackerPtr Tracker_;
+    const IMemoryUsageTrackerPtr Tracker_;
 
     TFuture<std::vector<TBlock>> TrackBlocks(const TFuture<std::vector<TBlock>>& future)
     {
@@ -79,7 +79,7 @@ DEFINE_REFCOUNTED_TYPE(TBlockTrackingChunkReader)
 
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,
-    IMemoryReferenceTrackerPtr tracker)
+    IMemoryUsageTrackerPtr tracker)
 {
     return New<TBlockTrackingChunkReader>(
         std::move(underlying),

@@ -22,8 +22,7 @@ DEFINE_REFCOUNTED_TYPE(IClientBlockCache)
 IClientBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr,
-    INodeMemoryReferenceTrackerPtr memoryReferenceTracker = nullptr,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

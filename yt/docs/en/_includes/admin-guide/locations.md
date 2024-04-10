@@ -11,10 +11,10 @@ In order to ensure performance in production installations, we recommend placing
 
 Each master instance can and should have exactly one `MasterChangelogs` location and one `MasterSnapshots` location.
 
-### ChunkCache, Slots { #locations_exec_nodes }
-Used by exec nodes when initiating jobs that contain user code (Map, Reduce, Vanilla, including CHYT and SPYT). `ChunkCache` locations are used for managing and caching binary artifacts like executable files or auxiliary dictionaries. `Slots` locations are needed to allocate a temporary workspace (sandbox, scratch space) when running user processes. Each exec node must have at least one `ChunkCache` location and at least one `Slots` location. When allocating multiple `ChunkCache` or `Slots` locations for a single node, the exec node will try to balance the load between them.
+### ChunkCache, ImageCache, Slots { #locations_exec_nodes }
+Used by exec nodes when initiating jobs that contain user code (Map, Reduce, Vanilla, including CHYT and SPYT). `ChunkCache` locations are used for managing and caching binary artifacts like executable files or auxiliary dictionaries. `ImageCeche` locations are used for caching container images, depending on configuration of job environment. `Slots` locations are needed to allocate a temporary workspace (sandbox, scratch space) when running user processes. Each exec node must have at least one `ChunkCache` location and at least one `Slots` location. When allocating multiple `ChunkCache` or `Slots` locations for a single node, the exec node will try to balance the load between them.
 
-Non-persistent volumes can be used for `ChunkCache` and `Slots` locations without compromising data reliability. Typical location sizes are 10–50 GB for `ChunkCache` and 5–200 GB for `Slots`.
+Non-persistent volumes can be used for `ChunkCache`, `ImageCache` and `Slots` locations without compromising data reliability. Typical location sizes are 10–50 GB for `ChunkCache` and 5–200 GB for `Slots` and `ImageCache`.
 
 ### ChunkStore { #location_data_nodes }
 Used by data nodes to store chunks. These types must be placed on persistent volumes regardless of the installation size (except very small ones). The size of the locations determines the total capacity of the cluster. When building a multi-tiered storage (containing different disk types, like HDD and SSD), specify the `medium` parameter in the location description. By default, the location is assigned to the `default` medium.

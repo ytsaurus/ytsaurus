@@ -311,15 +311,8 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     os.execve(spark_shell_path, spark_base_args + spark_args, spark_env)
 
 
-def get_spark_conf(config, enablers):
-    dict_conf = config.get("spark_conf") or {}
-    update_inplace(dict_conf, enablers.get_spark_conf())
-
-    spark_conf = []
-    for key, value in dict_conf.items():
-        spark_conf.append("-D{}={}".format(key, value))
-
-    return " ".join(spark_conf)
+def spark_conf_to_opts(config):
+    return ["-D{}={}".format(key, value) for key, value in config.items()]
 
 
 # COMPAT(atokarew): for spark clusters <= 1.75.2 that doesn't have setup-spyt-env.sh installed
@@ -380,11 +373,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         classpath = f'{spark_home}/spyt-package/conf/:{spark_home}/spyt-package/jars/*:{spark_home}/spark/jars/*'
         extra_java_opts_str = " ".join(extra_java_opts) if extra_java_opts else ""
         run_launcher = "{} -Xmx{} -cp {} {}".format(java_bin, xmx, classpath, extra_java_opts_str)
-        spark_conf = get_spark_conf(config=config, enablers=enablers)
 
         commands = [
             setup_spyt_env_cmd,
-            "{} {} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, spark_conf, component, launcher_opts)
+            "{} tech.ytsaurus.spark.launcher.{}Launcher {}".format(run_launcher, component, launcher_opts)
         ]
         return " && ".join(commands)
 
@@ -393,53 +385,62 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if enablers.enable_preference_ipv6:
         extra_java_opts.append("-Djava.net.preferIPv6Addresses=true")
 
-    master_command = _launcher_command("Master", extra_java_opts=extra_java_opts)
+    spark_conf_common = config["spark_conf"].copy()
+    update_inplace(spark_conf_common, enablers.get_conf())
+
+    spark_conf_worker = spark_conf_common.copy()
+    spark_conf_hs = spark_conf_common.copy()
+    master_command = _launcher_command("Master", extra_java_opts=extra_java_opts + spark_conf_to_opts(spark_conf_common))
 
     def _script_absolute_path(script):
         return "{}/{}".format(spark_home, script)
 
-    worker_log_location = "yt:/{}".format(spark_discovery.worker_log())
-    if "spark.workerLog.tablePath" not in config["spark_conf"]:
-        config["spark_conf"]["spark.workerLog.tablePath"] = worker_log_location
+    spark_conf_worker['spark.shuffle.service.enabled'] = 'true'
+    if "spark.workerLog.tablePath" not in spark_conf_common:
+        worker_log_location = "yt:/{}".format(spark_discovery.worker_log())
+        spark_conf_worker["spark.workerLog.tablePath"] = worker_log_location
+        spark_conf_hs["spark.workerLog.tablePath"] = worker_log_location
     if driver_op_discovery_script:
         script_absolute_path = _script_absolute_path(driver_op_discovery_script)
-        config["spark_conf"]["spark.worker.resource.driverop.amount"] = str(driver_op_resources)
-        config["spark_conf"]["spark.worker.resource.driverop.discoveryScript"] = script_absolute_path
-        config["spark_conf"]["spark.driver.resource.driverop.discoveryScript"] = script_absolute_path
+        spark_conf_worker["spark.worker.resource.driverop.amount"] = str(driver_op_resources)
+        spark_conf_worker["spark.worker.resource.driverop.discoveryScript"] = script_absolute_path
+        spark_conf_worker["spark.driver.resource.driverop.discoveryScript"] = script_absolute_path
     if extra_metrics_enabled:
-        config["spark_conf"]["spark.ui.prometheus.enabled"] = "true"
+        spark_conf_worker["spark.ui.prometheus.enabled"] = "true"
 
     if autoscaler_enabled:
-        config["spark_conf"]["spark.worker.resource.jobid.amount"] = "1"
-        config["spark_conf"]["spark.worker.resource.jobid.discoveryScript"] = _script_absolute_path(
+        spark_conf_worker["spark.worker.resource.jobid.amount"] = "1"
+        spark_conf_worker["spark.worker.resource.jobid.discoveryScript"] = _script_absolute_path(
             "spark/bin/job-id-discovery.sh")
-        config["spark_conf"]["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
+        spark_conf_worker["spark.driver.resource.jobid.discoveryScript"] = _script_absolute_path(
             "spark/bin/job-id-discovery.sh")
 
     worker_launcher_opts = \
         "--cores {0} --memory {1} --wait-master-timeout {2} --wlog-service-enabled {3} --wlog-enable-json {4} "\
-        "--wlog-update-interval {5} --wlog-table-path {6} --wlog-table-ttl {7}".format(
+        "--wlog-update-interval {5} --wlog-table-ttl {6}".format(
             worker.cores, worker.memory, worker.timeout, worker_log_transfer, worker_log_json_mode,
-            worker_log_update_interval, worker_log_location, worker_log_table_ttl)
-    worker_command = _launcher_command("Worker", xmx="2g", extra_java_opts=extra_java_opts,
+            worker_log_update_interval, worker_log_table_ttl)
+    worker_command = _launcher_command("Worker", xmx="2g",
+                                       extra_java_opts=extra_java_opts + spark_conf_to_opts(spark_conf_worker),
                                        launcher_opts=worker_launcher_opts)
 
     if advanced_event_log:
-        event_log_path = "ytEventLog:/{}".format(
-            shs_location or spark_discovery.event_log_table())
+        event_log_path = "ytEventLog:/{}".format(shs_location or spark_discovery.event_log_table())
     else:
-        event_log_path = "yt:/{}".format(
-            shs_location or spark_discovery.event_log())
-    if "spark.history.fs.numReplayThreads" not in config["spark_conf"]:
-        config["spark_conf"]["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
+        event_log_path = "yt:/{}".format(shs_location or spark_discovery.event_log())
+    if "spark.history.fs.numReplayThreads" not in spark_conf_hs:
+        spark_conf_hs["spark.history.fs.numReplayThreads"] = history_server_cpu_limit
     history_launcher_opts = "--log-path {} --memory {}".format(event_log_path, history_server_memory_limit)
-    history_command = _launcher_command("HistoryServer", extra_java_opts=extra_java_opts, launcher_opts=history_launcher_opts)
+    history_command = _launcher_command("HistoryServer",
+                                        extra_java_opts=extra_java_opts + spark_conf_to_opts(spark_conf_hs),
+                                        launcher_opts=history_launcher_opts)
 
     livy_launcher_opts = \
         "--driver-cores {0} --driver-memory {1} --max-sessions {2}".format(
             livy_driver_cores, livy_driver_memory, livy_max_sessions)
     livy_command = _launcher_command("Livy", additional_parameters=["--enable-livy"],
-                                     extra_java_opts=extra_java_opts, launcher_opts=livy_launcher_opts)
+                                     extra_java_opts=extra_java_opts + spark_conf_to_opts(spark_conf_common),
+                                     launcher_opts=livy_launcher_opts)
 
     user = get_user_name(client=client)
 
@@ -472,18 +473,21 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["YT_PROXY"] = call_get_proxy_address_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
     environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
-    environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
+    environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())  # COMPAT(alex-shishkin)
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
     environment["SPYT_HOME"] = "$HOME/{}/spyt-package".format(spark_home)
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]  # TODO Rename to SPYT_CLUSTER_VERSION
     environment["SPYT_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
-    environment["SPARK_YT_BYOP_PORT"] = "27002"
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(enablers.enable_solomon_agent)
-    environment["SOLOMON_PUSH_PORT"] = "27099"
-    environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)
+    environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = str(enablers.enable_preference_ipv6)  # COMPAT(alex-shishkin)
     environment["SPARK_YT_TCP_PROXY_ENABLED"] = str(enablers.enable_tcp_proxy)
+    environment["SPARK_YT_PROFILING_ENABLED"] = str(enablers.enable_profiling)
     environment["SPARK_YT_RPC_JOB_PROXY_ENABLED"] = str(rpc_job_proxy)
+    if enablers.enable_byop:
+        environment["SPARK_YT_BYOP_PORT"] = "27002"
+    if enablers.enable_solomon_agent:
+        environment["SOLOMON_PUSH_PORT"] = "27099"
     if enablers.enable_tcp_proxy:
         environment["SPARK_YT_TCP_PROXY_RANGE_START"] = str(tcp_proxy_range_start)
         environment["SPARK_YT_TCP_PROXY_RANGE_SIZE"] = str(tcp_proxy_range_size)
@@ -785,7 +789,6 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
     dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode
-    dynamic_config['spark_conf']['spark.shuffle.service.enabled'] = 'true'
 
     if autoscaler_period:
         dynamic_config['spark_conf']['spark.autoscaler.enabled'] = True

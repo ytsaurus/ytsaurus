@@ -13,6 +13,8 @@ SRCS(
 
 PEERDIR(
     yt/yt/python/common
+    yt/cpp/mapreduce/library/table_schema
+    library/cpp/yson/node
     contrib/libs/pycxx
     contrib/libs/apache/arrow
 )

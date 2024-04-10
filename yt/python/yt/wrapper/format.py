@@ -411,6 +411,7 @@ class StructuredSkiffFormat(Format):
             schema._row_py_schema_to_skiff_schema(py_schema)
             for py_schema in self._py_schemas
         ]
+        self._skiff_schemas_prepared = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
         attributes = {
             "table_skiff_schemas": self._skiff_schemas,
         }
@@ -422,8 +423,7 @@ class StructuredSkiffFormat(Format):
 
     def load_rows(self, stream, raw=None):
         assert self._for_reading
-        skiff_schemas = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
-        return skiff.load_structured(stream, self._py_schemas, skiff_schemas, raw)
+        return skiff.load_structured(stream, self._py_schemas, self._skiff_schemas_prepared, raw)
 
     def _dump_row(self, row, stream):
         self._dump_rows([row], stream)
@@ -431,11 +431,19 @@ class StructuredSkiffFormat(Format):
     def _dump_rows(self, rows, stream_or_streams):
         assert not self._for_reading
         streams = stream_or_streams if isinstance(stream_or_streams, list) else [stream_or_streams]
-        skiff_schemas = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
-        skiff.dump_structured(rows, streams, self._py_schemas, skiff_schemas)
+        skiff.dump_structured(rows, streams, self._py_schemas, self._skiff_schemas_prepared)
 
     def _check_bindings(self):
         schema.check_schema_module_available()
+
+    def __getstate__(self):
+        self_copy = dict(self.__dict__)
+        self_copy["_skiff_schemas_prepared"] = None
+        return self_copy
+
+    def __setstate__(self, state):
+        self.__dict__ = state
+        self._skiff_schemas_prepared = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
 
 
 class SkiffFormat(Format):
@@ -1126,6 +1134,9 @@ class JsonFormat(Format):
         If JSON_ENCODING_LEGACY_MODE enabled and encoding is not specified
         we return result from server as it is.
         """
+        if json.dumps.__module__ == "yt.packages.simplejson":
+            logger.tip("To improve performance, install the \"simplejson\" library")
+
         self._is_encoding_specified = encoding is not _ENCODING_SENTINEL
 
         defaults = {}

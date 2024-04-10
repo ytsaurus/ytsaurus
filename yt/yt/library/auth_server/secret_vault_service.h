@@ -72,7 +72,7 @@ struct ISecretVaultService
         TString Signature;
     };
 
-    virtual void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept = 0;
+    virtual void RevokeDelegationToken(TRevokeDelegationTokenRequest request) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISecretVaultService)

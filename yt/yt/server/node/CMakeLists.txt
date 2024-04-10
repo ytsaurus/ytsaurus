@@ -13,6 +13,7 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
+find_package(linux-headers-generic REQUIRED)
 add_subdirectory(cellar_node)
 add_subdirectory(chaos_node)
 add_subdirectory(data_node)
@@ -89,7 +90,7 @@ target_include_directories(yt-server-node PRIVATE
 )
 
 target_link_libraries(yt-server-node PUBLIC
-  contrib-libs-linux-headers
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
   library-query-engine
