@@ -847,7 +847,7 @@ private:
             ? options.Id
             : MakeTabletTransactionId(
                 Atomicity_,
-                Owner_->PrimaryCellTag_,
+                options.CellTag.value_or(Owner_->PrimaryCellTag_),
                 StartTimestamp_,
                 GenerateTabletTransactionHashCounter());
 

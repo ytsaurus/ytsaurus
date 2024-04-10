@@ -3628,7 +3628,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request.chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request.replicas());
@@ -3685,7 +3685,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request.node_id());
 
@@ -5758,7 +5758,7 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction()
+            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request.chunk_ids_size());
                 for (const auto& protoChunkId : request.chunk_ids()) {
