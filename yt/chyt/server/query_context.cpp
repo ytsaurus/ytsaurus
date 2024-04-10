@@ -656,10 +656,6 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TQueryContext::FetchTabl
         return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>{});
     }
 
-    if (auto sleepDuration = Settings->Testing->FetchTableAttributesSleepDuration) {
-        TDelayedExecutor::WaitForDuration(sleepDuration);
-    }
-
     auto client = Client();
     auto connection = client->GetNativeConnection();
     TMasterReadOptions masterReadOptions = *Settings->CypressReadOptions;

@@ -64,15 +64,13 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("check_chyt_banned", &TThis::CheckCHYTBanned)
         .Default(true);
 
-    registrar.Parameter("chunk_spec_fetcher_sleep_duration", &TThis::ChunkSpecFetcherSleepDuration)
+    registrar.Parameter("chunk_spec_fetcher_breakpoint", &TThis::ChunkSpecFetcherBreakpoint)
         .Default();
-    registrar.Parameter("input_stream_factory_sleep_duration", &TThis::InputStreamFactorySleepDuration)
+    registrar.Parameter("input_stream_factory_breakpoint", &TThis::InputStreamFactoryBreakpoint)
         .Default();
-    registrar.Parameter("concat_tables_range_sleep_duration", &TThis::ConcatTablesRangeSleepDuration)
+    registrar.Parameter("concat_table_range_breakpoint", &TThis::ConcatTableRangeBreakpoint)
         .Default();
-    registrar.Parameter("list_dirs_sleep_duration", &TThis::ListDirsSleepDuration)
-        .Default();
-    registrar.Parameter("fetch_table_attributes_sleep_duration", &TThis::FetchTableAttributesSleepDuration)
+    registrar.Parameter("list_dirs_breakpoint", &TThis::ListDirsBreakpoint)
         .Default();
 }
 

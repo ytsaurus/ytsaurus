@@ -671,9 +671,9 @@ private:
             }
         }
 
-        if (auto sleepDuration = QueryContext_->Settings->Testing->ChunkSpecFetcherSleepDuration) {
-            TDelayedExecutor::WaitForDuration(sleepDuration);
-            YT_LOG_DEBUG("Chunk spec fetcher slept (Duration: %v)", sleepDuration);
+        if (auto breakpointFilename = QueryContext_->Settings->Testing->ChunkSpecFetcherBreakpoint) {
+            HandleBreakpoint(*breakpointFilename, Client_);
+            YT_LOG_DEBUG("Chunk spec fetcher handled breakpoint (Breakpoint: %v)", breakpointFilename);
         }
 
         std::vector<TFuture<void>> asyncResults = {

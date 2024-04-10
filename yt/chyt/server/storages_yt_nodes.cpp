@@ -1,6 +1,7 @@
 #include "storages_yt_nodes.h"
 
 #include "config.h"
+#include "helpers.h"
 #include "query_context.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -55,13 +56,14 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
         queryContext->AcquireSnapshotLocks(dirPaths);
     }
 
-    if (auto sleepDuration = queryContext->Settings->Testing->ListDirsSleepDuration) {
-        TDelayedExecutor::WaitForDuration(sleepDuration);
+    const auto& client = queryContext->Client();
+
+    if (auto breakpointFilename = queryContext->Settings->Testing->ListDirsBreakpoint) {
+        HandleBreakpoint(*breakpointFilename, client);
     }
 
     const auto& settings = queryContext->Settings->ListDir;
 
-    const auto& client = queryContext->Client();
     const auto& connection = client->GetNativeConnection();
     TMasterReadOptions masterReadOptions = *queryContext->Settings->CypressReadOptions;
 

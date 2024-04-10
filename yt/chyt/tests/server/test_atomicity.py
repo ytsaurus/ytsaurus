@@ -1,5 +1,9 @@
+from helpers import get_breakpoint_node, release_breakpoint, wait_breakpoint
+
 from yt_commands import (authors, raises_yt_error, create, write_table, remove, read_table,
                          get, link, insert_rows, sync_mount_table, sync_unmount_table)
+
+from yt.common import wait
 
 from yt.test_helpers import assert_items_equal
 
@@ -7,7 +11,6 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 import yt.yson as yson
 
-import time
 import threading
 import pytest
 
@@ -35,16 +38,16 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
         write_table("//tmp/t_in", rows, verbose=False)
         with Clique(1) as clique:
             def remove_table():
-                time.sleep(1)
+                wait_breakpoint("static")
                 remove("//tmp/t_in")
+                release_breakpoint("static")
 
             thread = threading.Thread(target=remove_table)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
-                "chyt.testing.fetch_table_attributes_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node("static"),
             }
 
             query = "select * from `//tmp/t_in`"
@@ -143,16 +146,19 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
             # Test with table removing during the query
             def remove_tables():
-                time.sleep(1)
+                wait_breakpoint("join")
+
                 remove("//tmp/t1")
                 remove("//tmp/t2")
+
+                release_breakpoint("join")
 
             thread = threading.Thread(target=remove_tables)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node("join"),
             }
 
             query = ("select key, lhs, rhs from `//tmp/t1` t1 join (select * from `//tmp/t2`) t2 "
@@ -173,17 +179,20 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
         with Clique(1) as clique:
             def change_link():
-                time.sleep(1)
+                wait_breakpoint("link")
+
                 link("//tmp/t_in2", "//tmp/link", force=True)
                 assert read_table("//tmp/link") == []
                 remove("//tmp/t_in1")
+
+                release_breakpoint("link")
 
             thread = threading.Thread(target=change_link)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node("link"),
             }
 
             query = "select * from `//tmp/link`"
@@ -213,16 +222,19 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
         with Clique(1) as clique:
             def remove_tables():
-                time.sleep(1)
+                wait_breakpoint("yt_tables")
+
                 remove("//tmp/dir/t0")
                 remove("//tmp/dir/t1")
+
+                release_breakpoint("yt_tables")
 
             thread = threading.Thread(target=remove_tables)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": "sync",
-                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node("yt_tables"),
             }
 
             query = "select * from ytTables('//tmp/dir/t0', '//tmp/dir/t1') order by a"
@@ -257,15 +269,16 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
             extra_row = {"key": 10, "value": "foo10"}
 
             def edit_table():
-                time.sleep(1)
+                wait_breakpoint("dynamic")
                 insert_rows("//tmp/dt", [extra_row])
+                release_breakpoint("dynamic")
 
             thread = threading.Thread(target=edit_table)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.chunk_spec_fetcher_sleep_duration": 1500,
+                "chyt.testing.chunk_spec_fetcher_breakpoint": get_breakpoint_node("dynamic"),
             }
 
             query = "select * from `//tmp/dt` order by key"
@@ -306,15 +319,29 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
         with Clique(1, config_patch=self.get_config_for_dynamic_table_tests()) as clique:
             def remove_table():
-                time.sleep(1)
+                wait_breakpoint("stream")
+
+                chunks = get("//tmp/dt/@chunk_ids")
+                assert len(chunks) == 1
                 remove("//tmp/dt")
+
+                def chunk_is_removed():
+                    try:
+                        get("#{}".format(chunks[0]))
+                        return False
+                    except Exception:
+                        return True
+
+                wait(chunk_is_removed)
+
+                release_breakpoint("stream")
 
             thread = threading.Thread(target=remove_table)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.input_stream_factory_sleep_duration": 2500,
+                "chyt.testing.input_stream_factory_breakpoint": get_breakpoint_node("stream"),
             }
 
             query = "select * from `//tmp/dt` order by key"
@@ -342,7 +369,8 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
         with Clique(1) as clique:
             def add_table():
-                time.sleep(1)
+                wait_breakpoint("concat")
+
                 extra_table = "//tmp/test_dir/table_3"
                 create(
                     "table",
@@ -351,12 +379,14 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 )
                 write_table(extra_table, [{"i": 3}])
 
+                release_breakpoint("concat")
+
             thread = threading.Thread(target=add_table)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.concat_tables_range_sleep_duration": 1500,
+                "chyt.testing.concat_table_range_breakpoint": get_breakpoint_node("concat"),
             }
 
             query = "select * from concatYtTablesRange('//tmp/test_dir', 'table_1') order by i"
@@ -382,7 +412,8 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
 
         with Clique(1) as clique:
             def edit_test_dir():
-                time.sleep(1)
+                wait_breakpoint("list_nodes")
+
                 create(
                     "table",
                     "//tmp/test_dir/table_3",
@@ -390,12 +421,14 @@ class TestClickHouseAtomicity(ClickHouseTestBase):
                 )
                 remove("//tmp/test_dir/table_2")
 
+                release_breakpoint("list_nodes")
+
             thread = threading.Thread(target=edit_test_dir)
             thread.start()
 
             settings = {
                 "chyt.execution.table_read_lock_mode": table_read_lock_mode,
-                "chyt.testing.list_dirs_sleep_duration": 1500,
+                "chyt.testing.list_dirs_breakpoint": get_breakpoint_node("list_nodes"),
             }
 
             query = "select $path from ytListNodes('//tmp/test_dir') order by $path"

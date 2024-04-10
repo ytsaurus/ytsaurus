@@ -93,11 +93,10 @@ public:
 
     bool CheckCHYTBanned;
 
-    TDuration ChunkSpecFetcherSleepDuration;
-    TDuration InputStreamFactorySleepDuration;
-    TDuration ConcatTablesRangeSleepDuration;
-    TDuration ListDirsSleepDuration;
-    TDuration FetchTableAttributesSleepDuration;
+    std::optional<NYPath::TYPath> ChunkSpecFetcherBreakpoint;
+    std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;
+    std::optional<NYPath::TYPath> ConcatTableRangeBreakpoint;
+    std::optional<NYPath::TYPath> ListDirsBreakpoint;
 
     REGISTER_YSON_STRUCT(TTestingSettings);
 

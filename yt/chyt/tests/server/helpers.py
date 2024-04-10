@@ -1,3 +1,8 @@
+from yt_commands import exists, create
+
+from yt.common import wait, YtError
+
+
 def get_scheduling_options(user_slots):
     return {"scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": user_slots}}}}
 
@@ -50,3 +55,17 @@ def get_schema_from_description(describe_info):
             }
         )
     return schema
+
+
+def get_breakpoint_node(breakpoint_name):
+    return "//sys/clickhouse/breakpoints/{}".format(breakpoint_name)
+
+
+def wait_breakpoint(breakpoint_name):
+    wait(lambda: exists(get_breakpoint_node(breakpoint_name)))
+
+
+def release_breakpoint(breakpoint_name):
+    if not exists(get_breakpoint_node(breakpoint_name)):
+        raise YtError("Breakpoint doesn't exist")
+    create("document", get_breakpoint_node(breakpoint_name) + "/release")

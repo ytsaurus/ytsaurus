@@ -316,6 +316,9 @@ class Clique(object):
         except YtError as err:
             clique_error = err
 
+        for breakpoint_name in ls("//sys/clickhouse/breakpoints"):
+            remove("//sys/clickhouse/breakpoints/{}".format(breakpoint_name), recursive=True)
+
         if clique_error is not None:
             if exc_type is not None:
                 original_error = exc_value
@@ -654,6 +657,7 @@ class ClickHouseTestBase(YTEnvSetup):
             return
         create("map_node", "//sys/clickhouse")
         create("document", "//sys/clickhouse/config", attributes={"value": {}})
+        create("map_node", "//sys/clickhouse/breakpoints")
 
         # We need to inject cluster_connection into yson config.
         Clique.base_config = get_clickhouse_server_config()

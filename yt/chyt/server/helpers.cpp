@@ -475,6 +475,28 @@ DB::ASTPtr WrapTableExpressionWithSubquery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void HandleBreakpoint(
+    const NYPath::TYPath& breakpointFilename,
+    const NApi::IClientPtr& client)
+{
+    auto resultOrError = WaitFor(client->CreateNode(breakpointFilename, EObjectType::MapNode));
+    if (!resultOrError.IsOK() && resultOrError.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
+        return;
+    }
+    resultOrError.ThrowOnError();
+
+    for (int attempt = 0; attempt < 100; ++attempt) {
+        bool exists = WaitFor(client->NodeExists(Format("%v/release", breakpointFilename)))
+            .ValueOrThrow();
+        if (exists) {
+            break;
+        }
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(300));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
@@ -550,7 +572,6 @@ void PrintTo(const Field& field, std::ostream* os)
 {
     *os << ToString(field);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

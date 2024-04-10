@@ -400,9 +400,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     TLogger Logger(queryContext->Logger);
 
-    if (auto sleepDuration = queryContext->Settings->Testing->InputStreamFactorySleepDuration) {
-        TDelayedExecutor::WaitForDuration(sleepDuration);
-        YT_LOG_DEBUG("Input stream factory slept (Duration: %v)", sleepDuration);
+    if (auto breakpointFilename = queryContext->Settings->Testing->InputStreamFactoryBreakpoint) {
+        HandleBreakpoint(*breakpointFilename, queryContext->Client());
+        YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
     }
 
     auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());

@@ -1,9 +1,10 @@
 #include "table_functions.h"
 
+#include "config.h"
+#include "helpers.h"
 #include "query_context.h"
 #include "storage_distributor.h"
 #include "table.h"
-#include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -249,9 +250,9 @@ private:
             queryContext->AcquireSnapshotLocks({Directory_.GetPath()});
         }
 
-        if (auto sleepDuration = queryContext->Settings->Testing->ConcatTablesRangeSleepDuration) {
-            TDelayedExecutor::WaitForDuration(sleepDuration);
-            YT_LOG_DEBUG("Concat tables range function slept (Duration: %v)", sleepDuration);
+        if (auto breakpointFilename = queryContext->Settings->Testing->ConcatTableRangeBreakpoint) {
+            HandleBreakpoint(*breakpointFilename, queryContext->Client());
+            YT_LOG_DEBUG("Concat tables range function handled breakpoint (Breakpoint: %v)", breakpointFilename);
         }
 
         TListNodeOptions options;
