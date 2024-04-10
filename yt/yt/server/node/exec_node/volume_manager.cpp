@@ -1406,6 +1406,21 @@ private:
 
             auto error = TError("Failed to remove volume %v", volumeId)
                 << ex;
+
+            // Don't disable location in case of VolumeNotFound, VolumeNotLinked or NBD errors.
+            switch (static_cast<EPortoErrorCode>(TError(ex).GetCode())) {
+                case EPortoErrorCode::VolumeNotFound:
+                case EPortoErrorCode::VolumeNotLinked:
+                case EPortoErrorCode::NbdProtoError:
+                case EPortoErrorCode::NbdSocketError:
+                case EPortoErrorCode::NbdSocketTimeout:
+                case EPortoErrorCode::NbdSocketUnavaliable:
+                case EPortoErrorCode::NbdUnkownExport:
+                    THROW_ERROR(error);
+                default:
+                    break;
+            }
+
             Disable(error);
 
             if (DynamicConfigManager_->GetConfig()->ExecNode->AbortOnOperationWithVolumeFailed) {
