@@ -19,7 +19,8 @@ constexpr TStringBuf RuntimeReady = "RuntimeReady";
 //! NetworkReady means the runtime network is up and ready to accept containers which require network.
 constexpr TStringBuf NetworkReady = "NetworkReady";
 
-//! CRI uses cgroupfs notation for systemd slices, but each name must ends with ".slice".
+//! CRI uses cgroupfs notation for systemd slices, each name must end with ".slice" and
+//! include names of all parent slices: "a.slice/a-b.slice/a-b-c.slice".
 constexpr TStringBuf SystemdSliceSuffix = ".slice";
 
 ////////////////////////////////////////////////////////////////////////////////
