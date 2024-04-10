@@ -253,35 +253,42 @@
             "port_count" = 10000;
         };
         "check_user_job_memory_limit" = %false;
-        "job_proxy_logging" = {
-            "rules" = [
-                {
-                    "min_level" = "info";
-                    "writers" = [
-                        "info";
+        "job_proxy" = {
+            "job_proxy_heartbeat_period" = 100;
+            "job_proxy_logging" = {
+                "mode" = "simple";
+                "log_manager_template" = {
+                    "rules" = [
+                        {
+                            "min_level" = "info";
+                            "writers" = [
+                                "info";
+                            ];
+                        };
+                        {
+                            "min_level" = "debug";
+                            "exclude_categories" = [
+                                "Bus";
+                            ];
+                            "writers" = [
+                                "debug";
+                            ];
+                        };
                     ];
+                    "writers" = {
+                        "info" = {
+                            "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-slot-%slot_index%.log";
+                            "type" = "file";
+                        };
+                        "debug" = {
+                            "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-slot-%slot_index%.debug.log";
+                            "type" = "file";
+                        };
+                    };
+                    "abort_on_alert" = %true;
                 };
-                {
-                    "min_level" = "debug";
-                    "exclude_categories" = [
-                        "Bus";
-                    ];
-                    "writers" = [
-                        "debug";
-                    ];
-                };
-            ];
-            "writers" = {
-                "info" = {
-                    "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-slot-%slot_index%.log";
-                    "type" = "file";
-                };
-                "debug" = {
-                    "file_name" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-slot-%slot_index%.debug.log";
-                    "type" = "file";
-                };
+                "job_proxy_stderr_path" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-stderr-slot-%slot_index%";
             };
-            "abort_on_alert" = %true;
         };
         "node_directory_prepare_backoff_time" = 100;
         "root_fs_binds" = [
@@ -290,7 +297,6 @@
                 "internal_path" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/runtime_data/node/0";
             };
         ];
-        "job_proxy_stderr_path" = "/home/levysotsky/.ya/build/build_root/tten/000048/yt/java/ytclient/src/test-medium/test-results/src-test-medium/testing_out_stuff/yt_wd/61e915e7-4ff4-48a2-90f6-13efc647b00c/logs/job_proxy-0-stderr-slot-%slot_index%";
         "scheduler_connector" = {
             "failed_heartbeat_backoff_multiplier" = 1.;
             "heartbeat_splay" = 50;

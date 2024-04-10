@@ -674,7 +674,7 @@ public:
 
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
 
-    int ShardingKeyLength;
+    std::optional<int> ShardingKeyLength;
 
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;
