@@ -1194,6 +1194,7 @@ private:
         }
 
         spec->Resources.CpuLimit = config->ContainerCpuLimit;
+        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
