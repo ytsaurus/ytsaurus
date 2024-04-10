@@ -45,7 +45,6 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
@@ -151,8 +150,6 @@ void TBootstrap::DoRun()
         RpcProxyProfiler.WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
-
-    MemoryReferenceTracker_ = CreateNodeMemoryReferenceTracker(MemoryUsageTracker_);
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
@@ -296,8 +293,7 @@ void TBootstrap::DoRun()
             TraceSampler_,
             RpcProxyLogger,
             RpcProxyProfiler,
-            MemoryUsageTracker_,
-            MemoryReferenceTracker_);
+            MemoryUsageTracker_);
     };
 
     ApiService_ = createApiService(AuthenticationManager_);

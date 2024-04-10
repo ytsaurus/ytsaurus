@@ -105,7 +105,7 @@ private:
         const auto& dynamicOptions = slot->GetDynamicOptions();
 
         if (dynamicOptions->MaxBackingStoreMemoryRatio) {
-            const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+            const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
             auto poolTag = dynamicOptions->EnableTabletDynamicMemoryLimit
                 ? std::optional(slot->GetTabletCellBundleName())
                 : std::nullopt;

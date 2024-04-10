@@ -46,7 +46,6 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler,
     INodeMemoryTrackerPtr memoryUsageTracker = {},
-    INodeMemoryReferenceTrackerPtr nodeMemoryReferenceTracker = {},
     NApi::IStickyTransactionPoolPtr stickyTransactionPool = {});
 
 ////////////////////////////////////////////////////////////////////////////////

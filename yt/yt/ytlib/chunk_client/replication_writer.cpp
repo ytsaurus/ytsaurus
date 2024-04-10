@@ -970,7 +970,7 @@ private:
         *req->mutable_chunk_meta() = *ChunkMeta_;
 
         auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
-            Options_->MemoryTracker,
+            Options_->MemoryUsageTracker,
             req->mutable_chunk_meta()->ByteSize());
 
         req->set_block_count(BlockCount_);

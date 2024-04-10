@@ -16,12 +16,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -222,7 +221,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         auto block = std::move(entry.Block);
 
         if (session->Options.TrackMemoryAfterSessionCompletion) {
-            block.Data = TrackMemory(session->Options.MemoryReferenceTracker, std::move(block.Data), true);
+            block.Data = TrackMemory(session->Options.MemoryUsageTracker, std::move(block.Data), true);
 
             if (delayBeforeFree) {
                 block.Data = WrapBlockWithDelayedReferenceHolder(std::move(block.Data), *delayBeforeFree);
@@ -710,7 +709,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             entry.BlockIndex = blockIndexes[entryIndex];
             entry.EntryIndex = entryIndex;
         }
-        session->Options.MemoryReferenceTracker = options.MemoryReferenceTracker;
+        session->Options.MemoryUsageTracker = options.MemoryUsageTracker;
         session->Options.UseDedicatedAllocations = true;
         session->Options.TrackMemoryAfterSessionCompletion = options.TrackMemoryAfterSessionCompletion;
     } catch (const std::exception& ex) {

@@ -1487,8 +1487,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/journal_hunk_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/journal_client/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_reference_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/synchronizer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/columnar_chunk_format/column_block_manager.cpp

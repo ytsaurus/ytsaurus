@@ -607,11 +607,9 @@ public:
         NLogging::TLogger logger,
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
-        INodeMemoryReferenceTrackerPtr nodeMemoryReferenceTracker,
         IStickyTransactionPoolPtr stickyTransactionPool)
         : TMemoryTrackingServiceBase(
             WithCategory(memoryTracker, EMemoryCategory::Rpc),
-            WithCategory(nodeMemoryReferenceTracker, EMemoryCategory::Rpc),
             std::move(workerInvoker),
             GetServiceDescriptor(),
             std::move(logger),
@@ -6316,7 +6314,6 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     TProfiler profiler,
     INodeMemoryTrackerPtr memoryUsageTracker,
-    INodeMemoryReferenceTrackerPtr memoryReferenceTracker,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
     return New<TApiService>(
@@ -6332,7 +6329,6 @@ IApiServicePtr CreateApiService(
         std::move(logger),
         std::move(profiler),
         std::move(memoryUsageTracker),
-        std::move(memoryReferenceTracker),
         std::move(stickyTransactionPool));
 }
 

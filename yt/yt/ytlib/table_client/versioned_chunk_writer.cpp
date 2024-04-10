@@ -79,7 +79,7 @@ public:
         , Schema_(std::move(schema))
         , SamplesMemoryUsageGuard_(
             TMemoryUsageTrackerGuard::Acquire(
-                Options_->MemoryTracker,
+                Options_->MemoryUsageTracker,
                 /*size*/ 0))
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
             Config_,
@@ -520,7 +520,7 @@ public:
             Schema_,
             Logger)
     {
-        ResetBlockWriter(Options_->MemoryTracker);
+        ResetBlockWriter(Options_->MemoryUsageTracker);
     }
 
     i64 GetCompressedDataSize() const override
@@ -597,7 +597,7 @@ private:
         }
 
         FinishBlock(row.Keys());
-        ResetBlockWriter(Options_->MemoryTracker);
+        ResetBlockWriter(Options_->MemoryUsageTracker);
     }
 
     void FinishBlock(TUnversionedValueRange keyRange)

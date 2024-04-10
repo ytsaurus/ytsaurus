@@ -1,9 +1,8 @@
 #pragma once
 
 #include <yt/yt/core/rpc/service_detail.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 namespace NYT::NRpc {
@@ -18,7 +17,6 @@ public:
     template <typename... TArgs>
     TMemoryTrackingServiceBase(
         IMemoryUsageTrackerPtr memoryTracker,
-        IMemoryReferenceTrackerPtr memoryReferenceTracker,
         TArgs&&... args);
 
 protected:
@@ -29,7 +27,6 @@ protected:
 
 private:
     IMemoryUsageTrackerPtr MemoryTracker_;
-    IMemoryReferenceTrackerPtr MemoryReferenceTracker_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

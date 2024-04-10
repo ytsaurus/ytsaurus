@@ -424,8 +424,6 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
-    bool EnableMemoryReferenceTracker;
-
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     //! Network throttler limit is this smaller than NetworkBandwidth.

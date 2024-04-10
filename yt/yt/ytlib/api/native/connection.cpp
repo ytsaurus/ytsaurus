@@ -313,8 +313,7 @@ public:
             BlockCache_ = CreateClientBlockCache(
                 config->BlockCache,
                 EBlockType::CompressedData | EBlockType::UncompressedData,
-                /*memoryTracker*/ nullptr,
-                /*blockTracker*/ nullptr,
+                GetNullMemoryUsageTracker(),
                 Profiler_.WithPrefix("/block_cache"));
         }
 

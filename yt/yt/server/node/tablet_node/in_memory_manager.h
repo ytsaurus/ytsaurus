@@ -10,7 +10,6 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 #include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
@@ -59,7 +58,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
     std::vector<NChunkClient::TBlock> blocksWithCategory,
     const NTableClient::TCachedVersionedChunkMetaPtr& versionedChunkMeta,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
+    const INodeMemoryTrackerPtr& memoryUsageTracker,
     const IMemoryUsageTrackerPtr& memoryTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +94,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const INodeMemoryTrackerPtr& memoryTracker,
     const IInvokerPtr& compressionInvoker,
     const TReaderProfilerPtr& readerProfiler,
-    const INodeMemoryReferenceTrackerPtr& memoryReferenceTracker,
+    const INodeMemoryTrackerPtr& memoryUsageTracker,
     bool enablePreliminaryNetworkThrottling,
     const NConcurrency::IThroughputThrottlerPtr& networkThrottler);
 

@@ -138,7 +138,7 @@ public:
 
         heartbeat.set_node_id(ToProto<ui32>(GetNodeId()));
 
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         auto* protoMemory = heartbeat.mutable_statistics()->mutable_memory();
         protoMemory->set_total_limit(memoryTracker->GetTotalLimit());
         protoMemory->set_total_used(memoryTracker->GetTotalUsed());

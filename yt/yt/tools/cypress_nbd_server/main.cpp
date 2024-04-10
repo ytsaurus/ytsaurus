@@ -5,6 +5,8 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
@@ -86,7 +88,8 @@ protected:
         blockCacheConfig->CompressedData->Capacity = 512_MB;
         connectionOptions.BlockCache = CreateClientBlockCache(
             std::move(blockCacheConfig),
-            NChunkClient::EBlockType::CompressedData);
+            NChunkClient::EBlockType::CompressedData,
+            GetNullMemoryUsageTracker());
         connectionOptions.ConnectionInvoker = threadPool->GetInvoker();
         auto connection = CreateConnection(config->ClusterConnection, std::move(connectionOptions));
         connection->GetNodeDirectorySynchronizer()->Start();

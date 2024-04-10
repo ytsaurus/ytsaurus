@@ -45,7 +45,7 @@ target_link_options(unittester-ytlib-memory-trackers PRIVATE
 )
 
 target_sources(unittester-ytlib-memory-trackers PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/unittests/memory_reference_tracker_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/misc/unittests/memory_usage_tracker_ut.cpp
 )
 
 

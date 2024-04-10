@@ -454,7 +454,7 @@ i64 TNodeResourceManager::GetMemoryUsage() const
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return Bootstrap_->GetMemoryUsageTracker()->GetTotalUsed();
+    return Bootstrap_->GetNodeMemoryUsageTracker()->GetTotalUsed();
 }
 
 double TNodeResourceManager::GetCpuDemand() const
@@ -541,7 +541,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
-    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
     auto limits = GetMemoryLimits();
 
@@ -603,7 +603,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
     i64 bytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0);
     i64 bytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size").value_or(0);
@@ -733,7 +733,7 @@ TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMem
     i64 freeMemoryWatermark = dynamicConfig->FreeMemoryWatermark.value_or(*config->FreeMemoryWatermark);
     i64 totalDynamicMemory = Limits_.Load().Memory - freeMemoryWatermark;
 
-    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
     int dynamicCategoryCount = 0;
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {

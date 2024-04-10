@@ -52,7 +52,6 @@
 #include <yt/yt/ytlib/journal_client/proto/format.pb.h>
 
 #include <yt/yt/ytlib/misc/public.h>
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
@@ -63,7 +62,6 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
 
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/columnar_chunk_meta.h>
@@ -571,13 +569,13 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
         chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        chunkReadOptions.MemoryReferenceTracker = trackSystemJobsMemory ? tracker : nullptr;
+        chunkReadOptions.MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr;
         chunkReadOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
             ->GetDataNodeBootstrap()
             ->GetDynamicConfigManager()
@@ -957,7 +955,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         // TODO(savrus): profile chunk reader statistics.
         IChunkReader::TReadBlocksOptions readBlocksOptions{
@@ -969,7 +967,7 @@ private:
                     ->GetConfig()
                     ->DataNode
                     ->TrackMemoryAfterSessionCompletion,
-                .MemoryReferenceTracker = trackSystemJobsMemory ? tracker : nullptr
+                .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
             },
         };
 
@@ -1155,7 +1153,7 @@ private:
                 ->GetConfig()
                 ->DataNode
                 ->TrackSystemJobsMemory;
-            auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+            auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
             // TODO(savrus): profile chunk reader statistics.
             IChunkReader::TReadBlocksOptions readBlocksOptions{
@@ -1167,7 +1165,7 @@ private:
                         ->GetConfig()
                         ->DataNode
                         ->TrackMemoryAfterSessionCompletion,
-                    .MemoryReferenceTracker = trackSystemJobsMemory ? tracker : nullptr
+                    .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
                 },
             };
 
@@ -1310,6 +1308,11 @@ public:
     bool IsExceeded() const override
     {
         return GetFree() <= 0;
+    }
+
+    TSharedRef Track(TSharedRef reference, bool /*keepExistingTracking*/) override
+    {
+        return reference;
     }
 
 private:
@@ -2152,7 +2155,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         TClientChunkReadOptions readerOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(
@@ -2166,7 +2169,7 @@ private:
                 ->GetConfig()
                 ->DataNode
                 ->TrackMemoryAfterSessionCompletion,
-            .MemoryReferenceTracker = trackSystemJobsMemory ? tracker : nullptr
+            .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
         };
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
@@ -2657,7 +2660,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryReferenceTracker();
+        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         IChunkReader::TReadBlocksOptions readBlocksOptions;
         readBlocksOptions.ClientOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
@@ -2666,7 +2669,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackMemoryAfterSessionCompletion;
-        readBlocksOptions.ClientOptions.MemoryReferenceTracker = trackSystemJobsMemory ? tracker : nullptr;
+        readBlocksOptions.ClientOptions.MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr;
         auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};
