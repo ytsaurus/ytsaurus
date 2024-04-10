@@ -50,7 +50,7 @@ SRCS(
     api/native/list_operations.cpp
     api/native/partition_tables.cpp
     api/native/pipeline_type_handler.cpp
-    api/native/producer_type_handler.cpp
+    api/native/queue_producer_type_handler.cpp
     api/native/replicated_table_replica_type_handler.cpp
     api/native/replication_card_collocation_type_handler.cpp
     api/native/replication_card_type_handler.cpp

@@ -1,3 +1,5 @@
+#include "queue_producer_type_handler.h"
+
 #include "client_impl.h"
 #include "type_handler_detail.h"
 
@@ -6,11 +8,12 @@
 namespace NYT::NApi::NNative {
 
 using namespace NCypressClient;
+using namespace NQueueClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProducerTypeHandler
+class TQueueProducerTypeHandler
     : public TTypeHandlerBase
 {
 public:
@@ -21,8 +24,7 @@ public:
         const TYPath& path,
         const TCreateNodeOptions& options)
     {
-        using namespace NYT::NQueueClient;
-        if (type != EObjectType::Producer) {
+        if (type != EObjectType::QueueProducer) {
             return {};
         }
 
@@ -32,9 +34,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITypeHandlerPtr CreateProducerTypeHandler(TClient* client)
+ITypeHandlerPtr CreateQueueProducerTypeHandler(TClient* client)
 {
-    return New<TProducerTypeHandler>(client);
+    return New<TQueueProducerTypeHandler>(client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

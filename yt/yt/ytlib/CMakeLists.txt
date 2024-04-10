@@ -1333,7 +1333,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/producer_type_handler.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_producer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp

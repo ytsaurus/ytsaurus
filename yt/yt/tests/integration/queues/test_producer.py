@@ -9,10 +9,10 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 ##################################################################
 
 
-class TestCreateProducer(TestQueueAgentBase):
+class TestCreateQueueProducer(TestQueueAgentBase):
     @authors("apachee")
     def test_create_producer(self):
-        create("producer", "//tmp/p")
+        create("queue_producer", "//tmp/p")
 
         assert get("//tmp/p/@type") == "table"
         assert get("//tmp/p/@dynamic")
