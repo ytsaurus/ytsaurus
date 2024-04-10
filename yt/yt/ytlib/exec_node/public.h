@@ -44,6 +44,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NoSuchJob)                             (1135))
     ((NoLayerLocationAvailable)              (1136))
     ((ArtifactFetchFailed)                   (1137))
+    ((LayerLocationDisabled)                 (1138))
 );
 
 DEFINE_ENUM(EJobPhase,

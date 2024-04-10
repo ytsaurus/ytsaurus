@@ -89,7 +89,8 @@ class TestLayers(TestLayersBase):
         def check_layer_cache_disable():
             for node in nodes:
                 alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
-                return any([alert["message"] == "Layer cache is disabled" for alert in alerts])
+                return any([alert["message"] == "Layer cache is disabled" for alert in alerts]) and \
+                    any([alert["message"] == "Layer location disabled" for alert in alerts])
 
         wait(lambda: check_layer_cache_disable())
 
