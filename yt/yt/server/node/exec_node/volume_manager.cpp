@@ -495,6 +495,12 @@ public:
             .Run();
     }
 
+    TError GetAlert()
+    {
+        auto guard = Guard(SpinLock_);
+        return Alert_;
+    }
+
     TFuture<TVolumeMeta> CreateNbdVolume(
         TGuid tag,
         NProfiling::TTagSet tagSet,
@@ -572,6 +578,10 @@ public:
         }
 
         auto guard = Guard(SpinLock_);
+
+        Alert_ = TError(NExecNode::EErrorCode::LayerLocationDisabled, "Layer location disabled")
+            << TErrorAttribute("path", Config_->Path)
+            << error;
 
         if (persistentDisable) {
             // Save the reason in a file and exit.
@@ -694,6 +704,7 @@ private:
 
     mutable i64 AvailableSpace_ = 0;
     i64 UsedSpace_ = 0;
+    TError Alert_;
 
     TString GetLayerPath(const TLayerId& id) const
     {
@@ -853,13 +864,25 @@ private:
 
     void DoInitialize()
     {
+        {
+            auto guard = Guard(SpinLock_);
+            ChangeState(ELocationState::Enabled);
+        }
+
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
             if (HealthChecker_) {
                 HealthChecker_->RunCheck()
                     .ThrowOnError();
             }
+        } catch (const std::exception& ex) {
+            Disable(ex, /*persistentDisable*/ true);
+            THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
+                Config_->Path)
+                << ex;
+        }
 
+        try {
             // Volumes are not expected to be used since all jobs must be dead by now.
             auto volumePaths = WaitFor(VolumeExecutor_->ListVolumePaths())
                 .ValueOrThrow();
@@ -903,14 +926,10 @@ private:
                 HealthChecker_->Start();
             }
         } catch (const std::exception& ex) {
+            Disable(ex);
             THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
                 Config_->Path)
                 << ex;
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-            ChangeState(ELocationState::Enabled);
         }
     }
 
@@ -2045,6 +2064,23 @@ public:
         });
     }
 
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        for (const auto& location : LayerLocations_) {
+            auto error = location->GetAlert();
+
+            if (!error.IsOK()) {
+                alerts->push_back(std::move(error));
+            }
+        }
+
+        if (!IsEnabled()) {
+            alerts->emplace_back(
+                NExecNode::EErrorCode::NoLayerLocationAvailable,
+                "Layer cache is disabled");
+        }
+    }
+
     TFuture<void> Disable(const TError& reason)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -2579,33 +2615,24 @@ public:
 
         std::vector<TFuture<void>> initLocationResults;
         std::vector<TLayerLocationPtr> locations;
-        std::vector<TLayerLocationPtr> locationResults;
         for (int index = 0; index < std::ssize(Config_->VolumeManager->LayerLocations); ++index) {
             const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
             auto id = Format("layer%v", index);
-
-            try {
-                auto location = New<TLayerLocation>(
-                    locationConfig,
-                    DynamicConfigManager_,
-                    Config_->DiskHealthChecker,
-                    CreatePortoExecutor(
-                        Config_->VolumeManager->PortoExecutor,
-                        Format("volume%v", index),
-                        ExecNodeProfiler.WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
-                    CreatePortoExecutor(
-                        Config_->VolumeManager->PortoExecutor,
-                        Format("layer%v", index),
-                        ExecNodeProfiler.WithPrefix("/location_layers/porto").WithTag("location_id", id)),
-                    id);
-                locations.push_back(location);
-                initLocationResults.push_back(location->Initialize());
-            } catch (const std::exception& ex) {
-                auto error = TError("Layer location initialization failed (Path: %v)", locationConfig->Path)
-                    << ex;
-                YT_LOG_WARNING(error);
-                Alerts_.push_back(error);
-            }
+            auto location = New<TLayerLocation>(
+                locationConfig,
+                DynamicConfigManager_,
+                Config_->DiskHealthChecker,
+                CreatePortoExecutor(
+                    Config_->VolumeManager->PortoExecutor,
+                    Format("volume%v", index),
+                    ExecNodeProfiler.WithPrefix("/location_volumes/porto").WithTag("location_id", id)),
+                CreatePortoExecutor(
+                    Config_->VolumeManager->PortoExecutor,
+                    Format("layer%v", index),
+                    ExecNodeProfiler.WithPrefix("/location_layers/porto").WithTag("location_id", id)),
+                id);
+            initLocationResults.push_back(location->Initialize());
+            locations.push_back(std::move(location));
         }
 
         auto errorOrResults = WaitFor(AllSet(initLocationResults));
@@ -2613,21 +2640,6 @@ public:
         if (!errorOrResults.IsOK()) {
             auto wrappedError = TError("Failed to initialize layer locations") << errorOrResults;
             YT_LOG_WARNING(wrappedError);
-            Alerts_.push_back(wrappedError);
-            locationResults.clear();
-        }
-
-        for (int index = 0; index < std::ssize(errorOrResults.Value()); ++index) {
-            const auto& error = errorOrResults.Value()[index];
-            if (error.IsOK()) {
-                locationResults.push_back(locations[index]);
-            } else {
-                const auto& locationConfig = Config_->VolumeManager->LayerLocations[index];
-                auto wrappedError = TError("Layer location async initialization failed (Path: %v)", locationConfig->Path)
-                    << error;
-                YT_LOG_WARNING(wrappedError);
-                Alerts_.push_back(wrappedError);
-            }
         }
 
         auto tmpfsExecutor = CreatePortoExecutor(
@@ -2637,7 +2649,7 @@ public:
         LayerCache_ = New<TLayerCache>(
             Config_->VolumeManager,
             DynamicConfigManager_,
-            std::move(locationResults),
+            std::move(locations),
             tmpfsExecutor,
             ChunkCache_,
             ControlInvoker_,
@@ -2769,7 +2781,6 @@ private:
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TLayerCachePtr LayerCache_;
-    std::vector<TError> Alerts_;
 
     void BuildOrchid(NYTree::TFluentAny fluent) const override
     {
@@ -3126,12 +3137,8 @@ private:
 
     void PopulateAlerts(std::vector<TError>* alerts)
     {
-        std::copy(Alerts_.begin(), Alerts_.end(), std::back_inserter(*alerts));
-
-        if (LayerCache_ && !LayerCache_->IsEnabled()) {
-            alerts->emplace_back(
-                NExecNode::EErrorCode::NoLayerLocationAvailable,
-                "Layer cache is disabled");
+        if (LayerCache_) {
+            LayerCache_->PopulateAlerts(alerts);
         }
     }
 };
