@@ -52,5 +52,42 @@ target_sources(yt-python-common PRIVATE
 
 
 
+add_library(yt-python-common)
+
+
+target_compile_options(yt-python-common PRIVATE
+  -DPYCXX_PYTHON_2TO3
+  -DPYCXX_6_2_COMPATIBILITY
+  -DPy_LIMITED_API=0x03040000
+  -Wno-register
+)
+
+target_include_directories(yt-python-common PUBLIC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+)
+
+target_link_libraries(yt-python-common PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  contrib-libs-pycxx
+  Python3::Module
+)
+
+target_sources(yt-python-common PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/buffered_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/dynamic_ring_buffer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/shutdown.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/common/tee_input_stream.cpp
+)
+
+
+
+
 
 

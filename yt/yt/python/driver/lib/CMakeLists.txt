@@ -52,5 +52,42 @@ target_sources(python-driver-lib PRIVATE
 
 
 
+add_library(python-driver-lib)
+
+
+target_compile_options(python-driver-lib PRIVATE
+  -DPYCXX_PYTHON_2TO3
+  -DPYCXX_6_2_COMPATIBILITY
+  -DPy_LIMITED_API=0x03040000
+  -Wno-register
+)
+
+target_include_directories(python-driver-lib PUBLIC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pycxx
+)
+
+target_link_libraries(python-driver-lib PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  core-service_discovery-yp
+  yt-client-driver
+  yt-python-common
+  yt-python-yson
+  contrib-libs-pycxx
+  Python3::Module
+)
+
+target_sources(python-driver-lib PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/descriptor.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/driver.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/error.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/python/driver/lib/response.cpp
+)
+
+
+
+
 
 
