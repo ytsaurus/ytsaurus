@@ -63,3 +63,28 @@ def verify_certificate(cert, ca_cert, name):
         [openssl_binary(), "verify", "-trusted", ca_cert, "-verify_hostname", name, cert],
         check=False)
     return proc.returncode == 0
+
+
+def get_server_certificate(address):
+    proc = subprocess.run(
+        [openssl_binary(), "s_client", "-connect", address],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    header, footer = b"-----BEGIN CERTIFICATE-----\n", b"-----END CERTIFICATE-----\n"
+    return proc.stdout[proc.stdout.index(header):proc.stdout.index(footer)+len(footer)]
+
+
+def get_certificate_fingerprint(cert=None, cert_content=None):
+    if cert is not None:
+        with open(cert, "rb") as f:
+            cert_content = f.read()
+    else:
+        assert cert_content is not None
+    proc = subprocess.run(
+        [openssl_binary(), "x509", "-noout", "-fingerprint"],
+        input=cert_content,
+        stdout=subprocess.PIPE,
+    )
+    return proc.stdout.decode().strip()

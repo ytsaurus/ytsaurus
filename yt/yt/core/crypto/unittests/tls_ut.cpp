@@ -37,6 +37,7 @@ public:
 
         Context->AddCertificate(TestCertificate);
         Context->AddPrivateKey(TestCertificate);
+        Context->Commit();
 
         Poller = CreateThreadPoolPoller(2, "TlsTest");
     }
@@ -106,6 +107,7 @@ TEST(TTlsTestWithoutFixture, LoadCertificateChain)
     auto grpcLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
     auto context = New<TSslContext>();
     context->AddCertificateChain(TestCertificateChain);
+    context->Commit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
