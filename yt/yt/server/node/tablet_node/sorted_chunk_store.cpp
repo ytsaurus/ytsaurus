@@ -479,10 +479,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     auto backendReaders = GetBackendReaders(workloadCategory);
     auto chunkReader = backendReaders.ChunkReader;
 
-    if (chunkReadOptions.MemoryReferenceTracker) {
+    if (chunkReadOptions.MemoryUsageTracker) {
         chunkReader = CreateBlockTrackingChunkReader(
             chunkReader,
-            chunkReadOptions.MemoryReferenceTracker);
+            chunkReadOptions.MemoryUsageTracker);
     }
 
     auto chunkMeta = FindCachedVersionedChunkMeta(enableNewScanReader);

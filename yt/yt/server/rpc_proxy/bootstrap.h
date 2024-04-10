@@ -79,7 +79,6 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
-    INodeMemoryReferenceTrackerPtr MemoryReferenceTracker_;
 
     NContainers::IDiskManagerProxyPtr DiskManagerProxy_;
     NContainers::TDiskInfoProviderPtr DiskInfoProvider_;

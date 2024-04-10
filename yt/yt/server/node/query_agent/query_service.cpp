@@ -215,7 +215,7 @@ public:
         , Evaluator_(CreateEvaluator(Config_, QueryAgentProfiler))
         , MemoryTracker_(
             Bootstrap_
-                ->GetMemoryUsageTracker()
+                ->GetNodeMemoryUsageTracker()
                 ->WithCategory(EMemoryCategory::Query))
         , DistributedSessionManager_(CreateDistributedSessionManager(
             bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)))

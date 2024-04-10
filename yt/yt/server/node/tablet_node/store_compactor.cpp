@@ -44,7 +44,7 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -314,8 +314,7 @@ private:
         StoreWriterOptions_->ChunksEden = ResultsInEden_;
         StoreWriterOptions_->ValidateResourceUsageIncrease = false;
         StoreWriterOptions_->ConsistentChunkReplicaPlacementHash = TabletSnapshot_->ConsistentChunkReplicaPlacementHash;
-        StoreWriterOptions_->MemoryTracker = Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground);
-        StoreWriterOptions_->MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::TabletBackground);
+        StoreWriterOptions_->MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground);
 
         HunkWriterConfig_ = CloneYsonStruct(TabletSnapshot_->Settings.HunkWriterConfig);
         HunkWriterConfig_->WorkloadDescriptor = TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category);
@@ -1371,7 +1370,7 @@ private:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletPartitioning),
             .ReadSessionId = TReadSessionId::Create(),
-            .MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::TabletBackground)
+            .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)
         };
 
         auto Logger = TabletNodeLogger
@@ -1751,7 +1750,7 @@ private:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletCompaction),
             .ReadSessionId = TReadSessionId::Create(),
-            .MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(EMemoryCategory::TabletBackground)
+            .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)
         };
 
         auto Logger = TabletNodeLogger

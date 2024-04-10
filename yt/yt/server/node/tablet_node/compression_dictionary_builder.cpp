@@ -25,7 +25,7 @@
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 
@@ -111,7 +111,7 @@ public:
         TClientChunkReadOptions chunkReadOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(WorkloadCategory_),
             .ReadSessionId = TReadSessionId::Create(),
-            .MemoryReferenceTracker = Bootstrap_->GetNodeMemoryReferenceTracker()->WithCategory(
+            .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(
                 EMemoryCategory::TabletBackground)
         };
 

@@ -760,9 +760,9 @@ private:
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        INodeMemoryTrackerPtr GetMemoryUsageTracker() const override
+        INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override
         {
-            return Owner_->Bootstrap_->GetMemoryUsageTracker();
+            return Owner_->Bootstrap_->GetNodeMemoryUsageTracker();
         }
 
         NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override
@@ -4656,7 +4656,7 @@ private:
         const TAddStoreDescriptor* descriptor)
     {
         auto store = DoCreateStore(tablet, type, storeId, descriptor);
-        store->SetMemoryTracker(Bootstrap_->GetMemoryUsageTracker());
+        store->SetMemoryTracker(Bootstrap_->GetNodeMemoryUsageTracker());
         return store;
     }
 

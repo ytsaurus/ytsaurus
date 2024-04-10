@@ -8,7 +8,7 @@ namespace NYT::NChunkClient {
 
 IChunkReaderPtr CreateBlockTrackingChunkReader(
     IChunkReaderPtr underlying,
-    IMemoryReferenceTrackerPtr tracker);
+    IMemoryUsageTrackerPtr tracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

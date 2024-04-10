@@ -284,8 +284,8 @@ TChunkLocation::TChunkLocation(
     , ChunkStoreHost_(std::move(chunkStoreHost))
     , Type_(type)
     , StaticConfig_(std::move(config))
-    , ReadMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
-    , WriteMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
+    , ReadMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
+    , WriteMemoryTracker_(ChunkStoreHost_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
     , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
         .Name = StaticConfig_->MediumName
@@ -1544,7 +1544,7 @@ TStoreLocation::TStoreLocation(
         BuildJournalManagerConfig(ChunkContext_->DataNodeConfig, config),
         this,
         ChunkContext_,
-        ChunkStoreHost_->GetMemoryUsageTracker()))
+        ChunkStoreHost_->GetNodeMemoryUsageTracker()))
     , TrashCheckQueue_(New<TActionQueue>(Format("Trash:%v", Id_)))
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),

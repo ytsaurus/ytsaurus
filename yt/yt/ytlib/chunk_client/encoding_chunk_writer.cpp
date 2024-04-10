@@ -23,7 +23,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     NLogging::TLogger logger)
     : Meta_(New<TMemoryTrackedDeferredChunkMeta>(
         TMemoryUsageTrackerGuard::Acquire(
-            options->MemoryTracker,
+            options->MemoryUsageTracker,
             /*size*/ 0)))
     , Config_(config)
     , Options_(options)

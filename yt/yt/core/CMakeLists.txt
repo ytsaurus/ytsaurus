@@ -186,7 +186,6 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/hr_timer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/id_generator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/linear_probe.cpp
-  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/memory_reference_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/relaxed_mpsc_queue.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/parser_helpers.cpp

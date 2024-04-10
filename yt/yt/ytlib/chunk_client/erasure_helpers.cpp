@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
@@ -488,7 +488,7 @@ private:
 
         initialize();
 
-        LastResult_ = TrackMemory(ReadBlockOptions_.ClientOptions.MemoryReferenceTracker, result);
+        LastResult_ = TrackMemory(ReadBlockOptions_.ClientOptions.MemoryUsageTracker, result);
         return LastResult_;
     }
 };

@@ -289,8 +289,6 @@ SRCS(
 
     lease_client/proto/lease_service.proto
 
-    misc/config.cpp
-    misc/memory_reference_tracker.cpp
     misc/memory_usage_tracker.cpp
     misc/synchronizer_detail.cpp
 

@@ -52,7 +52,7 @@
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -2024,7 +2024,7 @@ private:
         auto response = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
         for (auto& block : response) {
-            block.Data = TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(block.Data));
+            block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
         }
 
         for (int index = 0; index < std::ssize(response); ++index) {
@@ -2401,7 +2401,7 @@ private:
         auto blocks = GetRpcAttachedBlocks(rsp, /*validateChecksums*/ false);
 
         for (auto& block : blocks) {
-            block.Data = TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(block.Data));
+            block.Data = TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(block.Data));
         }
 
         int blocksReceived = 0;
@@ -3129,7 +3129,7 @@ private:
 
         AccountExtraMediumBandwidth(BytesThrottled_);
 
-        Promise_.TrySet(TrackMemory(SessionOptions_.MemoryReferenceTracker, std::move(result)));
+        Promise_.TrySet(TrackMemory(SessionOptions_.MemoryUsageTracker, std::move(result)));
     }
 
     bool UpdatePeerBlockMap(const TPeer& /*suggestorPeer*/, const TPeerProbeResult& probeResult) override

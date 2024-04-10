@@ -517,7 +517,8 @@ void TJobProxy::RetrieveJobSpec()
 
         ReaderBlockCache_ = CreateClientBlockCache(
             GetJobSpecHelper()->GetJobIOConfig()->BlockCache,
-            EBlockType::CompressedData | EBlockType::UncompressedData);
+            EBlockType::CompressedData | EBlockType::UncompressedData,
+            GetNullMemoryUsageTracker());
     }
 }
 

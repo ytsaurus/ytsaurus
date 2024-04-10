@@ -95,7 +95,7 @@ public:
         : Bootstrap_(bootstrap)
         , StaticConfig_(bootstrap->GetConfig()->JobResourceManager)
         , DynamicConfig_(New<TJobResourceManagerDynamicConfig>())
-        , NodeMemoryUsageTracker_(Bootstrap_->GetMemoryUsageTracker())
+        , NodeMemoryUsageTracker_(Bootstrap_->GetNodeMemoryUsageTracker())
         , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
         , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
         , Profiler_("/job_controller")

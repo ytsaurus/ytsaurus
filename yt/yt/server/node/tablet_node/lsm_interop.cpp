@@ -148,7 +148,7 @@ private:
         backendState.TabletNodeConfig = Bootstrap_->GetConfig()->TabletNode;
         backendState.TabletNodeDynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode;
 
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
         for (const auto& occupant : cellar->Occupants()) {
             if (!occupant) {

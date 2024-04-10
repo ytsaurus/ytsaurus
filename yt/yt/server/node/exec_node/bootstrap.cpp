@@ -443,7 +443,8 @@ private:
         blockCacheConfig->CompressedData->Capacity = nbdConfig->BlockCacheCompressedDataCapacity;
         connectionOptions.BlockCache = CreateClientBlockCache(
             std::move(blockCacheConfig),
-            NChunkClient::EBlockType::CompressedData);
+            NChunkClient::EBlockType::CompressedData,
+            GetNullMemoryUsageTracker());
         connectionOptions.ConnectionInvoker = invoker;
         auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
         connection->GetNodeDirectorySynchronizer()->Start();

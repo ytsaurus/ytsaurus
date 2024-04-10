@@ -220,7 +220,7 @@ private:
 
     void OnEndSlotScan()
     {
-        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
+        const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
         auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
             ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
 

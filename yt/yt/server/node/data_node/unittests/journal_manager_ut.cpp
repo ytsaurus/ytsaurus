@@ -59,7 +59,7 @@ public:
         return 1;
     }
 
-    INodeMemoryTrackerPtr GetMemoryUsageTracker() override
+    INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() override
     {
         return MemoryUsageTracker_;
     }

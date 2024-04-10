@@ -15,7 +15,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
-#include <yt/yt/ytlib/misc/memory_reference_tracker.h>
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -26,7 +26,7 @@
 #include <yt/yt/core/concurrency/lease_manager.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/memory_reference_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NTabletNode {
 
@@ -68,7 +68,7 @@ public:
 
             auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
                 Bootstrap_
-                    ->GetMemoryUsageTracker()
+                    ->GetNodeMemoryUsageTracker()
                     ->WithCategory(EMemoryCategory::TabletStatic),
                 0 /*size*/,
                 MemoryUsageGranularity);
@@ -99,7 +99,7 @@ public:
         YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
         data->Blocks[id.BlockIndex] = block;
         data->Blocks[id.BlockIndex].Data = TrackMemory(
-            Bootstrap_->GetNodeMemoryReferenceTracker(),
+            Bootstrap_->GetNodeMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
             std::move(block.Data));
 
@@ -260,8 +260,8 @@ private:
                         chunkData->Blocks,
                         versionedChunkMeta,
                         tabletSnapshot,
-                        Bootstrap_->GetNodeMemoryReferenceTracker(),
-                        Bootstrap_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletStatic))
+                        Bootstrap_->GetNodeMemoryUsageTracker(),
+                        Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletStatic))
                     .Apply(BIND(&IInMemoryManager::FinalizeChunk, Bootstrap_->GetInMemoryManager(), chunkId));
 
                 asyncResults.push_back(std::move(asyncResult));

@@ -132,7 +132,6 @@ SRCS(
     misc/hr_timer.cpp
     misc/id_generator.cpp
     misc/linear_probe.cpp
-    misc/memory_reference_tracker.cpp
     misc/memory_usage_tracker.cpp
     misc/relaxed_mpsc_queue.cpp
     misc/parser_helpers.cpp

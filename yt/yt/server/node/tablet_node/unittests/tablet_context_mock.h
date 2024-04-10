@@ -42,7 +42,7 @@ public:
     ITransactionManagerPtr GetTransactionManager() const override;
     NRpc::IServerPtr GetLocalRpcServer() const override;
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
-    INodeMemoryTrackerPtr GetMemoryUsageTracker() const override;
+    INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
     TString GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;

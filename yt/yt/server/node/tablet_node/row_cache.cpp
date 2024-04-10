@@ -78,6 +78,13 @@ public:
         return Underlying_->IsExceeded();
     }
 
+    TSharedRef Track(
+        TSharedRef reference,
+        bool keepHolder) override
+    {
+        return Underlying_->Track(reference, keepHolder);
+    }
+
 private:
     const IMemoryUsageTrackerPtr Underlying_;
     std::atomic<i64> Size_ = 0;

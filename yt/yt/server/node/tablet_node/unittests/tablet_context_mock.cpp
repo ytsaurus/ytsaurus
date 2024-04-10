@@ -156,7 +156,7 @@ TNodeDescriptor TTabletContextMock::GetLocalDescriptor() const
     return NNodeTrackerClient::NullNodeDescriptor();
 }
 
-INodeMemoryTrackerPtr TTabletContextMock::GetMemoryUsageTracker() const
+INodeMemoryTrackerPtr TTabletContextMock::GetNodeMemoryUsageTracker() const
 {
     return nullptr;
 }

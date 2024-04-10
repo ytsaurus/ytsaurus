@@ -5,7 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(YT)
 
 SRCS(
-    memory_reference_tracker_ut.cpp
+    memory_usage_tracker_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
