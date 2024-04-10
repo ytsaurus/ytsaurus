@@ -17,7 +17,7 @@ using namespace NTableClient::NDetail;
 
 {% for type in types %}
 {{type.type_name}}IdMapping::{{type.type_name}}IdMapping(const TNameTablePtr& nameTable)
-{%- for field in type.fields %}
+{%- for field in type.fields if not field.expression %}
     {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.column_name}}"))
 {%- endfor %}
 { }
@@ -47,7 +47,7 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
 {{type.type_name}}Descriptor::{{type.type_name}}Descriptor()
     : Schema_(New<TTableSchema>(
         std::vector{
-{%- for field in type.fields %}
+{%- for field in type.fields if not field.expression %}
             TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
 {%- if field.sort_order %}
                 .SetSortOrder(ESortOrder::{{field.sort_order}})
@@ -67,7 +67,7 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
 TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 {
     std::array values{
-{%- for field in type.fields if field.sort_order %}
+{%- for field in type.fields if field.sort_order and not field.expression %}
         ToUnversionedValue({{field.cpp_name}}, rowBuffer, {{loop.index0}}),
 {%- endfor %}
     };
@@ -79,7 +79,7 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
     YT_VERIFY(key);
     ValidateKeyValueCount(key, {{type.type_name}}Descriptor::Get()->GetSchema()->GetKeyColumnCount());
     {{type.type_name}}Key result;
-{%- for field in type.fields if field.sort_order %}
+{%- for field in type.fields if field.sort_order and not field.expression %}
     FromUnversionedValue(&result.{{field.cpp_name}}, key[{{loop.index0}}]);
 {%- endfor %}
     return result;
@@ -93,13 +93,13 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     EValueFlags flags) const
 {
     std::array values{
-{%- for field in type.fields if field.sort_order %}
+{%- for field in type.fields if field.sort_order and not field.expression %}
         ToUnversionedValue(
             Key.{{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
-{%- for field in type.fields if not field.sort_order %}
+{%- for field in type.fields if not field.sort_order and not field.expression %}
         ToUnversionedValue(
             {{field.cpp_name}},
             rowBuffer,
@@ -121,7 +121,7 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping)
 {
     {{type.type_name}} result;
-{%- for field in type.fields %}
+{%- for field in type.fields if not field.expression %}
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
@@ -148,14 +148,14 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     EValueFlags flags) const
 {
     TUnversionedRowBuilder builder;
-{%- for field in type.fields if field.sort_order %}
+{%- for field in type.fields if field.sort_order and not field.expression %}
     builder.AddValue(
         ToUnversionedValue(
             Key.{{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
 {%- endfor %}
-{%- for field in type.fields if not(field.sort_order) %}
+{%- for field in type.fields if not field.sort_order and not field.expression %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
         builder.AddValue(
             ToUnversionedValue
@@ -178,7 +178,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping)
 {
     {{type.type_name}}Partial result;
-{%- for field in type.fields %}
+{%- for field in type.fields if not field.expression %}
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);

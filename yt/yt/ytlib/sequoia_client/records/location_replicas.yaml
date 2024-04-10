@@ -17,11 +17,12 @@ types:
         column_type: Uint32
         sort_order: Ascending
 
-      - cpp_name: IdHash
-        cpp_type: ui32
-        column_name: id_hash
-        column_type: Uint32
+      - cpp_name: LocationUuidHash
+        cpp_type: ui64
+        column_name: location_uuid_hash
+        column_type: Uint64
         sort_order: Ascending
+        expression: farm_hash(location_uuid)
 
       - cpp_name: LocationUuid
         cpp_type: NChunkClient::TChunkLocationUuid

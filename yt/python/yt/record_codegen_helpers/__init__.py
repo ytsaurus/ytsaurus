@@ -12,6 +12,7 @@ class Field:
     sort_order: Optional[str]
     lock: Optional[str]
     aggregate: Optional[str]
+    expression: Optional[str]
 
 
 @dataclass
