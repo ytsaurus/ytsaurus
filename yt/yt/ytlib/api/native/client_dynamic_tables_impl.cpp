@@ -2,6 +2,7 @@
 #include "backup_session.h"
 #include "config.h"
 #include "connection.h"
+#include "helpers.h"
 #include "tablet_helpers.h"
 #include "transaction.h"
 #include "type_handler.h"
@@ -2402,14 +2403,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
     // The non-native API via SelectRows checks permissions on its own.
     if (checkPermissions && options.UseNativeTabletNodeApi) {
-        NSecurityClient::TPermissionKey permissionKey{
-            .Object = FromObjectId(tableInfo->TableId),
-            .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Read,
-        };
-        const auto& permissionCache = Connection_->GetPermissionCache();
-        WaitFor(permissionCache->Get(permissionKey))
-            .ThrowOnError();
+        CheckReadPermission(tableInfo, Options_, Connection_);
     }
 
     // The code below is used to facilitate reading from [chaos] replicated tables and
@@ -2623,14 +2617,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     tableInfo->ValidateOrdered();
 
     if (checkPermissions) {
-        NSecurityClient::TPermissionKey permissionKey{
-            .Object = FromObjectId(tableInfo->TableId),
-            .User = Options_.GetAuthenticatedUser(),
-            .Permission = EPermission::Read,
-        };
-        const auto& permissionCache = Connection_->GetPermissionCache();
-        WaitFor(permissionCache->Get(permissionKey))
-            .ThrowOnError();
+        CheckReadPermission(tableInfo, Options_, Connection_);
     }
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
@@ -2676,28 +2663,12 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     const TPullConsumerOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
-    auto consumerTableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
         .ValueOrThrow();
 
-    NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(consumerTableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = EPermission::Read,
-    };
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError();
+    CheckReadPermission(tableInfo, Options_, Connection_);
 
-    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePath, consumerPath);
-    if (!registrationCheckResult.Registration) {
-        THROW_ERROR_EXCEPTION(
-            NYT::NSecurityClient::EErrorCode::AuthorizationError,
-            "Consumer %v is not registered for queue %v",
-            registrationCheckResult.ResolvedConsumer,
-            registrationCheckResult.ResolvedQueue)
-            << TErrorAttribute("raw_queue", queuePath)
-            << TErrorAttribute("raw_consumer", consumerPath);
-    }
+    auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
 
     IClientPtr queueClusterClient = MakeStrong(this);
     if (auto queueCluster = queuePath.GetCluster()) {

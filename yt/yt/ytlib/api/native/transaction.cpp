@@ -4,54 +4,55 @@
 #include "client.h"
 #include "connection.h"
 #include "config.h"
+#include "helpers.h"
 #include "secondary_index_modification.h"
 #include "sync_replica_cache.h"
 #include "tablet_commit_session.h"
 
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
+#include <yt/yt/client/api/queue_transaction_mixin.h>
+
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
-
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+#include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+
+#include <yt/yt/ytlib/api/native/tablet_helpers.h>
+
+#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
+
+#include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
-#include <yt/yt/ytlib/api/native/tablet_helpers.h>
+#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
-#include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
-
-#include <yt/yt/ytlib/table_client/row_merger.h>
-#include <yt/yt/ytlib/table_client/schema.h>
-
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
-
-#include <yt/yt/ytlib/security_client/permission_cache.h>
-
-#include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
-#include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
-
-#include <yt/yt/client/chaos_client/replication_card_cache.h>
-
-#include <yt/yt/client/queue_client/consumer_client.h>
-
-#include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
-#include <yt/yt/client/api/queue_transaction_mixin.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -352,17 +353,25 @@ public:
         i64 newOffset,
         const TAdvanceConsumerOptions& /*options*/) override
     {
-        auto tableMountCache = GetClient()->GetTableMountCache();
-        auto queuePhysicalPath = queuePath;
-        auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
-        if (!queueTableInfoOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to resolve queue path")
-                << queueTableInfoOrError;
+        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
+            .ValueOrThrow();
+
+        CheckReadPermission(tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
+        if (!registrationCheckResult.Registration) {
+            THROW_ERROR_EXCEPTION(
+                NYT::NSecurityClient::EErrorCode::AuthorizationError,
+                "Consumer %v is not registered for queue %v",
+                registrationCheckResult.ResolvedConsumer,
+                registrationCheckResult.ResolvedQueue)
+                << TErrorAttribute("raw_queue", queuePath)
+                << TErrorAttribute("raw_consumer", consumerPath);
         }
-        queuePhysicalPath = NYPath::TRichYPath(queueTableInfoOrError.Value()->PhysicalPath, queuePath.Attributes());
 
         auto queueClient = GetClient();
-        if (auto queueCluster = queuePath.GetCluster()) {
+        if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {
             auto queueConnection = FindRemoteConnection(Client_->GetNativeConnection(), *queueCluster);
             if (!queueConnection) {
                 THROW_ERROR_EXCEPTION(
@@ -376,7 +385,7 @@ public:
             queueClient = queueConnection->CreateNativeClient(queueClientOptions);
         }
 
-        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), queuePhysicalPath);
+        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), registrationCheckResult.ResolvedQueue);
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
 
         return VoidFuture;

@@ -146,7 +146,7 @@ class TestQueueConsumerApiBase(ReplicatedObjectBase):
         write_cluster = clusters[0]
         read_clusters = builtins.set(clusters[1:])
 
-        replicas = [{"replica_path": table_path, "cluster_name": remote_cluster, "enabled": True}
+        replicas = [{"replica_path": table_path, "cluster_name": remote_cluster, "enabled": True, "mode": "sync"}
                     for remote_cluster in read_clusters]
 
         self._create_replicated_table_base(table_path, replicas, schema)
@@ -204,7 +204,6 @@ class TestQueueConsumerApiBase(ReplicatedObjectBase):
         config_patch = {
             "state_write_path": config["state_write_path"],
             "state_read_path": config["state_read_path"],
-            "bypass_caching": config.get("bypass_caching", False),
             "cache_refresh_period": 250,
             "configuration_refresh_period": 500,
         }
@@ -708,12 +707,12 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="cb")
         set("//sys/chaos_cell_bundles/cb/@metadata_cell_id", cell_id)
 
-        create("table", "//tmp/q", attributes={"dynamic": True, "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
-        create("replicated_table", "//tmp/rep_q", attributes={"dynamic": True, "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
+        create("table", "//tmp/q", attributes={"dynamic": True, "schema": TestDataApiBase.DEFAULT_QUEUE_SCHEMA})
+        create("replicated_table", "//tmp/rep_q", attributes={"dynamic": True, "schema": TestDataApiBase.DEFAULT_QUEUE_SCHEMA})
         create("chaos_replicated_table",
                "//tmp/chaos_rep_q",
                attributes={"chaos_cell_bundle": "cb",
-                           "schema": TestDataApi.DEFAULT_QUEUE_SCHEMA})
+                           "schema": TestDataApiBase.DEFAULT_QUEUE_SCHEMA})
 
         create("table",
                "//tmp/c",
@@ -814,9 +813,7 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
         wait(lambda: self._registrations_are(local_replica_path, replica_clusters, builtins.set()))
 
 
-class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgentBase):
-    NUM_TEST_PARTITIONS = 2
-
+class TestDataApiBase(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
@@ -831,7 +828,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
     DO_PREPARE_TABLES_ON_SETUP = False
 
     def setup_method(self, method):
-        super(TestDataApi, self).setup_method(method)
+        super(TestDataApiBase, self).setup_method(method)
 
         cell_id = self._sync_create_chaos_bundle_and_cell()
         set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
@@ -846,11 +843,15 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         {"name": "data", "type": "string"},
     ]
 
+    def _create_tablet_cells(self):
+        for driver in self._get_drivers():
+            sync_create_cells(1, driver=driver)
+
     @staticmethod
     def _create_queue(path, schema=None, mount=True, **kwargs):
         attributes = {
             "dynamic": True,
-            "schema": schema if schema is not None else TestDataApi.DEFAULT_QUEUE_SCHEMA,
+            "schema": schema if schema is not None else TestDataApiBase.DEFAULT_QUEUE_SCHEMA,
         }
         attributes.update(kwargs)
         create("table", path, attributes=attributes)
@@ -858,17 +859,17 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
             sync_mount_table(path)
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
-        TestQueueAgentBase._create_consumer(path, mount, without_meta, **kwargs)
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
+        TestQueueAgentBase._create_consumer(path, mount, without_meta, driver, **kwargs)
 
     @staticmethod
     def _create_symlink_queue(path):
-        TestDataApi._create_queue(f"{path}-original")
+        TestDataApiBase._create_queue(f"{path}-original")
         link(f"{path}-original", path)
 
     @staticmethod
     def _create_symlink_consumer(path, without_meta=False):
-        TestDataApi._create_consumer(f"{path}-original", without_meta=without_meta)
+        TestDataApiBase._create_consumer(f"{path}-original", without_meta=without_meta)
         link(f"{path}-original", path)
 
     @staticmethod
@@ -876,13 +877,13 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         replicated_table_path = f"{path}_replicated_table"
         replicas = [
             {
-                "cluster_name": "primary",
+                "cluster_name": "remote_0",
                 "replica_path": f"{path}_replica_{i}",
                 "mode": replica_modes[i],
                 "enabled": True
             } for i in range(len(replica_modes))
         ]
-        replica_ids = TestDataApi._create_replicated_table_base(replicated_table_path, replicas, schema, **kwargs)
+        replica_ids = TestDataApiBase._create_replicated_table_base(replicated_table_path, replicas, schema, **kwargs)
 
         return replicated_table_path, replicas, replica_ids
 
@@ -912,16 +913,16 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
     @staticmethod
     def _create_replicated_queue(path, replica_modes, **kwargs):
-        return TestDataApi._create_replicated_table(path, TestDataApi.DEFAULT_QUEUE_SCHEMA, replica_modes, **kwargs)
+        return TestDataApiBase._create_replicated_table(path, TestDataApiBase.DEFAULT_QUEUE_SCHEMA, replica_modes, **kwargs)
 
     @staticmethod
     def _create_replicated_consumer(path, replica_modes, **kwargs):
-        return TestDataApi._create_replicated_table(
+        return TestDataApiBase._create_replicated_table(
             path, init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA, replica_modes,
             replicated_table_attributes_patch={"treat_as_queue_consumer": True}, **kwargs)
 
     def _create_chaos_replicated_queue(self, path, replica_modes, **kwargs):
-        return self._create_chaos_replicated_table(path, TestDataApi.DEFAULT_QUEUE_SCHEMA, replica_modes, **kwargs)
+        return self._create_chaos_replicated_table(path, TestDataApiBase.DEFAULT_QUEUE_SCHEMA, replica_modes, **kwargs)
 
     def _create_chaos_replicated_consumer(self, path, replica_modes, **kwargs):
         return self._create_chaos_replicated_table(
@@ -943,12 +944,16 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
         actual_rows = callback()
 
-        TestDataApi._assert_rows_contain(actual_rows, expected_rows)
+        TestDataApiBase._assert_rows_contain(actual_rows, expected_rows)
+
+
+class TestDataApiSingleCluster(TestDataApiBase):
+    NUM_TEST_PARTITIONS = 2
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue", [
-        _create_queue,
-        _create_symlink_queue,
+        TestDataApiBase._create_queue,
+        TestDataApiBase._create_symlink_queue,
     ])
     def test_pull_queue(self, create_queue):
         create_queue("//tmp/q")
@@ -974,109 +979,9 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         ])
 
     @authors("achulkov2", "nadya73")
-    def test_pull_replicated_queue(self):
-        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
-            "//tmp/q", replica_modes=["sync", "async", "async"])
-
-        set(f"{queue_replicated_table}/@inherit_acl", False)
-        create_user("test")
-
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            pull_queue(queue_replicated_table, offset=1, partition_index=0, authenticated_user="test")
-
-        insert_rows(queue_replicated_table, [{"data": "foo"}])
-        insert_rows(queue_replicated_table, [{"data": "bar"}])
-
-        self._assert_rows_contain(pull_queue(queue_replicated_table, offset=1, partition_index=0), [
-            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-        ])
-
-    @authors("achulkov2", "nadya73")
-    def test_pull_chaos_replicated_queue(self):
-        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
-            "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
-
-        insert_rows(queue_replicated_table, [{"data": "foo", "$tablet_index": 0}])
-        insert_rows(queue_replicated_table, [{"data": "bar", "$tablet_index": 0}])
-
-        # This request should be redirected to a sync replica.
-        self._wait_assert_rows_contain(lambda: pull_queue(queue_replicated_table, offset=1, partition_index=0), [
-            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-        ])
-
-        # This replica is async and disabled, so it should not contain any rows.
-        self._assert_rows_contain(
-            pull_queue(queue_replicas[1]["replica_path"], offset=1, partition_index=0, replica_consistency="none"), [])
-
-        # This request should be redirected to a sync replica.
-        self._assert_rows_contain(
-            pull_queue(queue_replicas[1]["replica_path"], offset=1, partition_index=0, replica_consistency="sync"), [
-                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-            ])
-
-    @authors("achulkov2", "nadya73")
-    def test_pull_replicated_consumer(self):
-        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
-            "//tmp/q", replica_modes=["sync", "async", "async"])
-        consumer_replicated_table, consumer_replicas, consumer_replica_ids = self._create_replicated_consumer(
-            "//tmp/c", replica_modes=["sync", "async", "async"])
-
-        set(f"{queue_replicated_table}/@inherit_acl", False)
-        create_user("test")
-
-        insert_rows(queue_replicated_table, [{"data": "foo"}])
-        insert_rows(queue_replicated_table, [{"data": "bar"}])
-
-        register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
-        # Wait for registration table mapping to be filled.
-        CypressSynchronizerOrchid().wait_fresh_pass()
-
-        # This works, since we perform fallback requests to replicas under root.
-        self._assert_rows_contain(
-            pull_consumer(consumer_replicas[0]["replica_path"], queue_replicated_table, offset=1,
-                          partition_index=0, authenticated_user="test"), [
-                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-            ])
-
-        # Thus, it is important that we check permissions before performing redirection.
-        set(f"{consumer_replicated_table}/@inherit_acl", False)
-        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
-            pull_consumer(consumer_replicated_table, queue_replicated_table, offset=1, partition_index=0,
-                          authenticated_user="test")
-
-    @authors("achulkov2", "nadya73")
-    def test_pull_chaos_replicated_consumer(self):
-        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
-            "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
-        consumer_replicated_table, consumer_replicas, consumer_replica_ids = self._create_chaos_replicated_consumer(
-            "//tmp/c", replica_modes=["sync", "async", "async"], disabled_replicas={1})
-
-        insert_rows(queue_replicated_table, [{"data": "foo", "$tablet_index": 0}])
-        insert_rows(queue_replicated_table, [{"data": "bar", "$tablet_index": 0}])
-
-        register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
-        # Wait for registration table mapping to be filled.
-        CypressSynchronizerOrchid().wait_fresh_pass()
-
-        self._wait_assert_rows_contain(
-            lambda: pull_consumer(consumer_replicated_table, queue_replicated_table, offset=1, partition_index=0), [
-                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-            ])
-
-        self._assert_rows_contain(
-            pull_consumer(consumer_replicas[0]["replica_path"], queue_replicas[1]["replica_path"], offset=1,
-                          partition_index=0, replica_consistency="none"), [])
-
-        self._assert_rows_contain(
-            pull_consumer(consumer_replicas[1]["replica_path"], queue_replicas[1]["replica_path"], offset=1,
-                          partition_index=0, replica_consistency="sync"), [
-                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
-            ])
-
-    @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_consumer", [
-        _create_consumer,
-        _create_symlink_consumer,
+        TestDataApiBase._create_consumer,
+        TestDataApiBase._create_symlink_consumer,
     ])
     def test_pull_consumer(self, create_consumer):
         self._create_queue("//tmp/q")
@@ -1130,8 +1035,8 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
 
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_consumer", [
-        _create_consumer,
-        _create_symlink_consumer,
+        TestDataApiBase._create_consumer,
+        TestDataApiBase._create_symlink_consumer,
     ])
     @pytest.mark.parametrize("without_meta", [
         False,
@@ -1215,3 +1120,156 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         commit_transaction(tx)
         assert get_offset("//tmp/q3") == 1543
         assert get_offset("//tmp/q4") == 1543
+
+
+class TestDataApiMultiCluster(TestDataApiBase):
+    NUM_REMOTE_CLUSTERS = 2
+
+    @authors("achulkov2", "nadya73")
+    def test_pull_replicated_queue(self):
+        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
+            "//tmp/q", replica_modes=["sync", "async", "async"])
+
+        set(f"{queue_replicated_table}/@inherit_acl", False)
+        create_user("test")
+
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            pull_queue(queue_replicated_table, offset=1, partition_index=0, authenticated_user="test")
+
+        insert_rows(queue_replicated_table, [{"data": "foo"}])
+        insert_rows(queue_replicated_table, [{"data": "bar"}])
+
+        self._assert_rows_contain(pull_queue(queue_replicated_table, offset=1, partition_index=0), [
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ])
+
+    @authors("achulkov2", "nadya73")
+    def test_pull_chaos_replicated_queue(self):
+        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
+            "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
+
+        insert_rows(queue_replicated_table, [{"data": "foo", "$tablet_index": 0}])
+        insert_rows(queue_replicated_table, [{"data": "bar", "$tablet_index": 0}])
+
+        # This request should be redirected to a sync replica.
+        self._wait_assert_rows_contain(lambda: pull_queue(queue_replicated_table, offset=1, partition_index=0), [
+            {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+        ])
+
+        # This replica is async and disabled, so it should not contain any rows.
+        self._assert_rows_contain(
+            pull_queue(queue_replicas[1]["replica_path"], offset=1, partition_index=0, replica_consistency="none"), [])
+
+        # This request should be redirected to a sync replica.
+        self._assert_rows_contain(
+            pull_queue(queue_replicas[1]["replica_path"], offset=1, partition_index=0, replica_consistency="sync"), [
+                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+            ])
+
+    @authors("achulkov2", "nadya73")
+    def test_pull_replicated_consumer(self):
+        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
+            "//tmp/q", replica_modes=["sync", "async", "async"])
+        consumer_replicated_table, consumer_replicas, consumer_replica_ids = self._create_replicated_consumer(
+            "//tmp/c", replica_modes=["sync", "async", "async"])
+
+        set(f"{queue_replicated_table}/@inherit_acl", False)
+        create_user("test")
+
+        insert_rows(queue_replicated_table, [{"data": "foo"}])
+        insert_rows(queue_replicated_table, [{"data": "bar"}])
+
+        register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
+        # Wait for registration table mapping to be filled.
+        CypressSynchronizerOrchid().wait_fresh_pass()
+
+        # This works, since we perform fallback requests to replicas under root.
+        self._assert_rows_contain(
+            pull_consumer(consumer_replicas[0]["replica_path"], queue_replicated_table, offset=1,
+                          partition_index=0, authenticated_user="test"), [
+                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+            ])
+
+        # Thus, it is important that we check permissions before performing redirection.
+        set(f"{consumer_replicated_table}/@inherit_acl", False)
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            pull_consumer(consumer_replicated_table, queue_replicated_table, offset=1, partition_index=0,
+                          authenticated_user="test")
+
+    @authors("achulkov2", nadya73")
+    def test_pull_chaos_replicated_consumer(self):
+        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_chaos_replicated_queue(
+            "//tmp/q", replica_modes=["sync", "async", "async"], disabled_replicas={1})
+        consumer_replicated_table, consumer_replicas, consumer_replica_ids = self._create_chaos_replicated_consumer(
+            "//tmp/c", replica_modes=["sync", "async", "async"], disabled_replicas={1})
+
+        insert_rows(queue_replicated_table, [{"data": "foo", "$tablet_index": 0}])
+        insert_rows(queue_replicated_table, [{"data": "bar", "$tablet_index": 0}])
+
+        register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
+        # Wait for registration table mapping to be filled.
+        CypressSynchronizerOrchid().wait_fresh_pass()
+
+        self._wait_assert_rows_contain(
+            lambda: pull_consumer(consumer_replicated_table, queue_replicated_table, offset=1, partition_index=0), [
+                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+            ])
+
+        self._assert_rows_contain(
+            pull_consumer(consumer_replicas[0]["replica_path"], queue_replicas[1]["replica_path"], offset=1,
+                          partition_index=0, replica_consistency="none"), [])
+
+        self._assert_rows_contain(
+            pull_consumer(consumer_replicas[1]["replica_path"], queue_replicas[1]["replica_path"], offset=1,
+                          partition_index=0, replica_consistency="sync"), [
+                {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
+            ])
+
+
+    @authors("nadya73")
+    def test_advance_consumer_different_clusters(self):
+        self._create_tablet_cells()
+
+        config = self._create_replicated_registration_table()
+        self._apply_registration_table_config(config)
+
+        driver_remote_0 = get_driver(cluster="remote_0")
+        self._create_consumer("//tmp/c", driver=driver_remote_0)
+
+        def select_queue_partition_from_consumer(queue, partition_index=0):
+            rows = select_rows(
+                f"* from [//tmp/c] where [queue_path] = \"{queue}\" and [partition_index] = {partition_index}", driver=driver_remote_0)
+            assert len(rows) <= 1
+            return rows
+
+        def get_offset(queue, partition_index=0):
+            rows = select_queue_partition_from_consumer(queue, partition_index)
+            if rows:
+                return rows[0]["offset"]
+            return None
+
+        def get_meta(queue, partition_index=0):
+            rows = select_queue_partition_from_consumer(queue, partition_index)
+            if rows and len(rows) > 0 and "meta" in rows[0]:
+                return rows[0]["meta"]
+            return None
+
+        assert get_offset("//tmp/q") is None
+
+        with raises_yt_error("Failed to get table mount info to perform registration manager resolutions for object"):
+            advance_consumer("//tmp/c", "primary://tmp/q", partition_index=0, old_offset=None, new_offset=3, client_side=False, driver=driver_remote_0)
+
+        queue_replicated_table, queue_replicas, queue_replica_ids = self._create_replicated_queue(
+            "//tmp/q", replica_modes=["sync", "async", "async"])
+        queue_replicated_table_with_cluster = "primary:" + queue_replicated_table
+
+        insert_rows(queue_replicated_table, [{"data": "foo"}] * 6)
+
+        with raises_yt_error("is not registered for queue"):
+            advance_consumer("//tmp/c", queue_replicated_table_with_cluster, partition_index=0, old_offset=None, new_offset=3, client_side=False, driver=driver_remote_0)
+
+        register_queue_consumer(queue_replicated_table_with_cluster, "remote_0://tmp/c", vital=True)
+
+        advance_consumer("//tmp/c", queue_replicated_table_with_cluster, partition_index=0, old_offset=None, new_offset=3, client_side=False, driver=driver_remote_0)
+
+        assert get_offset(queue_replicated_table) == 3
