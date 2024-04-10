@@ -1,4 +1,4 @@
-OWNER(
+SUBSCRIBER(
     shadchin
     g:yatest
 )
