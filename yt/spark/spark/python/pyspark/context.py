@@ -125,7 +125,7 @@ class SparkContext(object):
     _lock = RLock()
     _python_includes = None  # zip and egg files that need to be added to PYTHONPATH
 
-    PACKAGE_EXTENSIONS = ('.zip', '.egg', '.jar', '.whl')
+    PACKAGE_EXTENSIONS = ('.zip', '.egg', '.jar')
 
     def __init__(self, master=None, appName=None, sparkHome=None, pyFiles=None,
                  environment=None, batchSize=0, serializer=PickleSerializer(), conf=None,

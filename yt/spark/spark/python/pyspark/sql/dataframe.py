@@ -2477,16 +2477,6 @@ class DataFrame(PandasMapOpsMixin, PandasConversionMixin):
             raise TypeError("col should be Column")
         return DataFrame(self._jdf.withColumn(colName, col._jc), self.sql_ctx)
 
-    def withYsonColumn(self, colName, col):
-        java_column = _to_java_column(col)
-        return DataFrame(
-            self._sc._jvm.tech.ytsaurus.spyt.PythonUtils.withYsonColumn(self._jdf, colName, java_column),
-            self.sql_ctx
-        )
-
-    def transform(self, func):
-        return func(self)
-
     def withColumnRenamed(self, existing, new):
         """Returns a new :class:`DataFrame` by renaming an existing column.
         This is a no-op if schema doesn't contain the given column name.
