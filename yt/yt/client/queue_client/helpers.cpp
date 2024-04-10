@@ -27,7 +27,7 @@ TFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>> CollectPartitionRowInfo
     const auto& Logger = logger;
 
     if (tabletAndRowIndices.empty()) {
-        return {};
+        return MakeFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>>({});
     }
 
     TStringBuilder queryBuilder;
