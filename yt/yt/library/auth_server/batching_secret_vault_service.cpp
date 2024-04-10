@@ -55,7 +55,7 @@ public:
         return Underlying_->GetDelegationToken(std::move(request));
     }
 
-    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) noexcept override
+    void RevokeDelegationToken(TRevokeDelegationTokenRequest request) override
     {
         Underlying_->RevokeDelegationToken(std::move(request));
     }
