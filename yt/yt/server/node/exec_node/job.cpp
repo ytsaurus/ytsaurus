@@ -83,6 +83,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/error_helpers.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -2998,8 +2999,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         }
     }
 
-    auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
-    if (abortReason) {
+    if (auto abortReason = FindAttributeRecursive<EAbortReason>(resultError, "abort_reason")) {
         return *abortReason;
     }
 
