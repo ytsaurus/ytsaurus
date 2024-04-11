@@ -19,6 +19,7 @@ YT_DEFINE_ERROR_ENUM(
     ((InterruptionUnsupported)   (1209))
     ((InterruptionTimeout)       (1210))
     ((UserJobPortoApiError)      (1211))
+    ((InterruptionFailed)        (1212))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

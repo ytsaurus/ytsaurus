@@ -1424,7 +1424,7 @@ void TJob::DoInterrupt(
     }
 
     if (JobPhase_ < EJobPhase::Running) {
-        auto error = TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet")
+        auto error = TError(NJobProxy::EErrorCode::InterruptionFailed, "Interrupting job that has not started yet")
             << TErrorAttribute("interruption_reason", InterruptionReason_);
 
         if (interruptionReason == EInterruptReason::Preemption) {
@@ -1463,9 +1463,10 @@ void TJob::DoInterrupt(
         ReportJobInterruptionInfo(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         auto error = TError("Error interrupting job on job proxy")
+            << TErrorAttribute("interruption_reason", InterruptionReason_)
             << ex;
 
-        if (error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)) {
+        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
             Abort(error);
         } else {
             THROW_ERROR error;
@@ -3025,6 +3026,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     if (resultError.FindMatching(NJobProxy::EErrorCode::ShallowMergeFailed)) {
         return EAbortReason::ShallowMergeFailed;
+    }
+
+    if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
+        return EAbortReason::InterruptionFailed;
     }
 
     if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionTimeout)) {
