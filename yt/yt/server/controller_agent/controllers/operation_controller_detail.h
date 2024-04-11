@@ -263,7 +263,7 @@ public:
     TOperationControllerInitializeResult InitializeClean() override;
     TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) override;
 
-    bool IsThrottling() const noexcept override;
+    bool ShouldSkipScheduleAllocationRequest() const noexcept override;
 
     bool ShouldSkipRunningJobEvents() const noexcept override;
 

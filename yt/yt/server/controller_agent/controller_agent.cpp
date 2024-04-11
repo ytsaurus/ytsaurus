@@ -284,6 +284,7 @@ public:
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
+        , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler.WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
         ControllerAgentProfiler.AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
@@ -1165,6 +1166,8 @@ private:
 
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
 
+    NProfiling::TCounter ThrottledScheduleAllocationRequestCount_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
@@ -1813,11 +1816,12 @@ private:
 
                 auto controller = operation->GetController();
 
-                if (controller->IsThrottling()) {
+                if (controller->ShouldSkipScheduleAllocationRequest()) {
                     YT_LOG_DEBUG(
                         "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                         operationId,
                         allocationId);
+                    ThrottledScheduleAllocationRequestCount_.Increment();
                     replyWithFailureAndRecordInController(
                         operationId,
                         allocationId,
@@ -1831,7 +1835,7 @@ private:
 
                 GuardedInvoke(
                     scheduleAllocationInvoker,
-                    BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
+                    BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         auto controllerInvocationInstant = TInstant::Now();
 
                         YT_LOG_DEBUG(
@@ -1840,11 +1844,12 @@ private:
                             allocationId,
                             controllerInvocationInstant - requestDequeueInstant);
 
-                        if (controller->IsThrottling()) {
+                        if (controller->ShouldSkipScheduleAllocationRequest()) {
                             YT_LOG_DEBUG(
                                 "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                                 operationId,
                                 allocationId);
+                            ThrottledScheduleAllocationRequestCount_.Increment();
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,

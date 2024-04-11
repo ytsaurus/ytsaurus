@@ -457,7 +457,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual bool IsThrottling() const noexcept = 0;
+    virtual bool ShouldSkipScheduleAllocationRequest() const noexcept = 0;
 
     /*!
      *  \note Thread affinity: any

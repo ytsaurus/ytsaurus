@@ -4636,7 +4636,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     return scheduleAllocationResult;
 }
 
-bool TOperationControllerBase::IsThrottling() const noexcept
+bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

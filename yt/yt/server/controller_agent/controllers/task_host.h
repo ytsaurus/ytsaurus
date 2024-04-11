@@ -46,7 +46,7 @@ struct ITaskHost
 
     virtual void UpdateTask(const TTaskPtr& task) = 0;
 
-    //! Account currently building job specs. This is used to implement IsThrottling() controller method.
+    //! Account currently building job specs. This is used to implement ShouldSkipScheduleAllocationRequest() controller method.
     /*!
      * \note Invoker affinity: any
      */
