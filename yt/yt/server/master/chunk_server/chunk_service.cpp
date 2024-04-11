@@ -913,20 +913,20 @@ private:
             context->Request().mutable_replicas()->Clear();
             context->Request().mutable_legacy_replicas()->Clear();
 
-            NProto::TReqAddConfirmReplicas addSequoiaReplicas;
-            ToProto(addSequoiaReplicas.mutable_chunk_id(), chunkId);
+            auto addSequoiaReplicas = std::make_unique<NProto::TReqAddConfirmReplicas>();
+            ToProto(addSequoiaReplicas->mutable_chunk_id(), chunkId);
 
             for (const auto& replica : allReplicas) {
                 auto locationUuid = FromProto<TChunkLocationUuid>(replica.location_uuid());
                 if (!chunkManager->IsSequoiaChunkReplica(chunkId, locationUuid)) {
                     *context->Request().add_replicas() = replica;
                 } else {
-                    *addSequoiaReplicas.add_replicas() = replica;
+                    *addSequoiaReplicas->add_replicas() = replica;
                 }
             }
 
-            if (addSequoiaReplicas.replicas_size() > 0) {
-                WaitFor(chunkManager->AddSequoiaConfirmReplicas(addSequoiaReplicas))
+            if (addSequoiaReplicas->replicas_size() > 0) {
+                WaitFor(chunkManager->AddSequoiaConfirmReplicas(std::move(addSequoiaReplicas)))
                     .ThrowOnError();
             }
         }
