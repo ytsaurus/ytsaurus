@@ -189,6 +189,11 @@ public:
         return ActionQueue_->GetInvoker();
     }
 
+    const IInvokerPtr& GetChunkScraperThreadPoolInvoker() override
+    {
+        return ActionQueue_->GetInvoker();
+    }
+
     const IInvokerPtr& GetJobSpecBuildPoolInvoker() override
     {
         return ActionQueue_->GetInvoker();

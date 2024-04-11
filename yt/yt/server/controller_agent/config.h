@@ -854,6 +854,9 @@ public:
     //! Number of threads for hosting controllers' invokers.
     int ControllerThreadCount;
 
+    //! Number of thread for hosting chunk scrapers' invokers.
+    int ChunkScraperThreadCount;
+
     //! Number of threads for running job spec build callbacks.
     int JobSpecBuildThreadCount;
 

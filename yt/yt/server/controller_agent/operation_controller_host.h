@@ -135,6 +135,7 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() override;
     const IInvokerPtr& GetControllerThreadPoolInvoker() override;
+    const IInvokerPtr& GetChunkScraperThreadPoolInvoker() override;
     const IInvokerPtr& GetJobSpecBuildPoolInvoker() override;
     const IInvokerPtr& GetStatisticsOffloadInvoker() override;
     const IInvokerPtr& GetExecNodesUpdateInvoker() override;

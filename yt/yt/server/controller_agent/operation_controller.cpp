@@ -294,9 +294,9 @@ public:
         return Underlying_->Dispose();
     }
 
-    bool IsThrottling() const noexcept override
+    bool ShouldSkipScheduleAllocationRequest() const noexcept override
     {
-        return Underlying_->IsThrottling();
+        return Underlying_->ShouldSkipScheduleAllocationRequest();
     }
 
     bool ShouldSkipRunningJobEvents() const noexcept override
