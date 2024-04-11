@@ -1037,10 +1037,7 @@ void TTablet::Load(TLoadContext& context)
     }
 
     // COMPAT(akozhikhov)
-    if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression ||
-        (context.GetVersion() < ETabletReign::NoMountRevisionCheckInBulkInsert &&
-         context.GetVersion() >= ETabletReign::ValueDictionaryCompression_23_2))
-    {
+    if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression) {
         Load(context, CompressionDictionaryInfos_);
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
             auto chunkId = CompressionDictionaryInfos_[policy].ChunkId;
