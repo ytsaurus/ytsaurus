@@ -107,12 +107,11 @@ public:
         std::vector<NTabletClient::TTableReplicaId> replicaIds) override
     {
         return BIND([slot = Slot_, replicaIds = std::move(replicaIds)] {
-            auto latestTimestamp = slot->GetTimestampProvider()->GetLatestTimestamp();
             const auto& chaosManager = slot->GetChaosManager();
 
-            TReplicaLagTimes results;
-            results.reserve(replicaIds.size());
-
+            TReplicationProgress maxProgress;
+            std::vector<std::pair<TTableReplicaId, TReplicaInfo*>> replicaInfos;
+            replicaInfos.reserve(replicaIds.size());
             for (auto replicaId : replicaIds) {
                 auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
                 auto *replicationCard = chaosManager->FindReplicationCard(replicationCardId);
@@ -121,13 +120,27 @@ public:
                 }
 
                 auto* replica = replicationCard->FindReplica(replicaId);
-                if (replica) {
-                    auto minTimestamp = GetReplicationProgressMinTimestamp(replica->ReplicationProgress);
-                    auto lagTime = minTimestamp < latestTimestamp
-                        ? TimestampDiffToDuration(minTimestamp, latestTimestamp).second
-                        : TDuration::Zero();
-                    results.emplace_back(replicaId, lagTime);
+                if (!replica) {
+                    continue;
                 }
+                if (IsReplicaReallySync(replica->Mode, replica->State, replica->History.back())) {
+                    if (maxProgress.Segments.empty()) {
+                        maxProgress = replica->ReplicationProgress;
+                    } else {
+                        maxProgress = BuildMaxProgress(maxProgress, replica->ReplicationProgress);
+                    }
+                }
+                replicaInfos.emplace_back(replicaId, replica);
+            }
+
+            TReplicaLagTimes results;
+            results.reserve(replicaInfos.size());
+
+            for (const auto& [replicaId, replica] : replicaInfos) {
+                auto lagTime = IsReplicaReallySync(replica->Mode, replica->State, replica->History.back())
+                    ? TDuration::Zero()
+                    : ComputeReplicationProgressLag(maxProgress, replica->ReplicationProgress);
+                results.emplace_back(replicaId, lagTime);
             }
 
             return results;

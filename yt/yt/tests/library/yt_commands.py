@@ -123,6 +123,25 @@ def raises_yt_error(code=None, required=True):
         result_list.append(e)
 
 
+@contextlib.contextmanager
+def retry_yt_error(codes=[]):
+    """
+    Context manager that helps to retry yt errors with the given codes.
+    If error raised doesn't contain one of the given codes it will be raised again.
+
+    Examples:
+        with retry_yt_error(codes=[yt_error_codes.SyncReplicaNotInSync]):
+            ...
+    """
+    while True:
+        try:
+            yield
+            return
+        except YtError as e:
+            if not any(e.contains_code(code) for code in codes):
+                raise e
+
+
 def assert_yt_error(error, *args, **kwargs):
     with raises_yt_error(*args, **kwargs):
         raise error

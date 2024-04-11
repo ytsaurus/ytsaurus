@@ -259,7 +259,6 @@ private:
     TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* table = GetThisImpl();
-        const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
         bool isQueue = table->IsQueue();
         bool isConsumer = table->IsConsumer();
 
@@ -281,19 +280,33 @@ private:
             case EInternedAttributeKey::Replicas: {
                 auto options = TReplicationCardFetchOptions{
                     .IncludeProgress = true,
+                    .IncludeHistory = true,
                     .IncludeReplicatedTableOptions = true,
                 };
-                auto latestTimestamp = timestampProvider->GetLatestTimestamp();
 
                 return GetReplicationCard(options)
                     .Apply(BIND([=] (const TReplicationCardPtr& card) {
+                        TReplicationProgress syncProgress;
+                        for (const auto& [replicaId, replica] : card->Replicas) {
+                            if (IsReplicaReallySync(replica.Mode, replica.State, replica.History.back())) {
+                                if (syncProgress.Segments.empty()) {
+                                    syncProgress = replica.ReplicationProgress;
+                                } else {
+                                    syncProgress = BuildMaxProgress(syncProgress, replica.ReplicationProgress);
+                                }
+                            }
+                        }
+
                         return BuildYsonStringFluently()
                             .DoMapFor(card->Replicas, [&] (TFluentMap fluent, const auto& pair) {
                                 const auto& [replicaId, replica] = pair;
                                 auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-                                auto replicaLagTime = minTimestamp < latestTimestamp
-                                    ? NTransactionClient::TimestampDiffToDuration(minTimestamp, latestTimestamp).second
-                                    : TDuration::Zero();
+                                auto replicaLagTime = IsReplicaReallySync(
+                                    replica.Mode,
+                                    replica.State,
+                                    replica.History.back())
+                                    ? TDuration::Zero()
+                                    : ComputeReplicationProgressLag(syncProgress, replica.ReplicationProgress);
 
                                 fluent
                                     .Item(ToString(replicaId))

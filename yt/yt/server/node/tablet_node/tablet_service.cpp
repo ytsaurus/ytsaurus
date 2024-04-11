@@ -258,7 +258,8 @@ private:
             if (writeMode != ETabletWriteMode::Direct &&
                 context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName)
             {
-                THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is probably catching up")
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::SyncReplicaNotInSync,
+                    "Direct write is not allowed: replica is probably catching up")
                     << TErrorAttribute("upstream_replica_id", tabletSnapshot->UpstreamReplicaId);
             }
 
