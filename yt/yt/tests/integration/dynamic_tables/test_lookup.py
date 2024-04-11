@@ -660,21 +660,22 @@ class TestLookup(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        iter = 0
-        while iter < 10:
-            row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+        sensors = [None] * 4
+
+        def _init_sensors():
+            sensors[0] = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/row_count")
-            missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            sensors[1] = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/missing_row_count")
-            unmerged_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            sensors[2] = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/unmerged_row_count")
-            unmerged_missing_row_count = profiler_factory().at_tablet_node("//tmp/t").counter(
+            sensors[3] = profiler_factory().at_tablet_node("//tmp/t").counter(
                 name="lookup/unmerged_missing_row_count")
-            if row_count.start_value == 0 and missing_row_count.start_value == 0 and \
-               unmerged_row_count.start_value == 0 and unmerged_missing_row_count.start_value == 0:
-                break
-            iter += 1
-        assert iter < 10
+            for sensor in sensors:
+                if sensor.start_value != 0:
+                    return False
+            return True
+        wait(lambda: _init_sensors())
 
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}, {"key": 2, "value": "2"}])
         sync_flush_table("//tmp/t")
@@ -684,10 +685,10 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 0}, {"key": 1}, {"key": 2}, {"key": 3}]) == \
             [{"key": 0, "value": "0"}, {"key": 1, "value": "1"}, {"key": 2, "value": "22"}]
 
-        wait(lambda: row_count.get_delta() == 3)
-        wait(lambda: missing_row_count.get_delta() == 1)
-        wait(lambda: unmerged_row_count.get_delta() == 4)
-        wait(lambda: unmerged_missing_row_count.get_delta() == 4)
+        wait(lambda: sensors[0].get_delta() == 3)
+        wait(lambda: sensors[1].get_delta() == 1)
+        wait(lambda: sensors[2].get_delta() == 4)
+        wait(lambda: sensors[3].get_delta() == 4)
 
     @authors("akozhikhov")
     def test_lookup_overflow(self):
