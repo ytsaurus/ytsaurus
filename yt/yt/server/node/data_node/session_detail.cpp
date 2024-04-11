@@ -217,19 +217,24 @@ TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
 
 TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
     int startBlockIndex,
-    const std::vector<TBlock>& blocks,
+    std::vector<TBlock> blocks,
     bool enableCaching)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return
-        BIND([=, this, this_ = MakeStrong(this)] {
+    return BIND(
+        [
+            =,
+            this,
+            this_ = MakeStrong(this),
+            blocks = std::move(blocks)
+        ] () mutable {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
             Ping();
 
-            return DoPutBlocks(startBlockIndex, blocks, enableCaching);
+            return DoPutBlocks(startBlockIndex, std::move(blocks), enableCaching);
         })
         .AsyncVia(SessionInvoker_)
         .Run();
