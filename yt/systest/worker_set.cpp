@@ -1,5 +1,6 @@
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
+#include <yt/yt/core/concurrency/scheduler_api.h>
 #include <yt/systest/worker_set.h>
 
 namespace NYT::NTest {
