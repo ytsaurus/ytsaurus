@@ -309,7 +309,7 @@ void TSimpleJobBase::Interrupt()
     }
 
     if (!Initialized_) {
-        THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
+        THROW_ERROR_EXCEPTION(EErrorCode::InterruptionFailed, "Cannot interrupt uninitialized reader");
     }
 
     if (!Interrupted_) {
@@ -319,7 +319,7 @@ void TSimpleJobBase::Interrupt()
         if (Reader_->GetDataStatistics().row_count() > 0) {
             Reader_->Interrupt();
         } else {
-            THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
+            THROW_ERROR_EXCEPTION(EErrorCode::InterruptionFailed, "Cannot interrupt reader that didn't start reading");
         }
     }
 }

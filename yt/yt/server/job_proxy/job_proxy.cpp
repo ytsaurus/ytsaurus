@@ -1517,7 +1517,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
             if (jobResult->error().code() == 0) {
                 ToProto(
                     jobResult->mutable_error(),
-                    TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
+                    TError(EErrorCode::InterruptionFailed, "Job did not read anything"));
             }
         }
     }
