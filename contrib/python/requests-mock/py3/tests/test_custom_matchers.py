@@ -11,7 +11,6 @@
 # under the License.
 
 import requests
-import six
 
 import requests_mock
 from . import base
@@ -28,14 +27,14 @@ class FailMatcher(object):
 
 
 def match_all(request):
-    return requests_mock.create_response(request, content=six.b('data'))
+    return requests_mock.create_response(request, content=b'data')
 
 
 class CustomMatchersTests(base.TestCase):
 
     def assertMatchAll(self, resp):
         self.assertEqual(200, resp.status_code)
-        self.assertEqual(resp.text, six.u('data'))
+        self.assertEqual(resp.text, u'data')
 
     @requests_mock.Mocker()
     def test_custom_matcher(self, mocker):

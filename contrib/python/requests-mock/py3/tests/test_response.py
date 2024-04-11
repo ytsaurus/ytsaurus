@@ -10,8 +10,8 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
+import io
 import pickle
-import six
 
 from requests_mock import exceptions
 from requests_mock import request
@@ -46,33 +46,30 @@ class ResponseTests(base.TestCase):
     def test_content_type(self):
         self.assertRaises(TypeError, self.create_response, text=55)
         self.assertRaises(TypeError, self.create_response, text={'a': 1})
-
-        # this only works on python 2 because bytes is a string
-        if six.PY3:
-            self.assertRaises(TypeError, self.create_response, text=six.b(''))
+        self.assertRaises(TypeError, self.create_response, text=b'')
 
     def test_text_type(self):
-        self.assertRaises(TypeError, self.create_response, content=six.u('t'))
+        self.assertRaises(TypeError, self.create_response, content=u't')
         self.assertRaises(TypeError, self.create_response, content={'a': 1})
-        self.assertRaises(TypeError, self.create_response, content=six.u(''))
+        self.assertRaises(TypeError, self.create_response, content=u'')
 
     def test_json_body(self):
         data = {'a': 1}
         resp = self.create_response(json=data)
 
         self.assertEqual('{"a": 1}', resp.text)
-        self.assertIsInstance(resp.text, six.string_types)
-        self.assertIsInstance(resp.content, six.binary_type)
+        self.assertIsInstance(resp.text, str)
+        self.assertIsInstance(resp.content, bytes)
         self.assertEqual(data, resp.json())
 
     def test_body_body(self):
-        value = 'data'
-        body = six.BytesIO(six.b(value))
+        value = b'data'
+        body = io.BytesIO(value)
         resp = self.create_response(body=body)
 
-        self.assertEqual(value, resp.text)
-        self.assertIsInstance(resp.text, six.string_types)
-        self.assertIsInstance(resp.content, six.binary_type)
+        self.assertEqual(value.decode(), resp.text)
+        self.assertIsInstance(resp.text, str)
+        self.assertIsInstance(resp.content, bytes)
 
     def test_setting_connection(self):
         conn = object()
@@ -149,6 +146,6 @@ class ResponseTests(base.TestCase):
             503: 'Service Unavailable',
         }
 
-        for code, reason in six.iteritems(reasons):
+        for code, reason in reasons.items():
             self.assertEqual(reason,
                              self.create_response(status_code=code).reason)
