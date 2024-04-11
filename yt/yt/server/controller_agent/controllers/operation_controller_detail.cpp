@@ -8501,9 +8501,12 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
 
     const auto& chunkListId = joblet->CoreTableChunkListId;
 
-    const auto& jobResultExt = jobSummary.GetJobResultExt();
+    const auto jobResultExt = jobSummary.FindJobResultExt();
+    if (!jobResultExt) {
+        return;
+    }
 
-    for (const auto& coreInfo : jobResultExt.core_infos()) {
+    for (const auto& coreInfo : jobResultExt->core_infos()) {
         YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v, Cuda: %v)",
             joblet->JobId,
             coreInfo.process_id(),
@@ -8513,10 +8516,10 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.cuda());
     }
 
-    if (!jobResultExt.has_core_result()) {
+    if (!jobResultExt->has_core_result()) {
         return;
     }
-    const auto& coreResult = jobResultExt.core_result();
+    const auto& coreResult = jobResultExt->core_result();
     if (coreResult.empty()) {
         return;
     }
