@@ -293,6 +293,8 @@ private:
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
     TInstant InterruptionDeadline_;
 
+    bool GracefulAbortRequested_ = false;
+
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
 
     using TGpuStatisticsWithUpdateTime = std::pair<TGpuStatistics, std::optional<TInstant>>;

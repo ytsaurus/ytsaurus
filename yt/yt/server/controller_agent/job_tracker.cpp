@@ -1584,7 +1584,7 @@ bool TJobTracker::HandleRunningJobInfo(
             YT_LOG_DEBUG("Job is already finished; interruption request ignored");
         },
         [&] (const TGracefulAbortRequestOptions& /*requestOptions*/) {
-            YT_LOG_DEBUG("Job is already finished; failure request ignored");
+            YT_LOG_DEBUG("Job is already finished; graceful abort request ignored");
         });
 
     ToProto(

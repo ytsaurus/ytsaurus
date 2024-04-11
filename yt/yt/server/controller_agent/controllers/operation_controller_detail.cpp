@@ -3338,6 +3338,10 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
     UpdateTask(joblet->Task);
     LogProgress();
 
+    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+        return;
+    }
+
     if (IsCompleted()) {
         OnOperationCompleted(/*interrupted*/ false);
         return;
@@ -3361,8 +3365,6 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
                 break;
         }
     }
-
-    CheckFailedJobsStatusReceived();
 }
 
 void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
@@ -3447,6 +3449,10 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     ProcessJobFinishedResult(taskJobResult);
 
+    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+        return;
+    }
+
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart) {
         OnJobUniquenessViolated(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
@@ -3481,8 +3487,6 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
         OnOperationFailed(operationFailedError);
         return;
     }
-
-    CheckFailedJobsStatusReceived();
 
     if (Spec_->BanNodesWithFailedJobs) {
         if (BannedNodeIds_.insert(joblet->NodeDescriptor.Id).second) {
@@ -3591,6 +3595,10 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         OnChunkFailed(chunkId, jobId);
     }
 
+    if (bool operationFailed = CheckGracefullyAbortedJobsStatusReceived()) {
+        return;
+    }
+
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
     if (Spec_->FailOnJobRestart &&
         wasScheduled &&
@@ -3603,6 +3611,7 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
             << TErrorAttribute("job_abort_reason", abortReason));
+        return;
     }
 
     if (auto it = JobAbortsUntilOperationFailure_.find(abortReason); it != JobAbortsUntilOperationFailure_.end()) {
@@ -3621,7 +3630,6 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
         Host->OnOperationSuspended(TError("Account limit exceeded"));
     }
 
-    CheckFailedJobsStatusReceived();
     UpdateTask(joblet->Task);
     LogProgress();
 
@@ -5407,11 +5415,6 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    // NB(arkady-e1ppa): If we enter here when operations is finished
-    // this entire call does nothing since JobletMap is empty and OnOperationFailed
-    // short-circs if IsFinished == true.
-    // Entering here with Failing state would just duplicate graceful abort request
-    // as this call is the only one which assigns such a state.
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG(
             "Attempt to gracefully fail operation which is not running (State: %v)",
@@ -5425,7 +5428,6 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
     YT_LOG_INFO("Operation gracefully failing");
 
     bool hasJobsToFail = false;
-
     // NB: joblet abort will remove it from map invalidating iterator.
     auto jobletMapCopy = JobletMap;
 
@@ -5450,26 +5452,29 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
     if (hasJobsToFail) {
         YT_LOG_DEBUG("Postpone operation failure to handle failed jobs");
-
-        YT_UNUSED_FUTURE(TDelayedExecutor::MakeDelayed(Spec_->TimeLimitJobFailTimeout)
-            .Apply(BIND(
+        OperationFailError_ = error;
+        GracefulAbortTimeoutFailureCookie_ = TDelayedExecutor::Submit(
+            BIND(
                 &TOperationControllerBase::DoFailOperation,
                 MakeWeak(this),
-                error,
+                Passed(std::move(error)),
                 /*flush*/ true,
-                /*abortAllJoblets*/ true)
-            .Via(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))));
+                /*abortAllJoblets*/ true),
+            Spec_->TimeLimitJobFailTimeout,
+            CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
     } else {
         DoFailOperation(error, /*flush*/ true);
     }
 }
 
-void TOperationControllerBase::CheckFailedJobsStatusReceived()
+bool TOperationControllerBase::CheckGracefullyAbortedJobsStatusReceived()
 {
     if (IsFailing() && JobletMap.empty()) {
-        auto error = GetTimeLimitError();
-        OnOperationFailed(error, /*flush*/ true);
+        OnOperationFailed(std::move(OperationFailError_), /*flush*/ true);
+        return true;
     }
+
+    return false;
 }
 
 const std::vector<TOutputStreamDescriptorPtr>& TOperationControllerBase::GetStandardStreamDescriptors() const

@@ -1044,7 +1044,8 @@ protected:
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
 
-    void CheckFailedJobsStatusReceived();
+    // |true| iff operation was failed.
+    bool CheckGracefullyAbortedJobsStatusReceived();
 
     const std::vector<TOutputStreamDescriptorPtr>& GetStandardStreamDescriptors() const override;
 
@@ -1361,6 +1362,16 @@ private:
 
     //! How many initial successive jobs need to abort until we fail operation.
     THashMap<EAbortReason, int> JobAbortsUntilOperationFailure_;
+
+    //! GracefulAbort sends requests all jobs for graceful abort
+    //! transitioning operation state to Failing.
+    //! Each job (whether it is reported as aborted or failed)
+    //! will be observed again as finished one
+    //! where it has to report itself so that once this
+    //! set is empty, we cancel timeout and actually fail
+    //! the operation.
+    TError OperationFailError_;
+    NConcurrency::TDelayedExecutorCookie GracefulAbortTimeoutFailureCookie_;
 
     void AccountExternalScheduleAllocationFailures() const;
 

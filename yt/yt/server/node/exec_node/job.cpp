@@ -1513,9 +1513,14 @@ void TJob::DoFail(std::optional<TError> error)
 void TJob::RequestGracefulAbort(TError error)
 {
     YT_LOG_INFO("Requesting job graceful abort (Error: %v)", error);
+    if (GracefulAbortRequested_) {
+        YT_LOG_INFO("Repeating job graceful abort request. Ignored");
+        return;
+    }
 
     try {
         DoRequestGracefulAbort(std::move(error));
+        GracefulAbortRequested_ = true;
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to request job graceful abort");
     }
@@ -1526,7 +1531,7 @@ void TJob::DoRequestGracefulAbort(TError error)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
-        Terminate(EJobState::Failed, std::move(error));
+        Terminate(EJobState::Aborted, std::move(error));
         return;
     }
 
