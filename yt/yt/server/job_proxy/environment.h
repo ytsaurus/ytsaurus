@@ -37,7 +37,8 @@ void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsu
 
 struct TJobEnvironmentMemoryStatistics
 {
-    ui64 Rss = 0;
+    ui64 ResidentAnon = 0;
+    ui64 TmpfsUsage = 0;
     ui64 MappedFile = 0;
     ui64 MajorPageFaults = 0;
 };
