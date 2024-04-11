@@ -525,6 +525,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient;
 
     TCancelableContextPtr CancelableContext;
+    const IInvokerPtr ChunkScraperInvoker_;
     TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
@@ -886,7 +887,7 @@ protected:
 
     void OnInputChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas,
+        NChunkClient::TChunkReplicaWithMediumList replicas,
         TInputChunkDescriptor* descriptor);
 
     bool IsLegacyOutputLivePreviewSupported() const;

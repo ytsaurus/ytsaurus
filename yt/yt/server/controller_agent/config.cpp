@@ -702,6 +702,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(16)
         .GreaterThan(0);
 
+    registrar.Parameter("chunk_scraper_thread_count", &TThis::ChunkScraperThreadCount)
+        .Default(4)
+        .GreaterThan(0);
+
     registrar.Parameter("job_spec_build_thread_count", &TThis::JobSpecBuildThreadCount)
         .Default(16)
         .GreaterThan(0);

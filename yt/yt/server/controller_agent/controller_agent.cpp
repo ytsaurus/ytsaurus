@@ -250,6 +250,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(CreateThreadPool(Config_->ControllerThreadCount, "Controller"))
+        , ChunkScraperThreadPool_(CreateThreadPool(Config_->ChunkScraperThreadCount, "ChunkScraper"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
@@ -390,6 +391,13 @@ public:
         return ControllerThreadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetChunkScraperThreadPoolInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ChunkScraperThreadPool_->GetInvoker();
+    }
+
     const IInvokerPtr& GetJobSpecBuildPoolInvoker()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -471,6 +479,7 @@ public:
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
         ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
+        ChunkScraperThreadPool_->Configure(Config_->ChunkScraperThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 
@@ -1100,6 +1109,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const IThreadPoolPtr ControllerThreadPool_;
+    const IThreadPoolPtr ChunkScraperThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
@@ -2272,6 +2282,11 @@ IYPathServicePtr TControllerAgent::CreateOrchidService()
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
     return Impl_->GetControllerThreadPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetChunkScraperThreadPoolInvoker()
+{
+    return Impl_->GetChunkScraperThreadPoolInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()
