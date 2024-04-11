@@ -80,9 +80,7 @@ public:
             StartOptions_.Timeout = config->SequoiaConnection->SequoiaTransactionTimeout;
         }
 
-        TTransactionStartOptions startOptions;
-        startOptions.Timeout = StartOptions_.Timeout;
-        return transactionManager->Start(ETransactionType::Tablet, startOptions)
+        return transactionManager->Start(ETransactionType::Tablet, StartOptions_)
             .Apply(BIND(&TSequoiaTransaction::OnTransactionStarted, MakeStrong(this))
                 .AsyncVia(SerializedInvoker_));
     }
