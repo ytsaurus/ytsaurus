@@ -500,7 +500,7 @@ protected:
 
         auto versionedRow = TMutableVersionedRow::Allocate(
             &Pool_,
-            KeyColumnCount_,
+            FilteredKeyColumns_.size(),
             VersionedValues_.size(),
             WriteTimestamps_.size(),
             DeleteTimestamps_.size());
