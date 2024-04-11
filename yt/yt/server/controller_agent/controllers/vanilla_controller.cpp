@@ -66,7 +66,7 @@ public:
         return Format("Vanilla(%v)", Name_);
     }
 
-    TString GetVertexDescriptor() const override
+    TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override
     {
         return Spec_->TaskTitle;
     }

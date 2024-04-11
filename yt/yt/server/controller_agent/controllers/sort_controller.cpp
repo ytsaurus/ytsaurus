@@ -627,7 +627,7 @@ protected:
             return Format("Partition(%v)", Level_);
         }
 
-        TString GetVertexDescriptor() const override
+        TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override
         {
             return Format("%v(%v)", TTask::GetVertexDescriptor(), Level_);
         }
