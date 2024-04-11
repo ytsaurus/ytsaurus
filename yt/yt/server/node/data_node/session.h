@@ -85,7 +85,7 @@ struct ISession
     //! Puts a contiguous range of blocks into the window.
     virtual TFuture<NIO::TIOCounters> PutBlocks(
         int startBlockIndex,
-        const std::vector<NChunkClient::TBlock>& blocks,
+        std::vector<NChunkClient::TBlock> blocks,
         bool enableCaching) = 0;
 
     //! Sends a range of blocks (from the current window) to another data node.

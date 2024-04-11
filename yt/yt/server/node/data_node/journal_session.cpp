@@ -91,7 +91,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
 
 TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     int startBlockIndex,
-    const std::vector<TBlock>& blocks,
+    std::vector<TBlock> blocks,
     bool /*enableCaching*/)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);

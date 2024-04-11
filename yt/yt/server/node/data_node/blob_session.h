@@ -72,12 +72,11 @@ private:
 
     TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
-        const std::vector<NChunkClient::TBlock>& blocks,
+        std::vector<NChunkClient::TBlock> blocks,
         bool enableCaching) override;
     TFuture<NIO::TIOCounters> DoPerformPutBlocks(
         int startBlockIndex,
-        const std::vector<NChunkClient::TBlock>& blocks,
-        std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards,
+        std::vector<NChunkClient::TBlock> blocks,
         bool enableCaching);
     void OnBlocksWritten(
         int beginBlockIndex,
