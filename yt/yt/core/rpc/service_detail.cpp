@@ -345,6 +345,8 @@ public:
         : TServiceContextBase(
             std::move(acceptedRequest.Header),
             std::move(acceptedRequest.Message),
+            std::move(acceptedRequest.MemoryGuard),
+            std::move(acceptedRequest.MemoryUsageTracker),
             std::move(logger),
             acceptedRequest.RuntimeInfo->LogLevel.load(std::memory_order::relaxed))
         , Service_(std::move(service))
@@ -713,7 +715,6 @@ private:
     TAttachmentsInputStreamPtr RequestAttachmentsStream_;
     TAttachmentsOutputStreamPtr ResponseAttachmentsStream_;
 
-
     bool IsRegistrable()
     {
         if (RuntimeInfo_->Descriptor.Cancelable && !RequestHeader_->uncancelable()) {
@@ -1068,9 +1069,7 @@ private:
         }
 
         if (RequestRun_) {
-            auto requestTotalSize = GetMessageBodySize(RequestMessage_) +
-                GetTotalMessageAttachmentSize(RequestMessage_);
-            RequestQueue_->OnRequestFinished(requestTotalSize);
+            RequestQueue_->OnRequestFinished(TotalSize_);
         }
 
         if (ActiveRequestCountIncremented_) {
@@ -1423,7 +1422,7 @@ void TRequestQueue::OnRequestArrived(const TServiceBase::TServiceContextPtr& con
     }
 
     // Slow path.
-    DecrementConcurrency(GetTotalRequestSize(context));
+    DecrementConcurrency(context->GetTotalSize());
     IncrementQueueSize(context);
 
     context->BeforeEnqueued();
@@ -1517,28 +1516,22 @@ void TRequestQueue::RunRequest(TServiceBase::TServiceContextPtr context)
 void TRequestQueue::IncrementQueueSize(const TServiceBase::TServiceContextPtr& context)
 {
     ++QueueSize_;
-    QueueByteSize_.fetch_add(GetTotalRequestSize(context));
+    QueueByteSize_.fetch_add(context->GetTotalSize());
 }
 
 void  TRequestQueue::DecrementQueueSize(const TServiceBase::TServiceContextPtr& context)
 {
     auto newQueueSize = --QueueSize_;
-    auto oldQueueBytesSize = QueueByteSize_.fetch_sub(GetTotalRequestSize(context));
+    auto oldQueueBytesSize = QueueByteSize_.fetch_sub(context->GetTotalSize());
 
     YT_ASSERT(newQueueSize >= 0);
     YT_ASSERT(oldQueueBytesSize >= 0);
 }
 
-i64 TRequestQueue::GetTotalRequestSize(const TServiceBase::TServiceContextPtr& context)
-{
-    return GetMessageBodySize(context->GetRequestMessage()) +
-        GetTotalMessageAttachmentSize(context->GetRequestMessage());
-}
-
 bool TRequestQueue::IncrementConcurrency(const TServiceBase::TServiceContextPtr& context)
 {
     auto resultSize = ++Concurrency_ <= RuntimeInfo_->ConcurrencyLimit.GetDynamicLimit();
-    auto resultByteSize = ConcurrencyByte_.fetch_add(GetTotalRequestSize(context)) <= RuntimeInfo_->ConcurrencyByteLimit.GetDynamicByteLimit();
+    auto resultByteSize = ConcurrencyByte_.fetch_add(context->GetTotalSize()) <= RuntimeInfo_->ConcurrencyByteLimit.GetDynamicByteLimit();
     return resultSize && resultByteSize;
 }
 
@@ -1563,7 +1556,7 @@ void TRequestQueue::AcquireThrottlers(const TServiceBase::TServiceContextPtr& co
 {
     if (BytesThrottler_.Specified.load(std::memory_order::acquire)) {
         // Slow path.
-        auto requestSize = GetTotalRequestSize(context);
+        auto requestSize = context->GetTotalSize();
         BytesThrottler_.Throttler->Acquire(requestSize);
     }
     if (WeightThrottler_.Specified.load(std::memory_order::acquire)) {
@@ -1628,11 +1621,28 @@ TServiceBase::TServiceBase(
     const NLogging::TLogger& logger,
     TRealmId realmId,
     IAuthenticatorPtr authenticator)
+    : TServiceBase(
+        std::move(defaultInvoker),
+        descriptor,
+        GetNullMemoryUsageTracker(),
+        logger,
+        realmId,
+        authenticator)
+{ }
+
+TServiceBase::TServiceBase(
+    IInvokerPtr defaultInvoker,
+    const TServiceDescriptor& descriptor,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
+    const NLogging::TLogger& logger,
+    TRealmId realmId,
+    IAuthenticatorPtr authenticator)
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
     , Authenticator_(std::move(authenticator))
     , ServiceDescriptor_(descriptor)
     , ServiceId_(descriptor.FullServiceName, realmId)
+    , MemoryUsageTracker_(std::move(memoryUsageTracker))
     , Profiler_(RpcServerProfiler.WithHot().WithTag("yt_service", TString(ServiceId_.ServiceName)))
     , AuthenticationTimer_(Profiler_.Timer("/authentication_time"))
     , ServiceLivenessChecker_(New<TPeriodicExecutor>(
@@ -1692,6 +1702,14 @@ void TServiceBase::HandleRequest(
         return;
     }
 
+    auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, TypicalRequestSize);
+    message = TrackMemory(MemoryUsageTracker_, std::move(message));
+    if (MemoryUsageTracker_ && MemoryUsageTracker_->IsExceeded()) {
+        return replyError(TError(
+            NRpc::EErrorCode::MemoryOverflow,
+            "Request is dropped due to high memory pressure"));
+    }
+
     auto tracingMode = runtimeInfo->TracingMode.load(std::memory_order::relaxed);
     auto traceContext = tracingMode == ERequestTracingMode::Disable
         ? NTracing::TTraceContextPtr()
@@ -1738,7 +1756,9 @@ void TServiceBase::HandleRequest(
         std::move(header),
         std::move(message),
         requestQueue,
-        maybeThrottled
+        maybeThrottled,
+        std::move(memoryGuard),
+        MemoryUsageTracker_,
     };
 
     if (!IsAuthenticationNeeded(acceptedRequest)) {
