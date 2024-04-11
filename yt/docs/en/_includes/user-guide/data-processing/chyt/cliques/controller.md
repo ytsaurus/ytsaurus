@@ -9,7 +9,7 @@ Controller is a service responsible for administering and maintaining the opera
 - Start and restart Vanilla operations on the clique, if they have been terminated because of failures or maintenance works on the cluster.
 
 {% if audience == "internal" %}
-The system can also be integrated with IDM to [issue rights for the clique](../../../../../user-guide/data-processing/chyt/cliques/administration.md#access)).
+The system also supports integration with IDM to [issue clique permissions](../../../../../user-guide/data-processing/chyt/cliques/access.md).
 {% else %}{% endif %}
 
 ## Controller CLI { #cli }
@@ -29,12 +29,12 @@ yt --proxy <cluster_name> clickhouse ctl list
 ```
 If you omit this argument, the default value from the `YT_PROXY` environment variable will be used.
 
-## Right for the clique { #access }
+## Clique permissions { #access }
 
 {% if audience == "internal" %}
-Within a couple of minutes since [clique creation](#create), the creator will be granted the **Responsible**, **Use**, and **Manage** roles for the clique in IDM.
+Within a couple of minutes of [creating a clique](#create), the creator will be granted the roles **responsible**, **use**, and **manage** for the clique in IDM.
 {% else %}
-The rights for the clique are stored at the path `//sys/access_control_object_namespaces/chyt/<alias>/@principal_acl`. Replace the `@principal_acl` attribute with the appropriate rights:
+Clique permissions are stored at `//sys/access_control_object_namespaces/chyt/<alias>/@principal_acl`. Replace the `@principal_acl` attribute with the necessary permissions:
 
 - `use`: Use the clique (run queries).
 - `read`: Read the clique's configuration.
@@ -49,9 +49,9 @@ The rights for the clique are stored at the path `//sys/access_control_object_na
 
 `yt clickhouse ctl create <alias>`: Create a clique with the specified alias (name). The clique's alias must meet the ID requirements, that is, include only Latin characters, digits, and underscores (`_`) and never begin with a digit. You can also use `*` in the beginning (however, it would be ignored) and the `-` character.
 
-Once the command is completed, the `//sys/clickhouse/strawberry/<alias>/speclet` node is created in Cypress to store the clique's configuration.
+Once the command is successfully executed, the `//sys/strawberry/chyt/<alias>/speclet` node is created in Cypress to store the clique's configuration.
 
-Moreover, in the web interface, the `//sys/clickhouse/strawberry/<alias>` node will now show the current status of the clique, including possible errors preventing the Vanilla operation from running on the clique's instances.
+In the web interface, the `//sys/strawberry/chyt/<alias>` node will now additionally show the current state of the clique, including possible errors preventing the Vanilla operation from running on the clique's instances.
 
 Cliques are created in an inactive state in which they cannot accept or process queries. To activate your clique, first set it up using appropriate commands.
 
@@ -66,7 +66,7 @@ Cliques are created in an inactive state in which they cannot accept or process
 Result example:
 
 ```bash
-yt clickhouse ctl exists <clique_name>
+$ yt clickhouse ctl exists test_clique_name
 %true
 ```
 
@@ -76,7 +76,7 @@ yt clickhouse ctl exists <clique_name>
 
 Result example:
 ```bash
-yt clickhouse ctl status <clique_name>
+$ yt clickhouse ctl status test_clique_name
 {
     "status" = "Waiting for restart: speclet changed";
     "operation_state" = "running";
@@ -97,7 +97,7 @@ yt clickhouse ctl status <clique_name>
 Result example:
 
 ```bash
-yt clickhouse ctl list
+$ yt clickhouse ctl list
 [
     "<clique_name_1>";
     "<clique_name_2>";
@@ -107,7 +107,7 @@ yt clickhouse ctl list
 
 ### Set-option { #set_option }
 
-`yt clickhouse ctl set-option <key> <value> [--alias <alias>]`: Set the speclet's `key` option to `value`. To execute this command, you only need the **Manage** role for this clique.
+`yt clickhouse ctl set-option <key> <value> [--alias <alias>]`: Set the speclet's `key` option to `value`. To execute this command, you only need the **manage** role for this clique.
 
 An arbitrary YSON value is used for `value`. For example, the value can be:
 - A number:
@@ -129,33 +129,61 @@ yt clickhouse ctl set-option chyt_version '"stable-2.08"'
 
 The optional `--alias <alias>` argument sets the alias for the clique to be updated. You can omit this argument; in this case, its value will be taken from `CHYT_ALIAS`. If it is empty, an error will be returned.
 
-To look up all the assigned options, access the speclet node at the `//sys/clickhouse/strawberry/<alias>/speclet` path.
+To view all the set options, run the [get-speclet](#get-speclet) command. For a description of all available options, see [Configuration](../../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
 
 ### Remove-option { #remove_option }
 
 `yt clickhouse ctl remove-option <key> [--alias <alias>]`: Remove a previously assigned option value from the clique configuration. The options omitted in the clique configuration will be taken from their defaults when the clique's operation is started.
 
+### Get-speclet { #get-speclet }
+
+`yt clickhouse ctl get-speclet [--alias <alias>]`: Get all the options set for the clique.
+
+Result example:
+```bash
+$ yt clickhouse ctl get-speclet --alias test_clique_name
+{
+    "family" = "chyt";
+    "stage" = "production";
+    "instance_count" = 8;
+    "active" = %true;
+    "pool" = "chyt";
+    ...
+}
+```
+
+### Set-speclet { #set-speclet }
+
+`yt clickhouse ctl set-speclet <speclet> [--alias <alias>]`: Set the clique's speclet in YSON string format. To execute this command, you only need the **manage** role for this clique.
+
+Example:
+```bash
+yt clickhouse ctl set-speclet '{instance_count=2;pool="chyt";}' --alias test_clique_name
+```
+
+### Start { #start }
+
+`yt clickhouse ctl start <alias> [--untracked]`: Start a previously created clique.
+
+With the `untracked` option, you can start the clique without linking it to the controller and without any guarantees. This option is intended for starting test cliques without a compute pool. We strongly advise against running production cliques without specifying a compute pool, as this may make the clique unstable. The clique will start under the user's name. The controller doesn't monitor the state of such cliques or restart them if there are any errors. If the clique's operation ends in an error, you'll need to restart the clique manually by running the command again.
+
+To execute this command, you only need the **manage** role for this clique.
+
+Result example:
+```bash
+$ yt clickhouse ctl start test_clique_name
+{
+    "status" = "Ok";
+    "operation_state" = "initializing";
+    "operation_url" = ...;
+}
+```
+
+### Stop { #stop }
+
+`yt clickhouse ctl stop <alias>`: Stop the clique. The clique will be stopped. All pool resources allocated to the clique will be released. The clique configuration won't be deleted. The user can restart the clique at any time using the `start` command. To execute this command, you only need the **manage** role for this clique.
+
 ## Available options { #options }
 
-Here are the clique's options that can be set by the `set-option` command (the default values are in square brackets):
+For a list of the clique options that can be set by the `set-option` command, see [Configuration](../../../../../user-guide/data-processing/chyt/reference/configuration.md#options).
 
-- `active` [`%false`]: If the option is enabled, the controller will try to run the Vanilla operation assigned to the clique. At `%false`, the clique will be inactive: it won't process queries or use resources of the compute pool. Use this option, if you want to disable the clique for a while, preserving its configuration.
-
-- `pool`: Name of the compute pool where you want to run the clique's operation. To enable this option, the user needs the **Use** rights for the specified compute pool. To run the clique's operation, be sure to enable this option first.
-
-- `enable_geodata` [`%true`]: Automatically set up the system dictionaries needed for [certain geo features in ClickHouse](https://clickhouse.com/docs/en/sql-reference/functions/ym-dict-functions/).
-
-- `restart_on_speclet_change` [`%true`]: If this option is enabled, the clique will be automatically restarted on any reconfiguring (speclet change). Otherwise, you will need to restart the clique manually to apply its settings.
-
-- `query_settings`: Dictionary storing the default settings for all the queries sent to the clique.
-
-- `yt_config`: Dictionary with the {{product-name}} configuration for certain CHYT instances. This part of the configuration will be written to the generated instance configuration as it is. We strongly discourage you from using this option because the structure of this configuration is pretty sophisticated. Use other options, whenever possible, to set changes to the configuration in a more straightforward way.
-
-- `clickhouse_config`: Dictionary with the ClickHouse configuration for certain CHYT instances. It's similar to the `yt_config` option. We strongly discourage you from using this option.
-
-- `instance_count` [1]: Count of the clique's instances.
-
-- `instance_cpu` [16]: CPU resources to be allocated to each clique's instance.
-- `instance_total_memory` [71940702208 (67 Gib)]: RAM (in bytes) to be allocated to each clique's instance.
-- `clique_cpu`: Total CPU resources allocated to the clique. You can't use this option together with `instance_cpu`.
-- `clique_memory`: Total memory allocated to the clique. You can't use this option together with `instance_total_memory`.

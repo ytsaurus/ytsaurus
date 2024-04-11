@@ -4,17 +4,17 @@
 
 ## Strawberry Node
 
-Конфигурация и персистентное состояние клики хранится в кипарисе по пути `//sys/strawberry/chyt/<alias>`
-В описании узла можно увидеть служебную информацию: запущена ли клика, в каком пуле, какой статус соответствующей операции {{product-name}} и так далее.
-В данном узле так же находится yson документ speclet, внутри которого хранятся все настройки клики, выставленные через команду `yt clickhouse ctl set-option`.
-Информацию из strawberry node можно так же получить с помощью команд `yt clickhouse ctl get-speclet` и `yt clickhouse ctl status` в нашем cli.
+Конфигурация и персистентное состояние клики хранится в Кипарисе по пути `//sys/strawberry/chyt/<alias>`.
+
+В описании узла можно увидеть служебную информацию: запущена ли клика, в каком пуле, какой статус соответствующей операции {{product-name}} и так далее. В данном узле так же находится YSON-документ (спеклет), внутри которого хранятся все настройки клики, выставленные через команду `yt clickhouse ctl set-option`.
+
+Информацию из strawberry node можно так же получить с помощью команд `yt clickhouse ctl get-speclet` и `yt clickhouse ctl status` в нашем CLI.
 
 <!-- ![](../../../../../../images/chyt_strawberry_node.png) -->
 
 ## Access Control Object Node
 
-ACL клики хранится в специализированном узле access control object, находящемся по пути `//sys/access_control_object_namespaces/chyt/<alias>`.
-В данном узле можно просмотреть все выданные доступы к клике.
+ACL клики хранится в специализированном узле Access Control Object, находящемся по пути `//sys/access_control_object_namespaces/chyt/<alias>`. В данном узле можно просмотреть все выданные доступы к клике.
 
 <!-- ![](../../../../../../images/chyt_clique_access_control_object_node.png) -->
 

@@ -2,14 +2,15 @@
 
 There are several ways to try CHYT.
 
-The simplest way is to run a query via the YQL web interface. You can take a public clique with the `*ch_public` alias as a clique. This is the main public clique found on every cluster of CHYT's presence.
+The simplest way is to run a query via the {% if audience == "internal" %}YQL{% else %}Query Tracker{% endif %} web interface. As a clique, you can use a public clique with the `*ch_public` alias. This is the main public clique found on every cluster of CHYT's presence.
 
 {% note warning "Attention" %}
 
-All {{product-name}} users have access to the public clique, so there is a risk that it may not be available due to queries from other users or be occupied by other people's computations. In this regard, important processes and dashboards must not be based on a public clique. A public clique is essentially a demo version of CHYT. We highly recommend creating a separate click for your team.
+All {{product-name}} users have access to the public clique, so there is a risk that it may not be available due to queries from other users or be occupied by other people's computations. In this regard, important processes and dashboards must not be based on a public clique. A public clique is essentially a demo version of CHYT. We highly recommend creating a separate clique for your team.
 
 {% endnote %}
 
+{% if audience == "internal" %}
 To run a query, you need to:
 
 1. Go to the YQL page in the cluster.
@@ -26,6 +27,8 @@ In case of the public `/ch_public` clique, the name can be omitted. Thereby, the
 
 {% endnote %}
 
+{% endif %}
+
 ## HTTP interface { #http }
 
 A clique is accessed via heavy {{product-name}} HTTP proxies. The most convenient way to access a clique is to send a query to the name of the corresponding cluster and process the redirect. In case of the curl utility, this means that you must specify the `--location-trusted` flag.
@@ -33,7 +36,7 @@ A clique is accessed via heavy {{product-name}} HTTP proxies. The most convenien
 Below is an example of how to query a clique using the curl command line utility, knowing the cluster name (`YT_PROXY`), the {{product-name}} access token (`YT_TOKEN`), and the clique alias (`CHYT_ALIAS`).
 
 ```bash
-curl --location-trusted -H "Authorization: OAuth $YT_TOKEN" "$YT_PROXY/query?database=$CHYT_ALIAS" -d 'SELECT Avg(a) FROM "//sys/clickhouse/sample_table"'
+$ curl --location-trusted -H "Authorization: OAuth $YT_TOKEN" "$YT_PROXY/query?database=$CHYT_ALIAS" -d 'SELECT Avg(a) FROM "//sys/clickhouse/sample_table"'
 224.30769230769232
 ```
 
@@ -106,15 +109,8 @@ Besides that, you need to change the driver properties:
 - `check_for_redirects=true`;
 - `use_path_as_db=false`.
 
-The JDBC driver can be used as a basis for using[DBeaver](https://dbeaver.io), an open-source database management program. DBeaver 6.1.5 was used for testing. If the ClickHouse-JDBC driver is not installed automatically, [download](https://github.com/yandex/clickhouse-jdbc) it manually. You must use a driver version higher than 0.1.55.
+The JDBC driver can be used as a basis for using [DBeaver](https://dbeaver.io), an open-source database management program. DBeaver 6.1.5 was used for testing. If the ClickHouse-JDBC driver is not installed automatically, [download](https://github.com/yandex/clickhouse-jdbc) it manually. You must use a driver version higher than 0.1.55.
 
 ## CLI and Python API { #cli-and-api }
 
 CHYT has the official Python API and the official command line utility. For more information, see [CLI and Python API](../../../../user-guide/data-processing/chyt/cli-and-api.md).
-
-
-
-
-
-
-

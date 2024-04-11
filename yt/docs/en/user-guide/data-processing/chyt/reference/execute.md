@@ -1,1 +1,1 @@
-{% include [Executing queries](../../../../_includes/user-guide/data-processing/chyt/reference/execute.md) %}
+{% include [Query execution](../../../../_includes/user-guide/data-processing/chyt/reference/execute.md) %}

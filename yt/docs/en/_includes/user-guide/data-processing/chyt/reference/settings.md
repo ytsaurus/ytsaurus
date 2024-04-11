@@ -1,6 +1,6 @@
 # Query settings
 
-This section contains information about CHYT-specific settings. ClickHouse has a large number of different settings which can be specified in different ways: via the GET parameter of a query, directly in the query via the SETTINGS clause, when using YQL via pragma, or in other ways. For a list of the original ClickHouse settings, see the [documentation](https://clickhouse.com/docs/ru/operations/settings/settings/).
+This section contains information about CHYT-specific settings. ClickHouse has a large number of different settings which can be specified in different ways: via the GET parameter of a query, directly in the query via the SETTINGS clause, when using YQL via pragma, or in other ways. For a list of the original ClickHouse settings, see the [documentation](https://clickhouse.com/docs/{{lang}}/operations/settings/settings/).
 
 The settings related to CHYT start with the `chyt.` prefix. Some settings are placed into separate subsections: in this case, the name of the setting will consist of several tokens separated by dots, for example, `chyt.composite.enable_conversion`.
 
@@ -10,7 +10,7 @@ As usual, many of the settings include certain optimizations that are enabled by
 
 ## Available settings
 
-- `enable_columnar_read` [`%true`]: Enables the use of the fast column-by-column reading interface for tables in scan format.
+- `enable_columnar_read` [`%true`]: Enables the use of the fast columnar reading interface for tables in scan format.
 
 - `enable_computed_column_deduction` [`%true`]: Enables the output of values for the computed key columns using the predicate in WHERE. For example, if the `key_hash` key column is specified in the schema as a result of the `farm_hash(key)` expression, then if the query condition contains the `key = 'xyz'` expression, the `key_hash = 16518849956333482075` consequence will be automatically added to the predicate. Only conditions of the `column = constant expression`, `column tuple = tuple of constant expressions`, `column IN tuple of constant expressions`, and `column tuple IN tuple of constant expression tuples` type are supported.
 
@@ -56,7 +56,7 @@ As usual, many of the settings include certain optimizations that are enabled by
 
       - `with_mergeable_state` (default, may be changed in the future): Use distributed writing if the query can be executed in a distributed manner at least to the `with_mergeable_state` stage. Data aggregation (`GROUP BY`, `DISTINCT`, `LIMIT BY`) and `ORDER BY` and `LIMIT` clauses can be executed independently on each clique node, so in case of distributed writing the query execution result may contain several rows with the same aggregation key, rows may not be sorted in the ORDER BY order, and the number of rows may exceed a specified LIMIT (but the total number of rows will not exceed the `number of instances in the clique` * `specified LIMIT`).
 
-      - `after_aggregation`: Use distributed writing if the query can be executed in a distributed manner at least to the `after_aggregation` stage. Data aggregation (`GROUP BY`, `DISTINCT`, `LIMIT BY`) is guaranteed to be executed to the end and the `ORDER BY` and `LIMIT` clauses can be executed independently on each clique node (which can cause sorting to fail and exceeding the specified row limit, as described above). If the query cannot be executed in a distributed manner to the `after_aggregation` stage, data will be written locally from the query coordinator.
+      - `after_aggregation`: Use distributed writing if the query can be executed in a distributed manner at least to the `after_aggregation` stage. Data aggregation (`GROUP BY`, `DISTINCT`, `LIMIT BY`) is guranteed to be executed to the end and the `ORDER BY` and `LIMIT` clauses can be executed independently on each clique node (which can cause sorting to fail and exceeding the specified row limit, as described above). If the query cannot be executed in a distributed manner to the `after_aggregation` stage, data will be written locally from the query coordinator.
 
       - `complete`: Use distributed writing only if the query can be executed in a completely distributed manner. The result of execution of the query with distributed writing in this case is indistinguishable from an ordinary query, all the clauses (aggregation, `ORDER BY`, and `LIMIT`) will be executed to the end. If the query cannot be executed in a distributed manner to the `complete` stage, data will be written locally from the query coordinator.
 

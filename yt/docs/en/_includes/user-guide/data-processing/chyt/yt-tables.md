@@ -4,7 +4,7 @@ The main task solved by CHYT is processing tables that are already in {{product-
 
 Thus, the main difference of CHYT from ClickHouse is that it does not have the variety of engines from regular ClickHouse. Tables are stored according to the logic of [table storage in {{product-name}}](../../../../user-guide/storage/static-tables.md). Creating tables using standard ClickHouse engines is prohibited. Instead, you can read any of the existing tables in the corresponding {{product-name}} cluster. You can also save results as {{product-name}} tables.
 
-"Under the hood", working with {{product-name}} tables is arranged similarly to the [Distributed](https://clickhouse.com/docs/ru/engines/table-engines/special/distributed) engine from ClickHouse. Exception: you do not have to think about manual or automatic distribution of data into shards, because as a storage {{product-name}} solves this task in a transparent, seamless, and reliable way, distributing data to nodes.
+"Under the hood", working with {{product-name}} tables is arranged similarly to the [Distributed](https://clickhouse.com/docs/{{lang}}/engines/table-engines/special/distributed) engine from ClickHouse. Exception: you do not have to think about manual or automatic distribution of data into shards, because as a storage {{product-name}} solves this task in a transparent, seamless, and reliable way, distributing data to nodes.
 
 CHYT works only with [schematized tables](../../../../user-guide/storage/static-schema.md). The table must have the filled in `/@schema` attribute, or the **Schema** tab in the {{product-name}} web interface must have a schema (i.e. at least one column is mentioned), which is the same thing.
 
@@ -33,6 +33,8 @@ CHYT can read and write static and sorted dynamic tables, but note that due to t
    SELECT * FROM concatYtTablesRange('//tmp/sample_tables','2019-01-01')
    SELECT * FROM concatYtTablesRange('//tmp/sample_tables', '2019-08-13T11:00:00')
    ```
+
+For more information about these functions, see [Reading a set of tables](../../../../user-guide/data-processing/chyt/reference/functions.md#multiple_tables_read).
 
 ## Saving results { #save }
 
@@ -179,12 +181,10 @@ FROM concatYtTables("//home/dev/username/t0", "//home/dev/username/t1");
 
 You can read [dynamic](../../../../user-guide/dynamic-tables/overview.md) tables, including dynamic stores (fresh data in memory), from CHYT.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 To make data in dynamic stores visible when reading from CHYT and Map-Reduce, the table must be remounted and the `enable_dynamic_store_read = %true` attribute must be set.
 
 {% endnote %}
 
 By default, if you try to read a dynamic table without the `enable_dynamic_store_read = %true` attribute, the query will end with an error. If you really need data only from chunk stores (with a delay of tens of minutes), then you can set `chyt.dynamic_table.enable_dynamic_store_read` to `0`, after which CHYT will forcibly start reading only chunk stores (see the [query settings](../../../../user-guide/data-processing/chyt/reference/settings.md) page).
-
-

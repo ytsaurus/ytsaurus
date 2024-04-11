@@ -180,6 +180,7 @@ SELECT YSONExtractString('{a=[{c=xyz}; {c=qwe}]}', 'a', 2, 'c');
 
 Примеры:
 
+{% if lang == "ru" %}
 ```sql
 SELECT ConvertYson('{x=1}', 'text');
 '{"x"=1;}'
@@ -192,12 +193,32 @@ SELECT ConvertYson('{x=1}', 'pretty');
 SELECT ConvertYson('{x=1}', 'binary');
 '{\u0001\u0002x=\u0002\u0002;}'
 
-SELECT ConvertYson('{x="бац"}', 'text');
-'{"x"="\xD0\xB1\xD0\xB0\xD1\x86";}'
+SELECT ConvertYson('{x="Пример"}', 'text');
+'{"x"="\xD0\x9F\xD1\x80\xD0\xB8\xD0\xBC\xD0\xB5\xD1\x80";}'
 
-SELECT ConvertYson('{x="бац"}', 'unescaped_text');
-'{"x"="бац";}'
+SELECT ConvertYson('{x="Пример"}', 'unescaped_text');
+'{"x"="Пример";}'
 ```
+{% else %}
+```sql
+SELECT ConvertYson('{x=1}', 'text');
+'{"x"=1;}'
+
+SELECT ConvertYson('{x=1}', 'pretty');
+'{
+    "x" = 1;
+}'
+
+SELECT ConvertYson('{x=1}', 'binary');
+'{\u0001\u0002x=\u0002\u0002;}'
+
+SELECT ConvertYson('{x="This example shows escaping the © character"}', 'text');
+'{"x"="This example shows escaping the \xC2\xA9 character";}'
+
+SELECT ConvertYson('{x="Here, the © character is not escaped"}', 'unescaped_text');
+'{"x"="Here, the © character is not escaped";}'
+```
+{% endif %}
 
 ### Пример работы с YSON
 ```sql

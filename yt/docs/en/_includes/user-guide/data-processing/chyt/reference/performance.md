@@ -31,7 +31,7 @@ Below are the factors that affect the read query speed.
 
 ### Processed data size { #data_weight }
 
-CHYT is primarily designed for fast (a few seconds) processing of small (about 1 GB) and medium (about tens of GB) data. You cannot use CHYT effectively to process TB of data. You can reduce the amount of processed data by using a data storage [schema](../../../../../user-guide/storage/static-schema.md) (using column selection and sorting).
+CHYT is primarily designed for fast (a few seconds) processing of small (about 1 GB) and medium (about tens of GB) data. You cannot use CHYT effectively to process TB of data. You can reduce the amount of processed data with a right data storage [schema](../../../../../user-guide/storage/static-schema.md) (using column orientation and sorting).
 
 To build dashboards on top of a large amount of data, we recommend making separate tables with the necessary data and pre-aggregated values. For example, if the data is specified in milliseconds and you need to build analytics by days, you need to pre-aggregate the data to a day.
 
@@ -45,25 +45,25 @@ Reading large tables can bump into any of the query execution points from the li
 
 Erasure coding is intended for "cold" tables. In erasure coding, data takes up less disk space, but this has a negative impact on the read speed of such data:
 1. Each chunk is divided into 16 (or 9 depending on the coding algorithm) parts, which increases the amount of metainformation (point 1).
-2. Data is stored in one copy, so reading cannot be paralleled (point 2).
+2. Data is stored as a single copy, so parallel reading isn't possible (point 2).
 3. If the disk on the node is loaded, you cannot switch to read data from another node. And since the chunk is divided into 16 parts, the probability that reading at least one of them will freeze greatly increases.
 4. If data is unavailable due to a cluster node failure, it must be restored. This is a rather long and resource-consuming process. (points 2, 4?).
 
 As a result, it takes much longer to read erasure-coded data and reading latency becomes more likely and less predictable. **We strongly do not recommend** building dashboards or making other regular queries on top of erasure-coded data.
 
 ### Data storage format { #optimize_for }
-Data in {{product-name}} tables can be stored both in row-by-row (`optimize_for=lookup`) and column-by-column (`optimize_for=scan`) formats.
+Data in {{product-name}} tables can be stored both in row-based (`optimize_for=lookup`) and columnar (`optimize_for=scan`) formats.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
-ClickHouse is a column-oriented DBMS, so we highly recommend using column-by-column storage.
+ClickHouse is a column-oriented DBMS, so we highly recommend using columnar storage.
 
 {% endnote %}
 
-Column-by-column data storage has the following advantages:
-- Converting data into CH format from {{product-name}} column-by-column format is many times (if not dozens of times) more efficient than from row-by-row format (point 6).
-- When storing data on a column-by-column basis, only the requested columns will be read during the query. (points 2, 3, and 4).
-- Data stored on a column-by-column basis is better compressed, so it takes up less space (points 2, 3).
+Columnar data storage has the following advantages:
+- Converting data into CH format from the {{product-name}} columnar format is many times (if not dozens of times) more efficient than from row-based format (point 6).
+- When columnar storage, only the requested columns will be read during the query. (points 2, 3, and 4).
+- Columnar stored data is better compressed, so it takes up less space (points 2, 3).
 
 {% note info %}
 
@@ -81,7 +81,7 @@ This enables you to:
 - Make a query, in particular `Sorted Join`, more effectively.
 - Better compress sorted tables so that they take up less space (point 2).
 
-The sort key must be selected depending on the queries:
+Select the sort key based on your queries:
 
 - For example, if the queries look like
    ``` ... where date between '2021-01-01' and '2021-02-01'```
@@ -99,7 +99,7 @@ In some cases, if you sort the table, there will be no effective filtering. The 
 The number of chunks affects several query execution stages.
 
 The more chunks a table has, the more metainformation must be read at step 1. If a table has thousands of chunks, it may take several seconds to read metainformation. If there are many chunks in a very small table, reading each chunk becomes a random read and can be slow (step 2).
-On the other hand, if there are too few chunks (for example, 1 chunk per 10 GB), all data is stored on the same disks, which will limit the concurrency of reads at step 2.
+On the other hand, if there are too few chunks (for example, 1 chunk per 10 GB), all data is stored on the same disks, which will limit the concurrency of reads at step 2.
 
 Use the `Merge` operation to enlarge the chunks.
 
@@ -109,7 +109,7 @@ Similar to the number of chunks, but metainformation for a table is much heavier
 
 ### Number of columns { #column_count }
 
-The number of columns in the table also affects the speed of data even if is is stored in column-by-column format. The block size is selected so that the reader can read a block for each column and output the result. If you want the data to fit into memory in this case, the block size must decrease as the number of columns increases. When blocks are very small, reading becomes a random read (step 2). We recommend having dozens or a maximum of 100 columns. Thousands of columns are guaranteed to perform poorly.
+The number of columns in the table also affects the speed of data even if it is stored in the columnar format. The block size is selected so that the reader can read a block for each column and output the result. If you want the data to fit into memory in this case, the block size must decrease as the number of columns increases. When blocks are very small, reading becomes a random read (step 2). We recommend having dozens or a maximum of 100 columns. Thousands of columns are guaranteed to perform poorly.
 Besides that, the large number of columns increases the amount of metainformation at step 1.
 
 ### Dynamic vs static tables { #dyn-vs-stat }
@@ -118,8 +118,8 @@ Data in dynamic tables is stored in a different way and is not intended for full
 
 1. First, you have to read its own version for each value.
 2. Second, you must read all the key columns for each row even if they are not used in the query.
-3. Next, you need to merge all the rows with the same key, leaving only 1 most recent version. It's a very hard process with a lot of comparisons. In addition, the process is purely row-by-row, so even if the data is stored in column-by-column format, it will have to be converted into row-by-row format.
-4. After that, you need to convert the data back into column-by-column format.
+3. Next, you need to merge all the rows with the same key, leaving only 1 most recent version. It's a very hard process with a lot of comparisons. In addition, the process is purely row-by-row, so even if the data is stored in the columnar format, it will have to be converted into the row-based format.
+4. After that, you need to convert the data back into the columnar format.
 
 `Merge` can add x10 to the data read time.
 

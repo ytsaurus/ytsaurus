@@ -226,8 +226,8 @@ items:
                href: user-guide/data-processing/chyt/cliques/start.md
              - name: A clique in the {{product-name}} web interface
                href: user-guide/data-processing/chyt/cliques/ui.md
-             - name: Administering a private clique
-               href: user-guide/data-processing/chyt/cliques/administration.md
+             - name: Access permissions
+               href: user-guide/data-processing/chyt/cliques/access.md
              - name: Resources and preemption
                href: user-guide/data-processing/chyt/cliques/resources.md
            - name: CLI and Python API
@@ -250,8 +250,6 @@ items:
              href: user-guide/data-processing/chyt/cliques/controller.md
            - name: Performance and recommendations
              href: user-guide/data-processing/chyt/reference/performance.md
-           - name: Diagnosing queries
-             href: user-guide/data-processing/chyt/queries/diagnostics.md
            - name: FAQ
              href: user-guide/data-processing/chyt/faq-chyt.md
          - name: SPYT

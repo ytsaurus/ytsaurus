@@ -39,11 +39,11 @@ toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
 ```
 ------
 
-#### **Q: How do I move a table to an SSD?**
+#### **Q: How do I move a table to an SSD?** { #how-to-set-ssd }
 
-**A:** First, make sure that your {{product-name}} account has a quota for the **ssd_blobs** [medium](../../../../user-guide/storage/media.md). To do this, go to the **Account** page, switch the medium type to **ssd_blobs**, and enter your account name. If there is no quota in the `ssd_blobs` medium, request it from the administrator.
+**A:** First, make sure that your {{product-name}} account has a quota for the **ssd_blobs** [medium](../../../../user-guide/storage/media.md). To do this, go to the {% if audience == "public" %}**Accounts** page{% else %}[accounts page](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %}, switch your medium type to **ssd_blobs**, and enter your account name. If there is no quota in the `ssd_blobs` medium, request it from the administrator.
 
-After obtaining the quota, you need to change the value of the `primary_medium` attribute on the **ssd_blobs** medium, the data will be moved to the corresponding medium in the background.
+After obtaining the quota for the **ssd_blobs** medium, you will need to change the value of the `primary_medium` attribute, and the data will be moved to the corresponding medium in the background.
 
 For static tables, you can force a move using the [Merge](../../../../user-guide/data-processing/operations/merge.md) operation.
 
@@ -83,9 +83,9 @@ yt get //home/dev/test_table/@resource_usage
 
 ------
 
-#### **Q: Is the `SAMPLE` construction of the ClickHouse language supported?**
+#### **Q: Is the ClickHouse `SAMPLE` clause supported?**
 
-**A:** CHYT supports the `Sample` construction. The difference is that CHYT ignores the `OFFSET ...` command, so you cannot get a sample from another part of the selected data.
+**A:** CHYT supports the `SAMPLE` clause. The difference is that CHYT ignores the `OFFSET ...` command, so you cannot get a sample from another part of the selected data.
 
 Example:
 

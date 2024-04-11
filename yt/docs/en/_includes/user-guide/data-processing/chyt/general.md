@@ -5,10 +5,12 @@ This article provides a rationale for the selected ClickHouse model within the {
 ## What is a clique? { #what-is }
 
 A *clique* is a full-fledged ClickHouse cluster that can read data from tables located in {{product-name}} via the built-in {{product-name}} internal protocol.
+
 From the point of view of the [{{product-name}} scheduler](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md), a clique is a Vanilla operation containing in a typical case up to dozens of jobs, each of which consumes up to 16 CPU cores by default. The name *clique* was chosen as a play on words in consonance with the name ClickHouse, but the correct spelling in English is *Clique*.
 
-A fundamental property of CHYT is that a clique is "administered" by *users*, not {{product-name}} administrators (for more information, see [Administering a private clique](../../../../user-guide/data-processing/chyt/cliques/administration.md)). Specifically, any {{product-name}} user can start their own clique (or even several cliques) at any time.
+## Administering a clique { #administration }
 
+Cliques are administered by *users*, not {{product-name}} administrators. Specifically, any {{product-name}} user can start their own clique (or even several cliques) at any time. For more information, see [How to start a private clique](../../../../user-guide/data-processing/chyt/cliques/start.md).
 
 ## Reliable isolation { #isolation }
 
