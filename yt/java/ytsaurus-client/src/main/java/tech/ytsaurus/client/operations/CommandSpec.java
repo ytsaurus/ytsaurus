@@ -11,10 +11,12 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.DataSize;
+import tech.ytsaurus.core.YtFormat;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeStringNode;
 
 
 /**
@@ -25,9 +27,9 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 public class CommandSpec implements Spec, UserJobSpec {
     private final String command;
 
-    // These should be format description
-    private final YTableEntryType<?> inputType;
-    private final YTableEntryType<?> outputType;
+    private final YTreeStringNode inputFormat;
+
+    private final YTreeStringNode outputFormat;
 
     private final List<YPath> files;
 
@@ -64,8 +66,6 @@ public class CommandSpec implements Spec, UserJobSpec {
             throw new RuntimeException("command is not set");
         }
         command = builder.command;
-        inputType = builder.inputType;
-        outputType = builder.outputType;
         files = builder.files;
         memoryLimit = builder.memoryLimit;
         useTmpfs = builder.useTmpfs;
@@ -75,6 +75,16 @@ public class CommandSpec implements Spec, UserJobSpec {
         jobTimeLimit = builder.jobTimeLimit;
         jobCount = builder.jobCount;
         outputTablePaths = builder.outputTablePaths;
+
+        var formatContext = FormatContext.builder()
+                .setOutputTableCount(outputTablePaths.size())
+                .build();
+        inputFormat = builder.inputType != null
+                ? builder.inputType.format(formatContext)
+                : builder.inputFormat;
+        outputFormat = builder.outputType != null
+                ? builder.outputType.format(formatContext)
+                : builder.outputFormat;
     }
 
     @Override
@@ -92,8 +102,8 @@ public class CommandSpec implements Spec, UserJobSpec {
         }
         CommandSpec spec = (CommandSpec) obj;
         return command.equals(spec.command)
-                && inputType.equals(spec.inputType)
-                && outputType.equals(spec.outputType)
+                && inputFormat.equals(spec.inputFormat)
+                && outputFormat.equals(spec.outputFormat)
                 && files.equals(spec.files)
                 && Optional.ofNullable(memoryLimit).equals(Optional.ofNullable(spec.memoryLimit))
                 && useTmpfs == spec.useTmpfs
@@ -113,17 +123,17 @@ public class CommandSpec implements Spec, UserJobSpec {
     }
 
     /**
-     * @see Builder#setInputType(YTableEntryType)
+     * @see Builder#setInputFormat(YTreeStringNode)
      */
-    public YTableEntryType<?> getInputType() {
-        return inputType;
+    public YTreeStringNode getInputFormat() {
+        return inputFormat;
     }
 
     /**
-     * @see Builder#setOutputType(YTableEntryType)
+     * @see Builder#setOutputFormat(YTreeStringNode)
      */
-    public YTableEntryType<?> getOutputType() {
-        return outputType;
+    public YTreeStringNode getOutputFormat() {
+        return outputFormat;
     }
 
     /**
@@ -183,13 +193,10 @@ public class CommandSpec implements Spec, UserJobSpec {
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
-        var formatContext = FormatContext.builder()
-                .setOutputTableCount(outputTablePaths.size())
-                .build();
         return builder.beginMap()
                 .key("command").value(command)
-                .key("input_format").value(inputType.format(formatContext))
-                .key("output_format").value(outputType.format(formatContext))
+                .key("input_format").value(inputFormat)
+                .key("output_format").value(outputFormat)
                 .when(!files.isEmpty(), b -> b.key("file_paths").value(files, (b2, t) -> t.toTree(b2)))
                 .when(memoryLimit != null, b -> b.key("memory_limit").value(memoryLimit.toBytes()))
                 .when(useTmpfs, b -> b.key("tmpfs_path").value(".").key("copy_files").value(true))
@@ -238,8 +245,12 @@ public class CommandSpec implements Spec, UserJobSpec {
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
         @Nullable
         String command = null;
-        YTableEntryType<?> inputType = YTableEntryTypes.yson(false);
-        YTableEntryType<?> outputType = YTableEntryTypes.yson(false);
+        YTreeStringNode inputFormat = YtFormat.YSON_BINARY;
+        YTreeStringNode outputFormat = YtFormat.YSON_BINARY;
+        @Nullable
+        YTableEntryType<?> inputType;
+        @Nullable
+        YTableEntryType<?> outputType;
         List<YPath> files = new ArrayList<>();
         @Nullable
         DataSize memoryLimit = null;
@@ -268,17 +279,35 @@ public class CommandSpec implements Spec, UserJobSpec {
         }
 
         /**
-         * Set input type for resolve format of input data.
+         * Set format of input data.
          */
-        public T setInputType(YTableEntryType<?> inputType) {
+        public T setInputFormat(YTreeStringNode inputFormat) {
+            this.inputFormat = inputFormat;
+            return self();
+        }
+
+        /**
+         * Set format of output data.
+         */
+        public T setOutputFormat(YTreeStringNode outputFormat) {
+            this.outputFormat = outputFormat;
+            return self();
+        }
+
+        /**
+         * Set input type for resolve format of input data.
+         * Format resolved with this input type overrides {@link #inputFormat}.
+         */
+        public T setInputType(@Nullable YTableEntryType<?> inputType) {
             this.inputType = inputType;
             return self();
         }
 
         /**
          * Set output type for resolve format of output data.
+         * Format resolved with this output type overrides {@link #outputFormat}.
          */
-        public T setOutputType(YTableEntryType<?> outputType) {
+        public T setOutputType(@Nullable YTableEntryType<?> outputType) {
             this.outputType = outputType;
             return self();
         }
