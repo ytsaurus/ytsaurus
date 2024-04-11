@@ -150,9 +150,16 @@ To manage access to queries and their results, the query can store an optional `
 
 An Access Control Object (ACO) is an object with the `@principal_acl` attribute. It sets access rules in the same manner as `@acl` does for Cypress nodes. For more information, see [Access control](../../user-guide/storage/access-control.md).
 
-You can create an ACO through the user interface or by calling the [create](../../user-guide/storage/cypress-example.md#create) command: `yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
+You can create an ACO through the user interface or by calling the [create](../../user-guide/storage/cypress-example.md#create) command:
+
+`yt create access_control_object --attr '{namespace=queries;name=my_aco}'`.
 
 All APIs use ACOs to verify access:
++ `Use` grants access to the query.
++ `Read` grants access to the query results.
++ `Administer` grants the permission to modify and stop the query.
+
+Detailed information on each API method:
 
 + `start_query` checks whether the passed ACO exists.
 + `alter_query` checks whether the query ACO grants the `Administer` permission to the user and whether the passed ACO exists.
@@ -166,6 +173,11 @@ A few things to keep in mind:
 
 + The query creator always has access to their queries.
 + If a query doesn't have an ACO, the default `nobody` ACO is used for verification.
+
+For convenience, yt-k8s-operator creates the following ACOs:
++ `nobody`. Doesn't grant any permissions.
++ `everyone`. Grants `Use` and `Read` permissions to all users.
++ `everyone-use`. Grants `Use` permissions to all users.
 
 ## Example {#example}
 
