@@ -286,28 +286,13 @@ private:
 
                 return GetReplicationCard(options)
                     .Apply(BIND([=] (const TReplicationCardPtr& card) {
-                        TReplicationProgress syncProgress;
-                        for (const auto& [replicaId, replica] : card->Replicas) {
-                            if (IsReplicaReallySync(replica.Mode, replica.State, replica.History.back())) {
-                                if (syncProgress.Segments.empty()) {
-                                    syncProgress = replica.ReplicationProgress;
-                                } else {
-                                    syncProgress = BuildMaxProgress(syncProgress, replica.ReplicationProgress);
-                                }
-                            }
-                        }
-
+                        auto replicasLags = ComputeReplicasLag(card->Replicas);
                         return BuildYsonStringFluently()
-                            .DoMapFor(card->Replicas, [&] (TFluentMap fluent, const auto& pair) {
-                                const auto& [replicaId, replica] = pair;
+                            .DoMapFor(replicasLags, [&] (TFluentMap fluent, const auto& lagPair) {
+                                const auto& [replicaId, replicaLag] = lagPair;
+                                const auto& replicas = card->Replicas;
+                                const auto& replica = replicas.find(replicaId)->second;
                                 auto minTimestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-                                auto replicaLagTime = IsReplicaReallySync(
-                                    replica.Mode,
-                                    replica.State,
-                                    replica.History.back())
-                                    ? TDuration::Zero()
-                                    : ComputeReplicationProgressLag(syncProgress, replica.ReplicationProgress);
-
                                 fluent
                                     .Item(ToString(replicaId))
                                     .BeginMap()
@@ -317,7 +302,7 @@ private:
                                         .Item("mode").Value(replica.Mode)
                                         .Item("content_type").Value(replica.ContentType)
                                         .Item("replication_lag_timestamp").Value(minTimestamp)
-                                        .Item("replication_lag_time").Value(replicaLagTime)
+                                        .Item("replication_lag_time").Value(replicaLag)
                                         .Item("replicated_table_tracker_enabled").Value(replica.EnableReplicatedTableTracker)
                                     .EndMap();
 

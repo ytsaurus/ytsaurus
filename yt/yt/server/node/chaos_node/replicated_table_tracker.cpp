@@ -109,38 +109,30 @@ public:
         return BIND([slot = Slot_, replicaIds = std::move(replicaIds)] {
             const auto& chaosManager = slot->GetChaosManager();
 
-            TReplicationProgress maxProgress;
-            std::vector<std::pair<TTableReplicaId, TReplicaInfo*>> replicaInfos;
-            replicaInfos.reserve(replicaIds.size());
+            TReplicaLagTimes results;
+            results.reserve(replicaIds.size());
+
+            THashMap<TReplicationCardId, THashMap<TReplicaId, TDuration>> computedLags;
+
             for (auto replicaId : replicaIds) {
                 auto replicationCardId = ReplicationCardIdFromReplicaId(replicaId);
-                auto *replicationCard = chaosManager->FindReplicationCard(replicationCardId);
-                if (!replicationCard) {
-                    continue;
-                }
-
-                auto* replica = replicationCard->FindReplica(replicaId);
-                if (!replica) {
-                    continue;
-                }
-                if (IsReplicaReallySync(replica->Mode, replica->State, replica->History.back())) {
-                    if (maxProgress.Segments.empty()) {
-                        maxProgress = replica->ReplicationProgress;
-                    } else {
-                        maxProgress = BuildMaxProgress(maxProgress, replica->ReplicationProgress);
+                auto [replicaIterator, inserted] = computedLags.try_emplace(replicationCardId);
+                if (inserted) {
+                    auto* replicationCard = chaosManager->FindReplicationCard(replicationCardId);
+                    if (!replicationCard) {
+                        continue;
                     }
+
+                    replicaIterator->second = std::move(ComputeReplicasLag(replicationCard->Replicas()));
                 }
-                replicaInfos.emplace_back(replicaId, replica);
-            }
 
-            TReplicaLagTimes results;
-            results.reserve(replicaInfos.size());
+                const auto& computedLags = replicaIterator->second;
+                auto replicaIt = computedLags.find(replicaId);
+                if (replicaIt == computedLags.end()) {
+                    continue;
+                }
 
-            for (const auto& [replicaId, replica] : replicaInfos) {
-                auto lagTime = IsReplicaReallySync(replica->Mode, replica->State, replica->History.back())
-                    ? TDuration::Zero()
-                    : ComputeReplicationProgressLag(maxProgress, replica->ReplicationProgress);
-                results.emplace_back(replicaId, lagTime);
+                results.emplace_back(replicaId, replicaIt->second);
             }
 
             return results;
