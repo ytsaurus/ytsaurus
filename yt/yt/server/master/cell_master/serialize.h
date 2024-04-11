@@ -221,6 +221,7 @@ DEFINE_ENUM(EMasterReign,
     ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
     ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
     ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
+    ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
