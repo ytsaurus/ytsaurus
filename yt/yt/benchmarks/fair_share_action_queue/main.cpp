@@ -16,6 +16,8 @@
 
 #include <library/cpp/yt/threading/count_down_latch.h>
 
+#include <library/cpp/yt/containers/intrusive_linked_list.h>
+
 #include <library/cpp/getopt/last_getopt.h>
 
 #include <util/system/spinlock.h>
@@ -97,36 +99,61 @@ struct THistogram
     std::vector<i64> TimeOffsets_;
 };
 
-YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistogramsLock);
-std::vector<THistogram*> Histograms;
-
 struct TThreadHistogram
     : public THistogram
 {
-    TThreadHistogram()
-        : THistogram(128, 1)
+    TThreadHistogram();
+    ~TThreadHistogram();
+
+    static std::vector<i64> ComputePercentileValues(TRange<double> percentiles);
+
+    TIntrusiveLinkedListNode<TThreadHistogram> LinkedListNode;
+};
+
+struct TThreadHistogramToListNode
+{
+    auto operator() (TThreadHistogram* histogram) const
     {
-        auto guard = Guard(HistogramsLock);
-        Histograms.push_back(this);
-    }
-
-    static std::vector<i64> ComputePercentileValues(TRange<double> percentiles)
-    {
-        std::vector<i64> timeBins(128, 0);
-        std::vector<i64> timeOffsets;
-
-        auto guard = Guard(HistogramsLock);
-        for (auto histogram : Histograms) {
-            for (size_t i = 0; i < histogram->TimeBins_.size(); ++i) {
-                timeBins[i] += histogram->TimeBins_[i];
-            }
-
-            timeOffsets = histogram->TimeOffsets_;
-        }
-
-        return THistogram::ComputePercentileValues(timeBins, timeOffsets, percentiles);
+        return &histogram->LinkedListNode;
     }
 };
+
+YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistogramsLock);
+TIntrusiveLinkedList<TThreadHistogram, TThreadHistogramToListNode> Histograms;
+
+TThreadHistogram::TThreadHistogram()
+    : THistogram(128, 1)
+{
+    auto guard = Guard(HistogramsLock);
+    Histograms.PushBack(this);
+}
+
+TThreadHistogram::~TThreadHistogram()
+{
+    auto guard = Guard(HistogramsLock);
+    Histograms.Remove(this);
+}
+
+std::vector<i64> TThreadHistogram::ComputePercentileValues(TRange<double> percentiles)
+{
+    std::vector<i64> timeBins(128, 0);
+    std::vector<i64> timeOffsets;
+
+    auto guard = Guard(HistogramsLock);
+
+    auto histogram = Histograms.GetFront();
+
+    while (histogram) {
+        for (size_t i = 0; i < histogram->TimeBins_.size(); ++i) {
+            timeBins[i] += histogram->TimeBins_[i];
+        }
+
+        timeOffsets = histogram->TimeOffsets_;
+        histogram = histogram->LinkedListNode.Next;
+    }
+
+    return THistogram::ComputePercentileValues(timeBins, timeOffsets, percentiles);
+}
 
 thread_local TThreadHistogram ThreadHistogram;
 
@@ -138,6 +165,7 @@ struct TTask final
     TCpuDuration SpinCpuDuration;
     TClosure Closure;
     bool WaitTimeHistogram = true;
+    TCpuInstant ScheduledAt = 0;
 
     TTask(
         TCallback<IInvoker*(size_t)> invokerProvider,
@@ -154,29 +182,27 @@ struct TTask final
 
     void Invoke(size_t iteration)
     {
-        if (WaitTimeHistogram) {
-            auto scheduledAt = GetCpuInstant();
-            InvokerProvider(iteration)->Invoke(BIND([scheduledAt, this] {
-                auto waitTime = CpuDurationToDuration(GetCpuInstant() - scheduledAt);
-                ThreadHistogram.Add(waitTime.MicroSeconds());
-                Run();
-            }));
-        } else {
-            InvokerProvider(iteration)->Invoke(Closure);
-        }
+        InvokerProvider(iteration)->Invoke(Closure);
     }
 
     void Run()
     {
+        if (WaitTimeHistogram && ScheduledAt != 0) {
+            auto waitTime = CpuDurationToDuration(GetCpuInstant() - ScheduledAt);
+            ThreadHistogram.Add(waitTime.MicroSeconds());
+        }
         auto iteration = IterationsLeft--;
         YT_VERIFY(iteration > 0);
 
         Spin(SpinCpuDuration);
 
         if (iteration == 1) {
-            Closure.Reset();
             Latch->CountDown();
+            Closure.Reset();
         } else {
+            if (WaitTimeHistogram) {
+                ScheduledAt = GetCpuInstant();
+            }
             Invoke(iteration);
         }
     }
@@ -297,8 +323,6 @@ void BenchmarkThreadPool(size_t iterations, size_t threadCount, size_t taskCount
 
     auto cpuDuration = test(actionCount);
 
-    threadPool.Reset();
-
     auto duration = NProfiling::CpuDurationToDuration(cpuDuration);
 
     Cout << Format("Moody camel thread pool (Time: %v, Cycles/Action: %v, Actions/Sec: %v)\n",
@@ -308,6 +332,8 @@ void BenchmarkThreadPool(size_t iterations, size_t threadCount, size_t taskCount
 
     auto times = TThreadHistogram::ComputePercentileValues({0.50, 0.75, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999, 1.0});
     Cout << Format("Percentile times (0.50, 0.75, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999, 1.0): %v", times) << Endl;
+
+    threadPool.Reset();
 }
 
 void BenchmarkFSThreadPool(
