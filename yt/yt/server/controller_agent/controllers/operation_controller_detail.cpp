@@ -2259,7 +2259,7 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        YT_LOG_ALERT(ex,
+        YT_LOG_ERROR(ex,
             "Failed to manually merge branched operation Cypress node (CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
             nodeId,
             transactionId,
