@@ -1639,7 +1639,11 @@ def init_logging(path, name,
         "abort_on_alert": abort_on_alert,
         "compression_thread_count": compression_thread_count,
         "rules": [
-            {"min_level": "info", "writers": ["info"]},
+            {
+                "min_level": "info",
+                "writers": ["info"],
+                "family": "plain_text",
+            },
         ],
         "writers": {
             "info": {
@@ -1652,7 +1656,11 @@ def init_logging(path, name,
 
     if log_errors_to_stderr:
         config["rules"].append(
-            {"min_level": "error", "writers": ["stderr"]}
+            {
+                "min_level": "error",
+                "writers": ["stderr"],
+                "family": "plain_text",
+            }
         )
         config["writers"]["stderr"] = {
             "type": "stderr",
@@ -1688,7 +1696,7 @@ def init_logging(path, name,
         config["rules"].append({
             "min_level": "debug",
             "writers": ["json"],
-            "message_format": "structured",
+            "family": "structured",
         })
         config["writers"]["json"] = {
             "type": "file",
