@@ -18,7 +18,8 @@ from .secondary_index import (
     make_random_secondary_index_schema,
     verify_insert_secondary_index,
     verify_select_secondary_index,
-    FilterMapper)
+    FilterMapper,
+    SYSTEM_EMPTY_COLUMN_NAME)
 
 import yt.wrapper as yt
 import random
@@ -122,7 +123,11 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
             attributes["chunk_format"] = chunk_format
             attributes["optimize_for"] = optimize_for
             yt.create("table", registry.index, attributes=attributes)
-            attributes["schema"] = [{"name": column.name, "type": column.type.str()} for column in index_schema.columns]
+            attributes["schema"] = [
+                {"name": column.name, "type": column.type.str()}
+                for column in index_schema.columns
+                if column.name != SYSTEM_EMPTY_COLUMN_NAME
+            ]
             with yt.TempTable(attributes=attributes) as tmp:
                 yt.run_map(FilterMapper(index_schema.yson()), registry.base, tmp)
                 yt.run_sort(tmp, registry.index, sort_by=index_schema.get_key_column_names())
