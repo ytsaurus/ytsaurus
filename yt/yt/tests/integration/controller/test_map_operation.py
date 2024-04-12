@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -1501,6 +1501,50 @@ print(json.dumps(input))
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - added_rows,
             job_type=job_type))
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("job_count", list(range(1, 4)))
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_force_allow_job_interruption(self, job_count, ordered):
+        skip_if_old(self.Env, (24, 1), "Operations with explicit job count are not interruptible in old controller agents")
+
+        input_table = "//tmp/in"
+        output_table = "//tmp/out"
+
+        create("table", input_table)
+        write_table(
+            input_table,
+            [{"key": f"{i:08d}", "data": "a" * (2 * 1024 * 1024)} for i in range(10 * job_count)],
+        )
+
+        attributes = "<sorted_by=[key]>" if ordered else ""
+        output = f"{attributes}{output_table}"
+        create("table", output)
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_=input_table,
+            out=output,
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; sleep 5; cat"""),
+            spec={
+                "force_allow_job_interruption": True,
+                "job_count": job_count,
+                "job_io": {
+                    "buffer_row_count": 1,
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        jobs = wait_breakpoint()
+        interrupt_job(jobs[0])
+        release_breakpoint()
+        op.track()
+
+        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+
+        assert op.get_job_count("completed") > job_count
 
     @authors("dakovalkov", "gritukan")
     @pytest.mark.xfail(run=False, reason="YT-14467")

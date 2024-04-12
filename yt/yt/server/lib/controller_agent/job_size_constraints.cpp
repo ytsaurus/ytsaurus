@@ -28,8 +28,10 @@ public:
         i64 samplingDataWeightPerJob,
         i64 samplingPrimaryDataWeightPerJob,
         i64 maxBuildRetryCount,
-        double dataWeightPerJobRetryFactor)
+        double dataWeightPerJobRetryFactor,
+        bool forceAllowJobInterruption)
         : CanAdjustDataWeightPerJob_(canAdjustDataWeightPerJob)
+        , ForceAllowJobInterruption_(forceAllowJobInterruption)
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
         , DataWeightPerJob_(dataWeightPerJob)
@@ -66,6 +68,11 @@ public:
     int GetJobCount() const override
     {
         return JobCount_;
+    }
+
+    bool ForceAllowJobInterruption() const override
+    {
+        return ForceAllowJobInterruption_;
     }
 
     i64 GetDataWeightPerJob() const override
@@ -165,6 +172,13 @@ public:
         Persist(context, MaxBuildRetryCount_);
         Persist(context, DataWeightPerJobRetryFactor_);
 
+        // COMPAT(galtsev)
+        if (context.GetVersion() >= ESnapshotVersion::ForceAllowJobInterruption) {
+            Persist(context, ForceAllowJobInterruption_);
+        } else {
+            ForceAllowJobInterruption_ = false;
+        }
+
         // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
         // input somewhere in controller).
         if (context.IsLoad()) {
@@ -178,6 +192,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
 
     bool CanAdjustDataWeightPerJob_;
+    bool ForceAllowJobInterruption_;
     bool IsExplicitJobCount_;
     int JobCount_;
     i64 DataWeightPerJob_;
@@ -216,7 +231,8 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 samplingDataWeightPerJob,
     i64 samplingPrimaryDataWeightPerJob,
     i64 maxBuildRetryCount,
-    double dataWeightPerJobRetryFactor)
+    double dataWeightPerJobRetryFactor,
+    bool forceAllowJobInterruption)
 {
     return New<TExplicitJobSizeConstraints>(
         canAdjustDataSizePerJob,
@@ -234,7 +250,8 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         samplingDataWeightPerJob,
         samplingPrimaryDataWeightPerJob,
         maxBuildRetryCount,
-        dataWeightPerJobRetryFactor);
+        dataWeightPerJobRetryFactor,
+        forceAllowJobInterruption);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

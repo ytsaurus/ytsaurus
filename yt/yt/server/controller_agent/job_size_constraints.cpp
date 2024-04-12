@@ -146,6 +146,11 @@ public:
         return JobCount_;
     }
 
+    bool ForceAllowJobInterruption() const override
+    {
+        return false;
+    }
+
     void UpdateInputDataWeight(i64 inputDataWeight) override
     {
         YT_LOG_DEBUG("Job size constraints input data weight updated (OldInputDataWeight: %v, NewInputDataWeight: %v)",
@@ -337,6 +342,11 @@ public:
         // If #DataWeightPerJob == 1, we guarantee #JobCount == #RowCount (if row count doesn't exceed #MaxJobCount).
         return static_cast<bool>(Spec_->JobCount) ||
             (static_cast<bool>(Spec_->DataWeightPerJob) && *Spec_->DataWeightPerJob == 1);
+    }
+
+    bool ForceAllowJobInterruption() const override
+    {
+        return Spec_->ForceAllowJobInterruption;
     }
 
     i64 GetDataWeightPerJob() const override
