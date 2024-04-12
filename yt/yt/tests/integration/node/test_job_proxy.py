@@ -414,7 +414,7 @@ class TestJobProxyLogging(YTEnvSetup):
     def test_separate_directory(self):
         job_count = 3
 
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
+        run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
         job_ids = wait_breakpoint(job_count=job_count)
         assert len(job_ids) == job_count
 
