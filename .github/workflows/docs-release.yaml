@@ -1,10 +1,7 @@
 name: Docs Release
 
 on:
-  push:
-    branches:
-      - main
-    paths: 'yt/docs/**'
+  workflow_dispatch:
 
 jobs:
   build:
