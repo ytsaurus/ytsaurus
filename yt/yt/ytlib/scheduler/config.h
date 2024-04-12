@@ -243,6 +243,8 @@ class TPoolPresetConfig
 public:
     bool AllowRegularAllocationsOnSsdNodes;
 
+    bool EnableLightweightOperations;
+
     REGISTER_YSON_STRUCT(TPoolPresetConfig);
 
     static void Register(TRegistrar registrar);
@@ -303,8 +305,6 @@ public:
     bool ComputePromisedGuaranteeFairShare;
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
-
-    bool EnableLightweightOperations;
 
     void Validate(const TString& poolName);
 
