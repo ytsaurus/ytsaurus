@@ -920,6 +920,11 @@ def _build_node_configs(node_dirs,
             "exec_node/job_proxy/job_proxy_logging/log_manager_template",
             _init_logging(logs_dir, log_name, yt_config)
         )
+
+        # COMPAT
+        for key in config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"]:
+            config["exec_node"]["job_proxy"]["job_proxy_logging"][key] = config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"][key]
+
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
