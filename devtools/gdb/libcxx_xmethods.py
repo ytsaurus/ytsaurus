@@ -169,7 +169,7 @@ class StringDataWorker(gdb.xmethod.XMethodWorker):
         is_long = ss['__is_long_']
         if is_long:
             sl = destructure_compressed_pair(obj['__r_'])[0]['__l']
-            return sl['__data_'].address.cast(self.result_type)
+            return sl['__data_'].cast(self.result_type)
         else:
             return ss['__data_'].address.cast(self.result_type)
 
