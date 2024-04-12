@@ -19,6 +19,17 @@ def get_process_count(cls, index):
     scheduler_count = cls.get_param("NUM_SCHEDULERS", index)
     controller_agent_count = cls.get_param("NUM_CONTROLLER_AGENTS", index)
 
+    clock_count = cls.get_param("NUM_CLOCKS", index)
+    discovery_server_count = cls.get_param("NUM_DISCOVERY_SERVERS", index)
+    timestamp_provider_count = cls.get_param("NUM_TIMESTAMP_PROVIDERS", index)
+    cell_balancer_count = cls.get_param("NUM_CELL_BALANCERS", index)
+    queue_agent_count = cls.get_param("NUM_QUEUE_AGENTS", index)
+    cypress_proxy_count = cls.get_param("NUM_CYPRESS_PROXIES", index)
+    tablet_balancer_count = (
+        cls.get_param("NUM_TABLET_BALANCERS", index) if cls.get_param("ENABLE_STANDALONE_TABLET_BALANCER", index) else 0)
+    replicated_table_tracker_count = (
+        cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index) if cls.get_param("ENABLE_STANDALONE_TABLET_BALANCER", index) else 0)
+
     http_proxy_count = (
         cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0)
 
@@ -32,6 +43,8 @@ def get_process_count(cls, index):
 
     return (2 * master_count * (secondary_cell_count + 1) +
             scheduler_count + controller_agent_count + master_cache_count +
+            clock_count + discovery_server_count + timestamp_provider_count + cell_balancer_count +
+            queue_agent_count + tablet_balancer_count + cypress_proxy_count + replicated_table_tracker_count +
             (node_count + job_proxy_count + chaos_node_count + 1) // 2 +
             (http_proxy_count + rpc_proxy_count + 1) // 2)
 
