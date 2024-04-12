@@ -12,15 +12,14 @@ import (
 //
 // For instance:
 //
-//     // Checking for a specific error type
-//     c.Assert(err, qt.ErrorAs, new(*os.PathError))
+//	// Checking for a specific error type
+//	c.Assert(err, qt.ErrorAs, new(*os.PathError))
 //
-//     // Checking fields on a specific error type
-//     var pathError *os.PathError
-//     if c.Check(err, qt.ErrorAs, &pathError) {
-//         c.Assert(pathError.Path, qt.Equals, "some_path")
-//     }
-//
+//	// Checking fields on a specific error type
+//	var pathError *os.PathError
+//	if c.Check(err, qt.ErrorAs, &pathError) {
+//	    c.Assert(pathError.Path, qt.Equals, "some_path")
+//	}
 var ErrorAs Checker = &errorAsChecker{
 	argNames: []string{"got", "as"},
 }
@@ -60,8 +59,7 @@ func (c *errorAsChecker) Check(got interface{}, args []interface{}, note func(ke
 //
 // For instance:
 //
-//     c.Assert(err, qt.ErrorIs, os.ErrNotExist)
-//
+//	c.Assert(err, qt.ErrorIs, os.ErrNotExist)
 var ErrorIs Checker = &errorIsChecker{
 	argNames: []string{"got", "want"},
 }
