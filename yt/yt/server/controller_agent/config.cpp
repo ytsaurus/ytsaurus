@@ -649,13 +649,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("event_log", &TThis::EventLog)
-        .DefaultCtor([] {
-            auto config = New<NEventLog::TEventLogManagerConfig>();
-            config->Enable = false;
-            config->MaxRowWeight = 128_MB;
-            config->Path = "//sys/scheduler/event_log";
-            return config;
-        });
+        .DefaultNew();
 
     registrar.Parameter("scheduler_handshake_rpc_timeout", &TThis::SchedulerHandshakeRpcTimeout)
         .Default(TDuration::Seconds(10));
@@ -1129,6 +1123,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}}));
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
+        config->EventLog->Enable = false;
+        config->EventLog->MaxRowWeight = 128_MB;
+        if (!config->EventLog->Path) {
+            config->EventLog->Path = "//sys/scheduler/event_log";
+        }
+
         config->ChunkLocationThrottler->Limit = 10'000;
 
         // Value in options is an upper bound hint on uncompressed data size for merge jobs.
