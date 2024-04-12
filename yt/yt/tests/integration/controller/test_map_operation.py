@@ -1655,6 +1655,37 @@ print(json.dumps(input))
         assert len(op.list_jobs()) == 10
         assert read_table("//tmp/t_output") == original_data
 
+    @authors("achulkov2")
+    def test_batch_row_count(self):
+        # TODO(achulkov2): Lower/remove after cherry-picks.
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
+            pytest.skip()
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        chunk_sizes = [15, 43, 57, 179, 2, 239, 13, 29, 315]
+        original_data = [
+            [{"chunk": chunk_index, "index": i} for i in range(chunk_sizes[chunk_index])]
+            for chunk_index in range(len(chunk_sizes))
+        ]
+        for rows in original_data:
+            write_table("<append=true>//tmp/t_input", rows)
+
+        batch_row_count = 32
+
+        map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"data_size_per_job": 1000, "batch_row_count": batch_row_count},
+        )
+
+        assert read_table("//tmp/t_output") == sum(original_data, start=[])
+        chunk_ids = get("//tmp/t_output/@chunk_ids")
+        assert sum(get(f"#{chunk_id}/@row_count") % batch_row_count == 0 for chunk_id in chunk_ids) >= len(chunk_ids) - 1
+
     @authors("max42", "savrus")
     @pytest.mark.parametrize("with_output_schema", [False, True])
     def test_ordered_map_remains_sorted(self, with_output_schema):
