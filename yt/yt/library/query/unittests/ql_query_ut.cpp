@@ -9311,10 +9311,12 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         {"b", EValueType::Any},
     });
     std::vector<TString> source = {
-        "a=[1;2;3];b=[4;6;2]",
+        "a=[1;2;3];b=[4;6;2;#]",
         "a=[\"a\"; \"b\"];b=[\"a\"]",
         "a=[1;2;3];b=[4;6]",
         "a=[%true];b=[]",
+        "a=[#];b=[#]",
+        "a=[1;#;3];b=[#;2;#]",
     };
 
     auto result = YsonToRows({
@@ -9322,10 +9324,18 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         "has_intersection=%true",
         "has_intersection=%false",
         "has_intersection=%false",
+        "has_intersection=%false",
+        "has_intersection=%false",
     }, MakeSplit({{"has_intersection", EValueType::Boolean},}));
 
     EvaluateOnlyViaNativeExecutionBackend(
         "list_has_intersection(a, b) as has_intersection from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "list_has_intersection(b, a) as has_intersection from [//t]",
         split,
         source,
         ResultMatcher(result));

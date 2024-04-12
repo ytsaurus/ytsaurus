@@ -2782,8 +2782,12 @@ void ListHasIntersection(
 
     bool found = false;
     const auto rhsNodeList = rhsNode->AsList()->GetChildren();
-    if (!rhsNodeList.empty()) {
-        auto element= rhsNodeList[0];
+    size_t i = 0;
+    while (i < rhsNodeList.size() && rhsNodeList[i]->GetType() == ENodeType::Entity) {
+        ++i;
+    }
+    if (i < rhsNodeList.size()) {
+        auto element= rhsNodeList[i];
         switch (element->GetType()) {
             case ENodeType::String:
                 found = ListHasIntersectionImpl<ENodeType::String, TString>(lhsNode, rhsNode);
