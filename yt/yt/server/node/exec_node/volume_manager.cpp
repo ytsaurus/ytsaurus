@@ -1308,7 +1308,8 @@ private:
             {"place", PlacePath_}
         };
 
-        if (options.EnableDiskQuota && options.HasRootFSQuota) {
+        // NB: Root volume quota is independent from sandbox quota but enforces the same limits.
+        if (options.EnableRootVolumeDiskQuota) {
             volumeProperties["user"] = ToString(options.UserId);
             volumeProperties["permissions"] = "0777";
 
