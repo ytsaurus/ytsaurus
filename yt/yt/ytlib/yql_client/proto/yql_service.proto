@@ -37,11 +37,11 @@ message TYqlRequest
 // A counterpart to NYql::NEmbedded::IOperation and to NYqlClient::TYqlResponse.
 message TYqlResponse
 {
-    optional string result = 1; // YSON
-    optional string plan = 2; // YSON
-    optional string statistics = 3; // YSON
-    optional string task_info = 4; // YSON
-    optional string progress = 5; // YSON
+    optional bytes result = 1; // YSON
+    optional bytes plan = 2; // YSON
+    optional bytes statistics = 3; // YSON
+    optional bytes task_info = 4; // YSON
+    optional bytes progress = 5; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
