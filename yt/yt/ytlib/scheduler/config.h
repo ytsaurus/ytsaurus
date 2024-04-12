@@ -726,8 +726,12 @@ class TDiskRequestConfig
     : public NYTree::TYsonStruct
 {
 public:
+    //! Required disk space in bytes, may be enforced as a limit.
     i64 DiskSpace;
+
+    //! Limit for disk inodes.
     std::optional<i64> InodeCount;
+
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
     std::optional<TString> Account;

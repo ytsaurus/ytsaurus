@@ -2603,9 +2603,9 @@ TUserSandboxOptions TJob::BuildUserSandboxOptions()
     // NB: this eventually results in job failure.
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
-    options.HasRootFSQuota = false;
     options.EnableArtifactBinds = Config_->UseArtifactBinds;
-    options.EnableDiskQuota = Bootstrap_->GetConfig()->DataNode->VolumeManager->EnableDiskQuota;
+    // TODO(khlebnikov): Move into volume manager.
+    options.EnableRootVolumeDiskQuota = false;
     options.UserId = GetUserSlot()->GetUserId();
 
     if (UserJobSpec_) {
