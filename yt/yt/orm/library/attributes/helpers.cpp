@@ -107,6 +107,82 @@ bool TIndexParseResult::IsOutOfBounds(i64 count)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAttributesDetectingConsumer
+    : public NYson::IYsonConsumer
+{
+public:
+    TAttributesDetectingConsumer(std::function<void()> reporter)
+        : Reporter_(std::move(reporter))
+    { }
+
+    void OnStringScalar(TStringBuf /*string*/) override final
+    { };
+
+    void OnBeginList() override final
+    { };
+
+    void OnListItem() override final
+    { };
+
+    void OnEndList() override final
+    { };
+
+    void OnBeginMap() override final
+    { };
+
+    void OnKeyedItem(TStringBuf /*key*/) override final
+    { };
+
+    void OnEndMap() override final
+    { };
+
+    void OnInt64Scalar(i64 /*value*/) override final
+    { };
+
+    void OnUint64Scalar(ui64 /*value*/) override final
+    { };
+
+    void OnDoubleScalar(double /*value*/) override final
+    { };
+
+    void OnBooleanScalar(bool /*value*/) override final
+    { };
+
+    void OnEntity() override final
+    { };
+
+    void OnRaw(TStringBuf /*yson*/, NYson::EYsonType /*type*/) override final
+    { };
+
+    void OnBeginAttributes() override final
+    {
+        Reporter_();
+    };
+
+    void OnEndAttributes() override final
+    { };
+
+private:
+    const std::function<void()> Reporter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<NYson::IYsonConsumer> CreateAttributesDetectingConsumer(std::function<void()> callback)
+{
+    return std::make_unique<TAttributesDetectingConsumer>(std::move(callback));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
 {
     auto parseAbsoluteIndex = [count] (TStringBuf token) {
