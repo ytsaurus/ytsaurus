@@ -10668,10 +10668,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, AlertManager_);
 
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
-        Persist(context, FastIntermediateMediumLimit_);
-    }
+    Persist(context, FastIntermediateMediumLimit_);
 
     YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
     Persist(context, BaseLayer_);

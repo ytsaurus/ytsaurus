@@ -183,10 +183,7 @@ public:
         Persist(context, UnorderedMergeTask);
         Persist(context, SortedMergeTask);
 
-        // COMPAT(galtsev)
-        if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
-            Persist(context, SwitchedToSlowIntermediateMedium);
-        }
+        Persist(context, SwitchedToSlowIntermediateMedium);
 
         if (context.IsLoad()) {
             SetupPartitioningCompletedCallbacks();

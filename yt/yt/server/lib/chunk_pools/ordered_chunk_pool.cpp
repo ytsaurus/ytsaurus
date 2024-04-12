@@ -41,12 +41,6 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, MinTeleportChunkSize);
     Persist(context, JobSizeConstraints);
     Persist(context, SupportLocality);
-    // COMPAT(galtsev)
-    if (context.GetVersion() < ESnapshotVersion::DropUnusedOperationId) {
-        YT_VERIFY(context.IsLoad());
-        TOperationId dummy;
-        Persist(context, dummy);
-    }
     Persist(context, EnablePeriodicYielder);
     Persist(context, ShouldSliceByRowIndices);
     Persist(context, Logger);
