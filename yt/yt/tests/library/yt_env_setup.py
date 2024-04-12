@@ -793,9 +793,9 @@ class YTEnvSetup(object):
             attributes={
                 "dynamic": True,
                 "schema": [
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
+                    {"name": "chunk_id_hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(chunk_id)"},
                     {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
-                    {"name": "replicas", "type": "any", "aggregate": "_yt_stored_replica_set"},
+                    {"name": "stored_replicas", "type": "any", "aggregate": "_yt_stored_replica_set"},
                     {"name": "last_seen_replicas", "type": "any", "aggregate": "_yt_last_seen_replica_set"},
                 ],
                 "tablet_cell_bundle": "sequoia",
@@ -812,7 +812,7 @@ class YTEnvSetup(object):
                 "schema": [
                     {"name": "cell_tag", "type": "uint16", "sort_order": "ascending"},
                     {"name": "node_id", "type": "uint32", "sort_order": "ascending"},
-                    {"name": "id_hash", "type": "uint32", "sort_order": "ascending"},
+                    {"name": "location_uuid_hash", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(location_uuid)"},
                     {"name": "location_uuid", "type": "string", "sort_order": "ascending"},
                     {"name": "chunk_id", "type": "string", "sort_order": "ascending"},
                     {"name": "replica_index", "type": "int32"},

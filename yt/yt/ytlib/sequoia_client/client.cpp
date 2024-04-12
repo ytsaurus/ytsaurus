@@ -38,7 +38,7 @@ public:
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
     {
-        NApi::TLookupRowsOptions options = {};
+        NApi::TLookupRowsOptions options;
         options.KeepMissingRows = true;
         options.ColumnFilter = columnFilter;
         options.Timestamp = timestamp;

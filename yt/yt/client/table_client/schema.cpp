@@ -985,6 +985,11 @@ TTableSchemaPtr TTableSchema::ToDelete() const
     return ToLookup();
 }
 
+TTableSchemaPtr TTableSchema::ToLock() const
+{
+    return ToLookup();
+}
+
 TTableSchemaPtr TTableSchema::ToKeys() const
 {
     std::vector<TColumnSchema> columns(Columns().begin(), Columns().begin() + KeyColumnCount_);

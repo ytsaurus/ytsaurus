@@ -339,6 +339,7 @@ private:
             tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema->ToDelete();
             tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema->ToQuery();
             tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema->ToLookup();
+            tableInfo->Schemas[ETableSchemaKind::Lock] = primarySchema->ToLock();
             tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema->WithTabletIndex();
             tableInfo->Schemas[ETableSchemaKind::ReplicationLog] = primarySchema->ToReplicationLog();
 

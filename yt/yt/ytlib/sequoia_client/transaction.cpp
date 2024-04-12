@@ -25,8 +25,11 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/record_descriptor.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -312,11 +315,13 @@ private:
 
     struct TTableCommitSession final
     {
-        NYTree::TYPath Path;
+        explicit TTableCommitSession(ESequoiaTable table)
+            : Table(table)
+        { }
 
         ESequoiaTable Table;
-
         std::vector<TRequest> Requests;
+        TEnumIndexedVector<ETableSchemaKind, TNameTableToSchemaIdMapping> ColumnIdMappings;
     };
     using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
 
@@ -352,10 +357,7 @@ private:
             return it->second;
         }
 
-        auto session = New<TTableCommitSession>();
-        const auto* tableDescriptor = ITableDescriptor::Get(table);
-        session->Path = GetTablePath(tableDescriptor);
-        session->Table = table;
+        auto session = New<TTableCommitSession>(table);
         EmplaceOrCrash(TableCommitSessions_, table, session);
         return session;
     }
@@ -410,8 +412,11 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
+        const auto* tableDescriptor = ITableDescriptor::Get(session->Table);
+        auto path = GetSequoiaTablePath(NativeRootClient_, tableDescriptor);
+
         const auto& tableMountCache = GroundRootClient_->GetTableMountCache();
-        return tableMountCache->GetTableInfo(session->Path)
+        return tableMountCache->GetTableInfo(path)
             .Apply(BIND(&TSequoiaTransaction::OnGotTableMountInfo, MakeWeak(this), session)
                 .AsyncVia(SerializedInvoker_));
     }
@@ -429,16 +434,79 @@ private:
         return AllSucceeded(std::move(futures));
     }
 
+    TLegacyKey PrepareRow(
+        const TTableCommitSessionPtr& session,
+        const TTableMountInfoPtr& tableMountInfo,
+        const TColumnEvaluatorPtr& evaluator,
+        TUnversionedRow row)
+    {
+        const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
+        const auto& modificationIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
+        // TODO(babenko): maybe pass columnPresenceBuffer.
+        auto capturedRow = RowBuffer_->CaptureAndPermuteRow(
+            row,
+            *primarySchema,
+            primarySchema->GetKeyColumnCount(),
+            modificationIdMapping,
+            /*columnPresenceBuffer*/ nullptr);
+        if (evaluator) {
+            evaluator->EvaluateKeys(capturedRow, RowBuffer_);
+        }
+        return capturedRow;
+    }
+
     void OnGotTableMountInfo(
         const TTableCommitSessionPtr& session,
         const TTableMountInfoPtr& tableMountInfo)
     {
         VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
 
+        const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
+        const auto& writeSchema = tableMountInfo->Schemas[ETableSchemaKind::Write];
+        const auto& deleteSchema = tableMountInfo->Schemas[ETableSchemaKind::Delete];
+        const auto& lockSchema = tableMountInfo->Schemas[ETableSchemaKind::Lock];
+
+        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock}) {
+            session->ColumnIdMappings[schemaKind] = BuildColumnIdMapping(
+                *tableMountInfo->Schemas[schemaKind],
+                ITableDescriptor::Get(session->Table)->GetRecordDescriptor()->GetNameTable(),
+                /*allowMissingKeyColumns*/ false);
+        }
+
+        const auto& writeIdMapping = session->ColumnIdMappings[ETableSchemaKind::Write];
+        const auto& deleteIdMapping = session->ColumnIdMappings[ETableSchemaKind::Delete];
+        const auto& lockIdMapping = session->ColumnIdMappings[ETableSchemaKind::Lock];
+
+        const auto& nameTable = ITableDescriptor::Get(session->Table)->GetRecordDescriptor()->GetNameTable();
+
+        auto evaluatorCache = GroundRootClient_->GetNativeConnection()->GetColumnEvaluatorCache();
+        auto evaluator = tableMountInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+
+        std::vector<int> columnIndexToLockIndex;
+        GetLocksMapping(
+            *primarySchema,
+            /*fullAtomicity*/ true,
+            &columnIndexToLockIndex);
+
         for (auto& request : session->Requests) {
             Visit(request,
                 [&] (const TDatalessLockRowRequest& request) {
-                    auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Key, /*validateWrite*/ true);
+                    ValidateClientKey(
+                        request.Key,
+                        *lockSchema,
+                        lockIdMapping,
+                        nameTable);
+
+                    auto preparedKey = PrepareRow(
+                        session,
+                        tableMountInfo,
+                        evaluator,
+                        request.Key);
+
+                    auto tabletInfo = GetSortedTabletForRow(
+                        tableMountInfo,
+                        preparedKey,
+                        /*validateWrite*/ true);
 
                     TLockMask lockMask;
                     lockMask.Set(PrimaryLockIndex, request.LockType);
@@ -448,8 +516,15 @@ private:
                         .TabletCellId = tabletInfo->CellId
                     };
 
-                    auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ true, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Key, lockMask);
+                    auto tabletCommitSession = GetOrCreateTabletCommitSession(
+                        tabletInfo->TabletId,
+                        /*dataless*/ true,
+                        tableMountInfo,
+                        tabletInfo);
+                    tabletCommitSession->SubmitUnversionedRow(
+                        EWireProtocolCommand::WriteAndLockRow,
+                        preparedKey,
+                        lockMask);
 
                     auto guard = Guard(Lock_);
 
@@ -457,43 +532,103 @@ private:
                     masterCellCommitSession->TabletCellIds.insert(tabletInfo->CellId);
 
                     auto& writeSet = masterCellCommitSession->WriteSet[session->Table];
-                    EmplaceOrCrash(writeSet, request.Key, lockedRowInfo);
+                    EmplaceOrCrash(writeSet, preparedKey, lockedRowInfo);
                 },
                 [&] (const TLockRowRequest& request) {
-                    auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Key, /*validateWrite*/ true);
+                    ValidateClientKey(
+                        request.Key,
+                        *lockSchema,
+                        lockIdMapping,
+                        nameTable);
+
+                    auto preparedKey = PrepareRow(
+                        session,
+                        tableMountInfo,
+                        evaluator,
+                        request.Key);
+
+                    auto tabletInfo = GetSortedTabletForRow(
+                        tableMountInfo,
+                        preparedKey,
+                        /*validateWrite*/ true);
 
                     TLockMask lockMask;
                     lockMask.Set(PrimaryLockIndex, request.LockType);
 
-                    auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ false, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Key, lockMask);
+                    auto tabletCommitSession = GetOrCreateTabletCommitSession(
+                        tabletInfo->TabletId,
+                        /*dataless*/ false,
+                        tableMountInfo,
+                        tabletInfo);
+                    tabletCommitSession->SubmitUnversionedRow(
+                        EWireProtocolCommand::WriteAndLockRow,
+                        preparedKey,
+                        lockMask);
                 },
                 [&] (const TWriteRowRequest& request) {
-                    auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Row, /*validateWrite*/ true);
+                    ValidateClientDataRow(
+                        request.Row,
+                        *writeSchema,
+                        writeIdMapping,
+                        nameTable);
+
+                    auto preparedRow = PrepareRow(
+                        session,
+                        tableMountInfo,
+                        evaluator,
+                        request.Row);
+
+                    auto tabletInfo = GetSortedTabletForRow(
+                        tableMountInfo,
+                        preparedRow,
+                        /*validateWrite*/ true);
 
                     TLockMask lockMask;
                     if (tableMountInfo->IsSorted()) {
-                        std::vector<int> columnIndexToLockIndex;
-                        GetLocksMapping(
-                            *tableMountInfo->Schemas[ETableSchemaKind::Write],
-                            true,
-                            &columnIndexToLockIndex);
-
-                        for (const auto& value: request.Row) {
+                        for (const auto& value : request.Row) {
                             if (auto lockIndex = columnIndexToLockIndex[value.Id]; lockIndex != -1) {
                                 lockMask.Set(lockIndex, request.LockType);
                             }
                         }
                     }
 
-                    auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ false, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, request.Row, lockMask);
+                    auto tabletCommitSession = GetOrCreateTabletCommitSession(
+                        tabletInfo->TabletId,
+                        /*dataless*/ false,
+                        tableMountInfo,
+                        tabletInfo);
+                    tabletCommitSession->SubmitUnversionedRow(
+                        EWireProtocolCommand::WriteAndLockRow,
+                        preparedRow,
+                        lockMask);
                 },
                 [&] (const TDeleteRowRequest& request) {
-                    auto tabletInfo = GetSortedTabletForRow(tableMountInfo, request.Key, /*validateWrite*/ true);
+                    ValidateClientKey(
+                        request.Key,
+                        *deleteSchema,
+                        deleteIdMapping,
+                        nameTable);
 
-                    auto tabletCommitSession = GetOrCreateTabletCommitSession(tabletInfo->TabletId, /*dataless*/ false, tableMountInfo, tabletInfo);
-                    tabletCommitSession->SubmitUnversionedRow(EWireProtocolCommand::DeleteRow, request.Key, TLockMask{});
+                    auto preparedKey = PrepareRow(
+                        session,
+                        tableMountInfo,
+                        evaluator,
+                        request.Key);
+
+                    auto tabletInfo = GetSortedTabletForRow(
+                        tableMountInfo,
+                        preparedKey,
+                        /*validateWrite*/ true);
+
+                    auto tabletCommitSession = GetOrCreateTabletCommitSession(
+                        tabletInfo->TabletId,
+                        /*dataless*/ false,
+                        tableMountInfo,
+                        tabletInfo);
+                    tabletCommitSession->SubmitUnversionedRow(
+                        EWireProtocolCommand::DeleteRow,
+                        preparedKey,
+                        TLockMask());
                 },
                 [&] (auto) { YT_ABORT(); });
         }
@@ -576,11 +711,6 @@ private:
 
         Transaction_->ChooseCoordinator(options);
         return Transaction_->Commit(options).AsVoid();
-    }
-
-    TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
-    {
-        return GetSequoiaTablePath(NativeRootClient_, tableDescriptor);
     }
 };
 
