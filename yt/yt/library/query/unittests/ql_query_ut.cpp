@@ -1053,7 +1053,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1071,7 +1071,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1089,7 +1089,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1559,7 +1559,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::WebAssembly,
+            EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues);
@@ -1569,7 +1569,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1600,7 +1600,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::WebAssembly,
+            EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1612,7 +1612,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1688,7 +1688,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1721,7 +1721,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*executionBackend*/ EExecutionBackend::WebAssembly,
+                EExecutionBackend::WebAssembly,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1738,7 +1738,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1999,8 +1999,8 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher)
     {
-        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::WebAssembly);
-        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::Native);
+        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::WebAssembly);
+        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::Native);
     }
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());

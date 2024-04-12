@@ -54,34 +54,34 @@ TKeyTriePtr ExtractMultipleConstraints(
                             break;
                         case EBinaryOp::NotEqual:
                             result->Offset = keyPartIndex;
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                            bounds.emplace_back(value, /*included*/ false);
+                            bounds.emplace_back(value, /*included*/ false);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
 
                             break;
                         case EBinaryOp::Less:
                             result->Offset = keyPartIndex;
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, false);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                            bounds.emplace_back(value, /*included*/ false);
 
                             break;
                         case EBinaryOp::LessOrEqual:
                             result->Offset = keyPartIndex;
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
-                            bounds.emplace_back(value, true);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                            bounds.emplace_back(value, /*included*/ true);
 
                             break;
                         case EBinaryOp::Greater:
                             result->Offset = keyPartIndex;
-                            bounds.emplace_back(value, false);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                            bounds.emplace_back(value, /*included*/ false);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
 
                             break;
                         case EBinaryOp::GreaterOrEqual:
                             result->Offset = keyPartIndex;
-                            bounds.emplace_back(value, true);
-                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+                            bounds.emplace_back(value, /*included*/ true);
+                            bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
 
                             break;
                         default:

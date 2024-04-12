@@ -283,8 +283,8 @@ public:
             builder,
             rowValues,
             index,
-            true,
-            false,
+            /*nullable*/ true,
+            /*aggregate*/ false,
             staticType,
             name);
     }
@@ -296,7 +296,7 @@ public:
         EValueType staticType,
         Twine name = {})
     {
-        return LoadFromRowValues(builder, valuePtr, 0, nullable, false, staticType, name);
+        return LoadFromRowValues(builder, valuePtr, /*index*/ 0, nullable, /*aggregate*/ false, staticType, name);
     }
 
     static TCGValue LoadFromRowValue(
@@ -305,7 +305,7 @@ public:
         EValueType staticType,
         Twine name = {})
     {
-        return LoadFromRowValue(builder, valuePtr, true, staticType, name);
+        return LoadFromRowValue(builder, valuePtr, /*nullable*/ true, staticType, name);
     }
 
     static TCGValue LoadFromAggregate(
@@ -314,7 +314,14 @@ public:
         EValueType staticType,
         Twine name = {})
     {
-        return LoadFromRowValues(builder, valuePtr, 0, true, true, staticType, name);
+        return LoadFromRowValues(
+            builder,
+            valuePtr,
+            /*index*/ 0,
+            /*nullable*/ true,
+            /*aggregate*/ true,
+            staticType,
+            name);
     }
 
     void StoreToValues(
@@ -384,7 +391,7 @@ public:
         } else if (Data_->getType()->isFloatingPointTy()) {
             data = builder->CreateBitCast(Data_, targetType);
         } else {
-            data = builder->CreateIntCast(Data_, targetType, false);
+            data = builder->CreateIntCast(Data_, targetType, /*isSigned*/ false);
         }
 
         if (IsStringLikeType(StaticType_)) {
@@ -472,7 +479,7 @@ public:
             case EValueType::Int64: {
                 auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
                 if (StaticType_ == EValueType::Uint64 || StaticType_ == EValueType::Boolean) {
-                    result = builder->CreateIntCast(value, destType, false);
+                    result = builder->CreateIntCast(value, destType, /*isSigned*/ false);
                 } else if (StaticType_ == EValueType::Double) {
                     result = builder->CreateFPToSI(value, destType);
                 } else {
@@ -484,7 +491,7 @@ public:
                 // signed/unsigned are equal to llvm
                 auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
                 if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Boolean) {
-                    result = builder->CreateIntCast(value, destType, true);
+                    result = builder->CreateIntCast(value, destType, /*isSigned*/ true);
                 } else if (StaticType_ == EValueType::Double) {
                     result = builder->CreateFPToUI(value, destType);
                 } else {

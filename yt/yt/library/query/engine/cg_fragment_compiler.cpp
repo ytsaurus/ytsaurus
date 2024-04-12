@@ -748,7 +748,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
         emplaced.first->second = new llvm::GlobalVariable(
             *builder.Module->GetModule(),
             labelArrayType,
-            true,
+            /*isConstant*/ true,
             llvm::GlobalVariable::ExternalLinkage,
             llvm::ConstantArray::get(
                 labelArrayType,
@@ -1940,7 +1940,7 @@ TCodegenExpression MakeCodegenStringBinaryOpExpr(
                     builder.Module->GetRoutine("AllocateBytes"),
                     {
                         builder.Buffer,
-                        builder->CreateIntCast(totalLength, builder->getInt64Ty(), false),
+                        builder->CreateIntCast(totalLength, builder->getInt64Ty(), /*isSigned*/ false),
                     });
 
                 builder->CreateMemCpy(
@@ -2916,7 +2916,7 @@ size_t MakeCodegenArrayJoinOp(
                 auto* isTrue = predicateResult.GetTypedData(builder);
 
                 Value* result = builder->CreateAnd(notIsNull, isTrue);
-                Value* casted = innerBuilder->CreateIntCast(result, innerBuilder->getInt8Ty(), false);
+                Value* casted = innerBuilder->CreateIntCast(result, innerBuilder->getInt8Ty(), /*isSigned*/ false);
                 innerBuilder->CreateRet(casted);
             });
 

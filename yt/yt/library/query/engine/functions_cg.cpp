@@ -392,7 +392,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
         auto varargPtr = builder->CreateAlloca(
             unversionedValueType,
-            builder->CreateIntCast(varargSize, builder->getInt64Ty(), false));
+            builder->CreateIntCast(varargSize, builder->getInt64Ty(), /*isSigned*/ false));
         auto castedVarargPtr = builder->CreateBitCast(
             varargPtr,
             PointerType::getUnqual(unversionedValueOpaqueType));

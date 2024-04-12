@@ -136,13 +136,13 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
     Visit(ArgumentType_,
         [&] (const TUnionType& unionType) {
             *constraint = TTypeSet(unionType.begin(), unionType.end());
-            *resultType = setType(ResultType_, false);
-            *stateType = setType(StateType_, false);
+            *resultType = setType(ResultType_, /*allowGeneric=*/ false);
+            *stateType = setType(StateType_, /*allowGeneric=*/ false);
         },
         [&] (EValueType fixedType) {
             *constraint = TTypeSet({fixedType});
-            *resultType = setType(ResultType_, false);
-            *stateType = setType(StateType_, false);
+            *resultType = setType(ResultType_, /*allowGeneric=*/ false);
+            *stateType = setType(StateType_, /*allowGeneric=*/ false);
         },
         [&] (TTypeParameter typeId) {
             auto found = TypeParameterConstraints_.find(typeId);
@@ -151,8 +151,8 @@ void TAggregateTypeInferrer::GetNormalizedConstraints(
             }
 
             *constraint = TTypeSet(found->second.begin(), found->second.end());
-            *resultType = setType(ResultType_, true);
-            *stateType = setType(StateType_, true);
+            *resultType = setType(ResultType_, /*allowGeneric=*/ true);
+            *stateType = setType(StateType_, /*allowGeneric=*/ true);
         });
 }
 
