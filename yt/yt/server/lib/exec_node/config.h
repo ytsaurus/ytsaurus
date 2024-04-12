@@ -467,6 +467,21 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool TestCacheLocationDisabling;
+
+    REGISTER_YSON_STRUCT(TChunkCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNbdClientConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -712,6 +727,8 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
     std::optional<int> StatisticsOutputTableCountLimit;
+
+    TChunkCacheDynamicConfigPtr ChunkCache;
 
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.

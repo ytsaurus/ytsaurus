@@ -329,6 +329,14 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChunkCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("test_cache_location_disabling", &TThis::TestCacheLocationDisabling)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobSensor::Register(TRegistrar registrar)
 {
     registrar.Parameter("type", &TThis::Type);
@@ -801,6 +809,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
         .Default();
+
+    registrar.Parameter("chunk_cache", &TThis::ChunkCache)
+        .DefaultNew();
 
     registrar.Parameter("nbd", &TThis::Nbd)
         .Default();

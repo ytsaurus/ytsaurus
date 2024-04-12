@@ -19,6 +19,7 @@
 
 #include <yt/yt/server/lib/io/chunk_file_reader.h>
 #include <yt/yt/server/lib/io/chunk_file_writer.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -128,50 +129,54 @@ class TErrorInterceptingOutput
     : public IOutputStream
 {
 public:
-    TErrorInterceptingOutput(TChunkLocationPtr location, IOutputStream* underlying)
+    TErrorInterceptingOutput(
+        TChunkLocationPtr location,
+        IOutputStream* underlying,
+        bool testLocationDisable)
         : Location_(std::move(location))
         , Underlying_(underlying)
+        , TestLocationDisabling_(testLocationDisable)
     { }
 
 private:
     const TChunkLocationPtr Location_;
     IOutputStream* const Underlying_;
+    const bool TestLocationDisabling_ = false;
 
+    template <class... TArgs>
+    void Check(
+        void(IOutputStream::*Method)(TArgs...),
+        TArgs... args)
+    {
+        try {
+            if (TestLocationDisabling_) {
+                THROW_ERROR_EXCEPTION("Test cache location disabling");
+            }
+            (*Underlying_.*Method)(args...);
+        } catch (const std::exception& ex) {
+            Location_->ScheduleDisable(ex);
+            THROW_ERROR_EXCEPTION(ex);
+        }
+    }
 
     void DoWrite(const void* buf, size_t len) override
     {
-        try {
-            Underlying_->Write(buf, len);
-        } catch (const std::exception& ex) {
-            Location_->ScheduleDisable(ex);
-        }
+        Check(&IOutputStream::Write, buf, len);
     }
 
     void DoWriteV(const TPart* parts, size_t count) override
     {
-        try {
-            Underlying_->Write(parts, count);
-        } catch (const std::exception& ex) {
-            Location_->ScheduleDisable(ex);
-        }
+        Check(&IOutputStream::Write, parts, count);
     }
 
     void DoFlush() override
     {
-        try {
-            Underlying_->Flush();
-        } catch (const std::exception& ex) {
-            Location_->ScheduleDisable(ex);
-        }
+        Check(&IOutputStream::Flush);
     }
 
     void DoFinish() override
     {
-        try {
-            Underlying_->Finish();
-        } catch (const std::exception& ex) {
-            Location_->ScheduleDisable(ex);
-        }
+        Check(&IOutputStream::Finish);
     }
 };
 
@@ -254,12 +259,12 @@ private:
     const TChunkLocationPtr Location_;
     const IChunkWriterPtr Underlying_;
 
-
     TFuture<void> Check(TFuture<void> result)
     {
         return result.Apply(BIND([location = Location_] (const TError& error) {
             if (!error.IsOK()) {
                 location->ScheduleDisable(error);
+                THROW_ERROR_EXCEPTION(error);
             }
         }));
     }
@@ -1387,7 +1392,10 @@ private:
         })).Run();
 
         TUnbufferedFileOutput fileOutput(*tempDataFile);
-        TErrorInterceptingOutput checkedOutput(location, &fileOutput);
+        TErrorInterceptingOutput checkedOutput(
+            location,
+            &fileOutput,
+            Bootstrap_->GetDynamicConfig()->ExecNode->ChunkCache->TestCacheLocationDisabling);
 
         auto traceContext = CreateTraceContextFromCurrent("ChunkCache");
         TTraceContextGuard guard(traceContext);
