@@ -49,6 +49,8 @@ struct TTableBase
     NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     TGuid SchemaId;
 
+    bool IsFile() const;
+
     void Persist(const TPersistenceContext& context);
 };
 
@@ -137,8 +139,6 @@ struct TOutputTable
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
 
     int TableIndex;
-
-    bool IsFile() const;
 
     TOutputStreamDescriptorPtr GetStreamDescriptorTemplate(int tableIndex = -1);
 
