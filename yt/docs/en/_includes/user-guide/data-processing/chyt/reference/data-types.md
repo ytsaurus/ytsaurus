@@ -64,7 +64,7 @@ Unfortunately, the ClickHouse and {{product-name}} type systems are quite differ
 
 ### Optional types { #optional }
 
-In the Yandex type system, any type `T` can be made optional by surrounding it with `optional<T>`, for example, `optional<optional<int64>>`, `optional<list<string>>`, and `optional<tuple<int64, string>>` data types are possible.
+In the {% if audience == "internal" %}Yandex{% else %}{{product-name}}{% endif %} type system, any type `T` can be made optional by surrounding it with `optional<T>`, for example, `optional<optional<int64>>`, `optional<list<string>>`, and `optional<tuple<int64, string>>` data types are possible.
 
 In ClickHouse, placing values into `Nullable` is very limited. In particular, you cannot place into `Nullable`:
 - The type that is already `Nullable`.

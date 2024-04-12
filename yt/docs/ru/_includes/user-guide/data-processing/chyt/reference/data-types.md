@@ -64,12 +64,12 @@ struct: (0,'')
 
 ### Optional-типы { #optional }
 
-В системе типов Яндекса любой тип `T` может быть сделан опциональным путём окружения в `optional<T>`, например, возможны типы данных `optional<optional<int64>>`, `optional<list<string>>` и `optional<tuple<int64, string>>`.
+В системе типов {% if audience == "internal" %}Яндекса{% else %}{{product-name}}{% endif %} любой тип `T` может быть сделан опциональным путём окружения в `optional<T>`, например, возможны типы данных `optional<optional<int64>>`, `optional<list<string>>` и `optional<tuple<int64, string>>`.
 
 В ClickHouse возможности по помещению значений в `Nullable` сильно ограничены. В частности, невозможно поместить в `Nullable`:
-- тип, который уже является `Nullable`; 
+- тип, который уже является `Nullable`;
 - массив (`Array`);
-- кортеж (`Tuple`). 
+- кортеж (`Tuple`).
 
 Таким образом, ни один из трёх примеров типов выше не имеет своего представления в системе типов ClickHouse.
 
