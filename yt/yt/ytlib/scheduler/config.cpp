@@ -1293,6 +1293,8 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .GreaterThan(0);
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
         .Default(false);
+    registrar.Parameter("force_allow_job_interruption", &TThis::ForceAllowJobInterruption)
+        .Default(false);
     registrar.Parameter("locality_timeout", &TThis::LocalityTimeout)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("job_io", &TThis::JobIO)

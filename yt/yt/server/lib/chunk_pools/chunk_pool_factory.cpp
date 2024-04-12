@@ -53,6 +53,11 @@ public:
         return MaxPartitionCount_.value_or(InfinitePartitionCount);
     }
 
+    bool ForceAllowJobInterruption() const override
+    {
+        return false;
+    }
+
     i64 GetDataWeightPerJob() const override
     {
         if (MaxPartitionCount_) {

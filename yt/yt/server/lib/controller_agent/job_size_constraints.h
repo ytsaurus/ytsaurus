@@ -19,6 +19,10 @@ struct IJobSizeConstraints
     //! Job count, estimated from input statistics or provided via operation spec.
     virtual int GetJobCount() const = 0;
 
+    //! True if job interruption is explicitly allowed.
+    //! It will override `IsExplicitJobCount` and other causes for disabling job interruption.
+    virtual bool ForceAllowJobInterruption() const = 0;
+
     //! Approximate data weight, estimated from input statistics or provided via operation spec.
     virtual i64 GetDataWeightPerJob() const = 0;
 
@@ -86,7 +90,8 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,
-    double dataWeightPerJobBuildRetryFactor = 2.0);
+    double dataWeightPerJobBuildRetryFactor = 2.0,
+    bool forceAllowJobInterruption = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

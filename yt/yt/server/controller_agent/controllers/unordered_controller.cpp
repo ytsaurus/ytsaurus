@@ -179,6 +179,10 @@ public:
             }
             YT_VERIFY(Controller_->GetOperationType() == EOperationType::Map);
 
+            if (Controller_->JobSizeConstraints_->ForceAllowJobInterruption()) {
+                return true;
+            }
+
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
             auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return

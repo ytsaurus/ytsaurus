@@ -46,6 +46,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InterruptionReasonInJoblet)           (301501))
     ((PersistMonitoringCounts)              (301502))
     ((WaitingForResourcesDuration)          (301503))
+    ((ForceAllowJobInterruption)            (301504))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

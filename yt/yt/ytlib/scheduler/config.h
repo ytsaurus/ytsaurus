@@ -1400,6 +1400,7 @@ public:
     std::optional<int> MaxDataSlicesPerJob;
 
     bool ForceJobSizeAdjuster;
+    bool ForceAllowJobInterruption;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
