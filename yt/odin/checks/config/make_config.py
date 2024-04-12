@@ -251,12 +251,16 @@ def get_checks_config():
         }
     }
 
-    cluster_name_to_query_tracker_stage = { "pythia": "experimental", "ada": "production", "markov": "production" }
+    cluster_name_to_query_tracker_stage = { "pythia": "experimental", "ada": "production", "markov": "production", "socrates": "os" }
+    cluster_name_to_query_tracker_count = { "markov": 2 }
 
     enable_query_tracker_alerts = {
         "query_tracker_alerts": {
             "enable": True,
             "alerts": instant_force_ok,
+            "options": {
+                "cluster_name_to_query_tracker_count": cluster_name_to_query_tracker_count,
+            }
         },
         "query_tracker_yql_liveness": {
             "enable": True,
