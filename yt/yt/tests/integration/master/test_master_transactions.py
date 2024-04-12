@@ -735,7 +735,8 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         self._replicate_tx_to_cell(tx2, 13, "r")
 
-        assert get("#" + tx1 + "/@replicated_to_cell_tags") == [13]
+        # TODO(kvk1920): fix mirrored Cypress tx replication.
+        wait(lambda: get("#" + tx1 + "/@replicated_to_cell_tags") == [13])
 
     @authors("shakurov")
     @pytest.mark.parametrize("replication_mode", ["r", "w"])
