@@ -190,7 +190,7 @@ TJob::TJob(
     , Interruptible_(JobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_->abort_job_if_account_limit_exceeded())
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
-    , TraceContext_(CreateTraceContextFromCurrent("Job"))
+    , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
