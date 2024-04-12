@@ -37,6 +37,7 @@ struct ITabletCellWriteManagerHost
 
     virtual TTablet* GetTabletOrThrow(TTabletId id) = 0;
     virtual TTablet* FindTablet(const TTabletId& id) const = 0;
+    virtual TTablet* FindOrphanedTablet(TTabletId id) const = 0;
     virtual TTablet* GetTablet(const TTabletId& id) const = 0;
     virtual const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const = 0;
 
