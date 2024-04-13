@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
@@ -74,10 +76,15 @@ public:
         ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
+            TCallback<TUUComparerSignature> CGComparer;
+            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
+                CGComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
+            }
+
             return CreatePartitionSortReader(
                 tableReaderConfig,
                 Host_->GetChunkReaderHost(),
-                outputSchema->ToComparator(),
+                outputSchema->ToComparator(std::move(CGComparer)),
                 nameTable,
                 BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
                 dataSourceDirectory,

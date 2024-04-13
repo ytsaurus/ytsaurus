@@ -49,8 +49,11 @@ def simple_sort_1_phase(in_, out, sort_by, spec=None):
     return op
 
 
-def simple_sort_2_phase(in_, out, sort_by):
-    op = sort(in_=in_, out=out, sort_by=sort_by, spec={"data_weight_per_sort_job": 1})
+def simple_sort_2_phase(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    spec["data_weight_per_sort_job"] = 1
+
+    op = sort(in_=in_, out=out, sort_by=sort_by, spec=spec)
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {
         "simple_sort",
@@ -60,15 +63,16 @@ def simple_sort_2_phase(in_, out, sort_by):
     return op
 
 
-def sort_2_phase(in_, out, sort_by):
+def sort_2_phase(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    spec["partition_job_count"] = 2
+    spec["partition_count"] = 2
+
     op = sort(
         in_=in_,
         out=out,
         sort_by=sort_by,
-        spec={
-            "partition_job_count": 2,
-            "partition_count": 2,
-        },
+        spec=spec,
     )
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {
@@ -1118,7 +1122,8 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    def test_inplace_sort_with_schema(self, sort_order):
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    def test_inplace_sort_with_schema(self, sort_order, comparator):
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
 
@@ -1129,10 +1134,15 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         write_table("//tmp/t", [{"key": "b"}, {"key": "a"}])
 
+        spec = {}
+        if comparator == "codegen":
+            spec = {"enable_codegen_comparator": True}
+
         sort(
             in_="//tmp/t",
             out="//tmp/t",
-            sort_by=[{"name": "key", "sort_order": sort_order}]
+            sort_by=[{"name": "key", "sort_order": sort_order}],
+            spec=spec,
         )
 
         assert get("//tmp/t/@sorted")
@@ -2005,7 +2015,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/out")
         sort_func(in_="//tmp/in", out="//tmp/out", sort_by="key")
 
-    def run_test_complex_sort(self, sort_func, type_v3, data, expected_data):
+    def run_test_complex_sort(self, sort_func, type_v3, data, expected_data, spec=None):
         create(
             "table",
             "//tmp/in",
@@ -2016,14 +2026,19 @@ class TestSchedulerSortCommands(YTEnvSetup):
         write_table("//tmp/in", [{"key": d} for d in data], verbose=False)
 
         create("table", "//tmp/out")
-        sort_func("//tmp/in", "//tmp/out", sort_by="key")
+        sort_func("//tmp/in", "//tmp/out", sort_by="key", spec=spec)
 
         out_data = [r["key"] for r in read_table("//tmp/out", verbose=False)]
         assert out_data == expected_data
 
     @authors("ermolovd")
     @pytest.mark.parametrize("sort_func", [simple_sort_1_phase, simple_sort_2_phase, sort_2_phase])
-    def test_sort_key_complex_type_list(self, sort_func):
+    @pytest.mark.parametrize("comparator", ["generic", "codegen"])
+    def test_sort_key_complex_type_list(self, sort_func, comparator):
+        spec = {}
+        if comparator == "codegen":
+            spec = {"enable_codegen_comparator": True}
+
         self.run_test_complex_sort(
             sort_func,
             list_type(optional_type("int64")),
@@ -2053,6 +2068,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 [5],
                 [5],
             ],
+            spec,
         )
 
     @authors("achulkov2")
@@ -2062,8 +2078,11 @@ class TestSchedulerSortCommands(YTEnvSetup):
         def expand_string(sample, size):
             return (sample * (size // len(sample) + 1))[:size]
 
+        spec = {}
+        spec["merge_job_io"] = {"table_writer": {"max_key_weight": 250 * 1024}}
+
         self.run_test_complex_sort(
-            lambda *args, **kwargs: simple_sort_1_phase(*args, **kwargs, spec={"merge_job_io": {"table_writer": {"max_key_weight": 250 * 1024}}}),
+            lambda *args, **kwargs: simple_sort_1_phase(*args, **kwargs),
             list_type(optional_type("string")),
             [
                 ["f", None, expand_string("hoi-dag", max_sample_size)],
@@ -2079,6 +2098,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 [expand_string("boratorium", max_sample_size + 10)],
                 ["f", None, expand_string("hoi-dag", max_sample_size)],
             ],
+            spec=spec,
         )
 
     @authors("ermolovd")

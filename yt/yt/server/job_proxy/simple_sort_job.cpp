@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/sorting_reader.h>
 
+#include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
@@ -75,7 +77,11 @@ public:
                 /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
-            return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
+            TCallback<TUUComparerSignature> CGComparer;
+            if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
+                CGComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
+            }
+            return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator(std::move(CGComparer)));
         };
 
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());

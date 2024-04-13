@@ -4793,6 +4793,10 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
 
+    if (Spec_->EnableCodegenComparator) {
+        jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
+    }
+
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
