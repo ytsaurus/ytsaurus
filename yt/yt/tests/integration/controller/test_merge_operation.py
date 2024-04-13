@@ -309,6 +309,82 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == self.v1 + self.v2
         assert get("//tmp/t_out/@chunk_count") == 1
 
+    @authors("achulkov2")
+    def test_ordered_batch_row_count(self):
+        # TODO(achulkov2): Lower/remove after cherry-picks.
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        batch_row_count = 33
+
+        input_rows = []
+        input_rows += [[{"value": "smol"} for i in range(3)] for i in range(15)]
+        input_rows += [[{"value": "bighumongouslargefatenormousobeseoverweightoverflowing"} for i in range(11)] for i in range(43)]
+        input_rows += [[{"value": "w.e.f.a.latfnltih.tecwtfna"} for i in range(5)] for i in range(2)]
+
+        for row_batch in input_rows:
+            write_table("<append=true>//tmp/t_in", row_batch)
+
+        merge(
+            combine_chunks=False,
+            mode="ordered",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 26, "batch_row_count": batch_row_count}
+        )
+
+        assert read_table("//tmp/t_out") == sum(input_rows, start=[])
+
+        out_chunk_ids = get("//tmp/t_out/@chunk_ids")
+        for out_chunk in out_chunk_ids:
+            assert get(f"#{out_chunk}/@row_count") % batch_row_count == 0
+
+    @authors("achulkov2")
+    def test_ordered_batch_row_count_disables_teleports_and_sampling(self):
+        # TODO(achulkov2): Lower/remove after cherry-picks.
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        chunk_count = 10
+
+        rows = [{"value": i} for i in range(3)]
+        for i in range(chunk_count):
+            write_table("<append=true>//tmp/t_in", rows)
+
+        with pytest.raises(YtError):
+            merge(
+                combine_chunks=False,
+                mode="ordered",
+                in_=["//tmp/t_in"],
+                out="//tmp/t_out",
+                spec={"data_size_per_job": 1, "batch_row_count": 3, "sampling": {"sampling_rate": 0.2}}
+            )
+
+        merge(
+            combine_chunks=False,
+            mode="ordered",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 1, "batch_row_count": 3}
+        )
+
+        assert read_table("//tmp/t_out") == rows * chunk_count
+
+        in_chunk_ids = get("//tmp/t_in/@chunk_ids")
+        out_chunk_ids = get("//tmp/t_out/@chunk_ids")
+
+        assert len(in_chunk_ids) == len(out_chunk_ids)
+        for in_chunk, out_chunk in zip(in_chunk_ids, out_chunk_ids):
+            # Rows should be the same, but none of the chunks should have been teleported!
+            assert get(f"#{in_chunk}/@row_count") == get(f"#{out_chunk}/@row_count")
+            assert in_chunk != out_chunk
+
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize("combine_chunks", [False, True])
