@@ -2563,10 +2563,14 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    auto randomPartFromAllocationId = [] (TAllocationId allocationId) {
+        return allocationId.Underlying().Parts64[1];
+    };
+
     auto calculateShardingKey = [&] (size_t shardingKeyLength) {
-        auto randomPart = GetId().Underlying().Parts64[1];
-        auto shardingKey = Sprintf("%016lx", randomPart);
-        return shardingKey.substr(0, shardingKeyLength);
+        auto randomPart = randomPartFromAllocationId(GetAllocationId());
+        auto randomPartHex = Format("%016lx", randomPart);
+        return randomPartHex.substr(0, shardingKeyLength);
     };
 
     auto tryReplaceSlotIndex = [&] (TString& str) {

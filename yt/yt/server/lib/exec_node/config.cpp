@@ -783,6 +783,18 @@ void TJobProxyLoggingConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
         .Default();
+
+    registrar.Postprocessor([] (TJobProxyLoggingConfig* config) {
+        if (config->Mode == EJobProxyLoggingMode::Simple) {
+            return;
+        }
+        if (!config->Directory.has_value()) {
+            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"directory\" option to be set");
+        }
+        if (!config->ShardingKeyLength.has_value()) {
+            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"sharding_key_length\" option to be set");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
