@@ -1755,7 +1755,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         if (spec->HasNontrivialMapper()) {
             for (const auto& stream : spec->Mapper->OutputStreams) {
                 if (stream->Schema->GetSortColumns() != spec->SortBy) {
-                    THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly "
+                    THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly the same "
                         "\"sort_by\" sort column prefix")
                         << TErrorAttribute("violating_schema", stream->Schema)
                         << TErrorAttribute("sort_by", spec->SortBy);
