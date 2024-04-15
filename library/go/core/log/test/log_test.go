@@ -3,6 +3,7 @@ package test
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	uzap "go.uber.org/zap"
 
@@ -118,4 +119,33 @@ func TestLoggers(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestLazyCall(t *testing.T) {
+	cfg := zap.JSONConfig(log.WarnLevel)
+	// Disable output
+	cfg.OutputPaths = []string{}
+	cfg.ErrorOutputPaths = []string{}
+
+	logger, err := zap.New(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, logger)
+
+	t.Run("will_not_call", func(t *testing.T) {
+		var numCalls int
+		logger.Info("I'm informing you", log.Lazy("problem", func() (any, error) {
+			numCalls++
+			return "something wicked this way comes", nil
+		}))
+		assert.Equal(t, 0, numCalls)
+	})
+
+	t.Run("will_call", func(t *testing.T) {
+		var numCalls int
+		logger.Error("I'm screaming for you", log.Lazy("problem", func() (any, error) {
+			numCalls++
+			return "something wicked this way comes", nil
+		}))
+		assert.Equal(t, 1, numCalls)
+	})
 }

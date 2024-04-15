@@ -1,5 +1,7 @@
 GO_LIBRARY()
 
-SRCS(nop.go)
+SRCS(
+    nop.go
+)
 
 END()

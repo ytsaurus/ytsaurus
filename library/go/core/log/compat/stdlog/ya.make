@@ -1,5 +1,7 @@
 GO_LIBRARY()
 
-SRCS(stdlog.go)
+SRCS(
+    stdlog.go
+)
 
 END()
