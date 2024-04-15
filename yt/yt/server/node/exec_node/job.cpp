@@ -2940,7 +2940,19 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     const auto& resultError = *Error_;
 
-    static THashSet<TErrorCode> otherAbortErrorCodes = {
+    static const THashSet<TErrorCode> layerErrorCodes = {
+        NExecNode::EErrorCode::LayerUnpackingFailed,
+        NExecNode::EErrorCode::DockerImagePullingFailed,
+        NExecNode::EErrorCode::InvalidImage,
+    };
+
+    static const THashSet<TErrorCode> ignoredFailedChunksErrorCodes = {
+        NNet::EErrorCode::ResolveTimedOut,
+        NChunkClient::EErrorCode::ReaderThrottlingFailed,
+        NTableClient::EErrorCode::NameTableUpdateFailed,
+    };
+
+    static const THashSet<TErrorCode> otherAbortErrorCodes = {
         NChunkClient::EErrorCode::AllTargetNodesFailed,
         NChunkClient::EErrorCode::ReaderThrottlingFailed,
         NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -2973,9 +2985,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     if (JobResultExtension_) {
         const auto& schedulerResultExt = *JobResultExtension_;
 
-        if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
-            !resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) &&
-            !resultError.FindMatching(NTableClient::EErrorCode::NameTableUpdateFailed) &&
+        if (!resultError.FindMatching(ignoredFailedChunksErrorCodes) &&
             schedulerResultExt.failed_chunk_ids_size() > 0)
         {
             return EAbortReason::FailedChunks;
@@ -2983,9 +2993,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     }
 
     // This is most probably user error, still we don't want to make it fatal.
-    if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::DockerImagePullingFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::InvalidImage))
+    if (resultError.FindMatching(layerErrorCodes))
     {
         return std::nullopt;
     }

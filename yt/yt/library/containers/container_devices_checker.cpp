@@ -26,12 +26,12 @@ TContainerDevicesChecker::TContainerDevicesChecker(
     TPortoExecutorDynamicConfigPtr config,
     IInvokerPtr invoker,
     TLogger logger)
-    : TestDirectoryPath_(testDirectoryPath)
-    , VolumesPath_(NFS::CombinePaths(testDirectoryPath, "volumes"))
-    , LayersPath_(NFS::CombinePaths(testDirectoryPath, "porto_layers"))
-    , PortoVolumesPath_(NFS::CombinePaths(testDirectoryPath, "porto_volumes"))
-    , PortoStoragePath_ (NFS::CombinePaths(testDirectoryPath, "porto_storage"))
-    , LockPath(NFS::CombinePaths(testDirectoryPath, "lock"))
+    : TestDirectoryPath_(std::move(testDirectoryPath))
+    , VolumesPath_(NFS::CombinePaths(TestDirectoryPath_, "volumes"))
+    , LayersPath_(NFS::CombinePaths(TestDirectoryPath_, "porto_layers"))
+    , PortoVolumesPath_(NFS::CombinePaths(TestDirectoryPath_, "porto_volumes"))
+    , PortoStoragePath_ (NFS::CombinePaths(TestDirectoryPath_, "porto_storage"))
+    , LockPath(NFS::CombinePaths(TestDirectoryPath_, "lock"))
     , Config_(std::move(config))
     , Logger(std::move(logger))
     , CheckInvoker_(std::move(invoker))
@@ -52,7 +52,7 @@ void TContainerDevicesChecker::Start()
 
 void TContainerDevicesChecker::OnDynamicConfigChanged(const TPortoExecutorDynamicConfigPtr& newConfig)
 {
-    YT_LOG_DEBUG(
+    YT_LOG_INFO(
         "Container devices checker dynamic config changed (EnableTestPortoFailures: %v, StubErrorCode: %v)",
         Config_->EnableTestPortoFailures,
         Config_->StubErrorCode);
@@ -74,7 +74,7 @@ void TContainerDevicesChecker::OnCheck()
 
 void TContainerDevicesChecker::PrepareDirectory()
 {
-    YT_LOG_DEBUG("Container devices checker started");
+    YT_LOG_INFO("Container devices checker started");
 
     NFS::MakeDirRecursive(TestDirectoryPath_, 0755);
 
@@ -201,9 +201,9 @@ TError TContainerDevicesChecker::CreateTestContainer()
         WaitFor(Executor_->DestroyContainer(containerName))
             .ThrowOnError();
     } catch (const TErrorException& ex) {
-        // If container doesn't exist it's ok.
+        // If container doesn't exist it's OK.
         if (!ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
-            YT_LOG_DEBUG(ex, "Test container remove failed");
+            YT_LOG_WARNING(ex, "Test container remove failed");
         }
     }
 
@@ -214,7 +214,7 @@ TError TContainerDevicesChecker::CreateTestContainer()
         if (removeVolumeError.FindMatching(EPortoErrorCode::VolumeNotLinked) ||
             removeVolumeError.FindMatching(EPortoErrorCode::VolumeNotFound))
         {
-            YT_LOG_DEBUG(removeVolumeError, "Test volume remove failed");
+            YT_LOG_WARNING(removeVolumeError, "Test volume remove failed");
         }
 
         if (NFS::Exists(mountPath)) {

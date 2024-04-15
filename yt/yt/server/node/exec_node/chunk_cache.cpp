@@ -1190,8 +1190,9 @@ private:
                     if (!error.IsOK()) {
                         THROW_ERROR_EXCEPTION(
                             NExecNode::EErrorCode::ArtifactFetchFailed,
-                            "Error while fetching artifact chunks (Arifact: %v)",
-                            ToString(key))
+                            "Error while fetching artifact chunks")
+                            << TErrorAttribute("path", key.data_source().path())
+                            << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
                             << std::move(error);
                     }
                 } else {
@@ -1346,8 +1347,9 @@ private:
             options.ReaderErrorWrapper = [key] (TError readerError) {
                 return TError(
                     NExecNode::EErrorCode::ArtifactFetchFailed,
-                    "Error while fetching artifact chunks (Arifact: %v)",
-                    ToString(key))
+                    "Error while fetching artifact chunks")
+                    << TErrorAttribute("path", key.data_source().path())
+                    << TErrorAttribute("filesystem", FromProto<NControllerAgent::ELayerFilesystem>(key.filesystem()))
                     << std::move(readerError);
             };
             PipeReaderToWriter(

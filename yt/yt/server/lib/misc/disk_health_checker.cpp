@@ -29,12 +29,12 @@ TDiskHealthChecker::TDiskHealthChecker(
     , TotalTimer_(profiler.Timer("/disk_health_check/total_time"))
     , ReadTimer_(profiler.Timer("/disk_health_check/read_time"))
     , WriteTimer_(profiler.Timer("/disk_health_check/write_time"))
-{
-    Logger.AddTag("Path: %v", Path_);
-    PeriodicExecutor_ = New<TPeriodicExecutor>(
+    , PeriodicExecutor_(New<TPeriodicExecutor>(
         CheckInvoker_,
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
-        Config_->CheckPeriod);
+        Config_->CheckPeriod))
+{
+    Logger.AddTag("Path: %v", Path_);
 }
 
 void TDiskHealthChecker::Start()
@@ -47,10 +47,11 @@ TFuture<void> TDiskHealthChecker::Stop()
     return PeriodicExecutor_->Stop();
 }
 
-TError TDiskHealthChecker::RunCheck()
+void TDiskHealthChecker::RunCheck()
 {
     YT_VERIFY(!PeriodicExecutor_->IsStarted());
-    return RunCheckWithTimeout();
+    return RunCheckWithTimeout()
+        .ThrowOnError();
 }
 
 TError TDiskHealthChecker::RunCheckWithTimeout()

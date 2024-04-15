@@ -131,8 +131,7 @@ void TSlotLocation::DoInitialize()
 
     MakeDirRecursive(Config_->Path, 0755);
 
-    HealthChecker_->RunCheck()
-        .ThrowOnError();
+    HealthChecker_->RunCheck();
 
     ValidateMinimumSpace();
 
@@ -846,7 +845,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
 
         THROW_ERROR_EXCEPTION(
             EErrorCode::ArtifactCopyingFailed,
-            "Failed to build file %Qv in sandbox %Qv: broken pipe",
+            "Failed to build file %Qv in sandbox %Qlv: broken pipe",
             artifactName,
             sandboxKind)
             << error;
@@ -855,7 +854,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
 
         THROW_ERROR_EXCEPTION(
             EErrorCode::TmpfsOverflow,
-            "Failed to build file %Qv in sandbox %Qv: tmpfs is too small",
+            "Failed to build file %Qv in sandbox %Qlv: tmpfs is too small",
             artifactName,
             sandboxKind)
             << error;
@@ -863,7 +862,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
         YT_LOG_INFO(error, "Failed to build file in sandbox: disk space limit is too small");
 
         THROW_ERROR_EXCEPTION(
-            "Failed to build file %Qv in sandbox %Qv: disk space limit is too small",
+            "Failed to build file %Qv in sandbox %Qlv: disk space limit is too small",
             artifactName,
             sandboxKind)
             << error;
@@ -871,7 +870,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
         YT_LOG_INFO(error, "Failed to build file in sandbox: chunk fetching failed");
 
         THROW_ERROR_EXCEPTION(
-            "Failed to build file %Qv in sandbox %Qv: chunk fetching failed",
+            "Failed to build file %Qv in sandbox %Qlv: chunk fetching failed",
             artifactName,
             sandboxKind)
             << error;
@@ -880,7 +879,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
 
         auto wrappedError = TError(
             EErrorCode::ArtifactCopyingFailed,
-            "Failed to build file %Qv in sandbox %Qv",
+            "Failed to build file %Qv in sandbox %Qlv",
             artifactName,
             sandboxKind)
             << error;
