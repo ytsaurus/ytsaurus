@@ -33,6 +33,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = LeaseManagerLogger;
+
 class TLeaseManager;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +92,16 @@ public:
 
         Persist(context, State_);
         Persist(context, PersistentRefCounter_);
+
+        // COMPAT(h0pless): Old snapshots are missing OwnerCellId_ due to a bug.
+        if (context.GetVersion() < static_cast<int>(ELeaseManagerReign::PersistentLeaseOwnerCellId)) {
+            YT_LOG_ALERT("Loaded a lease object from an older snapshot; "
+                "the lease is likely stuck, consider forcing transaction abort "
+                "(LeaseId: %v, ContextVersion: %v)",
+                Id_);
+        } else {
+            Persist(context, OwnerCellId_);
+        }
     }
 
 private:
@@ -287,6 +299,11 @@ public:
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(RevokeLease));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(ReferenceLease));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(UnreferenceLease));
+    }
+
+    int GetCurrentSnapshotVersion() override
+    {
+        return GetCurrentReign();
     }
 
     // ILeaseManager implementation.
