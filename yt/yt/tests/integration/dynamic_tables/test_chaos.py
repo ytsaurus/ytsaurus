@@ -1760,6 +1760,32 @@ class TestChaos(ChaosTestBase):
         with pytest.raises(YtError):
             commit_transaction(tx2)
 
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/crt", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 2, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/crt", [{"key": 2, "a": 2}], update=True, tx=tx2)
+        insert_rows("//tmp/crt", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
+
+        commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+        commit_transaction(tx3)
+
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 2}], column_names=["key", "a"]) == [{"key": 2, "a": 3}])
+
     @authors("savrus")
     def test_chaos_table_data_access(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")

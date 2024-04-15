@@ -945,9 +945,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "a", "type": "int64", "lock": "a"},
-            {"name": "b", "type": "int64", "lock": "b"},
-            {"name": "c", "type": "int64", "lock": "c"}]
+            {"name": "a", "type": "int64", "lock": "lock_a"},
+            {"name": "b", "type": "int64", "lock": "lock_b"},
+            {"name": "c", "type": "int64", "lock": "lock_c"}]
 
         self._create_replicated_table("//tmp/t", schema=schema)
 
@@ -960,7 +960,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tx2 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        lock_rows("//tmp/t", [{"key": 1}], locks=["lock_a", "lock_c"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
 
         commit_transaction(tx1)
@@ -973,12 +973,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tx3 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        lock_rows("//tmp/t", [{"key": 2}], locks=["lock_a", "lock_c"], tx=tx1, lock_type="shared_weak")
 
         insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
-        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2, lock_type="shared_weak")
+        lock_rows("//tmp/t", [{"key": 2}], locks=["lock_c"], tx=tx2, lock_type="shared_weak")
 
-        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3, lock_type="shared_weak")
+        lock_rows("//tmp/t", [{"key": 2}], locks=["lock_a"], tx=tx3, lock_type="shared_weak")
 
         commit_transaction(tx1)
         commit_transaction(tx2)
@@ -991,7 +991,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
 
-        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_weak")
+        lock_rows("//tmp/t", [{"key": 3}], locks=["lock_a"], tx=tx1, lock_type="shared_weak")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
         commit_transaction(tx2)
@@ -1002,13 +1002,39 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
 
-        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
+        lock_rows("//tmp/t", [{"key": 3}], locks=["lock_a"], tx=tx1, lock_type="shared_strong")
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
         commit_transaction(tx1)
 
         with pytest.raises(YtError):
             commit_transaction(tx2)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": 2, "a": 2}], update=True, tx=tx2)
+        insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
+
+        commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+        commit_transaction(tx3)
+
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a"]) == [{"key": 2, "a": 3}])
 
     @authors("ponasenko-rs")
     def test_lock_after_delete(self):
