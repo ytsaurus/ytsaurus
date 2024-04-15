@@ -19,13 +19,13 @@ public:
         : Kind_(kind)
     { }
 
-    void EnrichRequest(NRpc::NProto::TReqDiscover* request) const
+    void EnrichRequest(NRpc::NProto::TReqDiscover* request) const override
     {
         auto* ext = request->MutableExtension(NProto::TPeerKindExt::peer_kind_ext);
         ext->set_peer_kind(static_cast<int>(Kind_));
     }
 
-    void OnResponse(NRpc::NProto::TRspDiscover* response) const
+    void HandleResponse(NRpc::NProto::TRspDiscover* response) const override
     {
         if (Kind_ != EPeerKind::Leader) {
             return;

@@ -73,7 +73,7 @@ std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentSta
 {
     if (TimeInfoMap_.empty()) {
         THROW_ERROR_EXCEPTION(
-            NHiveClient::EErrorCode::EntryNotFound,
+            NHiveClient::EErrorCode::TimeEntryNotFound,
             "Logical time registry is empty");
     }
 
@@ -89,7 +89,7 @@ std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentSta
     auto it = TimeInfoMap_.upper_bound(*logicalTime);
     if (it == TimeInfoMap_.begin()) {
         THROW_ERROR_EXCEPTION(
-            NHiveClient::EErrorCode::EntryNotFound,
+            NHiveClient::EErrorCode::TimeEntryNotFound,
             "Logical time entry has been evicted");
     }
 
@@ -99,7 +99,7 @@ std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentSta
 
     if (resultState.SequenceNumber < 0 || resultState.SegmentId < 0) {
         THROW_ERROR_EXCEPTION(
-            NHiveClient::EErrorCode::EntryNotFound,
+            NHiveClient::EErrorCode::TimeEntryNotFound,
             "Logical time entry is invalid");
     }
 

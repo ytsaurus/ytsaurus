@@ -38,6 +38,7 @@ public:
 
         DEFINE_SIGNAL(void(TLogicalTime), Tick);
 
+    public:
         TLogicalTime Tick(TLogicalTime externalTime = {});
 
         void Save(NHydra::TSaveContext& context) const;

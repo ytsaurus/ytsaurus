@@ -142,6 +142,7 @@ public:
             AutomatonInvoker_,
             HydraManager_,
             Profiler_))
+        , LamportClock_(LogicalTimeRegistry_->GetClock())
     {
         SyncPostingTimeCounter_ = Profiler_.TimeCounter("/sync_posting_time");
         AsyncPostingTimeCounter_ = Profiler_.TimeCounter("/async_posting_time");
@@ -181,7 +182,6 @@ public:
             BIND(&THiveManager::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
-        LamportClock_ = LogicalTimeRegistry_->GetClock();
 
         if (AvenueDirectory_) {
             AvenueDirectory_->SubscribeEndpointUpdated(
@@ -477,10 +477,10 @@ private:
     const IHydraManagerPtr HydraManager_;
     const TProfiler Profiler_;
 
-    IYPathServicePtr OrchidService_;
+    const TLogicalTimeRegistryPtr LogicalTimeRegistry_;
+    TLogicalTimeRegistry::TLamportClock* const LamportClock_;
 
-    TLogicalTimeRegistryPtr LogicalTimeRegistry_;
-    TLogicalTimeRegistry::TLamportClock* LamportClock_;
+    IYPathServicePtr OrchidService_;
 
     TEntityMap<TCellMailbox> CellMailboxMap_;
     TEntityMap<TAvenueMailbox> AvenueMailboxMap_;
