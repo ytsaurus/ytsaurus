@@ -1259,7 +1259,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             // - Merge decided to teleport all input chunks
             // - Anything else?
             YT_LOG_INFO("No jobs needed");
-            DoCompleteOperation(/*interrupted*/ false);
+            OnOperationCompleted(/*interrupted*/ false);
             return result;
         } else {
             RegisterUnavailableInputChunks();
@@ -1388,7 +1388,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
-        DoCompleteOperation(/*interrupted*/ false);
+        OnOperationCompleted(/*interrupted*/ false);
         return result;
     }
 
@@ -5286,17 +5286,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     YT_LOG_DEBUG("Operation node flushed");
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool interrupted)
+void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
 {
-    YT_UNUSED_FUTURE(BIND(&TOperationControllerBase::DoCompleteOperation, MakeStrong(this))
-        .AsyncVia(GetCancelableInvoker())
-        .Run(interrupted));
-}
-
-void TOperationControllerBase::DoCompleteOperation(bool /*interrupted*/)
-{
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
-
     // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (IsFinished()) {
         return;
@@ -5304,12 +5295,17 @@ void TOperationControllerBase::DoCompleteOperation(bool /*interrupted*/)
 
     State = EControllerState::Completed;
 
-    BuildAndSaveProgress();
-    FlushOperationNode(/*checkFlushResult*/ true);
+    YT_UNUSED_FUTURE(
+        BIND([this, this_ = MakeStrong(this)] {
+            BuildAndSaveProgress();
+            FlushOperationNode(/*checkFlushResult*/ true);
 
-    LogProgress(/*force*/ true);
+            LogProgress(/*force*/ true);
 
-    Host->OnOperationCompleted();
+            Host->OnOperationCompleted();
+        })
+            .AsyncVia(GetCancelableInvoker())
+            .Run());
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
