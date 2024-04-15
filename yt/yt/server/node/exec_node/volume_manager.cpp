@@ -872,8 +872,7 @@ private:
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
             if (HealthChecker_) {
-                HealthChecker_->RunCheck()
-                    .ThrowOnError();
+                HealthChecker_->RunCheck();
             }
         } catch (const std::exception& ex) {
             Disable(ex, /*persistentDisable*/ true);

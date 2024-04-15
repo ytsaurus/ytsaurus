@@ -960,8 +960,7 @@ void TChunkLocation::ValidateWritable()
     NFS::MakeDirRecursive(GetPath(), ChunkFilesPermissions);
 
     // Run first health check before to sort out read-only drives.
-    HealthChecker_->RunCheck()
-        .ThrowOnError();
+    HealthChecker_->RunCheck();
 }
 
 void TChunkLocation::InitializeCellId()

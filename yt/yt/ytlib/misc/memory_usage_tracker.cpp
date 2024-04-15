@@ -929,38 +929,64 @@ INodeMemoryTrackerPtr CreateNodeMemoryTracker(
         profiler);
 }
 
+/////////////////////////////////////////////////////////////////////////////
+
+class TDelayedReferenceHolder
+    : public TSharedRangeHolder
+{
+public:
+    TDelayedReferenceHolder(
+        TSharedRef underlying,
+        TDuration delayBeforeFree,
+        IInvokerPtr dtorInvoker)
+        : Underlying_(std::move(underlying))
+        , DelayBeforeFree_(delayBeforeFree)
+        , DtorInvoker_(std::move(dtorInvoker))
+    { }
+
+    TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override
+    {
+        if (options.KeepMemoryReferenceTracking) {
+            return this;
+        }
+        return Underlying_.GetHolder()->Clone(options);
+    }
+
+    std::optional<size_t> GetTotalByteSize() const override
+    {
+        return Underlying_.GetHolder()->GetTotalByteSize();
+    }
+
+    ~TDelayedReferenceHolder()
+    {
+        NConcurrency::TDelayedExecutor::Submit(
+            BIND([] (TSharedRef reference) {
+                reference.ReleaseHolder();
+            }, Passed(std::move(Underlying_))),
+            DelayBeforeFree_,
+            DtorInvoker_);
+    }
+
+private:
+    TSharedRef Underlying_;
+    const TDuration DelayBeforeFree_;
+    const IInvokerPtr DtorInvoker_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TDelayedReferenceHolder::TDelayedReferenceHolder(
-    TSharedRef underlying,
+TSharedRef WrapWithDelayedReferenceHolder(
+    TSharedRef reference,
     TDuration delayBeforeFree,
     IInvokerPtr dtorInvoker)
-    : Underlying_(std::move(underlying))
-    , DelayBeforeFree_(delayBeforeFree)
-    , DtorInvoker_(std::move(dtorInvoker))
-{ }
-
-TSharedRangeHolderPtr TDelayedReferenceHolder::Clone(const TSharedRangeHolderCloneOptions& options)
 {
-    if (options.KeepMemoryReferenceTracking) {
-        return this;
-    }
-    return Underlying_.GetHolder()->Clone(options);
-}
+    YT_VERIFY(dtorInvoker);
 
-std::optional<size_t> TDelayedReferenceHolder::GetTotalByteSize() const
-{
-    return Underlying_.GetHolder()->GetTotalByteSize();
-}
-
-TDelayedReferenceHolder::~TDelayedReferenceHolder()
-{
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([] (TSharedRef reference) {
-            reference.ReleaseHolder();
-        }, Passed(std::move(Underlying_))),
-        DelayBeforeFree_,
-        DtorInvoker_);
+    auto underlyingHolder = reference.GetHolder();
+    auto underlyingReference = TSharedRef(reference, std::move(underlyingHolder));
+    return TSharedRef(
+        reference,
+        New<TDelayedReferenceHolder>(std::move(underlyingReference), delayBeforeFree, dtorInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,26 +58,10 @@ DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
 /////////////////////////////////////////////////////////////////////////////
 
-class TDelayedReferenceHolder
-    : public TSharedRangeHolder
-{
-public:
-    TDelayedReferenceHolder(
-        TSharedRef underlying,
-        TDuration delayBeforeFree,
-        IInvokerPtr dtorInvoker);
-
-    TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override;
-
-    std::optional<size_t> GetTotalByteSize() const override;
-
-    ~TDelayedReferenceHolder() override;
-
-private:
-    TSharedRef Underlying_;
-    const TDuration DelayBeforeFree_;
-    const IInvokerPtr DtorInvoker_;
-};
+TSharedRef WrapWithDelayedReferenceHolder(
+    TSharedRef reference,
+    TDuration delayBeforeFree,
+    IInvokerPtr dtorInvoker);
 
 /////////////////////////////////////////////////////////////////////////////
 
