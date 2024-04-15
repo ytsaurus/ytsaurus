@@ -189,7 +189,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
 
                 default:
                     YT_LOG_FATAL(
-                        "Unexpected value in job_info_or_error (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v, Value: %v",
+                        "Unexpected value in job_info_or_error (ControllerAgentDescriptor: %v, OperationId: %v, AllocationId: %v, Value: %v)",
                         ControllerAgentDescriptor_,
                         operationId,
                         allocationId,
@@ -503,7 +503,7 @@ std::vector<TIncarnationId> TControllerAgentConnectorPool::GetRegisteredAgentInc
     return incarnationIds;
 }
 
-std::optional<TControllerAgentDescriptor> TControllerAgentConnectorPool::GetDescriptorByIncarnationId(TIncarnationId incarnationId) const
+std::optional<TControllerAgentDescriptor> TControllerAgentConnectorPool::FindDescriptorByIncarnationId(TIncarnationId incarnationId) const
 {
     for (const auto& [descriptor, _] : ControllerAgentConnectors_) {
         if (descriptor.IncarnationId == incarnationId) {
@@ -511,6 +511,14 @@ std::optional<TControllerAgentDescriptor> TControllerAgentConnectorPool::GetDesc
         }
     }
     return std::nullopt;
+}
+
+TControllerAgentDescriptor TControllerAgentConnectorPool::GetDescriptorByIncarnationId(TIncarnationId incarnationId) const
+{
+    auto result = FindDescriptorByIncarnationId(incarnationId);
+    YT_VERIFY(result);
+
+    return *result;
 }
 
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)

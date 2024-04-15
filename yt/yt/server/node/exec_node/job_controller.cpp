@@ -580,10 +580,7 @@ private:
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-            auto maybeAgentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
-            YT_VERIFY(maybeAgentDescriptor);
-
-            auto agentDescriptor = std::move(*maybeAgentDescriptor);
+            auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
             // TODO(pogorelov): Move this logic to job resource manager.
             startInfoProto.mutable_resource_limits()->set_vcpu(
@@ -1406,8 +1403,7 @@ private:
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto descriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
-            YT_VERIFY(descriptor);
-            UpdateOperationControllerAgent(operationId, std::move(*descriptor));
+            UpdateOperationControllerAgent(operationId, std::move(descriptor));
         }
 
         {

@@ -522,7 +522,7 @@ public:
         auto resourceLimits = GetResourceLimits();
 
         YT_LOG_DEBUG(
-            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v WaitingResources: %v)",
+            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v, WaitingResources: %v)",
             FormatResources(resourceDelta),
             FormatResources(currentResourceUsage),
             FormatResources(resourceLimits),
