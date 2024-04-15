@@ -265,6 +265,8 @@ items:
                  href: user-guide/data-processing/spyt/cluster/cluster-desc.md
                - name: Starting a Spark cluster
                  href: user-guide/data-processing/spyt/cluster/cluster-start.md
+               - name: Livy server
+                 href: user-guide/data-processing/spyt/cluster/livy.md
                - name: Versioning rules
                  href: user-guide/data-processing/spyt/version.md
               #  - name: Metrics in Prometheus
