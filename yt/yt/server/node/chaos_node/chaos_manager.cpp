@@ -1243,7 +1243,7 @@ private:
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era; %v)",
+        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra());
     }
@@ -1295,7 +1295,7 @@ private:
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era; %v, SuspendedCoordinators: %v)",
+        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era: %v, SuspendedCoordinators: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
             suspendedCoordinators);
