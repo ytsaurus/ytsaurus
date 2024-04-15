@@ -182,7 +182,7 @@ TJobPtr TAllocation::EvictJob()
 
     YT_VERIFY(Job_);
 
-    YT_LOG_DEBUG("Job evicted from allcation (JobId: %v)", Job_->GetId());
+    YT_LOG_DEBUG("Job evicted from allocation (JobId: %v)", Job_->GetId());
 
     Job_->OnEvictedFromAllocation();
 

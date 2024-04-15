@@ -118,7 +118,8 @@ public:
 
     void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
 
-    std::optional<TControllerAgentDescriptor> GetDescriptorByIncarnationId(NScheduler::TIncarnationId incarnationId) const;
+    std::optional<TControllerAgentDescriptor> FindDescriptorByIncarnationId(NScheduler::TIncarnationId incarnationId) const;
+    TControllerAgentDescriptor GetDescriptorByIncarnationId(NScheduler::TIncarnationId incarnationId) const;
 
     std::vector<NScheduler::TIncarnationId> GetRegisteredAgentIncarnationIds() const;
 
