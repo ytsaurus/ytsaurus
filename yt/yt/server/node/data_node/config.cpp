@@ -419,6 +419,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(1000000);
     registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
+    registrar.Parameter("test_location_disable_during_full_heartbeat", &TThis::TestLocationDisableDuringFullheartbeat)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
