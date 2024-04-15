@@ -356,10 +356,32 @@ bool operator != (const TJoin& lhs, const TJoin& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TArrayJoin
+{
+    bool IsLeft;
+    TExpressionList Columns;
+
+    TNullableExpressionList Predicate;
+
+    TArrayJoin(
+        bool isLeft,
+        const TExpressionList& columns,
+        const TNullableExpressionList& predicate)
+        : IsLeft(isLeft)
+        , Columns(columns)
+        , Predicate(predicate)
+    { }
+};
+
+bool operator == (const TArrayJoin& lhs, const TArrayJoin& rhs);
+bool operator != (const TArrayJoin& lhs, const TArrayJoin& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQuery
 {
     TTableDescriptor Table;
-    std::vector<TJoin> Joins;
+    std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
     TNullableExpressionList SelectExprs;
     TNullableExpressionList WherePredicate;
@@ -411,6 +433,7 @@ TString FormatReference(const TReference& ref);
 TString FormatExpression(const TExpression& expr);
 TString FormatExpression(const TExpressionList& exprs);
 TString FormatJoin(const TJoin& join);
+TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);

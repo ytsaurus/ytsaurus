@@ -21,6 +21,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (ScanOp)
     (SplitterOp)
     (JoinOp)
+    (ArrayJoinOp)
     (FilterOp)
     (GroupOp)
     (HavingOp)
@@ -1254,10 +1255,85 @@ void TQueryProfiler::Profile(
             MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
         }
 
+        if (auto arrayJoinClause = query->JoinClauses[joinIndex]; !arrayJoinClause->ArrayExpressions.empty()) {
+            YT_ASSERT(joinGroupSize == 1);
+
+            joinIndex++;
+            Fold(static_cast<int>(EFoldingObjectType::ArrayJoinOp));
+
+            const auto& arrayExpressions = arrayJoinClause->ArrayExpressions;
+            auto renamedJoinSchema = arrayJoinClause->GetRenamedSchema();
+            int arrayCount = arrayExpressions.size();
+
+            YT_VERIFY(arrayCount == renamedJoinSchema->GetColumnCount());
+
+            TExpressionFragments arrayAndPredicateFragments;
+            auto predicateExpression = (arrayJoinClause->Predicate && !IsTrue(arrayJoinClause->Predicate))
+                ? arrayJoinClause->Predicate
+                : New<TLiteralExpression>(EValueType::Boolean, MakeUnversionedBooleanValue(true));
+            size_t predicateId = TExpressionProfiler::Profile(
+                predicateExpression,
+                renamedJoinSchema,
+                &arrayAndPredicateFragments);
+
+            std::vector<size_t> arrayIds(arrayCount);
+            for (int index = 0; index < arrayCount; ++index) {
+                arrayIds[index] = TExpressionProfiler::Profile(
+                    arrayExpressions[index],
+                    schema,
+                    &arrayAndPredicateFragments);
+            }
+
+            auto fragmentInfos = arrayAndPredicateFragments.ToFragmentInfos("joinedArrays");
+
+            std::vector<int> selfJoinedColumns;
+            selfJoinedColumns.reserve(arrayJoinClause->SelfJoinedColumns.size());
+            for (int index = 0; index < schema->GetColumnCount(); ++index) {
+                const auto& column = schema->Columns()[index];
+                if (arrayJoinClause->SelfJoinedColumns.contains(column.Name())) {
+                    selfJoinedColumns.push_back(index);
+                }
+            }
+
+            YT_VERIFY(arrayCount == renamedJoinSchema->GetColumnCount());
+
+            std::vector<int> arrayJoinedColumns;
+            std::vector<EValueType> rowTypes(arrayCount);
+            arrayJoinedColumns.reserve(arrayJoinClause->ForeignJoinedColumns.size());
+            for (int index = 0; index < renamedJoinSchema->GetColumnCount(); ++index) {
+                const auto& column = renamedJoinSchema->Columns()[index];
+                rowTypes[index] = column.GetWireType();
+                if (arrayJoinClause->ForeignJoinedColumns.contains(column.Name())) {
+                    arrayJoinedColumns.push_back(index);
+                }
+            }
+
+            TArrayJoinParameters arrayJoinParameters{
+                .IsLeft=arrayJoinClause->IsLeft,
+                .FlattenedTypes=std::move(rowTypes),
+                .SelfJoinedColumns=std::move(selfJoinedColumns),
+                .ArrayJoinedColumns=std::move(arrayJoinedColumns),
+            };
+
+            int parametersIndex = Variables_->AddOpaque<TArrayJoinParameters>(std::move(arrayJoinParameters));
+            Fold(parametersIndex);
+            currentSlot = MakeCodegenArrayJoinOp(
+                codegenSource,
+                slotCount,
+                currentSlot,
+                fragmentInfos,
+                std::move(arrayIds),
+                parametersIndex,
+                predicateId);
+            MakeCodegenFragmentBodies(codegenSource, fragmentInfos);
+
+            schema = arrayJoinClause->GetTableSchema(*schema);
+            TSchemaProfiler::Profile(schema);
+            continue;
+        }
+
         Fold(static_cast<int>(EFoldingObjectType::JoinOp));
         TExpressionFragments equationFragments;
-
-        std::vector<TSingleJoinCGParameters> parameters;
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
@@ -1265,9 +1341,10 @@ void TQueryProfiler::Profile(
             joinBatchSize = query->Offset + query->Limit;
         }
 
+        std::vector<TSingleJoinCGParameters> parameters;
         TMultiJoinParameters joinParameters;
-
-        std::vector<TString> selfColumnNames;
+        parameters.reserve(joinGroupSize);
+        joinParameters.Items.reserve(joinGroupSize);
 
         auto lastSchema = schema;
         for (; joinGroupSize > 0; ++joinIndex, --joinGroupSize) {
@@ -1322,27 +1399,19 @@ void TQueryProfiler::Profile(
                 subquery->ProjectClause = projectClause;
                 subquery->WhereClause = joinClause->Predicate;
 
-                selfColumnNames = joinClause->SelfJoinedColumns;
-
-                auto foreignColumnNames = joinClause->ForeignJoinedColumns;
-                std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-
                 auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
 
                 std::vector<size_t> foreignColumns;
-                for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
-                    if (std::binary_search(
-                        foreignColumnNames.begin(),
-                        foreignColumnNames.end(),
-                        joinRenamedTableColumns[index].Name()))
-                    {
+                for (int index = 0; index < std::ssize(joinRenamedTableColumns); ++index) {
+                    const auto& renamedColumn = joinRenamedTableColumns[index];
+                    if (joinClause->ForeignJoinedColumns.contains(joinRenamedTableColumns[index].Name())) {
                         foreignColumns.push_back(projectClause->Projections.size());
 
                         projectClause->AddProjection(
                             New<TReferenceExpression>(
-                                joinRenamedTableColumns[index].LogicalType(),
-                                joinRenamedTableColumns[index].Name()),
-                            joinRenamedTableColumns[index].Name());
+                                renamedColumn.LogicalType(),
+                                renamedColumn.Name()),
+                            renamedColumn.Name());
                     }
                 };
 
@@ -1357,17 +1426,11 @@ void TQueryProfiler::Profile(
             lastSchema = joinClause->GetTableSchema(*lastSchema);
         }
 
-        std::sort(selfColumnNames.begin(), selfColumnNames.end());
-
         const auto& selfTableColumns = schema->Columns();
 
         std::vector<std::pair<size_t, EValueType>> primaryColumns;
         for (size_t index = 0; index < selfTableColumns.size(); ++index) {
-            if (std::binary_search(
-                selfColumnNames.begin(),
-                selfColumnNames.end(),
-                selfTableColumns[index].Name()))
-            {
+            if (query->JoinClauses[joinIndex - 1]->SelfJoinedColumns.contains(selfTableColumns[index].Name())) {
                 primaryColumns.emplace_back(index, selfTableColumns[index].GetWireType());
 
                 Fold(index);

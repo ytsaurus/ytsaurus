@@ -59,20 +59,23 @@ bool TJoinOptimizer::Run()
 
 bool TJoinOptimizer::CanOptimize()
 {
-    if (1 != Query_->Joins.size() || Query_->Joins[0].IsLeft) {
+    if (Query_->Joins.size() != 1) {
         return false;
     }
-    const auto& join = Query_->Joins[0];
-
-    if (join.Predicate || !join.Fields.empty()) {
+    const auto* join = std::get_if<TJoin>(&Query_->Joins[0]);
+    if (!join || join->IsLeft) {
         return false;
     }
-    YT_VERIFY(join.Lhs.size() == join.Rhs.size());
 
-    for (size_t i = 0; i < join.Lhs.size(); ++i) {
+    if (join->Predicate || !join->Fields.empty()) {
+        return false;
+    }
+    YT_VERIFY(join->Lhs.size() == join->Rhs.size());
+
+    for (size_t i = 0; i < join->Lhs.size(); ++i) {
         // TODO(bulatman) The right table keys may be replaced by transformed left table keys as well.
-        auto* lhs = join.Lhs[i]->As<TReferenceExpression>();
-        auto* rhs = join.Rhs[i]->As<TReferenceExpression>();
+        auto* lhs = join->Lhs[i]->As<TReferenceExpression>();
+        auto* rhs = join->Rhs[i]->As<TReferenceExpression>();
         if (!lhs || !rhs) {
             return false;
         }

@@ -942,10 +942,6 @@ private:
         const TTabletReadOptions& options,
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
 
-    std::pair<std::vector<NTabletClient::TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> PrepareInSyncReplicaCandidates(
-        const TTabletReadOptions& options,
-        NQueryClient::NAst::TQuery* query);
-
     std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
         const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos,
         const std::vector<TTableReplicaInfoPtrList>& candidates,

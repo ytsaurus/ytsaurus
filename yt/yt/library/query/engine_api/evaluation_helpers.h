@@ -109,6 +109,14 @@ using TJoinLookupRows = std::unordered_multiset<
 
 struct TExecutionContext;
 
+struct TArrayJoinParameters
+{
+    bool IsLeft;
+    std::vector<EValueType> FlattenedTypes;
+    std::vector<int> SelfJoinedColumns;
+    std::vector<int> ArrayJoinedColumns;
+};
+
 struct TSingleJoinParameters
 {
     size_t KeySize;

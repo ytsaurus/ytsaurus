@@ -366,27 +366,6 @@ TString TClient::PickRandomCluster(
 
 std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
     const TTabletReadOptions& options,
-    NAst::TQuery* query)
-{
-    std::vector<TYPath> paths{query->Table.Path};
-    for (const auto& join : query->Joins) {
-        paths.push_back(join.Table.Path);
-    }
-
-    const auto& tableMountCache = Connection_->GetTableMountCache();
-    std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
-    for (const auto& path : paths) {
-        asyncTableInfos.push_back(tableMountCache->GetTableInfo(path));
-    }
-
-    auto tableInfos = WaitFor(AllSucceeded(asyncTableInfos))
-        .ValueOrThrow();
-
-    return PrepareInSyncReplicaCandidates(options, tableInfos);
-}
-
-std::pair<std::vector<TTableMountInfoPtr>, std::vector<TTableReplicaInfoPtrList>> TClient::PrepareInSyncReplicaCandidates(
-    const TTabletReadOptions& options,
     const std::vector<TTableMountInfoPtr>& tableInfos)
 {
     bool someReplicated = false;
@@ -579,11 +558,13 @@ std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyn
         bannedSyncReplicaIds[0]);
 
     for (size_t index = 0; index < query->Joins.size(); ++index) {
-        patchTableDescriptor(
-            &query->Joins[index].Table,
-            candidates[index + 1],
-            chaosTableSchemas[index + 1],
-            bannedSyncReplicaIds[index + 1]);
+        if (auto* tableJoin = std::get_if<NAst::TJoin>(&query->Joins[index])) {
+            patchTableDescriptor(
+                &tableJoin->Table,
+                candidates[index + 1],
+                chaosTableSchemas[index + 1],
+                bannedSyncReplicaIds[index + 1]);
+        }
     }
 
     YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",

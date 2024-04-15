@@ -188,6 +188,15 @@ struct TSingleJoinCGParameters
     std::vector<EValueType> LookupKeyTypes;
 };
 
+size_t MakeCodegenArrayJoinOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> arrayIds,
+    int parametersIndex,
+    size_t predicateId);
+
 size_t MakeCodegenMultiJoinOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,

@@ -369,8 +369,8 @@ struct TJoinClause
     : public TRefCounted
 {
     TMappedSchema Schema;
-    std::vector<TString> SelfJoinedColumns;
-    std::vector<TString> ForeignJoinedColumns;
+    THashSet<TString> SelfJoinedColumns;
+    THashSet<TString> ForeignJoinedColumns;
 
     TConstExpressionPtr Predicate;
 
@@ -379,6 +379,10 @@ struct TJoinClause
 
     size_t CommonKeyPrefix = 0;
     size_t ForeignKeyPrefix = 0;
+
+    // TODO(sabdenovch): introduce TArrayJoinClause and TTableJoinClause.
+    // Currently non-empty ArrayExpressions renders fields *Prefix, *Id, *Equations and Predicate meaningless.
+    std::vector<TConstExpressionPtr> ArrayExpressions;
 
     bool IsLeft = false;
 
@@ -401,19 +405,15 @@ struct TJoinClause
     {
         TSchemaColumns result;
 
-        auto selfColumnNames = SelfJoinedColumns;
-        std::sort(selfColumnNames.begin(), selfColumnNames.end());
         for (const auto& column : source.Columns()) {
-            if (std::binary_search(selfColumnNames.begin(), selfColumnNames.end(), column.Name())) {
+            if (SelfJoinedColumns.contains(column.Name())) {
                 result.push_back(column);
             }
         }
 
-        auto foreignColumnNames = ForeignJoinedColumns;
-        std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
         auto renamedSchema = Schema.GetRenamedSchema();
         for (const auto& column : renamedSchema->Columns()) {
-            if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
+            if (ForeignJoinedColumns.contains(column.Name())) {
                 result.push_back(column);
             }
         }

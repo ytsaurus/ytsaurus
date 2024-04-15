@@ -35,6 +35,7 @@ using NYT::NQueryClient::TJoinComparers;
 using NYT::NQueryClient::TComparerFunction;
 using NYT::NQueryClient::THasherFunction;
 using NYT::NQueryClient::TTernaryComparerFunction;
+using NYT::NQueryClient::TArrayJoinParameters;
 using NYT::NQueryClient::TMultiJoinParameters;
 using NYT::NQueryClient::TMultiJoinClosure;
 using NYT::NTableClient::TRowBuffer;
@@ -128,6 +129,11 @@ struct TTypeBuilder<TSharedRange<TRowRange>*>
 
 template <>
 struct TTypeBuilder<TSharedRange<TPIRowRange>*>
+    : public TTypeBuilder<void*>
+{ };
+
+template <>
+struct TTypeBuilder<TArrayJoinParameters*>
     : public TTypeBuilder<void*>
 { };
 

@@ -199,6 +199,18 @@ bool operator != (const TJoin& lhs, const TJoin& rhs)
     return !(lhs == rhs);
 }
 
+bool operator == (const TArrayJoin& lhs, const TArrayJoin& rhs)
+{
+    return
+        std::tie(lhs.IsLeft, lhs.Columns) ==
+        std::tie(rhs.IsLeft, rhs.Columns);
+}
+
+bool operator != (const TArrayJoin& lhs, const TArrayJoin& rhs)
+{
+    return !(lhs == rhs);
+}
+
 bool operator == (const TQuery& lhs, const TQuery& rhs)
 {
     return
@@ -553,6 +565,29 @@ void FormatJoin(TStringBuilderBase* builder, const TJoin& join)
     }
 }
 
+void FormatArrayJoin(TStringBuilderBase* builder, const TArrayJoin& join)
+{
+    if (join.IsLeft) {
+        builder->AppendString(" LEFT");
+    }
+    builder->AppendString(" ARRAY JOIN ");
+    JoinToString(
+        builder,
+        join.Columns.begin(),
+        join.Columns.end(),
+        [] (TStringBuilderBase* builder, const TExpressionPtr& expr) {
+            auto* alias = expr->As<TAliasExpression>();
+            YT_VERIFY(alias);
+            FormatExpression(builder, *alias->Expression, /*expandAliases*/ true);
+            builder->AppendString(" AS ");
+            builder->AppendString(alias->Name);
+        });
+    if (join.Predicate) {
+        builder->AppendString(" AND ");
+        FormatExpression(builder, *join.Predicate, true);
+    }
+}
+
 void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 {
     if (query.SelectExprs) {
@@ -571,7 +606,13 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
     FormatTableDescriptor(builder, query.Table);
 
     for (const auto& join : query.Joins) {
-        FormatJoin(builder, join);
+        Visit(join,
+            [&] (const TJoin& tableJoin) {
+                FormatJoin(builder, tableJoin);
+            },
+            [&] (const TArrayJoin& arrayJoin) {
+                FormatArrayJoin(builder, arrayJoin);
+            });
     }
 
     if (query.WherePredicate) {

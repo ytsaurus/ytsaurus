@@ -280,6 +280,26 @@ TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
     };
 }
 
+std::vector<TTableMountInfoPtr> GetQueryTableInfos(
+    NAst::TQuery* query,
+    const ITableMountCachePtr& cache)
+{
+    std::vector<TYPath> paths{query->Table.Path};
+    for (const auto& join : query->Joins) {
+        if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
+            paths.push_back(tableJoin->Table.Path);
+        }
+    }
+
+    std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
+    for (const auto& path : paths) {
+        asyncTableInfos.push_back(cache->GetTableInfo(path));
+    }
+
+    return WaitFor(AllSucceeded(asyncTableInfos))
+        .ValueOrThrow();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1291,7 +1311,10 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto parsedQuery = ParseSource(queryString, EParseMode::Query, options.PlaceholderValues);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
-    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(options, astQuery);
+    auto [tableInfos, replicaCandidates] = PrepareInSyncReplicaCandidates(
+        options,
+        GetQueryTableInfos(astQuery, Connection_->GetTableMountCache()));
+
     if (!tableInfos.empty()) {
         std::vector<TYPath> paths;
         for (const auto& tableInfo : tableInfos) {
@@ -1405,11 +1428,14 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         "Currently queries with canonical null relations aren't allowed on tables with computed columns");
 
     for (size_t index = 0; index < query->JoinClauses.size(); ++index) {
+        if (!query->JoinClauses[index]->ArrayExpressions.empty()) {
+            continue;
+        }
         if (query->JoinClauses[index]->ForeignKeyPrefix == 0 && !options.AllowJoinWithoutIndex) {
             const auto& ast = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
             THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
                 "the query is inefficient, consider rewriting it")
-                << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
+                << TErrorAttribute("source", NAst::FormatJoin(std::get<NAst::TJoin>(ast.Joins[index])));
         }
     }
 
@@ -1430,7 +1456,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     };
     addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
     for (const auto& joinClause : query->JoinClauses) {
-        addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+        if (joinClause->ArrayExpressions.empty()) {
+            addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+        }
     }
 
     if (options.ExecutionPool) {
