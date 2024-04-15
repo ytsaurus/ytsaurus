@@ -112,7 +112,7 @@ void TSlotLocationConfig::Register(TRegistrar registrar)
         .Default(NChunkClient::DefaultSlotsMediumName);
 
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
-        .Default(true);
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
