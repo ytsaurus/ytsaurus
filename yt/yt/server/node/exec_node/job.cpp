@@ -1516,7 +1516,7 @@ void TJob::RequestGracefulAbort(TError error)
 {
     YT_LOG_INFO("Requesting job graceful abort (Error: %v)", error);
     if (GracefulAbortRequested_) {
-        YT_LOG_INFO("Repeating job graceful abort request. Ignored");
+        YT_LOG_INFO("Repeating job graceful abort request; ignored");
         return;
     }
 
