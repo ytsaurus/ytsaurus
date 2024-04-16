@@ -1136,8 +1136,9 @@ public:
         RegisterHandler(CreateChunkViewMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateChunkListMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateMediumMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateTransactionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateForeignTransactionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateTopmostTransactionMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateTransactionMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateLockMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateClusterNodeNodeTypeHandler(Bootstrap_));

@@ -689,14 +689,19 @@ private:
                 EObjectType::MediumMap);
 
             ScheduleCreateNode(
-                "//sys/transactions",
+                "//sys/foreign_transactions",
                 transactionId,
-                EObjectType::TransactionMap);
+                EObjectType::ForeignTransactionMap);
 
             ScheduleCreateNode(
                 "//sys/topmost_transactions",
                 transactionId,
                 EObjectType::TopmostTransactionMap);
+
+            ScheduleCreateNode(
+                "//sys/transactions",
+                transactionId,
+                EObjectType::TransactionMap);
 
             ScheduleCreateNode(
                 "//sys/accounts",
