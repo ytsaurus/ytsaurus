@@ -933,7 +933,7 @@ public:
         return action;
     }
 
-    void DestroyTabletAction(TTabletAction* action)
+    void ZombifyTabletAction(TTabletAction* action)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -943,9 +943,10 @@ public:
             if (!action->IsFinished()) {
                 bundle->DecreaseActiveTabletActionCount();
             }
+            action->SetTabletCellBundle(nullptr);
         }
 
-        YT_LOG_DEBUG("Tablet action destroyed (ActionId: %v, TabletBalancerCorrelationId: %v)",
+        YT_LOG_DEBUG("Tablet action zombified (ActionId: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
             action->GetCorrelationId());
     }
@@ -3545,13 +3546,13 @@ private:
                 // No break intentionally.
             case ETabletActionState::Failed: {
                 UnbindTabletAction(action);
+                if (auto* bundle = action->GetTabletCellBundle()) {
+                    bundle->DecreaseActiveTabletActionCount();
+                }
                 const auto now = GetCurrentMutationContext()->GetTimestamp();
                 if (action->GetExpirationTime() <= now) {
                     const auto& objectManager = Bootstrap_->GetObjectManager();
                     objectManager->UnrefObject(action);
-                }
-                if (auto* bundle = action->GetTabletCellBundle()) {
-                    bundle->DecreaseActiveTabletActionCount();
                 }
                 break;
             }
@@ -4891,7 +4892,20 @@ private:
         }
 
         for (auto [actionId, action] : TabletActionMap_) {
-            // NB: Process non-alive objects to pair with DestroyTabletAction.
+            // COMPAT(ifsmirnov): EMasterReign::ZombifyTabletAction
+            if (!IsObjectAlive(action)) {
+                // Unbinding was earlier performed in Destroy instead of Zombify.
+                // We take care of actions which had zero RC during the update
+                // so neither handler was executed. Note that while UnbindTabletAction is
+                // idempotent, ZombifyTabletActions() also operates with bundle state
+                // which is not yet initialized, so we cannot call the method as-is.
+                UnbindTabletAction(action);
+                action->SetTabletCellBundle(nullptr);
+
+                // NB: this is not a part of the compat and should be kept during cleanup.
+                continue;
+            }
+
             auto bundle = action->GetTabletCellBundle();
             if (!bundle) {
                 continue;
@@ -7817,9 +7831,9 @@ TTabletAction* TTabletManager::CreateTabletAction(
         expirationTimeout);
 }
 
-void TTabletManager::DestroyTabletAction(TTabletAction* action)
+void TTabletManager::ZombifyTabletAction(TTabletAction* action)
 {
-    Impl_->DestroyTabletAction(action);
+    Impl_->ZombifyTabletAction(action);
 }
 
 void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)

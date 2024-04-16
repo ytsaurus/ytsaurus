@@ -223,6 +223,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
     ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
     ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
+    ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
