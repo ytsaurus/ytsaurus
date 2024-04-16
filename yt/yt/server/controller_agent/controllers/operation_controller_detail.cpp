@@ -1093,14 +1093,14 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
             if (table->IsFile()) {
                 TError error;
                 if (table->Path.GetColumns()) {
-                    error = TError("Input file path contains column selectors");
+                    error = TError("Input file path must not contain column selectors");
                 }
                 if (
                     table->Path.Attributes().Contains("upper_limit") ||
                     table->Path.Attributes().Contains("lower_limit") ||
                     table->Path.Attributes().Contains("ranges")
                 ) {
-                    error = TError("Input file path contains row selectors");
+                    error = TError("Input file path must not contain row selectors");
                 }
 
                 if (!error.IsOK()) {

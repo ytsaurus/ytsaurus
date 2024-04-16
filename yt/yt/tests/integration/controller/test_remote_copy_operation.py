@@ -1074,7 +1074,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         ]
 
         for path in strange_paths:
-            with raises_yt_error("Input file path contains"):
+            with raises_yt_error("Input file path must not contain"):
                 remote_copy(
                     in_=path,
                     out="//tmp/out.txt",
