@@ -20,6 +20,7 @@ public:
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(columnsToSort)
+        , RawWrite_(MakeIntrusive<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<void>()))
     { }
 
     TYtWriteTransform(
@@ -28,6 +29,7 @@ public:
         : Path_(path)
         , Schema_(schema)
         , ColumnsToSort_(std::nullopt)
+        , RawWrite_(MakeIntrusive<NPrivate::TRawDummyWriter>(NPrivate::MakeRowVtable<void>()))
     { }
 
     TString GetName() const
@@ -86,7 +88,7 @@ private:
     NYT::TTableSchema Schema_;
     std::optional<NYT::TSortColumns> ColumnsToSort_;
 
-    mutable NPrivate::IRawYtWritePtr RawWrite_;
+    mutable NPrivate::IRawWritePtr RawWrite_;
 };
 
 } // namespace NRoren::NPrivate

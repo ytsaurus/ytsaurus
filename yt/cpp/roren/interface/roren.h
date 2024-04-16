@@ -28,6 +28,7 @@
 #include "transforms.h"
 
 #include "private/raw_pipeline.h"
+#include "private/attributes.h"
 
 #include <vector>
 
@@ -248,6 +249,8 @@ private:
 
 ///
 /// @brief Set name for given transform
+extern TTypeTag<TString> TransformNameTag;
+
 template <typename TTransform>
 TRenamedTransform<TTransform> operator>>(TString name, TTransform transform);
 
@@ -345,6 +348,7 @@ private:
 template <typename TTransform>
 TRenamedTransform<TTransform> operator>>(TString name, TTransform transform)
 {
+    NRoren::NPrivate::SetAttribute(transform, TransformNameTag, name);
     return TRenamedTransform{std::move(name), std::move(transform)};
 }
 

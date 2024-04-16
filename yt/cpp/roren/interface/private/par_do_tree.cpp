@@ -5,6 +5,7 @@
 #include "../fns.h"
 
 #include <yt/cpp/roren/interface/execution_context.h>
+#include <yt/cpp/roren/interface/roren.h>
 
 #include <util/generic/iterator_range.h>
 #include <util/generic/overloaded.h>
@@ -138,7 +139,7 @@ public:
     {
         std::map<TString, int> Names_;
         for (const auto& node : ParDoNodes_) {
-            if (const auto name = node.ParDo->GetFnAttributes().GetName()) {
+            if (const TString* name = NPrivate::GetAttribute(*node.ParDo, TransformNameTag)) {
                 Names_[*name] += 1;
             } else {
                 Names_[{}] += 1;

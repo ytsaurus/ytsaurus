@@ -10,23 +10,6 @@ TFnAttributes& TFnAttributes::SetIsPure(bool isPure)
     return *this;
 }
 
-TFnAttributes& TFnAttributes::SetName(std::optional<TString> name) &
-{
-    Name_ = std::move(name);
-    return *this;
-}
-
-TFnAttributes TFnAttributes::SetName(std::optional<TString> name) &&
-{
-    Name_ = std::move(name);
-    return std::move(*this);
-}
-
-const std::optional<TString>& TFnAttributes::GetName() const
-{
-    return Name_;
-}
-
 TFnAttributes& TFnAttributes::AddResourceFile(const TString& resourceFile) &
 {
     ResourceFileList_.push_back(resourceFile);

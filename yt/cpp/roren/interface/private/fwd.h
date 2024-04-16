@@ -66,6 +66,7 @@ using IRawStateStorePtr = TIntrusivePtr<IRawStateStore>;
 class TRawPStateNode;
 using TRawPStateNodePtr = TIntrusivePtr<TRawPStateNode>;
 
+class TAttributes;
 class TFnAttributesOps;
 
 #define THROW_NOT_IMPLEMENTED_YET() \

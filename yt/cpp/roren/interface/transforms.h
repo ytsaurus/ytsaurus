@@ -293,6 +293,7 @@ auto MakeParDo(Args... args)
 
 template <typename TInput, typename TOutput, typename TState>
 class TStatefulParDoTransform
+    : public NPrivate::IWithAttributes
 {
 public:
     TStatefulParDoTransform(NPrivate::IRawStatefulParDoPtr fn, NPrivate::TRawPStateNodePtr pState)
@@ -322,6 +323,18 @@ public:
             return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
         }
     }
+
+private:
+    void SetAttribute(const TString& key, const std::any& value) override
+    {
+        RawStatefulParDo_->SetAttribute(key, value);
+    }
+
+    const std::any* GetAttribute(const TString& key) const override
+    {
+        return RawStatefulParDo_->GetAttribute(key);
+    }
+
 
 private:
     const NPrivate::IRawStatefulParDoPtr RawStatefulParDo_;
