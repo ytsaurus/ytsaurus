@@ -430,7 +430,8 @@ private:
         TQueueExporterPtr Exporter;
     };
 
-    THashMap<TString, TQueueExport> QueueExports_;
+    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExport>>;
+    QueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
     void Export(const TString& exportName)
@@ -442,26 +443,23 @@ private:
             return;
         }
 
-        const auto& staticExportConfig = QueueRow_.Load().StaticExportConfig;
-        if (!staticExportConfig || staticExportConfig->find(exportName) == staticExportConfig->end()) {
-            YT_LOG_DEBUG("Skipping queue static export iteration, since it is already disabled for the queue (ExportName: %v)", exportName);
-            return;
-        }
-
         TQueueExporterPtr exporter;
         {
             auto guard = ReaderGuard(QueueExportsLock_);
-            auto queueExport = QueueExports_.find(exportName);
-            if (queueExport == QueueExports_.end()) {
+            if (!QueueExports_.IsOK()) {
+                YT_LOG_DEBUG(QueueExports_, "Skipping queue static export iteration, because config is incorrect (ExportName: %v)", exportName);
+                return;
+            }
+            const auto& queueExports = QueueExports_.Value();
+            auto queueExport = queueExports.find(exportName);
+            if (queueExport == queueExports.end()) {
                 YT_LOG_DEBUG("Skipping queue static export iteration, since there is no exporter for it (ExportName: %v)", exportName);
                 return;
             }
             exporter = queueExport->second.Exporter;
         }
 
-        auto exportError = WaitFor(exporter->RunExportIteration(
-            QueueRef_,
-            GetOrCrash(*staticExportConfig, exportName)));
+        auto exportError = WaitFor(exporter->RunExportIteration());
         YT_LOG_ERROR_UNLESS(exportError.IsOK(), exportError, "Failed to perform static export for queue");
     }
 
@@ -510,66 +508,101 @@ private:
 
             ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
+            UpdateExports(nextQueueSnapshot);
+
             if (ShouldTrim(nextQueueSnapshot->PassIndex)) {
                 Trim();
-            }
-
-            const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
-
-            auto guard = WriterGuard(QueueExportsLock_);
-
-            if (DynamicConfig_.Acquire()->EnableQueueStaticExport && staticExportConfig && CheckStaticExportConfig(*staticExportConfig)) {
-                for (const auto& [name, config] : *staticExportConfig) {
-                    if (QueueExports_.find(name) == QueueExports_.end()) {
-                        auto executor = New<TScheduledExecutor>(
-                            Invoker_,
-                            BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
-                            /*interval*/ std::nullopt);
-                        executor->Start();
-                        QueueExports_[name] = {
-                            .Executor = executor,
-                            .Exporter = New<TQueueExporter>(
-                                name,
-                                ClientDirectory_->GetUnderlyingClientDirectory(),
-                                Invoker_,
-                                CreateAlertCollector(AlertManager_),
-                                ProfileManager_->GetQueueProfiler(),
-                                Logger),
-                        };
-                    }
-
-                    QueueExports_[name].Executor->SetInterval(config.ExportPeriod);
-                }
-
-                // Remove unused exports.
-                std::vector<TString> unusedExportNames;
-                for (const auto& [exportName, _] : QueueExports_) {
-                    if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
-                        unusedExportNames.push_back(exportName);
-                    }
-                }
-                for (const auto& name : unusedExportNames) {
-                    QueueExports_.erase(name);
-                }
-            } else {
-                QueueExports_.clear();
             }
         }
 
         YT_LOG_INFO("Queue controller pass finished");
     }
 
-    bool CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs) const
+    void UpdateExports(const TQueueSnapshotPtr& nextQueueSnapshot)
+    {
+        auto enableQueueStaticExport = DynamicConfig_.Acquire()->EnableQueueStaticExport;
+        const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
+
+        auto guard = WriterGuard(QueueExportsLock_);
+
+        if (staticExportConfig) {
+            if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig); !staticExportConfigError.IsOK()) {
+                QueueExports_ = staticExportConfigError;
+                return;
+            }
+
+            if (!QueueExports_.IsOK()) {
+                QueueExports_ = QueueExportsMappingOrError();
+            }
+            auto& queueExports = QueueExports_.Value();
+            for (const auto& [name, config] : *staticExportConfig) {
+                if (queueExports.find(name) == queueExports.end()) {
+                    queueExports[name] = {
+                        .Executor = nullptr,
+                        .Exporter = New<TQueueExporter>(
+                            name,
+                            QueueRef_,
+                            config,
+                            ClientDirectory_->GetUnderlyingClientDirectory(),
+                            Invoker_,
+                            CreateAlertCollector(AlertManager_),
+                            ProfileManager_->GetQueueProfiler(),
+                            Logger),
+                    };
+                } else {
+                    queueExports[name].Exporter->OnConfigUpdated(config);
+                }
+
+                if (enableQueueStaticExport) {
+                    if (!queueExports[name].Executor) {
+                        auto executor = New<TScheduledExecutor>(
+                            Invoker_,
+                            BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
+                            /*interval*/ std::nullopt);
+                        executor->Start();
+                        queueExports[name].Executor = executor;
+                    }
+                    queueExports[name].Executor->SetInterval(config.ExportPeriod);
+                } else {
+                    queueExports[name].Executor = nullptr;
+                }
+            }
+
+            // Remove unused exports.
+            std::vector<TString> unusedExportNames;
+            for (const auto& [exportName, _] : queueExports) {
+                if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
+                    unusedExportNames.push_back(exportName);
+                }
+            }
+            for (const auto& name : unusedExportNames) {
+                queueExports.erase(name);
+            }
+        } else {
+            QueueExports_ = QueueExportsMappingOrError();
+        }
+    }
+
+    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs) const
     {
         THashSet<TYPath> directories;
+        THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
             if (auto [_, inserted] = directories.insert(config.ExportDirectory); !inserted) {
                 YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config.ExportDirectory);
-                return false;
+                duplicateDirectories.insert(config.ExportDirectory);
             }
-            ;
         }
-        return true;
+
+        if (duplicateDirectories.empty()) {
+            return {};
+        }
+
+        auto error = TError("Static export config check failed");
+        for (const auto& directory : duplicateDirectories) {
+            error <<= TError("Duplicate directory in config (Value: %v)", directory);
+        }
+        return error;
     }
 
     bool ShouldTrim(i64 passIndex) const
@@ -845,6 +878,21 @@ private:
 
         auto replicaContexts = GetReplicasToTrim(queueSnapshot);
 
+        if (!QueueExports_.IsOK()) {
+            THROW_ERROR_EXCEPTION("Incorrect queue exports, trimming iteration skipped")
+                << QueueExports_;
+        }
+
+        THashMap<TString, TQueueExportProgressPtr> queueExportProgress;
+        {
+            auto guard = ReaderGuard(QueueExportsLock_);
+            const auto& queueExports = QueueExports_.Value();
+            queueExportProgress.reserve(queueExports.size());
+            for (const auto& [queueExportName, queueExport] : queueExports) {
+                queueExportProgress[queueExportName] = queueExport.Exporter->GetExportProgress();
+            }
+        }
+
         std::vector<TIntrusivePtr<TQueueTrimSession>> trimSessions;
         for (const auto& replicaContext : replicaContexts) {
             trimSessions.push_back(New<TQueueTrimSession>(
@@ -853,6 +901,7 @@ private:
                 replicaContext,
                 currentTimestamp,
                 ClientDirectory_->GetClientOrThrow(replicaContext.Ref.Cluster),
+                std::move(queueExportProgress),
                 ObjectStore_,
                 Logger));
             // NB: We do not invoke sessions immediately, so that we don't waste resources in case of an incomplete cluster directory.
@@ -887,6 +936,7 @@ private:
         TTimestamp CurrentTimestamp;
         //! Replica-cluster client.
         const NApi::NNative::IClientPtr Client;
+        THashMap<TString, TQueueExportProgressPtr> QueueExportProgress;
         const IObjectStore* ObjectStore;
         NLogging::TLogger Logger;
 
@@ -898,6 +948,7 @@ private:
             TQueueTrimContext context,
             TTimestamp currentTimestamp,
             NApi::NNative::IClientPtr client,
+            THashMap<TString, TQueueExportProgressPtr> queueExportProgress,
             const IObjectStore* objectStore,
             const NLogging::TLogger& logger)
             : QueueRef(std::move(queueRef))
@@ -905,6 +956,7 @@ private:
             , Context(std::move(context))
             , CurrentTimestamp(currentTimestamp)
             , Client(std::move(client))
+            , QueueExportProgress(std::move(queueExportProgress))
             , ObjectStore(objectStore)
             , Logger(logger.WithTag("Replica: %v, ObjectPath: %v", Context.Ref, Context.ObjectPath))
         { }
@@ -946,7 +998,7 @@ private:
             HandleRetainedLifetimeDuration(autoTrimConfig);
             HandleRetainedRows(autoTrimConfig);
 
-            HandleVitalConsumers();
+            HandleVitalConsumersAndExports();
 
             RequestTrimming();
             ReportErrors();
@@ -989,9 +1041,9 @@ private:
                 VitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = consumerSubSnapshot;
             }
 
-            if (VitalConsumerSubSnapshots.empty()) {
+            if (VitalConsumerSubSnapshots.empty() && QueueExportProgress.empty()) {
                 THROW_ERROR_EXCEPTION(
-                    "Attempted trimming iteration on queue %Qv with no vital consumers",
+                    "Attempted trimming iteration on queue %Qv with no vital consumers and no queue exports",
                     QueueRef);
             }
         }
@@ -1144,21 +1196,58 @@ private:
             }
         }
 
-        //! Updates partition contexts in accordance with the offsets of vital consumers.
+        //! Updates partition contexts in accordance with the offsets of vital consumers and exports.
         //! Only affects the minimum trimmed row count.
-        void HandleVitalConsumers()
+        void HandleVitalConsumersAndExports()
         {
+            auto handleQueueExportByPartitionAndReturnMinTrimmedRowCount = [this] (TPartitionTrimContext& partitionContext) -> std::optional<i64> {
+                if (QueueExportProgress.empty()) {
+                    return {};
+                }
+
+                std::optional<i64> minTrimmedRowCount;
+                for (auto& [exportName, exportProgress] : QueueExportProgress) {
+                    auto partitionProgressIt = exportProgress->Tablets.find(partitionContext.PartitionIndex);
+                    if (partitionProgressIt == exportProgress->Tablets.end()) {
+                        partitionContext.Update({
+                                .PartitionError = TError(
+                                    "Not trimming partition %v since export %v is missing this partition",
+                                    partitionContext.PartitionIndex,
+                                    exportName),
+                                .IsErrorCritical = true,
+                            });
+                        break;
+                    }
+                    const auto& partitionProgress = partitionProgressIt->second;
+                    minTrimmedRowCount = MinOrValue<i64>(
+                        minTrimmedRowCount,
+                        partitionProgress->RowCount);
+                }
+                return minTrimmedRowCount;
+            };
+
             for (auto& partitionContext : Context.Partitions) {
                 if (!partitionContext) {
                     continue;
                 }
 
                 std::optional<i64> minTrimmedRowCount;
+
+                // Handle vital consumers.
                 for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
                     minTrimmedRowCount = MinOrValue<i64>(
                         minTrimmedRowCount,
                         // NextRowIndex should always be present in the snapshot.
                         consumerSubSnapshot->PartitionSnapshots[partitionContext.PartitionIndex]->NextRowIndex);
+                }
+
+                // Handle queue exports.
+                minTrimmedRowCount = MinOrValue<i64>(
+                    minTrimmedRowCount,
+                    handleQueueExportByPartitionAndReturnMinTrimmedRowCount(partitionContext));
+
+                if (partitionContext.HasCriticalError()) {
+                    continue;
                 }
 
                 partitionContext.Update({

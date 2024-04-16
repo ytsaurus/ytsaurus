@@ -3054,6 +3054,146 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "controller": {
+                "pass_period": 75,
+                "enable_queue_static_export": True,
+                "enable_automatic_trimming": True,
+            },
+        },
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+    }
+
+    @authors("apachee")
+    @pytest.mark.timeout(120)
+    def test_basic(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q", partition_count=2)
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 15 * 1000,
+            }
+        })
+
+        # After this we have 14 second window to test that no trimmming
+        # is performed until queue is exported.
+        self._sleep_until_next_export_instant(period=15, offset=1)
+        self._wait_for_component_passes()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        assert len(ls(export_dir)) == 0
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
+        self._flush_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first"}])
+        self._flush_table("//tmp/q")
+
+        # Wait for trim.
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        # Nothing should be trimmed, because new rows haven't been exported.
+        self._wait_for_row_count("//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 1, 1)
+
+        # Wait for export of the new rows.
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        # Data should now be trimmed.
+        self._check_export(export_dir, [["first", "second"]])
+        self._wait_for_row_count("//tmp/q", 0, 0)
+        self._wait_for_row_count("//tmp/q", 1, 0)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    @pytest.mark.timeout(200)
+    def test_vital_consumers_and_exports(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        _, queue_id = self._create_queue("//tmp/q", partition_count=2)
+        self._create_registered_consumer("//tmp/c", "//tmp/q", True)
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 15 * 1000,
+            }
+        })
+
+        # After this we have 14 second window to test that no trimmming
+        # is performed until queue is exported.
+        self._sleep_until_next_export_instant(period=15, offset=1)
+        self._wait_for_component_passes()
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        queue_agent_orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
+        assert len(ls(export_dir)) == 0
+
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
+        self._flush_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first"}])
+        self._flush_table("//tmp/q")
+
+        queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+
+        # Nothing should be trimmed at this point.
+        self._wait_for_row_count("//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 1, 1)
+
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 1)
+
+        # Since export is still in progress, no rows should be trimmed.
+        self._wait_for_row_count("//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 1, 1)
+
+        # Wait for export of the new rows.
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        # Data should now be trimmed.
+        self._check_export(export_dir, [["first", "second"]])
+        self._wait_for_row_count("//tmp/q", 0, 0)
+        self._wait_for_row_count("//tmp/q", 1, 0)
+
+        # Now check that trim waits for consumers, when exports are ahead.
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
+        self._flush_table("//tmp/q")
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "first"}])
+        self._flush_table("//tmp/q")
+
+        # Wait for export of the new rows and trim iteration.
+        wait(lambda: len(ls(export_dir)) == 2)
+
+        # Since consumers hasn't advanced, no rows should be trimmed.
+        self._check_export(export_dir, [["first", "second"]] * 2)
+        self._wait_for_row_count("//tmp/q", 0, 1)
+        self._wait_for_row_count("//tmp/q", 1, 1)
+
+        # Advance consumers.
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 2)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 2)
+
+        # Everything should be trimmed.
+        self._wait_for_row_count("//tmp/q", 0, 0)
+        self._wait_for_row_count("//tmp/q", 1, 0)
+
+        self.remove_export_destination(export_dir)
+
+
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
@@ -3149,7 +3289,7 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
         alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
         alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="has no child with key", attributes={"export_name": "first"})
         alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="export_destination", attributes={"export_name": "second"})
-        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="with no vital consumers")
+        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="Not trimming partition 0 since export")
         assert alerts.get_alert_count() == 3
 
         self.remove_export_destination(export_dir_2)
