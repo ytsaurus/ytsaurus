@@ -11,6 +11,7 @@
 #include "coordinator_service.h"
 #include "transaction_manager.h"
 #include "replicated_table_tracker.h"
+#include "shortcut_snapshot_store.h"
 
 #include <yt/yt/server/lib/cellar_agent/automaton_invoker_hood.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
@@ -72,6 +73,7 @@ public:
         IBootstrap* bootstrap)
         : THood(Format("ChaosSlot:%v", slotIndex))
         , Config_(config)
+        , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
             Format("ChaosSnap:%v", slotIndex)))
@@ -190,7 +192,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Bootstrap_->GetShortcutSnapshotStore();
+        return ShortcutSnapshotStore_;
     }
 
     const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const override
@@ -375,6 +377,8 @@ public:
 
 private:
     const TChaosNodeConfigPtr Config_;
+    const IShortcutSnapshotStorePtr ShortcutSnapshotStore_;
+
     IBootstrap* const Bootstrap_;
 
     ICellarOccupantPtr Occupant_;

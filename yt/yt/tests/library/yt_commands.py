@@ -2839,7 +2839,14 @@ def sync_create_cells(cell_count, driver=None, **attributes):
     return cell_ids
 
 
-def create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[], area="default"):
+def create_chaos_cell(
+    cell_bundle,
+    cell_id,
+    peer_cluster_names,
+    meta_cluster_names=[],
+    area="default",
+    node_tag_filter=None
+):
     params_pattern = {
         "type": "chaos_cell",
         "attributes": {
@@ -2848,6 +2855,9 @@ def create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_nam
             "area": area,
         }
     }
+
+    if node_tag_filter is not None:
+        params_pattern["attributes"]["node_tag_filter"] = node_tag_filter
 
     for cluster_name in peer_cluster_names + meta_cluster_names:
         params = pycopy.deepcopy(params_pattern)
@@ -2866,8 +2876,22 @@ def wait_for_chaos_cell(cell_id, peer_cluster_names):
     wait(check)
 
 
-def sync_create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names=[], area="default"):
-    create_chaos_cell(cell_bundle, cell_id, peer_cluster_names, meta_cluster_names, area)
+def sync_create_chaos_cell(
+    cell_bundle,
+    cell_id,
+    peer_cluster_names,
+    meta_cluster_names=[],
+    area="default",
+    node_tag_filter=None
+):
+    create_chaos_cell(
+        cell_bundle,
+        cell_id,
+        peer_cluster_names,
+        meta_cluster_names,
+        area,
+        node_tag_filter=node_tag_filter
+    )
     wait_for_chaos_cell(cell_id, peer_cluster_names)
 
 
@@ -2912,7 +2936,14 @@ def create_chaos_area(name, bundle, peer_cluster_names, meta_cluster_names=[]):
     return create_chaos_objects(params_pattern, peer_cluster_names, meta_cluster_names)
 
 
-def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], clock_cluster_tag=None, independent_peers=True):
+def create_chaos_cell_bundle(
+    name,
+    peer_cluster_names,
+    meta_cluster_names=[],
+    clock_cluster_tag=None,
+    independent_peers=True,
+    node_tag_filter=None
+):
     if not clock_cluster_tag:
         clock_cluster_tag = get("//sys/@primary_cell_tag")
     params_pattern = {
@@ -2931,6 +2962,10 @@ def create_chaos_cell_bundle(name, peer_cluster_names, meta_cluster_names=[], cl
             }
         }
     }
+
+    if node_tag_filter:
+        params_pattern["attributes"]["node_tag_filter"] = node_tag_filter
+
     return create_chaos_objects(params_pattern, peer_cluster_names, meta_cluster_names)
 
 
