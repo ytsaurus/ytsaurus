@@ -555,7 +555,7 @@ public:
         return WrapChaosChannel(ReplicationCardChannelFactory_->CreateChannel(replicationCardId, peerKind));
     }
 
-    IChannelPtr GetQueueAgentChannelOrNull(TStringBuf stage) const override
+    IChannelPtr FindQueueAgentChannel(TStringBuf stage) const override
     {
         auto it = QueueAgentChannels_.find(stage);
         if (it == QueueAgentChannels_.end()) {
