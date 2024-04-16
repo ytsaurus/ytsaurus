@@ -2176,7 +2176,9 @@ private:
         }
 
         auto oldChunkFormat = CheckedEnumCast<EChunkFormat>(oldChunkMeta->format());
-        YT_VERIFY(IsValidTableChunkFormat(oldChunkFormat));
+        YT_VERIFY(
+            IsValidTableChunkFormat(oldChunkFormat) ||
+            oldChunkFormat == EChunkFormat::FileDefault);
 
         auto columnarMeta = New<TColumnarChunkMeta>(*oldChunkMeta);
 
