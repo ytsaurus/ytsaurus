@@ -92,8 +92,6 @@ class TestChaos(ChaosTestBase):
             "snapshot_account": "sys",
         }
         execute_command("create", params)
-        with pytest.raises(YtError):
-            set("//sys/chaos_cell_bundles/chaos_bundle/@options/independent_peers", False)
 
     @authors("babenko")
     def test_create_chaos_cell_with_duplicate_id(self):

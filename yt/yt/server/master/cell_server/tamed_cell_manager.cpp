@@ -320,9 +320,6 @@ public:
                 cellBundle->Cells().size());
         }
         if (cellBundle->GetType() == EObjectType::ChaosCellBundle) {
-            if (!newOptions->IndependentPeers) {
-                THROW_ERROR_EXCEPTION("Chaos cells must always have independent peers");
-            }
             if (newOptions->PeerCount != currentOptions->PeerCount) {
                 THROW_ERROR_EXCEPTION("Cannot change peer count for chaos cell bundle");
             }

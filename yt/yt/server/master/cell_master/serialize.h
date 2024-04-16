@@ -222,6 +222,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
     ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
     ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
+    ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
     // 24.2 starts here.
 );
 
