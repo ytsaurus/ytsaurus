@@ -17,6 +17,8 @@ RECURSE(
     skiff
     util
     util/ut
+    tests
+    tests_core_http
 )
 
 IF (NOT OPENSOURCE)
@@ -26,8 +28,6 @@ IF (NOT OPENSOURCE)
         initialize
         io/ut
         library
-        tests
-        tests_core_http
         tools
     )
 ENDIF()

@@ -13,17 +13,27 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
-add_subdirectory(client)
-add_subdirectory(common)
-add_subdirectory(examples)
-add_subdirectory(http)
-add_subdirectory(interface)
-add_subdirectory(io)
-add_subdirectory(library)
-add_subdirectory(raw_client)
-add_subdirectory(skiff)
-add_subdirectory(tests)
-add_subdirectory(tests_core_http)
-add_subdirectory(util)
+find_package(linux-headers-generic REQUIRED)
+add_library(mapreduce-library-lazy_sort)
+
+
+target_compile_options(mapreduce-library-lazy_sort PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(mapreduce-library-lazy_sort PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  cpp-mapreduce-interface
+)
+
+target_sources(mapreduce-library-lazy_sort PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/library/lazy_sort/lazy_sort.cpp
+)
+
+
+
+
 
 
