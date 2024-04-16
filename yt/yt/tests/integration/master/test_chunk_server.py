@@ -26,7 +26,7 @@ from time import sleep
 
 class TestChunkServer(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 21
+    NUM_NODES = 9
     NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
@@ -62,7 +62,7 @@ class TestChunkServer(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
     def _test_decommission(self, path, replica_count, node_to_decommission_count=1):
         assert replica_count >= node_to_decommission_count
@@ -73,11 +73,11 @@ class TestChunkServer(YTEnvSetup):
 
         wait(
             lambda: not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
-            and len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
+            and len(get(f"#{chunk_id}/@stored_replicas")) == replica_count
         )
 
     def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
-        nodes_to_decommission = get("#%s/@stored_replicas" % chunk_id)
+        nodes_to_decommission = get(f"#{chunk_id}/@stored_replicas")
         assert len(nodes_to_decommission) == replica_count
 
         nodes_to_decommission = nodes_to_decommission[:node_to_decommission_count]
@@ -94,7 +94,7 @@ class TestChunkServer(YTEnvSetup):
 
         for node in nodes:
             if not (
-                id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/cluster_nodes/%s/orchid/data_node/stored_chunks" % node)]
+                id_to_hash(id) in [id_to_hash(id_) for id_ in ls(f"//sys/cluster_nodes/{node}/orchid/data_node/stored_chunks")]
             ):
                 return False
         return True
@@ -117,46 +117,46 @@ class TestChunkServer(YTEnvSetup):
         # Now 2 replicas are decommissioned and 2 aren't.
         # The chunk should be both under- and overreplicated.
 
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
-        nodes = get("#%s/@stored_replicas" % chunk_id)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+        nodes = get(f"#{chunk_id}/@stored_replicas")
         for node in nodes:
-            assert not get("//sys/cluster_nodes/%s/@decommissioned" % node)
+            assert not get(f"//sys/cluster_nodes/{node}/@decommissioned")
 
     @authors("babenko")
     def test_decommission_erasure1(self):
         create("table", "//tmp/t")
-        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
         write_table("//tmp/t", {"a": "b"})
-        self._test_decommission("//tmp/t", 16)
+        self._test_decommission("//tmp/t", 6)
 
     @authors("shakurov")
     def test_decommission_erasure2(self):
         create("table", "//tmp/t")
-        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
         write_table("//tmp/t", {"a": "b"})
-        self._test_decommission("//tmp/t", 16, 4)
+        self._test_decommission("//tmp/t", 6, 3)
 
     @authors("ignat")
     def test_decommission_erasure3(self):
         create("table", "//tmp/t")
-        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
         write_table("//tmp/t", {"a": "b"})
 
         sync_control_chunk_replicator(False)
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        nodes = get("#%s/@stored_replicas" % chunk_id)
+        nodes = get(f"#{chunk_id}/@stored_replicas")
 
-        for index in (4, 6, 11, 15):
+        for index in (1, 3, 4):
             set_node_banned(nodes[index], True, wait_for_master=False)
         set_node_decommissioned(nodes[0], True)
 
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
         sync_control_chunk_replicator(True)
 
-        wait(lambda: get("//sys/cluster_nodes/%s/@decommissioned" % nodes[0]))
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 16)
+        wait(lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@decommissioned"))
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
 
     @authors("babenko")
     def test_decommission_journal(self):
@@ -175,11 +175,11 @@ class TestChunkServer(YTEnvSetup):
         set("//sys/@config/chunk_manager/safe_online_node_count", 3)
 
         nodes = ls("//sys/cluster_nodes")
-        assert len(nodes) == 21
+        assert len(nodes) == 9
 
         wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
-        for i in range(19):
+        for i in range(7):
             set_node_banned(nodes[i], True, wait_for_master=False)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
@@ -251,8 +251,8 @@ class TestChunkServer(YTEnvSetup):
 
             multicell_sleep()
 
-            create("table", "//tmp/t", attributes={"replication_factor": 10})
-            assert get("//tmp/t/@replication_factor") == 10
+            create("table", "//tmp/t", attributes={"replication_factor": 8})
+            assert get("//tmp/t/@replication_factor") == 8
 
             write_table("//tmp/t", {"a": "b"})
             chunk_id = get_singular_chunk_id("//tmp/t")
@@ -440,11 +440,11 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_temporarily_unavailable_erasure_replicas(self):
-        create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
         write_table("//tmp/t", {"a": "b"})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 16)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
 
         nodes = get(f"#{chunk_id}/@stored_replicas")
 
@@ -452,10 +452,10 @@ class TestChunkServer(YTEnvSetup):
             add_maintenance("cluster_node", node, "pending_restart", "")
         sleep(0.5)
 
-        assert len(get(f"#{chunk_id}/@stored_replicas")) == 16
+        assert len(get(f"#{chunk_id}/@stored_replicas")) == 6
 
         add_maintenance("cluster_node", nodes[3], "pending_restart", "")
-        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 19)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 9)
 
     @authors("gritukan")
     def test_replication_queue_fairness(self):
@@ -481,7 +481,7 @@ class TestChunkServer(YTEnvSetup):
 
         # Make sure that all replication queues are filled with some chunks that
         # cannot be placed safely.
-        create("table", "//tmp/t2", attributes={"erasure_codec": "isa_lrc_12_2_2"})
+        create("table", "//tmp/t2", attributes={"erasure_codec": "reed_solomon_6_3"})
         chunk_count = 30
         for _ in range(chunk_count):
             write_table("<append=%true>//tmp/t2", {"a": "b"})
@@ -515,9 +515,9 @@ class TestNodeLeaseTransactionTimeout(YTEnvSetup):
         write_table("//tmp/t", {"a": "b"}, table_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/t")
-        wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 3)
+        wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
 
-        node = get("#%s/@stored_replicas" % chunk_id)[0]
+        node = get(f"#{chunk_id}/@stored_replicas")[0]
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
 
         add_maintenance("cluster_node", node, "pending_restart", "")
@@ -846,7 +846,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 
     @authors("babenko")
     def test_allow_multiple_erasure_parts_per_node(self):
-        create("table", "//tmp/t", attributes={"erasure_codec": "lrc_12_2_2"})
+        create("table", "//tmp/t", attributes={"erasure_codec": "reed_solomon_3_3"})
         rows = [{"a": "b"}]
         write_table("//tmp/t", rows)
         assert read_table("//tmp/t") == rows
@@ -865,7 +865,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 
 class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
     NUM_MASTERS = 3
-    NUM_NODES = 20
+    NUM_NODES = 10
     USE_DYNAMIC_TABLES = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
