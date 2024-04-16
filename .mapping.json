@@ -718,6 +718,7 @@
   "yt/cpp/mapreduce/library/operation_tracker/CMakeLists.txt":"",
   "yt/cpp/mapreduce/library/parallel_io/CMakeLists.txt":"",
   "yt/cpp/mapreduce/library/table_schema/CMakeLists.txt":"",
+  "yt/cpp/mapreduce/library/user_job_statistics/CMakeLists.txt":"",
   "yt/cpp/mapreduce/raw_client/CMakeLists.txt":"",
   "yt/cpp/mapreduce/raw_client/ut/CMakeLists.txt":"",
   "yt/cpp/mapreduce/skiff/CMakeLists.txt":"",

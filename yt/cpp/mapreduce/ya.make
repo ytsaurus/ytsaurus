@@ -11,6 +11,7 @@ RECURSE(
     interface/logging/ut
     io
     library/parallel_io
+    library/user_job_statistics
     raw_client
     raw_client/ut
     skiff
