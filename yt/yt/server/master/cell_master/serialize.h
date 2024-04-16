@@ -220,6 +220,7 @@ DEFINE_ENUM(EMasterReign,
     ((SchemalessEndUploadPreservesTableSchemaByDefault)             (2551))  // shakurov
     ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
     ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
+    ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
     // 24.2 starts here.
 );
 
