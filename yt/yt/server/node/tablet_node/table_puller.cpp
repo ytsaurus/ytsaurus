@@ -157,6 +157,7 @@ public:
             std::move(nodeInThrottler),
             CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
         }))
+        , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
     { }
@@ -200,6 +201,7 @@ private:
 
     const IThroughputThrottlerPtr Throttler_;
 
+    IChaosAgentPtr ChaosAgent_;
     TBannedReplicaTracker BannedReplicaTracker_;
     ui64 ReplicationRound_ = 0;
     TReplicationProgress LastReplicationProgressAdvance_;
@@ -227,6 +229,14 @@ private:
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
                     << HardErrorAttribute;
             }
+
+            auto configurationGuard = ChaosAgent_->TryGetConfigurationLockGuard();
+            if (!configurationGuard) {
+                YT_LOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
+                return;
+            }
+
+            ChaosAgent_->ReconfigureTablet();
 
             auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             if (!replicationCard) {
@@ -331,6 +341,7 @@ private:
                 tabletSnapshot->TabletRuntimeData->Errors
                     .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(error);
             }
+
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
             } else {

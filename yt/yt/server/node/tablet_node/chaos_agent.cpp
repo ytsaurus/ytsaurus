@@ -22,6 +22,7 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/generic/cast.h>
@@ -56,6 +57,8 @@ public:
             .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
                 replicationCardId))
+        , ConfigurationLock_(New<TAsyncSemaphore>(1))
+        , SelfInvoker_(Tablet_->GetEpochAutomatonInvoker())
     { }
 
     void Enable() override
@@ -64,6 +67,7 @@ public:
             MountConfig_->ReplicationTickPeriod,
             MountConfig_->ReplicationProgressUpdateTickPeriod);
 
+        SelfInvoker_ = Tablet_->GetEpochAutomatonInvoker();
         FiberFuture_ = BIND(
             &TChaosAgent::FiberMain,
             MakeWeak(this),
@@ -96,6 +100,22 @@ public:
         }
         FiberFuture_.Reset();
         ProgressReporterFiberFuture_.Reset();
+        SelfInvoker_.Reset();
+    }
+
+    TAsyncSemaphoreGuard TryGetConfigurationLockGuard() override
+    {
+        return TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_);
+    }
+
+    void ReconfigureTablet() override
+    {
+        if (auto invoker = SelfInvoker_.Lock()) {
+            WaitFor(BIND(&TChaosAgent::ReconfigureTabletWriteMode, MakeWeak(this))
+                .AsyncVia(invoker)
+                .Run())
+            .ThrowOnError();
+        }
     }
 
 private:
@@ -111,6 +131,8 @@ private:
 
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
+    TAsyncSemaphorePtr ConfigurationLock_;
+    TWeakPtr<IInvoker> SelfInvoker_;
 
     void FiberMain(TCallback<void()> callback, TDuration period)
     {
@@ -125,7 +147,12 @@ private:
     void FiberIteration()
     {
         UpdateReplicationCard();
-        ReconfigureTabletWriteMode();
+
+        if (auto guard = TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_)) {
+            ReconfigureTabletWriteMode();
+        } else {
+            YT_LOG_DEBUG("Skipping reconfiguration because configuration lock is held");
+        }
     }
 
     void UpdateReplicationCard()
@@ -154,6 +181,8 @@ private:
 
     void ReconfigureTabletWriteMode()
     {
+        YT_VERIFY(ConfigurationLock_->GetFree() == 0);
+
         if (!ReplicationCard_) {
             YT_LOG_DEBUG("Replication card is not available");
             return;
