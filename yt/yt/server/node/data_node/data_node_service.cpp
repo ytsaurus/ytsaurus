@@ -44,6 +44,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/rpc/helpers.h>
 
@@ -1780,30 +1781,16 @@ private:
 
     static void SerializeSample(
         TRspGetTableSamples::TSample* protoSample,
-        std::vector<TUnversionedValue> values,
+        TUnversionedValueRange values,
         i32 maxSampleSize,
         i64 weight,
-        const TKeySetWriterPtr& keySetWriter)
+        const TKeySetWriterPtr& keySetWriter,
+        const TRowBufferPtr& truncatedSampleValueBuffer)
     {
-        i64 size = 0;
-        bool incomplete = false;
-        for (auto& value : values) {
-            i64 valueSize = EstimateRowValueSize(value);
-            if (incomplete || size >= maxSampleSize) {
-                incomplete = true;
-                value = MakeUnversionedSentinelValue(EValueType::Null);
-            } else if (size + valueSize > maxSampleSize && IsStringLikeType(value.Type)) {
-                value.Length = maxSampleSize - size;
-                YT_VERIFY(value.Length > 0);
-                size += value.Length;
-                incomplete = true;
-            } else {
-                size += valueSize;
-            }
-        }
+        auto truncatedValues = TruncateUnversionedValues(values, truncatedSampleValueBuffer, {.ClipAfterOverflow = true, .MaxTotalSize = maxSampleSize});
 
-        protoSample->set_key_index(keySetWriter->WriteValueRange(MakeRange(values)));
-        protoSample->set_incomplete(incomplete);
+        protoSample->set_key_index(keySetWriter->WriteValueRange(truncatedValues.Values));
+        protoSample->set_incomplete(truncatedValues.Clipped);
         protoSample->set_weight(weight);
     }
 
@@ -1918,6 +1905,8 @@ private:
 
         auto samplesExt = GetProtoExtension<TSamplesExt>(chunkMeta.extensions());
 
+        auto truncatedSampleValueBuffer = New<TRowBuffer>();
+
         // TODO(psushin): respect sampleRequest lower_limit and upper_limit.
         // Old chunks do not store samples weights.
         bool hasWeights = samplesExt.weights_size() > 0;
@@ -1945,10 +1934,11 @@ private:
 
             SerializeSample(
                 chunkSamples->add_samples(),
-                std::move(values),
+                values,
                 maxSampleSize,
                 hasWeights ? samplesExt.weights(index) : samplesExt.entries(index).length(),
-                keySetWriter);
+                keySetWriter,
+                truncatedSampleValueBuffer);
         }
     }
 

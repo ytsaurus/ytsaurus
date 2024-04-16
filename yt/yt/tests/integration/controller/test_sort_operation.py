@@ -40,8 +40,9 @@ def check_operation_tasks(op, expected):
     return builtins.set(tasks) == builtins.set(expected)
 
 
-def simple_sort_1_phase(in_, out, sort_by):
-    op = sort(in_=in_, out=out, sort_by=sort_by)
+def simple_sort_1_phase(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    op = sort(in_=in_, out=out, sort_by=sort_by, spec=spec)
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {"simple_sort"}
     assert check_operation_tasks(op, ["simple_sort"])
@@ -2012,12 +2013,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "schema": [{"name": "key", "type_v3": type_v3}],
             },
         )
-        write_table("//tmp/in", [{"key": d} for d in data])
+        write_table("//tmp/in", [{"key": d} for d in data], verbose=False)
 
         create("table", "//tmp/out")
         sort_func("//tmp/in", "//tmp/out", sort_by="key")
 
-        out_data = [r["key"] for r in read_table("//tmp/out")]
+        out_data = [r["key"] for r in read_table("//tmp/out", verbose=False)]
         assert out_data == expected_data
 
     @authors("ermolovd")
@@ -2051,6 +2052,32 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 [5],
                 [5],
                 [5],
+            ],
+        )
+
+    @authors("achulkov2")
+    def test_sort_key_complex_type_huge_value_list(self):
+        max_sample_size = 64 * 1024
+
+        def expand_string(sample, size):
+            return (sample * (size // len(sample) + 1))[:size]
+
+        self.run_test_complex_sort(
+            lambda *args, **kwargs: simple_sort_1_phase(*args, **kwargs, spec={"merge_job_io": {"table_writer": {"max_key_weight": 250 * 1024}}}),
+            list_type(optional_type("string")),
+            [
+                ["f", None, expand_string("hoi-dag", max_sample_size)],
+                ["a", expand_string("vuvuzela", max_sample_size - 1) + "b", "a"],
+                ["a", expand_string("vuvuzela", max_sample_size - 1) + "a", "b"],
+                [None],
+                [expand_string("boratorium", max_sample_size + 10)],
+            ],
+            [
+                [None],
+                ["a", expand_string("vuvuzela", max_sample_size - 1) + "a", "b"],
+                ["a", expand_string("vuvuzela", max_sample_size - 1) + "b", "a"],
+                [expand_string("boratorium", max_sample_size + 10)],
+                ["f", None, expand_string("hoi-dag", max_sample_size)],
             ],
         )
 
