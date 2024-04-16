@@ -6698,7 +6698,7 @@ private:
             if (multicellManager->IsPrimaryMaster()) {
                 *bundle->ResourceUsage().Remote(cellTag) = newResourceUsage;
             } else {
-                bundle->ResourceUsage().Cluster() = newResourceUsage;
+                bundle->ResourceUsage().Cluster() = newResourceUsage + bundle->ResourceUsage().Local();
             }
         }
     }
@@ -6730,31 +6730,46 @@ private:
 
         YT_LOG_INFO("Sending tablet cell bundle resource usage gossip");
 
-        NProto::TReqSetTabletCellBundleResourceUsage request;
-        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
-
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
-            if (!IsObjectAlive(bundleBase)) {
-                continue;
-            }
 
-            YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
-            auto* bundle = bundleBase->As<TTabletCellBundle>();
-            auto* entry = request.add_entries();
-            ToProto(entry->mutable_bundle_id(), bundle->GetId());
+        auto fillBundles = [&] (auto& request, TCellTag cellTag) {
+            bool isPrimary = multicellManager->IsPrimaryMaster();
 
-            if (multicellManager->IsPrimaryMaster()) {
-                ToProto(entry->mutable_resource_usage(), bundle->ResourceUsage().Cluster());
-            } else {
-                ToProto(entry->mutable_resource_usage(), bundle->ResourceUsage().Local());
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                if (!IsObjectAlive(bundleBase)) {
+                    continue;
+                }
+
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+                auto& resourceUsage = bundle->ResourceUsage();
+
+                auto* entry = request.add_entries();
+                ToProto(entry->mutable_bundle_id(), bundle->GetId());
+                ToProto(
+                    entry->mutable_resource_usage(),
+                    isPrimary
+                        ? resourceUsage.Cluster() - *resourceUsage.Remote(cellTag)
+                        : resourceUsage.Local());
             }
-        }
+        };
 
         if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->PostToSecondaryMasters(request, false);
+            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+                NProto::TReqSetTabletCellBundleResourceUsage request;
+                request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+
+                fillBundles(request, cellTag);
+
+                multicellManager->PostToMaster(request, cellTag, false);
+            }
         } else {
-            multicellManager->PostToMaster(request, PrimaryMasterCellTagSentinel, false);
+            NProto::TReqSetTabletCellBundleResourceUsage request;
+            request.set_cell_tag(multicellManager->GetCellTag().Underlying());
+
+            fillBundles(request, /*cellTag*/ {});
+
+            multicellManager->PostToPrimaryMaster(request, false);
         }
 
         if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
