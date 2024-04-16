@@ -53,6 +53,7 @@ object TarArchiverPlugin extends AutoPlugin {
         try {
           val tos = new TarArchiveOutputStream(gos)
           tos.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX)
+          tos.setBigNumberMode(TarArchiveOutputStream.BIGNUMBER_POSIX);
           f(tos)
         } finally gos.close()
       } finally bos.close()
