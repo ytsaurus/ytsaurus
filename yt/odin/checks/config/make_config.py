@@ -1171,7 +1171,8 @@ def get_checks_config():
             "wrapper_files_count": {
                 "alerts": instant_force_ok,
                 "options": {
-                    "files_count_threshold": 40000,
+                    "file_count_threshold": 40000,
+                    "table_count_threshold": 50000,
                 }
             },
             "spare_tablet_nodes": {
