@@ -137,4 +137,63 @@ INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(TBootstrap* bootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TVirtualForeignTransactionMap
+    : public TVirtualSinglecellMapBase
+{
+public:
+    using TVirtualSinglecellMapBase::TVirtualSinglecellMapBase;
+
+private:
+    using TBase = TVirtualMapBase;
+
+    std::vector<TString> GetKeys(i64 sizeLimit) const override
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        std::vector<TString> result;
+        result.reserve(std::min<size_t>(transactionManager->ForeignTransactions().size(), sizeLimit));
+
+        for (auto transaction : transactionManager->ForeignTransactions()) {
+            if (std::ssize(result) >= sizeLimit) {
+                break;
+            }
+            result.emplace_back(ToString(transaction->GetId()));
+        }
+
+        return result;
+    }
+
+    i64 GetSize() const override
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        return transactionManager->ForeignTransactions().size();
+    }
+
+    IYPathServicePtr FindItemService(TStringBuf key) const override
+    {
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionManager->FindTransaction(TObjectId::FromString(key));
+        if (!transaction) {
+            return nullptr;
+        }
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        return objectManager->GetProxy(transaction);
+    }
+};
+
+INodeTypeHandlerPtr CreateForeignTransactionMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::ForeignTransactionMap,
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
+            return New<TVirtualForeignTransactionMap>(bootstrap, owningNode);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTransactionServer

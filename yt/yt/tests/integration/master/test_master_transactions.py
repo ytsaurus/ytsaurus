@@ -834,6 +834,22 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
         assert exists("//tmp/qqq")
 
+    @authors("h0pless")
+    def test_foreign_transaction_map(self):
+        with pytest.raises(YtError, match="Error parsing GUID"):
+            get("//sys/foreign_transactions/1---4")
+
+        tx = start_transaction()
+        tx_cell_tag = get(f"#{tx}/@native_cell_tag")
+        assert tx not in ls("//sys/foreign_transactions", driver=get_driver(3))
+        assert tx not in ls("//sys/foreign_transactions", driver=get_driver(tx_cell_tag - 10))
+
+        self._replicate_tx_to_cell(tx, 13, "r")
+        wait(lambda: tx in ls("//sys/foreign_transactions", driver=get_driver(3)))
+
+        commit_transaction(tx)
+        wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
+
 
 class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
     DRIVER_BACKEND = "rpc"

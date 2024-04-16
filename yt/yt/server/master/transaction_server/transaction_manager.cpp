@@ -482,10 +482,12 @@ public:
         }
 
         if (native) {
-            YT_VERIFY(NativeTransactions_.insert(transaction).second);
+            InsertOrCrash(NativeTransactions_, transaction);
             if (!parent) {
-                YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+                InsertOrCrash(NativeTopmostTransactions_, transaction);
             }
+        } else {
+            InsertOrCrash(ForeignTransactions_, transaction);
         }
 
         transaction->SetPersistentState(ETransactionState::Active);
@@ -1746,14 +1748,19 @@ public:
         return &TransactionMap_;
     }
 
-    const THashSet<TTransaction*>& NativeTransactions() const override
+    const THashSet<TTransaction*>& ForeignTransactions() const override
     {
-        return NativeTransactions_;
+        return ForeignTransactions_;
     }
 
     const THashSet<TTransaction*>& NativeTopmostTransactions() const override
     {
         return NativeTopmostTransactions_;
+    }
+
+    const THashSet<TTransaction*>& NativeTransactions() const override
+    {
+        return NativeTransactions_;
     }
 
 private:
@@ -1793,8 +1800,9 @@ private:
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
-    THashSet<TTransaction*> NativeTransactions_;
+    THashSet<TTransaction*> ForeignTransactions_;
     THashSet<TTransaction*> NativeTopmostTransactions_;
+    THashSet<TTransaction*> NativeTransactions_;
 
     // COMPAT(h0pless)
     bool NeedTransactionLocksCountRecalculation_ = false;
@@ -2500,6 +2508,8 @@ public:
             if (!parent) {
                 EraseOrCrash(NativeTopmostTransactions_, transaction);
             }
+        } else {
+            EraseOrCrash(ForeignTransactions_, transaction);
         }
 
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -2694,10 +2704,12 @@ private:
             }
 
             if (transaction->IsNative()) {
-                YT_VERIFY(NativeTransactions_.insert(transaction).second);
+                InsertOrCrash(NativeTransactions_, transaction);
                 if (!transaction->GetParent()) {
-                    YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+                    InsertOrCrash(NativeTopmostTransactions_, transaction);
                 }
+            } else {
+                InsertOrCrash(ForeignTransactions_, transaction);
             }
         }
 
@@ -2732,6 +2744,7 @@ private:
         TMasterAutomatonPart::Clear();
 
         TransactionMap_.Clear();
+        ForeignTransactions_.clear();
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
