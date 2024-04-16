@@ -1870,10 +1870,9 @@ void TOperationControllerBase::InitInputChunkScraper()
 
 void TOperationControllerBase::InitIntermediateChunkScraper()
 {
-    // NB(arkady-e1ppa): invoker/invoker_pool are controller ones
-    // basically for affinity checks inside of very lightweight
-    // methods. Actual ChunkScraper which does stuff runs
-    // in thread_pool.
+    // NB(arkady-e1ppa):
+    // invoker and invokerPool are used only for the interaction with controller.
+    // Heavy job of the ChunkScraper is performed in separate scraper invoker.
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
         GetCancelableInvoker(),
