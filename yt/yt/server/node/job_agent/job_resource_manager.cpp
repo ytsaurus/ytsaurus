@@ -773,6 +773,11 @@ public:
             systemMemoryGuard = std::move(errorOrGuard.Value());
         }
 
+        if (neededResources.UserSlots == 0 && SystemMemoryUsageTracker_->IsExceeded()) {
+            YT_LOG_DEBUG("Not enough system memory");
+            return false;
+        }
+
         std::vector<int> ports;
 
         if (portCount > 0) {

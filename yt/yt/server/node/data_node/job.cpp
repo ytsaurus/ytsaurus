@@ -563,19 +563,11 @@ private:
 
         auto chunk = GetLocalChunkOrThrow(ChunkId_, sourceMediumIndex);
 
-        auto trackSystemJobsMemory = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-
         TChunkReadOptions chunkReadOptions;
         chunkReadOptions.WorkloadDescriptor = workloadDescriptor;
         chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        chunkReadOptions.MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr;
+        chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
         chunkReadOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
             ->GetDataNodeBootstrap()
             ->GetDynamicConfigManager()
@@ -596,6 +588,7 @@ private:
 
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
+        options->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         auto writer = CreateReplicationWriter(
             DynamicConfig_->Writer,
@@ -815,6 +808,7 @@ private:
 
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
+        options->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
         return CreateReplicationWriter(
             DynamicConfig_->Writer,
@@ -893,10 +887,12 @@ private:
 
         if (stripedErasure) {
             auto windowSize = DynamicConfig_->WindowSize;
-            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(TChunkReaderMemoryManagerOptions(
+            auto options = TChunkReaderMemoryManagerOptions(
                 windowSize,
                 {},
-                false));
+                false,
+                MemoryUsageTracker_);
+            auto memoryManagerHolder = TChunkReaderMemoryManager::CreateHolder(options);
 
             return RepairErasedPartsStriped(
                 readerConfig,
@@ -949,14 +945,6 @@ private:
             decommission ? "Decommission via repair" : "Repair",
             ChunkId_));
 
-        auto trackSystemJobsMemory = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-
         // TODO(savrus): profile chunk reader statistics.
         IChunkReader::TReadBlocksOptions readBlocksOptions{
             .ClientOptions = TClientChunkReadOptions{
@@ -967,7 +955,7 @@ private:
                     ->GetConfig()
                     ->DataNode
                     ->TrackMemoryAfterSessionCompletion,
-                .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
+                .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
             },
         };
 
@@ -1147,14 +1135,6 @@ private:
                 codecId,
                 sourceReplicas);
 
-            auto trackSystemJobsMemory = Bootstrap_
-                ->GetDataNodeBootstrap()
-                ->GetDynamicConfigManager()
-                ->GetConfig()
-                ->DataNode
-                ->TrackSystemJobsMemory;
-            auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-
             // TODO(savrus): profile chunk reader statistics.
             IChunkReader::TReadBlocksOptions readBlocksOptions{
                 .ClientOptions = TClientChunkReadOptions{
@@ -1165,7 +1145,7 @@ private:
                         ->GetConfig()
                         ->DataNode
                         ->TrackMemoryAfterSessionCompletion,
-                    .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
+                    .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
                 },
             };
 
@@ -1342,8 +1322,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext))
         , CellTag_(FromProto<TCellTag>(JobSpecExt_.cell_tag()))
-        , MemoryUsageTracker_(New<TJobSystemMemoryUsageTracker>(
-            MakeWeak(this)))
+        , MemoryUsageTracker_(Bootstrap_->GetSystemJobsMemoryUsageTracker())
         , ReadMemoryLimit_(readMemoryLimit)
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->MergeChunksJob)
     {
@@ -1352,7 +1331,8 @@ public:
         // TODO(don-dron): Return MemoryUsageTracker usage for reader.
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = ReadMemoryLimit_,
-            .MaxInitialReaderReservedMemory = ReadMemoryLimit_
+            .MaxInitialReaderReservedMemory = ReadMemoryLimit_,
+            .MemoryUsageTracker = MemoryUsageTracker_
         };
 
         MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
@@ -1596,6 +1576,7 @@ private:
 
         IChunkReader::TReadBlocksOptions options;
         options.ClientOptions.WorkloadDescriptor = workloadDescriptor;
+        options.ClientOptions.MemoryUsageTracker = MemoryUsageTracker_;
 
         auto chunkMeta = GetChunkMeta(reader, options.ClientOptions);
         auto blockMetaExt = GetProtoExtension<NTableClient::NProto::TDataBlockMetaExt>(chunkMeta->extensions());
@@ -1666,6 +1647,7 @@ private:
         }
         options->MaxHeavyColumns = MaxHeavyColumns_;
         options->MaxBlockCount = MaxBlockCount_;
+        options->MemoryUsageTracker = MemoryUsageTracker_;
 
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
@@ -1705,12 +1687,22 @@ private:
                     blockIndices);
 
                 auto readResult = WaitFor(asyncResult);
+
                 THROW_ERROR_EXCEPTION_IF_FAILED(readResult, "Error reading blocks");
+
                 auto blocks = readResult.Value();
+
+                for (auto& block : blocks) {
+                    block.Data = TrackMemory(MemoryUsageTracker_, std::move(block.Data));
+                }
+
+                memoryGuard.Release();
+
                 if (!writer->WriteBlocks(chunkReadContext.Options.ClientOptions.WorkloadDescriptor, blocks)) {
                     auto writeResult = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
                 }
+
                 currentBlockCount += ssize(blocks);
             }
         }
@@ -1742,6 +1734,7 @@ private:
         if (EnableSkynetSharing_) {
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
+        chunkWriterOptions->MemoryUsageTracker = MemoryUsageTracker_;
         chunkWriterOptions->Postprocess();
 
         auto minTs = NullTimestamp;
@@ -1767,7 +1760,10 @@ private:
             /*dataSink*/ std::nullopt,
             {minTs, maxTs});
 
-        auto rowBuffer = New<TRowBuffer>();
+        auto rowBuffer = New<TRowBuffer>(
+            TDefaultRowBufferPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Bootstrap_->GetSystemJobsMemoryUsageTracker());
         auto writerNameTable = writer->GetNameTable();
 
         {
@@ -1806,6 +1802,7 @@ private:
         options->TableSchema = Schema_;
         options->CompressionCodec = CompressionCodec_;
         options->ErasureCodec = ErasureCodec_;
+        options->MemoryUsageTracker = MemoryUsageTracker_;
 
         return CreateConfirmingWriter(
             DynamicConfig_->Writer,
@@ -1882,8 +1879,14 @@ private:
 
         auto nameTable = TNameTable::FromSchema(*Schema_);
 
-        auto inputChunksRowBuffer = New<TRowBuffer>();
-        auto outputChunkRowBuffer = New<TRowBuffer>();
+        auto inputChunksRowBuffer = New<TRowBuffer>(
+            TDefaultRowBufferPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Bootstrap_->GetSystemJobsMemoryUsageTracker());
+        auto outputChunkRowBuffer = New<TRowBuffer>(
+            TDefaultRowBufferPoolTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            Bootstrap_->GetSystemJobsMemoryUsageTracker());
 
         TRingQueue<TUnversionedRow> inputChunksRows;
         TRingQueue<TUnversionedRow> outputChunkRows;
@@ -2149,14 +2152,6 @@ private:
             New<TRemoteReaderOptions>(),
             std::move(chunkReaderHost));
 
-        auto trackSystemJobsMemory = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-
         TClientChunkReadOptions readerOptions{
             .WorkloadDescriptor = TWorkloadDescriptor(
                 EWorkloadCategory::SystemReincarnation,
@@ -2169,7 +2164,7 @@ private:
                 ->GetConfig()
                 ->DataNode
                 ->TrackMemoryAfterSessionCompletion,
-            .MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr
+            .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
         };
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
@@ -2208,6 +2203,7 @@ private:
         if (auto miscExt = GetChunkMiscExt(oldChunkMeta); miscExt && miscExt->has_eden()) {
             confirmingWriterOptions->ChunksEden = miscExt->eden();
         }
+        confirmingWriterOptions->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
         confirmingWriterOptions->Postprocess();
 
         auto confirmingWriter = CreateConfirmingWriter(
@@ -2351,6 +2347,7 @@ private:
         if (auto miscExt = GetChunkMiscExt(oldChunkMeta); miscExt && miscExt->has_eden()) {
             chunkWriterOptions->ChunksEden = miscExt->eden();
         }
+        chunkWriterOptions->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
         chunkWriterOptions->Postprocess();
         return chunkWriterOptions;
     }
@@ -2654,14 +2651,6 @@ private:
             ErasureCodecId_,
             bodyChunkReplicas);
 
-        auto trackSystemJobsMemory = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackSystemJobsMemory;
-        auto tracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-
         IChunkReader::TReadBlocksOptions readBlocksOptions;
         readBlocksOptions.ClientOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
             ->GetDataNodeBootstrap()
@@ -2669,7 +2658,7 @@ private:
             ->GetConfig()
             ->DataNode
             ->TrackMemoryAfterSessionCompletion;
-        readBlocksOptions.ClientOptions.MemoryUsageTracker = trackSystemJobsMemory ? tracker : nullptr;
+        readBlocksOptions.ClientOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
         auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};
@@ -2745,9 +2734,13 @@ private:
 
         if (IsErasure()) {
             auto* erasureCodec = NErasure::GetCodec(ErasureCodecId_);
+
+            auto options = New<TRemoteWriterOptions>();
+            options->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
+
             auto erasurePartWriters = CreateAllErasurePartWriters(
                 DynamicConfig_->Writer,
-                New<TRemoteWriterOptions>(),
+                options,
                 writeSessionId,
                 erasureCodec,
                 Bootstrap_->GetClient(),
@@ -2788,6 +2781,7 @@ private:
 
             auto writerOptions = New<TRemoteWriterOptions>();
             writerOptions->AllowAllocatingNewTargetNodes = false;
+            writerOptions->MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
             std::vector<TChunkWriterWithIndex> writers;
             writers.reserve(ReplicationFactor_);
