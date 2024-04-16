@@ -382,6 +382,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def modify_driver_config(cls, config):
+        pass
+
+    @classmethod
     def modify_cell_balancer_config(cls, config):
         pass
 
@@ -946,6 +950,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
             configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_driver_config(configs["driver"][key])
 
         configs["rpc_driver"] = update_inplace(
             configs["rpc_driver"],
