@@ -317,8 +317,26 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             {"key": 0, "value": [14, 13, 12]},
             {"key": 1, "value": [11, 12]},
         ]
-        rows = select_rows("key, value from [//tmp/table] with index [//tmp/index_table] "
+        rows = select_rows("key, value "
+                           "from [//tmp/table] with index [//tmp/index_table] "
                            "where list_contains(value, 2)")
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+
+        expected_table_rows = [
+            {"key": 0, "value": [14, 13, 12]},
+            {"key": 1, "value": [11, 12]},
+            {"key": 2, "value": [13, 11]},
+        ]
+        rows = select_rows("key, first(to_any(value)) as value "
+                           "from [//tmp/table] with index [//tmp/index_table] "
+                           "where list_contains(value, 2) or list_contains(value, 3) "
+                           "group by key")
+        assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
+
+        rows = select_rows("key, first(to_any(value)) as value "
+                           "from [//tmp/table] with index [//tmp/index_table] "
+                           "where value in (1, 4) "
+                           "group by key")
         assert_items_equal(sorted_dicts(rows), sorted_dicts(expected_table_rows))
 
 

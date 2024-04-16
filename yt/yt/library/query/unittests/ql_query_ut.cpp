@@ -7770,9 +7770,7 @@ TEST_F(TQueryEvaluateTest, ListExpr)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
-        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
-    })));
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ListExprToAny)
@@ -7786,9 +7784,7 @@ TEST_F(TQueryEvaluateTest, ListExprToAny)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
-        {"b", ESimpleLogicalValueType::Any}
-    })));
+    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
