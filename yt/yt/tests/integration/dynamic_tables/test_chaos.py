@@ -4826,3 +4826,35 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
         rpc_driver = Driver(config=config)
         generate_timestamp(driver=rpc_driver)
+
+
+##################################################################
+
+
+class TestChaosSingleCluster(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 0
+    NUM_CHAOS_NODES = 1
+
+    @authors("osidorkin")
+    def test_multiple_chaos_slots_on_single_node(self):
+        nodes = ls("//sys/chaos_nodes")
+        assert len(nodes) >= 1
+
+        # It's essential for all chaos bundles coordinators to be on the same chaos node
+        set(f"//sys/chaos_nodes/{nodes[0]}/@user_tags", ["custom"])
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="c", node_tag_filter="custom")
+        assert get("//sys/chaos_cell_bundles/c/@node_tag_filter") == "custom"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        self._sync_create_chaos_bundle_and_cell(name="trolling_bundle", node_tag_filter="custom")
+        assert get("//sys/chaos_cell_bundles/trolling_bundle/@node_tag_filter") == "custom"
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], replica_consistency="sync") == values)

@@ -2,7 +2,6 @@
 
 #include "config.h"
 #include "slot_manager.h"
-#include "shortcut_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
@@ -76,11 +75,6 @@ public:
         return GetCellarNodeBootstrap()->GetCellarManager();
     }
 
-    const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const override
-    {
-        return ShortcutSnapshotStore_;
-    }
-
     const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const override
     {
         return SnapshotStoreReadPool_->GetInvoker();
@@ -122,7 +116,6 @@ private:
     };
 
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
-    const IShortcutSnapshotStorePtr ShortcutSnapshotStore_ = CreateShortcutSnapshotStore();
 
     IThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;

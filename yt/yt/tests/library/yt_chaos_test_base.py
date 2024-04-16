@@ -19,14 +19,22 @@ class ChaosTestBase(DynamicTablesBase):
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
-    def _create_chaos_cell_bundle(self, name="c", peer_cluster_names=None, meta_cluster_names=[], clock_cluster_tag=None):
+    def _create_chaos_cell_bundle(
+        self,
+        name="c",
+        peer_cluster_names=None,
+        meta_cluster_names=[],
+        clock_cluster_tag=None,
+        node_tag_filter=None
+    ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
         return create_chaos_cell_bundle(
             name,
             peer_cluster_names,
             meta_cluster_names=meta_cluster_names,
-            clock_cluster_tag=clock_cluster_tag)
+            clock_cluster_tag=clock_cluster_tag,
+            node_tag_filter=node_tag_filter)
 
     def _sync_create_chaos_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], area="default"):
         if peer_cluster_names is None:
@@ -35,14 +43,22 @@ class ChaosTestBase(DynamicTablesBase):
         sync_create_chaos_cell(name, cell_id, peer_cluster_names, meta_cluster_names=meta_cluster_names, area=area)
         return cell_id
 
-    def _sync_create_chaos_bundle_and_cell(self, name="c", peer_cluster_names=None, meta_cluster_names=[], clock_cluster_tag=None):
+    def _sync_create_chaos_bundle_and_cell(
+        self,
+        name="c",
+        peer_cluster_names=None,
+        meta_cluster_names=[],
+        clock_cluster_tag=None,
+        node_tag_filter=None
+    ):
         if peer_cluster_names is None:
             peer_cluster_names = self.get_cluster_names()
         self._create_chaos_cell_bundle(
             name=name,
             peer_cluster_names=peer_cluster_names,
             meta_cluster_names=meta_cluster_names,
-            clock_cluster_tag=clock_cluster_tag)
+            clock_cluster_tag=clock_cluster_tag,
+            node_tag_filter=node_tag_filter)
         return self._sync_create_chaos_cell(
             name=name,
             peer_cluster_names=peer_cluster_names,
