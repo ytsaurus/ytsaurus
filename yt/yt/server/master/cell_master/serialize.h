@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamizeLocalJanitorConfig)                                   (2550))  // danilalexeev
     ((SchemalessEndUploadPreservesTableSchemaByDefault)             (2551))  // shakurov
     ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
+    ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
     // 24.2 starts here.
 );
 
