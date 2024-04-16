@@ -110,6 +110,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableChunkReincarnation);
 
+    //! Cached |GetAccountShardIndex(id)| for efficient access.
+    DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);
+
 public:
     using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
     TAccount(TAccountId id, bool isRoot = false);

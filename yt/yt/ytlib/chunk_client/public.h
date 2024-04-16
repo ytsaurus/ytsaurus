@@ -84,7 +84,7 @@ constexpr TConsistentReplicaPlacementHash NullConsistentReplicaPlacementHash = 0
 // BEWARE: Changing this value requires reign promotion since rolling update
 // is not possible.
 constexpr int ChunkShardCount = 60;
-static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCount| must fit into i8");
+static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "ChunkShardCount must fit into i8");
 
 //! Typical chunk location count per data node.
 constexpr int TypicalChunkLocationCount = 20;

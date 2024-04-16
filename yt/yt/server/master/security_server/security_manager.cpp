@@ -17,7 +17,6 @@
 #include "request_tracker.h"
 #include "user.h"
 #include "user_proxy.h"
-#include "security_tags.h"
 #include "ace_iterator.h"
 #include "user_activity_tracker.h"
 
@@ -40,6 +39,9 @@
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/shard.h>
+
+#include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
+#include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
@@ -82,26 +84,27 @@
 
 namespace NYT::NSecurityServer {
 
-using namespace NChunkServer;
-using namespace NChunkClient;
-using namespace NConcurrency;
-using namespace NHydra;
 using namespace NCellMaster;
+using namespace NChunkClient;
+using namespace NChunkServer;
+using namespace NConcurrency;
+using namespace NCypressServer;
+using namespace NHiveServer;
+using namespace NHydra;
+using namespace NIncumbentServer;
+using namespace NLogging;
 using namespace NObjectClient;
 using namespace NObjectServer;
-using namespace NTransactionServer;
-using namespace NYson;
-using namespace NYTree;
-using namespace NYPath;
-using namespace NCypressServer;
-using namespace NSequoiaServer;
-using namespace NSecurityClient;
-using namespace NTableServer;
 using namespace NObjectServer;
-using namespace NHiveServer;
 using namespace NProfiling;
-using namespace NLogging;
+using namespace NSecurityClient;
+using namespace NSequoiaServer;
+using namespace NTableServer;
+using namespace NTransactionServer;
+using namespace NYPath;
+using namespace NYson;
 using namespace NYTProf;
+using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -449,10 +452,14 @@ private:
 class TSecurityManager
     : public ISecurityManager
     , public TMasterAutomatonPart
+    , public TShardedIncumbentBase
 {
 public:
     explicit TSecurityManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SecurityManager)
+        , TShardedIncumbentBase(
+            bootstrap->GetIncumbentManager(),
+            EIncumbentType::SecurityManager)
         , UserActivityTracker_(CreateUserActivityTracker(bootstrap))
         , RequestTracker_(New<TRequestTracker>(Bootstrap_->GetConfig()->SecurityManager->UserThrottler, bootstrap))
     {
@@ -501,6 +508,9 @@ public:
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
         AdminsGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffc);
+
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+        incumbentManager->RegisterIncumbent(this);
 
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TSecurityManager::HydraRecomputeMembershipClosure, Unretained(this)));
@@ -554,15 +564,19 @@ public:
         if (!Bootstrap_->IsPrimaryMaster()) {
             return;
         }
-        if (!IsLeader()) {
-            return;
-        }
+
         std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
         auto bufferIndex = -1;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto [accountId, account] : Accounts()) {
             if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            // TODO(h0pless): Optimize by saving accounts that belong to this shard into a separate vector,
+            // simmilar to chunk manager incumbency maps.
+            if (!IsShardActive(account->GetShardIndex())) {
                 continue;
             }
 
@@ -4047,8 +4061,18 @@ private:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
             BIND(&TSecurityManager::CommitAccountMasterMemoryUsage, MakeWeak(this)));
         AccountMasterMemoryUsageUpdateExecutor_->Start();
+    }
 
+    void OnIncumbencyStarted(int shardIndex) override
+    {
+        TShardedIncumbentBase::OnIncumbencyStarted(shardIndex);
         StartAccountsProfiling();
+    }
+
+    void OnIncumbencyFinished(int shardIndex) override
+    {
+        TShardedIncumbentBase::OnIncumbencyFinished(shardIndex);
+        StopAccountsProfiling();
     }
 
     void StartAccountsProfiling()
@@ -4057,12 +4081,7 @@ private:
             return;
         }
 
-        if (!IsLeader()) {
-            return;
-        }
-
         const auto& dynamicConfig = GetDynamicConfig();
-
         if (!dynamicConfig->EnableAccountsProfiling) {
             return;
         }
@@ -4120,8 +4139,6 @@ private:
             YT_UNUSED_FUTURE(AccountMasterMemoryUsageUpdateExecutor_->Stop());
             AccountMasterMemoryUsageUpdateExecutor_.Reset();
         }
-
-        StopAccountsProfiling();
     }
 
     void OnStopFollowing() override

@@ -3395,6 +3395,14 @@ def get_active_primary_master_follower_address(env_setup):
                 return rpc_address
 
 
+def get_currently_active_pirmary_master_follower_addresses(env_setup):
+    followers = []
+    for rpc_address in env_setup.Env.configs["master"][0]["primary_master"]["addresses"]:
+        if is_active_primary_master_follower(rpc_address):
+            followers.append(rpc_address)
+    return followers
+
+
 def get_node_alive_object_counts(address, types):
     result = {type: 0 for type in types}
     for item in get("//sys/cluster_nodes/{}/orchid/monitoring/ref_counted/statistics".format(address), verbose=False, default=[]):

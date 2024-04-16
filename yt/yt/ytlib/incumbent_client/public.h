@@ -9,6 +9,7 @@ namespace NYT::NIncumbentClient {
 DEFINE_ENUM(EIncumbentType,
     ((ChunkReplicator)        (0))
     ((CellJanitor)            (1))
+    ((SecurityManager)        (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

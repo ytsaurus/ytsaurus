@@ -15,6 +15,8 @@ namespace NYT::NSecurityServer {
 
 using namespace NChunkServer;
 using namespace NLogging;
+using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -132,6 +134,13 @@ void ValidateSuperuserOnAttributeModification(
             "Access denied: only superusers can change %Qv",
             attribute);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int GetAccountShardIndex(TAccountId accountId)
+{
+    return TDirectObjectIdHash()(accountId) % AccountShardCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
