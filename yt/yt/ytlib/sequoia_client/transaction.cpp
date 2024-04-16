@@ -103,6 +103,16 @@ public:
         , SequencingOptions_(sequencingOptions)
     { }
 
+    TTransactionId GetId() const override
+    {
+        return Transaction_->GetId();
+    }
+
+    TTimestamp GetStartTimestamp() const override
+    {
+        return Transaction_->GetStartTimestamp();
+    }
+
     TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -152,11 +162,11 @@ public:
 
     virtual TFuture<TSelectRowsResult> SelectRows(
         ESequoiaTable table,
-        const TSelectRowsRequest& request) override
+        const TSelectRowsQuery& query) override
     {
         return SequoiaClient_->SelectRows(
             table,
-            request,
+            query,
             Transaction_->GetStartTimestamp());
     }
 
@@ -276,11 +286,9 @@ public:
     {
         auto connection = NativeRootClient_->GetNativeConnection();
 
-        YT_LOG_DEBUG("Started synchronizing master cell directory");
         const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
         WaitFor(cellDirectorySynchronizer->RecentSync())
             .ThrowOnError();
-        YT_LOG_DEBUG("Master cell directory synchronized successfully");
 
         return connection->GetRandomMasterCellTagWithRoleOrThrow(
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);

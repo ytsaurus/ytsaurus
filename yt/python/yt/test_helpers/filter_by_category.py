@@ -37,9 +37,11 @@ def get_process_count(cls, index):
 
 
 def get_total_process_count(cls):
-    count = get_process_count(cls, 0)
-    for index in range(1, cls.NUM_REMOTE_CLUSTERS + 1):
+    count = 0
+    for index in range(cls.NUM_REMOTE_CLUSTERS + 1):
         count += get_process_count(cls, index)
+        if cls.get_param("USE_SEQUOIA", index):
+            count += get_process_count(cls, index + cls.get_ground_index_offset())
     return count
 
 

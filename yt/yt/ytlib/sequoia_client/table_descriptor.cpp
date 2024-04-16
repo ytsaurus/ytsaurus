@@ -5,6 +5,10 @@
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transactions.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -64,6 +68,10 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(ChunkReplicas, "chunk_replicas")
         XX(ChildNode, "child_node")
         XX(LocationReplicas, "location_replicas")
+        XX(Transactions, "transactions")
+        XX(TransactionDescendants, "transaction_descendants")
+        XX(TransactionReplicas, "transaction_replicas")
+        XX(DependentTransactions, "dependent_transactions")
         default:
             YT_ABORT();
     }

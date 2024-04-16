@@ -220,4 +220,35 @@ void FromProto(TCopyOptions* options, const TReqCopy& protoOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define FOR_EACH_TRANSACTION_ACTION_TYPE() \
+    XX(TReqCloneNode, 100) \
+    XX(TReqDetachChild, 200) \
+    XX(TReqRemoveNode, 300) \
+    XX(TReqCreateNode, 400) \
+    XX(TReqAttachChild, 500) \
+    XX(TReqSetNode, 600) \
+
+#define XX(type, priority) \
+    {type::GetDescriptor()->full_name(), priority},
+
+static const THashMap<TString, int> MasterActionTypeToExecutionPriority{
+    FOR_EACH_TRANSACTION_ACTION_TYPE()
+};
+#undef XX
+#undef FOR_EACH_TRANSACTION_ACTION_TYPE
+
+class TCypressActionOrderer
+    : public ISequoiaTransactionActionOrderer
+{
+    int GetPriority(TStringBuf actionType) const override
+    {
+        return GetOrCrash(MasterActionTypeToExecutionPriority, actionType);
+    }
+};
+
+static const TCypressActionOrderer CypressActionOrdererImpl;
+const ISequoiaTransactionActionOrderer* const CypressActionOrderer = &CypressActionOrdererImpl;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

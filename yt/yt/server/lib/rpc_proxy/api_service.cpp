@@ -1245,6 +1245,10 @@ private:
         if (request->has_parent_id()) {
             FromProto(&options.ParentId, request->parent_id());
         }
+        if (request->has_replicate_to_master_cell_tags()) {
+            options.ReplicateToMasterCellTags =
+                FromProto<TCellTagList>(request->replicate_to_master_cell_tags().cell_tags());
+        }
         options.AutoAbort = false;
         options.Sticky = request->sticky();
         options.Ping = request->ping();

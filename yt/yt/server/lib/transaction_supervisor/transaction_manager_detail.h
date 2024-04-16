@@ -29,12 +29,10 @@ template <class TTransaction>
 class TTransactionManagerBase
     : public virtual NLogging::TLoggerOwner
 {
-public:
-    void RegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor);
-
 protected:
     THashMap<TString, TTransactionActionDescriptor<TTransaction>> ActionHandlerMap_;
 
+    void DoRegisterTransactionActionHandlers(TTransactionActionDescriptor<TTransaction> descriptor);
     void RunPrepareTransactionActions(
         TTransaction* transaction,
         const TTransactionPrepareOptions& options,

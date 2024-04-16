@@ -296,8 +296,24 @@ class YTEnvSetup(object):
     USE_PRIMARY_CLOCKS = True
 
     USE_SEQUOIA = False
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
-    GROUND_INDEX_OFFSET = 1
+
+    # Ground cluster should be lean by default.
+    NUM_MASTERS_GROUND = 1
+    NUM_NODES_GROUND = 1
+    NUM_HTTP_PROXIES_GROUND = 0
+    NUM_RPC_PROXIES_GROUND = 1
+    NUM_SCHEDULERS_GROUND = 0
+    NUM_NONVOTING_MASTERS_GROUND = 0
+    NUM_SECONDARY_MASTER_CELLS_GROUND = 0
+    NUM_CHAOS_NODES_GROUND = 0
+    NUM_MASTER_CACHES_GROUND = 0
+    NUM_CELL_BALANCERS_GROUND = 0
+    NUM_CONTROLLER_AGENTS_GROUND = 0
+    NUM_QUEUE_AGENTS_GROUND = 0
+    NUM_TABLET_BALANCERS_GROUND = 0
+    NUM_CYPRESS_PROXIES_GROUND = 0
 
     ENABLE_TMP_ROOTSTOCK = False
     ENABLE_BULK_INSERT = False
@@ -382,19 +398,29 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def get_ground_index_offset(cls):
+        return cls.NUM_REMOTE_CLUSTERS + 1
+
+    @classmethod
     def _is_ground_cluster(cls, cluster_index):
-        return cluster_index >= cls.GROUND_INDEX_OFFSET
+        return cluster_index >= cls.get_ground_index_offset()
 
     @classmethod
     def _get_param_real_name(cls, name, cluster_index):
         if cluster_index == 0:
             return name
 
-        # NB: Ground cluster parameters are non-overridable.
         if cls._is_ground_cluster(cluster_index):
-            return name
+            non_ground_cluster_index = cluster_index - cls.get_ground_index_offset()
+            if non_ground_cluster_index != 0:
+                param_name = f"{name}_REMOTE_{non_ground_cluster_index - 1}_GROUND"
+                if hasattr(cls, param_name):
+                    return param_name
+            param_name = f"{name}_GROUND"
+            if hasattr(cls, param_name):
+                return param_name
 
-        param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
+        param_name = f"{name}_REMOTE_{cluster_index - 1}"
         if hasattr(cls, param_name):
             return param_name
 
@@ -435,7 +461,7 @@ class YTEnvSetup(object):
         clock_count = 0
         if cls.get_param("USE_SEQUOIA", index):
             if cls._is_ground_cluster(index):
-                clock_count = cls.get_param("NUM_CLOCKS", index - cls.GROUND_INDEX_OFFSET)
+                clock_count = cls.get_param("NUM_CLOCKS", index - cls.get_ground_index_offset())
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
@@ -531,9 +557,9 @@ class YTEnvSetup(object):
             return "primary"
         if cluster_index <= cls.NUM_REMOTE_CLUSTERS:
             return "remote_" + str(cluster_index - 1)
-        if cluster_index == cls.GROUND_INDEX_OFFSET:
+        if cluster_index == cls.get_ground_index_offset():
             return "primary_ground"
-        return "remote_{}_ground".format(cluster_index - cls.GROUND_INDEX_OFFSET - 1)
+        return "remote_{}_ground".format(cluster_index - cls.get_ground_index_offset() - 1)
 
     # NB: Does not return ground clusters.
     @classmethod
@@ -606,9 +632,6 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             cls.USE_PRIMARY_CLOCKS = False
 
-        if cls.GROUND_INDEX_OFFSET < cls.NUM_REMOTE_CLUSTERS + 1:
-            cls.GROUND_INDEX_OFFSET = cls.NUM_REMOTE_CLUSTERS + 1
-
         if cls.USE_SEQUOIA != cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY:
             cls.VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
 
@@ -640,7 +663,7 @@ class YTEnvSetup(object):
         # Ground clusters instantiation.
         for original_cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
             if cls.get_param("USE_SEQUOIA", original_cluster_index):
-                cluster_index = original_cluster_index + cls.GROUND_INDEX_OFFSET
+                cluster_index = original_cluster_index + cls.get_ground_index_offset()
                 cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
                 cls.ground_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
@@ -687,7 +710,7 @@ class YTEnvSetup(object):
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 cls._setup_cluster_configuration(cluster_index, clusters)
                 if cls.USE_SEQUOIA:
-                    cls._setup_cluster_configuration(cluster_index + cls.GROUND_INDEX_OFFSET, clusters)
+                    cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
@@ -700,10 +723,7 @@ class YTEnvSetup(object):
         if cls.USE_SEQUOIA:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 if cls.get_param("USE_SEQUOIA", cluster_index):
-                    ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
-                    if ground_driver is None:
-                        continue
-                    cls.setup_sequoia_tables(ground_driver)
+                    cls.setup_sequoia_tables(cluster_index)
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -740,10 +760,16 @@ class YTEnvSetup(object):
             yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
     @classmethod
-    def setup_sequoia_tables(cls, ground_driver):
+    def setup_sequoia_tables(cls, cluster_index):
+        ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
+        if ground_driver is None:
+            return
+
+        cls._restore_sequoia_bundle_options(cluster_index + cls.get_ground_index_offset())
         # TODO(h0pless): Use values from config for path, account and bundle names.
         yt_commands.sync_create_cells(1, tablet_cell_bundle="sequoia", driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
+        yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
 
         for descriptor in DESCRIPTORS.as_dict().values():
             table_path = descriptor.get_default_path()
@@ -756,6 +782,7 @@ class YTEnvSetup(object):
                     "tablet_cell_bundle": "sequoia",
                     "account": "sequoia",
                     "enable_shared_write_locks": True,
+                    "in_memory_mode": "uncompressed",
                 },
                 driver=ground_driver)
             yt_commands.mount_table(table_path, driver=ground_driver)
@@ -907,7 +934,7 @@ class YTEnvSetup(object):
         if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
             return config
 
-        ground_cluster_name = cls.get_cluster_name(cluster_index + cls.GROUND_INDEX_OFFSET)
+        ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
         config["cluster_connection"].setdefault("sequoia_connection", {})
         config["cluster_connection"]["sequoia_connection"]["ground_cluster_name"] = ground_cluster_name
         return config
@@ -969,7 +996,7 @@ class YTEnvSetup(object):
             self.setup_cluster(method, cluster_index)
 
             if self.get_param("USE_SEQUOIA", cluster_index):
-                self.setup_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
+                self.setup_cluster(method, cluster_index + self.get_ground_index_offset())
 
         for env in self.combined_envs:
             env.restore_default_node_dynamic_config()
@@ -1008,7 +1035,7 @@ class YTEnvSetup(object):
         if self.USE_DYNAMIC_TABLES:
             self._setup_tablet_manager(driver=driver)
             self._clear_ql_pools(driver=driver)
-            self._restore_default_bundle_options(driver=driver)
+            self._restore_default_bundle_options(cluster_index)
             self._setup_tablet_balancer_dynamic_config(driver=driver)
             self._setup_standalone_replicated_table_tracker_dynamic_config(driver=driver)
 
@@ -1162,7 +1189,7 @@ class YTEnvSetup(object):
             self.teardown_cluster(method, cluster_index, wait_for_nodes)
 
             if self.get_param("USE_SEQUOIA", cluster_index):
-                self.teardown_cluster(method, cluster_index + self.GROUND_INDEX_OFFSET)
+                self.teardown_cluster(method, cluster_index + self.get_ground_index_offset())
 
         yt_commands.reset_events_on_fs()
 
@@ -1194,6 +1221,9 @@ class YTEnvSetup(object):
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
                 wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver) == [])
+
+                for table in DESCRIPTORS.get_group("transactions"):
+                    wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
@@ -1458,6 +1488,8 @@ class YTEnvSetup(object):
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
             dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
+            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+                dynamic_master_config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
 
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
@@ -1658,30 +1690,34 @@ class YTEnvSetup(object):
     def _clear_ql_pools(self, driver=None):
         yt_commands.remove("//sys/ql_pools/*", driver=driver)
 
-    def _restore_default_bundle_options(self, driver=None):
+    @classmethod
+    def _restore_bundle_options(cls, bundle, account, cluster_index):
+        driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+        num_nodes = cls.get_param("NUM_NODES", cluster_index)
+
         def do():
             for response in yt_commands.execute_batch(
                 [
                     yt_commands.make_batch_request(
                         "set",
-                        path="//sys/tablet_cell_bundles/default/@dynamic_options",
+                        path=f"//sys/tablet_cell_bundles/{bundle}/@dynamic_options",
                         input={},
                     ),
                     yt_commands.make_batch_request(
                         "set",
-                        path="//sys/tablet_cell_bundles/default/@tablet_balancer_config",
+                        path=f"//sys/tablet_cell_bundles/{bundle}/@tablet_balancer_config",
                         input={},
                     ),
                     yt_commands.make_batch_request(
                         "set",
-                        path="//sys/tablet_cell_bundles/default/@options",
+                        path=f"//sys/tablet_cell_bundles/{bundle}/@options",
                         input={
-                            "changelog_replication_factor": 1 if self.NUM_NODES < 3 else 3,
-                            "changelog_read_quorum": 1 if self.NUM_NODES < 3 else 2,
-                            "changelog_write_quorum": 1 if self.NUM_NODES < 3 else 2,
-                            "changelog_account": "sys",
-                            "snapshot_replication_factor": 1 if self.NUM_NODES < 3 else 3,
-                            "snapshot_account": "sys",
+                            "changelog_replication_factor": 1 if num_nodes < 3 else 3,
+                            "changelog_read_quorum": 1 if num_nodes < 3 else 2,
+                            "changelog_write_quorum": 1 if num_nodes < 3 else 2,
+                            "changelog_account": account,
+                            "snapshot_replication_factor": 1 if num_nodes < 3 else 3,
+                            "snapshot_account": account,
                         },
                     ),
                 ],
@@ -1690,6 +1726,17 @@ class YTEnvSetup(object):
                 assert not yt_commands.get_batch_error(response)
 
         _retry_with_gc_collect(do, driver=driver)
+
+    @classmethod
+    def _restore_default_bundle_options(cls, cluster_index):
+        cls._restore_bundle_options("default", "sys", cluster_index)
+
+    @classmethod
+    def _restore_sequoia_bundle_options(cls, cluster_index):
+        assert cls._is_ground_cluster(cluster_index)
+        # TODO(kvk1920): use Sequoia bundle and account from non-ground
+        # cluster's config.
+        cls._restore_bundle_options("sequoia", "sequoia", cluster_index)
 
     def _remove_operations(self, driver=None):
         abort_command = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"

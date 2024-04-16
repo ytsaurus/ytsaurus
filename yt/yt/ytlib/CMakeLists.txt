@@ -1032,6 +1032,10 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.h
@@ -1465,6 +1469,10 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.record.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/records/operation_id.record.cpp
@@ -1598,6 +1606,104 @@ add_custom_command(
   ${CMAKE_BINARY_DIR}
   --output-cpp
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+  --output-include
+  yt/yt/core/ytree/attributes.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.record.cpp
+  --output-include
+  yt/yt/ytlib/sequoia_client/public.h
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.h
+  DEPENDS
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${CMAKE_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${CMAKE_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${CMAKE_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
+  --output-root
+  ${CMAKE_BINARY_DIR}
+  --output-cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.record.cpp
   --output-include
   yt/yt/ytlib/sequoia_client/public.h
 )

@@ -13,7 +13,7 @@ namespace NYT::NTransactionSupervisor {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RegisterTransactionActionHandlers(
+void TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
     TTransactionActionDescriptor<TTransaction> handlers)
 {
     auto type = handlers.Type();
@@ -26,15 +26,23 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     const TTransactionPrepareOptions& options,
     bool requireLegacyBehavior)
 {
-    // We don't need to run abort tx actions for transient prepare.
     auto rememberPreparedTransactionActionCount = !requireLegacyBehavior && options.Persistent;
 
-    TTransactionActionGuard transactionActionGuard;
     // |PreparedActionCount| should never be |nullopt| after update to current
     // version until |requireLegacyBehavior| is |true|.
     if (rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }
+
+    // It is _not_ just a fast path. The reason of this early return is to avoid
+    // nested transaction action check inside |TTransactionActionGuard|.
+    // NB: this early return _cannot_ be moved several lines upper because we
+    // have to set prepared action count to zero.
+    if (transaction->Actions().empty()) {
+        return;
+    }
+
+    TTransactionActionGuard transactionActionGuard;
 
     for (const auto& action : transaction->Actions()) {
         try {
@@ -62,6 +70,11 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
     TTransaction* transaction,
     const TTransactionCommitOptions& options)
 {
+    // See RunPrepareTransactionActions().
+    if (transaction->Actions().empty()) {
+        return;
+    }
+
     TTransactionActionGuard transactionActionGuard;
     for (const auto& action : transaction->Actions()) {
         try {
@@ -84,6 +97,11 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     TTransaction* transaction,
     const TTransactionAbortOptions& options)
 {
+    // See RunPrepareTransactionActions().
+    if (transaction->Actions().empty()) {
+        return;
+    }
+
     TTransactionActionGuard transactionActionGuard;
 
     auto runAbort = [&] (const TTransactionActionData& action) {

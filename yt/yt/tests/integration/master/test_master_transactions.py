@@ -12,9 +12,23 @@ from yt.common import datetime_to_string, YtError
 import pytest
 from flaky import flaky
 
-from time import sleep
-from datetime import datetime, timedelta
 import builtins
+from datetime import datetime, timedelta
+import decorator
+from time import sleep
+
+
+##################################################################
+
+
+def not_implemented_in_sequoia(func):
+    def wrapper(func, self, *args, **kwargs):
+        if isinstance(self, TestMasterTransactionsInSequoia):
+            pytest.skip("Not implemented in Sequoia")
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
 
 ##################################################################
 
@@ -158,34 +172,36 @@ class TestMasterTransactions(YTEnvSetup):
         assert get("//tmp/t1") == 0
         assert get("//tmp/t2") == 0
 
-    @authors("panin", "ignat")
-    @flaky(max_runs=5)
+    @authors("kvk1920")
     def test_timeout(self):
-        tx = start_transaction(timeout=2000)
+        tx1 = start_transaction(timeout=2000)
+        tx2 = start_transaction(timeout=2000)
 
-        # check that transaction is still alive after 1 seconds
+        # Check that transactions are still alive after 1 seconds.
         sleep(1.0)
-        assert exists("//sys/transactions/" + tx)
+        assert exists(f"//sys/transactions/{tx1}")
+        assert exists(f"//sys/transactions/{tx2}")
 
-        # check that transaction is expired after 3 seconds
+        # Check that transactions are expired after 3 seconds
         sleep(3.0)
-        assert not exists("//sys/transactions/" + tx)
+        assert not exists(f"//sys/transactions/{tx1}")
+        assert not exists(f"//sys/transactions/{tx2}")
 
-    @authors("ignat")
-    @flaky(max_runs=5)
+    @authors("kvk1920")
     def test_deadline(self):
-        tx = start_transaction(
-            timeout=10000,
-            deadline=datetime_to_string(datetime.utcnow() + timedelta(seconds=2)),
-        )
+        deadline = datetime_to_string(datetime.utcnow() + timedelta(seconds=2))
+        tx1 = start_transaction(timeout=10000, deadline=deadline)
+        tx2 = start_transaction(tx=tx1, timeout=10000, deadline=deadline)
 
-        # check that transaction is still alive after 1 seconds
+        # Check that transactions are still alive after 1 seconds.
         sleep(1.0)
-        assert exists("//sys/transactions/" + tx)
+        assert exists(f"//sys/transactions/{tx1}")
+        assert exists(f"//sys/transactions/{tx2}")
 
-        # check that transaction is expired after 3 seconds
+        # Check that transactions are expired after 3 seconds.
         sleep(3.0)
-        assert not exists("//sys/transactions/" + tx)
+        assert not exists(f"//sys/transactions/{tx1}")
+        assert not exists(f"//sys/transactions/{tx2}")
 
     @authors("levysotsky")
     @flaky(max_runs=5)
@@ -227,7 +243,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
         ping_transaction(tx_inner)
 
-        sleep(2.5)
+        sleep(3.5)
         # check that outer tx expired (and therefore inner was aborted)
         assert not exists("//sys/transactions/" + tx_inner)
         assert not exists("//sys/transactions/" + tx_outer)
@@ -376,7 +392,6 @@ class TestMasterTransactions(YTEnvSetup):
     def test_revision4(self):
         if self.is_multicell():
             pytest.skip("@current_commit_revision not supported with sharded transactions")
-            return
 
         r1 = get("//sys/@current_commit_revision")
         set("//tmp/t", 1)
@@ -483,6 +498,7 @@ class TestMasterTransactions(YTEnvSetup):
             remove("//tmp/t3", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_prerequisite_transactions_on_commit(self):
         tx_a = start_transaction()
         tx_b = start_transaction()
@@ -591,18 +607,18 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
 
         self._assert_native_content_revision_matches("//tmp/t")
 
-        tx1 = start_transaction()
+        tx1 = start_transaction(timeout=120000)
         write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx1)
         self._assert_native_content_revision_matches("//tmp/t")
         self._assert_native_content_revision_matches("//tmp/t", tx1)
 
-        tx2 = start_transaction()
+        tx2 = start_transaction(timeout=120000)
         write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx2)
         self._assert_native_content_revision_matches("//tmp/t")
         self._assert_native_content_revision_matches("//tmp/t", tx1)
         self._assert_native_content_revision_matches("//tmp/t", tx2)
 
-        tx3 = start_transaction(tx=tx2)
+        tx3 = start_transaction(tx=tx2, timeout=120000)
         write_table("<append=%true>//tmp/t", {"a": "b"}, tx=tx3)
         self._assert_native_content_revision_matches("//tmp/t")
         self._assert_native_content_revision_matches("//tmp/t", tx1)
@@ -670,6 +686,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     }
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     def test_prerequisite_transactions_on_commit2(self):
         # Currently there's no way to force particular transaction
         # coordinator cell (which is by design, BTW). So this test
@@ -844,6 +861,16 @@ class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
             }
         }
     }
+
+
+class TestMasterTransactionsInSequoia(TestMasterTransactionsCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+    NUM_TEST_PARTITIONS = 10
+    # NB: Sequoia is too slow in debug build.
+    CLASS_TEST_LIMIT = 2400
 
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):

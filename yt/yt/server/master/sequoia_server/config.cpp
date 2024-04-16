@@ -28,6 +28,9 @@ void TDynamicSequoiaManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sequoia_queue", &TThis::SequoiaQueue)
         .DefaultNew();
+
+    registrar.Parameter("enable_cypress_transactions_in_sequoia", &TThis::EnableCypressTransactionsInSequoia)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

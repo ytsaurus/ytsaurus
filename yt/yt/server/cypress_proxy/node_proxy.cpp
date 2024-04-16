@@ -290,7 +290,7 @@ protected:
 
         auto nodesToRemove = WaitFor(Transaction_->SelectRows<NRecords::TPathToNodeIdKey>(
             {
-                .Where = {
+                .WhereConjuncts = {
                     Format("path >= %Qv", mangledPath),
                     Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath))
                 },
@@ -958,7 +958,7 @@ private:
             while (!childrenLookupQueue.empty()) {
                 auto childrenFuture = Transaction_->SelectRows<NRecords::TChildNodeKey>(
                     {
-                        .Where = {Format("parent_id = %Qv", childrenLookupQueue.front())},
+                        .WhereConjuncts = {Format("parent_id = %Qv", childrenLookupQueue.front())},
                         .OrderBy = {"parent_id", "child_key"}
                     });
                 childrenLookupQueue.pop();
@@ -1178,7 +1178,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
 
     LockRowInPathToIdTable(Path_, Transaction_);
     auto selectRows = WaitFor(Transaction_->SelectRows<NRecords::TChildNodeKey>({
-        .Where = {Format("parent_id = %Qv", Id_)},
+        .WhereConjuncts = {Format("parent_id = %Qv", Id_)},
         .OrderBy = {"parent_id", "child_key"},
         .Limit = limit
     }))

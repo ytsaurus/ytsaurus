@@ -142,9 +142,6 @@ struct ITransactionManager
     void RegisterTransactionActionHandlers(
         NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
 
-    virtual void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
-
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
         NTransactionClient::NProto::TRspStartTransaction>;
@@ -152,14 +149,6 @@ struct ITransactionManager
     virtual std::unique_ptr<NHydra::TMutation> CreateStartTransactionMutation(
         TCtxStartTransactionPtr context,
         const NTransactionServer::NProto::TReqStartTransaction& request) = 0;
-
-    using TCtxStartCypressTransaction = NRpc::TTypedServiceContext<
-        NCypressTransactionClient::NProto::TReqStartTransaction,
-        NCypressTransactionClient::NProto::TRspStartTransaction>;
-    using TCtxStartCypressTransactionPtr = TIntrusivePtr<TCtxStartCypressTransaction>;
-    virtual std::unique_ptr<NHydra::TMutation> CreateStartCypressTransactionMutation(
-        TCtxStartCypressTransactionPtr context,
-        const NTransactionServer::NProto::TReqStartCypressTransaction& request) = 0;
 
     using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
         NProto::TReqRegisterTransactionActions,
@@ -189,6 +178,10 @@ struct ITransactionManager
 
     virtual const TTransactionPresenceCachePtr& GetTransactionPresenceCache() = 0;
 
+    using TCtxStartCypressTransaction = NRpc::TTypedServiceContext<
+        NCypressTransactionClient::NProto::TReqStartTransaction,
+        NCypressTransactionClient::NProto::TRspStartTransaction>;
+    using TCtxStartCypressTransactionPtr = TIntrusivePtr<TCtxStartCypressTransaction>;
     virtual void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) = 0;
 
     using TCtxCommitCypressTransaction = NRpc::TTypedServiceContext<
@@ -204,6 +197,10 @@ struct ITransactionManager
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
     virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
+
+protected:
+    virtual void DoRegisterTransactionActionHandlers(
+        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

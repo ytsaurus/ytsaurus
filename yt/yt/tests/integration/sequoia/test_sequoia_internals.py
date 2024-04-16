@@ -2,22 +2,29 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
-    exists, set, copy, move, write_table, read_table, create_user
+    exists, set, copy, move, gc_collect, write_table, read_table, create_user,
+    start_transaction, abort_transaction, commit_transaction,
 )
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground,
+    select_paths_from_ground,
+    lookup_cypress_transaction, select_cypress_transaction_replicas,
+    select_cypress_transaction_descendants, clear_table_in_ground,
+    select_cypress_transaction_prerequisites,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
 
-from yt.common import YtError
 import yt.yson as yson
+from yt.common import YtError
 
 import pytest
 import builtins
 
 from time import sleep
+from datetime import datetime, timedelta
+
 
 ##################################################################
 
@@ -31,7 +38,6 @@ class TestSequoiaEnvSetup(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_REMOTE_CLUSTERS = 2
     USE_SEQUOIA_REMOTE_0 = False
-    GROUND_INDEX_OFFSET = 10
 
     @authors("h0pless")
     def test1(self):
@@ -58,9 +64,6 @@ class TestSequoiaInternals(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
-
-    def _get_nonsys_paths(self):
-        return select_rows_from_ground(f"path from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)")
 
     @authors("h0pless")
     def test_create_table(self):
@@ -173,7 +176,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/strings/'},
                 {'path': '//tmp/strings/s1/'},
                 {'path': '//tmp/strings/s2/'},
@@ -181,7 +184,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
             # Let's do it twice for good measure.
             copy("//tmp/strings", "//tmp/other_other")
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/other_other/'},
                 {'path': '//tmp/other_other/s1/'},
                 {'path': '//tmp/other_other/s2/'},
@@ -191,7 +194,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/strings", "//tmp/other")
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -213,7 +216,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -222,7 +225,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -246,7 +249,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS + [
+            assert select_paths_from_ground() == COMMON_ROWS + [
                 {'path': '//tmp/src/'},
                 {'path': '//tmp/src/a/'},
                 {'path': '//tmp/src/a/b/'},
@@ -255,7 +258,7 @@ class TestSequoiaInternals(YTEnvSetup):
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
-            assert self._get_nonsys_paths() == COMMON_ROWS
+            assert select_paths_from_ground() == COMMON_ROWS
 
     @authors("h0pless")
     @pytest.mark.parametrize("copy_mode", ["copy", "move"])
@@ -269,7 +272,7 @@ class TestSequoiaInternals(YTEnvSetup):
         else:
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
-        assert self._get_nonsys_paths() == [
+        assert select_paths_from_ground() == [
             {'path': '//tmp/'},
             {'path': '//tmp/dst/'},
             {'path': '//tmp/dst/a/'},
@@ -405,6 +408,514 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/m")
+
+
+##################################################################
+
+
+class TestSequoiaCypressTransactions(YTEnvSetup):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_TEST_PARTITIONS = 6
+    CLASS_TEST_LIMIT = 600
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["transaction_coordinator", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host", "cypress_node_host"]}
+    }
+
+    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    def _check_transaction_not_exists(self, tx):
+        assert not exists(f"#{tx}")
+        assert not lookup_cypress_transaction(tx)
+        assert not select_cypress_transaction_replicas(tx)
+
+    def _check_transaction(
+            self,
+            tx,
+            *,
+            ancestors,
+            descendants,
+            replicas,
+            title=None,
+            prerequisite_transactions=None):
+        assert type(descendants) is builtins.set
+        assert type(replicas) is builtins.set
+        if prerequisite_transactions is None:
+            prerequisite_transactions = []
+
+        def remove_duplicates(items):
+            return sorted(builtins.set(items))
+
+        prerequisite_transactions = remove_duplicates(prerequisite_transactions)
+
+        # Coordinator cell tag should not be in "replicas".
+        assert "12" not in replicas
+
+        # Existence.
+        assert exists(f"#{tx}")
+        record = lookup_cypress_transaction(tx)
+        assert record
+
+        # Ancestors.
+        assert record["ancestor_ids"] == ancestors
+        for t, p in zip(ancestors + [tx], ["0-0-0-0"] + ancestors):
+            assert get(f"#{t}/@parent_id") == p
+
+        # Descendants.
+        assert {*select_cypress_transaction_descendants(tx)} == descendants
+        descendants_from_master = [tx]
+        i = 0
+        while i < len(descendants_from_master):
+            cur = descendants_from_master[i]
+            i += 1
+            children = get(f"#{cur}/@nested_transaction_ids")
+            descendants_from_master += children
+
+        # Remove self.
+        descendants_from_master.pop(0)
+        assert builtins.set(descendants_from_master) == descendants
+
+        # Replicas.
+        assert builtins.set(get(f"#{tx}/@replicated_to_cell_tags")) == replicas
+        assert builtins.set(select_cypress_transaction_replicas(tx)) == replicas
+
+        # Title.
+        assert record["attributes"].get("title", None) == title
+        if title is None:
+            assert not exists(f"#{tx}/@title")
+        else:
+            assert get(f"#{tx}/@title", None) == title
+
+        # Prerequisites.
+        assert remove_duplicates(get(f"#{tx}/@prerequisite_transaction_ids")) == prerequisite_transactions
+        assert remove_duplicates(record["prerequisite_transaction_ids"]) == prerequisite_transactions
+        prerequisites_from_ground = select_cypress_transaction_prerequisites(tx)
+        assert len(prerequisites_from_ground) == len(builtins.set(prerequisites_from_ground))
+        assert prerequisites_from_ground == prerequisite_transactions
+
+    @authors("kvk1920")
+    def test_start_transaction(self):
+        tx = start_transaction(attributes={"title": "my title"})
+        self._check_transaction(
+            tx,
+            ancestors=[],
+            descendants=builtins.set(),
+            replicas=builtins.set(),
+            title="my title")
+
+    @authors("kvk1920")
+    def test_commit_empty_transaction(self):
+        tx = start_transaction()
+        commit_transaction(tx)
+        self._check_transaction_not_exists(tx)
+
+    @authors("kvk1920")
+    def test_abort_transaction(self):
+        tx = start_transaction(attributes={"title": "my title"})
+
+        abort_transaction(tx)
+        self._check_transaction_not_exists(tx)
+
+        # Should not be error.
+        abort_transaction(tx)
+
+    @authors("kvk1920")
+    def test_nested_transactions(self):
+        # 0 - 1 - 2 - 3
+        #     |
+        # 6 - 4 - 5
+        txs = [start_transaction(timeout=180000)]
+        assert get(f"#{txs[0]}/@type") == "transaction"
+        for p in (0, 1, 2, 1, 4, 4):
+            txs.append(start_transaction(tx=txs[p], timeout=180000))
+            assert get(f"#{txs[-1]}/@type") == "nested_transaction"
+            assert get(f"#{txs[-1]}/@parent_id") == txs[p]
+
+        def check_transaction(tx, ancestors, descendants):
+            self._check_transaction(
+                txs[tx],
+                ancestors=[txs[a] for a in ancestors],
+                descendants={txs[d] for d in descendants},
+                replicas=builtins.set())
+
+        for tx, ancestors, descendants in [
+            (0, [], [1, 2, 3, 4, 5, 6]),
+            (1, [0], [2, 3, 4, 5, 6]),
+            (2, [0, 1], [3]),
+            (3, [0, 1, 2], []),
+            (4, [0, 1], [5, 6]),
+            (5, [0, 1, 4], []),
+            (6, [0, 1, 4], []),
+        ]:
+            check_transaction(tx, ancestors, descendants)
+
+        abort_transaction(txs[4])
+        for t in (4, 5, 6):
+            self._check_transaction_not_exists(txs[t])
+
+        for tx, ancestors, descendants in [
+            (0, [], [1, 2, 3]),
+            (1, [0], [2, 3]),
+            (2, [0, 1], [3]),
+            (3, [0, 1, 2], [])
+        ]:
+            check_transaction(tx, ancestors, descendants)
+
+    @authors("kvk1920")
+    def test_transaction_replication_on_start(self):
+        # 0 - 1 - 2
+        #     |
+        # 4 - 3 - 5
+        txs = []
+
+        def check_transaction(tx, ancestors, descendants, replicas, title=None):
+            self._check_transaction(
+                txs[tx],
+                ancestors=[txs[a] for a in ancestors],
+                descendants={txs[d] for d in descendants},
+                replicas=builtins.set(replicas),
+                title=title)
+
+        txs.append(start_transaction(replicate_to_master_cell_tags=[11], attributes={"title": "xxxxx"}, timeout=180000))
+        check_transaction(0, [], [], [11], title="xxxxx")
+
+        # Nested transaction shouldn't be replicated because parent is replicated.
+        txs.append(start_transaction(tx=txs[0], timeout=180000))
+        check_transaction(0, [], [1], [11], title="xxxxx")
+        check_transaction(1, [0], [], [])
+
+        # Parent transaction should be replicated.
+        # Root transaction shouldn't be replicated twice.
+        txs.append(start_transaction(tx=txs[1], replicate_to_master_cell_tags=[11], timeout=180000))
+        check_transaction(0, [], [1, 2], [11], title="xxxxx")
+        check_transaction(1, [0], [2], [11])
+        check_transaction(2, [0, 1], [], [11])
+
+        txs.append(start_transaction(tx=txs[1], timeout=180000))
+        check_transaction(0, [], [1, 2, 3], [11], title="xxxxx")
+        check_transaction(1, [0], [2, 3], [11])
+        check_transaction(2, [0, 1], [], [11])
+        check_transaction(3, [0, 1], [], [])
+
+        txs.append(start_transaction(tx=txs[3], timeout=180000))
+        check_transaction(0, [], [1, 2, 3, 4], [11], title="xxxxx")
+        check_transaction(1, [0], [2, 3, 4], [11])
+        check_transaction(2, [0, 1], [], [11])
+        check_transaction(3, [0, 1], [4], [])
+        check_transaction(4, [0, 1, 3], [], [])
+
+        # Transaction can be replicated to more than one cell.
+        # All ancestor transactions (including root one) should be replicated.
+        txs.append(start_transaction(tx=txs[3], replicate_to_master_cell_tags=[10, 13], timeout=180000))
+        check_transaction(0, [], [1, 2, 3, 4, 5], [10, 11, 13], title="xxxxx")
+        check_transaction(1, [0], [2, 3, 4, 5], [10, 11, 13])
+        check_transaction(2, [0, 1], [], [11])
+        check_transaction(3, [0, 1], [4, 5], [10, 13])
+        check_transaction(4, [0, 1, 3], [], [])
+        check_transaction(5, [0, 1, 3], [], [10, 13])
+
+        # Should not crash.
+        abort_transaction(txs[3])
+        check_transaction(0, [], [1, 2], [10, 11, 13], title="xxxxx")
+        check_transaction(1, [0], [2], [10, 11, 13])
+        check_transaction(2, [0, 1], [], [11])
+        for tx in txs[3:]:
+            self._check_transaction_not_exists(tx)
+
+    def _create_per_cell_portals(self):
+        create("map_node", "//tmp/p10")
+        for cell_tag in (11, 12, 13):
+            create(
+                "portal_entrance",
+                f"//tmp/p{cell_tag}",
+                attributes={"exit_cell_tag": cell_tag})
+            # Warm up resolve cache.
+            assert exists(f"//tmp/p{cell_tag}")
+
+    @authors("kvk1920")
+    def test_commit_without_lazy_replication(self):
+        self._create_per_cell_portals()
+
+        # Note that replication to primary cell is necessary since portal
+        # entrance resolve is going under tx.
+
+        tx1 = start_transaction(timeout=180000)
+        tx2 = start_transaction(tx=tx1, replicate_to_master_cell_tags=[10], timeout=180000)
+        tx3 = start_transaction(tx=tx1, replicate_to_master_cell_tags=[11, 13], timeout=180000)
+        tx4 = start_transaction(tx=tx1, timeout=180000)
+
+        for cell_tag in (10, 11, 12, 13):
+            create("map_node", f"//tmp/p{cell_tag}/tx1", tx=tx1)
+
+        for cell_tag in (10, 12):
+            create("map_node", f"//tmp/p{cell_tag}/tx2", tx=tx2)
+
+        for cell_tag in (11, 12, 13):
+            create("map_node", f"//tmp/p{cell_tag}/tx3", tx=tx3)
+
+        create("map_node", "//tmp/p12/tx4", tx=tx4)
+        assert not exists("//tmp/p12/tx4", tx=tx1)
+        assert exists("//tmp/p12/tx4", tx=tx4)
+
+        abort_transaction(tx4)
+        self._check_transaction_not_exists(tx4)
+        self._check_transaction(tx1, ancestors=[], descendants={tx2, tx3}, replicas={10, 11, 13})
+        assert not exists("//tmp/p12/tx4", tx=tx1)
+
+        # Cross-cell copy should not fail.
+        self._check_transaction(tx3, ancestors=[tx1], descendants=builtins.set(), replicas={11, 13})
+        set("//tmp/p11/ccc", {"a": {}, "b": {}}, force=True)
+        copy("//tmp/p11/ccc", "//tmp/p13/ccc", tx=tx3)
+
+        commit_transaction(tx3)
+        self._check_transaction_not_exists(tx3)
+        self._check_transaction(tx1, ancestors=[], descendants={tx2}, replicas={10, 11, 13})
+        assert exists("//tmp/p11/tx3", tx=tx1)
+        assert exists("//tmp/p12/tx3", tx=tx1)
+        assert exists("//tmp/p13/tx3", tx=tx1)
+        assert get("//tmp/p11/ccc", tx=tx1) == get("//tmp/p13/ccc", tx=tx1)
+
+        commit_transaction(tx1)
+        self._check_transaction_not_exists(tx2)
+        self._check_transaction_not_exists(tx1)
+
+        for tx, cell_tags, committed in [
+            (1, [10, 11, 12, 13], True),
+            (2, [10, 12], False),
+            (3, [11, 12, 13], True),
+            (4, [12], False)
+        ]:
+            for cell_tag in cell_tags:
+                assert exists(f"//tmp/p{cell_tag}/tx{tx}") == committed
+
+        assert get("//tmp/p11/ccc") == get("//tmp/p13/ccc")
+
+    @authors("kvk1920")
+    def test_lazy_transaction_replication(self):
+        self._create_per_cell_portals()
+
+        root = start_transaction(timeout=180000)
+        t10_create = start_transaction(tx=root, timeout=180000)
+        t11_13_copy = start_transaction(tx=root, timeout=180000)
+        t12_tx_coord = start_transaction(tx=root, timeout=180000)
+        t13_replicated_on_start = start_transaction(tx=root, replicate_to_master_cell_tags=[13], timeout=180000)
+        all_txs = [t10_create, t11_13_copy, t12_tx_coord, t13_replicated_on_start]
+
+        def check_transaction(tx, ancestors, descendants, replicas):
+            self._check_transaction(tx,
+                                    ancestors=ancestors,
+                                    descendants=builtins.set(descendants),
+                                    replicas=builtins.set(replicas))
+
+        check_transaction(root, [], all_txs, [13])
+        check_transaction(t10_create, [root], [], [])
+        check_transaction(t11_13_copy, [root], [], [])
+        check_transaction(t12_tx_coord, [root], [], [])
+        check_transaction(t13_replicated_on_start, [root], [], [13])
+
+        create("map_node", "//tmp/p12/d", tx=t12_tx_coord)
+        # This cell is tx coordinator so all transactions should be already
+        # present here.
+        # NB: every transaction should be present on primary cell since portal
+        # entrance resolve is being done under this transaction.
+        check_transaction(root, [], all_txs, [10, 13])
+        check_transaction(t12_tx_coord, [root], [], [10])
+
+        create("map_node", "//tmp/p10/d", tx=t10_create)
+        check_transaction(root, [], all_txs, [10, 13])
+        check_transaction(t10_create, [root], [], [10])
+
+        set("//tmp/p11/d", {"e": {}}, force=True)
+        copy("//tmp/p11/d", "//tmp/p13/d", tx=t11_13_copy)
+        check_transaction(root, [], all_txs, [10, 11, 13])
+        check_transaction(t11_13_copy, [root], [], [10, 11, 13])
+
+        with raises_yt_error("Cannot take lock for child \"d\" of node //tmp/p13 since this child "
+                             f"is locked by concurrent transaction {t11_13_copy}"):
+            create("map_node", "//tmp/p13/d", tx=t13_replicated_on_start)
+
+        create("map_node", "//tmp/p13/d2", tx=t13_replicated_on_start)
+        check_transaction(root, [], all_txs, [10, 11, 13])
+        check_transaction(t13_replicated_on_start, [root], [], [13])
+
+        create("map_node", "//tmp/p11/d2", tx=t13_replicated_on_start)
+        check_transaction(root, [], all_txs, [10, 11, 13])
+        check_transaction(t13_replicated_on_start, [root], [], [11, 13])
+
+        # Commit child transaction and check if the result is visible under root
+        # tx.
+        commit_transaction(t11_13_copy)
+        self._check_transaction_not_exists(t11_13_copy)
+        check_transaction(root, [], builtins.set(all_txs) - {t11_13_copy}, [10, 11, 13])
+        assert get("//tmp/p13/d", tx=root) == {"e": {}}
+
+        # Abort root tx and check if the result doesn't exist.
+        abort_transaction(root)
+        for t in all_txs:
+            self._check_transaction_not_exists(t)
+        assert not exists("//tmp/p13/d")
+        assert not exists("//tmp/p11/d2")
+
+    @authors("kvk1920")
+    def test_prerequisite_transactions(self):
+        # t1 - t2 - t3
+        #        \
+        #         t4
+        #
+        # t5 - t6
+        # t5 depends on t3
+        # t6 depends on t2 and t4
+        #
+        # t7 - t8
+        # t8 depends on t4
+        t1 = start_transaction(timeout=180000)
+        t2 = start_transaction(tx=t1, timeout=180000)
+        t3 = start_transaction(tx=t2, timeout=180000)
+        t4 = start_transaction(tx=t2, timeout=180000)
+
+        t5 = start_transaction(prerequisite_transaction_ids=[t3], timeout=180000)
+        t6 = start_transaction(
+            tx=t5,
+            prerequisite_transaction_ids=[t2, t4],
+            timeout=180000,
+            replicate_to_master_cell_tags=[10, 11])
+
+        t7 = start_transaction(timeout=180000)
+        t8 = start_transaction(tx=t7, prerequisite_transaction_ids=[t4], timeout=180000)
+
+        self._check_transaction(t1, ancestors=[], descendants={t2, t3, t4}, replicas=builtins.set(), prerequisite_transactions=[])
+        self._check_transaction(t5, ancestors=[], descendants={t6}, replicas={10, 11}, prerequisite_transactions=[t3])
+        self._check_transaction(t6, ancestors=[t5], descendants=builtins.set(), replicas={10, 11}, prerequisite_transactions=[t2, t4])
+        self._check_transaction(t7, ancestors=[], descendants={t8}, replicas=builtins.set())
+        self._check_transaction(t8, ancestors=[t7], descendants=builtins.set(), replicas=builtins.set(), prerequisite_transactions=[t4])
+
+        abort_transaction(t1)
+
+        self._check_transaction_not_exists(t1)
+        self._check_transaction_not_exists(t2)
+        self._check_transaction_not_exists(t3)
+        self._check_transaction_not_exists(t4)
+        self._check_transaction_not_exists(t5)
+        self._check_transaction_not_exists(t6)
+        self._check_transaction(t7, ancestors=[], descendants=builtins.set(), replicas=builtins.set())
+        self._check_transaction_not_exists(t8)
+
+        # Check if Sequoia tables were cleaned up properly.
+
+        for table in DESCRIPTORS.get_group("transaction_tables"):
+            records = select_rows_from_ground(f"* from [{table.get_default_path()}]")
+            if table.name == "transactions":
+                assert records == [
+                    {"transaction_id": t7, "ancestor_ids": [], "attributes": {}, "prerequisite_transaction_ids": []},
+                ]
+            else:
+                assert records == []
+
+    @authors("kvk1920")
+    def test_timeout(self):
+        before = datetime.now()
+
+        t1 = start_transaction(timeout=20000)
+        t2 = start_transaction(prerequisite_transaction_ids=[t1], timeout=180000)
+
+        def sleep_until(t):
+            delta = (t - datetime.now()).total_seconds()
+            if delta > 0:
+                sleep(delta)
+
+        sleep_until(before + timedelta(seconds=6))
+
+        # Transactions should still exist.
+        self._check_transaction(t1, ancestors=[], descendants=builtins.set(), replicas=builtins.set())
+        self._check_transaction(t2, ancestors=[], descendants=builtins.set(), replicas=builtins.set(), prerequisite_transactions=[t1])
+
+        sleep_until(before + timedelta(seconds=25))
+        self._check_transaction_not_exists(t1)
+        self._check_transaction_not_exists(t2)
+
+    @authors("kvk1920")
+    def test_rollback(self):
+        # t1 is prerequisite for t2
+        #                       /  \
+        #                      t3  t4
+        t1 = start_transaction(timeout=100000)
+        t2 = start_transaction(prerequisite_transaction_ids=[t1], timeout=100000)
+        t3 = start_transaction(tx=t2, timeout=100000)
+        t4 = start_transaction(tx=t2, timeout=100000)
+        t5 = start_transaction(tx=t1, timeout=100000, replicate_to_master_cell_tags=[13])
+
+        m3 = create("map_node", "//tmp/m3", tx=t3)
+        create("map_node", "//tmp/m1", tx=t1)
+
+        for table in DESCRIPTORS.get_group("transaction_tables"):
+            clear_table_in_ground(table)
+
+        with raises_yt_error("No such transaction"):
+            # "transactions" table is empty so there is no active transactions
+            # from Sequoia point of view.
+            commit_transaction(t4)
+
+        # Looks like abort_transaction() never returns an error. Strange but OK
+        # for now...
+        # TODO(kvk1920): in this case client should retry request after
+        # mirroring will be disabled. So client should actually get an error.
+        abort_transaction(t4)
+        assert exists(f"#{t4}")
+
+        # Disable transaction enabling and try to commit/abort some transactions.
+        set("//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia", False)
+
+        assert exists(f"#{t1}")
+        assert exists(f"#{t2}")
+        assert exists(f"#{t3}")
+        assert exists(f"#{t4}")
+        assert exists(f"#{t5}")
+
+        assert exists("//tmp/m3", tx=t3)
+        assert exists("//tmp/m1", tx=t1)
+
+        # Ensure that tx replication still works.
+        create("portal_entrance", "//tmp/p11", attributes={"exit_cell_tag": 11})
+        create("map_node", "//tmp/p11/m", tx=t5)
+
+        # NB: t5 is already replicated to cell 13.
+        create("portal_entrance", "//tmp/p13", attributes={"exit_cell_tag": 13})
+        create("map_node", "//tmp/p13/m", tx=t5)
+
+        commit_transaction(t5)
+        commit_transaction(t1)
+        # All other transactions should be aborted due to prerequisite finish.
+
+        gc_collect()
+
+        assert not exists(f"#{t1}")
+        assert not exists(f"#{t2}")
+        assert not exists(f"#{t3}")
+        assert not exists(f"#{t4}")
+        assert not exists(f"#{t5}")
+
+        assert not exists("//tmp/m3")
+        assert not exists(f"#{m3}")
+
+        assert exists("//tmp/m1")
+        assert exists("//tmp/p11/m")
+        assert exists("//tmp/p13/m")
 
 
 ##################################################################

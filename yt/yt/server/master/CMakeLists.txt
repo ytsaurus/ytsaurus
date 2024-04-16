@@ -683,6 +683,8 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/cypress_transaction_service.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/sequoia_integration.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_presence_cache.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_proxy.cpp

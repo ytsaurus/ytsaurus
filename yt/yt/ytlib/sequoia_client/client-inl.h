@@ -28,10 +28,10 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
 
 template <class TRecord>
 TFuture<std::vector<TRecord>> ISequoiaClient::SelectRows(
-    const TSelectRowsRequest& request,
+    const TSelectRowsQuery& query,
     NTransactionClient::TTimestamp timestamp)
 {
-    auto resultFuture = SelectRows(TRecord::Table, request, timestamp);
+    auto resultFuture = SelectRows(TRecord::Table, query, timestamp);
     return resultFuture.Apply(BIND([] (const NApi::TSelectRowsResult& result) {
         return NTableClient::ToRecords<TRecord>(result.Rowset);
     }));

@@ -400,7 +400,8 @@ SRCS(
     transaction_server/config.cpp
     transaction_server/cypress_integration.cpp
     transaction_server/cypress_transaction_service.cpp
-    transaction_server/proto/transaction_manager.proto
+    transaction_server/helpers.cpp
+    transaction_server/sequoia_integration.cpp
     transaction_server/transaction_manager.cpp
     transaction_server/transaction_presence_cache.cpp
     transaction_server/transaction_proxy.cpp
@@ -409,6 +410,8 @@ SRCS(
     transaction_server/transaction_service.cpp
     transaction_server/transaction_type_handler.cpp
     transaction_server/transaction.cpp
+
+    transaction_server/proto/transaction_manager.proto
 
     zookeeper_server/bootstrap_proxy.cpp
     zookeeper_server/cypress_integration.cpp

@@ -218,6 +218,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkMergerModeFix)                                           (2549))  // cherepashka
     ((DynamizeLocalJanitorConfig)                                   (2550))  // danilalexeev
     ((SchemalessEndUploadPreservesTableSchemaByDefault)             (2551))  // shakurov
+    ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
     // 24.2 starts here.
 );
 

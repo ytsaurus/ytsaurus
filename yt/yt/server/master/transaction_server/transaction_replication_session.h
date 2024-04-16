@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
@@ -66,8 +68,10 @@ protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TInitiatorRequestLogInfo InitiatorRequest_;
 
-    std::vector<TTransactionId> TransactionIds_;
+    std::vector<TTransactionId> AllTransactionIds_;
+    TMutableRange<TTransactionId> LocalTransactionIds_;
     TRange<TTransactionId> RemoteTransactionIds_;
+    TRange<TTransactionId> MirroredTransactionIds_;
 
     // The former contains the keys of the latter, but its calculated earlier
     // and provides deterministic order.
@@ -76,25 +80,47 @@ protected:
 
     NObjectClient::TCellTagList UnsyncedLocalTransactionCells_;
 
+    // COMPAT(kvk1920): remove when use of Cypress tx proxy become mandatory.
+    // We cannot rely on ID only to distinguish mirrored Cypress transaction
+    // from non-mirrored one: both mirrored Cypress and Sequoia transactions
+    // have Sequoia bit in their ID and when dedicated system transaction type
+    // is disabled both of them have a type "transaction". The following flag is
+    // necessary just for this case.
+    bool MirroringToSequoiaEnabled_;
+
     TTransactionReplicationSessionBase(
         NCellMaster::TBootstrap* bootstrap,
         std::vector<TTransactionId> transactionIds,
-        const TInitiatorRequestLogInfo& logInfo);
+        const TInitiatorRequestLogInfo& logInfo,
+        bool enableMirroringToSequoia);
 
     [[noreturn]] void LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const;
 
     NObjectClient::TCellTagList GetCellTagsToSyncWithBeforeInvocation() const;
 
-    std::vector<TFuture<TRspReplicateTransactionsPtr>> DoInvokeReplicationRequests();
+    struct TReplicationResponse
+    {
+        std::vector<TFuture<TRspReplicateTransactionsPtr>> NonMirrored;
+        TFuture<void> Mirrored;
+    };
+
+    TReplicationResponse DoInvokeReplicationRequests();
 
     virtual void ConstructReplicationRequests() = 0;
     std::vector<NRpc::TRequestId> DoConstructReplicationRequests();
 
 private:
+    void Initialize();
+    void SegregateMirroredTransactions();
     void InitRemoteTransactions();
-    void ValidateTransactionCellTags() const;
-    bool IsTransactionRemote(TTransactionId transactionId) const;
     void InitReplicationRequestCellTags();
+
+    void ValidateTransactionCellTags() const;
+    //! Returns |true| if transaction may be not replicated to this cell.
+    bool IsTransactionRemote(TTransactionId transactionId) const;
+
+    // NB: This function must not be used when mirroring is disabled.
+    static bool IsMirroredToSequoia(TTransactionId transactionId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,7 +138,8 @@ public:
     TTransactionReplicationSessionWithoutBoomerangs(
         NCellMaster::TBootstrap* bootstrap,
         std::vector<TTransactionId> transactionIds,
-        const TInitiatorRequestLogInfo& logInfo);
+        const TInitiatorRequestLogInfo& logInfo,
+        bool enableMirroringToSequoia);
 
     //! Returns a future that will be set when all necessary syncs with
     //! transaction coordinator cells are done and all transactions are
@@ -200,6 +227,7 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         std::vector<TTransactionId> transactionIds,
         const TInitiatorRequestLogInfo& logInfo,
+        bool enableMirroringToSequoia,
         std::unique_ptr<NHydra::TMutation> mutation = {});
 
     void SetMutation(std::unique_ptr<NHydra::TMutation> mutation);
@@ -262,23 +290,24 @@ TFuture<void> RunTransactionReplicationSession(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
-    NRpc::TRequestId requestId);
+    NRpc::TRequestId requestId,
+    bool enableMirroringToSequoia);
 
 //! Returns a future that will set when the provided mutation has been applied
 //!  (after all necessary preliminary steps for applying it has been taken).
 /*!
  *  The context is also replied upon mutation application.
  *
- *  The future returned may be set to an error if transaction replication fails.
  *  May throw if called in between epochs.
  */
-TFuture<void> RunTransactionReplicationSession(
+void RunTransactionReplicationSessionAndReply(
     bool syncWithUpstream,
     NCellMaster::TBootstrap* bootstrap,
     std::vector<TTransactionId> transactionIds,
     const NRpc::IServiceContextPtr& context,
     std::unique_ptr<NHydra::TMutation> mutation,
-    bool enableMutationBoomerangs);
+    bool enableMutationBoomerangs,
+    bool enableMirroringToSequoia);
 
 ////////////////////////////////////////////////////////////////////////////////
 
