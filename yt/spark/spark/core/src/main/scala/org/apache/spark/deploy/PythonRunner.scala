@@ -96,7 +96,7 @@ object PythonRunner {
     try {
       val process = builder.start()
 
-      new RedirectThread(process.getInputStream, System.out, "redirect output").start()
+      new RedirectThread(process.getInputStream, System.err, "redirect output").start()
 
       val exitCode = process.waitFor()
       if (exitCode != 0) {
