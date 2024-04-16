@@ -69,7 +69,7 @@ SELECT 3 AS z;
 
 COMMIT;
 
-SELET * FROM @tmp;
+SELECT * FROM @tmp;
 ```
 
 {% endnote %}
