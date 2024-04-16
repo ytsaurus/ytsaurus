@@ -868,7 +868,7 @@ def get_dynamic_queue_agent_config(yt_config):
         "enable_validation" = %false;
     };
     "cypress_synchronizer" = {
-        "write_registration_table_mapping" = %true;
+        "write_replicated_table_mapping" = %true;
         "poll_replicated_objects" = %true;
         "clusters" = [\""""
                       +
