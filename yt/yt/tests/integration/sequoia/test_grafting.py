@@ -39,8 +39,7 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920", "gritukan")
     @pytest.mark.parametrize("rootstock_cell_tag", [10, 11])
     def test_create_rootstock(self, rootstock_cell_tag):
-        rootstock_id = create("rootstock", "//tmp/r",
-                              attributes={"scion_cell_tag": rootstock_cell_tag})
+        rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get("//tmp/r&/@scion_id")
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"
@@ -71,11 +70,11 @@ class TestGrafting(YTEnvSetup):
     def test_cannot_create_rootstock_in_transaction(self):
         tx = start_transaction()
         with pytest.raises(YtError):
-            create("rootstock", "//tmp/p", attributes={"scion_cell_tag": 11}, tx=tx)
+            create("rootstock", "//tmp/p", tx=tx)
 
     @authors("gritukan")
     def test_cannot_copy_move_rootstock(self):
-        create("rootstock", "//tmp/r", attributes={"scion_cell_tag": 11})
+        create("rootstock", "//tmp/r")
         with pytest.raises(YtError):
             copy("//tmp/r&", "//tmp/r2")
         with pytest.raises(YtError):
@@ -83,13 +82,13 @@ class TestGrafting(YTEnvSetup):
 
     @authors("kvk1920")
     def test_resolve(self):
-        rootstock_id = create("rootstock", "//tmp/r", attributes={"scion_cell_tag": 10})
+        rootstock_id = create("rootstock", "//tmp/r")
         scion_id = get(f"#{rootstock_id}&/@scion_id")
         assert get("//tmp/r/@id") == scion_id
 
     @authors("kvk1920")
     def test_scion_removal(self):
-        rootstock_id = create("rootstock", "//tmp/sequoia", attributes={"scion_cell_tag": 10})
+        rootstock_id = create("rootstock", "//tmp/sequoia")
         create("map_node", "//tmp/sequoia/m1")
         create("map_node", "//tmp/sequoia/m1/m2")
         remove("//tmp/sequoia", recursive=True)
@@ -99,7 +98,7 @@ class TestGrafting(YTEnvSetup):
 
     @authors("kvk1920")
     def test_sequoia_map_node_explicit_creation_is_forbidden(self):
-        create("rootstock", "//tmp/sequoia", attributes={"scion_cell_tag": 10})
+        create("rootstock", "//tmp/sequoia")
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/sequoia/m")
 

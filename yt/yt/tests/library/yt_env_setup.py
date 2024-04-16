@@ -1135,13 +1135,13 @@ class YTEnvSetup(object):
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)
-            yt_commands.create(
+            # NB: Sometimes roles will not be applied to cells yet, which can lead to an error. Just retrying helps.
+            wait(lambda: yt_commands.create(
                 "rootstock",
                 "//tmp",
-                attributes={"scion_cell_tag": 10},
                 force=True,
-                driver=driver,
-            )
+                driver=driver),
+                ignore_exceptions=True)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.create(
                 "portal_entrance",
