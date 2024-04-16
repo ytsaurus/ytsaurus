@@ -47,7 +47,6 @@ TJob::TJob(const TJob& other)
     , StartTime_(other.StartTime_)
     , State_(other.State_)
     , Error_(other.Error_)
-    , SequenceNumber_(other.SequenceNumber_)
     , Result_(other.Result_)
 { }
 
