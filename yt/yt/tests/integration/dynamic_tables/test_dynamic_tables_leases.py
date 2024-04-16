@@ -1,10 +1,10 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, ls, issue_lease, revoke_lease, reference_lease, unreference_lease, insert_rows, select_rows,
-    create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells,
+    create, get, set, exists, wait, remove, sync_mount_table, sync_create_cells, build_snapshot,
     sync_unmount_table, raises_yt_error, start_transaction, commit_transaction, abort_transaction,
-    sync_reshard_table, mount_table, wait_for_tablet_state,
+    sync_reshard_table, mount_table, wait_for_tablet_state
 )
 
 from yt.test_helpers import (
@@ -47,6 +47,15 @@ class TestDynamicTablesLeases(YTEnvSetup):
         wait(lambda: exists(f"#{cell_id}/@prerequisite_transaction_id"))
         wait(lambda: get(f"#{cell_id}/@peers/0/state") == "leading")
 
+    def _cold_restart_cell(self, cell_id):
+        build_snapshot(cell_id=cell_id)
+        wait(lambda: ls(f"//sys/tablet_cells/{cell_id}/snapshots") != [])
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: get(f"#{cell_id}/@peers/0/state") == "leading")
+
     def _create_table(self, atomicity="full"):
         create("table", "//tmp/t", attributes={
             "dynamic": True,
@@ -83,13 +92,17 @@ class TestDynamicTablesLeases(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("mode", ["commit", "abort"])
     @pytest.mark.parametrize("atomicity", ["full", "none"])
-    def test_simple(self, mode, atomicity):
+    @pytest.mark.parametrize("cold_restart_cell", [True, False])
+    def test_simple(self, mode, atomicity, cold_restart_cell):
         cell_id = sync_create_cells(1)[0]
-        tx = self._create_lease(cell_id, atomicity=atomicity)
+        tx = self._create_lease(cell_id, atomicity=atomicity, timeout=100000)
 
         self._write_with_prerequisite(lease_id=tx, key="foo", atomicity=atomicity)
         create("map_node", "//tmp/m", tx=tx)
         self._check_lease(cell_id, "active", 0, 0, lease_id=tx)
+
+        if cold_restart_cell:
+            self._cold_restart_cell(cell_id)
 
         if mode == "commit":
             commit_transaction(tx)
@@ -97,6 +110,8 @@ class TestDynamicTablesLeases(YTEnvSetup):
         else:
             abort_transaction(tx)
             assert not exists("//tmp/m")
+
+        wait(lambda: not exists(f"#{tx}"))
 
         with raises_yt_error("Prerequisite check failed"):
             self._write_with_prerequisite(lease_id=tx, key="bar", atomicity=atomicity)

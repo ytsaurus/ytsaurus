@@ -4,6 +4,15 @@
 
 namespace NYT::NLeaseServer {
 
+using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReign GetCurrentReign()
+{
+    return ToUnderlying(TEnumTraits<ELeaseManagerReign>::GetMaxValue());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TLeaseGuardSerializer::Save(TSaveContext& context, const ILeaseGuardPtr& guard)
