@@ -490,8 +490,14 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         sleep(5)
         assert get("//tmp/t/@tablet_count") == 1
 
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
+        self._wait_full_iteration()
+
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(400)])
         sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", True)
+        self._wait_full_iteration()
 
         wait(lambda: get("//tmp/t/@tablet_count") == 2)
         remove("//sys/tablet_balancer/config/pick_reshard_pivot_keys")
