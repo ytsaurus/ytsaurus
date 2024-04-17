@@ -1,10 +1,12 @@
 GO_LIBRARY()
 
-LICENSE(MIT)
-
 SUBSCRIBER(g:go-contrib)
 
-SRCS(doc.go)
+LICENSE(MIT)
+
+SRCS(
+    doc.go
+)
 
 GO_TEST_SRCS(package_test.go)
 

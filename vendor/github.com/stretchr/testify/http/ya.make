@@ -1,8 +1,8 @@
 GO_LIBRARY()
 
-LICENSE(MIT)
-
 SUBSCRIBER(g:go-contrib)
+
+LICENSE(MIT)
 
 SRCS(
     doc.go

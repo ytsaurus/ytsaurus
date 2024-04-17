@@ -1,14 +1,10 @@
 {
-	"Version": "v1.8.4",
-	"GoVersion": "1.20",
-	"Sum": "h1:CcVxjf3Q8PM0mHUKJCdn+eZZtm5yQwehR5yeSVQQcUk=",
+	"Version": "v1.9.0",
+	"GoVersion": "1.17",
+	"Sum": "h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsTg=",
 	"Packages": {
 		"github.com/stretchr/testify": {
-			"Imports": [
-				"github.com/stretchr/testify/assert",
-				"github.com/stretchr/testify/http",
-				"github.com/stretchr/testify/mock"
-			],
+			"Imports": null,
 			"TestImports": [
 				"github.com/stretchr/testify/assert",
 				"testing"
@@ -55,7 +51,15 @@
 				"runtime",
 				"strings",
 				"testing",
-				"time",
+				"time"
+			]
+		},
+		"github.com/stretchr/testify/assert/internal/unsafetests": {
+			"Imports": null,
+			"TestImports": [
+				"fmt",
+				"github.com/stretchr/testify/assert",
+				"testing",
 				"unsafe"
 			]
 		},
