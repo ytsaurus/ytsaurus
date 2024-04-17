@@ -330,7 +330,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true)
-            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
