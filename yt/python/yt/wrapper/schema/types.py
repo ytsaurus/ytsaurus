@@ -8,17 +8,21 @@ import copy
 import datetime
 import types
 
+
 try:
     import typing
 except ImportError:
     import yt.packages.typing as typing
 
+
 import yt.type_info as ti
+
 
 try:
     import dataclasses
 except ImportError:
     pass
+
 
 if is_schema_module_available():
     try:
@@ -28,18 +32,27 @@ if is_schema_module_available():
 else:
     Protocol = object
 
-if typing.TYPE_CHECKING and is_schema_module_available():
-    try:
-        from yt.packages.typing_extensions import dataclass_transform
-    except ImportError:
-        from typing_extensions import dataclass_transform
+
+if typing.TYPE_CHECKING:
+    import typing
+    from typing_extensions import dataclass_transform
 else:
-    def dataclass_transform():
-        return lambda x: x
+    if is_schema_module_available():
+        try:
+            from yt.packages.typing_extensions import dataclass_transform
+        except ImportError:
+            from typing_extensions import dataclass_transform
+    else:
+        def dataclass_transform():
+            return lambda x: x
+
+
+_T = typing.TypeVar('_T')
 
 
 @dataclass_transform()
 def yt_dataclass(cls):
+    # type: (typing.Type[_T]) -> typing.Type[_T]
     """ Decorator for classes representing table rows and embedded structures.
     """
     check_schema_module_available()
