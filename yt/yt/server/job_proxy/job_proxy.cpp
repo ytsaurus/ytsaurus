@@ -829,6 +829,12 @@ TJobResult TJobProxy::RunJob()
         if (jobSpecExt.is_traced()) {
             RootSpan_->SetSampled();
         }
+        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().has_monitoring_config()) {
+            TString jobProxyDescriptor = jobSpecExt.user_job_spec().monitoring_config().job_descriptor();
+            NProfiling::TSolomonRegistry::Get()->SetDynamicTags({
+                NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
+                NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}});
+        }
         if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().enable_rpc_proxy_in_job_proxy()) {
             EnableRpcProxyInJobProxy(jobSpecExt.user_job_spec().rpc_proxy_worker_thread_pool_size());
         }
