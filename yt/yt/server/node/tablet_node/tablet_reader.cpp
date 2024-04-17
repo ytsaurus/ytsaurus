@@ -959,8 +959,8 @@ IVersionedReaderPtr CreateCompactionTabletReader(
         currentTimestamp,
         majorTimestamp,
         tabletSnapshot->ColumnEvaluator,
-        false,
-        false,
+        /*lookup*/ false,
+        /*mergeRowsOnFlush*/ false,
         tabletSnapshot->QuerySchema->GetTtlColumnIndex());
 
     std::vector<TLegacyOwningKey> boundaries;

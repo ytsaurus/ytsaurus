@@ -4,6 +4,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
@@ -192,7 +193,7 @@ public:
 
             // Apply retention config if present.
             if (Config_) {
-                YT_VERIFY(rowMaxDataTtl.has_value());
+                YT_VERIFY(rowMaxDataTtl);
                 retentionBeginIt = ColumnValues_.end();
 
                 // Compute safety limit by MinDataTtl.
@@ -423,17 +424,17 @@ private:
             return std::nullopt;
         }
 
-        auto ttlColumnValue = std::find_if(
+        auto ttlColumnIt = std::find_if(
             PartialValues_.rbegin(),
             PartialValues_.rend(),
             [&] (const TVersionedValue& value) {
                 return value.Id == TtlColumnIndex_;
             });
 
-        if (ttlColumnValue != PartialValues_.rend() && ttlColumnValue->Type == EValueType::Uint64 &&
-            (DeleteTimestamps_.empty() || ttlColumnValue->Timestamp > DeleteTimestamps_.back()))
+        if (ttlColumnIt != PartialValues_.rend() && ttlColumnIt->Type == EValueType::Uint64 &&
+            (DeleteTimestamps_.empty() || ttlColumnIt->Timestamp > DeleteTimestamps_.back()))
         {
-            return std::max(Config_->MinDataTtl, TDuration::MilliSeconds(ttlColumnValue->Data.Uint64));
+            return std::max(Config_->MinDataTtl, TDuration::MilliSeconds(FromUnversionedValue<ui64>(*ttlColumnIt)));
         }
 
         return Config_->MaxDataTtl;
