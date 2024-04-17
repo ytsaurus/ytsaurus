@@ -99,9 +99,6 @@ void TMasterBundleTabletBalancerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tablet_balancer_schedule", &TThis::TabletBalancerSchedule)
         .Default();
 
-    registrar.Parameter("parameterized_balancing_metric", &TThis::ParameterizedBalancingMetric)
-        .Default();
-
     registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
         .Default(false);
 
