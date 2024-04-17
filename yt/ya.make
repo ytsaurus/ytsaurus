@@ -38,6 +38,7 @@ IF (NOT OPENSOURCE)
         nirvana
         opensource
         packages
+        python_py2
         recipe
         scripts
         skynet
