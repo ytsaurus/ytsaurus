@@ -175,12 +175,12 @@ void TP2PBlockCache::HoldBlocks(
 std::vector<NChunkClient::TBlock> TP2PBlockCache::LookupBlocks(TChunkId chunkId, const std::vector<int>& blockIndices)
 {
     std::vector<NChunkClient::TBlock> blocks;
-    blocks.resize(blockIndices.size());
+    blocks.reserve(blockIndices.size());
 
     for (int i = 0; i < std::ssize(blockIndices); i++) {
         if (auto p2pBlock = Find({chunkId, blockIndices[i]})) {
             p2pBlock->AccessCount++;
-            blocks[i] = p2pBlock->Block;
+            blocks.push_back(p2pBlock->Block);
         } else {
             MissedBlocks_.Increment();
         }
