@@ -365,7 +365,7 @@ void TJob::OnJobProxySpawned()
             ValidateJobPhase(EJobPhase::SpawningJobProxy);
             SetJobPhase(EJobPhase::PreparingArtifacts);
 
-            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled()) {
+            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled() && UserJobSpec_ && UserJobSpec_->monitoring_config().enable()) {
                 Bootstrap_->GetJobProxySolomonExporter()->AttachRemoteProcess(BIND(&TJob::DumpSensors, MakeStrong(this)));
             }
         });
