@@ -128,6 +128,8 @@ public:
 
         // Warming up. Create at least 1 writer for future use.
         AddWriteTask(TWriteTask(TVector<T>{}, 0));
+        // Wait until warming up is fully complete
+        TaskFutures_.back().GetValueSync();
     }
 
     ~TParallelUnorderedTableWriterBase()
