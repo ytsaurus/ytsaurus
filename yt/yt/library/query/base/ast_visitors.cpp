@@ -4,7 +4,7 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListContainsTrasformer::TListContainsTrasformer(
+TListContainsTransformer::TListContainsTransformer(
     TAstHead* head,
     const TReference& repeatedIndexedColumn,
     const TReference& unfoldedIndexerColumn)
@@ -13,7 +13,7 @@ TListContainsTrasformer::TListContainsTrasformer(
     , UnfoldedIndexerColumn(unfoldedIndexerColumn)
 { }
 
-TExpressionPtr TListContainsTrasformer::OnFunction(TFunctionExpressionPtr function)
+TExpressionPtr TListContainsTransformer::OnFunction(TFunctionExpressionPtr function)
 {
     if (function->FunctionName != "list_contains" ||
         function->Arguments.size() != 2)
@@ -35,6 +35,38 @@ TExpressionPtr TListContainsTrasformer::OnFunction(TFunctionExpressionPtr functi
         EBinaryOp::Equal,
         TExpressionList{newReference},
         TExpressionList{function->Arguments[1]});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInTransformer::TInTransformer(
+    TAstHead* head,
+    const TReference& repeatedIndexedColumn,
+    const TReference& unfoldedIndexerColumn)
+    : TBase(head)
+    , RepeatedIndexedColumn(repeatedIndexedColumn)
+    , UnfoldedIndexerColumn(unfoldedIndexerColumn)
+{ }
+
+TExpressionPtr TInTransformer::OnIn(TInExpressionPtr inExpr)
+{
+    if (inExpr->Expr.size() != 1) {
+        return TBase::OnIn(inExpr);
+    }
+
+    auto* reference = inExpr->Expr[0]->As<TReferenceExpression>();
+    if (reference->Reference != RepeatedIndexedColumn) {
+        return TBase::OnIn(inExpr);
+    }
+
+    auto* newReference = Head->New<TReferenceExpression>(
+        NullSourceLocation,
+        UnfoldedIndexerColumn);
+
+    return Head->New<TInExpression>(
+        NullSourceLocation,
+        TExpressionList{newReference},
+        inExpr->Values);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

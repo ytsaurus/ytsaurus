@@ -361,7 +361,13 @@ void TransformWithIndexStatement(NAst::TAstHead* head, TStickyTableMountInfoCach
         NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), query.Table.Alias);
         NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
 
-        query.WherePredicate = NAst::TListContainsTrasformer(
+        query.WherePredicate = NAst::TListContainsTransformer(
+            head,
+            repeatedIndexedColumn,
+            unfoldedIndexerColumn)
+            .Visit(query.WherePredicate);
+
+        query.WherePredicate = NAst::TInTransformer(
             head,
             repeatedIndexedColumn,
             unfoldedIndexerColumn)

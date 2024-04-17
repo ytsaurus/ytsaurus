@@ -18,7 +18,7 @@ static void first_iteration(
 {
     if (state->Type == VT_Null) {
         result->Type = newValue->Type;
-        if (newValue->Type == VT_String || newValue->Type == VT_Any) {
+        if (newValue->Type == VT_String || newValue->Type == VT_Any || newValue->Type == VT_Composite) {
             char* permanentData = AllocateBytes(context, newValue->Length);
             memcpy(permanentData, newValue->Data.String, newValue->Length);
             result->Length = newValue->Length;
