@@ -854,7 +854,7 @@ private:
         TCellTagSet* RegisterChunk(
             TChunk* chunk,
             TChunkReincarnationOptions options,
-            bool belongsToTable)
+            bool hasOwningTables)
         {
             YT_ASSERT(chunk->IsExported());
 
@@ -866,7 +866,7 @@ private:
 
             it->second.Options = options;
 
-            it->second.BelongsToTable = belongsToTable;
+            it->second.HasOwningTables = hasOwningTables;
 
             return &it->second.UncheckedCells;
         }
@@ -893,7 +893,7 @@ private:
         std::optional<EReincarnationResult> ApproveForCell(
             TChunkId chunkId,
             TCellTag foreignCellTag,
-            bool belongsToTable)
+            bool hasOwningTables)
         {
             auto chunkIt = Current_.find(chunkId);
             auto* hashMap = &Current_;
@@ -905,14 +905,15 @@ private:
                 }
             }
 
-            chunkIt->second.BelongsToTable |= belongsToTable;
+            chunkIt->second.HasOwningTables |= hasOwningTables;
 
             auto& uncheckedCells = chunkIt->second.UncheckedCells;
             uncheckedCells.erase(foreignCellTag);
             if (uncheckedCells.empty()) {
-                auto belongsToTable = chunkIt->second.BelongsToTable;
+                auto hasOwningTables = chunkIt->second.HasOwningTables;
                 hashMap->erase(chunkIt);
-                return belongsToTable
+
+                return hasOwningTables
                     ? EReincarnationResult::OK
                     : EReincarnationResult::NoTableAncestors;
             }
@@ -940,7 +941,7 @@ private:
         {
             TCellTagSet UncheckedCells;
             TChunkReincarnationOptions Options;
-            bool BelongsToTable = false;
+            bool HasOwningTables = false;
         };
         using TPendingChecks = THashMap<TChunkId, TChunkInfo>;
         TPendingChecks Previous_;
@@ -1622,7 +1623,7 @@ private:
         struct TExportedChunk
         {
             TChunkId Id;
-            bool BelongsToTable;
+            bool HasOwningTables;
         };
         std::vector<TExportedChunk> exportedChunks;
         exportedChunks.reserve(scannedChunkBudget);
@@ -1721,32 +1722,33 @@ private:
                 config->MaxVisitedChunkAncestorsPerChunk);
             YT_ASSERT(result != EReincarnationResult::Transient);
 
+            if (result == EReincarnationResult::NoTableAncestors && chunk->IsExported()) {
+                // For exported chunks |OK| and |NoTableAncestors| should be
+                // handled in the same way since chunk may lack of ancestors on
+                // its native cell.
+                result = EReincarnationResult::OK;
+            }
+
             switch (result) {
                 case EReincarnationResult::OK:
-                    if (!chunk->IsExported()) {
-                        YT_LOG_DEBUG(
-                            "Scheduling reincarnated chunk creation (OldChunkId: %v)",
-                            chunk->GetId());
-                        chunksToReincarnate.push_back(chunk->GetId());
-                        break;
-                    }
-                    // For exported chunks |OK| and |NoTableAncestors| should be
-                    // handle in the same way since chunk may haven't any
-                    // ancestors on its native cell.
-                    [[fallthrough]];
-                case EReincarnationResult::NoTableAncestors:
-                    // NB: this handles exported |OK| chunks too.
                     if (chunk->IsExported()) {
                         YT_LOG_DEBUG(
                             "Scheduling exported chunk reincarnation check (OldChunkId: %v)",
                             chunk->GetId());
 
                         exportedChunks.push_back({
-                            chunk->GetId(),
-                            result != EReincarnationResult::NoTableAncestors,
+                            .Id = chunk->GetId(),
+                            .HasOwningTables = result != EReincarnationResult::NoTableAncestors,
                         });
-                        break;
+                    } else {
+                        YT_LOG_DEBUG(
+                            "Scheduling reincarnated chunk creation (OldChunkId: %v)",
+                            chunk->GetId());
+                        chunksToReincarnate.push_back(chunk->GetId());
                     }
+                    break;
+                case EReincarnationResult::NoTableAncestors:
+                    YT_ASSERT(!chunk->IsExported());
                     // |NoTableAncestors| for non-exported chunk means that
                     // chunk cannot be reincarnated.
                     [[fallthrough]];
@@ -1784,13 +1786,12 @@ private:
             NProto::TReqCheckExportedChunkReincarnation mutationRequest;
             mutationRequest.set_config_version(ConfigVersion_);
 
-            int chunkCount = exportedChunks.size();
-            mutationRequest.mutable_chunk_ids()->Reserve(chunkCount);
-            mutationRequest.mutable_belongs_to_table()->Reserve(chunkCount);
+            mutationRequest.mutable_chunks()->Reserve(exportedChunks.size());
 
-            for (int i = 0; i < chunkCount; ++i) {
-                ToProto(mutationRequest.add_chunk_ids(), exportedChunks[i].Id);
-                mutationRequest.add_belongs_to_table(exportedChunks[i].BelongsToTable);
+            for (const auto& chunk : exportedChunks) {
+                auto* protoChunk = mutationRequest.add_chunks();
+                ToProto(protoChunk->mutable_chunk_id(), chunk.Id);
+                protoChunk->set_has_owning_tables(true);
             }
 
             YT_UNUSED_FUTURE(CreateMutation(
@@ -1877,12 +1878,9 @@ private:
         TCellToChunksMap cellToChunks;
         cellToChunks.reserve(multicellManager->GetRegisteredMasterCellTags().size());
 
-        auto chunkCount = request->chunk_ids_size();
-        YT_VERIFY(chunkCount == request->belongs_to_table_size());
-
-        for (int i = 0; i < chunkCount; ++i) {
-            auto chunkId = FromProto<TChunkId>(request->chunk_ids()[i]);
-            auto belongsToTable = request->belongs_to_table()[i];
+        for (const auto& protoChunk : request->chunks()) {
+            auto chunkId = FromProto<TChunkId>(protoChunk.chunk_id());
+            auto hasOwningTables = protoChunk.has_owning_tables();
 
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
@@ -1896,7 +1894,7 @@ private:
                 ? ExportedChunkReincarnationCheckRegistry_.RegisterChunk(
                     chunk,
                     FromProto<TChunkReincarnationOptions>(request->options()),
-                    belongsToTable)
+                    hasOwningTables)
                 : nullptr;
 
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
