@@ -4485,7 +4485,7 @@ private:
             importData->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));
         }
 
-        YT_LOG_DEBUG("Chunks exported (TransactionId: %v, ChunkCount: %v, ChunkIds: %v)",
+        YT_LOG_DEBUG("Chunks exported (TransactionId: %v, ChunkCount: %v, ChunkIdToDestinationCellTag: %v)",
             transaction->GetId(),
             chunks.size(),
             MakeShrunkFormattableView(
@@ -4494,7 +4494,9 @@ private:
                     TStringBuilderBase* builder,
                     std::pair<TChunk*, TCellTag> chunkWithCellTag)
                 {
-                    builder->AppendFormat("%v", chunkWithCellTag.first->GetId());
+                    builder->AppendFormat("%v -> %v",
+                        chunkWithCellTag.first->GetId(),
+                        chunkWithCellTag.second);
                 },
                 /*limit*/ 10));
     }
@@ -4535,6 +4537,35 @@ private:
             response->mutable_chunks());
     }
 
+    void ValidateImportChunksRequest(
+        TTransaction* transaction,
+        const google::protobuf::RepeatedPtrField<TChunkImportData>& request)
+    {
+        if (transaction->GetPersistentState() != ETransactionState::Active) {
+            transaction->ThrowInvalidState();
+        }
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto thisCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
+
+        for (const auto& importData : request) {
+            auto chunkId = FromProto<TChunkId>(importData.id());
+            if (CellTagFromId(chunkId) == thisCellTag) {
+                THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
+            }
+
+            if (ChunkMap_.Find(chunkId)) {
+                continue;
+            }
+
+            if (!importData.has_chunk_schema_id()) {
+                continue;
+            }
+            auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
+            tableManager->GetMasterTableSchemaOrThrow(chunkSchemaId);
+        }
+    }
+
     void ImportChunks(
         TTransaction* transaction,
         const google::protobuf::RepeatedPtrField<TChunkImportData>& request) override
@@ -4554,10 +4585,10 @@ private:
             if (!chunk) {
                 chunk = DoCreateChunk(chunkId);
                 chunk->SetForeign();
+
                 if (importData.has_chunk_schema_id()) {
                     auto chunkSchemaId = FromProto<TMasterTableSchemaId>(importData.chunk_schema_id());
-
-                    auto* existingChunkSchema = tableManager->GetMasterTableSchemaOrThrow(chunkSchemaId);
+                    auto* existingChunkSchema = tableManager->GetMasterTableSchema(chunkSchemaId);
                     tableManager->SetChunkSchema(chunk, existingChunkSchema);
                 }
 
@@ -4587,19 +4618,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-        if (transaction->GetPersistentState() != ETransactionState::Active) {
-            transaction->ThrowInvalidState();
-        }
-
-        auto thisCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
-
-        for (const auto& importData : request->chunks()) {
-            auto chunkId = FromProto<TChunkId>(importData.id());
-            if (CellTagFromId(chunkId) == thisCellTag) {
-                THROW_ERROR_EXCEPTION("Cannot import a native chunk %v", chunkId);
-            }
-        }
-
+        ValidateImportChunksRequest(transaction, request->chunks());
         ImportChunks(transaction, request->chunks());
     }
 
