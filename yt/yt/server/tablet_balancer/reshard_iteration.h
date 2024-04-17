@@ -31,6 +31,8 @@ struct IReshardIteration
 
     virtual bool IsTableBalancingEnabled(const TTablePtr& /*table*/) = 0;
 
+    virtual bool IsPickPivotKeysEnabled(const TBundleTabletBalancerConfigPtr& /*bundleConfig*/) const = 0;
+
     virtual const TString& GetBundleName() const = 0;
     virtual const TString& GetGroupName() const = 0;
     virtual const TTabletBalancerDynamicConfigPtr& GetDynamicConfig() const = 0;
