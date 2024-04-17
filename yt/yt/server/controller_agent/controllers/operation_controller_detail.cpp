@@ -1093,6 +1093,26 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     // Process input tables.
     if (!GetInputTablePaths().empty()) {
         GetInputTablesAttributes();
+        for (const auto& table : InputTables_) {
+            if (table->IsFile()) {
+                TError error;
+                if (table->Path.GetColumns()) {
+                    error = TError("Input file path contains column selectors");
+                }
+                if (
+                    table->Path.Attributes().Contains("upper_limit") ||
+                    table->Path.Attributes().Contains("lower_limit") ||
+                    table->Path.Attributes().Contains("ranges")
+                ) {
+                    error = TError("Input file path contains row selectors");
+                }
+
+                if (!error.IsOK()) {
+                    error <<= TErrorAttribute("path", table->Path);
+                    THROW_ERROR error;
+                }
+            }
+        }
     } else {
         YT_LOG_INFO("Operation has no input tables");
     }
@@ -6003,6 +6023,7 @@ void TOperationControllerBase::FetchInputTables()
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
             bool shouldSkip = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
             if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled.value_or(Config->UseColumnarStatisticsDefault) && !shouldSkip) {
+                YT_VERIFY(!inputChunk->IsFile());
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
                     *table->Path.GetColumns(),
