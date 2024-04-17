@@ -1,6 +1,10 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0 AND BSD-3-Clause AND MIT)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause AND
+    MIT
+)
 
 SRCS(
     deflate.go
@@ -36,12 +40,15 @@ GO_TEST_SRCS(
 
 IF (ARCH_X86_64)
     SRCS(
+        matchlen_amd64.go
+        matchlen_amd64.s
         regmask_amd64.go
     )
 ENDIF()
 
 IF (ARCH_ARM64)
     SRCS(
+        matchlen_generic.go
         regmask_other.go
     )
 ENDIF()

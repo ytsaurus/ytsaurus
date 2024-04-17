@@ -1,6 +1,10 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0 AND BSD-3-Clause AND MIT)
+LICENSE(
+    Apache-2.0 AND
+    BSD-3-Clause AND
+    MIT
+)
 
 SRCS(
     bitreader.go
@@ -11,7 +15,10 @@ SRCS(
     fse.go
 )
 
-GO_TEST_SRCS(fse_test.go)
+GO_TEST_SRCS(
+    fse_test.go
+    fuzz_test.go
+)
 
 END()
 

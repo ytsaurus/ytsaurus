@@ -6,6 +6,7 @@ package s2
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"testing"
 
 	"github.com/klauspost/compress/internal/fuzz"
@@ -125,6 +126,59 @@ func FuzzEncodingBlocks(f *testing.F) {
 		if mel := MaxEncodedLen(len(data)); len(comp) > mel {
 			t.Error(fmt.Errorf("MaxEncodedLen Exceed: input: %d, mel: %d, got %d", len(data), mel, len(comp)))
 			return
+		}
+
+		concat, err := ConcatBlocks(nil, data, []byte{0})
+		if err != nil || concat == nil {
+			return
+		}
+
+		EstimateBlockSize(data)
+		encoded := make([]byte, MaxEncodedLen(len(data)))
+		if len(encoded) < MaxEncodedLen(len(data)) || minNonLiteralBlockSize > len(data) || len(data) > maxBlockSize {
+			return
+		}
+
+		encodeBlockGo(encoded, data)
+		encodeBlockBetterGo(encoded, data)
+		encodeBlockSnappyGo(encoded, data)
+		encodeBlockBetterSnappyGo(encoded, data)
+		dst := encodeGo(encoded, data)
+		if dst == nil {
+			return
+		}
+	})
+}
+
+func FuzzStreamDecode(f *testing.F) {
+	enc := NewWriter(nil, WriterBlockSize(8<<10))
+	addCompressed := func(b []byte) {
+		var buf bytes.Buffer
+		enc.Reset(&buf)
+		enc.Write(b)
+		enc.Close()
+		f.Add(buf.Bytes())
+	}
+	fuzz.ReturnFromZip(f, "testdata/enc_regressions.zip", fuzz.TypeRaw, addCompressed)
+	fuzz.ReturnFromZip(f, "testdata/fuzz/block-corpus-raw.zip", fuzz.TypeRaw, addCompressed)
+	fuzz.ReturnFromZip(f, "testdata/fuzz/block-corpus-enc.zip", fuzz.TypeGoFuzz, addCompressed)
+	dec := NewReader(nil, ReaderIgnoreCRC())
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// Using Read
+		dec.Reset(bytes.NewReader(data))
+		io.Copy(io.Discard, dec)
+
+		// Using DecodeConcurrent
+		dec.Reset(bytes.NewReader(data))
+		dec.DecodeConcurrent(io.Discard, 2)
+
+		// Use ByteReader.
+		dec.Reset(bytes.NewReader(data))
+		for {
+			_, err := dec.ReadByte()
+			if err != nil {
+				break
+			}
 		}
 	})
 }
