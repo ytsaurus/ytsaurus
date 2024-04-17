@@ -226,6 +226,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
     ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
     ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
+    ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
     // 24.2 starts here.
 );
 
