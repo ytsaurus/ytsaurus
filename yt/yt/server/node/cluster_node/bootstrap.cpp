@@ -1523,11 +1523,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG_UNLESS(
+        YT_LOG_ALERT_UNLESS(
             additionalSecondaryTags.empty(),
             "Unexpected appearance of master cells in received configuration detected (UnexpectedCellTags: %v)",
             additionalSecondaryTags);
-        YT_LOG_WARNING_UNLESS(
+        YT_LOG_ALERT_UNLESS(
             removedSecondaryCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (DisappearedCellTags: %v)",
             removedSecondaryCellTags);

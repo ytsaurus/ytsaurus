@@ -9,7 +9,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, wait,
+    authors, init_drivers, wait,
     exists, get, set, ls, create, remove,
     create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction,
@@ -21,7 +21,7 @@ from yt_commands import (
     create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     print_debug, decommission_node,
-    sync_create_chaos_cell, generate_chaos_cell_id, align_chaos_cell_tag)
+    sync_create_chaos_cell, generate_chaos_cell_id, align_chaos_cell_tag, wait_drivers)
 
 from yt_helpers import master_exit_read_only_sync
 from yt.test_helpers import assert_items_equal
@@ -93,6 +93,12 @@ class TestMasterCellAdditionBase(YTEnvSetup):
         cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
 
     @classmethod
+    def modify_driver_config(cls, config):
+        if "secondary_masters" in config.keys() and config["cluster_name"] == "primary":
+            # Prevent drivers from crashing after discovery of the "new" cell via cell directory synchronizer.
+            cls._disable_last_cell_and_stash_config(config, cls.PRIMARY_CLUSTER_INDEX)
+
+    @classmethod
     def _disable_last_cell_and_stash_config(cls, config, cluster_index):
         if cluster_index != cls.PRIMARY_CLUSTER_INDEX:
             return
@@ -124,11 +130,18 @@ class TestMasterCellAdditionBase(YTEnvSetup):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
+            # Restart drivers to apply new master cells configuration.
+            cls.Env.kill_service("driver")
+            for i in range(cls.Env.yt_config.secondary_cell_count):
+                cls.Env.kill_service(f"driver_secondary_{i}")
+
             with Restarter(cls.Env, MASTERS_SERVICE, sync=False):
                 for i in range(len(cls.PATCHED_CONFIGS)):
                     cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
                 cls.Env.rewrite_master_configs()
+                init_drivers([cls.Env])
+            wait_drivers()
 
             master_exit_read_only_sync()
             cls.Env.synchronize()

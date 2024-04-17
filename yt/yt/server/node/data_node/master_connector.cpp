@@ -714,7 +714,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG_UNLESS(
+        YT_LOG_ALERT_UNLESS(
             addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
             "Unexpected master cell configuration detected "
             "(AddedCellTags: %v, RemovedCellTags: %v)",
