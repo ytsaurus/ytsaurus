@@ -79,7 +79,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/codicil_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/concurrent_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/default_map_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/dnf_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ema_counter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/enum_ut.cpp
