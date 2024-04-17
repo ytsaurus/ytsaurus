@@ -116,7 +116,7 @@ class TestDynamicTablesLeases(YTEnvSetup):
         with raises_yt_error("Prerequisite check failed"):
             self._write_with_prerequisite(lease_id=tx, key="bar", atomicity=atomicity)
 
-        assert select_rows("* from [//tmp/t]") == \
+        assert select_rows("* from [//tmp/t] LIMIT 5") == \
             [
                 {"k": "a", "v": "v"},
                 {"k": "foo", "v": "v"},

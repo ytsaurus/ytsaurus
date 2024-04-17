@@ -4683,7 +4683,7 @@ class TestAccountsProfiling(YTEnvSetup):
             secondary_profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
 
         gauge_name = "accounts/chunk_count"
-        sleep(1.2)
+        sleep(2)
 
         # Check that followers actually report something.
         for follower_profiler in follower_profilers:
@@ -4695,7 +4695,7 @@ class TestAccountsProfiling(YTEnvSetup):
             self._check_profiler_values(profiler, gauge_name, False)
 
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
-        sleep(1.2)
+        sleep(2)
 
         # Check that leader now is the one reporting.
         self._check_profiler_values(leader_profiler, gauge_name, True)
@@ -4708,7 +4708,7 @@ class TestAccountsProfiling(YTEnvSetup):
 
         set("//sys/@config/security_manager/enable_accounts_profiling", False)
         # Check that nobody is reporting now.
-        sleep(1.2)
+        sleep(2)
         self._check_profiler_values(leader_profiler, gauge_name, False)
         for follower_profiler in follower_profilers:
             self._check_profiler_values(follower_profiler, gauge_name, False)
