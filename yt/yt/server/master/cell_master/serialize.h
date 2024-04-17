@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
+    ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -224,6 +225,7 @@ DEFINE_ENUM(EMasterReign,
     ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
     ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
     ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
+    ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
     // 24.2 starts here.
 );
 

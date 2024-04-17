@@ -37,7 +37,7 @@ public:
     TDuration RequestRateSmoothingPeriod;
     TDuration AccountMasterMemoryUsageUpdatePeriod;
 
-    // COMPAT(vovamelnikov)
+    // COMPAT(h0pless): This is a panic button, in case account profiling breaks.
     bool EnableAccountsProfiling;
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
