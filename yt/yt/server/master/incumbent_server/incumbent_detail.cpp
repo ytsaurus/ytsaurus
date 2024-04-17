@@ -1,6 +1,5 @@
 #include "incumbent_detail.h"
 
-#include "incumbent_manager.h"
 #include "private.h"
 
 namespace NYT::NIncumbentServer {

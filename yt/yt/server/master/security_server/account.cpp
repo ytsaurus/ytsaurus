@@ -1,5 +1,6 @@
 #include "account.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -217,6 +218,7 @@ void Deserialize(TChunkMergerCriteria& criteria, NYTree::INodePtr node)
 TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
     , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
+    , ShardIndex_(GetAccountShardIndex(id))
     , ChunkMergerNodeTraversals_(id)
 { }
 

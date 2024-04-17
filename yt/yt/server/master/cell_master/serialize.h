@@ -198,6 +198,8 @@ DEFINE_ENUM(EMasterReign,
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
+    ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
+    // 24.1 starts here.
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -3,15 +3,14 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, exists,
-    create_account, remove_account, transfer_account_resources, create_user, create_domestic_medium, make_ace,
-    start_transaction, abort_transaction, commit_transaction, ping_transaction,
-    lock, insert_rows, alter_table,
-    write_file, write_table, merge, sync_create_cells, sync_mount_table,
-    sync_unmount_table, sync_reshard_table, get_singular_chunk_id,
+    create_account, remove_account, transfer_account_resources, create_user, create_domestic_medium,
+    write_file, write_table, merge, sync_create_cells, sync_mount_table,  make_ace, ping_transaction,
+    sync_unmount_table, sync_reshard_table, get_singular_chunk_id, lock, insert_rows, alter_table,
     multicell_sleep, set_account_disk_space_limit, get_account_disk_space, get_account_committed_disk_space,
     create_dynamic_table, get_chunk_owner_disk_space, cluster_resources_equal, master_memory_sleep,
-    assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver,
-    raises_yt_error)
+    assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver, raises_yt_error,
+    get_active_primary_master_leader_address, start_transaction, abort_transaction, commit_transaction,
+    get_currently_active_pirmary_master_follower_addresses)
 
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
@@ -25,8 +24,6 @@ from time import sleep
 from operator import itemgetter
 from copy import deepcopy
 import builtins
-
-from functools import reduce
 
 ##################################################################
 
@@ -4305,23 +4302,6 @@ class TestAccountTree(AccountsTestSuiteBase):
         set("//sys/@config/security_manager/max_account_subtree_size", 5)
         move("//sys/account_tree/d", "//sys/account_tree/c/ca/caa")
 
-    @authors("vovamelnikov")
-    def test_sensors_existance(self):
-        primary_addresses = ls("//sys/primary_masters")
-        profilers = [profiler_factory().at_primary_master(master_address) for master_address in primary_addresses]
-
-        secondary_masters = get("//sys/secondary_masters")
-        secondary_profilers = []
-        for tag in secondary_masters:
-            addrs = [address for address in secondary_masters[tag]]
-            secondary_profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
-
-        values = [profiler.gauge("accounts/disk_space_in_gb").get_all() for profiler in profilers]
-        secondary_values = [profiler.gauge("accounts/disk_space_in_gb").get_all() for profiler in secondary_profilers]
-
-        assert len(reduce(lambda a, b: a + b, secondary_values, [])) == 0
-        assert len(list(filter(lambda x: len(x) != 0, values))) == 1
-
 
 ##################################################################
 
@@ -4625,3 +4605,88 @@ class TestAccountTreeMulticell(TestAccountTree):
         assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/total") > mem
         assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/11") > 0
         assert get("//sys/accounts/a/@recursive_resource_usage/master_memory/per_cell/12") == mem2
+
+
+##################################################################
+
+
+class TestAccountsProfiling(YTEnvSetup):
+    NUM_MASTERS = 3
+
+    def _get_leader_address(self):
+        for master in ls("//sys/primary_masters"):
+            address = f"//sys/primary_masters/{master}/orchid"
+            if get(f"{address}/monitoring/hydra/state") == "leading":
+                return master
+
+    def _get_follower_addresses(self):
+        followers = []
+
+        for master in ls("//sys/primary_masters"):
+            address = f"//sys/primary_masters/{master}/orchid"
+            if get(f"{address}/monitoring/hydra/state") == "following":
+                followers.append(master)
+
+        return followers
+
+    def _check_profiler_values(self, profiler, gauge_name, should_report):
+        values = profiler.gauge(gauge_name).get_all()
+        assert (values == []) != should_report
+
+    @authors("h0pless")
+    def test_accounts_profiling(self):
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", True)
+        set("//sys/@config/security_manager/accounts_profiling_period", 1)
+
+        # Ensuring that both peers have an account in one of their shards
+        for name in ["juan", "gregorz", "john", "johna", "johnson"]:
+            create_account(f"{name}_the_1st")
+            create_account(f"{name}_the_2nd")
+            create_account(f"{name}_the_3rd")
+            for generation in range(4, 21):
+                create_account(f"{name}_the_{generation}th")
+
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+
+        follower_addresses = get_currently_active_pirmary_master_follower_addresses(self)
+        follower_profilers = [profiler_factory().at_primary_master(address) for address in follower_addresses]
+
+        secondary_cell_tags = get("//sys/secondary_masters")
+        secondary_profilers = []
+        for tag in secondary_cell_tags:
+            addrs = [address for address in secondary_cell_tags[tag]]
+            secondary_profilers += [profiler_factory().at_secondary_master(tag, master_address) for master_address in addrs]
+
+        gauge_name = "accounts/chunk_count"
+        sleep(1.2)
+
+        # Check that followers actually report something.
+        for follower_profiler in follower_profilers:
+            self._check_profiler_values(follower_profiler, gauge_name, True)
+
+        # Not the leader or secondary cells.
+        self._check_profiler_values(leader_profiler, gauge_name, False)
+        for profiler in secondary_profilers:
+            self._check_profiler_values(profiler, gauge_name, False)
+
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
+        sleep(1.2)
+
+        # Check that leader now is the one reporting.
+        self._check_profiler_values(leader_profiler, gauge_name, True)
+
+        # Not the followers or secondary cells.
+        for follower_profiler in follower_profilers:
+            self._check_profiler_values(follower_profiler, gauge_name, False)
+        for profiler in secondary_profilers:
+            self._check_profiler_values(profiler, gauge_name, False)
+
+        set("//sys/@config/security_manager/enable_accounts_profiling", False)
+        # Check that nobody is reporting now.
+        sleep(1.2)
+        self._check_profiler_values(leader_profiler, gauge_name, False)
+        for follower_profiler in follower_profilers:
+            self._check_profiler_values(follower_profiler, gauge_name, False)
+        for profiler in secondary_profilers:
+            self._check_profiler_values(profiler, gauge_name, False)

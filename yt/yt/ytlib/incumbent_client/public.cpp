@@ -1,8 +1,10 @@
 #include "public.h"
 
+#include <yt/yt/ytlib/cellar_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/ytlib/cellar_client/public.h>
+#include <yt/yt/ytlib/security_client/public.h>
 
 namespace NYT::NIncumbentClient {
 
@@ -17,6 +19,8 @@ int GetIncumbentShardCount(EIncumbentType type)
             return NCellarClient::CellShardCount;
         case EIncumbentType::ChunkReplicator:
             return NChunkClient::ChunkShardCount;
+        case EIncumbentType::SecurityManager:
+            return NSecurityClient::AccountShardCount;
         default:
             YT_ABORT();
     }
