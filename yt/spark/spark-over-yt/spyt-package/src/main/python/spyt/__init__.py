@@ -13,7 +13,7 @@ import pyspark.sql.types
 import pyspark.sql.readwriter
 import pyspark.cloudpickle.cloudpickle
 import pyspark.cloudpickle.cloudpickle_fast
-import types
+from types import CodeType
 
 __all__ = [
     'connect',
@@ -47,7 +47,7 @@ def initialize():
     pyspark.cloudpickle.cloudpickle._extract_code_globals = _extract_code_globals
     pyspark.cloudpickle.cloudpickle_fast._extract_code_globals = _extract_code_globals
     pyspark.cloudpickle.cloudpickle_fast._code_reduce = _code_reduce
-    pyspark.cloudpickle.cloudpickle_fast.CloudPickler.dispatch_table[types.CodeType] = _code_reduce
+    pyspark.cloudpickle.cloudpickle_fast.CloudPickler.dispatch_table[CodeType] = _code_reduce
 
 
 initialize()
