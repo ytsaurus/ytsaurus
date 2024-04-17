@@ -135,6 +135,8 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("groups", &TThis::Groups)
         .Default();
+    registrar.Parameter("enable_pick_pivot_keys", &TThis::EnablePickPivotKeys)
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());

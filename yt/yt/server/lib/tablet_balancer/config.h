@@ -101,6 +101,7 @@ class TBundleTabletBalancerConfig
 public:
     bool EnableParameterizedByDefault;
     std::optional<TString> DefaultInMemoryGroup;
+    bool EnablePickPivotKeys;
 
     THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
 
