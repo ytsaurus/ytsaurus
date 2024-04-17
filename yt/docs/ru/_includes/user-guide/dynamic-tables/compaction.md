@@ -1,7 +1,7 @@
 # Фоновая компактификация
 
 Таблет сортированной динамической таблицы представляет из себя [LSM-дерево](https://en.wikipedia.org/wiki/Log-structured_merge-tree). При записи строка сначала попадает в хранилище в памяти — dynamic store. По мере наполнения данные из dynamic store сбрасываются на диск в чанки. Фоновый процесс компактификации периодически объединяет несколько чанков. Это необходимо для:
-- применения [delete tombstones](../../../user-guide/dynamic-tables/sorted_dynamic_tables#udalenie-stroki) и физического удаления строк;
+- применения [delete tombstones](../../../user-guide/dynamic-tables/sorted-dynamic-tables#udalenie-stroki) и физического удаления строк;
 - удаления старых версий;
 - уменьшения overlapping store count — числа чанков, в которых может потребоваться искать некоторый фиксированный ключ.
 
