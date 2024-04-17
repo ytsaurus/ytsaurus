@@ -23,7 +23,6 @@ target_compile_options(clickhouse-contrib-cctz-cmake PUBLIC
 target_compile_options(clickhouse-contrib-cctz-cmake PRIVATE
   -DINCBIN_SILENCE_BITCODE_WARNING
   -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
-  -D__GCC_HAVE_DWARF2_CFI_ASM=1
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
