@@ -3280,8 +3280,6 @@ private:
 
         InitBuiltins();
 
-        ValidateAccountResourceUsages();
-
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
 
