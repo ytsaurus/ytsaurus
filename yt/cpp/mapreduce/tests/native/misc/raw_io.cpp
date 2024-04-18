@@ -85,11 +85,12 @@ Y_UNIT_TEST_SUITE(RawIo)
     Y_UNIT_TEST(RetryBeforeRead)
     {
         TTestRawReaderFixture testFixture(10);
+        auto error = std::make_exception_ptr(std::runtime_error("some_error"));
 
         auto client = testFixture.GetClient();
         auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         {
-            reader->Retry(Nothing(), Nothing());
+            reader->Retry(Nothing(), Nothing(), error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
@@ -101,7 +102,7 @@ Y_UNIT_TEST_SUITE(RawIo)
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), testFixture.GetData());
         }
         {
-            reader->Retry(Nothing(), 0ull);
+            reader->Retry(Nothing(), 0ull, error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
@@ -113,7 +114,7 @@ Y_UNIT_TEST_SUITE(RawIo)
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), testFixture.GetData());
         }
         {
-            reader->Retry(Nothing(), 5ull);
+            reader->Retry(Nothing(), 5ull, error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
@@ -129,12 +130,13 @@ Y_UNIT_TEST_SUITE(RawIo)
 
     Y_UNIT_TEST(RetryAfterRead)
     {
+        auto error = std::make_exception_ptr(std::runtime_error("some_error"));
         TTestRawReaderFixture testFixture(10);
 
         auto client = testFixture.GetClient();
         auto reader = client->CreateRawReader(testFixture.GetWorkingDir() + "/table", TFormat::YsonBinary(), TTableReaderOptions());
         reader->ReadAll();
-        reader->Retry(Nothing(), 9ull);
+        reader->Retry(Nothing(), 9ull, error);
         auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
         TMaybe<ui32> rangeIndex;
@@ -175,6 +177,8 @@ Y_UNIT_TEST_SUITE(RawIo)
     {
         TTestRawReaderFixture testFixture(20);
 
+        auto error = std::make_exception_ptr(std::runtime_error("some_error"));
+
         auto client = testFixture.GetClient();
 
         TRichYPath path(testFixture.GetWorkingDir() + "/table");
@@ -189,7 +193,7 @@ Y_UNIT_TEST_SUITE(RawIo)
         reader->ReadAll();
 
         {
-            reader->Retry(Nothing(), Nothing());
+            reader->Retry(Nothing(), Nothing(), error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
@@ -203,7 +207,7 @@ Y_UNIT_TEST_SUITE(RawIo)
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), expected);
         }
         {
-            reader->Retry(0, 3);
+            reader->Retry(0, 3, error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
@@ -217,7 +221,7 @@ Y_UNIT_TEST_SUITE(RawIo)
             UNIT_ASSERT_VALUES_EQUAL(res.AsList(), expected);
         }
         {
-            reader->Retry(1, 12);
+            reader->Retry(1, 12, error);
             auto res = NodeFromYsonString(reader->ReadAll(), ::NYson::EYsonType::ListFragment);
 
             TMaybe<ui32> rangeIndex;
