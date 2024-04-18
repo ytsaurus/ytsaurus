@@ -440,6 +440,9 @@ public:
     //! Enable detailed incremental heartbeat statistics profiling.
     bool EnableProfiling;
 
+    //! Test location disable during full heartbeat, contains location uuid.
+    std::optional<TGuid> LocationUuidToDisableDuringFullHeartbeat;
+
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
