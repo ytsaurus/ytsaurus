@@ -334,9 +334,32 @@ public:
         YT_VERIFY(delta->State == EMasterConnectorState::Registered);
 
         delta->State = EMasterConnectorState::Online;
-        YT_VERIFY(delta->AddedSinceLastSuccess.empty());
-        YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
-        YT_VERIFY(delta->ChangedMediumSinceLastSuccess.empty());
+
+        if (!delta->AddedSinceLastSuccess.empty() ||
+            !delta->RemovedSinceLastSuccess.empty() ||
+            !delta->ChangedMediumSinceLastSuccess.empty())
+        {
+            YT_LOG_INFO(
+                "Chunk changed during full heartbeat (ChunkAdded: %v, ChunkRemoved: %v, MediumChanged: %v)",
+                MakeShrunkFormattableView(
+                    delta->AddedSinceLastSuccess,
+                    [] (TStringBuilderBase* builder, const auto& chunk) {
+                        builder->AppendString(ToString(chunk->GetId()));
+                    },
+                    3),
+                MakeShrunkFormattableView(
+                    delta->RemovedSinceLastSuccess,
+                    [] (TStringBuilderBase* builder, const auto& chunk) {
+                        builder->AppendString(ToString(chunk->GetId()));
+                    },
+                    3),
+                MakeShrunkFormattableView(
+                    delta->ChangedMediumSinceLastSuccess,
+                    [] (TStringBuilderBase* builder, const auto& entry) {
+                        builder->AppendString(ToString(entry.first->GetId()));
+                    },
+                    3));
+        }
 
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
         // COMPAT(aleksandra-zh)
@@ -347,6 +370,7 @@ public:
                 response.revision(),
                 /*onFullHeartbeat*/ true);
         }
+
         if (response.has_enable_lazy_replica_announcements()) {
             allyReplicaManager->SetEnableLazyAnnouncements(response.enable_lazy_replica_announcements());
         }
@@ -676,9 +700,11 @@ private:
         for (auto cellTag : masterCellTags) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Offline;
+
             delta->ReportedAdded.clear();
             delta->ReportedRemoved.clear();
             delta->ReportedChangedMedium.clear();
+
             delta->AddedSinceLastSuccess.clear();
             delta->RemovedSinceLastSuccess.clear();
             delta->ChangedMediumSinceLastSuccess.clear();
@@ -916,6 +942,13 @@ private:
         YT_VERIFY(Bootstrap_->IsConnected());
         auto nodeId = Bootstrap_->GetNodeId();
 
+        {
+            auto* delta = GetChunksDelta(cellTag);
+            delta->AddedSinceLastSuccess.clear();
+            delta->RemovedSinceLastSuccess.clear();
+            delta->ChangedMediumSinceLastSuccess.clear();
+        }
+
         // Full heartbeat construction can take a while; offload it RPC Heavy thread pool.
         auto req = WaitFor(
             BIND(&TMasterConnector::BuildFullHeartbeatRequest, MakeStrong(this), nodeId, cellTag)
@@ -925,6 +958,15 @@ private:
 
         YT_LOG_INFO("Sending full data node heartbeat to master (CellTag: %v)",
             cellTag);
+
+        if (auto locationUuidToDisable = GetDynamicConfig()->LocationUuidToDisableDuringFullHeartbeat) {
+            const auto& chunkStore = Bootstrap_->GetChunkStore();
+            for (const auto& location : chunkStore->Locations()) {
+                if (location->GetUuid() == locationUuidToDisable) {
+                    location->ScheduleDisable(TError("Test location disable while full heartbeat"));
+                }
+            }
+        }
 
         auto rspOrError = WaitFor(req->Invoke());
         if (rspOrError.IsOK()) {
@@ -1172,10 +1214,6 @@ private:
         }
 
         auto* delta = GetChunksDelta(chunk->GetId());
-        if (delta->State != EMasterConnectorState::Online) {
-            return;
-        }
-
         delta->RemovedSinceLastSuccess.erase(chunk);
         delta->AddedSinceLastSuccess.insert(chunk);
 
@@ -1193,10 +1231,6 @@ private:
         }
 
         auto* delta = GetChunksDelta(chunk->GetId());
-        if (delta->State != EMasterConnectorState::Online) {
-            return;
-        }
-
         delta->AddedSinceLastSuccess.erase(chunk);
         delta->RemovedSinceLastSuccess.insert(chunk);
 
@@ -1211,9 +1245,6 @@ private:
     void OnChunkMediumChanged(const IChunkPtr& chunk, int mediumIndex)
     {
         auto* delta = GetChunksDelta(chunk->GetId());
-        if (delta->State != EMasterConnectorState::Online) {
-            return;
-        }
         delta->ChangedMediumSinceLastSuccess.emplace(chunk, mediumIndex);
     }
 
