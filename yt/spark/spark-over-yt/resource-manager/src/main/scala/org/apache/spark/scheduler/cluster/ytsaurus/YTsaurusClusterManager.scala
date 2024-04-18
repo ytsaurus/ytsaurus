@@ -29,6 +29,9 @@ private[spark] class YTsaurusClusterManager extends ExternalClusterManager with 
       ytProxy = sc.conf.get("spark.hadoop.yt.clusterProxy", ytProxy)
       networkName = None
     }
+    if (sc.conf.contains("spark.hadoop.yt.clusterProxy")) {
+      sc.conf.set("spark.hadoop.yt.proxy", sc.conf.get("spark.hadoop.yt.clusterProxy"))
+    }
 
     val operationManager = YTsaurusOperationManager.create(ytProxy, sc.conf, networkName)
 

@@ -16,6 +16,9 @@ private[spark] class YTsaurusClusterApplication extends SparkApplication with Lo
     val masterURL = conf.get("spark.master")
     val ytProxy = YTsaurusUtils.parseMasterUrl(masterURL)
     val networkName = conf.getOption("spark.hadoop.yt.proxyNetworkName")
+    if (conf.contains("spark.hadoop.yt.clusterProxy")) {
+      conf.set("spark.hadoop.yt.proxy", conf.get("spark.hadoop.yt.clusterProxy"))
+    }
 
     val appArgs = ApplicationArguments.fromCommandLineArgs(args)
 
