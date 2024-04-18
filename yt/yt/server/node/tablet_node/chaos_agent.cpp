@@ -170,6 +170,14 @@ private:
                 YT_LOG_DEBUG("Replica history list is empty");
                 return nullptr;
             }
+            if (!IsReplicaLocationValid(selfReplica, Tablet_->GetTablePath(), Connection_->GetClusterName().value())) {
+                YT_LOG_DEBUG("Upstream replica id corresponds to another table (TablePath: %v, ExpectedPath: %v, TableCluster: %v, ExpectedCluster: %v)",
+                    Tablet_->GetTablePath(),
+                    selfReplica->ReplicaPath,
+                    *Connection_->GetClusterName(),
+                    selfReplica->ClusterName);
+                return nullptr;
+            }
             return selfReplica;
         }();
 

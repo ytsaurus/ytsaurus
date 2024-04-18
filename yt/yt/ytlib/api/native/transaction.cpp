@@ -1274,7 +1274,7 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (TableInfo_->ReplicationCardId) {
+            if (!UpstreamReplicaId_ && TableInfo_->ReplicationCardId) {
                 UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
             }
             if (!TableInfo_->ReplicationCardId) {
@@ -1299,6 +1299,27 @@ private:
                             TableInfo_->Path,
                             TableInfo_->ReplicationCardId,
                             replicationCard->CoordinatorCellIds);
+
+                        if (!TableInfo_->IsChaosReplicated()) {
+                            auto replica = replicationCard->Replicas.FindPtr(TableInfo_->UpstreamReplicaId);
+                            if (!replica) {
+                                THROW_ERROR_EXCEPTION("Table uses upstream_replica_id that is not present in replication card")
+                                    << TErrorAttribute("upstream_replica_id", TableInfo_->UpstreamReplicaId)
+                                    << TErrorAttribute("replication_card_id", TableInfo_->ReplicationCardId)
+                                    << TErrorAttribute("table_path", TableInfo_->Path);
+                            }
+
+                            const auto& clusterName = transaction->Client_->GetNativeConnection()->GetClusterName().value();
+                            if (!NChaosClient::IsReplicaLocationValid(replica, TableInfo_->Path, clusterName)) {
+                                THROW_ERROR_EXCEPTION("Table uses upstream_replica_id of other replica")
+                                    << TErrorAttribute("upstream_replica_id", TableInfo_->UpstreamReplicaId)
+                                    << TErrorAttribute("replication_card_id", TableInfo_->ReplicationCardId)
+                                    << TErrorAttribute("table_path", TableInfo_->Path)
+                                    << TErrorAttribute("expected_path", replica->ReplicaPath)
+                                    << TErrorAttribute("table_cluster", clusterName)
+                                    << TErrorAttribute("expected_cluster", replica->ClusterName);
+                            }
+                        }
 
                         ReplicationCard_ = replicationCard;
                         return OnGotReplicationCard(true);
