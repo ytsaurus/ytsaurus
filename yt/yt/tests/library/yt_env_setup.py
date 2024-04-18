@@ -834,6 +834,7 @@ class YTEnvSetup(object):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
                 configs["master"][tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
                 configs["master"][tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
+                configs["master"][tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
                 cls.modify_master_config(configs["master"][tag][peer_index], tag, peer_index, cluster_index)
 
         for index, config in enumerate(configs["scheduler"]):
@@ -956,6 +957,14 @@ class YTEnvSetup(object):
             configs["rpc_driver"],
             cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index),
         )
+
+    @classmethod
+    def update_transaction_supervisor_config(cls, cluster_index, config):
+        if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
+            return config
+        config.setdefault("transaction_supervisor", {})
+        config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
+        return config
 
     @classmethod
     def update_sequoia_connection_config(cls, cluster_index, config):

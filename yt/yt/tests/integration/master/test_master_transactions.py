@@ -30,6 +30,19 @@ def not_implemented_in_sequoia(func):
     return decorator.decorate(func, wrapper)
 
 
+def with_portals_dir(func):
+    def wrapper(func, self, *args, **kwargs):
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals")
+        try:
+            return func(self, *args, **kwargs)
+        finally:
+            if not self.ENABLE_TMP_PORTAL:
+                remove("//portals", recursive=True)
+
+    return decorator.decorate(func, wrapper)
+
+
 ##################################################################
 
 
@@ -265,10 +278,8 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
 
     @authors("babenko")
+    @with_portals_dir
     def test_tx_multicell_attrs(self):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals")
-
         tx = start_transaction(timeout=60000)
         tx_cell_tag = str(get("#" + tx + "/@native_cell_tag"))
         cell_tags = [tx_cell_tag]
@@ -314,9 +325,6 @@ class TestMasterTransactions(YTEnvSetup):
             assert staged_node_ids[tx_cell_tag] == []
 
             assert len(get("#" + tx + "/@lock_ids/13")) == 2
-
-        if not self.ENABLE_TMP_PORTAL:
-            remove("//portals", recursive=True)
 
     @authors("babenko")
     def test_transaction_maps(self):
@@ -641,10 +649,8 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
             assert_on_commit()
 
     @authors("shakurov")
+    @with_portals_dir
     def test_native_content_revision_copy(self):
-        if not self.ENABLE_TMP_PORTAL:
-            create("map_node", "//portals")
-
         create("portal_entrance", "//portals/p", attributes={"exit_cell_tag": 13})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 12})
@@ -667,9 +673,6 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
 
         self._assert_native_content_revision_matches("//tmp/t_copy_tx")
         self._assert_native_content_revision_matches("//portals/p/t_copy_tx")
-
-        if not self.ENABLE_TMP_PORTAL:
-            remove("//portals", recursive=True)
 
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
