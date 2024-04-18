@@ -121,7 +121,14 @@ class ChaosTestBase(DynamicTablesBase):
             if mount_tables:
                 sync_mount_table(path, driver=driver)
 
-    def _create_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True, ordered=False, schema=None, pivot_keys=None, replication_progress=None):
+    def _create_replica_tables(self, replicas, replica_ids,
+                               create_tablet_cells=True,
+                               mount_tables=True,
+                               ordered=False,
+                               schema=None,
+                               pivot_keys=None,
+                               replication_progress=None,
+                               tablet_cell_bundle=None):
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
@@ -137,6 +144,8 @@ class ChaosTestBase(DynamicTablesBase):
                 kwargs["pivot_keys"] = pivot_keys
             if replication_progress:
                 kwargs["replication_progress"] = replication_progress
+            if tablet_cell_bundle:
+                kwargs["tablet_cell_bundle"] = tablet_cell_bundle
             create_table(path, **kwargs)
         self._prepare_replica_tables(replicas, replica_ids, create_tablet_cells=create_tablet_cells, mount_tables=mount_tables)
 

@@ -2735,6 +2735,11 @@ public:
         return DoGetRows(maxTimestamp, outputRowBuffer);
     }
 
+    const TErrorOr<TQueryServiceProxy::TRspPullRowsPtr>& GetResultOrError() const
+    {
+        return ResultOrError_;
+    }
+
 private:
     const IClientPtr Client_;
     const TTableSchemaPtr Schema_;
@@ -2745,7 +2750,7 @@ private:
     const TTabletRequest Request_;
     const IInvokerPtr Invoker_;
 
-    TQueryServiceProxy::TRspPullRowsPtr Result_;
+    TErrorOr<TQueryServiceProxy::TRspPullRowsPtr> ResultOrError_;
 
     TReplicationProgress ReplicationProgress_;
     std::optional<i64> ReplicationRowIndex_;
@@ -2756,70 +2761,77 @@ private:
 
     TFuture<void> DoPullRows()
     {
-        const auto& connection = Client_->GetNativeConnection();
-        const auto& cellDirectory = connection->GetCellDirectory();
-        const auto& networks = connection->GetNetworks();
-        auto channel = CreateTabletReadChannel(
-            Client_->GetChannelFactory(),
-            *cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
-            Options_,
-            networks);
+        try {
+            const auto& connection = Client_->GetNativeConnection();
+            const auto& cellDirectory = connection->GetCellDirectory();
+            const auto& networks = connection->GetNetworks();
+            auto channel = CreateTabletReadChannel(
+                Client_->GetChannelFactory(),
+                *cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
+                Options_,
+                networks);
 
-        TQueryServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
-        auto req = proxy.PullRows();
-        req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
-        req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
-        req->set_mount_revision(TabletInfo_->MountRevision);
-        req->set_max_rows_per_read(Options_.TabletRowsPerRead);
-        req->set_upper_timestamp(Options_.UpperTimestamp);
-        ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
-        ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
-        ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
-        ToProto(req->mutable_upstream_replica_id(), Options_.UpstreamReplicaId);
-        if (ReplicationRowIndex_.has_value()) {
-            req->set_start_replication_row_index(*ReplicationRowIndex_);
+            TQueryServiceProxy proxy(channel);
+            proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
+            auto req = proxy.PullRows();
+            req->set_request_codec(static_cast<int>(connection->GetConfig()->LookupRowsRequestCodec));
+            req->set_response_codec(static_cast<int>(connection->GetConfig()->LookupRowsResponseCodec));
+            req->set_mount_revision(TabletInfo_->MountRevision);
+            req->set_max_rows_per_read(Options_.TabletRowsPerRead);
+            req->set_upper_timestamp(Options_.UpperTimestamp);
+            ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
+            ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
+            ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);
+            ToProto(req->mutable_upstream_replica_id(), Options_.UpstreamReplicaId);
+            if (ReplicationRowIndex_.has_value()) {
+                req->set_start_replication_row_index(*ReplicationRowIndex_);
+            }
+
+            YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
+                ReplicationProgress_,
+                ReplicationRowIndex_);
+
+            return req->Invoke()
+                .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))
+                    .AsyncVia(Invoker_));
+
+        } catch (const std::exception& ex) {
+            OnPullRowsResponse(TError("Failed to prepare request") << ex);
+            return MakeFuture(TErrorOr<void>());
         }
-
-        YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
-            ReplicationProgress_,
-            ReplicationRowIndex_);
-
-        return req->Invoke()
-            .Apply(BIND(&TTabletPullRowsSession::OnPullRowsResponse, MakeWeak(this))
-                .AsyncVia(Invoker_));
     }
 
     void OnPullRowsResponse(const TErrorOr<TQueryServiceProxy::TRspPullRowsPtr>& resultOrError)
     {
+        ResultOrError_ = resultOrError;
         if (!resultOrError.IsOK()) {
             YT_LOG_DEBUG(resultOrError, "Pull rows request failed");
             return;
         }
 
-        Result_ = resultOrError.Value();
-        ReplicationProgress_ = FromProto<TReplicationProgress>(Result_->end_replication_progress());
-        if (Result_->has_end_replication_row_index()) {
-            ReplicationRowIndex_ = Result_->end_replication_row_index();
+        const auto& result = resultOrError.Value();
+        ReplicationProgress_ = FromProto<TReplicationProgress>(result->end_replication_progress());
+        if (result->has_end_replication_row_index()) {
+            ReplicationRowIndex_ = result->end_replication_row_index();
         }
-        DataWeight_ += Result_->data_weight();
-        RowCount_ += Result_->row_count();
+        DataWeight_ += result->data_weight();
+        RowCount_ += result->row_count();
 
         YT_LOG_DEBUG("Got pull rows response (RowCount: %v, DataWeight: %v, EndReplicationRowIndex: %v, Progress: %v)",
-            Result_->row_count(),
-            Result_->data_weight(),
+            result->row_count(),
+            result->data_weight(),
             ReplicationRowIndex_,
             ReplicationProgress_);
     }
 
     std::vector<TTypeErasedRow> DoGetRows(TTimestamp maxTimestamp, const TRowBufferPtr& outputRowBuffer)
     {
-        if (!Result_) {
+        if (!ResultOrError_.IsOK()) {
             return {};
         }
 
         auto* responseCodec = NCompression::GetCodec(Client_->GetNativeConnection()->GetConfig()->LookupRowsResponseCodec);
-        auto responseData = responseCodec->Decompress(Result_->Attachments()[0]);
+        auto responseData = responseCodec->Decompress(ResultOrError_.Value()->Attachments()[0]);
         auto reader = CreateWireProtocolReader(responseData, outputRowBuffer);
         auto resultSchemaData = IWireProtocolReader::GetSchemaData(*Schema_, TColumnFilter());
 
@@ -2987,7 +2999,12 @@ TPullRowsResult TClient::DoPullRows(
     std::vector<TTypeErasedRow> resultRows;
     auto outputRowBuffer = New<TRowBuffer>(TPullRowsOutputBufferTag());
 
+    bool success = false;
     for (const auto& session : sessions) {
+        if (session->GetResultOrError().IsOK()) {
+            success = true;
+        }
+
         const auto& rows = session->GetRows(maxTimestamp, outputRowBuffer);
         resultRows.insert(resultRows.end(), rows.begin(), rows.end());
 
@@ -3005,6 +3022,14 @@ TPullRowsResult TClient::DoPullRows(
 
         combinedResult.DataWeight += session->GetDataWeight();
         combinedResult.RowCount += session->GetRowCount();
+    }
+
+    if (!success) {
+        TError error("All pull rows subrequests failed");
+        for (const auto& session : sessions) {
+            error.MutableInnerErrors()->push_back(session->GetResultOrError());
+        }
+        THROW_ERROR_EXCEPTION(error);
     }
 
     if (tableInfo->IsSorted() && options.OrderRowsByTimestamp) {
