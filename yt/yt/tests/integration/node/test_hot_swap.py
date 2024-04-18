@@ -6,7 +6,7 @@ from yt_commands import (
     authors, wait, create_access_control_object_namespace,
     ls, get, create, set, make_ace, create_access_control_object,
     create_user, exists, get_singular_chunk_id,
-    update_nodes_dynamic_config, remove, write_table,
+    update_nodes_dynamic_config, remove, write_table, read_file,
     write_file, disable_chunk_locations,
     resurrect_chunk_locations)
 
@@ -430,3 +430,105 @@ class TestHotSwap(YTEnvSetup):
                 return res
 
         wait(lambda: check_alert())
+
+
+class TestLocationDisabling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    STORE_LOCATION_COUNT = 2
+
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "abort_on_location_disabled": False,
+            "publish_disabled_locations": True
+        }
+    }
+
+    @authors("don-dron")
+    def test_disable_location_during_full_heartbeat(self):
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        create("file", "//tmp/f", attributes={"replication_factor": 1})
+
+        def can_write(key="a"):
+            try:
+                write_file("//tmp/f", str.encode(key))
+                return True
+            except YtError:
+                return False
+
+        def can_read():
+            try:
+                read_file("//tmp/f")
+                return True
+            except YtError:
+                return False
+
+        for node in nodes:
+            wait(lambda: exists("//sys/cluster_nodes/{0}/orchid/restart_manager".format(node)))
+            wait(lambda: not get("//sys/cluster_nodes/{0}/orchid/restart_manager/need_restart".format(node)))
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
+        wait(lambda: can_write())
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            def chunk_count():
+                count = 0
+                for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                    count = count + get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid))
+                return count
+            wait(lambda: chunk_count() != 0)
+
+        chunk_ids = get("//tmp/f/@chunk_ids")
+        assert len(chunk_ids) == 1
+
+        chunk_id = chunk_ids[0]
+
+        def check_chunk_replica_count(count=0):
+            stored_replicas = get("//sys/chunks/{}/@stored_replicas".format(chunk_id))
+            chunk_location_uuids = [x.attributes["location_uuid"] for x in stored_replicas]
+            return len(chunk_location_uuids) == count
+
+        stored_replicas = get("//sys/chunks/{}/@stored_replicas".format(chunk_id))
+        chunk_location_uuids = [x.attributes["location_uuid"] for x in stored_replicas]
+        assert len(chunk_location_uuids) == 1
+        location = chunk_location_uuids[0]
+
+        wait(lambda: check_chunk_replica_count(1))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "master_connector": {
+                    "location_uuid_to_disable_during_full_heartbeat": location
+                },
+                "abort_on_location_disabled": False,
+                "publish_disabled_locations": True
+            }
+        })
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location)))
+
+        wait(lambda: check_chunk_replica_count(0))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "master_connector": {
+                    "location_uuid_to_disable_during_full_heartbeat": "0-0-0-0"
+                }
+            }
+        })
+
+        wait(lambda: len(resurrect_chunk_locations(node, [location])) > 0)
+        wait(lambda: get("//sys/chunk_locations/{}/@statistics/enabled".format(location)))
+        wait(lambda: check_chunk_replica_count(1))
+        wait(lambda: can_read())
