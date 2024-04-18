@@ -27,7 +27,14 @@ object Utils {
 
   def ytNetworkProjectEnabled: Boolean = sys.env.contains("YT_NETWORK_PROJECT_ID")
 
-  def ytHostIp: String = sys.env("YT_IP_ADDRESS_DEFAULT")
+  def ytHostIp: String = {
+    val ipString = sys.env("YT_IP_ADDRESS_DEFAULT")
+    if (ipString.contains(":") && !ipString.startsWith("[") && !ipString.endsWith("]")) {
+      s"[$ipString]"
+    } else {
+      ipString
+    }
+  }
 
   def ytHostnameOrIpAddress: String = {
     if (ytNetworkProjectEnabled) ytHostIp else InetAddress.getLocalHost.getHostName

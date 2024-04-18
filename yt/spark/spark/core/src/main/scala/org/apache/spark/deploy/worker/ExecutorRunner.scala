@@ -18,7 +18,6 @@
 package org.apache.spark.deploy.worker
 
 import java.io._
-import java.net.URI
 import java.nio.charset.StandardCharsets
 
 import scala.collection.JavaConverters._
@@ -26,7 +25,7 @@ import scala.collection.JavaConverters._
 import com.google.common.io.Files
 
 import org.apache.spark.{SecurityManager, SparkConf}
-import org.apache.spark.deploy.{ApplicationDescription, ExecutorState, SparkHadoopUtil}
+import org.apache.spark.deploy.{ApplicationDescription, ExecutorState}
 import org.apache.spark.deploy.DeployMessages.ExecutorStateChanged
 import org.apache.spark.deploy.StandaloneResourceUtils.prepareResourcesFile
 import org.apache.spark.internal.Logging
@@ -90,26 +89,6 @@ private[deploy] class ExecutorRunner(
       killProcess(Some("Worker shutting down")) }
   }
 
-  private def downloadFile(sourceUrl: String, destDir: File): String = {
-    val fileName = new URI(sourceUrl).getPath.split("/").last
-    val localJarFile = new File(destDir, fileName)
-    if (!localJarFile.exists()) { // May already exist if running multiple workers on one node
-      logInfo(s"Copying user file $sourceUrl to $localJarFile")
-      Utils.fetchFile(
-        sourceUrl,
-        destDir,
-        conf,
-        SparkHadoopUtil.get.newConfiguration(conf),
-        System.currentTimeMillis(),
-        useCache = false)
-      if (!localJarFile.exists()) { // Verify copy succeeded
-        throw new IOException(
-          s"Can not find expected file $fileName which should have been loaded in $destDir")
-      }
-    }
-    localJarFile.getAbsolutePath
-  }
-
   /**
    * Kill executor process, wait for exit and notify worker to update resource status.
    *
@@ -163,18 +142,6 @@ private[deploy] class ExecutorRunner(
     case other => other
   }
 
-  private def substituteFiles(opt: String): String = {
-    // TODO make more general
-    if (opt.contains("yt:///")) {
-      val name :: files :: Nil = opt.split("=", 2).toList
-      val downloadedFiles = files.split(",")
-        .map(file => s"file://${downloadFile(file, executorDir)}")
-      val newOpt = s"$name=${downloadedFiles.mkString(",")}"
-      logInfo(s"Substitute $opt with $newOpt")
-      newOpt
-    } else opt
-  }
-
   /**
    * Download and run the executor described in our ApplicationDescription
    */
@@ -184,8 +151,8 @@ private[deploy] class ExecutorRunner(
       // Launch the process
       val arguments = appDesc.command.arguments ++ resourceFileOpt.map(f =>
         Seq("--resourcesFile", f.getAbsolutePath)).getOrElse(Seq.empty)
-      val subsOpts = appDesc.command.javaOpts.map { opt =>
-        substituteFiles(Utils.substituteAppNExecIds(opt, appId, execId.toString))
+      val subsOpts = appDesc.command.javaOpts.map {
+        Utils.substituteAppNExecIds(_, appId, execId.toString)
       }
       val subsCommand = appDesc.command.copy(arguments = arguments, javaOpts = subsOpts)
       val builder = CommandUtils.buildProcessBuilder(subsCommand, new SecurityManager(conf),

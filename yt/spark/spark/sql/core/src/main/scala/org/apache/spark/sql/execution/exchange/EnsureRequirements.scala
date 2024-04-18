@@ -25,7 +25,6 @@ import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.catalyst.rules.Rule
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.joins.{ShuffledHashJoinExec, SortMergeJoinExec}
-import org.apache.spark.util.Utils
 
 /**
  * Ensures that the [[org.apache.spark.sql.catalyst.plans.physical.Partitioning Partitioning]]
@@ -41,19 +40,6 @@ import org.apache.spark.util.Utils
  *                               repartition shuffles in the plan.
  */
 case class EnsureRequirements(optimizeOutRepartition: Boolean = true) extends Rule[SparkPlan] {
-
-  def instantiateExchangeExec(cls: Class[_ <: Exchange],
-                              partitioning: Partitioning,
-                              distribution: Distribution,
-                              child: SparkPlan): Exchange = {
-    cls
-      .getConstructor(classOf[Partitioning], classOf[Distribution], classOf[SparkPlan])
-      .newInstance(
-        partitioning.asInstanceOf[AnyRef],
-        distribution.asInstanceOf[AnyRef],
-        child.asInstanceOf[AnyRef]
-      )
-  }
 
   private def ensureDistributionAndOrdering(operator: SparkPlan): SparkPlan = {
     val requiredChildDistributions: Seq[Distribution] = operator.requiredChildDistribution
@@ -71,14 +57,7 @@ case class EnsureRequirements(optimizeOutRepartition: Boolean = true) extends Ru
       case (child, distribution) =>
         val numPartitions = distribution.requiredNumPartitions
           .getOrElse(conf.numShufflePartitions)
-        val partitioning = distribution.createPartitioning(numPartitions)
-        distribution match {
-          case customDistribution: CustomDistribution =>
-            val clsName = customDistribution.exchangeExecClass
-            val cls = Utils.classForName(clsName).asInstanceOf[Class[_ <: Exchange]]
-            instantiateExchangeExec(cls, partitioning, distribution, child)
-          case _ => ShuffleExchangeExec(partitioning, child)
-        }
+        ShuffleExchangeExec(distribution.createPartitioning(numPartitions), child)
     }
 
     // Get the indexes of children which have specified distribution requirements and need to have

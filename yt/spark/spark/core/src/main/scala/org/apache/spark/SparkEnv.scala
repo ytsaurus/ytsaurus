@@ -30,7 +30,7 @@ import com.google.common.cache.CacheBuilder
 import org.apache.hadoop.conf.Configuration
 
 import org.apache.spark.annotation.DeveloperApi
-import org.apache.spark.api.python.{ExecutableUtils, ExecutableWorkerFactory, PythonWorkerFactory}
+import org.apache.spark.api.python.PythonWorkerFactory
 import org.apache.spark.broadcast.BroadcastManager
 import org.apache.spark.internal.{config, Logging}
 import org.apache.spark.internal.config._
@@ -112,33 +112,13 @@ class SparkEnv (
     }
   }
 
-  private val isRunningExecutable = conf.getBoolean("spark.yt.isExecutable", false)
-
-  private def workerKey(
-      pythonExec: String,
-      envVars: Map[String, String]): (String, Map[String, String]) = {
-    if (isRunningExecutable) {
-      (ExecutableUtils.executablePath, envVars)
-    } else {
-      (pythonExec, envVars)
-    }
-  }
-
   private[spark]
   def createPythonWorker(
       pythonExec: String,
       envVars: Map[String, String]): (java.net.Socket, Option[Int]) = {
     synchronized {
-      val key = workerKey(pythonExec, envVars)
-      val (path, env) = key
-      val workerFactory = pythonWorkers.getOrElseUpdate(key, {
-        if (isRunningExecutable) {
-          new ExecutableWorkerFactory(path, env)
-        } else {
-          new PythonWorkerFactory(path, env)
-        }
-      })
-      pythonWorkers.getOrElseUpdate(key, workerFactory).create()
+      val key = (pythonExec, envVars)
+      pythonWorkers.getOrElseUpdate(key, new PythonWorkerFactory(pythonExec, envVars)).create()
     }
   }
 
@@ -146,7 +126,7 @@ class SparkEnv (
   def destroyPythonWorker(pythonExec: String,
       envVars: Map[String, String], worker: Socket): Unit = {
     synchronized {
-      val key = workerKey(pythonExec, envVars)
+      val key = (pythonExec, envVars)
       pythonWorkers.get(key).foreach(_.stopWorker(worker))
     }
   }
@@ -155,7 +135,7 @@ class SparkEnv (
   def releasePythonWorker(pythonExec: String,
       envVars: Map[String, String], worker: Socket): Unit = {
     synchronized {
-      val key = workerKey(pythonExec, envVars)
+      val key = (pythonExec, envVars)
       pythonWorkers.get(key).foreach(_.releaseWorker(worker))
     }
   }

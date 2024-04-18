@@ -42,6 +42,8 @@ class SparkDefaultArguments(object):
     SPARK_WORKER_MEMORY_OVERHEAD = "2G"
     SPARK_WORKER_TMPFS_LIMIT = "8G"
     SPARK_WORKER_SSD_LIMIT = None
+    SPARK_MASTER_PORT = 27001
+    SPARK_WORKER_PORT = 27001
     SPARK_MASTER_MEMORY_LIMIT = "4G"
     SPARK_HISTORY_SERVER_MEMORY_LIMIT = "4G"
     SPARK_HISTORY_SERVER_MEMORY_OVERHEAD = "2G"
@@ -335,8 +337,8 @@ def setup_spyt_env(spark_home, additional_parameters, setup_spyt_env_sh_exists):
 
 def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker, enable_tmpfs, tmpfs_limit,
-                               worker_disk_name, worker_disk_limit, worker_disk_account,
-                               master_memory_limit, shs_location,
+                               worker_disk_name, worker_disk_limit, worker_disk_account, worker_port,
+                               master_memory_limit, master_port, shs_location,
                                history_server_memory_limit, history_server_memory_overhead, history_server_cpu_limit,
                                network_project, tvm_id, tvm_secret,
                                advanced_event_log, worker_log_transfer, worker_log_json_mode,
@@ -484,6 +486,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_YT_TCP_PROXY_ENABLED"] = str(enablers.enable_tcp_proxy)
     environment["SPARK_YT_PROFILING_ENABLED"] = str(enablers.enable_profiling)
     environment["SPARK_YT_RPC_JOB_PROXY_ENABLED"] = str(rpc_job_proxy)
+    environment["SPARK_MASTER_PORT"] = str(master_port)
     if enablers.enable_byop:
         environment["SPARK_YT_BYOP_PORT"] = "27002"
     if enablers.enable_solomon_agent:
@@ -497,6 +500,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     tvm_enabled = enablers.enable_mtn and bool(tvm_id) and bool(tvm_secret)
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
+        "SPARK_WORKER_PORT": str(worker_port)
     }
     worker_environment = update(environment, worker_environment)
     livy_environment = {
@@ -655,7 +659,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
                         enable_tmpfs=True, tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
                         ssd_limit=SparkDefaultArguments.SPARK_WORKER_SSD_LIMIT,
                         ssd_account=None, worker_disk_name="default", worker_disk_limit=None, worker_disk_account=None,
+                        worker_port=SparkDefaultArguments.SPARK_WORKER_PORT,
                         master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
+                        master_port=SparkDefaultArguments.SPARK_MASTER_PORT,
                         enable_history_server=True,
                         history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
                         history_server_cpu_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_CPU_LIMIT,
@@ -685,6 +691,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param worker_cores_overhead: additional worker cores
     :param worker_memory_overhead: additional worker memory
     :param worker_timeout: timeout to fail master waiting
+    :param worker_port: starting port to bind worker rpc endpoint
     :param enable_tmpfs: mounting ram memory as directory 'tmpfs'
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param ssd_limit: limit of ssd usage, default None, ssd disabled
@@ -693,6 +700,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param worker_disk_limit: limit of disk usage, default None, disk disabled
     :param worker_disk_account: account for disk quota
     :param master_memory_limit: memory limit for master, default 2G
+    :param master_port: starting port to bind master rpc endpoint
     :param enable_history_server: enables SHS
     :param history_server_memory_limit: memory limit for history server, default 16G,
     total memory for SHS job is history_server_memory_limit + history_server_memory_overhead
@@ -823,7 +831,9 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
         'worker_disk_name': worker_disk_name,
         'worker_disk_limit': worker_disk_limit,
         'worker_disk_account': worker_disk_account,
+        'worker_port': worker_port,
         'master_memory_limit': master_memory_limit,
+        'master_port': master_port,
         'shs_location': shs_location,
         'history_server_memory_limit': history_server_memory_limit,
         'history_server_memory_overhead': history_server_memory_overhead,

@@ -89,8 +89,4 @@ private[spark] object Worker {
       .version("3.2.0")
       .stringConf
       .createWithDefaultString("PWR")
-
-  val WORKER_PORT = ConfigBuilder("spark.worker.port")
-    .intConf
-    .createOptional
 }

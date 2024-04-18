@@ -37,8 +37,10 @@ def main(raw_args=None):
     parser.add_argument("--worker-disk-name", required=False, default="default")
     parser.add_argument("--worker-disk-limit", required=False, default=None)
     parser.add_argument("--worker-disk-account", required=False, default=None)
+    parser.add_argument("--worker-port", required=False, default=SparkDefaultArguments.SPARK_WORKER_PORT, type=int),
     parser.add_argument("--master-memory-limit", required=False,
                         default=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT)
+    parser.add_argument("--master-port", required=False, default=SparkDefaultArguments.SPARK_MASTER_PORT, type=int),
     parser.add_argument("--history-server-memory-limit",
                         required=False, default=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT)
     parser.add_argument("--history-server-memory-overhead",
@@ -158,7 +160,9 @@ def main(raw_args=None):
                         worker_disk_name=args.worker_disk_name,
                         worker_disk_limit=args.worker_disk_limit,
                         worker_disk_account=args.worker_disk_account,
+                        worker_port=args.worker_port,
                         master_memory_limit=args.master_memory_limit,
+                        master_port=args.master_port,
                         enable_history_server=args.enable_history_server,
                         history_server_memory_limit=args.history_server_memory_limit,
                         history_server_memory_overhead=args.history_server_memory_overhead,

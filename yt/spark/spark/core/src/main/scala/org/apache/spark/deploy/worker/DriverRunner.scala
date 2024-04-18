@@ -22,7 +22,6 @@ import java.net.URI
 import java.nio.charset.StandardCharsets
 
 import scala.collection.JavaConverters._
-import scala.util.matching._
 
 import com.google.common.io.Files
 
@@ -33,7 +32,7 @@ import org.apache.spark.deploy.StandaloneResourceUtils.prepareResourcesFile
 import org.apache.spark.deploy.master.DriverState
 import org.apache.spark.deploy.master.DriverState.DriverState
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config.{DRIVER_RESOURCES_FILE, SECRET_REDACTION_PATTERN, SPARK_DRIVER_PREFIX}
+import org.apache.spark.internal.config.{DRIVER_RESOURCES_FILE, SPARK_DRIVER_PREFIX}
 import org.apache.spark.internal.config.UI.UI_REVERSE_PROXY
 import org.apache.spark.internal.config.Worker.WORKER_DRIVER_TERMINATE_TIMEOUT
 import org.apache.spark.resource.ResourceInformation
@@ -156,28 +155,20 @@ private[deploy] class DriverRunner(
    * Will throw an exception if there are errors downloading the jar.
    */
   private def downloadUserJar(driverDir: File): String = {
-    downloadFile(driverDesc.jarUrl, driverDir)
-  }
-
-  private def downloadPyFiles(driverDir: File): Seq[String] = {
-    driverDesc.pyFiles.map(downloadFile(_, driverDir))
-  }
-
-  private def downloadFile(sourceUrl: String, destDir: File): String = {
-    val fileName = new URI(sourceUrl).getPath.split("/").last
-    val localJarFile = new File(destDir, fileName)
+    val jarFileName = new URI(driverDesc.jarUrl).getPath.split("/").last
+    val localJarFile = new File(driverDir, jarFileName)
     if (!localJarFile.exists()) { // May already exist if running multiple workers on one node
-      logInfo(s"Copying user file $sourceUrl to $localJarFile")
+      logInfo(s"Copying user jar ${driverDesc.jarUrl} to $localJarFile")
       Utils.fetchFile(
-        sourceUrl,
-        destDir,
+        driverDesc.jarUrl,
+        driverDir,
         conf,
         SparkHadoopUtil.get.newConfiguration(conf),
         System.currentTimeMillis(),
         useCache = false)
       if (!localJarFile.exists()) { // Verify copy succeeded
         throw new IOException(
-          s"Can not find expected file $fileName which should have been loaded in $destDir")
+          s"Can not find expected jar $jarFileName which should have been loaded in $driverDir")
       }
     }
     localJarFile.getAbsolutePath
@@ -187,22 +178,12 @@ private[deploy] class DriverRunner(
     val driverDir = createWorkingDirectory()
     val localJarFilename = downloadUserJar(driverDir)
     val resourceFileOpt = prepareResourcesFile(SPARK_DRIVER_PREFIX, resources, driverDir)
-    val localPyFiles = downloadPyFiles(driverDir)
 
     def substituteVariables(argument: String): String = argument match {
       case "{{WORKER_URL}}" => workerUrl
       case "{{USER_JAR}}" => localJarFilename
-      case "{{PY_FILES}}" => localPyFiles.mkString(",")
       case other => other
     }
-
-    val subsOpts = driverDesc.command.javaOpts.map { opt =>
-      FileUtils.substituteFiles(opt, driverDir, conf)
-    }
-
-    val (publicOpts, additionalEnv) =
-      DriverRunner.moveRedactedOptsToEnv(conf.get(SECRET_REDACTION_PATTERN), subsOpts)
-    val driverEnv = driverDesc.command.environment ++ additionalEnv
 
     // config resource file for driver, which would be used to load resources when driver starts up
     val javaOpts = driverDesc.command.javaOpts ++ resourceFileOpt.map(f =>
@@ -275,23 +256,6 @@ private[deploy] class DriverRunner(
     }
 
     exitCode
-  }
-}
-
-private[worker] object DriverRunner {
-  private[worker] def moveRedactedOptsToEnv(regex: Regex, opts: Seq[String]):
-  (Seq[String], Map[String, String]) = {
-    val confOpt = "-D(.+)=(.+)".r
-    val optsBuilder = Seq.newBuilder[String]
-    val envBuilder = Map.newBuilder[String, String]
-    for (opt <- opts) {
-      opt match {
-        case confOpt(key, value) if regex.findFirstIn(key).nonEmpty =>
-          envBuilder += SparkConf.confToEnvName(key) -> value
-        case _ => optsBuilder += opt
-      }
-    }
-    (optsBuilder.result(), envBuilder.result())
   }
 }
 

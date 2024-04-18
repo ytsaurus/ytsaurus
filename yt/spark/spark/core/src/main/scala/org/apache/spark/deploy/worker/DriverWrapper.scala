@@ -18,9 +18,6 @@
 package org.apache.spark.deploy.worker
 
 import java.io.File
-import java.net.URI
-
-import org.apache.hadoop.fs.FileSystem
 
 import org.apache.spark.{SecurityManager, SparkConf}
 import org.apache.spark.deploy.SparkHadoopUtil
@@ -43,34 +40,29 @@ object DriverWrapper extends Logging {
        */
       case workerUrl :: userJar :: mainClass :: extraArgs =>
         val conf = new SparkConf()
-        val hadoopConf = SparkHadoopUtil.newConfiguration(conf)
-        try {
-          val host: String = Utils.localHostName()
-          val port: Int = sys.props.getOrElse(config.DRIVER_PORT.key, "0").toInt
-          val rpcEnv = RpcEnv.create("Driver", host, port, conf, new SecurityManager(conf))
-          logInfo(s"Driver address: ${rpcEnv.address}")
-          rpcEnv.setupEndpoint("workerWatcher", new WorkerWatcher(rpcEnv, workerUrl))
+        val host: String = Utils.localHostName()
+        val port: Int = sys.props.getOrElse(config.DRIVER_PORT.key, "0").toInt
+        val rpcEnv = RpcEnv.create("Driver", host, port, conf, new SecurityManager(conf))
+        logInfo(s"Driver address: ${rpcEnv.address}")
+        rpcEnv.setupEndpoint("workerWatcher", new WorkerWatcher(rpcEnv, workerUrl))
 
-          val currentLoader = Thread.currentThread.getContextClassLoader
-          val userJarUrl = new File(userJar).toURI().toURL()
-          val loader =
-            if (sys.props.getOrElse(config.DRIVER_USER_CLASS_PATH_FIRST.key, "false").toBoolean) {
-              new ChildFirstURLClassLoader(Array(userJarUrl), currentLoader)
-            } else {
-              new MutableURLClassLoader(Array(userJarUrl), currentLoader)
-            }
-          Thread.currentThread.setContextClassLoader(loader)
-          setupDependencies(loader, userJar)
+        val currentLoader = Thread.currentThread.getContextClassLoader
+        val userJarUrl = new File(userJar).toURI().toURL()
+        val loader =
+          if (sys.props.getOrElse(config.DRIVER_USER_CLASS_PATH_FIRST.key, "false").toBoolean) {
+            new ChildFirstURLClassLoader(Array(userJarUrl), currentLoader)
+          } else {
+            new MutableURLClassLoader(Array(userJarUrl), currentLoader)
+          }
+        Thread.currentThread.setContextClassLoader(loader)
+        setupDependencies(loader, userJar)
 
-          // Delegate to supplied main class
-          val clazz = Utils.classForName(mainClass)
-          val mainMethod = clazz.getMethod("main", classOf[Array[String]])
-          mainMethod.invoke(null, extraArgs.toArray[String])
+        // Delegate to supplied main class
+        val clazz = Utils.classForName(mainClass)
+        val mainMethod = clazz.getMethod("main", classOf[Array[String]])
+        mainMethod.invoke(null, extraArgs.toArray[String])
 
-          rpcEnv.shutdown()
-        } finally {
-          FileSystem.get(new URI("yt:///"), hadoopConf).close()
-        }
+        rpcEnv.shutdown()
 
       case _ =>
         // scalastyle:off println
@@ -91,11 +83,11 @@ object DriverWrapper extends Logging {
       ivyProperties.ivyRepoPath, Option(ivyProperties.ivySettingsPath))
     val jars = {
       val jarsProp = sys.props.get(config.JARS.key).orNull
-      val ytJarsProp = sys.props.get("spark.yt.jars").orNull
       if (resolvedMavenCoordinates.nonEmpty) {
-        DependencyUtils.mergeFileLists(jarsProp +: ytJarsProp +: resolvedMavenCoordinates : _*)
+        DependencyUtils.mergeFileLists(jarsProp,
+          DependencyUtils.mergeFileLists(resolvedMavenCoordinates: _*))
       } else {
-        DependencyUtils.mergeFileLists(jarsProp, ytJarsProp)
+        jarsProp
       }
     }
     val localJars = DependencyUtils.resolveAndDownloadJars(jars, userJar, sparkConf, hadoopConf)

@@ -21,7 +21,7 @@ import scala.annotation.tailrec
 
 import org.apache.spark.SparkConf
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config._
+import org.apache.spark.internal.config.MASTER_UI_PORT
 import org.apache.spark.util.{IntParam, Utils}
 
 /**
@@ -57,7 +57,6 @@ private[master] class MasterArguments(args: Array[String], conf: SparkConf) exte
   if (conf.contains(MASTER_UI_PORT.key)) {
     webUiPort = conf.get(MASTER_UI_PORT)
   }
-  conf.get(MASTER_SERVER_PORT).foreach { port = _ }
 
   @tailrec
   private def parse(args: List[String]): Unit = args match {

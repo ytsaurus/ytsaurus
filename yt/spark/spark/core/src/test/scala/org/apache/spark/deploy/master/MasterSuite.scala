@@ -197,7 +197,6 @@ class MasterSuite extends SparkFunSuite
       id = "test_driver",
       desc = new DriverDescription(
         jarUrl = "",
-        pyFiles = Nil,
         mem = 0,
         cores = 0,
         supervise = false,
@@ -257,7 +256,6 @@ class MasterSuite extends SparkFunSuite
       id = "test_driver",
       desc = new DriverDescription(
         jarUrl = "",
-        pyFiles = Nil,
         mem = 1024,
         cores = 1,
         supervise = false,

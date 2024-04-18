@@ -236,7 +236,6 @@ class SingleEventLogFileWriter(
   override def stop(): Unit = {
     closeWriter()
     renameFile(new Path(inProgressPath), new Path(logPath), shouldOverwrite)
-    fileSystem.close()
   }
 }
 
@@ -358,7 +357,6 @@ class RollingEventLogFilesWriter(
     val appStatusPathComplete = getAppStatusFilePath(logDirForAppPath, appId, appAttemptId,
       inProgress = false)
     renameFile(appStatusPathIncomplete, appStatusPathComplete, overwrite = true)
-    fileSystem.close()
   }
 
   override def logPath: String = logDirForAppPath.toString

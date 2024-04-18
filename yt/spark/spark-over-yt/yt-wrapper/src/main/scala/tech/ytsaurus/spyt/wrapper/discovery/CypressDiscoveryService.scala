@@ -137,7 +137,7 @@ class CypressDiscoveryService(baseDiscoveryPath: String)(implicit yt: CompoundCl
       restHostAndPort <- cypressHostAndPort(restPath)
     } yield Address(hostAndPort, webUiHostAndPort, restHostAndPort)
 
-  def clusterVersion: Option[String] = getPath(clusterVersionPath).toOption
+  def clusterVersion: Try[String] = getPath(clusterVersionPath)
 
 
   override def masterWrapperEndpoint(): Option[HostAndPort] = cypressHostAndPort(masterWrapperPath).toOption

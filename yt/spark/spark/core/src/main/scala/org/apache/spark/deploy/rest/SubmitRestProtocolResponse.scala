@@ -55,7 +55,6 @@ private[spark] class KillSubmissionResponse extends SubmitRestProtocolResponse {
   }
 }
 
-
 /**
  * A response to a status request in the REST application submission protocol.
  */
