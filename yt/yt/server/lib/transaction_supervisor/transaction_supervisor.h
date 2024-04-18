@@ -36,6 +36,10 @@ struct ITransactionSupervisor
     virtual bool IsDecommissioned() const = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+
+    //! Returns future which is set when all currently prepared transactions are
+    //! finished.
+    virtual TFuture<void> WaitUntilPreparedTransactionsFinished() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

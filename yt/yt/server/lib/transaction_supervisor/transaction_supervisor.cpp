@@ -227,6 +227,11 @@ public:
         return OrchidService_;
     }
 
+    TFuture<void> WaitUntilPreparedTransactionsFinished() override
+    {
+        return VoidFuture;
+    }
+
 private:
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;

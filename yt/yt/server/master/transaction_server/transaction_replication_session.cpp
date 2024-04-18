@@ -13,6 +13,8 @@
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 #include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -398,10 +400,19 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
     syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithDuringInvocation();
     auto asyncResult = InvokeReplicationRequests();
-    auto syncFuture = asyncResult
-        ? syncSession->Sync(cellTags, asyncResult.AsVoid())
-        : syncSession->Sync(cellTags);
-    return syncFuture
+
+    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+    std::vector<TFuture<void>> additionalFutures = {
+        transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
+    };
+
+    if (asyncResult) {
+        additionalFutures.push_back(asyncResult.AsVoid());
+    }
+
+    // NB: we always have to wait all current prepared transactions to observe
+    // side effects of Sequoia transactions.
+    return syncSession->Sync(cellTags, std::move(additionalFutures))
         .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] () {
             if (!asyncResult) {
                 return VoidFuture;
@@ -543,7 +554,13 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
     auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, InitiatorRequest_.RequestId);
     syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
-    auto syncFuture = syncSession->Sync(cellTags);
+
+    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+    auto preparedTransactionsFinished = transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+
+    // NB: we always have to wait all current prepared transactions to observe
+    // side effects of Sequoia transactions.
+    auto syncFuture = syncSession->Sync(cellTags, std::move(preparedTransactionsFinished));
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
         .Apply(
