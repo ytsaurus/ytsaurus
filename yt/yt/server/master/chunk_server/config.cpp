@@ -645,6 +645,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("processed_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
         .Default(true);
 
+    registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
+        .Default(true)
+        .DontSerializeDefault();
+
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
         .Default(TDuration::Minutes(3))
         .DontSerializeDefault();
