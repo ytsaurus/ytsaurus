@@ -3453,7 +3453,7 @@ private:
             actualUsage,
             expectedUsage))
         {
-            YT_LOG_ALERT("%v account usage mismatch, snapshot usage: %v, recomputed usage: %v",
+            YT_LOG_ALERT("Account usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
                 actualUsage,
                 expectedUsage);
@@ -3467,7 +3467,7 @@ private:
             actualCommittedUsage,
             expectedCommittedUsage))
         {
-            YT_LOG_ALERT("%v account committed usage mismatch, snapshot usage: %v, recomputed usage: %v",
+            YT_LOG_ALERT("Account committed usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
                 actualUsage,
                 expectedUsage);
@@ -3475,7 +3475,7 @@ private:
         }
 
         if (!resourceUsageMatches && recompute) {
-            YT_LOG_ALERT("Setting recomputed resource usage for account (AccountName: %v)",
+            YT_LOG_ALERT("Setting recomputed resource usage for account (Account: %v)",
                 account->GetName());
 
             actualUsage = expectedUsage;
@@ -3490,12 +3490,17 @@ private:
 
     void ValidateAccountResourceUsages()
     {
+        YT_LOG_INFO("Started validating account resource usage");
+
         auto resourceUsages = ComputeAccountResourceUsages();
         for (auto [accountId, account] : Accounts()) {
             ValidateAndMaybeRecomputeAccountResourceUsage(
                 account,
-                resourceUsages[account]);
+                resourceUsages[account],
+                /*recompute*/ false);
         }
+
+        YT_LOG_INFO("Finished validating account resource usage");
     }
 
     void RecomputeAccountMasterMemoryUsage()
