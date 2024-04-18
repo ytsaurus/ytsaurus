@@ -65,7 +65,7 @@ template <typename TDerived>
     }
 
     if constexpr (std::is_base_of_v<TAttributes, TDerived>) {
-        //copy Attributes
+        // Copy Attributes.
         TAttributes& dstAttrs = *newObject;
         dstAttrs = *static_cast<const TDerived*>(this);
     }
