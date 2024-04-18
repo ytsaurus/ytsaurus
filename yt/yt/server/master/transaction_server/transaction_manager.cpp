@@ -40,9 +40,11 @@
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
@@ -706,6 +708,7 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, -1);
 
         if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
@@ -846,6 +849,7 @@ public:
         TransactionAborted_.Fire(transaction);
 
         RunAbortTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, -1);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1242,6 +1246,17 @@ public:
         PrepareTransactionCommit(transaction, options);
     }
 
+    void MaybeChangePreparedSequoiaTxCount(TTransaction* transaction, int delta)
+    {
+        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
+        if (!transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
+            return;
+        }
+        if (transaction->GetIsSequoiaTransaction()) {
+            Bootstrap_->GetTransactionSupervisor()->ChangePreparedSequoiaTxCount(delta);
+        }
+    }
+
     void PrepareTransactionCommit(
         TTransaction* transaction,
         const TTransactionPrepareOptions& options)
@@ -1282,6 +1297,7 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunPrepareTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, +1);
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -2733,6 +2749,21 @@ private:
                     currentTransaction = currentTransaction->GetParent();
                 }
             }
+        }
+
+        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
+        if (transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
+            int preparedSequoiaTxCount = 0;
+            for (auto [id, transaction] : TransactionMap_) {
+                if (transaction->GetIsSequoiaTransaction() &&
+                    transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared)
+                {
+                    ++preparedSequoiaTxCount;
+                }
+            }
+            Bootstrap_
+                ->GetTransactionSupervisor()
+                ->SetPreparedSequoiaTxCount(preparedSequoiaTxCount);
         }
     }
 

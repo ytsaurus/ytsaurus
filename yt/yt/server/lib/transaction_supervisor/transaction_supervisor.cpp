@@ -229,10 +229,30 @@ public:
 
     TFuture<void> WaitUntilPreparedTransactionsFinished() override
     {
+        // TODO(aleksandra-zh): implement.
+        if (Config_->EnableWaitUntilPreparedTransactionsFinished) {
+            if (PreparedSequoiaTxCount_.load() > 0) {
+                // Just use some delay for tests.
+                return TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(250));
+            }
+        }
+
         return VoidFuture;
     }
 
+    void SetPreparedSequoiaTxCount(int count) override
+    {
+        PreparedSequoiaTxCount_.store(count);
+    }
+
+    void ChangePreparedSequoiaTxCount(int delta) override
+    {
+        PreparedSequoiaTxCount_.fetch_add(delta);
+    }
+
 private:
+    std::atomic<int> PreparedSequoiaTxCount_ = 0;
+
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;
     const IHydraManagerPtr HydraManager_;
@@ -255,7 +275,6 @@ private:
     THashMap<TTransactionId, TAbort> TransientAbortMap_;
 
     bool Decommissioned_ = false;
-
 
     class TWrappedParticipant
         : public TRefCounted
@@ -487,7 +506,6 @@ private:
             return nullptr;
         }
 
-
         template <class F>
         TFuture<void> EnqueueRequest(
             bool succeedOnUnregistered,
@@ -671,8 +689,6 @@ private:
     THashMap<TCellId, TWrappedParticipantPtr> ParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
 
-
-
     class TOwnedServiceBase
         : public THydraServiceBase
     {
@@ -703,7 +719,6 @@ private:
     private:
         const TWeakPtr<TTransactionSupervisor> Owner_;
     };
-
 
     class TTransactionSupervisorService
         : public TOwnedServiceBase
@@ -913,7 +928,6 @@ private:
 
     const TIntrusivePtr<TTransactionSupervisorService> TransactionSupervisorService_;
 
-
     class TTransactionParticipantService
         : public TOwnedServiceBase
     {
@@ -1086,7 +1100,6 @@ private:
         const TWeakPtr<TTransactionSupervisor> Owner_;
         const TCommitMapField CommitMapField_;
     };
-
 
     class TParticipantOrchidService
         : public TVirtualMapBase

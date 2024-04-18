@@ -16,6 +16,8 @@ public:
     TDuration RpcTimeout;
     TDuration ParticipantBackoffTime;
 
+    bool EnableWaitUntilPreparedTransactionsFinished;
+
     REGISTER_YSON_STRUCT(TTransactionSupervisorConfig);
 
     static void Register(TRegistrar registrar);
