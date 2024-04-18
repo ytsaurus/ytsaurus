@@ -1312,8 +1312,8 @@ if __name__ == "__main__":
 
 ### Porto-слои { #porto_layers }
 
-При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/porto/layer-paths.md) необходимо подготовить перед запуском джобов.
-Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/porto/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
+При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
+Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
 
 Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
 ```python

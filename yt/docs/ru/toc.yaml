@@ -218,7 +218,7 @@ items:
           href: user-guide/data-processing/operations/recommendations.md
         - name: Образы ФС
           when: audience == "public"
-          href: user-guide/data-processing/porto/layer-paths.md
+          href: user-guide/data-processing/layers/layer-paths.md
         - name: Переключение таблиц
           when: audience == "public"
           href: user-guide/data-processing/operations/table-switch.md
