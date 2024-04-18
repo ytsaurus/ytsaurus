@@ -5739,13 +5739,20 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Starting Sequoia replica removal");
-
         if (ChunksBeingPurged_) {
+            YT_LOG_DEBUG("Chunks are still being purged");
             return;
         }
 
         auto config = GetDynamicConfig();
+        if (!config->EnableChunkPurgatory) {
+            YT_LOG_DEBUG("Sequoia chunk purgatory is disabled (PurgatorySize: %v)",
+                SequoiaChunkPurgatory_.size());
+            return;
+        }
+
+        YT_LOG_DEBUG("Starting Sequoia replica removal (PurgatorySize: %v)",
+            SequoiaChunkPurgatory_.size());
 
         std::vector<TChunkId> chunkIds;
         chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->SequoiaReplicaRemovalBatchSize));
@@ -6131,19 +6138,31 @@ private:
                 counters->AddedDestroyedReplicas.Increment();
             }
 
-            // If this is a Sequoia replica, the other part of 2PC will still insert
-            // this replica into in relevant tables. But this seems fine, as this replica will be removed
-            // from tables when node reports replica removal.
-            auto isUnknown = location->AddDestroyedReplica(chunkIdWithIndexes);
-            if (isUnknown) {
-                ++DestroyedReplicaCount_;
+            auto isImaginary = location->IsImaginary();
+            if (!isImaginary && IsSequoiaChunkReplica(chunkIdWithIndexes.Id, location->AsReal()->GetUuid())) {
+                TSequoiaChunkReplica replica;
+                replica.ChunkId = chunkIdWithIndexes.Id;
+                replica.ReplicaIndex = chunkIdWithIndexes.ReplicaIndex;
+                replica.NodeId = nodeId;
+                replica.LocationUuid = location->AsReal()->GetUuid();
+                SequoiaChunkPurgatory_[chunkIdWithIndexes.Id].push_back(replica);
+                YT_LOG_DEBUG(
+                    "Sequoia chunk replica added to purgatory (NodeId: %v, Address: %v, ChunkId: %v)",
+                    nodeId,
+                    node->GetDefaultAddress(),
+                    chunkIdWithIndexes);
+            } else {
+                auto isUnknown = location->AddDestroyedReplica(chunkIdWithIndexes);
+                if (isUnknown) {
+                    ++DestroyedReplicaCount_;
+                }
+                YT_LOG_DEBUG(
+                    "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
+                    isUnknown ? "Unknown chunk added," : "Destroyed chunk",
+                    nodeId,
+                    node->GetDefaultAddress(),
+                    chunkIdWithIndexes);
             }
-            YT_LOG_DEBUG(
-                "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
-                isUnknown ? "Unknown chunk added," : "Destroyed chunk",
-                nodeId,
-                node->GetDefaultAddress(),
-                chunkIdWithIndexes);
             return nullptr;
         }
 
@@ -6362,7 +6381,7 @@ private:
             buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
             buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
             buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
-            buffer.AddCounter("/sequoia_chunk_purgatory", SequoiaChunkPurgatory_.size());
+            buffer.AddGauge("/sequoia_chunk_purgatory_size", SequoiaChunkPurgatory_.size());
 
             {
                 TWithTagGuard guard(&buffer, "mode", "immediate");
