@@ -256,3 +256,15 @@ class TestQueriesChyt(ClickHouseTestBase):
             query = start_query("chyt", "select CAST(123.23, 'Decimal(30, 2)') as a", settings=settings)
             query.track()
             assert query.read_result(0) == [{"a": encode_decimal("123.23", 30, 2)}]
+
+    @authors("gudqeit")
+    def test_conversion_for_enums(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = start_query("chyt", "select CAST('a', 'Nullable(Enum8(\\'a\\' = 1))') as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": "a"}]
+
+            query = start_query("chyt", "select CAST('a', 'Nullable(Enum16(\\'a\\' = 1))') as a", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"a": "a"}]
