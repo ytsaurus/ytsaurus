@@ -26,3 +26,7 @@ RESOURCE_FILES(
 )
 
 END()
+IF (PYTHON2)
+    PEERDIR(yt/python_py2/yt/sequoia_tools)
+ELSE()
+ENDIF()

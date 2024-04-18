@@ -2,11 +2,15 @@ PY23_LIBRARY()
 
 NO_LINT()
 
-PY_SRCS(
-    NAMESPACE yt.packages
+IF (PYTHON2)
+    PEERDIR(yt/python_py2/contrib/python-fusepy)
+ELSE()
+    PY_SRCS(
+        NAMESPACE yt.packages
 
-    fusell.py
-    fuse.py
-)
+        fusell.py
+        fuse.py
+    )
+ENDIF()
 
 END()
