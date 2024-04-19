@@ -5,6 +5,7 @@ RECURSE(
     queue-agent
     strawberry
     systest
+    ya-build
     ytsaurus
     ytsaurus-bundle
 )
