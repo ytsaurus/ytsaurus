@@ -84,6 +84,7 @@ target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/arrow_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/dsv_writer_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/row_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/schemaful_dsv_writer_ut.cpp

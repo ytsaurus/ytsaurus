@@ -2,8 +2,6 @@
 #include "yson_helpers.h"
 #include "yt/yt/client/table_client/public.h"
 
-#include <yt/yt/client/unittests/protobuf_format_ut.pb.h>
-
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
@@ -13,15 +11,19 @@
 
 #include <yt/yt/client/formats/config.h>
 #include <yt/yt/client/formats/parser.h>
-#include <yt/yt/client/formats/lenval_control_constants.h>
-#include <yt/yt/client/formats/protobuf_writer.h>
-#include <yt/yt/client/formats/protobuf_parser.h>
-#include <yt/yt/client/formats/protobuf.h>
 #include <yt/yt/client/formats/format.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/library/formats/format.h>
+#include <yt/yt/library/formats/lenval_control_constants.h>
+#include <yt/yt/library/formats/protobuf_writer.h>
+#include <yt/yt/library/formats/protobuf_parser.h>
+#include <yt/yt/library/formats/protobuf.h>
+
+#include <yt/yt/library/formats/unittests/protobuf_format_ut.pb.h>
 
 #include <yt/yt/library/named_value/named_value.h>
 
@@ -1166,16 +1168,16 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
         New<TControlAttributesConfig>(),
         0);
 
-    writer->Write({
+    EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
             {"Enum", "MinusFortyTwo"}
         }).Get()
-    });
-    writer->Write({
+    }));
+    EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
             {"Enum", "Three"},
         }).Get()
-    });
+    }));
 
     writer->Close()
         .Get()
@@ -1238,7 +1240,7 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
             true,
             New<TControlAttributesConfig>(),
             0);
-        writer->Write({row});
+        Y_UNUSED(writer->Write({row}));
         writer->Close()
             .Get()
             .ThrowOnError();
@@ -1347,13 +1349,13 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
         New<TControlAttributesConfig>(),
         0);
 
-    writer->Write({
+    EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
             {"Int64", -1},
             {"String", "this_is_string"},
         }).Get()
-    });
-    writer->Write({MakeRow(nameTable, { }).Get()});
+    }));
+    EXPECT_EQ(true, writer->Write({MakeRow(nameTable, { }).Get()}));
 
     writer->Close()
         .Get()
@@ -1399,7 +1401,7 @@ TEST(TProtobufFormat, TestTabletIndex)
         controlAttributesConfig,
         0);
 
-    writer->Write({
+    EXPECT_EQ(true, writer->Write({
         MakeRow(nameTable, {
             {TabletIndexColumnName, 1LL << 50},
             {"int64_field", -2345},
@@ -1408,7 +1410,7 @@ TEST(TProtobufFormat, TestTabletIndex)
             {TabletIndexColumnName, 12},
             {"int64_field", 2345},
         }).Get(),
-    });
+    }));
 
     writer->Close()
         .Get()
@@ -2050,7 +2052,7 @@ TEST_P(TProtobufFormatStructuredMessage, EmbeddedWrite)
 
 
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
-    writer->Write(rows);
+    EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
         .Get()
@@ -2340,7 +2342,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     builder.AddValue(MakeUnversionedCompositeValue("[[2; [x; y]]; [5; [z; w]]]", mapFieldId));
 
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
-    writer->Write(rows);
+    EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
         .Get()
@@ -3080,20 +3082,20 @@ TEST_P(TProtobufFormatSeveralTables, Write)
         builder.AddValue(MakeUnversionedCompositeValue(embeddedYson, embeddedId));
         builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson, repeatedInt64Id));
         builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
-        writer->Write({builder.GetRow()});
+        EXPECT_EQ(true, writer->Write({builder.GetRow()}));
     }
     {
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue("Two", enumFieldId));
         builder.AddValue(MakeUnversionedInt64Value(999, int64FieldId));
         builder.AddValue(MakeUnversionedInt64Value(1, tableIndexId));
-        writer->Write({builder.GetRow()});
+        EXPECT_EQ(true, writer->Write({builder.GetRow()}));
     }
     {
         TUnversionedRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue("blah", stringFieldId));
         builder.AddValue(MakeUnversionedInt64Value(2, tableIndexId));
-        writer->Write({builder.GetRow()});
+        EXPECT_EQ(true, writer->Write({builder.GetRow()}));
     }
 
     writer->Close()
@@ -3631,7 +3633,7 @@ TEST(TProtobufFormat, MultipleOtherColumns)
         controlAttributesConfig,
         0);
 
-    protoWriter->Write(
+    EXPECT_EQ(true, protoWriter->Write(
         std::vector<TUnversionedRow>{
             NNamedValue::MakeRow(nameTable, {
                 {TableIndexColumnName, 0},
@@ -3641,8 +3643,8 @@ TEST(TProtobufFormat, MultipleOtherColumns)
                 {TableIndexColumnName, 1},
                 {"field2", "bar"},
             }),
-        }
-    );
+        }));
+
     WaitFor(protoWriter->Close())
         .ThrowOnError();
 
@@ -3821,7 +3823,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
 
     auto row = builder.GetRow();
     std::vector<TUnversionedRow> rows(rowCount, row);
-    writer->Write(rows);
+    EXPECT_EQ(true, writer->Write(rows));
 
     writer->Close()
         .Get()
@@ -4180,7 +4182,7 @@ TMessage WriteRow(
         true,
         New<TControlAttributesConfig>(),
         0);
-    writer->Write(std::vector<TUnversionedRow>{row});
+    Y_UNUSED(writer->Write(std::vector<TUnversionedRow>{row}));
     writer->Close().Get().ThrowOnError();
 
     TStringInput input(result);
