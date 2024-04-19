@@ -91,7 +91,7 @@ public:
 
     TQueueExportProgressPtr GetExportProgress() const;
 
-    void OnConfigUpdated(const NQueueClient::TQueueStaticExportConfig& config);
+    void Reconfigure(const NQueueClient::TQueueStaticExportConfig& config);
 
 private:
     const TString ExportName_;

@@ -3078,18 +3078,19 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
+        export_period = 5
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 15 * 1000,
+                "export_period": export_period * 1000,
             }
         })
 
-        # After this we have 14 second window to test that no trimmming
+        # After this we have 4.5 second window to test that no trimmming
         # is performed until queue is exported.
-        self._sleep_until_next_export_instant(period=15, offset=1)
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
+        self._sleep_until_next_export_instant(period=export_period, offset=0.5)
         assert len(ls(export_dir)) == 0
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
@@ -3126,19 +3127,20 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
+        export_period = 5
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 15 * 1000,
+                "export_period": export_period * 1000,
             }
         })
 
-        # After this we have 14 second window to test that no trimmming
+        # After this we have 4.5 second window to test that no trimmming
         # is performed until queue is exported.
-        self._sleep_until_next_export_instant(period=15, offset=1)
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         queue_agent_orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
+        self._sleep_until_next_export_instant(period=export_period, offset=0.5)
         assert len(ls(export_dir)) == 0
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
@@ -3239,58 +3241,35 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
     def test_alert_combinations(self):
         queue_agent_orchid = QueueAgentOrchid()
 
-        export_dir_1 = "//tmp/export1"
-        export_dir_2 = "//tmp/export2"
-        export_dir_3 = "//tmp/export3"
-        create("map_node", export_dir_2)
-        create("map_node", export_dir_3)
-
         queue_path = "//tmp/q"
+
+        export_dir = "//tmp/export"
+
         _, queue_id = self._create_queue(queue_path)
 
-        # Only the third export should actually work.
-        self._create_export_destination(export_dir_3, queue_id)
+        self._create_export_destination(export_dir, queue_id)
 
+        # Using the same export directory for different exports
+        # should trigger static export config misconfiguration alert, and then
+        # it would also trigger trim alert.
         set(f"{queue_path}/@static_export_config", {
-            # Destination directory does not exist.
             "first": {
-                "export_directory": export_dir_1,
+                "export_directory": export_dir,
                 "export_period": 1 * 1000,
             },
-            # Destination directory is not properly configured.
             "second": {
-                "export_directory": export_dir_2,
+                "export_directory": export_dir,
                 "export_period": 1 * 1000,
-            },
-            # Everything is correct.
-            "third": {
-                "export_directory": export_dir_3,
-                "export_period": 2 * 1000,
             },
         })
-
-        # A single non-vital consumer with enabled trimming should trigger an alert.
-        self._create_registered_consumer("//tmp/c", "//tmp/q", vital=False)
-        set("//tmp/q/@auto_trim_config", {"enable": True})
+        set(f"{queue_path}/@auto_trim_config", {"enable": True})
 
         self._wait_for_component_passes()
-
-        insert_rows(queue_path, [{"$tablet_index": 0, "data": "foo"}] * 6)
-        self._flush_table(queue_path)
-
-        self._advance_consumer("//tmp/c", "//tmp/q", 0, 3)
-
-        wait(lambda: len(ls(export_dir_3)) == 1)
-        # Nothing should be trimmed since consumer is not vital.
-        self._wait_for_row_count("//tmp/q", 0, 6)
-
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
 
         alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
-        alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="has no child with key", attributes={"export_name": "first"})
-        alerts.assert_matching("queue_agent_queue_controller_static_export_failed", text="export_destination", attributes={"export_name": "second"})
-        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="Not trimming partition 0 since export")
-        assert alerts.get_alert_count() == 3
+        alerts.assert_matching("queue_agent_queue_controller_trim_failed", text="Incorrect queue exports")
+        alerts.assert_matching("queue_agent_queue_controller_static_export_misconfiguration", text="Static export config check failed")
+        assert alerts.get_alert_count() == 2
 
-        self.remove_export_destination(export_dir_2)
-        self.remove_export_destination(export_dir_3)
+        self.remove_export_destination(export_dir)

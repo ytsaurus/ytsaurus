@@ -319,6 +319,7 @@ public:
             Logger))
         , AlertManager_(CreateAlertManager(Logger, ProfileManager_->GetQueueProfiler(), Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
+        , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -423,6 +424,7 @@ private:
     const IAlertManagerPtr AlertManager_;
     // TODO(achulkov2, nadya73): Separate trim into separate periodic executor.
     const IAlertCollectorPtr TrimAlertCollector_;
+    const IAlertCollectorPtr QueueExportsAlertCollector_;
 
     struct TQueueExport
     {
@@ -520,66 +522,73 @@ private:
 
     void UpdateExports(const TQueueSnapshotPtr& nextQueueSnapshot)
     {
+        // NB(apachee): We keep the exports even in the case of "enableQueueStaticExport" being false
+        // to allow trimming exported rows, but prevent trimming past them.
+
+        auto finalizeUpdate = Finally([&] {
+            QueueExportsAlertCollector_->PublishAlerts();
+        });
+
         auto enableQueueStaticExport = DynamicConfig_.Acquire()->EnableQueueStaticExport;
         const auto& staticExportConfig = nextQueueSnapshot->Row.StaticExportConfig;
 
         auto guard = WriterGuard(QueueExportsLock_);
 
-        if (staticExportConfig) {
-            if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig); !staticExportConfigError.IsOK()) {
-                QueueExports_ = staticExportConfigError;
-                return;
-            }
-
-            if (!QueueExports_.IsOK()) {
-                QueueExports_ = QueueExportsMappingOrError();
-            }
-            auto& queueExports = QueueExports_.Value();
-            for (const auto& [name, config] : *staticExportConfig) {
-                if (queueExports.find(name) == queueExports.end()) {
-                    queueExports[name] = {
-                        .Executor = nullptr,
-                        .Exporter = New<TQueueExporter>(
-                            name,
-                            QueueRef_,
-                            config,
-                            ClientDirectory_->GetUnderlyingClientDirectory(),
-                            Invoker_,
-                            CreateAlertCollector(AlertManager_),
-                            ProfileManager_->GetQueueProfiler(),
-                            Logger),
-                    };
-                } else {
-                    queueExports[name].Exporter->OnConfigUpdated(config);
-                }
-
-                if (enableQueueStaticExport) {
-                    if (!queueExports[name].Executor) {
-                        auto executor = New<TScheduledExecutor>(
-                            Invoker_,
-                            BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
-                            /*interval*/ std::nullopt);
-                        executor->Start();
-                        queueExports[name].Executor = executor;
-                    }
-                    queueExports[name].Executor->SetInterval(config.ExportPeriod);
-                } else {
-                    queueExports[name].Executor = nullptr;
-                }
-            }
-
-            // Remove unused exports.
-            std::vector<TString> unusedExportNames;
-            for (const auto& [exportName, _] : queueExports) {
-                if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
-                    unusedExportNames.push_back(exportName);
-                }
-            }
-            for (const auto& name : unusedExportNames) {
-                queueExports.erase(name);
-            }
-        } else {
+        if (!staticExportConfig) {
             QueueExports_ = QueueExportsMappingOrError();
+            return;
+        }
+        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig); !staticExportConfigError.IsOK()) {
+            QueueExports_ = staticExportConfigError;
+            QueueExportsAlertCollector_->StageAlert(CreateAlert(
+                NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
+                "Failed to update exports due to misconfiguration",
+                /*tags*/ {},
+                /*error*/ QueueExports_));
+            return;
+        }
+
+        if (!QueueExports_.IsOK()) {
+            QueueExports_ = QueueExportsMappingOrError();
+        }
+        auto& queueExports = QueueExports_.Value();
+        for (const auto& [name, config] : *staticExportConfig) {
+            if (queueExports.find(name) == queueExports.end()) {
+                queueExports[name] = {
+                    .Executor = New<TScheduledExecutor>(
+                        Invoker_,
+                        BIND(&TOrderedDynamicTableController::Export, MakeWeak(this), name),
+                        /*interval*/ std::nullopt),
+                    .Exporter = New<TQueueExporter>(
+                        name,
+                        QueueRef_,
+                        config,
+                        ClientDirectory_->GetUnderlyingClientDirectory(),
+                        Invoker_,
+                        CreateAlertCollector(AlertManager_),
+                        ProfileManager_->GetQueueProfiler(),
+                        Logger),
+                };
+
+                queueExports[name].Executor->Start();
+            } else {
+                queueExports[name].Exporter->Reconfigure(config);
+            }
+
+            queueExports[name].Executor->SetInterval(enableQueueStaticExport
+                ? std::optional(config.ExportPeriod)
+                : std::nullopt);
+        }
+
+        // Remove unused exports.
+        std::vector<TString> unusedExportNames;
+        for (const auto& [exportName, _] : queueExports) {
+            if (staticExportConfig->find(exportName) == staticExportConfig->end()) {
+                unusedExportNames.push_back(exportName);
+            }
+        }
+        for (const auto& name : unusedExportNames) {
+            queueExports.erase(name);
         }
     }
 
@@ -878,20 +887,7 @@ private:
 
         auto replicaContexts = GetReplicasToTrim(queueSnapshot);
 
-        if (!QueueExports_.IsOK()) {
-            THROW_ERROR_EXCEPTION("Incorrect queue exports, trimming iteration skipped")
-                << QueueExports_;
-        }
-
-        THashMap<TString, TQueueExportProgressPtr> queueExportProgress;
-        {
-            auto guard = ReaderGuard(QueueExportsLock_);
-            const auto& queueExports = QueueExports_.Value();
-            queueExportProgress.reserve(queueExports.size());
-            for (const auto& [queueExportName, queueExport] : queueExports) {
-                queueExportProgress[queueExportName] = queueExport.Exporter->GetExportProgress();
-            }
-        }
+        auto queueExportProgress = GetQueueExportProgressOrThrow();
 
         std::vector<TIntrusivePtr<TQueueTrimSession>> trimSessions;
         for (const auto& replicaContext : replicaContexts) {
@@ -925,6 +921,27 @@ private:
             THROW_ERROR_EXCEPTION("Error trimming %v queue replicas", trimSessionErrors.size())
                 << trimSessionErrors;
         }
+    }
+
+    THashMap<TString, TQueueExportProgressPtr> GetQueueExportProgressOrThrow()
+    {
+        auto guard = ReaderGuard(QueueExportsLock_);
+
+        THashMap<TString, TQueueExportProgressPtr> queueExportProgress;
+
+        // NB(apachee): Since static queue exports are taken into account when trimming,
+        // we skip trim iteration to prevent potential data loss due to misconfiguration of exports.
+        if (!QueueExports_.IsOK()) {
+            THROW_ERROR_EXCEPTION("Incorrect queue exports, trimming at this point can lead to data loss for queue exports, trimming iteration skipped")
+                << QueueExports_;
+        }
+
+        const auto& queueExports = QueueExports_.Value();
+        queueExportProgress.reserve(queueExports.size());
+        for (const auto& [queueExportName, queueExport] : queueExports) {
+            queueExportProgress[queueExportName] = queueExport.Exporter->GetExportProgress();
+        }
+        return queueExportProgress;
     }
 
     struct TQueueTrimSession final
@@ -1043,7 +1060,7 @@ private:
 
             if (VitalConsumerSubSnapshots.empty() && QueueExportProgress.empty()) {
                 THROW_ERROR_EXCEPTION(
-                    "Attempted trimming iteration on queue %Qv with no vital consumers and no queue exports",
+                    "Attempted trimming iteration on queue %Qv with no vital consumers and no configured static table exports",
                     QueueRef);
             }
         }
@@ -1200,32 +1217,6 @@ private:
         //! Only affects the minimum trimmed row count.
         void HandleVitalConsumersAndExports()
         {
-            auto handleQueueExportByPartitionAndReturnMinTrimmedRowCount = [this] (TPartitionTrimContext& partitionContext) -> std::optional<i64> {
-                if (QueueExportProgress.empty()) {
-                    return {};
-                }
-
-                std::optional<i64> minTrimmedRowCount;
-                for (auto& [exportName, exportProgress] : QueueExportProgress) {
-                    auto partitionProgressIt = exportProgress->Tablets.find(partitionContext.PartitionIndex);
-                    if (partitionProgressIt == exportProgress->Tablets.end()) {
-                        partitionContext.Update({
-                                .PartitionError = TError(
-                                    "Not trimming partition %v since export %v is missing this partition",
-                                    partitionContext.PartitionIndex,
-                                    exportName),
-                                .IsErrorCritical = true,
-                            });
-                        break;
-                    }
-                    const auto& partitionProgress = partitionProgressIt->second;
-                    minTrimmedRowCount = MinOrValue<i64>(
-                        minTrimmedRowCount,
-                        partitionProgress->RowCount);
-                }
-                return minTrimmedRowCount;
-            };
-
             for (auto& partitionContext : Context.Partitions) {
                 if (!partitionContext) {
                     continue;
@@ -1242,12 +1233,18 @@ private:
                 }
 
                 // Handle queue exports.
-                minTrimmedRowCount = MinOrValue<i64>(
-                    minTrimmedRowCount,
-                    handleQueueExportByPartitionAndReturnMinTrimmedRowCount(partitionContext));
-
-                if (partitionContext.HasCriticalError()) {
-                    continue;
+                if (QueueExportProgress) {
+                    for (auto& [exportName, exportProgress] : QueueExportProgress) {
+                        auto partitionProgressIt = exportProgress->Tablets.find(partitionContext.PartitionIndex);
+                        if (partitionProgressIt == exportProgress->Tablets.end()) {
+                            minTrimmedRowCount = MinOrValue<i64>(minTrimmedRowCount, 0);
+                            continue;
+                        }
+                        const auto& partitionProgress = partitionProgressIt->second;
+                        minTrimmedRowCount = MinOrValue<i64>(
+                            minTrimmedRowCount,
+                            partitionProgress->RowCount);
+                    }
                 }
 
                 partitionContext.Update({

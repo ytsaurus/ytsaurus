@@ -790,13 +790,11 @@ TFuture<void> TQueueExporter::RunExportIteration()
                 /*tags*/ {{"export_name", ExportName_}},
                 /*error*/ exportProgress));
         } else {
-            // NB(apachee): This assumes that queue exporter owns the returned pointer,
-            // and it shouldn't be modified by anyone else.
             auto nextExportProgress = exportProgress.Value();
 
             auto guard = Guard(Lock_);
 
-            if (config == Config_ && nextExportProgress->LastExportedFragmentUnixTs > ExportProgress_->LastExportedFragmentUnixTs) {
+            if (config.ExportDirectory == Config_.ExportDirectory) {
                 ExportProgress_ = std::move(nextExportProgress);
             }
         }
@@ -806,7 +804,7 @@ TFuture<void> TQueueExporter::RunExportIteration()
     return exportTaskFuture.AsVoid();
 }
 
-void TQueueExporter::OnConfigUpdated(const NQueueClient::TQueueStaticExportConfig& config) {
+void TQueueExporter::Reconfigure(const NQueueClient::TQueueStaticExportConfig& config) {
     auto guard = Guard(Lock_);
 
     if (config.ExportDirectory != Config_.ExportDirectory) {
@@ -819,8 +817,7 @@ void TQueueExporter::OnConfigUpdated(const NQueueClient::TQueueStaticExportConfi
 TQueueExportProgressPtr TQueueExporter::GetExportProgress() const
 {
     auto guard = Guard(Lock_);
-    auto exportProgress = CloneYsonStruct(ExportProgress_);
-    return exportProgress;
+    return ExportProgress_;
 }
 
 NQueueClient::TQueueStaticExportConfig TQueueExporter::GetConfig()
