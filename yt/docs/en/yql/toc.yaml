@@ -42,7 +42,7 @@ items:
         href: syntax/drop_table.md
       - name: GROUP BY
         href: syntax/group_by.md
-      - name: EXPORT и IMPORT
+      - name: EXPORT / IMPORT
         href: syntax/export_import.md
       - name: FLATTEN
         href: syntax/flatten.md
