@@ -3220,7 +3220,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("dave11ar")
     def test_statistics_reporter(self):
-        statistics_path = "//sys/statistics_reporter_table"
+        statistics_path = "//tmp/statistics_reporter_table"
 
         update_nodes_dynamic_config({
             "tablet_node" : {
