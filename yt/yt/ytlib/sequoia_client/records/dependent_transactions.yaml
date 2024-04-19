@@ -3,7 +3,7 @@ namespace: NYT::NSequoiaClient::NRecords
 types:
   - table_name: dependent_transactions
     table_group: transaction_tables
-    type_name: TDependentTransactions
+    type_name: TDependentTransaction
     fields:
       - cpp_name: TransactionId
         cpp_type: NCypressClient::TTransactionId
@@ -17,9 +17,9 @@ types:
         column_type: String
         sort_order: Ascending
 
-      - cpp_name: FakeNonKeyColumn
+      - cpp_name: Dummy
         cpp_type: int
-        column_name: fake_non_key_column
+        column_name: dummy
         column_type: Int32
 
     verbatim: |

@@ -219,6 +219,8 @@ private:
 
     bool GetEnableCypressTransactionsInSequoia() const noexcept
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire);
     }
 

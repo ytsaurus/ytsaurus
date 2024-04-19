@@ -362,11 +362,9 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
 
     return {
         .NonMirrored = asyncResults,
-        .Mirrored = MirroredTransactionIds_.empty()
-            ? VoidFuture
-            : ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
-                Bootstrap_,
-                MirroredTransactionIds_),
+        .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
+            Bootstrap_,
+            MirroredTransactionIds_),
     };
 }
 
@@ -388,7 +386,9 @@ void TTransactionReplicationSessionWithoutBoomerangs::ConstructReplicationReques
 {
     auto requestIds = DoConstructReplicationRequests();
 
-    YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(), "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, TransactionIds: %v)",
+    YT_LOG_DEBUG_UNLESS(
+        ReplicationRequests_.empty(),
+        "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, TransactionIds: %v)",
         InitiatorRequest_,
         requestIds,
         RemoteTransactionIds_);
@@ -449,7 +449,7 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
 {
     auto asyncResults = DoInvokeReplicationRequests();
 
-    if (asyncResults.NonMirrored.empty() && MirroredTransactionIds_.empty()) {
+    if (asyncResults.NonMirrored.empty() && !asyncResults.Mirrored) {
         return {};
     }
 
@@ -483,13 +483,13 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
                             if (!transactionReplicationFuture) {
                                 LogAndThrowUnknownTransactionPresenceError(transactionId);
                             }
-                            YT_VERIFY(result.emplace(transactionId, std::move(transactionReplicationFuture)).second);
+                            EmplaceOrCrash(result, transactionId, std::move(transactionReplicationFuture));
                         } else {
                             YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (InitiatorRequest: %v, TransactionId: %v)",
                                 InitiatorRequest_,
                                 transactionId);
 
-                            YT_VERIFY(result.emplace(transactionId, MakeFuture(TError(rspOrError))).second);
+                            EmplaceOrCrash(result, transactionId, MakeFuture(TError(rspOrError)));
                         }
                     }
                 }

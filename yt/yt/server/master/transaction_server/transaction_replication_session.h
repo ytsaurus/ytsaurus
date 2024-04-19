@@ -80,7 +80,7 @@ protected:
 
     NObjectClient::TCellTagList UnsyncedLocalTransactionCells_;
 
-    // COMPAT(kvk1920): remove when use of Cypress tx proxy become mandatory.
+    // COMPAT(kvk1920): remove when use of Cypress tx proxy becomes mandatory.
     // We cannot rely on ID only to distinguish mirrored Cypress transaction
     // from non-mirrored one: both mirrored Cypress and Sequoia transactions
     // have Sequoia bit in their ID and when dedicated system transaction type

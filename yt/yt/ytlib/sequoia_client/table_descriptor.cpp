@@ -26,15 +26,15 @@ using namespace NQueryClient;
 
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 {
-    #define XX(type, tableName) \
-        case ESequoiaTable::type: \
-            class T##type##TableDescriptor \
+    #define XX(type, tableName, TableName) \
+        case ESequoiaTable::TableName: \
+            class T##TableName##TableDescriptor \
                 : public ITableDescriptor \
             { \
             public: \
-                static const T##type##TableDescriptor* Get() \
+                static const T##TableName##TableDescriptor* Get() \
                 { \
-                    return LeakySingleton<T##type##TableDescriptor>(); \
+                    return LeakySingleton<T##TableName##TableDescriptor>(); \
                 } \
                 \
                 const TString& GetTableName() const override \
@@ -60,18 +60,18 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                     /*profilers*/ nullptr); \
             }; \
             \
-            return T##type##TableDescriptor::Get();
+            return T##TableName##TableDescriptor::Get();
 
     switch (table) {
-        XX(PathToNodeId, "path_to_node_id")
-        XX(NodeIdToPath, "node_id_to_path")
-        XX(ChunkReplicas, "chunk_replicas")
-        XX(ChildNode, "child_node")
-        XX(LocationReplicas, "location_replicas")
-        XX(Transactions, "transactions")
-        XX(TransactionDescendants, "transaction_descendants")
-        XX(TransactionReplicas, "transaction_replicas")
-        XX(DependentTransactions, "dependent_transactions")
+        XX(PathToNodeId, "path_to_node_id", PathToNodeId)
+        XX(NodeIdToPath, "node_id_to_path", NodeIdToPath)
+        XX(ChunkReplicas, "chunk_replicas", ChunkReplicas)
+        XX(ChildNode, "child_node", ChildNode)
+        XX(LocationReplicas, "location_replicas", LocationReplicas)
+        XX(Transaction, "transactions", Transactions)
+        XX(TransactionDescendant, "transaction_descendants", TransactionDescendants)
+        XX(TransactionReplica, "transaction_replicas", TransactionReplicas)
+        XX(DependentTransaction, "dependent_transactions", DependentTransactions)
         default:
             YT_ABORT();
     }

@@ -82,6 +82,7 @@
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 
@@ -1402,7 +1403,7 @@ public:
             }
         }
 
-        auto hydraRequest = BuildReqStartCypressTransaction(
+        auto hydraRequest = BuildStartCypressTransactionRequest(
             std::move(context->Request()),
             context->GetAuthenticationIdentity());
 
@@ -1591,7 +1592,7 @@ public:
                 NRpc::GetCurrentAuthenticationIdentity());
         }
 
-        auto request = BuildReqCommitCypressTransaction(
+        auto request = BuildCommitCypressTransactionRequest(
             transactionId,
             commitTimestamp,
             prerequisiteTransactionIds,
@@ -1620,7 +1621,7 @@ public:
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
-        auto request = BuildReqAbortCypressTransaction(
+        auto request = BuildAbortCypressTransactionRequest(
             transactionId,
             force,
             /*replicateViaHive*/ true,
@@ -1933,19 +1934,11 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
-
+        auto title = YT_PROTO_OPTIONAL(*request, title);
         auto timeout = FromProto<TDuration>(request->timeout());
-
-        std::optional<TInstant> deadline;
-        if (request->has_deadline()) {
-            deadline = FromProto<TInstant>(request->deadline());
-        }
-
-        TTransactionId hintId = {};
-        if (request->has_hint_id()) {
-            hintId = FromProto<TTransactionId>(request->hint_id());
-        }
+        auto deadline = YT_PROTO_OPTIONAL(*request, deadline, TInstant);
+        auto hintId = YT_PROTO_OPTIONAL(*request, hint_id, TTransactionId)
+            .value_or(TTransactionId{});
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
@@ -2951,12 +2944,14 @@ private:
                         // Poor man's retry.
                         // TODO(kvk1920): implement transaction abort tracker
                         // and use it here.
+                        // NB: we don't need parent id here since it is used
+                        // only to ping ancestors.
                         LeaseTracker_->UnregisterTransaction(transactionId);
                         LeaseTracker_->RegisterTransaction(
                             transactionId,
-                            {},
-                            TDuration::Zero(),
-                            std::nullopt,
+                            /* parentId*/ {},
+                            /*timeout*/ TDuration::Zero(),
+                            /*deadline*/ std::nullopt,
                             BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
                     }
@@ -3166,9 +3161,9 @@ private:
         return config->Enable && config->EnableCypressTransactionsInSequoia;
     }
 
-    // NB: This function doesn't work properly if cypress transaction service is
+    // NB: This function doesn't work properly if Cypress transaction service is
     // not used.
-    bool IsMirroredToSequoia(TTransactionId transactionId)
+    static bool IsMirroredToSequoia(TTransactionId transactionId)
     {
         return IsSequoiaId(transactionId) && IsCypressTransactionType(TypeFromId(transactionId));
     }
