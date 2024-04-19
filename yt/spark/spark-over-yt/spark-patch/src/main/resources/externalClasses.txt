@@ -17,3 +17,10 @@ org/apache/spark/deploy/SparkSubmitSpyt
 org/apache/spark/sql/catalyst/parser/AstBuilderSpyt
 org/apache/spark/sql/types/DataTypeDecorators$
 org/apache/spark/sql/execution/python/EvaluatePythonDecorators$
+org/apache/spark/deploy/history/SingleEventLogFileWriterSpyt
+org/apache/spark/deploy/history/RollingEventLogFilesWriterSpyt
+org/apache/spark/deploy/history/FsHistoryProviderDecorators
+org/apache/spark/deploy/worker/DriverWrapperDecorators$
+org/apache/spark/SparkConfDecorators
+org/apache/spark/deploy/worker/ui/LogPageSpyt
+org/apache/spark/deploy/worker/DriverRunnerDecorators

@@ -183,10 +183,7 @@ public:
         Persist(context, UnorderedMergeTask);
         Persist(context, SortedMergeTask);
 
-        // COMPAT(galtsev)
-        if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
-            Persist(context, SwitchedToSlowIntermediateMedium);
-        }
+        Persist(context, SwitchedToSlowIntermediateMedium);
 
         if (context.IsLoad()) {
             SetupPartitioningCompletedCallbacks();
@@ -627,7 +624,7 @@ protected:
             return Format("Partition(%v)", Level_);
         }
 
-        TString GetVertexDescriptor() const override
+        TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override
         {
             return Format("%v(%v)", TTask::GetVertexDescriptor(), Level_);
         }

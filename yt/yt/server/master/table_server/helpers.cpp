@@ -67,7 +67,7 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
         // allowing us to reconfigure queue agent stages without need to update master config.
         auto dynamicConnection = connection->GetClusterDirectory()->FindConnection(clusterName);
 
-        return dynamicConnection->GetQueueAgentChannelOrNull(queueAgentStage);
+        return dynamicConnection->FindQueueAgentChannel(queueAgentStage);
     };
 
     IChannelPtr queueAgentChannel = nullptr;

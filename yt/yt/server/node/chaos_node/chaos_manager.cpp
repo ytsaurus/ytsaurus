@@ -1243,7 +1243,7 @@ private:
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era; %v)",
+        YT_LOG_DEBUG("Finished revoking shortcuts (ReplicationCardId: %v, Era: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra());
     }
@@ -1295,7 +1295,7 @@ private:
                 cellId);
         }
 
-        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era; %v, SuspendedCoordinators: %v)",
+        YT_LOG_DEBUG("Finished granting shortcuts (ReplicationCardId: %v, Era: %v, SuspendedCoordinators: %v)",
             replicationCard->GetId(),
             replicationCard->GetEra(),
             suspendedCoordinators);
@@ -2385,6 +2385,8 @@ private:
     void BuildReplicationCardOrchidYson(TReplicationCard* card, IYsonConsumer* consumer)
     {
         const auto& migration = card->Migration();
+        auto lagTimes = ComputeReplicasLag(card->Replicas());
+
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("replication_card_id").Value(card->GetId())
@@ -2415,6 +2417,9 @@ private:
                             fluent.Item("emigration_time").Value(migration.EmigrationTime);
                         })
                     .EndMap()
+                .Item("replicas_lag").DoMapFor(lagTimes, [] (TFluentMap fluent, const auto& lagTimePair) {
+                    fluent.Item(ToString(lagTimePair.first)).Value(lagTimePair.second);
+                })
             .EndMap();
     }
 

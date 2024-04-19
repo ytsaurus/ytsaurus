@@ -254,9 +254,9 @@ private[spark] class YTsaurusOperationManager(
 
 private[spark] object YTsaurusOperationManager extends Logging {
 
-  def create(ytProxy: String, conf: SparkConf): YTsaurusOperationManager = {
+  def create(ytProxy: String, conf: SparkConf, networkName: Option[String]): YTsaurusOperationManager = {
     val (user, token) = YTsaurusUtils.userAndToken()
-    val ytClient: YTsaurusClient = buildClient(ytProxy, user, token)
+    val ytClient: YTsaurusClient = buildClient(ytProxy, user, token, networkName)
 
     try {
       val globalConfigPath = conf.get(GLOBAL_CONFIG_PATH)
@@ -413,9 +413,12 @@ private[spark] object YTsaurusOperationManager extends Logging {
     description.filter(_.isStringNode).map(_.stringNode().getValue)
   }
 
-  private def buildClient(ytProxy: String, user: String, token: String): YTsaurusClient = {
+  private def buildClient(ytProxy: String, user: String, token: String, networkName: Option[String]): YTsaurusClient = {
     val builder: YTsaurusClient.ClientBuilder[_ <: YTsaurusClient, _] = YTsaurusClient.builder()
     builder.setCluster(ytProxy)
+    if (networkName.isDefined) {
+      builder.setProxyNetworkName(networkName.get)
+    }
     if (user != null && token != null) {
       builder.setAuth(YTsaurusClientAuth.builder().setUser(user).setToken(token).build())
     }

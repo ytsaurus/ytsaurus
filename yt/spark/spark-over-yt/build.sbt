@@ -90,10 +90,12 @@ lazy val `resource-manager` = (project in file("resource-manager"))
 lazy val `cluster` = (project in file("spark-cluster"))
   .configs(IntegrationTest)
   .dependsOn(`data-source` % "compile->compile;test->test;provided->provided")
+  .enablePlugins(JavaAgent)
   .settings(
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= scalatra,
     libraryDependencies ++= scalatraTestDeps,
+    resolvedJavaAgents := javaAgents.value
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))

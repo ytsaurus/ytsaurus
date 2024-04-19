@@ -1,15 +1,19 @@
 PY23_LIBRARY()
 
-PEERDIR(
-    yt/python/yt/yson
+IF (PYTHON2)
+    PEERDIR(yt/python_py2/yt/skiff)
+ELSE()
+    PEERDIR(
+        yt/python/yt/yson
 
-    contrib/python/six
-)
+        contrib/python/six
+    )
 
-PY_SRCS(
-    NAMESPACE yt.skiff
+    PY_SRCS(
+        NAMESPACE yt.skiff
 
-    __init__.py
-)
+        __init__.py
+    )
+ENDIF()
 
 END()

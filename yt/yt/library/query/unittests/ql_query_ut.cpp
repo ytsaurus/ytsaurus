@@ -1053,7 +1053,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1071,7 +1071,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1089,7 +1089,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
                 nullptr,
                 &variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 FunctionProfilers_);
             auto callback = codegen();
         }, HasSubstr("LLVM bitcode"));
@@ -1559,7 +1559,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::WebAssembly,
+            EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues);
@@ -1569,7 +1569,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1600,7 +1600,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::WebAssembly,
+            EExecutionBackend::WebAssembly,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1612,7 +1612,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1688,7 +1688,7 @@ protected:
             dataSplits,
             owningSources,
             resultMatcher,
-            /*executionBackend*/ EExecutionBackend::Native,
+            EExecutionBackend::Native,
             inputRowLimit,
             outputRowLimit,
             placeholderValues,
@@ -1721,7 +1721,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*executionBackend*/ EExecutionBackend::WebAssembly,
+                EExecutionBackend::WebAssembly,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1738,7 +1738,7 @@ protected:
                 dataSplits,
                 owningSources,
                 resultMatcher,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 inputRowLimit,
                 outputRowLimit,
                 true,
@@ -1999,8 +1999,8 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher)
     {
-        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::WebAssembly);
-        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, /*executionBackend*/ EExecutionBackend::Native);
+        EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::WebAssembly);
+        return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::Native);
     }
 
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());
@@ -7770,9 +7770,7 @@ TEST_F(TQueryEvaluateTest, ListExpr)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("a FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
-        {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
-    })));
+    Evaluate("a FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, ListExprToAny)
@@ -7786,9 +7784,7 @@ TEST_F(TQueryEvaluateTest, ListExprToAny)
 
     auto result = YsonToRows(source, split);
 
-    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result, New<TTableSchema>(std::vector<TColumnSchema>{
-        {"b", ESimpleLogicalValueType::Any}
-    })));
+    Evaluate("to_any(a) as b FROM [//t]", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
@@ -9311,10 +9307,12 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         {"b", EValueType::Any},
     });
     std::vector<TString> source = {
-        "a=[1;2;3];b=[4;6;2]",
+        "a=[1;2;3];b=[4;6;2;#]",
         "a=[\"a\"; \"b\"];b=[\"a\"]",
         "a=[1;2;3];b=[4;6]",
         "a=[%true];b=[]",
+        "a=[#];b=[#]",
+        "a=[1;#;3];b=[#;2;#]",
     };
 
     auto result = YsonToRows({
@@ -9322,10 +9320,18 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         "has_intersection=%true",
         "has_intersection=%false",
         "has_intersection=%false",
+        "has_intersection=%false",
+        "has_intersection=%false",
     }, MakeSplit({{"has_intersection", EValueType::Boolean},}));
 
     EvaluateOnlyViaNativeExecutionBackend(
         "list_has_intersection(a, b) as has_intersection from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
+
+    EvaluateOnlyViaNativeExecutionBackend(
+        "list_has_intersection(b, a) as has_intersection from [//t]",
         split,
         source,
         ResultMatcher(result));

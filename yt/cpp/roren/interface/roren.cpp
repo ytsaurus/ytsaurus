@@ -6,6 +6,7 @@
 
 namespace NRoren {
 
+TTypeTag<TString> TransformNameTag("TransformName");
 ////////////////////////////////////////////////////////////////////////////////
 
 TPipeline::TPipeline(IExecutorPtr executor) : Executor_(std::move(executor))

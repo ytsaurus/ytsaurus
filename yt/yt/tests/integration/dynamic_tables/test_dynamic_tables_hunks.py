@@ -1320,7 +1320,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
             "read_quorum": read_quorum,
             "write_quorum": write_quorum
         })
-        write_journal("//tmp/j", self.JOURNAL_HUNK_PAYLOAD)
+        write_journal("//tmp/j", self.JOURNAL_HUNK_PAYLOAD, enable_chunk_preallocation=False)
         return get_singular_chunk_id("//tmp/j")
 
     @authors("babenko")

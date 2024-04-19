@@ -984,10 +984,8 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, AggregatedFinishedJobStatistics_);
 
-    if (context.GetVersion() >= ESnapshotVersion::SeparateMultipliers) {
-        Persist(context, UserJobMemoryMultiplier_);
-        Persist(context, JobProxyMemoryMultiplier_);
-    }
+    Persist(context, UserJobMemoryMultiplier_);
+    Persist(context, JobProxyMemoryMultiplier_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -2297,11 +2295,7 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, UserJobStatus);
-    if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::SeparateMultipliers) {
-        JobProxyStatus = UserJobStatus;
-    } else {
-        Persist(context, JobProxyStatus);
-    }
+    Persist(context, JobProxyStatus);
     Persist(context, DedicatedUserJobMemoryReserveFactor);
     Persist(context, DedicatedJobProxyMemoryReserveFactor);
 }

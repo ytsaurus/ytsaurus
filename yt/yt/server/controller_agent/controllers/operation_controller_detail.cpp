@@ -257,6 +257,7 @@ TOperationControllerBase::TOperationControllerBase(
     , Acl(operation->GetAcl())
     , ControllerEpoch(operation->GetControllerEpoch())
     , CancelableContext(New<TCancelableContext>())
+    , ChunkScraperInvoker_(Host->GetChunkScraperThreadPoolInvoker())
     , DiagnosableInvokerPool_(CreateEnumIndexedProfiledFairShareInvokerPool<EOperationControllerQueue>(
         CreateCodicilGuardedInvoker(
             CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker(), "operation_controller_base"),
@@ -282,29 +283,29 @@ TOperationControllerBase::TOperationControllerBase(
         Config->CachedRunningJobsUpdatePeriod,
         BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
     , SuspiciousJobsYsonUpdater_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::UpdateSuspiciousJobsYson, MakeWeak(this)),
         Config->SuspiciousJobs->UpdatePeriod))
     , RunningJobStatisticsUpdateExecutor_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::UpdateAggregatedRunningJobStatistics, MakeWeak(this)),
         Config->RunningJobStatisticsUpdatePeriod))
     , ScheduleAllocationStatistics_(New<TScheduleAllocationStatistics>(Config->ScheduleAllocationStatisticsMovingAverageWindowSize))
     , CheckTimeLimitExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::CheckTimeLimit, MakeWeak(this)),
         Config->OperationTimeLimitCheckPeriod))
     , ExecNodesCheckExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::CheckAvailableExecNodes, MakeWeak(this)),
         Config->AvailableExecNodesCheckPeriod))
     , AlertManager_(CreateAlertManager(this))
     , MinNeededResourcesSanityCheckExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::CheckMinNeededResourcesSanity, MakeWeak(this)),
         Config->ResourceDemandSanityCheckPeriod))
     , PeakMemoryUsageUpdateExecutor(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::UpdatePeakMemoryUsage, MakeWeak(this)),
         Config->MemoryWatchdog->MemoryUsageCheckPeriod))
     , ExecNodesUpdateExecutor(New<TPeriodicExecutor>(
@@ -314,17 +315,17 @@ TOperationControllerBase::TOperationControllerBase(
     , EventLogConsumer_(Host->GetEventLogWriter()->CreateConsumer())
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::BuildAndSaveProgress, MakeWeak(this)),
         Config->OperationBuildProgressPeriod))
     , CheckTentativeTreeEligibilityExecutor_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
         Config->CheckTentativeTreeEligibilityPeriod))
     , MediumDirectory_(Host->GetMediumDirectory())
     , ExperimentAssignments_(operation->ExperimentAssignments())
     , UpdateAccountResourceUsageLeasesExecutor_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         BIND(&TThis::UpdateAccountResourceUsageLeases, MakeWeak(this)),
         Config->UpdateAccountResourceUsageLeasesPeriod))
     , TotalJobCounter_(New<TProgressCounter>())
@@ -334,7 +335,7 @@ TOperationControllerBase::TOperationControllerBase(
         Spec_->FastIntermediateMediumLimit,
         Config->FastIntermediateMediumLimit))
     , SendRunningAllocationTimeStatisticsUpdatesExecutor_(New<TPeriodicExecutor>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents),
+        GetCancelableInvoker(EOperationControllerQueue::JobEvents),
         BIND_NO_PROPAGATE(&TThis::SendRunningAllocationTimeStatisticsUpdates, MakeWeak(this)),
         Config->RunningAllocationTimeStatisticsUpdatesSendPeriod))
     , JobAbortsUntilOperationFailure_(Config->MaxJobAbortsUntilOperationFailure)
@@ -728,7 +729,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     SleepInInitialize();
 
     auto initializeFuture = initializeAction
-        .AsyncVia(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))
+        .AsyncVia(GetCancelableInvoker())
         .Run()
         .WithTimeout(Config->OperationInitializationTimeout);
 
@@ -1073,7 +1074,7 @@ void TOperationControllerBase::CreateOutputTables(
 
 TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     SleepInPrepare();
 
@@ -1088,6 +1089,26 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
     // Process input tables.
     if (!GetInputTablePaths().empty()) {
         GetInputTablesAttributes();
+        for (const auto& table : InputTables_) {
+            if (table->IsFile()) {
+                TError error;
+                if (table->Path.GetColumns()) {
+                    error = TError("Input file path must not contain column selectors");
+                }
+                if (
+                    table->Path.Attributes().Contains("upper_limit") ||
+                    table->Path.Attributes().Contains("lower_limit") ||
+                    table->Path.Attributes().Contains("ranges")
+                ) {
+                    error = TError("Input file path must not contain row selectors");
+                }
+
+                if (!error.IsOK()) {
+                    error <<= TErrorAttribute("path", table->Path);
+                    THROW_ERROR error;
+                }
+            }
+        }
     } else {
         YT_LOG_INFO("Operation has no input tables");
     }
@@ -1212,7 +1233,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
 TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     TOperationControllerMaterializeResult result;
 
@@ -1253,7 +1274,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             // - Merge decided to teleport all input chunks
             // - Anything else?
             YT_LOG_INFO("No jobs needed");
-            DoCompleteOperation(/*interrupted*/ false);
+            OnOperationCompleted(/*interrupted*/ false);
             return result;
         } else {
             RegisterUnavailableInputChunks();
@@ -1347,7 +1368,7 @@ void TOperationControllerBase::SleepInRevive()
 
 TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     // A fast path to stop revival if fail_on_job_restart = %true and
     // this is not a vanilla operation.
@@ -1382,7 +1403,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     CreateLivePreviewTables();
 
     if (IsCompleted()) {
-        DoCompleteOperation(/*interrupted*/ false);
+        OnOperationCompleted(/*interrupted*/ false);
         return result;
     }
 
@@ -1597,7 +1618,7 @@ IFetcherChunkScraperPtr TOperationControllerBase::CreateFetcherChunkScraper() co
     return Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait
         ? NChunkClient::CreateFetcherChunkScraper(
             Config->ChunkScraper,
-            GetCancelableInvoker(),
+            ChunkScraperInvoker_,
             Host->GetChunkLocationThrottlerManager(),
             InputClient,
             InputNodeDirectory_,
@@ -1807,12 +1828,13 @@ void TOperationControllerBase::InitInputChunkScraper()
     YT_VERIFY(!InputChunkScraper);
     InputChunkScraper = New<TChunkScraper>(
         Config->ChunkScraper,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        ChunkScraperInvoker_,
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
         std::move(chunkIds),
-        BIND(&TThis::OnInputChunkLocated, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TThis::OnInputChunkLocated, MakeWeak(this))
+            .Via(GetCancelableInvoker()),
         Logger);
 
     if (!UnavailableInputChunkIds.empty()) {
@@ -1825,21 +1847,26 @@ void TOperationControllerBase::InitInputChunkScraper()
 
 void TOperationControllerBase::InitIntermediateChunkScraper()
 {
+    // NB(arkady-e1ppa):
+    // invoker and invokerPool are used only for the interaction with controller.
+    // Heavy job of the ChunkScraper is performed in separate scraper invoker.
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         CancelableInvokerPool,
+        ChunkScraperInvoker_,
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
-        [weakThis = MakeWeak(this)] () {
+        BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
                 return this_->GetAliveIntermediateChunks();
             } else {
                 return THashSet<TChunkId>();
             }
-        },
-        BIND(&TThis::OnIntermediateChunkLocated, MakeWeak(this)),
+        }),
+        BIND_NO_PROPAGATE(&TThis::OnIntermediateChunkLocated, MakeWeak(this))
+            .Via(GetCancelableInvoker()),
         Logger);
 }
 
@@ -2251,7 +2278,7 @@ void TOperationControllerBase::ManuallyMergeBranchedCypressNode(
         WaitFor(helperTransaction->Commit(options))
             .ThrowOnError();
     } catch (const std::exception& ex) {
-        YT_LOG_ALERT(ex,
+        YT_LOG_ERROR(ex,
             "Failed to manually merge branched operation Cypress node (CypressNodeId: %v, TransactionId: %v, OperationId: %v)",
             nodeId,
             transactionId,
@@ -2400,7 +2427,7 @@ void TOperationControllerBase::FinalizeFeatures()
 
 void TOperationControllerBase::SafeCommit()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO("Committing results");
 
@@ -2636,7 +2663,7 @@ void TOperationControllerBase::TeleportOutputChunks()
     auto teleporter = New<TChunkTeleporter>(
         Config->ChunkTeleporter,
         OutputClient,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         OutputCompletionTransaction->GetId(),
         Logger);
 
@@ -3154,7 +3181,7 @@ void TOperationControllerBase::ProcessJobFinishedResult(const TJobFinishedResult
 
 void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     YT_VERIFY(jobSummary);
 
@@ -3341,7 +3368,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
 
 void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = jobSummary->Id;
 
@@ -3628,7 +3655,7 @@ void TOperationControllerBase::OnJobStartTimeReceived(
     const TJobletPtr& joblet,
     const std::unique_ptr<TRunningJobSummary>& jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = joblet->JobId;
 
@@ -3656,7 +3683,7 @@ void TOperationControllerBase::OnJobStartTimeReceived(
 
 void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     YT_LOG_DEBUG(
         "Allocation aborted event processing (JobId: %v)",
@@ -3681,7 +3708,7 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
 
 void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = jobSummary->Id;
 
@@ -3765,7 +3792,7 @@ void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> 
 
 void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     YT_LOG_DEBUG("Abandon job (JobId: %v)", jobId);
 
@@ -3809,7 +3836,7 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
 
 void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDuration timeout)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     YT_LOG_DEBUG(
         "Interrupting job (JobId: %v, Timeout: %v)",
@@ -3979,7 +4006,7 @@ void TOperationControllerBase::SafeOnIntermediateChunkLocated(
     const TChunkReplicaWithMediumList& replicas,
     bool missing)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (missing) {
         // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
@@ -3999,8 +4026,7 @@ void TOperationControllerBase::SafeOnInputChunkLocated(
     const TChunkReplicaWithMediumList& replicas,
     bool missing)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
     if (missing) {
         // We must have locked all the relevant input chunks, but when user transaction is aborted
         // there can be a race between operation completion and chunk scraper.
@@ -4011,7 +4037,8 @@ void TOperationControllerBase::SafeOnInputChunkLocated(
     ++ChunkLocatedCallCount;
     if (ChunkLocatedCallCount >= Config->ChunkScraper->MaxChunksPerRequest) {
         ChunkLocatedCallCount = 0;
-        YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
+        YT_LOG_DEBUG(
+            "Located another batch of chunks (Count: %v, UnavailableInputChunkCount: %v, SampleUnavailableInputChunkIds: %v)",
             Config->ChunkScraper->MaxChunksPerRequest,
             UnavailableInputChunkIds.size(),
             MakeShrunkFormattableView(UnavailableInputChunkIds, TDefaultFormatter(), SampleChunkIdCount));
@@ -4026,16 +4053,16 @@ void TOperationControllerBase::SafeOnInputChunkLocated(
     if (IsUnavailable(replicas, codecId, GetChunkAvailabilityPolicy())) {
         OnInputChunkUnavailable(chunkId, &descriptor);
     } else {
-        OnInputChunkAvailable(chunkId, replicas, &descriptor);
+        OnInputChunkAvailable(chunkId, std::move(replicas), &descriptor);
     }
 }
 
 void TOperationControllerBase::OnInputChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
+    TChunkReplicaWithMediumList replicas,
     TInputChunkDescriptor* descriptor)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (descriptor->State != EInputChunkState::Waiting) {
         return;
@@ -4068,7 +4095,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
 
 void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescriptor* descriptor)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (descriptor->State != EInputChunkState::Active) {
         return;
@@ -4284,7 +4311,7 @@ bool TOperationControllerBase::CheckUserTransactionAlive()
 
 void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (!CheckUserTransactionAlive()) {
         return;
@@ -4319,7 +4346,7 @@ bool TOperationControllerBase::IsInputDataSizeHistogramSupported() const
 
 void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO("Terminating operation controller");
 
@@ -4421,14 +4448,14 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
 void TOperationControllerBase::SafeComplete()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     OnOperationCompleted(true);
 }
 
 void TOperationControllerBase::CheckTimeLimit()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto timeLimit = GetTimeLimit();
     if (timeLimit) {
@@ -4440,7 +4467,7 @@ void TOperationControllerBase::CheckTimeLimit()
 
 void TOperationControllerBase::CheckAvailableExecNodes()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (ShouldSkipSanityCheck()) {
         return;
@@ -4565,7 +4592,7 @@ void TOperationControllerBase::CheckAvailableExecNodes()
 
 void TOperationControllerBase::CheckMinNeededResourcesSanity()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (ShouldSkipSanityCheck()) {
         return;
@@ -4594,7 +4621,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     const TJobResources& resourceLimits,
     const TString& treeId)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->ScheduleAllocationControllerQueue));
 
     MaybeDelay(Spec_->TestingOperationOptions->ScheduleAllocationDelay);
 
@@ -4636,7 +4663,7 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     return scheduleAllocationResult;
 }
 
-bool TOperationControllerBase::IsThrottling() const noexcept
+bool TOperationControllerBase::ShouldSkipScheduleAllocationRequest() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -4741,7 +4768,7 @@ void TOperationControllerBase::AccountBuildingJobSpecDelta(int countDelta, i64 t
 
 void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     Config = config;
 
@@ -4764,6 +4791,10 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     jobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
 
     jobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
+
+    if (Spec_->EnableCodegenComparator) {
+        jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
+    }
 
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
@@ -4852,7 +4883,7 @@ void TOperationControllerBase::DoScheduleAllocation(
     const TString& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->ScheduleAllocationControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->ScheduleAllocationControllerQueue));
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
@@ -5186,7 +5217,7 @@ TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededAllocationResou
 
 void TOperationControllerBase::SafeUpdateMinNeededAllocationResources()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     THashMap<TString, TJobResourcesWithQuota> minNeededJobResourcesPerTask;
     for (const auto& task : Tasks) {
@@ -5248,17 +5279,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     YT_LOG_DEBUG("Operation node flushed");
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool interrupted)
+void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
 {
-    YT_UNUSED_FUTURE(BIND(&TOperationControllerBase::DoCompleteOperation, MakeStrong(this))
-        .AsyncVia(GetCancelableInvoker())
-        .Run(interrupted));
-}
-
-void TOperationControllerBase::DoCompleteOperation(bool /*interrupted*/)
-{
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
-
     // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (IsFinished()) {
         return;
@@ -5266,12 +5288,17 @@ void TOperationControllerBase::DoCompleteOperation(bool /*interrupted*/)
 
     State = EControllerState::Completed;
 
-    BuildAndSaveProgress();
-    FlushOperationNode(/*checkFlushResult*/ true);
+    YT_UNUSED_FUTURE(
+        BIND([this, this_ = MakeStrong(this)] {
+            BuildAndSaveProgress();
+            FlushOperationNode(/*checkFlushResult*/ true);
 
-    LogProgress(/*force*/ true);
+            LogProgress(/*force*/ true);
 
-    Host->OnOperationCompleted();
+            Host->OnOperationCompleted();
+        })
+            .AsyncVia(GetCancelableInvoker())
+            .Run());
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
@@ -5354,7 +5381,7 @@ TError TOperationControllerBase::GetTimeLimitError() const
 
 void TOperationControllerBase::OnOperationTimeLimitExceeded()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG(
@@ -5431,7 +5458,7 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
                 /*flush*/ true,
                 /*abortAllJoblets*/ true),
             Spec_->TimeLimitJobFailTimeout,
-            CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+            GetCancelableInvoker());
     } else {
         DoFailOperation(error, /*flush*/ true);
     }
@@ -5703,7 +5730,7 @@ void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortRea
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue)->Invoke(
+    GetCancelableInvoker(Config->JobEventsControllerQueue)->Invoke(
         BIND(
             &TOperationControllerBase::AbortJob,
             MakeWeak(this),
@@ -5713,7 +5740,7 @@ void TOperationControllerBase::AsyncAbortJob(TJobId jobId, EAbortReason abortRea
 
 void TOperationControllerBase::SafeAbortJobByJobTracker(TJobId jobId, EAbortReason abortReason)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     if (!FindJoblet(jobId)) {
         YT_LOG_DEBUG(
@@ -5992,7 +6019,7 @@ void TOperationControllerBase::FetchInputTables()
         InputTables_.size());
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        ChunkScraperInvoker_,
         InputClient,
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config->Fetcher,
@@ -6007,7 +6034,7 @@ void TOperationControllerBase::FetchInputTables()
         InputClient,
         TMasterReadOptions{},
         InputNodeDirectory_,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         Config->MaxChunksPerFetch,
         Config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
@@ -6119,6 +6146,7 @@ void TOperationControllerBase::FetchInputTables()
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
             bool shouldSkip = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
             if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled.value_or(Config->UseColumnarStatisticsDefault) && !shouldSkip) {
+                YT_VERIFY(!inputChunk->IsFile());
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
                     *table->Path.GetColumns(),
@@ -6276,7 +6304,7 @@ void TOperationControllerBase::FetchTableSchemas(
 
 void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     auto jobId = jobSummary->Id;
 
@@ -7153,7 +7181,7 @@ void TOperationControllerBase::FetchUserFiles()
         InputClient,
         TMasterReadOptions{},
         InputNodeDirectory_,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        GetCancelableInvoker(),
         Config->MaxChunksPerFetch,
         Config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
@@ -7256,7 +7284,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
 {
     YT_LOG_INFO("Validating user file sizes");
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        ChunkScraperInvoker_,
         InputClient,
         TColumnarStatisticsFetcher::TOptions{
             .Config = Config->Fetcher,
@@ -8090,6 +8118,9 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 
     for (const auto& table : InputTables_) {
         if (!table->IsForeign() && table->Dynamic && table->Schema->IsSorted()) {
+            // NB(arkady-e1ppa): We create scaper in thread_pool
+            // but fetcher in cancelable control invoker
+            // because the latter protects RowBuffer.
             auto fetcher = CreateChunkSliceFetcher(
                 Config->ChunkSliceFetcher,
                 InputNodeDirectory_,
@@ -8832,7 +8863,7 @@ TSnapshotCookie TOperationControllerBase::OnSnapshotStarted()
 
 void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& cookie)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     // OnSnapshotCompleted should match the most recent OnSnapshotStarted.
     YT_VERIFY(RecentSnapshotIndex_);
@@ -9508,7 +9539,7 @@ TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& job
 
 TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::GetJobSpec));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(EOperationControllerQueue::GetJobSpec));
 
     if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
         Sleep(*getJobSpecDelay);
@@ -9578,7 +9609,7 @@ TYsonString TOperationControllerBase::GetSuspiciousJobsYson() const
 
 void TOperationControllerBase::UpdateSuspiciousJobsYson()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     // We sort suspicious jobs by their last activity time and then
     // leave top `MaxOrchidEntryCountPerType` for each job type.
@@ -10315,7 +10346,7 @@ void TOperationControllerBase::UpdateExecNodes()
     auto onlineExecNodeDescriptors = Host->GetExecNodeDescriptors(filter, /*onlineOnly*/ true);
     auto maxAvailableResources = Host->GetMaxAvailableResources(filter);
 
-    const auto& controllerInvoker = CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default);
+    const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
         BIND([=, this, this_ = MakeWeak(this)] {
             auto strongThis = this_.Lock();
@@ -10636,10 +10667,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
     Persist(context, AlertManager_);
 
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
-        Persist(context, FastIntermediateMediumLimit_);
-    }
+    Persist(context, FastIntermediateMediumLimit_);
 
     YT_VERIFY(context.GetVersion() >= ESnapshotVersion::JobExperiment);
     Persist(context, BaseLayer_);
@@ -11270,7 +11298,7 @@ void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& 
 
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::JobEvents));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(EOperationControllerQueue::JobEvents));
 
     std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationTimeStatisticsUpdates;
     runningAllocationTimeStatisticsUpdates.reserve(std::size(RunningAllocationPreemptibleProgressStartTimes_));

@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((ValueDictionaryCompression_23_2)                              (2460))  // akozhikhov
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
+    ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -221,6 +222,11 @@ DEFINE_ENUM(EMasterReign,
     ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
     ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
     ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
+    ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
+    ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
+    ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
+    ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
+    ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -232,6 +238,8 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveChaosIndependentPeersAssumption)                        (2607))  // ponasenko-rs
     ((SecondaryIndexUser)                                           (2608))  // sabdenovch
     ((RemoveEnableSharedWriteLocksFlagLeftovers)                    (2609))  // ponasenko-rs
+    ((AccountProfilingIncumbency)                                   (2610))  // h0pless
+    ((RemoveParameterizedBalancingMetricSetting)                    (2611))  // alexelexa
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

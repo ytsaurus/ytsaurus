@@ -23,6 +23,7 @@ def parse_arguments():
     parser.add_argument("--repos", nargs="+", default=None, help="Repositories to upload a debian package")
     parser.add_argument("--keep-going", action="store_true", default=False, help="Continue build other packages when some builds failed")
     parser.add_argument("--python-binary", default=sys.executable, help="Path to python binary")
+    parser.add_argument("--no-universal", action="store_false", dest="universal", default=True, help="Do not build py2/py3 compat package")
     parser.add_argument("--debian-dist-user", default=os.environ.get("USER"), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
     return parser.parse_args()
 
@@ -60,17 +61,22 @@ def build_debian(package):
         return False
 
 
-def build_pypi(package, python_binary):
+def build_pypi(package, python_binary, universal):
     try:
         cp(os.path.join(package, "setup.py"), ".")
-        execute_command([python_binary, "setup.py", "bdist_wheel", "--universal"])
+
+        args = [python_binary, "setup.py", "bdist_wheel"]
+        if universal:
+            args.append("--universal")
+        execute_command(args)
+
         return True
     except (RuntimeError, IOError):
         logging.exception("Failed to build pypi package")
         return False
 
 
-def build_package(package, package_type, python_binary, skip_pypi=False):
+def build_package(package, package_type, python_binary, skip_pypi=False, universal=None):
     logging.info("Building '{}'. Packages to build: {}".format(package, package_type))
     build_ok = True
 
@@ -82,7 +88,7 @@ def build_package(package, package_type, python_binary, skip_pypi=False):
 
     if package_type in ("pypi", "all") and not skip_pypi:
         logging.info("Building package {}:pypi...".format(package))
-        ok = build_pypi(package, python_binary)
+        ok = build_pypi(package, python_binary, universal)
         build_ok = build_ok and ok
         logging.info("Build of package {}:pypi {}".format(package, "OK" if ok else "FAILED"))
 
@@ -167,7 +173,7 @@ def _get_pypi_package_name():
     return import_file("setup", "setup.py").PACKAGE_NAME
 
 
-def deploy_pypi_package(package, python_binary):
+def deploy_pypi_package(package, python_binary, universal):
     try:
         pypi_package_name = _get_pypi_package_name()
         logging.info("Package {} has name {} in pypi".format(package, pypi_package_name))
@@ -176,14 +182,19 @@ def deploy_pypi_package(package, python_binary):
             logging.info("Package {} already uploaded to the repository {}, skipping upload".format(package, PYPI_REPO))
             return True
 
-        execute_command([python_binary, "setup.py", "bdist_wheel", "--universal", "upload", "-r", PYPI_REPO])
+        args = [python_binary, "setup.py", "bdist_wheel"]
+        if universal:
+            args.append("--universal")
+        args.extend(["upload", "-r", PYPI_REPO])
+        execute_command(args)
+
         return True
     except RuntimeError:
         logging.exception("Failed to upload pypi package")
         return False
 
 
-def deploy_package(package, package_type, python_binary, debian_dist_user=None, repos=None):
+def deploy_package(package, package_type, python_binary, debian_dist_user=None, repos=None, universal=None):
     version = get_version()
     version_branch = get_version_branch(version)
     logging.info("Deploying {} package for {} (version {} branch {})".format(package_type, package, version, version_branch))
@@ -199,7 +210,7 @@ def deploy_package(package, package_type, python_binary, debian_dist_user=None, 
 
     if package_type in ("pypi", "all"):
         logging.info("Deploying {}:pypi...".format(package))
-        ok = deploy_pypi_package(package, python_binary)
+        ok = deploy_pypi_package(package, python_binary, universal)
         logging.info("Deployment of {}:pypi {}".format(package, "OK" if ok else "FAILED"))
 
 
@@ -242,7 +253,7 @@ def main(args=None):
         for child in os.listdir(package_dir):
             cp_r(os.path.join(package_dir, child), ".")
 
-        if not build_package(package, args.package_type, args.python_binary, skip_pypi=args.deploy):
+        if not build_package(package, args.package_type, args.python_binary, skip_pypi=args.deploy, universal=args.universal):
             if args.deploy:
                 logging.error("One or more builds failed. Package '{}' won't be deployed".format(package))
 
@@ -261,6 +272,7 @@ def main(args=None):
                 args.python_binary,
                 debian_dist_user=args.debian_dist_user,
                 repos=args.repos,
+                universal=args.universal,
             )
 
             if os.path.exists("./postprocess.py"):

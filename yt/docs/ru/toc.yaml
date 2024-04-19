@@ -1,5 +1,12 @@
 title: "{{product-name}}"
 href: index.md
+analytics:
+  text: 'Мы используем <a href="https://yandex.ru/legal/cookies_policy">файлы cookie</a>, чтобы вы могли наилучшим образом пользоваться нашим веб-сайтом. Если вы продолжаете использовать наш веб-сайт, мы полагаем, что вы согласны с таким использованием.'
+  buttons:
+    accept:
+      text: "Ок"
+      theme: "accent"
+      size: "xl"
 items:
   - include: { mode: merge, path: yandex-specific/toc-internal.yaml }
     when: audience == "internal"
@@ -211,7 +218,7 @@ items:
           href: user-guide/data-processing/operations/recommendations.md
         - name: Образы ФС
           when: audience == "public"
-          href: user-guide/data-processing/porto/layer-paths.md
+          href: user-guide/data-processing/layers/layer-paths.md
         - name: Переключение таблиц
           when: audience == "public"
           href: user-guide/data-processing/operations/table-switch.md

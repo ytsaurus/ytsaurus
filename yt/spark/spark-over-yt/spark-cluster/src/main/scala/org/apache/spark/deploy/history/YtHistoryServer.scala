@@ -2,7 +2,7 @@ package org.apache.spark.deploy.history
 
 import org.apache.spark.deploy.history.HistoryServer.{createSecurityManager, initSecurity}
 import org.apache.spark.internal.Logging
-import org.apache.spark.internal.config.History
+import org.apache.spark.internal.config.{ConfigBuilder, History}
 import org.apache.spark.ui.JettyUtils
 import org.apache.spark.util.{ShutdownHookManager, Utils}
 import org.apache.spark.{SecurityManager, SparkConf}
@@ -66,5 +66,12 @@ object YtHistoryServer extends Logging {
 
     // Wait until the end of the world... or if the HistoryServer process is manually stopped
     while(true) { Thread.sleep(Int.MaxValue) }
+  }
+
+  object Config {
+    val CREATE_LOG_DIR = ConfigBuilder("spark.history.fs.createLogDirectory")
+      .version("3.0.1")
+      .booleanConf
+      .createWithDefault(false)
   }
 }

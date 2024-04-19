@@ -324,6 +324,10 @@ protected:
                 return false;
             }
 
+            if (Controller_->JobSizeConstraints_->ForceAllowJobInterruption()) {
+                return true;
+            }
+
             auto totalJobCount = Controller_->GetTotalJobCounter()->GetTotal();
             return
                 !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&

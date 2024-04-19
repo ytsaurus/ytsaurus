@@ -1060,6 +1060,32 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/out") == [{"a": 1}, {"a": 2}]
 
+    @authors("coteeq")
+    def test_copy_file_strange_ypaths(self):
+        skip_if_old(self.Env, (24, 1), "no such logic in 24.1")
+        self._create_inout_files(chunks=1)
+
+        strange_paths = [
+            "//tmp/in.txt{column1}",
+            "//tmp/in.txt[\"exact_key\"]",
+            "//tmp/in.txt[#100500]",
+            "//tmp/in.txt[#100:#500]",
+            "//tmp/in.txt{column1}[#100500]",
+        ]
+
+        for path in strange_paths:
+            with raises_yt_error("Input file path must not contain"):
+                remote_copy(
+                    in_=path,
+                    out="//tmp/out.txt",
+                    spec={
+                        "cluster_name": self.REMOTE_CLUSTER_NAME,
+                        "input_table_columnar_statistics": {
+                            "enabled": True,
+                        }
+                    }
+                )
+
 
 ##################################################################
 

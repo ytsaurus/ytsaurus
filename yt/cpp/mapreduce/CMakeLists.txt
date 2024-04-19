@@ -22,6 +22,8 @@ add_subdirectory(io)
 add_subdirectory(library)
 add_subdirectory(raw_client)
 add_subdirectory(skiff)
+add_subdirectory(tests)
+add_subdirectory(tests_core_http)
 add_subdirectory(util)
 
 

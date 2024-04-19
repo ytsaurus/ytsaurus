@@ -108,7 +108,7 @@ private:
     NIO::TChunkFileReaderPtr GetReader();
     void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 
-    TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef&& rawReference, TDuration delayBeforeFree);
+    TSharedRef WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree);
 
     void CompleteSession(const TReadBlockSetSessionPtr& session);
     static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);

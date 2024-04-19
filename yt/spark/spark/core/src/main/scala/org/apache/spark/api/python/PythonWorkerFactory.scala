@@ -53,7 +53,7 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
   // as expert-only option, and shouldn't be used before knowing what it means exactly.
 
   // This configuration indicates the module to run the daemon to execute its Python workers.
-  protected val daemonModule =
+  private val daemonModule =
     SparkEnv.get.conf.get(PYTHON_DAEMON_MODULE).map { value =>
       logInfo(
         s"Python daemon module in PySpark is set to [$value] in '${PYTHON_DAEMON_MODULE.key}', " +
@@ -72,13 +72,13 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
       value
     }.getOrElse("pyspark.worker")
 
-  protected val authHelper = new SocketAuthHelper(SparkEnv.get.conf)
+  private val authHelper = new SocketAuthHelper(SparkEnv.get.conf)
 
   @GuardedBy("self")
-  protected var daemon: Process = null
+  private var daemon: Process = null
   val daemonHost = InetAddress.getByAddress(Array(127, 0, 0, 1))
   @GuardedBy("self")
-  protected var daemonPort: Int = 0
+  private var daemonPort: Int = 0
   @GuardedBy("self")
   private val daemonWorkers = new mutable.WeakHashMap[Socket, Int]()
   @GuardedBy("self")
@@ -88,9 +88,9 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
   new MonitorThread().start()
 
   @GuardedBy("self")
-  protected val simpleWorkers = new mutable.WeakHashMap[Socket, Process]()
+  private val simpleWorkers = new mutable.WeakHashMap[Socket, Process]()
 
-  protected val pythonPath = PythonUtils.mergePythonPaths(
+  private val pythonPath = PythonUtils.mergePythonPaths(
     PythonUtils.sparkPythonPath,
     envVars.getOrElse("PYTHONPATH", ""),
     sys.env.getOrElse("PYTHONPATH", ""))
@@ -149,7 +149,7 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
   /**
    * Launch a worker by executing worker.py (by default) directly and telling it to connect to us.
    */
-  protected def createSimpleWorker(): (Socket, Option[Int]) = {
+  private def createSimpleWorker(): (Socket, Option[Int]) = {
     var serverSocket: ServerSocket = null
     try {
       serverSocket = new ServerSocket(0, 1, InetAddress.getByAddress(Array(127, 0, 0, 1)))
@@ -195,7 +195,7 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
     null
   }
 
-  protected def startDaemon(): Unit = {
+  private def startDaemon(): Unit = {
     self.synchronized {
       // Is it already running?
       if (daemon != null) {
@@ -282,7 +282,7 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
   /**
    * Redirect the given streams to our stderr in separate threads.
    */
-  protected def redirectStreamsToStderr(stdout: InputStream, stderr: InputStream): Unit = {
+  private def redirectStreamsToStderr(stdout: InputStream, stderr: InputStream): Unit = {
     try {
       new RedirectThread(stdout, System.err, "stdout reader for " + pythonExec).start()
       new RedirectThread(stderr, System.err, "stderr reader for " + pythonExec).start()
@@ -325,7 +325,7 @@ private[spark] class PythonWorkerFactory(pythonExec: String, envVars: Map[String
     }
   }
 
-  protected def stopDaemon(): Unit = {
+  private def stopDaemon(): Unit = {
     self.synchronized {
       if (useDaemon) {
         cleanupIdleWorkers()

@@ -21,6 +21,7 @@ def parse_arguments():
     parser.add_argument("--repos", nargs="+", default=None, help="Repositories to upload a debian package")
     parser.add_argument("--work-dir", help="Directory to use. If not specified, temp dir will be created")
     parser.add_argument("--python-binary", default=sys.executable, help="Path to python binary")
+    parser.add_argument("--no-universal", action="store_false", dest="universal", default=True, help="Do not build py2/py3 compat package")
     parser.add_argument("--debian-dist-user", default=os.environ.get("USER"), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
     parser.add_argument("--verbose", "-v", action="count", default=2)
     return parser.parse_args()

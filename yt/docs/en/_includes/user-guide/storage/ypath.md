@@ -194,7 +194,7 @@ Examples of row selection modifiers: `[:]`, `[#10:#100]`, `[a:m]`, `[(abc,8):(xy
 The formal grammar of row selection modifiers:
 
 ```json
-<row-selector> = '[' { <row-range> ',' } <row-range> ] ']'
+<row-selector> = '[' { <row-range> ',' } [ <row-range> ] ']'
 
 <row-range> = <row-index-range-selector> | <row-key-range-selector> | <row-index> | <row-composite-key> | ''
 

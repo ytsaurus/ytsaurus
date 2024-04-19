@@ -1349,7 +1349,7 @@ class GnuToolchain(Toolchain):
 
     def setup_apple_arcadia_sdk(self, target):
         if target.is_ios:
-            self.setup_xcode_sdk(project='build/platform/ios_sdk', var='${IOS_SDK_ROOT_RESOURCE_GLOBAL}')
+            self.setup_xcode_sdk(project='build/internal/platform/ios_sdk', var='${IOS_SDK_ROOT_RESOURCE_GLOBAL}')
             self.platform_projects.append('build/internal/platform/macos_system_stl')
         if target.is_macos:
             self.setup_xcode_sdk(project='build/internal/platform/macos_sdk', var='${MACOS_SDK_RESOURCE_GLOBAL}')
@@ -1732,9 +1732,9 @@ class LD(Linker):
 
         self.ld_sdk = select(default=None, selectors=[
             # -platform_version <platform> <min_version> <sdk_version>
-            (target.is_macos, '-Wl,-platform_version,macos,11.0,11.0'),
-            (not target.is_iossim and target.is_ios, '-Wl,-platform_version,ios,11.0,13.1'),
-            (target.is_iossim, '-Wl,-platform_version,ios-simulator,14.0,14.5'),
+            (target.is_macos, '-Wl,-platform_version,macos,{MACOS_VERSION_MIN},11.0'.format(MACOS_VERSION_MIN=MACOS_VERSION_MIN)),
+            (not target.is_iossim and target.is_ios, '-Wl,-platform_version,ios,{IOS_VERSION_MIN},13.1'.format(IOS_VERSION_MIN=IOS_VERSION_MIN)),
+            (target.is_iossim, '-Wl,-platform_version,ios-simulator,{IOS_VERSION_MIN},14.5'.format(IOS_VERSION_MIN=IOS_VERSION_MIN)),
         ])
 
         if self.build.profiler_type == Profiler.GProf:
@@ -1796,10 +1796,12 @@ class MSVCToolchainOptions(ToolchainOptions):
 
         self.under_wine_compiler = self.params.get('wine', False)
         self.under_wine_tools = not build.host.is_windows
+        self.under_wine_link = self.under_wine_tools
         self.under_wine_lib = self.under_wine_tools
         self.system_msvc = self.params.get('system_msvc', False)
         self.ide_msvs = self.params.get('ide_msvs', False)
         self.use_clang = self.params.get('use_clang', False)
+        self.use_msvc_linker = is_positive('USE_MSVC_LINKER')
         self.use_arcadia_toolchain = self.params.get('use_arcadia_toolchain', False)
 
         self.sdk_version = None
@@ -1868,7 +1870,13 @@ class MSVCToolchainOptions(ToolchainOptions):
             ])
 
             self.masm_compiler = win_path_fix(os.path.join(bindir, tools_name, asm_name))
-            self.link = win_path_fix(os.path.join(bindir, tools_name, 'link.exe'))
+
+            if self.use_clang and not self.use_msvc_linker:
+                self.link = self.host.exe(self.name_marker, "bin", "lld-link")
+                self.under_wine_link = False
+            else:
+                self.link = win_path_fix(os.path.join(bindir, tools_name, 'link.exe'))
+                self.under_wine_link = self.under_wine_tools
 
             if self.use_clang:
                 self.lib = self.host.exe(self.name_marker, "bin", "llvm-lib")
@@ -1917,6 +1925,8 @@ class MSVCToolchain(MSVC, Toolchain):
 
         if self.tc.under_wine_tools:
             emit('_UNDER_WINE_TOOLS', 'yes')
+        if self.tc.under_wine_link:
+            emit('_UNDER_WINE_LINK', 'yes')
         if self.tc.under_wine_lib:
             emit('_UNDER_WINE_LIB', 'yes')
         if self.tc.under_wine_compiler:

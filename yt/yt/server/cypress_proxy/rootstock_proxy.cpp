@@ -1,5 +1,3 @@
-#include "node_proxy.h"
-
 #include "private.h"
 #include "bootstrap.h"
 
@@ -120,7 +118,7 @@ private:
         const auto& connection = Bootstrap_->GetNativeConnection();
         const auto& rootstockCellTag = connection->GetPrimaryMasterCellTag();
         auto attributes = FromProto(request->node_attributes());
-        auto scionCellTag = attributes->GetAndRemove<TCellTag>("scion_cell_tag");
+        auto scionCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
 
         auto rootstockId = Transaction_->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
         auto scionId = Transaction_->GenerateObjectId(EObjectType::Scion, scionCellTag, /*sequoia*/ true);

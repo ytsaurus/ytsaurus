@@ -23,16 +23,9 @@ class YtWorker(rpcEnv: RpcEnv,
   workDir, conf, securityMgr, resourceFileOpt) {
 
   override def onStart(): Unit = {
-    val baseClass = this.getClass.getSuperclass
-    val publicAddressField = baseClass.getDeclaredField("org$apache$spark$deploy$worker$Worker$$publicAddress")
-    publicAddressField.setAccessible(true)
-    val rawHost = publicAddressField.get(this).asInstanceOf[String]
-    val publicAddress = if (rawHost.contains(":")) s"[$rawHost]" else rawHost
-    publicAddressField.set(this, publicAddress)
-    publicAddressField.setAccessible(false)
-
     super.onStart()
 
+    val baseClass = this.getClass.getSuperclass
     val webUiField = baseClass.getDeclaredField("org$apache$spark$deploy$worker$Worker$$webUi")
     webUiField.setAccessible(true)
     val webUi = webUiField.get(this).asInstanceOf[WorkerWebUI]

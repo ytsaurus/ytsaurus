@@ -259,7 +259,7 @@ private[ui] class MasterPage(parent: MasterWebUI) extends WebUIPage("") {
           }
         }
       </td>
-      <td>{worker.hostPort}</td>
+      <td>{worker.host}:{worker.port}</td>
       <td>{worker.state}</td>
       <td>{worker.cores} ({worker.coresUsed} Used)</td>
       <td sorttable_customkey={"%s.%s".format(worker.memory, worker.memoryUsed)}>

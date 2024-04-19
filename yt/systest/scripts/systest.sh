@@ -94,6 +94,13 @@ helm install ${nsflags} ${name_tester} --set SystestImagePath=${systest_image} $
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --name tester ${tester_flags} || print_pods $nsflags
 
 helm install ${nsflags} ${name_systest} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/systest
+
+# Start fault injection
+bash ${ytsaurus_source_path}/yt/systest/chaos_mesh/start.sh ${nsflags}
+
+sleep 3h
+bash ${ytsaurus_source_path}/yt/systest/chaos_mesh/stop.sh ${nsflags}
+
 bash ${ytsaurus_source_path}/yt/systest/scripts/wait.sh --wait-minutes 720 --name systest ${tester_flags} || print_systest_logs $nsflags
 
 helm install ${nsflags} ${name_new_stress_test} --set SystestImagePath=${systest_image} ${ytsaurus_source_path}/yt/systest/helm/new_stress_test

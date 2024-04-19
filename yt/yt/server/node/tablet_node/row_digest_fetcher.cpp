@@ -100,7 +100,9 @@ private:
 
     bool IsFetchableTablet(const TTablet& tablet) const override
     {
-        return UseRowDigests_ && tablet.IsPhysicallySorted();
+        return UseRowDigests_ && tablet.IsPhysicallySorted() &&
+        // TODO(dave11ar): Remove when correct considering of aggregate columns will be implemented.
+            !tablet.GetTableSchema()->HasAggregateColumns();
     }
 
     TCompactionHintFetchStatus& GetFetchStatus(const IStorePtr& store) const override
@@ -183,13 +185,11 @@ private:
 
                 auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
                 compactionHints.FetchStatus.RequestStep = RequestStep;
-                // TODO(dave11ar): Remove when correct considering of aggregate columns will be implemented.
-                if (!store->GetTablet()->GetTableSchema()->HasAggregateColumns()) {
-                    compactionHints.CompactionHint = GetUpcomingCompactionInfo(
-                        store->GetId(),
-                        store->GetTablet()->GetSettings().MountConfig,
-                        digest);
-                }
+                YT_ASSERT(!store->GetTablet()->GetTableSchema()->HasAggregateColumns());
+                compactionHints.CompactionHint = GetUpcomingCompactionInfo(
+                    store->GetId(),
+                    store->GetTablet()->GetSettings().MountConfig,
+                    digest);
 
                 ++finishedRequestCount;
                 YT_LOG_DEBUG("Finished fetching row digest (StoreId: %v, ChunkId: %v, "

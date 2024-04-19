@@ -15,9 +15,11 @@
 
 add_subdirectory(blob_table)
 add_subdirectory(lambda)
+add_subdirectory(lazy_sort)
 add_subdirectory(mock_client)
 add_subdirectory(operation_tracker)
 add_subdirectory(parallel_io)
 add_subdirectory(table_schema)
+add_subdirectory(user_job_statistics)
 
 

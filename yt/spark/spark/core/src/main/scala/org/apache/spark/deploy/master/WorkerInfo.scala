@@ -101,15 +101,9 @@ private[spark] class WorkerInfo(
     lastHeartbeat = System.currentTimeMillis()
   }
 
-  private def urlHost(host: String): String = {
-    if (host.contains(":")) {
-      s"[$host]"
-    } else host
-  }
-
   def hostPort: String = {
     assert (port > 0)
-    urlHost(host) + ":" + port
+    host + ":" + port
   }
 
   def addExecutor(exec: ExecutorDesc): Unit = {

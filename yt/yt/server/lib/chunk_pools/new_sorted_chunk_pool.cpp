@@ -741,6 +741,7 @@ private:
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
+            JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
             std::nullopt /*samplingRate*/);
 

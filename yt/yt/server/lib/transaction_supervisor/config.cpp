@@ -12,6 +12,10 @@ void TTransactionSupervisorConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("participant_backoff_time", &TThis::ParticipantBackoffTime)
         .Default(TDuration::Seconds(5));
+    registrar.Parameter(
+        "enable_wait_until_prepared_transactions_finished",
+        &TThis::EnableWaitUntilPreparedTransactionsFinished)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

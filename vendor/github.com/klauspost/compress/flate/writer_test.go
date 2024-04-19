@@ -30,7 +30,7 @@ func TestWriterMemUsage(t *testing.T) {
 		t.Logf("%s: Memory Used: %dKB, %d allocs", t.Name(), (after.HeapInuse-before.HeapInuse)/1024, after.HeapObjects-before.HeapObjects)
 	}
 	data := make([]byte, 100000)
-	t.Run(fmt.Sprint("stateless"), func(t *testing.T) {
+	t.Run("stateless", func(t *testing.T) {
 		testMem(t, func() {
 			StatelessDeflate(io.Discard, data, false, nil)
 		})
@@ -216,6 +216,10 @@ func BenchmarkEncodeTwainCompress1e6(b *testing.B)  { benchmarkEncoder(b, twain,
 func BenchmarkEncodeTwainSL1e4(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e4) }
 func BenchmarkEncodeTwainSL1e5(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e5) }
 func BenchmarkEncodeTwainSL1e6(b *testing.B)        { benchmarkStatelessEncoder(b, twain, 1e6) }
+
+func BenchmarkEncodeTwain1024Win1e4(b *testing.B) { benchmarkEncoder(b, twain, oneK, 1e4) }
+func BenchmarkEncodeTwain1024Win1e5(b *testing.B) { benchmarkEncoder(b, twain, oneK, 1e5) }
+func BenchmarkEncodeTwain1024Win1e6(b *testing.B) { benchmarkEncoder(b, twain, oneK, 1e6) }
 
 func benchmarkStatelessEncoder(b *testing.B, testfile, n int) {
 	b.SetBytes(int64(n))

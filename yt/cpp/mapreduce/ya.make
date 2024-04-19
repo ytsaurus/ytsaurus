@@ -11,11 +11,14 @@ RECURSE(
     interface/logging/ut
     io
     library/parallel_io
+    library/user_job_statistics
     raw_client
     raw_client/ut
     skiff
     util
     util/ut
+    tests
+    tests_core_http
 )
 
 IF (NOT OPENSOURCE)
@@ -25,8 +28,6 @@ IF (NOT OPENSOURCE)
         initialize
         io/ut
         library
-        tests
-        tests_core_http
         tools
     )
 ENDIF()

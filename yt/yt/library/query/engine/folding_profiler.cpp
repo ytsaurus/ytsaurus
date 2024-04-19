@@ -200,7 +200,7 @@ struct TExpressionFragmentPrinter
         TStringBuilderBase* builder,
         const std::vector<TDebugInfo>& debugExpressions,
         const std::vector<TCodegenFragmentInfo>& expressions)
-        : TBase(builder, false)
+        : TBase(builder, /*omitValues*/ false)
         , DebugExpressions(debugExpressions)
         , Expressions(expressions)
     { }
@@ -576,7 +576,7 @@ size_t TExpressionProfiler::Profile(
         MakeCodegenLiteralExpr(index, nullable, literalExpr->GetWireType()),
         literalExpr->GetWireType(),
         nullable,
-        true);
+        /*forceInline*/ true);
     return fragments->Items.size() - 1;
 }
 
@@ -606,8 +606,8 @@ size_t TExpressionProfiler::Profile(
             referenceExpr->GetWireType(),
             referenceExpr->ColumnName),
         referenceExpr->GetWireType(),
-        true,
-        true);
+        /*nullable*/ true,
+        /*forceInline*/ true);
     return fragments->Items.size() - 1;
 }
 
@@ -775,13 +775,13 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[argId].UseCount;
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(CopyAndConvertToPI(inExpr->Values, false));
+    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(CopyAndConvertToPI(inExpr->Values, /*captureValues*/ false));
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>>();
     fragments->DebugInfos.emplace_back(inExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenInExpr(std::move(argIds), index, hashtableIndex, ComparerManager_),
         inExpr->GetWireType(),
-        false);
+        /*nullable*/ false);
     return fragments->Items.size() - 1;
 }
 
@@ -820,12 +820,13 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[argId].UseCount;
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TPIRowRange>>(CopyAndConvertToPI(betweenExpr->Ranges, false));
+    int index = Variables_->AddOpaque<TSharedRange<TPIRowRange>>(
+        CopyAndConvertToPI(betweenExpr->Ranges, /*captureValues=*/ false));
     fragments->DebugInfos.emplace_back(betweenExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenBetweenExpr(std::move(argIds), index, ComparerManager_),
         betweenExpr->GetWireType(),
-        false);
+        /*nullable*/ false);
     return fragments->Items.size() - 1;
 }
 
@@ -884,7 +885,8 @@ size_t TExpressionProfiler::Profile(
         }
     }
 
-    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(CopyAndConvertToPI(transformExpr->Values, false));
+    int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(
+        CopyAndConvertToPI(transformExpr->Values, /*captureValues=*/ false));
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>>();
 
     fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);

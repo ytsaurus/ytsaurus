@@ -14,6 +14,9 @@ NCypressServer::INodeTypeHandlerPtr CreateTopmostTransactionMapTypeHandler(
 NCypressServer::INodeTypeHandlerPtr CreateTransactionMapTypeHandler(
     NCellMaster::TBootstrap* bootstrap);
 
+NCypressServer::INodeTypeHandlerPtr CreateForeignTransactionMapTypeHandler(
+    NCellMaster::TBootstrap* bootstrap);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer

@@ -56,7 +56,7 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 /*id*/ nullptr,
                 &column.Variables,
                 /*useCanonicalNullRelations*/ false,
-                /*executionBackend*/ EExecutionBackend::Native,
+                EExecutionBackend::Native,
                 profilers)();
 
             column.EvaluatorInstance = column.EvaluatorImage.Instantiate();
@@ -76,10 +76,10 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                     type,
                     type,
                     aggregateName,
-                    /*executionBackend*/ EExecutionBackend::Native),
+                    EExecutionBackend::Native),
                 {type},
                 type,
-                /*executionBackend*/ EExecutionBackend::Native);
+                EExecutionBackend::Native);
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;
         }

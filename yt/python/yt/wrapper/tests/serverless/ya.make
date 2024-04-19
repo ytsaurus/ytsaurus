@@ -38,4 +38,7 @@ TEST_SRCS(
 
 END()
 
-RECURSE(py3_only)
+RECURSE(
+    py23_fork
+    py3_only
+)

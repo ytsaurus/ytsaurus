@@ -156,7 +156,7 @@ object PythonRunner {
    * not expect a file. This method creates a temporary directory and puts the ".py" files
    * if exist in the given paths.
    */
-  private[deploy] def resolvePyFiles(pyFiles: Array[String]): Array[String] = {
+  private def resolvePyFiles(pyFiles: Array[String]): Array[String] = {
     lazy val dest = Utils.createTempDir(namePrefix = "localPyFiles")
     pyFiles.flatMap { pyFile =>
       // In case of client with submit, the python paths should be set before context

@@ -97,10 +97,7 @@ void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, DestinationPool);
     Persist(context, RequiresRecoveryInfo);
     Persist(context, TableWriterOptions);
-    // COMPAT(galtsev)
-    if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
-        Persist(context, SlowMedium);
-    }
+    Persist(context, SlowMedium);
     Persist(context, TableUploadOptions);
     Persist(context, TableWriterConfig);
     // COMPAT(galtsev)

@@ -156,8 +156,6 @@ private[rest] class StandaloneSubmitRequestServlet(
     // Filter SPARK_LOCAL_(IP|HOSTNAME) environment variables from being set on the remote system.
     val environmentVariables =
       request.environmentVariables.filterNot(x => x._1.matches("SPARK_LOCAL_(IP|HOSTNAME)"))
-    val pyFiles = sparkProperties.get("spark.python.files")
-      .map(_.split(",").toSeq).getOrElse(Seq.empty)
 
     // Construct driver description
     val conf = new SparkConf(false)
@@ -180,7 +178,7 @@ private[rest] class StandaloneSubmitRequestServlet(
     val driverResourceReqs = ResourceUtils.parseResourceRequirements(conf,
       config.SPARK_DRIVER_PREFIX)
     new DriverDescription(
-      appResource, pyFiles, actualDriverMemory, actualDriverCores, actualSuperviseDriver, command,
+      appResource, actualDriverMemory, actualDriverCores, actualSuperviseDriver, command,
       driverResourceReqs)
   }
 

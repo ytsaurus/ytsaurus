@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fwd.h"
+
 #include <library/cpp/yson/node/node.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/node/serialize.h>
@@ -61,6 +63,13 @@ template <typename TDerived>
         TStringInput in(state);
         newObject->Load(&in);
     }
+
+    if constexpr (std::is_base_of_v<TAttributes, TDerived>) {
+        // Copy Attributes.
+        TAttributes& dstAttrs = *newObject;
+        dstAttrs = *static_cast<const TDerived*>(this);
+    }
+
     return newObject;
 }
 

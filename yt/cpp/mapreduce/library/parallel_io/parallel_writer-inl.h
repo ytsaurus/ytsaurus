@@ -128,14 +128,17 @@ public:
 
         // Warming up. Create at least 1 writer for future use.
         AddWriteTask(TWriteTask(TVector<T>{}, 0));
+        // Wait until warming up is fully complete
+        TaskFutures_.back().GetValueSync();
     }
 
     ~TParallelUnorderedTableWriterBase()
     {
-        // This statement always true
-        // because even in an exceptional situation
-        // owner class call Finish in destructor
-        Y_ABORT_UNLESS(Stopped_ == true);
+        if (Options_.AutoFinish_) {
+            FinishOrDie(this, true, "TParallelUnorderedTableWriterBase");
+        } else {
+            Abort();
+        }
     }
 
     void Abort() override
@@ -156,6 +159,11 @@ public:
     }
 
     void FinishTable(size_t) override
+    {
+         Finish();
+    }
+
+    void Finish()
     {
         if (!Stopped_) {
             Stopped_ = true;

@@ -263,7 +263,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
             });
             continue;
         }
-        if (responseOrError.GetCode() == NHiveClient::EErrorCode::EntryNotFound) {
+        if (responseOrError.GetCode() == NHiveClient::EErrorCode::TimeEntryNotFound) {
             YT_LOG_INFO("Requested time is missing; retrying (CellId: %v)",
                 primaryCellId);
             resetState();

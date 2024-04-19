@@ -54,6 +54,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const IInvokerPtr& GetChunkScraperThreadPoolInvoker();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetJobSpecBuildPoolInvoker();
 
     /*!

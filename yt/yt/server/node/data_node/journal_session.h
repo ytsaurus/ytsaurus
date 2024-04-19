@@ -27,7 +27,7 @@ private:
     TFuture<void> DoStart() override;
     TFuture<NIO::TIOCounters> DoPutBlocks(
         int startBlockIndex,
-        const std::vector<NChunkClient::TBlock>& blocks,
+        std::vector<NChunkClient::TBlock> blocks,
         bool enableCaching) override;
     TFuture<NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr> DoSendBlocks(
         int startBlockIndex,

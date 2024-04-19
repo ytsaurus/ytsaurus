@@ -499,46 +499,62 @@ private:
         const auto targetSatisfiedCriteriaCount = 7;
 
         auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
-        std::vector<TString> violatedCriterias;
-        violatedCriterias.reserve(targetSatisfiedCriteriaCount);
-        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criteriaName) {
+        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto tagedData) {
             if (condition) {
                 ++satisfiedCriteriaCount;
             } else {
                 ++violatedCriteriaCount;
-                violatedCriterias.emplace_back(std::move(criteriaName));
+                YT_LOG_DEBUG(
+                    "Cannot add chunk to merge job due to limit violation ",
+                    "(ViolatedCriterion: %v, %v, DesiredParentChunkListId: %v, ParentChunkListId: %v)",
+                    criterionName,
+                    tagedData,
+                    ParentChunkListId_,
+                    parent->GetId());
             }
         };
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
             statistics.MaxRowCountViolatedCriteria,
-            "RowCountCriteria");
+            "RowCountCriteria",
+            Format("CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v",
+                CurrentRowCount_, chunk->GetRowCount(), mergerCriteria.MaxRowCount));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
             statistics.MaxDataWeightViolatedCriteria,
-            "DataWeightCriteria");
+            "DataWeightCriteria",
+            Format("CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v",
+                CurrentDataWeight_, chunk->GetDataWeight(), mergerCriteria.MaxDataWeight));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
             statistics.MaxCompressedDataSizeViolatedCriteria,
-            "CompressedDataSizeCriteria");
+            "CompressedDataSizeCriteria",
+            Format("CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v",
+                CurrentCompressedDataSize_, chunk->GetCompressedDataSize(), mergerCriteria.MaxCompressedDataSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
             statistics.MaxUncompressedDataSizeViolatedCriteria,
-            "UncompressedDataSizeCriteria");
+            "UncompressedDataSizeCriteria",
+            Format("CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v",
+                CurrentUncompressedDataSize_, chunk->GetUncompressedDataSize(), mergerCriteria.MaxUncompressedDataSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
             statistics.MaxChunkCountViolatedCriteria,
-            "ChunkCountCriteria");
+            "ChunkCountCriteria",
+            Format("CurrentChunkCount: %v, MaxChunkCount: %v",
+                std::ssize(ChunkIds_), mergerCriteria.MaxChunkCount));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
             statistics.MaxInputChunkDataWeightViolatedCriteria,
-            "InputChunkDataWeightCriteria");
+            "InputChunkDataWeightCriteria",
+            Format("ChunkDataWeight: %v, MaxInputChunkDataWeight: %v",
+                chunk->GetDataWeight(), mergerCriteria.MaxInputChunkDataWeight));
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -552,33 +568,6 @@ private:
             ParentChunkListId_ = parent->GetId();
             ChunkIds_.push_back(chunk->GetId());
             return true;
-        } else {
-            YT_LOG_DEBUG("Cannot add chunk to merge job due to limits violation ("
-                "ViolatedCriterias: %v, "
-                "CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v, "
-                "CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v, MaxInputChunkDataWeight: %v, "
-                "CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v, "
-                "CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v, "
-                "CurrentChunkCount: %v, MaxChunkCount: %v, "
-                "DesiredParentChunkListId: %v, ParentChunkListId: %v)",
-                violatedCriterias,
-                CurrentRowCount_,
-                chunk->GetRowCount(),
-                *mergerCriteria.MaxRowCount,
-                CurrentDataWeight_,
-                chunk->GetDataWeight(),
-                *mergerCriteria.MaxDataWeight,
-                *mergerCriteria.MaxInputChunkDataWeight,
-                CurrentCompressedDataSize_,
-                chunk->GetCompressedDataSize(),
-                *mergerCriteria.MaxCompressedDataSize,
-                CurrentUncompressedDataSize_,
-                chunk->GetUncompressedDataSize(),
-                *mergerCriteria.MaxUncompressedDataSize,
-                std::ssize(ChunkIds_),
-                *mergerCriteria.MaxChunkCount,
-                ParentChunkListId_,
-                parent->GetId());
         }
         return false;
     }
@@ -1121,13 +1110,14 @@ void TChunkMerger::FinalizeJob(
     auto nodeId = jobInfo.NodeId;
     auto parentChunkListId = jobInfo.ParentChunkListId;
 
-    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v, AccountId: %v)",
-        nodeId,
-        jobId,
-        jobInfo.AccountId);
-
     auto& session = GetOrCrash(RunningSessions_, jobInfo.NodeId);
     session.Result = std::max(session.Result, result);
+
+    YT_LOG_DEBUG("Finalizing merge job (NodeId: %v, JobId: %v, AccountId: %v, JobResult: %v)",
+        nodeId,
+        jobId,
+        jobInfo.AccountId,
+        result);
 
     auto& runningJobs = GetOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
     EraseOrCrash(runningJobs, jobId);
@@ -1306,9 +1296,10 @@ void TChunkMerger::FinalizeSessions()
         }
         req->set_job_count(sessionResult.JobCount);
         auto sessionLifetimeDuration = TInstant::Now() - sessionResult.SessionCreationTime;
-        YT_LOG_DEBUG("Finalized merge session (NodeId: %v, MergeSessionDuration: %v)",
+        YT_LOG_DEBUG("Finalized merge session (NodeId: %v, MergeSessionDuration: %v, AccountId: %v)",
             sessionResult.NodeId,
-            sessionLifetimeDuration);
+            sessionLifetimeDuration,
+            sessionResult.AccountId);
 
         AccountIdToNodeMergeDurations_[sessionResult.AccountId].push_back(sessionLifetimeDuration);
         SessionsAwaitingFinalization_.pop();
@@ -1432,9 +1423,10 @@ void TChunkMerger::CreateChunks()
             continue;
         }
 
-        YT_LOG_DEBUG("Creating chunks for merge (JobId: %v, ChunkOwnerId: %v)",
+        YT_LOG_DEBUG("Creating chunks for merge (JobId: %v, ChunkOwnerId: %v, AccountId: %v)",
             jobInfo.JobId,
-            jobInfo.NodeId);
+            jobInfo.NodeId,
+            jobInfo.AccountId);
 
         auto* req = createChunksReq.add_subrequests();
 
@@ -1573,14 +1565,15 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Merge job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, NodeId: %v, InputChunkIds: %v, OutputChunkId: %v, ValidateShallowMerge: %v, AccointId: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         context->GetNode()->GetDefaultAddress(),
         jobInfo.NodeId,
         jobInfo.InputChunkIds,
         jobInfo.OutputChunkId,
-        validateShallowMerge);
+        validateShallowMerge,
+        jobInfo.AccountId);
 
     return true;
 }
@@ -1939,18 +1932,21 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 
                 auto& session = GetOrCrash(RunningSessions_, nodeId);
                 if (session.TraversalInfo.ChunkCount < 0) {
-                    YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v)",
+                    YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v, AccountId: %v)",
                         chunkOwner->GetId(),
-                        session.TraversalInfo);
+                        session.TraversalInfo,
+                        accountId);
                     session.TraversalInfo.ChunkCount = 0;
                 }
             }
         } else {
             YT_LOG_DEBUG(
-                "Cannot replace chunks after merge: input chunk sequence is no longer there (NodeId: %v, InputChunkIds: %v, ChunkId: %v)",
+                "Cannot replace chunks after merge: input chunk sequence is no longer there " \
+                "(NodeId: %v, InputChunkIds: %v, ChunkId: %v, AccountId: %v)",
                 nodeId,
                 chunkIds,
-                newChunkId);
+                newChunkId,
+                accountId);
             updateFailedReplacements(1);
             break;
         }

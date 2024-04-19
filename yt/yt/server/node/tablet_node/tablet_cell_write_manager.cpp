@@ -951,7 +951,7 @@ private:
         }
 
         // Release transient locks.
-        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
+        for (auto* tablet : GetTransientAffectedTablets(transaction, /*includeOrphaned*/ true)) {
             UnlockTablet(tablet, ETabletLockType::TransientTransaction);
         }
         transaction->TransientAffectedTabletIds().clear();
@@ -1094,7 +1094,7 @@ private:
         }
     }
 
-    std::vector<TTablet*> GetTabletByIds(const THashSet<TTabletId>& tabletIds)
+    std::vector<TTablet*> GetTabletByIds(const THashSet<TTabletId>& tabletIds, bool includeOrphaned = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1103,6 +1103,10 @@ private:
         for (auto tabletId : tabletIds) {
             if (auto* tablet = Host_->FindTablet(tabletId)) {
                 tablets.push_back(tablet);
+            } else if (includeOrphaned) {
+                if (auto* tablet = Host_->FindOrphanedTablet(tabletId)) {
+                    tablets.push_back(tablet);
+                }
             }
         }
 
@@ -1141,18 +1145,18 @@ private:
         }
     }
 
-    std::vector<TTablet*> GetTransientAffectedTablets(TTransaction* transaction)
+    std::vector<TTablet*> GetTransientAffectedTablets(TTransaction* transaction, bool includeOrphaned = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return GetTabletByIds(transaction->TransientAffectedTabletIds());
+        return GetTabletByIds(transaction->TransientAffectedTabletIds(), includeOrphaned);
     }
 
-    std::vector<TTablet*> GetPersistentAffectedTablets(TTransaction* transaction)
+    std::vector<TTablet*> GetPersistentAffectedTablets(TTransaction* transaction, bool includeOrphaned = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        return GetTabletByIds(transaction->PersistentAffectedTabletIds());
+        return GetTabletByIds(transaction->PersistentAffectedTabletIds(), includeOrphaned);
     }
 
     std::vector<TTablet*> GetAffectedTablets(TTransaction* transaction)
@@ -1183,12 +1187,12 @@ private:
     {
         // NB: Transaction may hold both transient and persistent lock on tablet,
         // so #GetAffectedTablets cannot be used here.
-        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
+        for (auto* tablet : GetTransientAffectedTablets(transaction, /*includeOrphaned*/ true)) {
             UnlockTablet(tablet, ETabletLockType::TransientTransaction);
         }
         transaction->TransientAffectedTabletIds().clear();
 
-        for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
+        for (auto* tablet : GetPersistentAffectedTablets(transaction, /*includeOrphaned*/ true)) {
             UnlockTablet(tablet, ETabletLockType::PersistentTransaction);
         }
         transaction->PersistentAffectedTabletIds().clear();

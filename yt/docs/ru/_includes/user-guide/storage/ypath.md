@@ -190,7 +190,7 @@ YPath представляет собой язык описания путей, 
 Формальная грамматика модификаторов выбора строк:
 
 ```json
-<row-selector> = '[' { <row-range> ',' } <row-range> ] ']'
+<row-selector> = '[' { <row-range> ',' } [ <row-range> ] ']'
 
 <row-range> = <row-index-range-selector> | <row-key-range-selector> | <row-index> | <row-composite-key> | ''
 

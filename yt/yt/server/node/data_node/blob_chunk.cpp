@@ -186,15 +186,16 @@ void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGu
         Location_->GetId());
 }
 
-TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef&& rawReference, TDuration delayBeforeFree)
+TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawReference, TDuration delayBeforeFree)
 {
-    YT_LOG_DEBUG("Simulate delay before blob read session block free (BlockSize: %v, Delay: %v)", rawReference.Size(), delayBeforeFree);
-
-    auto underlyingHolder = rawReference.GetHolder();
-    auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
-    return TSharedRef(
-        rawReference,
-        New<TDelayedReferenceHolder>(std::move(underlyingReference), delayBeforeFree, GetCurrentInvoker()));
+    YT_LOG_DEBUG(
+        "Simulate delay before blob read session block free (BlockSize: %v, Delay: %v)",
+        rawReference.Size(),
+        delayBeforeFree);
+    return WrapWithDelayedReferenceHolder(
+        std::move(rawReference),
+        delayBeforeFree,
+        GetCurrentInvoker());
 }
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)

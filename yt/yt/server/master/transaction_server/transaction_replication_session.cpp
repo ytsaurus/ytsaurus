@@ -13,6 +13,8 @@
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 #include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -360,11 +362,9 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
 
     return {
         .NonMirrored = asyncResults,
-        .Mirrored = MirroredTransactionIds_.empty()
-            ? VoidFuture
-            : ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
-                Bootstrap_,
-                MirroredTransactionIds_),
+        .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
+            Bootstrap_,
+            MirroredTransactionIds_),
     };
 }
 
@@ -386,7 +386,9 @@ void TTransactionReplicationSessionWithoutBoomerangs::ConstructReplicationReques
 {
     auto requestIds = DoConstructReplicationRequests();
 
-    YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(), "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, TransactionIds: %v)",
+    YT_LOG_DEBUG_UNLESS(
+        ReplicationRequests_.empty(),
+        "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, TransactionIds: %v)",
         InitiatorRequest_,
         requestIds,
         RemoteTransactionIds_);
@@ -398,10 +400,19 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
     syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithDuringInvocation();
     auto asyncResult = InvokeReplicationRequests();
-    auto syncFuture = asyncResult
-        ? syncSession->Sync(cellTags, asyncResult.AsVoid())
-        : syncSession->Sync(cellTags);
-    return syncFuture
+
+    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+    std::vector<TFuture<void>> additionalFutures = {
+        transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
+    };
+
+    if (asyncResult) {
+        additionalFutures.push_back(asyncResult.AsVoid());
+    }
+
+    // NB: we always have to wait all current prepared transactions to observe
+    // side effects of Sequoia transactions.
+    return syncSession->Sync(cellTags, std::move(additionalFutures))
         .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] () {
             if (!asyncResult) {
                 return VoidFuture;
@@ -438,7 +449,7 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
 {
     auto asyncResults = DoInvokeReplicationRequests();
 
-    if (asyncResults.NonMirrored.empty() && MirroredTransactionIds_.empty()) {
+    if (asyncResults.NonMirrored.empty() && !asyncResults.Mirrored) {
         return {};
     }
 
@@ -472,13 +483,13 @@ TFuture<THashMap<TTransactionId, TFuture<void>>> TTransactionReplicationSessionW
                             if (!transactionReplicationFuture) {
                                 LogAndThrowUnknownTransactionPresenceError(transactionId);
                             }
-                            YT_VERIFY(result.emplace(transactionId, std::move(transactionReplicationFuture)).second);
+                            EmplaceOrCrash(result, transactionId, std::move(transactionReplicationFuture));
                         } else {
                             YT_LOG_DEBUG(rspOrError, "Remote transaction replication failed (InitiatorRequest: %v, TransactionId: %v)",
                                 InitiatorRequest_,
                                 transactionId);
 
-                            YT_VERIFY(result.emplace(transactionId, MakeFuture(TError(rspOrError))).second);
+                            EmplaceOrCrash(result, transactionId, MakeFuture(TError(rspOrError)));
                         }
                     }
                 }
@@ -543,7 +554,13 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
     auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, InitiatorRequest_.RequestId);
     syncSession->SetSyncWithUpstream(syncWithUpstream);
     auto cellTags = GetCellTagsToSyncWithBeforeInvocation();
-    auto syncFuture = syncSession->Sync(cellTags);
+
+    const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+    auto preparedTransactionsFinished = transactionSupervisor->WaitUntilPreparedTransactionsFinished();
+
+    // NB: we always have to wait all current prepared transactions to observe
+    // side effects of Sequoia transactions.
+    auto syncFuture = syncSession->Sync(cellTags, std::move(preparedTransactionsFinished));
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
     return syncFuture
         .Apply(

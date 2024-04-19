@@ -31,10 +31,12 @@
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
+#include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/IDataType.h>
+#include <Functions/FunctionHelpers.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -513,6 +515,69 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TUnderlyingIntegerType>
+class TEnumConverter
+    : public IConverter
+{
+public:
+    static_assert(std::is_same_v<TUnderlyingIntegerType, DB::Int8>
+        || std::is_same_v<TUnderlyingIntegerType, DB::Int16>);
+
+    using TDataTypeEnum = DB::DataTypeEnum<TUnderlyingIntegerType>;
+
+    explicit TEnumConverter(const DB::DataTypePtr& dataType)
+        : EnumType_(dynamic_pointer_cast<const TDataTypeEnum>(dataType))
+    {
+        YT_VERIFY(EnumType_);
+    }
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        Column_ = column;
+        Data_ = reinterpret_cast<const TUnderlyingIntegerType*>(column->getDataAt(0).data);
+        CurrentValueIndex_ = 0;
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        YT_VERIFY(values.size() == Column_->size());
+
+        for (int index = 0; index < std::ssize(values); ++index) {
+            auto stringRef = EnumType_->getNameForValue(Data_[index]);
+            values[index] = MakeUnversionedStringValue(
+                TStringBuf(stringRef.data, stringRef.size));
+        }
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        YT_ASSERT(CurrentValueIndex_ < std::ssize(*Column_));
+
+        if (!writer) {
+            ++CurrentValueIndex_;
+            return;
+        }
+
+        auto stringRef = EnumType_->getNameForValue(Data_[CurrentValueIndex_]);
+        writer->WriteBinaryString(TStringBuf(stringRef.data, stringRef.size));
+
+        ++CurrentValueIndex_;
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        return SimpleLogicalType(ESimpleLogicalValueType::String);
+    }
+
+private:
+    const std::shared_ptr<const TDataTypeEnum> EnumType_;
+    const DB::IColumn* Column_ = nullptr;
+    const TUnderlyingIntegerType* Data_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -706,6 +771,18 @@ private:
         }
     }
 
+    IConverterPtr CreateEnumConverter(const DB::DataTypePtr& dataType)
+    {
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::Enum8:
+                return std::make_unique<TEnumConverter<DB::DataTypeEnum8::FieldType>>(dataType);
+            case DB::TypeIndex::Enum16:
+                return std::make_unique<TEnumConverter<DB::DataTypeEnum16::FieldType>>(dataType);
+            default:
+                YT_ABORT();
+        }
+    }
+
     IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
     {
         switch (dataType->getTypeId()) {
@@ -735,6 +812,9 @@ private:
             case DB::TypeIndex::Decimal128:
             case DB::TypeIndex::Decimal256:
                 return CreateDecimalConverter(dataType);
+            case DB::TypeIndex::Enum8:
+            case DB::TypeIndex::Enum16:
+                return CreateEnumConverter(dataType);
             default:
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %v to YT type system is not supported",

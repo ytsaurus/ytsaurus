@@ -46,8 +46,14 @@ message TReqReincarnateChunks
 
 message TReqCheckExportedChunkReincarnation
 {
+    message TChunkInfo
+    {
+        required NYT.NProto.TGuid chunk_id = 1;
+        required bool has_owning_tables = 2;
+    }
+
     required int64 config_version = 1;
-    repeated NYT.NProto.TGuid chunk_ids = 2;
+    repeated TChunkInfo chunks = 2;
     optional TChunkReincarnationOptions options = 3;
 }
 
@@ -65,6 +71,7 @@ message TReqOnExportedChunkReincarnationCheckFinished
     {
         required NYT.NProto.TGuid chunk_id = 1;
         required int32 result = 2; // EReincarnationResult
+        required bool has_owning_tables = 3;
     }
 
     required int64 config_version = 1;

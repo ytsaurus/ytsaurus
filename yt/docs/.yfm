@@ -1,33 +1,34 @@
 allowHTML: true
-apply-presets: true 
+apply-presets: true
 varsPreset: public
-langs: ['ru', 'en'] # Языки, участвующие в сборке
+langs: ['ru', 'en']
+
 docs-viewer:
-  project-name: yt-public
-  abc-slug: yt
-  metrika: 52959211
+  project-name: YTsaurus
+  metrika: 96741000, 96741017
+  show-revision: true
   langs: ['ru', 'en']
-  startrek:
-    queue: YTADMINREQ
-    ticket-type: task
-  show-revision: false
-  auto-release-to:
-    testing: true
-    prod: true
-  releasers:
-    - arivkin
-    - andozer
-  crawler:
-    notifications:
-      interval: weekly
-      receivers:
-        - arivkin
-        - andozer
-    exclude:
-      regexp:
-        - disk.yandex.ru/public/nda.*
+  themes: ['light', 'dark']
+  github-url-prefix: https://github.com/ytsaurus/ytsaurus/tree/main
+  favicon-src: https://ytsaurus.tech/favicon/favicon.svg
+  logo-options:
+    title: YTsaurus
+    url:
+      en: https://ytsaurus.tech/
+      default: https://ytsaurus.tech/{lang}
+    src: https://ytsaurus.tech/assets/logo-light.svg
+    src-dark: https://ytsaurus.tech/assets/logo-dark.svg
+    src-preview:
+      ru: https://ytsaurus.tech/assets/ru/docs/sharing.png
+      default: https://ytsaurus.tech/assets/en/docs/sharing.png
+    img-has:
+      offset: true
+      height: 34px
+
   index-page:
     hidden: true
     title: YT-public
-    description: Система распределенных вычислений
-    
+    description: "YTsaurus public docs"
+
+  gtm:
+    id: GTM-W2MMVTR

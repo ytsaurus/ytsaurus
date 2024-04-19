@@ -521,10 +521,12 @@ class TestMapArrowFormat(YTEnvSetup):
         assert column_names[0] == "int"
         assert table2[column_names[0]].to_pylist() == [53, 42, 179]
 
+        row_batch_count, columnar_batch_count = self.get_row_and_columnar_batch_count(op)
+
         if optimize_for == "scan":
-            assert self.get_row_and_columnar_batch_count(op) == (0, 2)
+            assert row_batch_count == 0 and columnar_batch_count > 0
         else:
-            assert self.get_row_and_columnar_batch_count(op) == (2, 0)
+            assert row_batch_count > 0 and columnar_batch_count == 0
 
     @authors("nadya02")
     def test_multi_table_with_same_column(self, optimize_for):
@@ -625,10 +627,12 @@ class TestMapArrowFormat(YTEnvSetup):
         assert column_names[0] == "column"
         assert table2[column_names[0]].to_pylist() == [53, 42, 179]
 
+        row_batch_count, columnar_batch_count = self.get_row_and_columnar_batch_count(op)
+
         if optimize_for == "scan":
-            assert self.get_row_and_columnar_batch_count(op) == (0, 2)
+            assert row_batch_count == 0 and columnar_batch_count > 0
         else:
-            assert self.get_row_and_columnar_batch_count(op) == (2, 0)
+            assert row_batch_count > 0 and columnar_batch_count == 0
 
     @authors("nadya02")
     def test_read_table_with_different_chunk_meta(self, optimize_for):

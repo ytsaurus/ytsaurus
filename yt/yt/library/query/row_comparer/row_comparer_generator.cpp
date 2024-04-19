@@ -1,6 +1,7 @@
 
 #include "llvm_types.h"
 
+#include <yt/yt/client/table_client/composite_compare.h>
 #include <yt/yt/client/table_client/llvm_types.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -33,9 +34,19 @@ using namespace llvm;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static int CompareCompositeValues(ui32 lhsLength, const void* lhsData, ui32 rhsLength, const void* rhsData)
+{
+    NYson::TYsonStringBuf lhsBuf{TStringBuf(static_cast<const char*>(lhsData), lhsLength)};
+    NYson::TYsonStringBuf rhsBuf{TStringBuf(static_cast<const char*>(rhsData), rhsLength)};
+    return NYT::NTableClient::CompareCompositeValues(lhsBuf, rhsBuf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static void RegisterComparerRoutinesImpl(TRoutineRegistry* registry)
 {
     registry->RegisterRoutine("memcmp", ::memcmp);
+    registry->RegisterRoutine("compositecmp", CompareCompositeValues);
 }
 
 static TRoutineRegistry* GetComparerRoutineRegistry()
@@ -71,7 +82,10 @@ private:
     Value* CreateMin(Value* lhs, Value* rhs,  EValueType type);
 
     void BuildCmp(Value* lhs, Value* rhs, EValueType type, int index);
+    //! Create comparer for EValueType::String values.
     void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
+    //! Create comparer for EValueType::Composite values.
+    void BuildCompositeCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
     void BuildIterationLimitCheck(Value* length, int index);
     void BuildSentinelTypeCheck(Value* type);
     void BuildMainLoop(
@@ -400,21 +414,21 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
 Value* TComparerBuilder::CreateMin(Value* lhs, Value* rhs, EValueType type)
 {
     YT_VERIFY(lhs->getType() == rhs->getType());
-    return CreateSelect(CreateCmp(lhs, rhs, type, true), lhs, rhs);
+    return CreateSelect(CreateCmp(lhs, rhs, type, /*isLessThan=*/ true), lhs, rhs);
 }
 
 void TComparerBuilder::BuildCmp(Value* lhs, Value* rhs, EValueType type, int index)
 {
     auto* trueBB = CreateBB("cmp.lower");
     auto* falseBB = CreateBB("cmp.not.lower");
-    CreateCondBr(CreateCmp(lhs, rhs, type, true), trueBB, falseBB);
+    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan=*/ true), trueBB, falseBB);
     SetInsertPoint(trueBB);
     CreateRet(getInt32(-(index + 1)));
     SetInsertPoint(falseBB);
 
     trueBB = CreateBB("cmp.greater");
     falseBB = CreateBB("cmp.equal");
-    CreateCondBr(CreateCmp(lhs, rhs, type, false), trueBB, falseBB);
+    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan=*/ false), trueBB, falseBB);
     SetInsertPoint(trueBB);
     CreateRet(getInt32(index + 1));
     SetInsertPoint(falseBB);
@@ -439,6 +453,24 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
     CreateRet(CreateSelect(CreateICmpSGT(memcmpResult, getInt32(0)), getInt32(index + 1), getInt32(-(index + 1))));
     SetInsertPoint(falseBB);
     BuildCmp(lhsLength, rhsLength, EValueType::Int64, index);
+}
+
+void TComparerBuilder::BuildCompositeCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index)
+{
+    auto* cmpResult = CreateCall(
+        Module_->GetRoutine("compositecmp"),
+        {
+            lhsLength,
+            lhsData,
+            rhsLength,
+            rhsData
+        });
+    auto* trueBB = CreateBB("compositecmp.is.not.zero");
+    auto* falseBB = CreateBB("compositecmp.is.zero");
+    CreateCondBr(CreateICmpNE(cmpResult, getInt32(0)), trueBB, falseBB);
+    SetInsertPoint(trueBB);
+    CreateRet(CreateSelect(CreateICmpSGT(cmpResult, getInt32(0)), getInt32(index + 1), getInt32(-(index + 1))));
+    SetInsertPoint(falseBB);
 }
 
 void TComparerBuilder::BuildIterationLimitCheck(Value* iterationsLimit, int index)
@@ -493,6 +525,12 @@ void TComparerBuilder::BuildMainLoop(
             auto* lhsData = lhsBuilder.GetStringData(index);
             auto* rhsData = rhsBuilder.GetStringData(index);
             BuildStringCmp(lhsLength, lhsData, rhsLength, rhsData, index);
+        } else if (type == EValueType::Composite) {
+            auto* lhsLength = lhsBuilder.GetStringLength(index);
+            auto* rhsLength = rhsBuilder.GetStringLength(index);
+            auto* lhsData = lhsBuilder.GetStringData(index);
+            auto* rhsData = rhsBuilder.GetStringData(index);
+            BuildCompositeCmp(lhsLength, lhsData, rhsLength, rhsData, index);
         } else {
             auto* lhs = lhsBuilder.GetData(index, type);
             auto* rhs = rhsBuilder.GetData(index, type);
@@ -530,6 +568,19 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
     auto uuComparer = module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
 
     return TCGKeyComparers{ddComparer, duComparer, uuComparer};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType> keyColumnTypes)
+{
+    auto module = TCGModule::Create(GetComparerRoutineRegistry());
+    auto builder = TComparerBuilder(module, keyColumnTypes);
+
+    auto uuComparerName = TString("UUCompare");
+    builder.BuildUUComparer(uuComparerName);
+    module->ExportSymbol(uuComparerName);
+    return module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

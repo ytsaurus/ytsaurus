@@ -5,6 +5,7 @@ TAG(ya:run_go_benchmark)
 SRCS(
     context.go
     deploy.go
+    lazy.go
     qloud.go
     zap.go
     zapify.go

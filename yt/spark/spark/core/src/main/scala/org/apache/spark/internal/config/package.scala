@@ -1708,10 +1708,6 @@ package object config {
     .intConf
     .createWithDefault(8080)
 
-  private[spark] val MASTER_SERVER_PORT = ConfigBuilder("spark.master.port")
-    .intConf
-    .createOptional
-
   private[spark] val IO_COMPRESSION_SNAPPY_BLOCKSIZE =
     ConfigBuilder("spark.io.compression.snappy.blockSize")
       .doc("Block size in bytes used in Snappy compression, in the case when " +
@@ -1894,12 +1890,6 @@ package object config {
     .createWithDefault(true)
 
   private[spark] val JARS = ConfigBuilder("spark.jars")
-    .version("0.9.0")
-    .stringConf
-    .toSequence
-    .createWithDefault(Nil)
-
-  private[spark] val YT_JARS = ConfigBuilder("spark.yt.jars")
     .version("0.9.0")
     .stringConf
     .toSequence

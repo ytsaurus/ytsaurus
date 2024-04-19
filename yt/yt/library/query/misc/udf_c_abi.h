@@ -16,6 +16,7 @@ typedef enum EValueType
     VT_Boolean = 0x06,
     VT_String = 0x10,
     VT_Any = 0x11,
+    VT_Composite = 0x12,
     VT_Max = 0xef
 } EValueType;
 

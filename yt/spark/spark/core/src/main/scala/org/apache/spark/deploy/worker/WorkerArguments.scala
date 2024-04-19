@@ -61,7 +61,6 @@ private[worker] class WorkerArguments(args: Array[String], conf: SparkConf) {
   propertiesFile = Utils.loadDefaultSparkProperties(conf, propertiesFile)
 
   conf.get(WORKER_UI_PORT).foreach { webUiPort = _ }
-  conf.get(WORKER_PORT).foreach { port = _ }
 
   checkWorkerMemory()
 

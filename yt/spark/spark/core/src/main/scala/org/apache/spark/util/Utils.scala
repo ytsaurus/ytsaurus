@@ -47,7 +47,7 @@ import _root_.io.netty.channel.unix.Errors.NativeIoException
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import com.google.common.collect.Interners
 import com.google.common.io.{ByteStreams, Files => GFiles}
-import com.google.common.net.{HostAndPort, InetAddresses}
+import com.google.common.net.InetAddresses
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.io.IOUtils
 import org.apache.commons.lang3.SystemUtils
@@ -1098,14 +1098,27 @@ private[spark] object Utils extends Logging {
     customHostname.getOrElse(InetAddresses.toUriString(localIpAddress))
   }
 
+  /**
+   * Checks if the host contains only valid hostname/ip without port
+   * NOTE: Incase of IPV6 ip it should be enclosed inside []
+   */
   def checkHost(host: String): Unit = {
-    assert(host != null && !HostAndPort.fromString(host).hasPort,
-      s"Expected hostname (not IP) but got $host")
+    if (host != null && host.split(":").length > 2) {
+      assert(host.startsWith("[") && host.endsWith("]"),
+        s"Expected hostname or IPv6 IP enclosed in [] but got $host")
+    } else {
+      assert(host != null && host.indexOf(':') == -1, s"Expected hostname or IP but got $host")
+    }
   }
 
   def checkHostPort(hostPort: String): Unit = {
-    assert(hostPort != null && HostAndPort.fromString(hostPort).hasPort,
-      s"Expected host and port but got $hostPort")
+    if (hostPort != null && hostPort.split(":").length > 2) {
+      assert(hostPort != null && hostPort.indexOf("]:") != -1,
+        s"Expected host and port but got $hostPort")
+    } else {
+      assert(hostPort != null && hostPort.indexOf(':') != -1,
+        s"Expected host and port but got $hostPort")
+    }
   }
 
   // Typically, this will be of order of number of nodes in cluster
@@ -1119,15 +1132,30 @@ private[spark] object Utils extends Logging {
       return cached
     }
 
-    val hostAndPort = HostAndPort.fromString(hostPort)
-    // For now, we assume that if port exists, then it is valid - not check if it is an int > 0
-    val retval = if (!hostAndPort.hasPort) {
-      (hostPort, 0)
+    def setDefaultPortValue: (String, Int) = {
+      val retval = (hostPort, 0)
+      hostPortParseResults.put(hostPort, retval)
+      retval
+    }
+    // checks if the hostport contains IPV6 ip and parses the host, port
+    if (hostPort != null && hostPort.split(":").length > 2) {
+      val index: Int = hostPort.lastIndexOf("]:")
+      if (-1 == index) {
+        return setDefaultPortValue
+      }
+      val port = hostPort.substring(index + 2).trim()
+      val retval = (hostPort.substring(0, index + 1).trim(), if (port.isEmpty) 0 else port.toInt)
+      hostPortParseResults.putIfAbsent(hostPort, retval)
     } else {
-      (hostAndPort.getHostText, hostAndPort.getPort)
+      val index: Int = hostPort.lastIndexOf(':')
+      if (-1 == index) {
+        return setDefaultPortValue
+      }
+      val port = hostPort.substring(index + 1).trim()
+      val retval = (hostPort.substring(0, index).trim(), if (port.isEmpty) 0 else port.toInt)
+      hostPortParseResults.putIfAbsent(hostPort, retval)
     }
 
-    hostPortParseResults.putIfAbsent(hostPort, retval)
     hostPortParseResults.get(hostPort)
   }
 
@@ -2744,7 +2772,7 @@ private[spark] object Utils extends Logging {
    * has its own mechanism to distribute jars.
    */
   def getUserJars(conf: SparkConf): Seq[String] = {
-    conf.get(JARS).filter(_.nonEmpty) ++ conf.get(YT_JARS).filter(_.nonEmpty)
+    conf.get(JARS).filter(_.nonEmpty)
   }
 
   /**

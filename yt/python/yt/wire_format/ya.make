@@ -1,17 +1,20 @@
 PY23_LIBRARY()
 
-PEERDIR(
-    yt/python/yt/yson
+IF (PYTHON2)
+    PEERDIR(yt/python_py2/yt/wire_format)
+ELSE()
+    PEERDIR(
+        yt/python/yt/yson
 
-    contrib/python/six
-)
+        contrib/python/six
+    )
 
-PY_SRCS(
-    NAMESPACE yt.wire_format
+    PY_SRCS(
+        NAMESPACE yt.wire_format
 
-    __init__.py
-    wire_format.py
-)
+        __init__.py
+        wire_format.py
+    )
+ENDIF()
 
 END()
-

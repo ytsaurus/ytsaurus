@@ -41,7 +41,7 @@ TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType)
 {
     if (IsV1Type(columnType)) {
         const auto wireType = GetWireType(columnType);
-        return MakeLogicalType(GetLogicalType(wireType), false);
+        return MakeLogicalType(GetLogicalType(wireType), /*required=*/ false);
     } else {
         return columnType;
     }
@@ -54,7 +54,7 @@ TExpression::TExpression(NTableClient::TLogicalTypePtr type)
 { }
 
 TExpression::TExpression(EValueType type)
-    : LogicalType(MakeLogicalType(GetLogicalType(type), false))
+    : LogicalType(MakeLogicalType(GetLogicalType(type), /*required=*/ false))
 { }
 
 EValueType TExpression::GetWireType() const
@@ -847,7 +847,7 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
     serialized->set_type(static_cast<int>(wireType));
 
     if (!IsV1Type(original->LogicalType) ||
-        *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), false))
+        *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), /*required=*/ false))
     {
         ToProto(serialized->mutable_logical_type(), original->LogicalType);
     }
@@ -984,7 +984,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         FromProto(&type, serialized.logical_type());
     } else {
         auto wireType = CheckedEnumCast<EValueType>(serialized.type());
-        type = MakeLogicalType(GetLogicalType(wireType), false);
+        type = MakeLogicalType(GetLogicalType(wireType), /*required=*/ false);
     }
 
     auto kind = CheckedEnumCast<EExpressionKind>(serialized.kind());

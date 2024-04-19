@@ -522,7 +522,7 @@ public:
         auto resourceLimits = GetResourceLimits();
 
         YT_LOG_DEBUG(
-            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v WaitingResources: %v)",
+            "Resource usage updated (Delta: %v, ResourceUsage: %v, ResourceLimits: %v, WaitingResources: %v)",
             FormatResources(resourceDelta),
             FormatResources(currentResourceUsage),
             FormatResources(resourceLimits),
@@ -771,6 +771,11 @@ public:
             }
 
             systemMemoryGuard = std::move(errorOrGuard.Value());
+        }
+
+        if (neededResources.UserSlots == 0 && SystemMemoryUsageTracker_->IsExceeded()) {
+            YT_LOG_DEBUG("Not enough system memory");
+            return false;
         }
 
         std::vector<int> ports;

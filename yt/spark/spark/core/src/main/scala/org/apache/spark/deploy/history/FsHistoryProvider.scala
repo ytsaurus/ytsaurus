@@ -284,15 +284,11 @@ private[history] class FsHistoryProvider(conf: SparkConf, clock: Clock)
       }
     } catch {
       case f: FileNotFoundException =>
-        if (conf.get(CREATE_LOG_DIR)) {
-          fs.mkdirs(path)
-        } else {
-          var msg = s"Log directory specified does not exist: $logDir"
-          if (logDir == DEFAULT_LOG_DIR) {
-            msg += " Did you configure the correct one through spark.history.fs.logDirectory?"
-          }
-          throw new FileNotFoundException(msg).initCause(f)
+        var msg = s"Log directory specified does not exist: $logDir"
+        if (logDir == DEFAULT_LOG_DIR) {
+          msg += " Did you configure the correct one through spark.history.fs.logDirectory?"
         }
+        throw new FileNotFoundException(msg).initCause(f)
     }
 
     // Disable the background thread during tests.

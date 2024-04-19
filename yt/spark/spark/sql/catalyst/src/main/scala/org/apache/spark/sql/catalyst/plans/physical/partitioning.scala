@@ -157,10 +157,6 @@ case class BroadcastDistribution(mode: BroadcastMode) extends Distribution {
   }
 }
 
-trait CustomDistribution extends Distribution {
-  def exchangeExecClass: String
-}
-
 /**
  * Describes how an operator's output is split across partitions. It has 2 major properties:
  *   1. number of partitions.

@@ -679,24 +679,6 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     @authors("dave11ar")
     def test_timestamp_digest_ttl_cleanup_expected(self):
         sync_create_cells(1)
-        self._create_simple_table(
-            "//tmp/t",
-            mount_config={
-                "row_digest_compaction": {
-                    "period": yson.YsonEntity(),
-                },
-                "min_data_ttl": 1000,
-                "max_data_ttl": 1000
-            },
-            chunk_writer={
-                "versioned_row_digest": {
-                    "enable": True,
-                }
-            },
-            compression_codec="none"
-        )
-        sync_mount_table("//tmp/t")
-
         update_nodes_dynamic_config({
             "tablet_node": {
                 "store_compactor": {
@@ -705,23 +687,51 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             }
         })
 
+        table_id = 0
+
         def check(min_data_versions, max_data_versions, max_obsolete_timestamp_ratio):
+            nonlocal table_id
+            table_path = f"//tmp/t{table_id}"
+            table_id += 1
+
+            chunk_ids_path = f"{table_path}/@chunk_ids"
+
+            self._create_simple_table(
+                table_path,
+                mount_config={
+                    "row_digest_compaction": {
+                        "period": 1,
+                    },
+                    "min_data_ttl": 1e9,
+                    "max_data_ttl": 1e9,
+                },
+                chunk_writer={
+                    "versioned_row_digest": {
+                        "enable": True,
+                    },
+                },
+                compression_codec="none",
+            )
+            sync_mount_table(table_path)
+
             for i in range(10):
-                insert_rows("//tmp/t", [{"key": 1, "value": "a" * i * 2**20}])
+                insert_rows(table_path, [{"key": 1, "value": "a" * i * 2**20}])
 
-            sync_flush_table("//tmp/t")
+            sync_flush_table(table_path)
 
-            wait(lambda: get("//tmp/t/@chunk_ids"))
-            chunk_id = get("//tmp/t/@chunk_ids")[0]
+            wait(lambda: get(chunk_ids_path))
+            chunk_id = get(chunk_ids_path)[0]
 
-            set("//tmp/t/@min_data_versions", min_data_versions)
-            set("//tmp/t/@max_data_versions", max_data_versions)
-            set("//tmp/t/@mount_config/row_digest_compaction", {
+            set(f"{table_path}/@min_data_ttl", 1)
+            set(f"{table_path}/@max_data_ttl", 1)
+            set(f"{table_path}/@min_data_versions", min_data_versions)
+            set(f"{table_path}/@max_data_versions", max_data_versions)
+            set(f"{table_path}/@mount_config/row_digest_compaction", {
                 "max_obsolete_timestamp_ratio": max_obsolete_timestamp_ratio,
             })
-            remount_table("//tmp/t")
+            remount_table(table_path)
 
-            wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
+            wait(lambda: chunk_id not in get(chunk_ids_path))
 
         check(1, 1, 0.89)
         check(0, 1, 0.99)

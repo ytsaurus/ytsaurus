@@ -46,7 +46,7 @@ private[deploy] object DeployTestUtils {
   )
 
   def createDriverDesc(): DriverDescription =
-    new DriverDescription("hdfs://some-dir/some.jar", Nil, 100, 3, false, createDriverCommand())
+    new DriverDescription("hdfs://some-dir/some.jar", 100, 3, false, createDriverCommand())
 
   def createDriverInfo(): DriverInfo = {
     val dDesc = createDriverDesc().copy(resourceReqs = createResourceRequirement)

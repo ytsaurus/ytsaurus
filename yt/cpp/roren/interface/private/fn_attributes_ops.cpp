@@ -10,10 +10,6 @@ void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& so
 {
     destination.IsPure_ |= source.IsPure_;
 
-    if (source.Name_) {
-        destination.Name_ = source.Name_;
-    }
-
     for (const auto& resourceFile : source.ResourceFileList_) {
         destination.ResourceFileList_.push_back(resourceFile);
     }

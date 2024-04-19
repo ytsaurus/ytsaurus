@@ -9,7 +9,7 @@ import (
 // Simple test, that all type of fields are correctly zapified.
 // Maybe we also need some test that checks resulting zap.Field type also.
 func TestFieldAny(t *testing.T) {
-	for typ := FieldType(0); typ <= FieldTypeReflect; typ++ {
+	for typ := FieldType(0); typ < fieldTypeLast; typ++ {
 		field := Field{ftype: typ}
 		assert.NotPanics(t, func() {
 			field.Any()

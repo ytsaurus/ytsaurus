@@ -35,10 +35,10 @@ struct TChildNode;
 struct TChunkReplicas;
 struct TLocationReplicas;
 
-struct TTransactions;
-struct TTransactionDescendants;
-struct TTransactionReplicas;
-struct TDependentTransactions;
+struct TTransaction;
+struct TTransactionDescendant;
+struct TTransactionReplica;
+struct TDependentTransaction;
 
 } // namespace NRecords
 

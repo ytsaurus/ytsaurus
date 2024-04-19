@@ -113,9 +113,9 @@ void ProfileForBothExecutionBackends(
     TCGVariables* variables,
     TJoinSubqueryProfiler joinProfiler)
 {
-    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::Native)();
+    Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::WebAssembly)();
+        Profile(query, id, variables, joinProfiler, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 
@@ -125,9 +125,9 @@ void ProfileForBothExecutionBackends(
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables)
 {
-    Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::Native)();
+    Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, EExecutionBackend::Native)();
     if (EnableWebAssemblyInUnitTests()) {
-        Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, /*executionBackend*/ EExecutionBackend::WebAssembly)();
+        Profile(expr, schema, id, variables, /*useCanonicalNullRelations*/ false, EExecutionBackend::WebAssembly)();
     }
 }
 

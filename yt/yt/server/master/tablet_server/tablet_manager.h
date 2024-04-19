@@ -245,7 +245,8 @@ private:
         TGuid correlationId,
         TInstant expirationTime,
         std::optional<TDuration> expirationTimeout);
-    void DestroyTabletAction(TTabletAction* action);
+
+    void ZombifyTabletAction(TTabletAction* action);
 
     const TIntrusivePtr<TImpl> Impl_;
 };

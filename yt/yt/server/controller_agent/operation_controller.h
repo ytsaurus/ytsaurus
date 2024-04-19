@@ -203,6 +203,7 @@ struct IOperationControllerHost
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() = 0;
     virtual const IInvokerPtr& GetControllerThreadPoolInvoker() = 0;
+    virtual const IInvokerPtr& GetChunkScraperThreadPoolInvoker() = 0;
     virtual const IInvokerPtr& GetJobSpecBuildPoolInvoker() = 0;
     virtual const IInvokerPtr& GetStatisticsOffloadInvoker() = 0;
     virtual const IInvokerPtr& GetExecNodesUpdateInvoker() = 0;
@@ -457,7 +458,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual bool IsThrottling() const noexcept = 0;
+    virtual bool ShouldSkipScheduleAllocationRequest() const noexcept = 0;
 
     /*!
      *  \note Thread affinity: any

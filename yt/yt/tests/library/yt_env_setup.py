@@ -382,6 +382,10 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
+    def modify_driver_config(cls, config):
+        pass
+
+    @classmethod
     def modify_cell_balancer_config(cls, config):
         pass
 
@@ -830,6 +834,7 @@ class YTEnvSetup(object):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
                 configs["master"][tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
                 configs["master"][tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
+                configs["master"][tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
                 cls.modify_master_config(configs["master"][tag][peer_index], tag, peer_index, cluster_index)
 
         for index, config in enumerate(configs["scheduler"]):
@@ -946,11 +951,20 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
             configs["driver"][key] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_driver_config(configs["driver"][key])
 
         configs["rpc_driver"] = update_inplace(
             configs["rpc_driver"],
             cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index),
         )
+
+    @classmethod
+    def update_transaction_supervisor_config(cls, cluster_index, config):
+        if not cls.get_param("USE_SEQUOIA", cluster_index) or cls._is_ground_cluster(cluster_index):
+            return config
+        config.setdefault("transaction_supervisor", {})
+        config["transaction_supervisor"]["enable_wait_until_prepared_transactions_finished"] = True
+        return config
 
     @classmethod
     def update_sequoia_connection_config(cls, cluster_index, config):
@@ -1130,13 +1144,13 @@ class YTEnvSetup(object):
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)
-            yt_commands.create(
+            # NB: Sometimes roles will not be applied to cells yet, which can lead to an error. Just retrying helps.
+            wait(lambda: yt_commands.create(
                 "rootstock",
                 "//tmp",
-                attributes={"scion_cell_tag": 10},
                 force=True,
-                driver=driver,
-            )
+                driver=driver),
+                ignore_exceptions=True)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
             yt_commands.create(
                 "portal_entrance",

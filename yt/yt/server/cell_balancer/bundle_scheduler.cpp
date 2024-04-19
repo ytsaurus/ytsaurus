@@ -1566,14 +1566,14 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
             mutations->LoweredSystemAccountLimit[accountName] = newQuota;
         }
 
-        YT_LOG_INFO("Adjusting system account resource limits (AccountName: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
+        YT_LOG_INFO("Adjusting system account resource limits (Account: %v, NewResourceLimit: %v, OldResourceLimit: %v)",
             accountName,
             ConvertToYsonString(newQuota, EYsonFormat::Text),
             ConvertToYsonString(accountInfo->ResourceLimits, EYsonFormat::Text));
     }
 
     mutations->ChangedRootSystemAccountLimit = rootQuota;
-    YT_LOG_INFO("Adjusting root system account resource limits(NewResourceLimit: %v, OldResourceLimit: %v)",
+    YT_LOG_INFO("Adjusting root system account resource limits (NewResourceLimit: %v, OldResourceLimit: %v)",
         ConvertToYsonString(rootQuota, EYsonFormat::Text),
         ConvertToYsonString(input.RootSystemAccount->ResourceLimits, EYsonFormat::Text));
 }

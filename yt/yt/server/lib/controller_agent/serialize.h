@@ -7,12 +7,6 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESnapshotVersion,
-    // 22.3 start here
-    ((DropUnusedOperationId)                (301001))
-    ((ChangeUnorderedMergeInheritance)      (301002))
-    ((DoNotPersistStatistics)               (301003))
-    ((SeparateMultipliers)                  (301004))
-    ((SwitchIntermediateMedium)             (301005))
     // 22.4 starts here
     ((BumpTo_22_4)                          (301100))
     ((ReworkJobProfilerSpec)                (301101))
@@ -41,11 +35,14 @@ DEFINE_ENUM(ESnapshotVersion,
     // 23.2 continues here (YT-21342)
     ((NodeJobStartTimeInJoblet)             (301408))
     ((JobAbortsUntilOperationFailure)       (301409))
+    ((BatchRowCount_23_2)                   (301410))
     // 24.1 starts here
     ((BumpTo_24_1)                          (301500))
     ((InterruptionReasonInJoblet)           (301501))
     ((PersistMonitoringCounts)              (301502))
     ((WaitingForResourcesDuration)          (301503))
+    ((ForceAllowJobInterruption)            (301504))
+    ((BatchRowCount_24_1)                   (301505))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

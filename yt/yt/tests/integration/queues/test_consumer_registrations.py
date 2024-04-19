@@ -821,7 +821,7 @@ class TestDataApi(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueAgent
         "cypress_synchronizer": {
             "policy": "watching",
             "poll_replicated_objects": True,
-            "write_registration_table_mapping": True,
+            "write_replicated_table_mapping": True,
         },
         "queue_agent": {
             "handle_replicated_objects": True,

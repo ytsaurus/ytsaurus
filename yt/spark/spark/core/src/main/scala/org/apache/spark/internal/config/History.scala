@@ -30,11 +30,6 @@ private[spark] object History {
     .stringConf
     .createWithDefault(DEFAULT_LOG_DIR)
 
-  val CREATE_LOG_DIR = ConfigBuilder("spark.history.fs.createLogDirectory")
-    .version("3.0.1")
-    .booleanConf
-    .createWithDefault(false)
-
   val SAFEMODE_CHECK_INTERVAL_S = ConfigBuilder("spark.history.fs.safemodeCheck.interval")
     .version("1.6.0")
     .timeConf(TimeUnit.SECONDS)

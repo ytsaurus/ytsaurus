@@ -68,20 +68,12 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
 
   if (loadDefaults) {
     loadFromSystemProperties(false)
-    loadFromEnvironment(false)
   }
 
   private[spark] def loadFromSystemProperties(silent: Boolean): SparkConf = {
     // Load any spark.* system properties
     for ((key, value) <- Utils.getSystemProperties if key.startsWith("spark.")) {
       set(key, value, silent)
-    }
-    this
-  }
-
-  private[spark] def loadFromEnvironment(silent: Boolean): SparkConf = {
-    for ((key, value) <- sys.env if key.startsWith("SPARK_")) {
-      set(SparkConf.envToConfName(key), value, silent)
     }
     this
   }
@@ -591,13 +583,6 @@ class SparkConf(loadDefaults: Boolean) extends Cloneable with Logging with Seria
 }
 
 private[spark] object SparkConf extends Logging {
-  private[spark] def envToConfName(envName: String): String = {
-    envName.toLowerCase().replace("_", ".")
-  }
-
-  private[spark] def confToEnvName(confName: String): String = {
-    confName.replace(".", "_").toUpperCase()
-  }
 
   /**
    * Maps deprecated config keys to information about the deprecation.

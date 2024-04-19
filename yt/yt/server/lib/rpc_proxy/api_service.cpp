@@ -13,8 +13,6 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
-#include <yt/yt/server/lib/rpc/memory_tracking_service_base.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -587,7 +585,7 @@ private:
 DECLARE_REFCOUNTED_CLASS(TApiService)
 
 class TApiService
-    : public TMemoryTrackingServiceBase<TServiceBase>
+    : public TServiceBase
     , public IApiService
 {
 public:
@@ -608,10 +606,10 @@ public:
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool)
-        : TMemoryTrackingServiceBase(
-            WithCategory(memoryTracker, EMemoryCategory::Rpc),
+        : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
+            WithCategory(memoryTracker, EMemoryCategory::Rpc),
             std::move(logger),
             NullRealmId,
             std::move(authenticator))
@@ -1223,8 +1221,8 @@ private:
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
-                            !(providerResult.FindMatching(NRpc::EErrorCode::UnknownClockClusterTag) ||
-                                providerResult.FindMatching(NRpc::EErrorCode::ClockClusterTagMismatch)))
+                            !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
+                                providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch)))
                         {
                             return MakeFuture(std::move(providerResult));
                         }

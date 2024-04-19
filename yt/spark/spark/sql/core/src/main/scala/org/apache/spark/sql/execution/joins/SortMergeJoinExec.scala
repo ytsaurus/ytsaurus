@@ -119,7 +119,7 @@ case class SortMergeJoinExec(
     }
   }
 
-  override def doExecute(): RDD[InternalRow] = {
+  protected override def doExecute(): RDD[InternalRow] = {
     val numOutputRows = longMetric("numOutputRows")
     val spillThreshold = getSpillThreshold
     val inMemoryThreshold = getInMemoryThreshold

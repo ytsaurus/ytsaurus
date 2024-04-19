@@ -28,7 +28,6 @@ using namespace NHydra::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotReader)
-DECLARE_REFCOUNTED_CLASS(TRawLocalSnapshotReader)
 DECLARE_REFCOUNTED_CLASS(TLocalSnapshotWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,20 +36,18 @@ static constexpr i64 ReaderBlockSize = 1_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TImpl>
-class TLocalSnapshotReaderBase
+class TLocalSnapshotReader
     : public ISnapshotReader
 {
 public:
-    TLocalSnapshotReaderBase(
+    TLocalSnapshotReader(
         TString fileName,
         int snapshotId,
-        IInvokerPtr ioInvoker,
-        NLogging::TLogger logger)
+        IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , SnapshotId_(snapshotId)
         , IOInvoker_(std::move(ioInvoker))
-        , Logger(std::move(logger))
+        , Logger(HydraLogger.WithTag("Path: %v", fileName))
     { }
 
     int GetSnapshotId() const
@@ -60,14 +57,14 @@ public:
 
     TFuture<void> Open() override
     {
-        return BIND(&TLocalSnapshotReaderBase::DoOpen, MakeStrong(this))
+        return BIND(&TLocalSnapshotReader::DoOpen, MakeStrong(this))
             .AsyncVia(IOInvoker_)
             .Run();
     }
 
     TFuture<TSharedRef> Read() override
     {
-        return BIND(&TLocalSnapshotReaderBase::DoRead, MakeStrong(this))
+        return BIND(&TLocalSnapshotReader::DoRead, MakeStrong(this))
             .AsyncVia(IOInvoker_)
             .Run();
     }
@@ -91,15 +88,11 @@ private:
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TUnbufferedFileInput> FileInput_;
+    std::unique_ptr<IInputStream> CodecInput_;
     IInputStream* FacadeInput_;
 
     TSnapshotHeader Header_;
     TSnapshotMeta Meta_;
-
-    TImpl* CrtpThis()
-    {
-        return static_cast<TImpl*>(this);
-    }
 
     void DoOpen()
     {
@@ -147,11 +140,9 @@ private:
 
             DeserializeProto(&Meta_, serializedMeta);
 
-            CrtpThis()->SeekFile(File_.get());
-
             FileInput_.reset(new TUnbufferedFileInput(*File_));
 
-            FacadeInput_ = CrtpThis()->WrapFileInput(FileInput_.get(), Header_.Codec);
+            FacadeInput_ = WrapFileInput(FileInput_.get(), Header_.Codec);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for reading",
                 FileName_)
@@ -167,62 +158,6 @@ private:
         size_t length = FacadeInput_->Load(block.Begin(), block.Size());
         return length == 0 ? TSharedRef() : block.Slice(0, length);
     }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRawLocalSnapshotReader
-    : public TLocalSnapshotReaderBase<TRawLocalSnapshotReader>
-{
-public:
-    TRawLocalSnapshotReader(
-        TString fileName,
-        int snapshotId,
-        i64 offset,
-        IInvokerPtr ioInvoker)
-        : TLocalSnapshotReaderBase(
-            fileName,
-            snapshotId,
-            std::move(ioInvoker),
-            HydraLogger.WithTag("Path: %v, Raw: true, Offset: %v", fileName, offset))
-        , Offset_(offset)
-    { }
-
-    void SeekFile(TFile* file)
-    {
-        file->Seek(Offset_, sSet);
-    }
-
-    IInputStream* WrapFileInput(TUnbufferedFileInput* fileInput, NCompression::ECodec)
-    {
-        return fileInput;
-    }
-
-private:
-    const i64 Offset_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TRawLocalSnapshotReader)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLocalSnapshotReader
-    : public TLocalSnapshotReaderBase<TLocalSnapshotReader>
-{
-public:
-    TLocalSnapshotReader(
-        TString fileName,
-        int snapshotId,
-        IInvokerPtr ioInvoker)
-        : TLocalSnapshotReaderBase(
-            fileName,
-            snapshotId,
-            std::move(ioInvoker),
-            HydraLogger.WithTag("Path: %v, Raw: false", fileName))
-    { }
-
-    void SeekFile(TFile*)
-    { }
 
     IInputStream* WrapFileInput(TUnbufferedFileInput* fileInput, NCompression::ECodec codec)
     {
@@ -239,9 +174,6 @@ public:
                 YT_ABORT();
         }
     }
-
-private:
-    std::unique_ptr<IInputStream> CodecInput_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocalSnapshotReader)
@@ -270,13 +202,11 @@ public:
         ECodec codec,
         int snapshotId,
         TSnapshotMeta meta,
-        bool raw,
         IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , Codec_(codec)
         , SnapshotId_(snapshotId)
         , Meta_(std::move(meta))
-        , IsRaw_(raw)
         , IOInvoker_(std::move(ioInvoker))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     {
@@ -334,7 +264,6 @@ private:
     const ECodec Codec_;
     const int SnapshotId_;
     const TSnapshotMeta Meta_;
-    const bool IsRaw_;
     const IInvokerPtr IOInvoker_;
 
     const NLogging::TLogger Logger;
@@ -363,42 +292,37 @@ private:
     {
         YT_VERIFY(!IsOpened_);
 
-        YT_LOG_DEBUG("Opening local snapshot writer (Codec: %v, Raw: %v)",
-            Codec_,
-            IsRaw_);
+        YT_LOG_DEBUG("Opening local snapshot writer (Codec: %v)",
+            Codec_);
 
         try {
             File_.reset(new TFile(FileName_ + TempFileSuffix, CreateAlways | CloseOnExec));
             FileOutput_.reset(new TUnbufferedFileOutput(*File_));
 
-            if (IsRaw_) {
-                FacadeOutput_ = FileOutput_.get();
-            } else {
-                TSnapshotHeader header;
-                Zero(header);
-                WritePod(*File_, header);
-                WriteRef(*File_, SerializedMeta_);
-                WritePadding(*File_, SerializedMeta_.Size());
-                File_->Flush();
+            TSnapshotHeader header;
+            Zero(header);
+            WritePod(*File_, header);
+            WriteRef(*File_, SerializedMeta_);
+            WritePadding(*File_, SerializedMeta_.Size());
+            File_->Flush();
 
-                ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
-                switch (Codec_) {
-                    case ECodec::None:
-                        break;
-                    case ECodec::Snappy:
-                        CodecOutput_.reset(new TSnappyCompress(ChecksumOutput_.get()));
-                        break;
-                    case ECodec::Lz4:
-                        CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
-                        break;
-                    default:
-                        YT_ABORT();
-                }
-                LengthMeasureOutput_.reset(new TLengthMeasuringOutputStream(CodecOutput_
-                    ? CodecOutput_.get()
-                    : ChecksumOutput_.get()));
-                FacadeOutput_ = LengthMeasureOutput_.get();
+            ChecksumOutput_.reset(new TChecksumOutput(FileOutput_.get()));
+            switch (Codec_) {
+                case ECodec::None:
+                    break;
+                case ECodec::Snappy:
+                    CodecOutput_.reset(new TSnappyCompress(ChecksumOutput_.get()));
+                    break;
+                case ECodec::Lz4:
+                    CodecOutput_.reset(new TLz4Compress(ChecksumOutput_.get()));
+                    break;
+                default:
+                    YT_ABORT();
             }
+            LengthMeasureOutput_.reset(new TLengthMeasuringOutputStream(CodecOutput_
+                ? CodecOutput_.get()
+                : ChecksumOutput_.get()));
+            FacadeOutput_ = LengthMeasureOutput_.get();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error opening snapshot %v for writing",
                 FileName_)
@@ -447,19 +371,17 @@ private:
             Params_.UncompressedLength = LengthMeasureOutput_->GetLength();
         }
 
-        if (!IsRaw_) {
-            TSnapshotHeader header;
-            Zero(header);
-            header.Signature = TSnapshotHeader::ExpectedSignature;
-            header.SnapshotId = SnapshotId_;
-            header.CompressedLength = Params_.CompressedLength;
-            header.UncompressedLength = Params_.UncompressedLength;
-            header.Checksum = Params_.Checksum;
-            header.Codec = Codec_;
-            header.MetaSize = SerializedMeta_.Size();
-            File_->Seek(0, sSet);
-            WritePod(*File_, header);
-        }
+        TSnapshotHeader header;
+        Zero(header);
+        header.Signature = TSnapshotHeader::ExpectedSignature;
+        header.SnapshotId = SnapshotId_;
+        header.CompressedLength = Params_.CompressedLength;
+        header.UncompressedLength = Params_.UncompressedLength;
+        header.Checksum = Params_.Checksum;
+        header.Codec = Codec_;
+        header.MetaSize = SerializedMeta_.Size();
+        File_->Seek(0, sSet);
+        WritePod(*File_, header);
 
         File_->Flush();
         File_->Close();
@@ -694,7 +616,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLocalSystemSnapshotStore
-    : public ILegacySnapshotStore
+    : public ISnapshotStore
 {
 public:
     TLocalSystemSnapshotStore(
@@ -738,15 +660,6 @@ public:
             IOInvoker_);
     }
 
-    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) override
-    {
-        return New<TRawLocalSnapshotReader>(
-            GetSnapshotPath(snapshotId),
-            snapshotId,
-            offset,
-            IOInvoker_);
-    }
-
     ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
     {
         return DoCreateWriter(
@@ -754,19 +667,7 @@ public:
             GetSnapshotPath(snapshotId),
             Config_->Codec,
             snapshotId,
-            meta,
-            /*raw*/ false);
-    }
-
-    ISnapshotWriterPtr CreateRawWriter(int snapshotId) override
-    {
-        return DoCreateWriter(
-            snapshotId,
-            GetSnapshotPath(snapshotId),
-            Config_->Codec,
-            snapshotId,
-            TSnapshotMeta(),
-            /*raw*/ true);
+            meta);
     }
 
 private:
@@ -911,7 +812,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
+TFuture<ISnapshotStorePtr> CreateLocalSnapshotStore(
     TLocalSnapshotStoreConfigPtr config,
     IInvokerPtr ioInvoker)
 {
@@ -919,7 +820,7 @@ TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
         std::move(config),
         std::move(ioInvoker));
     return store->Initialize()
-        .Apply(BIND([=] () -> ILegacySnapshotStorePtr { return store; }));
+        .Apply(BIND([=] () -> ISnapshotStorePtr { return store; }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,6 +30,8 @@
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
@@ -889,11 +891,17 @@ private:
                 cellTags);
         }
 
+        // NB: we always have to wait all current prepared transactions to
+        // observe side effects of Sequoia transactions.
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        std::vector<TFuture<void>> additionalFutures = {
+            transactionSupervisor->WaitUntilPreparedTransactionsFinished(),
+        };
         if (additionalFuture) {
-            return CellSyncSession_->Sync(cellTags, std::move(additionalFuture));
-        } else {
-            return CellSyncSession_->Sync(cellTags);
+            additionalFutures.push_back(std::move(additionalFuture));
         }
+
+        return CellSyncSession_->Sync(cellTags, std::move(additionalFutures));
     }
 
     void RunSyncPhaseOne()

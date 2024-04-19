@@ -9,7 +9,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
@@ -296,7 +296,7 @@ public abstract class Codec {
     public abstract byte[] decompress(byte[] src);
 
     private static Map<Compression, Supplier<Codec>> getAllCodecs() {
-        Map<Compression, Supplier<Codec>> ret = new HashMap<>();
+        Map<Compression, Supplier<Codec>> ret = new EnumMap<>(Compression.class);
         ret.put(Compression.Zlib_1, () -> new ZlibCodec(1));
         ret.put(Compression.Zlib_2, () -> new ZlibCodec(2));
         ret.put(Compression.Zlib_3, () -> new ZlibCodec(3));

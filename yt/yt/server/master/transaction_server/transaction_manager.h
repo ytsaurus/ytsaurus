@@ -77,8 +77,9 @@ struct ITransactionManager
 
     virtual NHydra::TEntityMap<TTransaction>* MutableTransactionMap() = 0;
 
-    virtual const THashSet<TTransaction*>& NativeTransactions() const = 0;
+    virtual const THashSet<TTransaction*>& ForeignTransactions() const = 0;
     virtual const THashSet<TTransaction*>& NativeTopmostTransactions() const = 0;
+    virtual const THashSet<TTransaction*>& NativeTransactions() const = 0;
 
     //! Finds transaction by id, throws if nothing is found.
     virtual TTransaction* GetTransactionOrThrow(TTransactionId transactionId) = 0;

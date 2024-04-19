@@ -60,7 +60,7 @@ public:
 
     i64 GetUnavailableChunkCount() const override
     {
-        return UnavailableFetcherChunkCount_;
+        return UnavailableFetcherChunkCount_.load();
     }
 
 private:
@@ -80,7 +80,7 @@ private:
     TChunkScraperPtr Scraper_;
 
     THashMap<TChunkId, TFetcherChunkDescriptor> ChunkMap_;
-    int UnavailableFetcherChunkCount_ = 0;
+    std::atomic<i64> UnavailableFetcherChunkCount_ = 0;
     TPromise<void> BatchLocatedPromise_ = NewPromise<void>();
 
     int ChunkLocatedCallCount_ = 0;
@@ -96,7 +96,7 @@ private:
             chunkIds.insert(chunkId);
             ChunkMap_[chunkId].ChunkSpecs.push_back(chunkSpec);
         }
-        UnavailableFetcherChunkCount_ = chunkIds.size();
+        UnavailableFetcherChunkCount_.store(chunkIds.size());
 
         Scraper_ = New<TChunkScraper>(
             Config_,
@@ -125,9 +125,10 @@ private:
         ++ChunkLocatedCallCount_;
         if (ChunkLocatedCallCount_ >= Config_->MaxChunksPerRequest) {
             ChunkLocatedCallCount_ = 0;
-            YT_LOG_DEBUG("Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
+            YT_LOG_DEBUG(
+                "Located another batch of chunks (Count: %v, UnavailableFetcherChunkCount: %v)",
                 Config_->MaxChunksPerRequest,
-                UnavailableFetcherChunkCount_);
+                UnavailableFetcherChunkCount_.load());
         }
 
         YT_LOG_TRACE("Fetcher chunk is located (ChunkId: %v, Replicas: %v, Missing: %v)",
@@ -166,10 +167,9 @@ private:
             chunkSpec->SetReplicaList(replicas);
         }
 
-        --UnavailableFetcherChunkCount_;
-        YT_VERIFY(UnavailableFetcherChunkCount_ >= 0);
-
-        if (UnavailableFetcherChunkCount_ == 0) {
+        auto observedCount = UnavailableFetcherChunkCount_.fetch_sub(1) - 1;
+        YT_VERIFY(observedCount >= 0);
+        if (observedCount == 0) {
             // Wait for all scraper callbacks to finish before session completion.
             BatchLocatedPromise_.TrySetFrom(Scraper_->Stop());
             YT_LOG_DEBUG("All fetcher chunks are available");

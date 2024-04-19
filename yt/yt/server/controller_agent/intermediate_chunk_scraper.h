@@ -15,7 +15,7 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TGetChunksCallback = std::function<THashSet<NChunkClient::TChunkId>()>;
+using TGetChunksCallback = TCallback<THashSet<NChunkClient::TChunkId>()>;
 
 class TIntermediateChunkScraper
     : public TRefCounted
@@ -25,6 +25,7 @@ public:
         const TIntermediateChunkScraperConfigPtr& config,
         const IInvokerPtr& invoker,
         const IInvokerPoolPtr& invokerPool,
+        const IInvokerPtr& scraperInvoker,
         const NChunkClient::TThrottlerManagerPtr& throttlerManager,
         const NApi::NNative::IClientPtr& client,
         const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
@@ -40,6 +41,7 @@ private:
     const TIntermediateChunkScraperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const IInvokerPoolPtr InvokerPool_;
+    const IInvokerPtr ScraperInvoker_;
     const NChunkClient::TThrottlerManagerPtr ThrottlerManager_;
     const NApi::NNative::IClientPtr Client_;
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

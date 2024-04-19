@@ -20,7 +20,7 @@ trait MasterWrapperLauncher {
   def startMasterWrapper(args: Array[String], master: MasterService): BasicService = {
     log.info("Start master wrapper")
 
-    val startPort = sparkSystemProperties.get("spark.master.port").map(_.toInt).getOrElse(27001)
+    val startPort = sys.env.get("SPARK_MASTER_PORT").map(_.toInt).getOrElse(27001)
     val maxRetries = sparkSystemProperties.get("spark.port.maxRetries").map(_.toInt).getOrElse(200)
 
     val byopPort = ByopConfig.byopPort(sparkSystemProperties, args)

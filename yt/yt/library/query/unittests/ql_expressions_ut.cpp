@@ -60,7 +60,7 @@ void Evaluate(
             nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*executionBackend*/ EExecutionBackend::WebAssembly)();
+            EExecutionBackend::WebAssembly)();
 
         auto instance = image.Instantiate();
 
@@ -85,7 +85,7 @@ void Evaluate(
             nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*executionBackend*/ EExecutionBackend::Native)();
+            EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1112,7 +1112,7 @@ TEST_F(TExpressionTest, Aliasing)
             /*id*/ nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*executionBackend*/ EExecutionBackend::Native)();
+            EExecutionBackend::Native)();
 
         auto instance = image.Instantiate();
 
@@ -1137,7 +1137,7 @@ TEST_F(TExpressionTest, Aliasing)
             /*id*/ nullptr,
             &variables,
             /*useCanonicalNullRelations*/ false,
-            /*executionBackend*/ EExecutionBackend::WebAssembly)();
+            EExecutionBackend::WebAssembly)();
 
         auto instance = image.Instantiate();
 

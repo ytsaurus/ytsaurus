@@ -40,9 +40,11 @@
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/config.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
 #include <yt/yt/server/master/object_server/attribute_set.h>
@@ -80,6 +82,7 @@
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/id_generator.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
 
@@ -482,10 +485,12 @@ public:
         }
 
         if (native) {
-            YT_VERIFY(NativeTransactions_.insert(transaction).second);
+            InsertOrCrash(NativeTransactions_, transaction);
             if (!parent) {
-                YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+                InsertOrCrash(NativeTopmostTransactions_, transaction);
             }
+        } else {
+            InsertOrCrash(ForeignTransactions_, transaction);
         }
 
         transaction->SetPersistentState(ETransactionState::Active);
@@ -499,11 +504,12 @@ public:
             transaction->SetForeign();
         }
 
-        if (native && timeout) {
+        auto replicated = !native && isCypressTransaction;
+        if (!replicated && timeout) {
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
 
-        if (native) {
+        if (!replicated) {
             transaction->SetDeadline(deadline);
         }
 
@@ -704,6 +710,7 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, -1);
 
         if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
@@ -844,6 +851,7 @@ public:
         TransactionAborted_.Fire(transaction);
 
         RunAbortTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, -1);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1240,6 +1248,17 @@ public:
         PrepareTransactionCommit(transaction, options);
     }
 
+    void MaybeChangePreparedSequoiaTxCount(TTransaction* transaction, int delta)
+    {
+        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
+        if (!transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
+            return;
+        }
+        if (transaction->GetIsSequoiaTransaction()) {
+            Bootstrap_->GetTransactionSupervisor()->ChangePreparedSequoiaTxCount(delta);
+        }
+    }
+
     void PrepareTransactionCommit(
         TTransaction* transaction,
         const TTransactionPrepareOptions& options)
@@ -1280,6 +1299,7 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunPrepareTransactionActions(transaction, options);
+        MaybeChangePreparedSequoiaTxCount(transaction, +1);
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -1383,7 +1403,7 @@ public:
             }
         }
 
-        auto hydraRequest = BuildReqStartCypressTransaction(
+        auto hydraRequest = BuildStartCypressTransactionRequest(
             std::move(context->Request()),
             context->GetAuthenticationIdentity());
 
@@ -1572,7 +1592,7 @@ public:
                 NRpc::GetCurrentAuthenticationIdentity());
         }
 
-        auto request = BuildReqCommitCypressTransaction(
+        auto request = BuildCommitCypressTransactionRequest(
             transactionId,
             commitTimestamp,
             prerequisiteTransactionIds,
@@ -1601,7 +1621,7 @@ public:
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
-        auto request = BuildReqAbortCypressTransaction(
+        auto request = BuildAbortCypressTransactionRequest(
             transactionId,
             force,
             /*replicateViaHive*/ true,
@@ -1745,14 +1765,19 @@ public:
         return &TransactionMap_;
     }
 
-    const THashSet<TTransaction*>& NativeTransactions() const override
+    const THashSet<TTransaction*>& ForeignTransactions() const override
     {
-        return NativeTransactions_;
+        return ForeignTransactions_;
     }
 
     const THashSet<TTransaction*>& NativeTopmostTransactions() const override
     {
         return NativeTopmostTransactions_;
+    }
+
+    const THashSet<TTransaction*>& NativeTransactions() const override
+    {
+        return NativeTransactions_;
     }
 
 private:
@@ -1792,8 +1817,9 @@ private:
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
-    THashSet<TTransaction*> NativeTransactions_;
+    THashSet<TTransaction*> ForeignTransactions_;
     THashSet<TTransaction*> NativeTopmostTransactions_;
+    THashSet<TTransaction*> NativeTransactions_;
 
     // COMPAT(h0pless)
     bool NeedTransactionLocksCountRecalculation_ = false;
@@ -1908,19 +1934,11 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
-
+        auto title = YT_PROTO_OPTIONAL(*request, title);
         auto timeout = FromProto<TDuration>(request->timeout());
-
-        std::optional<TInstant> deadline;
-        if (request->has_deadline()) {
-            deadline = FromProto<TInstant>(request->deadline());
-        }
-
-        TTransactionId hintId = {};
-        if (request->has_hint_id()) {
-            hintId = FromProto<TTransactionId>(request->hint_id());
-        }
+        auto deadline = YT_PROTO_OPTIONAL(*request, deadline, TInstant);
+        auto hintId = YT_PROTO_OPTIONAL(*request, hint_id, TTransactionId)
+            .value_or(TTransactionId{});
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
         auto* transaction = StartTransaction(
@@ -2499,6 +2517,8 @@ public:
             if (!parent) {
                 EraseOrCrash(NativeTopmostTransactions_, transaction);
             }
+        } else {
+            EraseOrCrash(ForeignTransactions_, transaction);
         }
 
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -2693,10 +2713,12 @@ private:
             }
 
             if (transaction->IsNative()) {
-                YT_VERIFY(NativeTransactions_.insert(transaction).second);
+                InsertOrCrash(NativeTransactions_, transaction);
                 if (!transaction->GetParent()) {
-                    YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+                    InsertOrCrash(NativeTopmostTransactions_, transaction);
                 }
+            } else {
+                InsertOrCrash(ForeignTransactions_, transaction);
             }
         }
 
@@ -2722,6 +2744,21 @@ private:
                 }
             }
         }
+
+        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
+        if (transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
+            int preparedSequoiaTxCount = 0;
+            for (auto [id, transaction] : TransactionMap_) {
+                if (transaction->GetIsSequoiaTransaction() &&
+                    transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared)
+                {
+                    ++preparedSequoiaTxCount;
+                }
+            }
+            Bootstrap_
+                ->GetTransactionSupervisor()
+                ->SetPreparedSequoiaTxCount(preparedSequoiaTxCount);
+        }
     }
 
     void Clear() override
@@ -2731,6 +2768,7 @@ private:
         TMasterAutomatonPart::Clear();
 
         TransactionMap_.Clear();
+        ForeignTransactions_.clear();
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
@@ -2906,12 +2944,14 @@ private:
                         // Poor man's retry.
                         // TODO(kvk1920): implement transaction abort tracker
                         // and use it here.
+                        // NB: we don't need parent id here since it is used
+                        // only to ping ancestors.
                         LeaseTracker_->UnregisterTransaction(transactionId);
                         LeaseTracker_->RegisterTransaction(
                             transactionId,
-                            {},
-                            TDuration::Zero(),
-                            std::nullopt,
+                            /* parentId*/ {},
+                            /*timeout*/ TDuration::Zero(),
+                            /*deadline*/ std::nullopt,
                             BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                                 .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
                     }
@@ -3121,9 +3161,9 @@ private:
         return config->Enable && config->EnableCypressTransactionsInSequoia;
     }
 
-    // NB: This function doesn't work properly if cypress transaction service is
+    // NB: This function doesn't work properly if Cypress transaction service is
     // not used.
-    bool IsMirroredToSequoia(TTransactionId transactionId)
+    static bool IsMirroredToSequoia(TTransactionId transactionId)
     {
         return IsSequoiaId(transactionId) && IsCypressTransactionType(TypeFromId(transactionId));
     }

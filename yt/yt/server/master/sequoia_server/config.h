@@ -33,9 +33,6 @@ class TDynamicSequoiaManagerConfig
 public:
     bool Enable;
 
-    // TODO(kvk1920): unused option?
-    bool FetchChunkMetaFromSequoia;
-
     TDynamicSequoiaQueueConfigPtr SequoiaQueue;
 
     bool EnableCypressTransactionsInSequoia;

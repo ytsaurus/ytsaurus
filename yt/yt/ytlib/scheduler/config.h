@@ -243,6 +243,8 @@ class TPoolPresetConfig
 public:
     bool AllowRegularAllocationsOnSsdNodes;
 
+    bool EnableLightweightOperations;
+
     REGISTER_YSON_STRUCT(TPoolPresetConfig);
 
     static void Register(TRegistrar registrar);
@@ -303,8 +305,6 @@ public:
     bool ComputePromisedGuaranteeFairShare;
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
-
-    bool EnableLightweightOperations;
 
     void Validate(const TString& poolName);
 
@@ -1085,6 +1085,10 @@ public:
     //! This option is not expected to be set by users manually.
     bool EnablePrefetchingJobThrottler;
 
+    //! Enable code generated comparator.
+    //! Currently used by simple sort job and partition sort job.
+    bool EnableCodegenComparator;
+
     NChunkClient::EChunkAvailabilityPolicy ChunkAvailabilityPolicy;
 
     //! Delay for performing sanity checks for operations (useful in tests).
@@ -1100,6 +1104,11 @@ public:
     TJobExperimentConfigPtr JobExperiment;
 
     bool AdjustDynamicTableDataSlices;
+
+    //! If set, the operation tries to run jobs with row counts divisible by this number.
+    //! Generic, but only supported by operations for which you can specify ordered=%true (Map, Merge, MapReduce, Erase).
+    //! NB: Disables job interrupts and chunk teleportation. Cannot be used together with input sampling.
+    std::optional<i64> BatchRowCount;
 
     //! If explicitly true, allow remote copy of tables with hunk columns.
     std::optional<bool> BypassHunkRemoteCopyProhibition;
@@ -1400,6 +1409,7 @@ public:
     std::optional<int> MaxDataSlicesPerJob;
 
     bool ForceJobSizeAdjuster;
+    bool ForceAllowJobInterruption;
 
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;

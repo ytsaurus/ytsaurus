@@ -1534,7 +1534,7 @@ public:
             } else {
                 auto argExpression = typer.second(type);
                 TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
-                    MakeLogicalType(GetLogicalType(type), false),
+                    MakeLogicalType(GetLogicalType(type), /*required=*/ false),
                     subexpressionName,
                     std::vector{argExpression},
                     type,
@@ -1545,7 +1545,7 @@ public:
             }
         };
 
-        return TUntypedExpression{typer.first, std::move(generator), false};
+        return TUntypedExpression{.FeasibleTypes=typer.first, .Generator=std::move(generator), .IsConstant=false};
     }
 
 
@@ -1673,7 +1673,7 @@ TUntypedExpression TBuilderCtx::OnExpression(
                 type,
                 CastValueWithCheck(GetValue(literalValue), type));
         };
-        return TUntypedExpression{resultTypes, std::move(generator), true};
+        return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         return OnReference(NAst::TReference(aliasExpr->Name));
     } else if (auto referenceExpr = expr->As<NAst::TReferenceExpression>()) {
@@ -1822,7 +1822,7 @@ TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
             return columnReference;
         };
 
-        return {TTypeSet({GetWireType(columnType)}), std::move(generator), false};
+        return {TTypeSet({GetWireType(columnType)}), std::move(generator), /*IsConstant=*/ false};
     }
 
     auto resolved = ResolveNestedTypes(columnType, reference);
@@ -1959,7 +1959,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 type);
 
             TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
-                MakeLogicalType(GetLogicalType(type), false),
+                MakeLogicalType(GetLogicalType(type), /*required*/ false),
                 subexpressionName,
                 typedOperands,
                 stateType,
@@ -1970,7 +1970,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             return expr;
         };
 
-        return TUntypedExpression{resultTypes, std::move(generator), false};
+        return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
     } else if (const auto* aggregateItem = descriptor->As<TAggregateTypeInferrer>()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
@@ -2033,7 +2033,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             return New<TFunctionExpression>(type, functionName, std::move(typedOperands));
         };
 
-        return TUntypedExpression{resultTypes, std::move(generator), false};
+        return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
     } else {
         YT_ABORT();
     }
@@ -2064,7 +2064,7 @@ TUntypedExpression TBuilderCtx::OnUnaryOp(const NAst::TUnaryOpExpression* unaryE
                     type,
                     CastValueWithCheck(*foldedExpr, type));
             };
-            return TUntypedExpression{resultTypes, std::move(generator), true};
+            return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
         }
     }
 
@@ -2081,7 +2081,7 @@ TUntypedExpression TBuilderCtx::OnUnaryOp(const NAst::TUnaryOpExpression* unaryE
             opSource);
         return New<TUnaryOpExpression>(type, op, untypedOperand.Generator(argType));
     };
-    return TUntypedExpression{resultTypes, std::move(generator), false};
+    return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
 }
 
 TUntypedExpression TBuilderCtx::MakeBinaryExpr(
@@ -2113,7 +2113,7 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
                     type,
                     CastValueWithCheck(*foldedExpr, type));
             };
-            return TUntypedExpression{resultTypes, std::move(generator), true};
+            return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=true};
         }
     }
 
@@ -2142,7 +2142,7 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
             lhs.Generator(argTypes.first),
             rhs.Generator(argTypes.second));
     };
-    return TUntypedExpression{resultTypes, std::move(generator), false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
 }
 
 struct TBinaryOpGenerator
@@ -2294,7 +2294,7 @@ TUntypedExpression TBuilderCtx::OnInOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{resultTypes, std::move(generator), false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnBetweenOp(
@@ -2319,7 +2319,7 @@ TUntypedExpression TBuilderCtx::OnBetweenOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{resultTypes, std::move(generator), false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnTransformOp(
@@ -2448,7 +2448,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), false};
+    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant=*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
@@ -3130,12 +3130,18 @@ TJoinClausePtr BuildJoinClause(
                 << TErrorAttribute("foreign_type", foreignColumn->LogicalType);
         }
 
-        selfEquations.push_back({New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name), false});
+        selfEquations.push_back({
+            .Expression=New<TReferenceExpression>(selfColumn->LogicalType, selfColumn->Name),
+            .Evaluated=false,
+        });
         foreignEquations.push_back(New<TReferenceExpression>(foreignColumn->LogicalType, foreignColumn->Name));
     }
 
     for (const auto& argument : tableJoin.Lhs) {
-        selfEquations.push_back({builder.BuildTypedExpression(argument, ComparableTypes), false});
+        selfEquations.push_back({
+            .Expression=builder.BuildTypedExpression(argument, ComparableTypes),
+            .Evaluated=false,
+        });
     }
 
     for (const auto& argument : tableJoin.Rhs) {
@@ -3226,7 +3232,7 @@ TJoinClausePtr BuildJoinClause(
             break;
         }
 
-        keySelfEquations[keyPrefix] = {evaluatedColumnExpression, true};
+        keySelfEquations[keyPrefix] = {.Expression=evaluatedColumnExpression, .Evaluated=true};
 
         auto reference = NAst::TReference(
             foreignTableSchema->Columns()[keyPrefix].Name(),

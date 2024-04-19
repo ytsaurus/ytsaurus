@@ -33,7 +33,7 @@ public:
 
     //! Runs single health check.
     //! Don't call after #Start(), otherwise two checks may interfere.
-    TError RunCheck();
+    void RunCheck();
 
     void Start();
 
@@ -47,11 +47,12 @@ private:
     const IInvokerPtr CheckInvoker_;
 
     NLogging::TLogger Logger;
+
     NProfiling::TEventTimer TotalTimer_;
     NProfiling::TEventTimer ReadTimer_;
     NProfiling::TEventTimer WriteTimer_;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     TError RunCheckWithTimeout();
 

@@ -2,6 +2,11 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
+GO_SKIP_TESTS(
+    entry_ext_test.go
+    lazy_with_test.go
+)
+
 SRCS(
     buffered_write_syncer.go
     clock.go
@@ -45,21 +50,18 @@ GO_XTEST_SRCS(
     console_encoder_test.go
     core_test.go
     encoder_test.go
+    # entry_ext_test.go
     error_test.go
     # field_test.go
     # hook_test.go
     # increase_level_test.go
     json_encoder_bench_test.go
     # json_encoder_test.go
+    # lazy_with_test.go
     sampler_bench_test.go
     # sampler_test.go
-    #tee_logger_bench_test.go
+    # tee_logger_bench_test.go
     # tee_test.go
-)
-
-GO_SKIP_TESTS(
-    entry_ext_test.go
-    lazy_with_test.go
 )
 
 END()

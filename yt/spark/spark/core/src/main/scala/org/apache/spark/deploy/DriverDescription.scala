@@ -21,7 +21,6 @@ import org.apache.spark.resource.ResourceRequirement
 
 private[deploy] case class DriverDescription(
     jarUrl: String,
-    pyFiles: Seq[String],
     mem: Int,
     cores: Int,
     supervise: Boolean,

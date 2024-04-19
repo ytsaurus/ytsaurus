@@ -104,12 +104,8 @@ private class ClientEndpoint(
         val driverResourceReqs = ResourceUtils.parseResourceRequirements(conf,
           config.SPARK_DRIVER_PREFIX)
 
-        val pyFilesConf = "spark.python.files"
-        val pyFiles = getProperty(pyFilesConf, conf).map(_.split(",").toSeq).getOrElse(Seq.empty)
-
         val driverDescription = new DriverDescription(
           driverArgs.jarUrl,
-          pyFiles,
           driverArgs.memory,
           driverArgs.cores,
           driverArgs.supervise,

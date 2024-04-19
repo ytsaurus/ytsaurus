@@ -83,6 +83,7 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/core/misc/error_helpers.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -190,7 +191,7 @@ TJob::TJob(
     , Interruptible_(JobSpecExt_->interruptible())
     , AbortJobIfAccountLimitExceeded_(JobSpecExt_->abort_job_if_account_limit_exceeded())
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
-    , TraceContext_(CreateTraceContextFromCurrent("Job"))
+    , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -395,7 +396,7 @@ void TJob::OnJobProxySpawned()
             ValidateJobPhase(EJobPhase::SpawningJobProxy);
             SetJobPhase(EJobPhase::PreparingArtifacts);
 
-            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled()) {
+            if (!Bootstrap_->GetJobController()->IsJobProxyProfilingDisabled() && UserJobSpec_ && UserJobSpec_->monitoring_config().enable()) {
                 Bootstrap_->GetJobProxySolomonExporter()->AttachRemoteProcess(BIND(&TJob::DumpSensors, MakeStrong(this)));
             }
         });
@@ -1424,7 +1425,7 @@ void TJob::DoInterrupt(
     }
 
     if (JobPhase_ < EJobPhase::Running) {
-        auto error = TError(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet")
+        auto error = TError(NJobProxy::EErrorCode::InterruptionFailed, "Interrupting job that has not started yet")
             << TErrorAttribute("interruption_reason", InterruptionReason_);
 
         if (interruptionReason == EInterruptReason::Preemption) {
@@ -1463,9 +1464,10 @@ void TJob::DoInterrupt(
         ReportJobInterruptionInfo(timeout, interruptionReason, preemptionReason, preemptedFor);
     } catch (const std::exception& ex) {
         auto error = TError("Error interrupting job on job proxy")
+            << TErrorAttribute("interruption_reason", InterruptionReason_)
             << ex;
 
-        if (error.FindMatching(NJobProxy::EErrorCode::JobNotPrepared)) {
+        if (error.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
             Abort(error);
         } else {
             THROW_ERROR error;
@@ -1514,7 +1516,7 @@ void TJob::RequestGracefulAbort(TError error)
 {
     YT_LOG_INFO("Requesting job graceful abort (Error: %v)", error);
     if (GracefulAbortRequested_) {
-        YT_LOG_INFO("Repeating job graceful abort request. Ignored");
+        YT_LOG_INFO("Repeating job graceful abort request; ignored");
         return;
     }
 
@@ -2938,7 +2940,19 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     const auto& resultError = *Error_;
 
-    static THashSet<TErrorCode> otherAbortErrorCodes = {
+    static const THashSet<TErrorCode> layerErrorCodes = {
+        NExecNode::EErrorCode::LayerUnpackingFailed,
+        NExecNode::EErrorCode::DockerImagePullingFailed,
+        NExecNode::EErrorCode::InvalidImage,
+    };
+
+    static const THashSet<TErrorCode> ignoredFailedChunksErrorCodes = {
+        NNet::EErrorCode::ResolveTimedOut,
+        NChunkClient::EErrorCode::ReaderThrottlingFailed,
+        NTableClient::EErrorCode::NameTableUpdateFailed,
+    };
+
+    static const THashSet<TErrorCode> otherAbortErrorCodes = {
         NChunkClient::EErrorCode::AllTargetNodesFailed,
         NChunkClient::EErrorCode::ReaderThrottlingFailed,
         NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -2971,9 +2985,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     if (JobResultExtension_) {
         const auto& schedulerResultExt = *JobResultExtension_;
 
-        if (!resultError.FindMatching(NNet::EErrorCode::ResolveTimedOut) &&
-            !resultError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) &&
-            !resultError.FindMatching(NTableClient::EErrorCode::NameTableUpdateFailed) &&
+        if (!resultError.FindMatching(ignoredFailedChunksErrorCodes) &&
             schedulerResultExt.failed_chunk_ids_size() > 0)
         {
             return EAbortReason::FailedChunks;
@@ -2981,9 +2993,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     }
 
     // This is most probably user error, still we don't want to make it fatal.
-    if (resultError.FindMatching(NExecNode::EErrorCode::LayerUnpackingFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::DockerImagePullingFailed) ||
-        resultError.FindMatching(NExecNode::EErrorCode::InvalidImage))
+    if (resultError.FindMatching(layerErrorCodes))
     {
         return std::nullopt;
     }
@@ -2994,8 +3004,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
         }
     }
 
-    auto abortReason = resultError.Attributes().Find<EAbortReason>("abort_reason");
-    if (abortReason) {
+    if (auto abortReason = FindAttributeRecursive<EAbortReason>(resultError, "abort_reason")) {
         return *abortReason;
     }
 
@@ -3025,6 +3034,10 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
     if (resultError.FindMatching(NJobProxy::EErrorCode::ShallowMergeFailed)) {
         return EAbortReason::ShallowMergeFailed;
+    }
+
+    if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionFailed)) {
+        return EAbortReason::InterruptionFailed;
     }
 
     if (resultError.FindMatching(NJobProxy::EErrorCode::InterruptionTimeout)) {

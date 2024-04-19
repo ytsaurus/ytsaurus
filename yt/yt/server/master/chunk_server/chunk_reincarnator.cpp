@@ -359,7 +359,8 @@ public:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        struct TChunkParent {
+        struct TChunkParent
+        {
             TChunkList* ChunkList;
             int Cardinality;
         };
@@ -850,7 +851,10 @@ private:
         // NB: It's a caller's responsibility to fill cell set. The main reason
         // for that is to avoid code duplication: caller likely needs to
         // traverse all cell tags the chunk is exported to.
-        TCellTagSet* RegisterChunk(TChunk* chunk, TChunkReincarnationOptions options)
+        TCellTagSet* RegisterChunk(
+            TChunk* chunk,
+            TChunkReincarnationOptions options,
+            bool hasOwningTables)
         {
             YT_ASSERT(chunk->IsExported());
 
@@ -861,6 +865,8 @@ private:
             }
 
             it->second.Options = options;
+
+            it->second.HasOwningTables = hasOwningTables;
 
             return &it->second.UncheckedCells;
         }
@@ -884,7 +890,10 @@ private:
             return false;
         }
 
-        bool ApproveForCell(TChunkId chunkId, TCellTag foreignCellTag)
+        std::optional<EReincarnationResult> ApproveForCell(
+            TChunkId chunkId,
+            TCellTag foreignCellTag,
+            bool hasOwningTables)
         {
             auto chunkIt = Current_.find(chunkId);
             auto* hashMap = &Current_;
@@ -892,21 +901,27 @@ private:
                 chunkIt = Previous_.find(chunkId);
                 hashMap = &Previous_;
                 if (chunkIt == Previous_.end()) {
-                    return false;
+                    return std::nullopt;
                 }
             }
 
-            auto& cellTagSet = chunkIt->second.UncheckedCells;
-            cellTagSet.erase(foreignCellTag);
-            if (cellTagSet.empty()) {
+            chunkIt->second.HasOwningTables |= hasOwningTables;
+
+            auto& uncheckedCells = chunkIt->second.UncheckedCells;
+            uncheckedCells.erase(foreignCellTag);
+            if (uncheckedCells.empty()) {
+                auto hasOwningTables = chunkIt->second.HasOwningTables;
                 hashMap->erase(chunkIt);
-                return true;
+
+                return hasOwningTables
+                    ? EReincarnationResult::OK
+                    : EReincarnationResult::NoTableAncestors;
             }
 
-            return false;
+            return std::nullopt;
         }
 
-        void Rotate(const auto& onChunkExpired)
+        void OnTransactionRotation(const auto& onChunkExpired)
         {
             for (const auto& [chunkId, chunkInfo] : Previous_) {
                 onChunkExpired(chunkId, chunkInfo.Options);
@@ -926,6 +941,7 @@ private:
         {
             TCellTagSet UncheckedCells;
             TChunkReincarnationOptions Options;
+            bool HasOwningTables = false;
         };
         using TPendingChecks = THashMap<TChunkId, TChunkInfo>;
         TPendingChecks Previous_;
@@ -1557,7 +1573,7 @@ private:
 
         if (rescheduleReincarnations) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            ExportedChunkReincarnationCheckRegistry_.Rotate(
+            ExportedChunkReincarnationCheckRegistry_.OnTransactionRotation(
                 [&] (TChunkId chunkId, TChunkReincarnationOptions options) {
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (IsObjectAlive(chunk)) {
@@ -1602,8 +1618,14 @@ private:
         TChunkAncestorTraverser traverser(Bootstrap_);
 
         std::vector<TChunkId> chunksToReincarnate;
-        std::vector<TChunkId> exportedChunks;
         chunksToReincarnate.reserve(scannedChunkBudget);
+
+        struct TExportedChunk
+        {
+            TChunkId Id;
+            bool HasOwningTables;
+        };
+        std::vector<TExportedChunk> exportedChunks;
         exportedChunks.reserve(scannedChunkBudget);
 
         int scannedChunkCount = 0;
@@ -1700,13 +1722,24 @@ private:
                 config->MaxVisitedChunkAncestorsPerChunk);
             YT_ASSERT(result != EReincarnationResult::Transient);
 
+            if (result == EReincarnationResult::NoTableAncestors && chunk->IsExported()) {
+                // For exported chunks |OK| and |NoTableAncestors| should be
+                // handled in the same way since chunk may lack of ancestors on
+                // its native cell.
+                result = EReincarnationResult::OK;
+            }
+
             switch (result) {
                 case EReincarnationResult::OK:
                     if (chunk->IsExported()) {
                         YT_LOG_DEBUG(
                             "Scheduling exported chunk reincarnation check (OldChunkId: %v)",
                             chunk->GetId());
-                        exportedChunks.push_back(chunk->GetId());
+
+                        exportedChunks.push_back({
+                            .Id = chunk->GetId(),
+                            .HasOwningTables = result != EReincarnationResult::NoTableAncestors,
+                        });
                     } else {
                         YT_LOG_DEBUG(
                             "Scheduling reincarnated chunk creation (OldChunkId: %v)",
@@ -1714,6 +1747,11 @@ private:
                         chunksToReincarnate.push_back(chunk->GetId());
                     }
                     break;
+                case EReincarnationResult::NoTableAncestors:
+                    YT_ASSERT(!chunk->IsExported());
+                    // |NoTableAncestors| for non-exported chunk means that
+                    // chunk cannot be reincarnated.
+                    [[fallthrough]];
                 default:
                     YT_LOG_DEBUG(
                         "Chunk cannot be reincarnated (ChunkId: %v, Reason: %v)",
@@ -1747,7 +1785,15 @@ private:
         if (!exportedChunks.empty()) {
             NProto::TReqCheckExportedChunkReincarnation mutationRequest;
             mutationRequest.set_config_version(ConfigVersion_);
-            ToProto(mutationRequest.mutable_chunk_ids(), exportedChunks);
+
+            mutationRequest.mutable_chunks()->Reserve(exportedChunks.size());
+
+            for (const auto& chunk : exportedChunks) {
+                auto* protoChunk = mutationRequest.add_chunks();
+                ToProto(protoChunk->mutable_chunk_id(), chunk.Id);
+                protoChunk->set_has_owning_tables(true);
+            }
+
             YT_UNUSED_FUTURE(CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
                 mutationRequest)
@@ -1756,7 +1802,12 @@ private:
             YT_LOG_DEBUG(
                 "Exported chunk reincarnation check scheduled (ChunkIdsCount: %v, ChunkIds: %v)",
                 exportedChunks.size(),
-                MakeShrunkFormattableView(exportedChunks, TDefaultFormatter(), SampleChunkIdCount));
+                MakeShrunkFormattableView(
+                    exportedChunks,
+                    [] (TStringBuilderBase* builder, const TExportedChunk& chunk) {
+                        builder->AppendFormat("%v", chunk.Id);
+                    },
+                    SampleChunkIdCount));
         }
 
         YT_LOG_DEBUG(
@@ -1826,8 +1877,11 @@ private:
             MaxSecondaryMasterCells>;
         TCellToChunksMap cellToChunks;
         cellToChunks.reserve(multicellManager->GetRegisteredMasterCellTags().size());
-        for (auto protoChunkId : request->chunk_ids()) {
-            auto chunkId = FromProto<TChunkId>(protoChunkId);
+
+        for (const auto& protoChunk : request->chunks()) {
+            auto chunkId = FromProto<TChunkId>(protoChunk.chunk_id());
+            auto hasOwningTables = protoChunk.has_owning_tables();
+
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
                 YT_LOG_DEBUG("Scheduling reincarnation check was skipped for missing exported chunk (ChunkId: %v)", chunkId);
@@ -1839,7 +1893,8 @@ private:
             auto* cellTags = IsLeader()
                 ? ExportedChunkReincarnationCheckRegistry_.RegisterChunk(
                     chunk,
-                    FromProto<TChunkReincarnationOptions>(request->options()))
+                    FromProto<TChunkReincarnationOptions>(request->options()),
+                    hasOwningTables)
                 : nullptr;
 
             for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
@@ -1959,16 +2014,26 @@ private:
                 continue;
             }
 
-            bool logged = false;
+            auto multicellCheckFinished = false;
+            if (result == EReincarnationResult::OK ||
+                result == EReincarnationResult::NoTableAncestors ||
+                result == EReincarnationResult::NoSuchChunk)
+            {
+                if (auto totalResult = ExportedChunkReincarnationCheckRegistry_.ApproveForCell(
+                    chunkId,
+                    foreignCellTag,
+                    result != EReincarnationResult::NoTableAncestors))
+                {
+                    multicellCheckFinished = true;
+                    result = *totalResult;
+                }
+            }
+
             switch (result) {
-                case EReincarnationResult::NoSuchChunk: [[fallthrough]];
-                case EReincarnationResult::NoTableAncestors:
+                case EReincarnationResult::NoSuchChunk:
                     [[fallthrough]];
                 case EReincarnationResult::OK:
-                    if (ExportedChunkReincarnationCheckRegistry_.ApproveForCell(
-                        chunkId,
-                        foreignCellTag))
-                    {
+                    if (multicellCheckFinished) {
                         chunksToReincarnate.push_back(chunkId);
                     }
                     break;
@@ -1979,14 +2044,17 @@ private:
                         chunkId,
                         foreignCellTag,
                         result);
-                    logged = true;
                     [[fallthrough]];
-                case EReincarnationResult::ReincarnationDisabled: [[fallthrough]];
-                case EReincarnationResult::TooManyAncestors: [[fallthrough]];
+                case EReincarnationResult::NoTableAncestors:
+                    [[fallthrough]];
+                case EReincarnationResult::ReincarnationDisabled:
+                    [[fallthrough]];
+                case EReincarnationResult::TooManyAncestors:
+                    [[fallthrough]];
                 case EReincarnationResult::DynamicTableChunk:
                     // We don't want to handle the same chunk multiple times.
                     if (ExportedChunkReincarnationCheckRegistry_.UnregisterChunk(chunkId)) {
-                        YT_LOG_DEBUG_UNLESS(logged,
+                        YT_LOG_DEBUG(
                             "Exported chunk reincarnation check failed "
                             "(ChunkId: %v, ForeignCellTag: %v, ReincarnationResult: %v)",
                             chunkId,

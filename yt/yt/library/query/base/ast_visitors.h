@@ -235,20 +235,38 @@ struct TRewriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TListContainsTrasformer
-    : public TRewriter<TListContainsTrasformer>
+struct TListContainsTransformer
+    : public TRewriter<TListContainsTransformer>
 {
-    using TBase = TRewriter<TListContainsTrasformer>;
+    using TBase = TRewriter<TListContainsTransformer>;
 
     const TReference& RepeatedIndexedColumn;
     const TReference& UnfoldedIndexerColumn;
 
-    TListContainsTrasformer(
+    TListContainsTransformer(
         TAstHead* head,
         const TReference& repeatedIndexedColumn,
         const TReference& unfoldedIndexerColumn);
 
     TExpressionPtr OnFunction(TFunctionExpressionPtr function);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInTransformer
+    : public TRewriter<TInTransformer>
+{
+    using TBase = TRewriter<TInTransformer>;
+
+    const TReference& RepeatedIndexedColumn;
+    const TReference& UnfoldedIndexerColumn;
+
+    TInTransformer(
+        TAstHead* head,
+        const TReference& repeatedIndexedColumn,
+        const TReference& unfoldedIndexerColumn);
+
+    TExpressionPtr OnIn(TInExpressionPtr inExpr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

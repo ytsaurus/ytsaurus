@@ -34,8 +34,6 @@ DECLARE_REFCOUNTED_STRUCT(IFileChangelog)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStore)
 DECLARE_REFCOUNTED_STRUCT(IChangelogStoreFactory)
 DECLARE_REFCOUNTED_STRUCT(IFileChangelogDispatcher)
-// COMPAT(shakurov)
-DECLARE_REFCOUNTED_STRUCT(ILegacySnapshotStore)
 
 struct ICheckpointableInputStream;
 struct ICheckpointableOutputStream;

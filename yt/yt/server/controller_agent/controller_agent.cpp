@@ -250,6 +250,7 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(CreateThreadPool(Config_->ControllerThreadCount, "Controller"))
+        , ChunkScraperThreadPool_(CreateThreadPool(Config_->ChunkScraperThreadCount, "ChunkScraper"))
         , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
         , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
@@ -284,6 +285,7 @@ public:
         , SchedulerProxy_(Bootstrap_->GetClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
         , JobMonitoringIndexManager_(Config_->UserJobMonitoring->MaxMonitoredUserJobsPerAgent)
+        , ThrottledScheduleAllocationRequestCount_(ControllerAgentProfiler.WithHot().Counter("/throttled_schedule_allocation_request_count"))
     {
         ControllerAgentProfiler.AddFuncGauge("/monitored_user_job_count", MakeStrong(this), [this] {
             return WaitFor(BIND([&] {
@@ -389,6 +391,13 @@ public:
         return ControllerThreadPool_->GetInvoker();
     }
 
+    const IInvokerPtr& GetChunkScraperThreadPoolInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ChunkScraperThreadPool_->GetInvoker();
+    }
+
     const IInvokerPtr& GetJobSpecBuildPoolInvoker()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -470,6 +479,7 @@ public:
         Bootstrap_->OnDynamicConfigChanged(Config_);
 
         ControllerThreadPool_->Configure(Config_->ControllerThreadCount);
+        ChunkScraperThreadPool_->Configure(Config_->ChunkScraperThreadCount);
 
         JobTracker_->UpdateConfig(Config_);
 
@@ -1099,6 +1109,7 @@ private:
     TBootstrap* const Bootstrap_;
 
     const IThreadPoolPtr ControllerThreadPool_;
+    const IThreadPoolPtr ChunkScraperThreadPool_;
     const IThreadPoolPtr JobSpecBuildPool_;
     const IThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
@@ -1164,6 +1175,8 @@ private:
     TMemoryWatchdogPtr MemoryWatchdog_;
 
     TJobMonitoringIndexManager JobMonitoringIndexManager_;
+
+    NProfiling::TCounter ThrottledScheduleAllocationRequestCount_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1813,11 +1826,12 @@ private:
 
                 auto controller = operation->GetController();
 
-                if (controller->IsThrottling()) {
+                if (controller->ShouldSkipScheduleAllocationRequest()) {
                     YT_LOG_DEBUG(
                         "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                         operationId,
                         allocationId);
+                    ThrottledScheduleAllocationRequestCount_.Increment();
                     replyWithFailureAndRecordInController(
                         operationId,
                         allocationId,
@@ -1831,7 +1845,7 @@ private:
 
                 GuardedInvoke(
                     scheduleAllocationInvoker,
-                    BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
+                    BIND([=, rsp = rsp, this, this_ = MakeStrong(this)] {
                         auto controllerInvocationInstant = TInstant::Now();
 
                         YT_LOG_DEBUG(
@@ -1840,11 +1854,12 @@ private:
                             allocationId,
                             controllerInvocationInstant - requestDequeueInstant);
 
-                        if (controller->IsThrottling()) {
+                        if (controller->ShouldSkipScheduleAllocationRequest()) {
                             YT_LOG_DEBUG(
                                 "Schedule allocation request skipped since controller is throttling (OperationId: %v, AllocationId: %v)",
                                 operationId,
                                 allocationId);
+                            ThrottledScheduleAllocationRequestCount_.Increment();
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,
@@ -2267,6 +2282,11 @@ IYPathServicePtr TControllerAgent::CreateOrchidService()
 const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 {
     return Impl_->GetControllerThreadPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetChunkScraperThreadPoolInvoker()
+{
+    return Impl_->GetChunkScraperThreadPoolInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()

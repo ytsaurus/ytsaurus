@@ -147,9 +147,31 @@ Enhancements:
 
 Выкладывается в виде докер-образа.
 
-**Актуальный релиз:** 0.0.5 (`ytsaurus/query-tracker:0.0.5-ya-build-relwithdebinfo`)
+**Актуальный релиз:** 0.0.6 (`ytsaurus/query-tracker:0.0.6-relwithdebinfo`)
 
 **Все релизы:**
+
+{% cut "**0.0.6**" %}
+
+- Fixed authorization in complex cluster-free YQL queries
+- Fixed a bug that caused queries with large queries to never complete
+- Fixed a bag caused possibility of SQL injection in query tracker
+- Reduced the size of query_tracker docker images
+
+**Related issues:**
+- [Problems with QT ACOs](https://github.com/ytsaurus/yt-k8s-operator/issues/176)
+
+In case of an error when starting query
+```
+Access control object "nobody" does not exist
+```
+You need to run commands by admin
+```
+yt create access_control_object_namespace --attr '{name=queries}'
+yt create access_control_object --attr '{namespace=queries;name=nobody}'
+```
+
+{% endcut %}
 
 {% cut "**0.0.5**" %}
 

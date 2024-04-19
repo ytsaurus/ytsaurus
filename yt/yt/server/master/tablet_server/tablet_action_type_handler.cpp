@@ -119,12 +119,12 @@ private:
         return CreateTabletActionProxy(Bootstrap_, &Metadata_, action);
     }
 
-    void DoDestroyObject(TTabletAction* action) noexcept override
+    void DoZombifyObject(TTabletAction* action) noexcept override
     {
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->DestroyTabletAction(action);
+        tabletManager->ZombifyTabletAction(action);
 
-        TObjectTypeHandlerWithMapBase::DoDestroyObject(action);
+        TObjectTypeHandlerWithMapBase::DoZombifyObject(action);
     }
 };
 

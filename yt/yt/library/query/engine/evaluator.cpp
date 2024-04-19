@@ -193,7 +193,12 @@ private:
         // See condition in folding_profiler.cpp.
         bool considerLimit = query->IsOrdered() && !query->GroupClause;
 
-        auto queryFingerprint = InferName(query, TInferNameOptions{true, true, true, !considerLimit});
+        auto queryFingerprint = InferName(query, TInferNameOptions{
+            .OmitValues=true,
+            .OmitAliases=true,
+            .OmitJoinPredicate=true,
+            .OmitOffsetAndLimit=!considerLimit,
+        });
         auto compileWithLogging = [&] {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");
             YT_LOG_DEBUG("Started compiling fragment");

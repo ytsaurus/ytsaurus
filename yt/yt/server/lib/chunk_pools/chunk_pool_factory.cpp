@@ -53,6 +53,11 @@ public:
         return MaxPartitionCount_.value_or(InfinitePartitionCount);
     }
 
+    bool ForceAllowJobInterruption() const override
+    {
+        return false;
+    }
+
     i64 GetDataWeightPerJob() const override
     {
         if (MaxPartitionCount_) {
@@ -92,6 +97,11 @@ public:
     i64 GetInputSliceRowCount() const override
     {
         return InfiniteCount;
+    }
+
+    std::optional<i64> GetBatchRowCount() const override
+    {
+        return {};
     }
 
     i64 GetForeignSliceDataWeight() const override

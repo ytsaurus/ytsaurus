@@ -1223,10 +1223,4 @@ object SparkSession extends Logging {
       }
     }
   }
-
-  /**
-   * Temporary stub for integration tests. Should be removed when integration tests
-   * will use vanilla Spark.
-   */
-  def addUserDefinedListeners(spark: SparkSession): Unit = ()
 }

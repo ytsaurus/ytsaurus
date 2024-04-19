@@ -122,6 +122,7 @@ private:
         i64 GroupLimit;
 
         bool TryIncrease(const TGlobalGroupTag& groupTag);
+        bool CanIncrease(const TGlobalGroupTag& groupTag);
     };
 
     struct TBundleErrors
@@ -165,6 +166,7 @@ private:
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
     bool TryScheduleActionCreation(const TGlobalGroupTag& groupTag, const TActionDescriptor& descriptor);
+    bool CanScheduleActionCreation(const TGlobalGroupTag& groupTag);
 
     TEventTimer& GetProfilingTimer(const TGlobalGroupTag& groupTag, EBalancingMode type) const;
 
@@ -462,6 +464,16 @@ bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) con
 
 bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGroupTag& groupTag)
 {
+    if (!CanIncrease(groupTag)) {
+        return false;
+    }
+
+    ++GroupToActionCount[groupTag];
+    return true;
+}
+
+bool TTabletBalancer::TScheduledActionCountLimiter::CanIncrease(const TGlobalGroupTag& groupTag)
+{
     if (GroupToActionCount[groupTag] >= GroupLimit) {
         YT_LOG_WARNING("Action per iteration limit exceeded (BundleName: %v, Group: %v, Limit: %v)",
             groupTag.first,
@@ -469,9 +481,13 @@ bool TTabletBalancer::TScheduledActionCountLimiter::TryIncrease(const TGlobalGro
             GroupLimit);
         return false;
     }
-
-    ++GroupToActionCount[groupTag];
     return true;
+}
+
+bool TTabletBalancer::CanScheduleActionCreation(
+    const TGlobalGroupTag& groupTag)
+{
+    return ActionCountLimiter_.CanIncrease(groupTag);
 }
 
 bool TTabletBalancer::TryScheduleActionCreation(
@@ -1047,23 +1063,27 @@ void TTabletBalancer::ExecuteReshardIteration(
 
     int actionLimit = reshardIteration->GetDynamicConfig()->MaxActionsPerGroup;
     if (descriptorRanges.size() > 1) {
-        actionLimit = reshardIteration->GetDynamicConfig()->MaxActionsPerReshardType;
+        actionLimit = std::min(
+            DivCeil<int>(actionLimit, std::ssize(descriptorRanges)),
+            reshardIteration->GetDynamicConfig()->MaxActionsPerReshardType);
     }
 
     bool actionLimitExceeded = false;
+    bool pickPivotKeys = reshardIteration->IsPickPivotKeysEnabled(bundleState->GetBundle()->Config);
     for (auto [beginIt, endIt] : descriptorRanges) {
         if (actionLimitExceeded) {
             break;
         }
 
         int actionTypeCount = 0;
-        for (auto descriptorIt = beginIt; descriptorIt < endIt && actionTypeCount < actionLimit; ++descriptorIt) {
+        auto descriptorIt = beginIt;
+        for (; descriptorIt < endIt && actionTypeCount < actionLimit; ++descriptorIt) {
             auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptorIt->Tablets[0]);
             auto table = firstTablet->Table;
             auto firstTabletIndex = firstTablet->Index;
             auto lastTabletIndex = firstTablet->Index + std::ssize(descriptorIt->Tablets) - 1;
 
-            if (reshardIteration->GetDynamicConfig()->PickReshardPivotKeys) {
+            if (pickPivotKeys) {
                 try {
                     PickReshardPivotKeysIfNeeded(
                         descriptorIt,
@@ -1140,6 +1160,26 @@ void TTabletBalancer::ExecuteReshardIteration(
                 table,
                 bundleState->GetProfilingCounters(table, reshardIteration->GetGroupName()),
                 *descriptorIt);
+        }
+
+        if (descriptorIt < endIt && CanScheduleActionCreation(groupTag)) {
+            SaveFatalBundleError(groupTag.first, TError(
+                EErrorCode::GroupActionLimitExceeded,
+                "Group %Qv has exceeded the limit for creating actions. "
+                "Failed to schedule reshard action",
+                groupTag.second)
+                << TErrorAttribute("limit", ActionCountLimiter_.GroupLimit));
+
+            YT_LOG_DEBUG("Group has exceeded the limit for creating actions. "
+                "Will not schedule reshard actions anymore "
+                "(Group: %v, Limit: %v, CorrelationId: %v, BundleName: %v)",
+                groupTag.second,
+                ActionCountLimiter_.GroupLimit,
+                descriptorIt->CorrelationId,
+                bundleState->GetBundle()->Name);
+
+            actionLimitExceeded = true;
+            break;
         }
     }
 

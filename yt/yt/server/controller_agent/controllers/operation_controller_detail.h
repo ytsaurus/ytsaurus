@@ -263,7 +263,7 @@ public:
     TOperationControllerInitializeResult InitializeClean() override;
     TOperationControllerInitializeResult InitializeReviving(const NScheduler::TControllerTransactionIds& transactions) override;
 
-    bool IsThrottling() const noexcept override;
+    bool ShouldSkipScheduleAllocationRequest() const noexcept override;
 
     bool ShouldSkipRunningJobEvents() const noexcept override;
 
@@ -525,6 +525,7 @@ protected:
     NApi::NNative::IClientPtr SchedulerOutputClient;
 
     TCancelableContextPtr CancelableContext;
+    const IInvokerPtr ChunkScraperInvoker_;
     TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
     IInvokerPoolPtr InvokerPool;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
@@ -886,7 +887,7 @@ protected:
 
     void OnInputChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas,
+        NChunkClient::TChunkReplicaWithMediumList replicas,
         TInputChunkDescriptor* descriptor);
 
     bool IsLegacyOutputLivePreviewSupported() const;
@@ -903,8 +904,6 @@ protected:
     //! Successfully terminates and finalizes the operation.
     /*!
      *  Does it asynchronously to avoid context switches inside #OnJobCompleted, #OnJobFailed, ...
-     *  In some contexts, eg. in periodics, doing it asynchronously makes no sense.
-     *  Use #DoCompleteOperation there instead.
      *  See also YT-19936.
      *  #interrupted flag indicates premature completion and disables standard validations.
      */
@@ -1088,7 +1087,6 @@ protected:
 
     i64 GetFastIntermediateMediumLimit() const;
 
-    virtual void DoCompleteOperation(bool /*interrupted*/);
     virtual void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
     //! One output table can have row_count_limit attribute in operation.

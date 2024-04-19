@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -1530,6 +1530,50 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - added_rows,
             job_type=job_type))
 
+    @authors("galtsev")
+    @pytest.mark.parametrize("job_count", list(range(1, 4)))
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_force_allow_job_interruption(self, job_count, ordered):
+        skip_if_old(self.Env, (24, 1), "Operations with explicit job count are not interruptible in old controller agents")
+
+        input_table = "//tmp/in"
+        output_table = "//tmp/out"
+
+        create("table", input_table)
+        write_table(
+            input_table,
+            [{"key": f"{i:08d}", "data": "a" * (2 * 1024 * 1024)} for i in range(10 * job_count)],
+        )
+
+        attributes = "<sorted_by=[key]>" if ordered else ""
+        output = f"{attributes}{output_table}"
+        create("table", output)
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_=input_table,
+            out=output,
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; sleep 5; cat"""),
+            spec={
+                "force_allow_job_interruption": True,
+                "job_count": job_count,
+                "job_io": {
+                    "buffer_row_count": 1,
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+
+        jobs = wait_breakpoint()
+        interrupt_job(jobs[0])
+        release_breakpoint()
+        op.track()
+
+        assert get(f"{input_table}/@row_count") == get(f"{output_table}/@row_count")
+
+        assert op.get_job_count("completed") > job_count
+
     @authors("dakovalkov", "gritukan")
     @pytest.mark.xfail(run=False, reason="YT-14467")
     @flaky(max_runs=3)
@@ -1610,6 +1654,37 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
         assert read_table("//tmp/t_output") == original_data
+
+    @authors("achulkov2")
+    def test_batch_row_count(self):
+        # TODO(achulkov2): Lower/remove after cherry-picks.
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
+            pytest.skip()
+
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        chunk_sizes = [15, 43, 57, 179, 2, 239, 13, 29, 315]
+        original_data = [
+            [{"chunk": chunk_index, "index": i} for i in range(chunk_sizes[chunk_index])]
+            for chunk_index in range(len(chunk_sizes))
+        ]
+        for rows in original_data:
+            write_table("<append=true>//tmp/t_input", rows)
+
+        batch_row_count = 32
+
+        map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat; echo stderr 1>&2",
+            ordered=True,
+            spec={"data_size_per_job": 1000, "batch_row_count": batch_row_count},
+        )
+
+        assert read_table("//tmp/t_output") == sum(original_data, start=[])
+        chunk_ids = get("//tmp/t_output/@chunk_ids")
+        assert sum(get(f"#{chunk_id}/@row_count") % batch_row_count == 0 for chunk_id in chunk_ids) >= len(chunk_ids) - 1
 
     @authors("max42", "savrus")
     @pytest.mark.parametrize("with_output_schema", [False, True])

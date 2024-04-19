@@ -813,6 +813,34 @@ class TestBackups(DynamicTablesBase):
 
         assert get("//tmp/res/@account") == backup_account
 
+    def test_tablet_static_accounting(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "foo"}])
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@in_memory_mode", "uncompressed")
+
+        uncompressed_size = get("//tmp/t/@tablet_statistics/uncompressed_data_size")
+        set("//sys/tablet_cell_bundles/default/@resource_limits/tablet_static_memory", uncompressed_size)
+
+        set("//sys/@config/tablet_manager/multicell_gossip/bundle_resource_usage_gossip_period", 5000)
+
+        sync_mount_table("//tmp/t", freeze=True)
+        create_table_backup(["//tmp/t", "//tmp/bak"], checkpoint_timestamp_delay=2000)
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@resource_usage/tablet_static_memory") > 0)
+
+        restore_table_backup(["//tmp/bak", "//tmp/t"], force=True)
+
+        sleep(3)
+
+        assert get("//tmp/t/@in_memory_mode") == "uncompressed"
+
+        # Should not raise.
+        sync_mount_table("//tmp/t")
+
 ##################################################################
 
 

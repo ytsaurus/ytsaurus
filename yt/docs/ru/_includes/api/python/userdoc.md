@@ -105,9 +105,11 @@ client = yt.YtClient(config=my_config)
 
 Для изменения настроек логирования необходимо изменять `LOGGER`.
 
-Первичная настройка логгера (при загрузке модуля) регулируется переменными окружения `YT_LOG_LEVEL` и `YT_LOG_PATTERN`. Переменная `YT_LOG_LEVEL`, регулирующая уровень логирования, принимает одно из значений `DEBUG`, `INFO`, `WARNING`, `ERROR`, переменная `YT_LOG_PATTERN`, регулирующая форматирование лог-сообщений принимает строку форматирования логгера, подробнее можно прочитать в [документации](https://docs.python.org/3/library/logging.html#logging.Formatter) по Python.
+Первичная настройка логгера (при загрузке модуля) регулируется переменными окружения `YT_LOG_LEVEL`, `YT_LOG_PATTERN` и `YT_LOG_PATH`.
+Переменная `YT_LOG_LEVEL`, регулирующая уровень логирования, принимает одно из значений `DEBUG`, `INFO`, `WARNING`, `ERROR`, переменная `YT_LOG_PATTERN`, регулирующая форматирование лог-сообщений принимает строку форматирования логгера, подробнее можно прочитать в [документации](https://docs.python.org/3/library/logging.html#logging.Formatter) по Python, а переменная окружения `YT_LOG_PATH` позволяет указать путь до лог-файла.
 
 По умолчанию уровень логирования равен INFO, и логирование происходит в stderr.
+
 
 
 #### Настройка токена { #configuration_token }
@@ -1310,8 +1312,8 @@ if __name__ == "__main__":
 
 ### Porto-слои { #porto_layers }
 
-При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/porto/layer-paths.md) необходимо подготовить перед запуском джобов.
-Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/porto/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
+При запуске операции можно указать, какой [образ ФС](../../../user-guide/data-processing/layers/layer-paths.md) необходимо подготовить перед запуском джобов.
+Есть некоторый набор [готовых слоёв](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise), которые находятся по пути `//porto_layers`.
 
 Указать путь до нужного слоя можно через параметр `layer_paths` в спеке джоба, например, так:
 ```python

@@ -23,13 +23,16 @@ public:
         i64 maxPrimaryDataWeightPerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
+        std::optional<i64> batchRowCount,
         i64 foreignSliceDataWeight,
         std::optional<double> samplingRate,
         i64 samplingDataWeightPerJob,
         i64 samplingPrimaryDataWeightPerJob,
         i64 maxBuildRetryCount,
-        double dataWeightPerJobRetryFactor)
+        double dataWeightPerJobRetryFactor,
+        bool forceAllowJobInterruption)
         : CanAdjustDataWeightPerJob_(canAdjustDataWeightPerJob)
+        , ForceAllowJobInterruption_(forceAllowJobInterruption)
         , IsExplicitJobCount_(isExplicitJobCount)
         , JobCount_(jobCount)
         , DataWeightPerJob_(dataWeightPerJob)
@@ -39,6 +42,7 @@ public:
         , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
         , InputSliceDataWeight_(inputSliceDataWeight)
         , InputSliceRowCount_(inputSliceRowCount)
+        , BatchRowCount_(batchRowCount)
         , ForeignSliceDataWeight_(foreignSliceDataWeight)
         , SamplingRate_(samplingRate)
         , SamplingDataWeightPerJob_(samplingDataWeightPerJob)
@@ -66,6 +70,11 @@ public:
     int GetJobCount() const override
     {
         return JobCount_;
+    }
+
+    bool ForceAllowJobInterruption() const override
+    {
+        return ForceAllowJobInterruption_;
     }
 
     i64 GetDataWeightPerJob() const override
@@ -101,6 +110,11 @@ public:
     i64 GetInputSliceRowCount() const override
     {
         return InputSliceRowCount_;
+    }
+
+    std::optional<i64> GetBatchRowCount() const override
+    {
+        return BatchRowCount_;
     }
 
     i64 GetForeignSliceDataWeight() const override
@@ -158,12 +172,25 @@ public:
         Persist(context, MaxPrimaryDataWeightPerJob_);
         Persist(context, InputSliceDataWeight_);
         Persist(context, InputSliceRowCount_);
+        // NB: ESnapshotVersion::BumpTo_24_1 is the first 24.1 snapshot version.
+        if ((context.GetVersion() >= ESnapshotVersion::BatchRowCount_23_2 && context.GetVersion() < ESnapshotVersion::BumpTo_24_1) ||
+            context.GetVersion() >= ESnapshotVersion::BatchRowCount_24_1)
+        {
+            Persist(context, BatchRowCount_);
+        }
         Persist(context, ForeignSliceDataWeight_);
         Persist(context, SamplingRate_);
         Persist(context, SamplingDataWeightPerJob_);
         Persist(context, SamplingPrimaryDataWeightPerJob_);
         Persist(context, MaxBuildRetryCount_);
         Persist(context, DataWeightPerJobRetryFactor_);
+
+        // COMPAT(galtsev)
+        if (context.GetVersion() >= ESnapshotVersion::ForceAllowJobInterruption) {
+            Persist(context, ForceAllowJobInterruption_);
+        } else {
+            ForceAllowJobInterruption_ = false;
+        }
 
         // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
         // input somewhere in controller).
@@ -178,6 +205,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TExplicitJobSizeConstraints, 0xab6bc389);
 
     bool CanAdjustDataWeightPerJob_;
+    bool ForceAllowJobInterruption_;
     bool IsExplicitJobCount_;
     int JobCount_;
     i64 DataWeightPerJob_;
@@ -187,6 +215,7 @@ private:
     i64 MaxPrimaryDataWeightPerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
+    std::optional<i64> BatchRowCount_;
     i64 ForeignSliceDataWeight_;
     std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_;
@@ -211,12 +240,14 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
+    std::optional<i64> batchRowCount,
     i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob,
     i64 samplingPrimaryDataWeightPerJob,
     i64 maxBuildRetryCount,
-    double dataWeightPerJobRetryFactor)
+    double dataWeightPerJobRetryFactor,
+    bool forceAllowJobInterruption)
 {
     return New<TExplicitJobSizeConstraints>(
         canAdjustDataSizePerJob,
@@ -229,12 +260,14 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         maxPrimaryDataWeightPerJob,
         inputSliceDataWeight,
         inputSliceRowCount,
+        batchRowCount,
         foreignSliceDataWeight,
         samplingRate,
         samplingDataWeightPerJob,
         samplingPrimaryDataWeightPerJob,
         maxBuildRetryCount,
-        dataWeightPerJobRetryFactor);
+        dataWeightPerJobRetryFactor,
+        forceAllowJobInterruption);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

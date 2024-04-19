@@ -4,10 +4,14 @@ NO_CHECK_IMPORTS(
     __yt_entry_point__
 )
 
-PY_SRCS(
-    TOP_LEVEL
+IF (PYTHON2)
+    PEERDIR(yt/python_py2/yt/entry)
+ELSE()
+    PY_SRCS(
+        TOP_LEVEL
 
-    __yt_entry_point__.py
-)
+        __yt_entry_point__.py
+    )
+ENDIF()
 
 END()

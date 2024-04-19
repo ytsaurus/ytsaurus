@@ -185,7 +185,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/coro_pipe.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/crash_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/digest.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/dnf.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error_code.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/ema_counter.cpp

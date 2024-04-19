@@ -1,2 +1,1 @@
-{% include [Выступления на мероприятиях, публикации и семинары](../_includes/other/video-posts.md) %}
-
+{% include [Event presentations, publications, and workshops](../_includes/other/video-posts.md) %}

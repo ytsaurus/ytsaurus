@@ -1760,6 +1760,32 @@ class TestChaos(ChaosTestBase):
         with pytest.raises(YtError):
             commit_transaction(tx2)
 
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 1, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/crt", [{"key": 1, "a": 2}], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 1}], column_names=["key", "a"]) == [{"key": 1, "a": 2}])
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/crt", [{"key": 2, "a": 1}], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/crt", [{"key": 2, "a": 2}], update=True, tx=tx2)
+        insert_rows("//tmp/crt", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
+
+        commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+        commit_transaction(tx3)
+
+        wait(lambda: lookup_rows("//tmp/crt", [{"key": 2}], column_names=["key", "a"]) == [{"key": 2, "a": 3}])
+
     @authors("savrus")
     def test_chaos_table_data_access(self):
         cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
@@ -2495,11 +2521,12 @@ class TestChaos(ChaosTestBase):
         assert_items_equal(get("#{0}/@coordinator_cell_ids".format(card_id)), chaos_cell_ids)
 
         suspend_coordinator(coordinator_cell_id)
-        assert _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
+        # NB: Chaos cell orchid reads from follower do not sync with upstream.
+        wait(lambda: _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: get("#{0}/@coordinator_cell_ids".format(card_id)) == [cell_id])
 
         resume_coordinator(coordinator_cell_id)
-        assert not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended")
+        wait(lambda: not _get_orchid(coordinator_cell_id, "/coordinator_manager/internal/suspended"))
         wait(lambda: sorted(get("#{0}/@coordinator_cell_ids".format(card_id))) == sorted(chaos_cell_ids))
 
     @authors("savrus")
@@ -4877,3 +4904,35 @@ class TestChaosClockRpcProxy(ChaosClockBase):
 
         rpc_driver = Driver(config=config)
         generate_timestamp(driver=rpc_driver)
+
+
+##################################################################
+
+
+class TestChaosSingleCluster(ChaosTestBase):
+    NUM_REMOTE_CLUSTERS = 0
+    NUM_CHAOS_NODES = 1
+
+    @authors("osidorkin")
+    def test_multiple_chaos_slots_on_single_node(self):
+        nodes = ls("//sys/chaos_nodes")
+        assert len(nodes) >= 1
+
+        # It's essential for all chaos bundles coordinators to be on the same chaos node
+        set(f"//sys/chaos_nodes/{nodes[0]}/@user_tags", ["custom"])
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="c", node_tag_filter="custom")
+        assert get("//sys/chaos_cell_bundles/c/@node_tag_filter") == "custom"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
+        ]
+        self._create_chaos_tables(cell_id, replicas)
+
+        self._sync_create_chaos_bundle_and_cell(name="trolling_bundle", node_tag_filter="custom")
+        assert get("//sys/chaos_cell_bundles/trolling_bundle/@node_tag_filter") == "custom"
+
+        values = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", values)
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 1}], replica_consistency="sync") == values)

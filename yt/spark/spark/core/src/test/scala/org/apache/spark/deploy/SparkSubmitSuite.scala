@@ -157,7 +157,7 @@ class SparkSubmitSuite
       "some",
       "--weird", "args")
     val appArgs = new SparkSubmitArguments(clArgs)
-    appArgs.childArgs should be(Seq("some", "--weird", "args"))
+    appArgs.childArgs should be (Seq("some", "--weird", "args"))
   }
 
   test("handles arguments to user program with name collision") {

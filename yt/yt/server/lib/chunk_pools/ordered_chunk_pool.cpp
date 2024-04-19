@@ -41,12 +41,6 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, MinTeleportChunkSize);
     Persist(context, JobSizeConstraints);
     Persist(context, SupportLocality);
-    // COMPAT(galtsev)
-    if (context.GetVersion() < ESnapshotVersion::DropUnusedOperationId) {
-        YT_VERIFY(context.IsLoad());
-        TOperationId dummy;
-        Persist(context, dummy);
-    }
     Persist(context, EnablePeriodicYielder);
     Persist(context, ShouldSliceByRowIndices);
     Persist(context, Logger);
@@ -89,11 +83,12 @@ public:
         }
 
         YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, SingleJob: %v)",
-            JobSizeConstraints_->GetDataWeightPerJob(),
+            "InputSliceDataWeight: %v, InputSliceRowCount: %v, BatchRowCount: %v, SingleJob: %v)",
+            GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
+            JobSizeConstraints_->GetBatchRowCount(),
             SingleJob_);
     }
 
@@ -239,6 +234,8 @@ private:
 
     TOutputOrderPtr OutputOrder_ = nullptr;
 
+    i64 RowCountUntilJobSplit_ = 0;
+    i64 JobCarryOverDataWeight_ = 0;
     std::unique_ptr<TNewJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
@@ -265,6 +262,23 @@ private:
         } else {
             return TPeriodicYielder();
         }
+    }
+
+    bool IsTeleportable(const TLegacyDataSlicePtr& dataSlice) const
+    {
+        if (dataSlice->Type != EDataSourceType::UnversionedTable) {
+            return false;
+        }
+
+        if (SingleJob_ || JobSizeConstraints_->GetBatchRowCount()) {
+            return false;
+        }
+
+        if (!InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable()) {
+            return false;
+        }
+
+        return dataSlice->GetSingleUnversionedChunk()->IsLargeCompleteChunk(MinTeleportChunkSize_);
     }
 
     void BuildJobsAndFindTeleportChunks()
@@ -297,47 +311,31 @@ private:
             const auto& stripe = Stripes_[inputCookie].GetStripe();
             for (const auto& dataSlice : stripe->DataSlices) {
                 yielder.TryYield();
-                if (dataSlice->Type == EDataSourceType::UnversionedTable) {
-                    auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                    if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
-                        inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
-                        !SingleJob_)
-                    {
-                        if (Sampler_.Sample()) {
-                            EndJob();
+                if (IsTeleportable(dataSlice)) {
+                    if (Sampler_.Sample()) {
+                        EndJob();
 
-                            // Add barrier.
-                            CurrentJob()->SetIsBarrier(true);
-                            JobManager_->AddJob(std::move(CurrentJob()));
+                        // Add barrier.
+                        CurrentJob()->SetIsBarrier(true);
+                        JobManager_->AddJob(std::move(CurrentJob()));
 
-                            ChunkTeleported_.Fire(inputChunk, /*tag=*/std::any{});
-                            ++chunksTeleported;
+                        auto inputChunk = dataSlice->GetSingleUnversionedChunk();
+                        ChunkTeleported_.Fire(inputChunk, /*tag*/ std::any{});
+                        ++chunksTeleported;
 
-                            if (OutputOrder_) {
-                                OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
-                            }
-                        } else {
-                            // This teleport chunk goes to /dev/null.
-                            ++droppedTeleportChunkCount;
+                        if (OutputOrder_) {
+                            OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
                         }
-                        continue;
+                    } else {
+                        // This teleport chunk goes to /dev/null.
+                        ++droppedTeleportChunkCount;
                     }
+
+                    continue;
                 }
 
-                std::vector<TLegacyDataSlicePtr> slicedDataSlices;
                 YT_VERIFY(!dataSlice->IsLegacy);
-                if (dataSlice->Type == EDataSourceType::UnversionedTable && ShouldSliceByRowIndices_) {
-                    auto chunkSliceCopy = CreateInputChunkSlice(*dataSlice->ChunkSlices[0]);
-                    auto chunkSlices = chunkSliceCopy
-                        ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
-                    for (const auto& chunkSlice : chunkSlices) {
-                        auto smallerDataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-                        smallerDataSlice->CopyPayloadFrom(*dataSlice);
-                        AddPrimaryDataSlice(smallerDataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
-                    }
-                } else {
-                    AddPrimaryDataSlice(dataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
-                }
+                AddPrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJob());
             }
         }
         EndJob();
@@ -349,7 +347,7 @@ private:
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
-                JobSizeConstraints_->GetDataWeightPerJob(),
+                GetDataWeightPerJob(),
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob());
         }
 
@@ -381,7 +379,7 @@ private:
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
-            auto outputCookie = AddPrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
+            auto outputCookie = AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, dataSizePerJob);
             if (outputCookie != IChunkPoolOutput::NullCookie) {
                 childCookies.push_back(outputCookie);
             }
@@ -401,28 +399,158 @@ private:
     {
         return
             JobSizeConstraints_->GetSamplingRate()
-            ? JobSizeConstraints_->GetSamplingDataWeightPerJob()
+            ? std::max(JobSizeConstraints_->GetDataWeightPerJob(), JobSizeConstraints_->GetSamplingDataWeightPerJob())
             : JobSizeConstraints_->GetDataWeightPerJob();
     }
 
-    IChunkPoolOutput::TCookie AddPrimaryDataSlice(
+    i64 GetCurrentJobDataWeight()
+    {
+        return JobCarryOverDataWeight_ + CurrentJob()->GetDataWeight();
+    }
+
+    IChunkPoolOutput::TCookie AddUnsplittablePrimaryDataSlice(
         const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
         i64 dataSizePerJob)
     {
         YT_VERIFY(!dataSlice->IsLegacy);
-        bool jobIsLargeEnough =
-            CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-            CurrentJob()->GetDataWeight() >= dataSizePerJob;
+
+        RowCountUntilJobSplit_ = 0;
+        JobCarryOverDataWeight_ = 0;
+
         IChunkPoolOutput::TCookie result = IChunkPoolOutput::NullCookie;
+
+        bool jobIsLargeEnough =
+            CurrentJob()->GetPreliminarySliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
+            GetCurrentJobDataWeight() >= dataSizePerJob;
         if (jobIsLargeEnough && !SingleJob_) {
             result = EndJob();
         }
+
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->Tag = cookie;
-        dataSlice->CopyPayloadFrom(*dataSlice);
-        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /*isPrimary*/);
+        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, /*isPrimary*/ true);
         return result;
+    }
+
+    bool IsDataSliceSplittable(const TLegacyDataSlicePtr& dataSlice) const
+    {
+        if (dataSlice->Type != EDataSourceType::UnversionedTable) {
+            return false;
+        }
+
+        // Unbounded dynamic store cannot be split.
+        if (dataSlice->GetSingleUnversionedChunkSlice()->GetInputChunk()->IsOrderedDynamicStore() &&
+            !dataSlice->GetSingleUnversionedChunkSlice()->UpperLimit().RowIndex) {
+            return false;
+        }
+
+        return ShouldSliceByRowIndices_;
+    }
+
+    void AddPrimaryDataSlice(
+        const TLegacyDataSlicePtr& dataSlice,
+        IChunkPoolInput::TCookie cookie,
+        i64 dataSizePerJob)
+    {
+        if (IsDataSliceSplittable(dataSlice)) {
+            AddSplittablePrimaryDataSlice(dataSlice, cookie, dataSizePerJob);
+        } else {
+            AddUnsplittablePrimaryDataSlice(dataSlice, cookie, dataSizePerJob);
+        }
+    }
+
+    // Adding slices via this method essentially circles between multiple stages.
+    // First, we add slices while none of the limits (data weight / slice count) are violated.
+    // The job slice limit is considered hard: whenever it is hit, we just end the current job.
+    // Once we reach a slice adding which would violate the data weight limit, we break into multiple cases:
+    //   - First, we compute the ideal split index by data weight.
+    //   - Then, if batch row count is not set, we try to split the job by the index above.
+    //   - Otherwise, we compute the next split that would make the number of rows in the job divisible by batch row count and store it for the next iteration.
+    // Next iterations operate on a data weight "discount", decrementing the stored row count until next split.
+    void AddSplittablePrimaryDataSlice(
+        const TLegacyDataSlicePtr& dataSlice,
+        IChunkPoolInput::TCookie cookie,
+        i64 dataSizePerJob)
+    {
+        YT_VERIFY(IsDataSliceSplittable(dataSlice));
+
+        auto chunkSlices = dataSlice->GetSingleUnversionedChunkSlice()
+            ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
+
+        auto batchRowCount = JobSizeConstraints_->GetBatchRowCount();
+
+        TInputChunkSlicePtr pocket;
+        int chunkSliceIndex = 0;
+        while (chunkSliceIndex < std::ssize(chunkSlices) || pocket) {
+            auto chunkSlice = pocket ? pocket : chunkSlices[chunkSliceIndex];
+            pocket = nullptr;
+
+            if (!chunkSlice->GetRowCount()) {
+                ++chunkSliceIndex;
+                continue;
+            }
+
+            // NB: Hitting this limit means we cannot take more than one slice.
+            // In this case the final row count of this job might not be divisible by batch row count.
+            // NB: We need >= instead of == to handle the case of an explicit single job.
+            if (CurrentJob()->GetPreliminarySliceCount() + 1 >= JobSizeConstraints_->GetMaxDataSlicesPerJob()) {
+                RowCountUntilJobSplit_ = chunkSlice->GetRowCount();
+                // This will lead to the carry-over value being zero after adding `chunkSliceToAdd->GetDataWeight()`.
+                JobCarryOverDataWeight_ = -chunkSlice->GetDataWeight();
+            }
+
+            if (RowCountUntilJobSplit_ == 0 && GetCurrentJobDataWeight() + chunkSlice->GetDataWeight() >= dataSizePerJob) {
+                // Taking this maximum is needed if jobs of batch row count rows are significantly larger than data size per job.
+                // In these cases we simply try to end the jobs as soon as we can hit an acceptable split.
+                auto dataWeightUntilSplit = std::max<i64>(dataSizePerJob - GetCurrentJobDataWeight(), 0);
+
+                RowCountUntilJobSplit_ = DivCeil(dataWeightUntilSplit * chunkSlice->GetRowCount(), chunkSlice->GetDataWeight());
+                YT_VERIFY(RowCountUntilJobSplit_ <= chunkSlice->GetRowCount());
+
+                // We only carry-over from one previous job.
+                // NB: We use splitting here in order to get the exact same data weight we would get later on in the process.
+                JobCarryOverDataWeight_ = RowCountUntilJobSplit_ ? -chunkSlice->SplitByRowIndex(RowCountUntilJobSplit_).first->GetDataWeight() : 0;
+
+                // If batch row count is zero, there should never be any carry-over data weight,
+                // so the second value cannot be zero for non-empty slices.
+                YT_VERIFY(batchRowCount || RowCountUntilJobSplit_ > 0);
+
+                if (batchRowCount) {
+                    YT_VERIFY(*batchRowCount > 0);
+                    // Zero rows until split force us to look for the next acceptable split (even when batchRowCountRemainder = 0) since it usually means that a job just ended.
+                    if (auto batchRowCountRemainder = (CurrentJob()->GetRowCount() + RowCountUntilJobSplit_) % *batchRowCount; !RowCountUntilJobSplit_ || batchRowCountRemainder) {
+                        RowCountUntilJobSplit_ += *batchRowCount - batchRowCountRemainder;
+                    }
+                }
+            }
+
+            auto chunkSliceToAdd = chunkSlice;
+
+            bool endJob = RowCountUntilJobSplit_ > 0 && RowCountUntilJobSplit_ <= chunkSlice->GetRowCount();
+            if (endJob && RowCountUntilJobSplit_ < chunkSlice->GetRowCount()) {
+                std::tie(chunkSliceToAdd, pocket) = chunkSlice->SplitByRowIndex(RowCountUntilJobSplit_);
+            }
+
+            if (RowCountUntilJobSplit_ > 0) {
+                RowCountUntilJobSplit_ -= chunkSliceToAdd->GetRowCount();
+                JobCarryOverDataWeight_ += chunkSliceToAdd->GetDataWeight();
+            }
+
+            auto dataSliceToAdd = CreateUnversionedInputDataSlice(chunkSliceToAdd);
+            dataSliceToAdd->CopyPayloadFrom(*dataSlice);
+            dataSliceToAdd->Tag = cookie;
+
+            CurrentJob()->AddDataSlice(dataSliceToAdd, cookie, /*isPrimary*/ true);
+            if (endJob && !SingleJob_) {
+                YT_VERIFY(RowCountUntilJobSplit_ == 0);
+                EndJob();
+            }
+
+            if (!pocket) {
+                ++chunkSliceIndex;
+            }
+        }
     }
 
     IChunkPoolOutput::TCookie EndJob()

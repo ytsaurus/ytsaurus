@@ -787,6 +787,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_prefetching_job_throttler", &TThis::EnablePrefetchingJobThrottler)
         .Default(false);
 
+    registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
+        .Default(false);
+
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
@@ -804,6 +807,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
         .Default(false);
+
+    registrar.Parameter("batch_row_count", &TThis::BatchRowCount)
+        .Default();
 
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
@@ -857,6 +863,11 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         if (spec->UseColumnarStatistics) {
             spec->InputTableColumnarStatistics->Enabled = true;
             spec->UserFileColumnarStatistics->Enabled = true;
+        }
+
+        if (spec->BatchRowCount) {
+            THROW_ERROR_EXCEPTION_IF(*spec->BatchRowCount <= 0, "Value of \"batch_row_count\" of must be positive");
+            THROW_ERROR_EXCEPTION_IF(spec->Sampling && spec->Sampling->SamplingRate, "Option \"batch_row_count\" cannot be used with input sampling");
         }
     });
 }
@@ -1292,6 +1303,8 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
     registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
+        .Default(false);
+    registrar.Parameter("force_allow_job_interruption", &TThis::ForceAllowJobInterruption)
         .Default(false);
     registrar.Parameter("locality_timeout", &TThis::LocalityTimeout)
         .Default(TDuration::Seconds(5));
@@ -1742,7 +1755,7 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         if (spec->HasNontrivialMapper()) {
             for (const auto& stream : spec->Mapper->OutputStreams) {
                 if (stream->Schema->GetSortColumns() != spec->SortBy) {
-                    THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly "
+                    THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly the same "
                         "\"sort_by\" sort column prefix")
                         << TErrorAttribute("violating_schema", stream->Schema)
                         << TErrorAttribute("sort_by", spec->SortBy);
@@ -1905,6 +1918,11 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in remote copy operation :)");
         }
+
+        if (spec->RepairErasureChunks) {
+            // If we are OK with repairing chunks, we are OK with repairing chunks from parity parts.
+            spec->ChunkAvailabilityPolicy = NChunkClient::EChunkAvailabilityPolicy::Repairable;
+        }
     });
 }
 
@@ -2009,6 +2027,9 @@ void TPoolPresetConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_regular_allocations_on_ssd_nodes", &TThis::AllowRegularAllocationsOnSsdNodes)
         .Alias("allow_regular_jobs_on_ssd_nodes")
         .Default(true);
+
+    registrar.Parameter("enable_lightweight_operations", &TThis::EnableLightweightOperations)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2168,9 +2189,6 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
-
-    registrar.Parameter("enable_lightweight_operations", &TThis::EnableLightweightOperations)
-        .Default(false);
 
     // COMPAT(arkady-e1ppa)
     registrar.Postprocessor([] (TThis* config) {

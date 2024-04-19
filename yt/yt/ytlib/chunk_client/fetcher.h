@@ -27,6 +27,9 @@ struct IFetcherChunkScraper
     virtual TFuture<void> ScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs) = 0;
 
     //! Number of currently unavailable chunks.
+    /*
+     * Thread affinity: any.
+     */
     virtual i64 GetUnavailableChunkCount() const = 0;
 };
 

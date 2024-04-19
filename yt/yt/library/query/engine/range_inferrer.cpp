@@ -788,7 +788,12 @@ TSharedRange<TRowRange> CreateLightRangeInferrer(
         InferName(predicate),
         keyTrie);
 
-    auto mutableRanges = GetRangesFromTrieWithinRange(TRowRange(MinKey(), MaxKey()), keyTrie, rowBuffer, false, options.RangeExpansionLimit);
+    auto mutableRanges = GetRangesFromTrieWithinRange(
+        TRowRange(MinKey(), MaxKey()),
+        keyTrie,
+        rowBuffer,
+        /*insertUndefined=*/ false,
+        options.RangeExpansionLimit);
 
     TRowRanges resultRanges(mutableRanges.begin(), mutableRanges.end());
 

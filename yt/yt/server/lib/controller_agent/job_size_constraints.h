@@ -19,6 +19,10 @@ struct IJobSizeConstraints
     //! Job count, estimated from input statistics or provided via operation spec.
     virtual int GetJobCount() const = 0;
 
+    //! True if job interruption is explicitly allowed.
+    //! It will override `IsExplicitJobCount` and other causes for disabling job interruption.
+    virtual bool ForceAllowJobInterruption() const = 0;
+
     //! Approximate data weight, estimated from input statistics or provided via operation spec.
     virtual i64 GetDataWeightPerJob() const = 0;
 
@@ -35,6 +39,10 @@ struct IJobSizeConstraints
 
     virtual i64 GetInputSliceDataWeight() const = 0;
     virtual i64 GetInputSliceRowCount() const = 0;
+
+    //! A recommendation for the number of rows fed to each job to be divisible by this number.
+    //! Disables job interrupts, chunk teleportation and sampling.
+    virtual std::optional<i64> GetBatchRowCount() const = 0;
 
     //! Approximate size of a foreign data slice. Has meaning only in context of sorted operation.
     virtual i64 GetForeignSliceDataWeight() const = 0;
@@ -81,12 +89,14 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxPrimaryDataWeightPerJob,
     i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
+    std::optional<i64> batchRowCount,
     i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob = -1,
     i64 samplingPrimaryDataWeightPerJob = -1,
     i64 maxBuildRetryCount = 5,
-    double dataWeightPerJobBuildRetryFactor = 2.0);
+    double dataWeightPerJobBuildRetryFactor = 2.0,
+    bool forceAllowJobInterruption = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -92,17 +92,18 @@ private:
             auto responseClockClusterTag = rsp->has_clock_cluster_tag()
                 ? FromProto<TCellTag>(rsp->clock_cluster_tag())
                 : InvalidCellTag;
+            auto responseTimestamp = FromProto<TTimestamp>(rsp->timestamp());
 
             if (clockClusterTag != InvalidCellTag && responseClockClusterTag != InvalidCellTag &&
                 clockClusterTag != responseClockClusterTag)
             {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ClockClusterTagMismatch, "Clock cluster tag mismatch")
+                THROW_ERROR_EXCEPTION(EErrorCode::ClockClusterTagMismatch, "Clock cluster tag mismatch")
                     << TErrorAttribute("request_clock_cluster_tag", clockClusterTag)
                     << TErrorAttribute("response_clock_cluster_tag", responseClockClusterTag);
             }
 
-                return static_cast<TTimestamp>(rsp->timestamp());
-            }));
+            return responseTimestamp;
+        }));
     }
 };
 

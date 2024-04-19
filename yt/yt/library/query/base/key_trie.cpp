@@ -202,12 +202,12 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     if (!bounds.empty()) {
         std::vector<TBound> deletedPoints;
 
-        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), true);
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
         for (const auto& next : result->Next) {
-            deletedPoints.emplace_back(next.first, false);
-            deletedPoints.emplace_back(next.first, false);
+            deletedPoints.emplace_back(next.first, /*included*/ false);
+            deletedPoints.emplace_back(next.first, /*included*/ false);
         }
-        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), true);
+        deletedPoints.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
 
         result->Bounds = IntersectBounds(bounds.front(), deletedPoints);
     }
@@ -378,10 +378,10 @@ void GetRangesFromTrieWithinRangeImpl(
         if (trieOffset > offset) {
             if (refineLower && refineUpper && keyRange.first[offset] == keyRange.second[offset]) {
                 prefix.emplace_back(keyRange.first[offset]);
-                states.push_back(TState{trie, std::move(prefix), true, true});
+                states.push_back(TState{.Trie=trie, .Prefix=std::move(prefix), .RefineLower=true, .RefineUpper=true});
             } else if (trie && insertUndefined) {
                 prefix.emplace_back(MakeUnversionedSentinelValue(EValueType::TheBottom));
-                states.push_back(TState{trie, std::move(prefix), false, false});
+                states.push_back(TState{.Trie=trie, .Prefix=std::move(prefix), .RefineLower=false, .RefineUpper=false});
             } else {
                 TMutableRowRange range;
                 for (size_t i = 0; i < offset; ++i) {
@@ -429,25 +429,25 @@ void GetRangesFromTrieWithinRangeImpl(
             auto lower = trie->Bounds[i];
             auto upper = trie->Bounds[i + 1];
 
-            YT_VERIFY(CompareBound(lower, upper, true, false) < 0);
+            YT_VERIFY(CompareBound(lower, upper, /*lhsDir=*/ true, /*rhsDir=*/ false) < 0);
 
             bool lowerBoundRefined = false;
             bool upperBoundRefined = false;
 
             if (offset < lowerBoundSize) {
-                auto keyRangeLowerBound = TBound(keyRange.first[offset], true);
-                if (CompareBound(upper, keyRangeLowerBound, false, true) < 0) {
+                auto keyRangeLowerBound = TBound(keyRange.first[offset], /*included=*/ true);
+                if (CompareBound(upper, keyRangeLowerBound, /*lhsDir=*/ false, /*rhsDir=*/ true) < 0) {
                     continue;
-                } else if (refineLower && CompareBound(lower, keyRangeLowerBound, true, true) <= 0) {
+                } else if (refineLower && CompareBound(lower, keyRangeLowerBound, /*lhsDir=*/ true, /*rhsDir=*/ true) <= 0) {
                     lowerBoundRefined = true;
                 }
             }
 
             if (offset < upperBoundSize) {
                 auto keyRangeUpperBound = TBound(keyRange.second[offset], offset + 1 < upperBoundSize);
-                if (CompareBound(lower, keyRangeUpperBound, true, false) > 0) {
+                if (CompareBound(lower, keyRangeUpperBound, /*lhsDir=*/ true, /*rhsDir=*/ false) > 0) {
                     continue;
-                } else if (refineUpper && CompareBound(upper, keyRangeUpperBound, false, false) >= 0) {
+                } else if (refineUpper && CompareBound(upper, keyRangeUpperBound, /*lhsDir=*/ false, /*rhsDir=*/ false) >= 0) {
                     upperBoundRefined = true;
                 }
             }
@@ -487,14 +487,14 @@ void GetRangesFromTrieWithinRangeImpl(
         ui64 subrangeCount = resultBounds.size() / 2 + nextValues.size();
 
         if (subrangeCount > rangeCountLimit) {
-            auto min = TBound(MakeUnversionedSentinelValue(EValueType::Max), false);
-            auto max = TBound(MakeUnversionedSentinelValue(EValueType::Min), true);
+            auto min = TBound(MakeUnversionedSentinelValue(EValueType::Max), /*included=*/ false);
+            auto max = TBound(MakeUnversionedSentinelValue(EValueType::Min), /*included=*/ true);
 
             auto updateMinMax = [&] (const TBound& lower, const TBound& upper) {
-                if (CompareBound(lower, min, true, true) < 0) {
+                if (CompareBound(lower, min, /*lhsDir=*/ true, /*rhsDir=*/ true) < 0) {
                     min = lower;
                 }
-                if (CompareBound(upper, max, false, false) > 0) {
+                if (CompareBound(upper, max, /*lhsDir=*/ false, /*rhsDir=*/ false) > 0) {
                     max = upper;
                 }
             };
@@ -506,7 +506,7 @@ void GetRangesFromTrieWithinRangeImpl(
             }
 
             for (const auto& next : nextValues) {
-                auto value = TBound(std::get<0>(next), true);
+                auto value = TBound(std::get<0>(next), /*included=*/ true);
                 updateMinMax(value, value);
             }
 

@@ -58,11 +58,6 @@ class TFnAttributes
 public:
     TFnAttributes& SetIsPure(bool isPure = true);
 
-    /// @brief Name of a function. Used in debug and info purposes.
-    TFnAttributes& SetName(std::optional<TString> name) &;
-    TFnAttributes SetName(std::optional<TString> name) &&;
-    const std::optional<TString>& GetName() const;
-
     ///
     /// @brief Resource files are files that are required to run user function.
     ///
@@ -81,12 +76,11 @@ public:
 private:
     bool IsPure_ = false;
     std::vector<TString> ResourceFileList_;
-    std::optional<TString> Name_;
 
     friend NPrivate::TFnAttributesOps;
 
 public:
-    Y_SAVELOAD_DEFINE(Name_, ResourceFileList_);
+    Y_SAVELOAD_DEFINE(IsPure_, ResourceFileList_);
 };
 
 template <CRow TInput_, typename TOutput_>

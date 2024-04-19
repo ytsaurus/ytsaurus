@@ -47,6 +47,11 @@ public:
         return true;
     }
 
+    bool IsPickPivotKeysEnabled(const TBundleTabletBalancerConfigPtr& bundleConfig) const override
+    {
+        return DynamicConfig_->PickReshardPivotKeys && bundleConfig->EnablePickPivotKeys;
+    }
+
     const TString& GetBundleName() const override
     {
         return BundleName_;
@@ -146,7 +151,7 @@ public:
                 MergeSplitTabletsOfTable,
                 Passed(std::move(tablets)),
                 DynamicConfig_->MinDesiredTabletSize,
-                DynamicConfig_->PickReshardPivotKeys,
+                IsPickPivotKeysEnabled(table->Bundle->Config),
                 Logger)
             .AsyncVia(invoker)
             .Run();
