@@ -110,6 +110,11 @@ func tryCastFloats(v any) any {
 			m[key] = tryCastFloats(value)
 		}
 		return m
+	} else if s, ok := v.([]any); ok {
+		for index, value := range s {
+			s[index] = tryCastFloats(value)
+		}
+		return s
 	}
 	return v
 }
