@@ -504,11 +504,12 @@ public:
             transaction->SetForeign();
         }
 
-        if (native && timeout) {
+        auto replicated = !native && isCypressTransaction;
+        if (!replicated && timeout) {
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
 
-        if (native) {
+        if (!replicated) {
             transaction->SetDeadline(deadline);
         }
 
