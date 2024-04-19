@@ -429,6 +429,23 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         ]
 
     @authors("galtsev")
+    def test_reversed_input_ranges(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        for ranges in (
+            "<ranges = [{lower_limit = {row_index = 50}; upper_limit = {row_index = 10}}]>",
+            "<ranges = [{lower_limit = {row_index = 5000}; upper_limit = {row_index = 10}}]>",
+            '<ranges = [{{lower_limit = {{key = ["{:010d}"; "{:010d}"]}}; upper_limit = {{key = ["{:010d}"; "{:010d}"]}}}}]>'.format(1, 50, 1, 10),
+            '<ranges = [{{lower_limit = {{key = ["{:010d}"; "{:010d}"]}}; upper_limit = {{key = ["{:010d}"; "{:010d}"]}}}}]>'.format(3, 50, 1, 10),
+        ):
+            with raises_yt_error("Lower limit should be less than or equal to upper limit"):
+                partition_tables([ranges + table], data_weight_per_partition=data_weight)
+
+    @authors("galtsev")
     def test_unordered_one_table_with_columns(self):
         table = "//tmp/sorted-static"
         chunk_count = 6
