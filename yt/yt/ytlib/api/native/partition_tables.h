@@ -60,7 +60,7 @@ private:
     void AddUnversionedDataSlices(const TInputTable& inputTable);
     NTableClient::TComparator GetComparator(int tableIndex);
     void FixLimitsInOrderedDynamicStore(
-        size_t tableIndex,
+        int tableIndex,
         const std::vector<NChunkClient::TInputChunkPtr>& inputChunks);
     void ValidatePaths();
 };

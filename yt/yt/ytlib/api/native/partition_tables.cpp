@@ -353,10 +353,10 @@ TComparator TMultiTablePartitioner::GetComparator(int tableIndex)
 }
 
 void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
-    size_t tableIndex,
+    int tableIndex,
     const std::vector<NChunkClient::TInputChunkPtr>& inputChunks)
 {
-    YT_VERIFY(tableIndex < DataSourceDirectory_->DataSources().size());
+    YT_VERIFY(tableIndex < std::ssize(DataSourceDirectory_->DataSources()));
 
     const auto& dataSource = DataSourceDirectory_->DataSources()[tableIndex];
     auto dynamic = dataSource.GetType() == EDataSourceType::VersionedTable;
