@@ -64,6 +64,7 @@ private:
 
 private:
     TPCollectionNodeId AddPCollectionNode(const TRowVtable& sourceParDoNode);
+    const TParDoNode& FindParDoByOutput(int pCollectionIndex) const noexcept;
     void CheckNoHangingPCollectionNodes() const;
     void CheckPCollectionType(int pCollectionNodeId, TStringBuf expectedDescription, const TRowVtable& expectedRowVtable);
 

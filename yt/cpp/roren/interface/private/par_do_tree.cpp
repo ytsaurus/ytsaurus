@@ -402,15 +402,33 @@ IParDoTreePtr TParDoTreeBuilder::Build()
         std::move(MarkedOutputTypeTags_));
 }
 
+const TParDoTreeBuilder::TParDoNode& TParDoTreeBuilder::FindParDoByOutput(int pCollectionIndex) const noexcept
+{
+    for (const TParDoNode& node : ParDoNodes_) {
+        if (node.Outputs.end() != std::find(node.Outputs.begin(), node.Outputs.end(), pCollectionIndex)) {
+            return node;
+        }
+    }
+    Y_ABORT();
+}
+
 void TParDoTreeBuilder::CheckNoHangingPCollectionNodes() const
 {
+    auto index_of = [](const auto& container, const auto& v) {
+        return std::distance(container.begin(), std::find(container.begin(), container.end(), v));
+    };
     THashSet<TPCollectionNodeId> parDoInputs;
-    for (const auto& parDoNode : ParDoNodes_) {
+    for (const TParDoNode& parDoNode : ParDoNodes_) {
         parDoInputs.insert(parDoNode.Input);
     }
-    for (auto pCollectionIndex = 0; pCollectionIndex < std::ssize(PCollectionNodes_); ++pCollectionIndex) {
-        auto isGlobalOutput = PCollectionNodes_[pCollectionIndex].GlobalOutputIndex != InvalidOutputIndex;
-        Y_ABORT_UNLESS(isGlobalOutput || parDoInputs.contains(pCollectionIndex));
+    for (ssize_t pCollectionIndex = 0; pCollectionIndex < std::ssize(PCollectionNodes_); ++pCollectionIndex) {
+        const bool isGlobalOutput = PCollectionNodes_[pCollectionIndex].GlobalOutputIndex != InvalidOutputIndex;
+        if (!isGlobalOutput && !parDoInputs.contains(pCollectionIndex)) {
+            const TParDoNode& parDoNode = FindParDoByOutput(pCollectionIndex);
+            const ssize_t outputIndex = index_of(parDoNode.Outputs, pCollectionIndex);
+            const TString name = NPrivate::GetAttributeOrDefault(*parDoNode.ParDo, TransformNameTag, {"<unknown>"});
+            Y_ABORT("Transform '%s' has unused output No %zd", name.c_str(), outputIndex);
+        }
     }
 }
 
