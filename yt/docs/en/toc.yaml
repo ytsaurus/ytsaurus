@@ -115,7 +115,11 @@ items:
          - name: Sorted tables
            href: user-guide/dynamic-tables/sorted-dynamic-tables.md
          - name: Ordered tables
-           href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+           items:
+             - name: Overview
+               href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+             - name: Queue API
+               href: user-guide/dynamic-tables/queues.md
          - name: Replicated tables
            href: user-guide/dynamic-tables/replicated-dynamic-tables.md
          - name: Multi-versioning and transactions of dynamic tables
@@ -284,6 +288,8 @@ items:
                  href: user-guide/data-processing/spyt/logs.md
                - name: Troubleshooting
                  href: user-guide/data-processing/spyt/problems.md
+             - name: Structured Streaming
+               href: user-guide/data-processing/spyt/structured-streaming.md
              - name: Spark SQL
                href: user-guide/data-processing/spyt/spark-sql.md
              - name: API
