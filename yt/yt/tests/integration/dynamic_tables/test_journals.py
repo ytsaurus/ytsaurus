@@ -858,7 +858,7 @@ class TestErasureJournals(TestJournalsBase):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
         for i in range(N):
-            self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, journal_writer={"dont_close": True})
+            self._write_and_wait_until_sealed("//tmp/j", PAYLOAD, journal_writer={"dont_close": True}, enable_chunk_preallocation=False)
             self._wait_until_last_chunk_sealed("//tmp/j")
 
         assert get("//tmp/j/@sealed")
