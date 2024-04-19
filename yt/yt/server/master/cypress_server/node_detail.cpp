@@ -351,14 +351,10 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     }
 
     // Copy sequoia properties.
-    if (originatingNode->IsSequoia()) {
-        branchedNode->RememberAevum();
-
-        if (originatingNode->IsNative()) {
-            branchedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
-                *originatingNode->ImmutableSequoiaProperties());
-            branchedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
-        }
+    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+        branchedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
+            *originatingNode->ImmutableSequoiaProperties());
+        branchedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
     }
 
     // Copy basic properties.
@@ -399,14 +395,10 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode)
 {
-    // Copy sequoia properties.
-    if (originatingNode->IsSequoia()) {
-        originatingNode->RememberAevum();
-
-        if (originatingNode->IsNative()) {
-            // Just a sanity check that properties did not change.
-            YT_VERIFY(*originatingNode->ImmutableSequoiaProperties() == *branchedNode->ImmutableSequoiaProperties());
-        }
+    // Copy Sequoia properties.
+    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
+        // Just a sanity check that properties did not change.
+        YT_VERIFY(*originatingNode->ImmutableSequoiaProperties() == *branchedNode->ImmutableSequoiaProperties());
     }
 
     // Perform cleanup by resetting the parent link of the branched node.

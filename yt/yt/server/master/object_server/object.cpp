@@ -234,13 +234,6 @@ const NYson::TYsonString* TObject::FindAttribute(const TString& key) const
         : nullptr;
 }
 
-void TObject::RememberAevum()
-{
-    if (IsSequoia()) {
-        SetAevum(GetCurrentAevum());
-    }
-}
-
 TRevision TObject::GetRevision() const
 {
     return Max(AttributeRevision_, ContentRevision_);
@@ -308,8 +301,6 @@ void TObject::CheckInvariants(TBootstrap* bootstrap) const
             (LifeStage_ == EObjectLifeStage::RemovalAwaitingCellsSync) ==
             garbageCollector->GetRemovalAwaitingCellsSyncObjects().contains(this_));
     }
-
-    YT_VERIFY(IsSequoia() == (Aevum_ != NSequoiaServer::EAevum::None));
 }
 
 void TObject::Save(NCellMaster::TSaveContext& context) const
@@ -328,7 +319,6 @@ void TObject::Save(NCellMaster::TSaveContext& context) const
         Save(context, false);
     }
     Save(context, IsForeign());
-    Save(context, Aevum_);
     Save(context, AttributeRevision_);
     Save(context, ContentRevision_);
 }
@@ -348,7 +338,9 @@ void TObject::Load(NCellMaster::TLoadContext& context)
     if (Load<bool>(context)) {
         SetForeign();
     }
-    Load(context, Aevum_);
+    if (context.GetVersion() < EMasterReign::RipAevum) {
+        Load<int>(context);
+    }
     Load(context, AttributeRevision_);
     Load(context, ContentRevision_);
 }

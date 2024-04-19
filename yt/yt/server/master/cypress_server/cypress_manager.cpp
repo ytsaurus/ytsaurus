@@ -3048,8 +3048,6 @@ private:
         node->SetModified(EModificationType::Content);
         node->SetModified(EModificationType::Attributes);
 
-        node->RememberAevum();
-
         if (node->IsExternal()) {
             YT_LOG_DEBUG("External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
                 node->GetId(),

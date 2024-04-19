@@ -469,7 +469,6 @@ public:
 
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
-        transaction->RememberAevum();
 
         // Every active transaction has a fake reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);

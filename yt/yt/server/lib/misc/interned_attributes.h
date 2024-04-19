@@ -20,7 +20,6 @@
     XX(ActualTabletState, actual_tablet_state) \
     XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
-    XX(Aevum, aevum) \
     XX(AlertCount, alert_count) \
     XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(Alerts, alerts) \

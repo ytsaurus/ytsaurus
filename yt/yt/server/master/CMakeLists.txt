@@ -655,7 +655,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/security_server/user_activity_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/context.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_queue_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/sequoia_server/sequoia_transaction_service.cpp

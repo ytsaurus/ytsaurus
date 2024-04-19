@@ -2903,7 +2903,6 @@ private:
     {
         auto chunkHolder = TPoolAllocator::New<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
-        chunk->RememberAevum();
 
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
