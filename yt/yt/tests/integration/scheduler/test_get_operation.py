@@ -91,7 +91,7 @@ class TestGetOperation(YTEnvSetup):
         del operation_result["brief_progress"]["build_time"]
         del operation_result["progress"]["build_time"]
 
-    @authors("levysotsky", "babenko", "ignat")
+    @authors("omgronny", "babenko", "ignat")
     def test_get_operation(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -172,7 +172,7 @@ class TestGetOperation(YTEnvSetup):
     # is reported correctly (i.e. "No such operation").
     # Actually, cleaner is disabled in this test,
     # but we emulate its work by removing operation node from Cypress.
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_operation_dropped_by_cleaner(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -361,7 +361,7 @@ class TestGetOperation(YTEnvSetup):
 
         check_task_names()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -388,7 +388,7 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(yt_error_codes.NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_archive_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -413,7 +413,7 @@ class TestGetOperation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_archive_failure(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -495,7 +495,7 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(yt_error_codes.TabletNotMounted):
             get_operation(op.id)
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_operation_no_archive(self):
         remove("//sys/operations_archive", force=True)
         create("table", "//tmp/t1")

@@ -178,7 +178,7 @@ class _TestGetJobBase(YTEnvSetup):
 
 
 class _TestGetJobCommon(_TestGetJobBase):
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_job(self):
         create_pool("my_pool")
         create("table", "//tmp/t1")
@@ -241,7 +241,7 @@ class _TestGetJobCommon(_TestGetJobBase):
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_operation_ids_table(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -329,7 +329,7 @@ class TestGetJob(_TestGetJobCommon):
 
         check_task_names()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_stubborn_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -449,7 +449,7 @@ class TestGetJob(_TestGetJobCommon):
         assert preemption_reason.startswith("Preempted to start allocation") and \
             "of operation {}".format(op2.id) in preemption_reason
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_not_found(self):
         with raises_yt_error(yt_error_codes.NoSuchOperation):
             get_job("1-2-3-4", "5-6-7-8")
@@ -466,7 +466,7 @@ class TestGetJob(_TestGetJobCommon):
         release_breakpoint()
         op.track()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     @flaky(max_runs=3)
     def test_get_job_is_stale_during_revival(self):
         op = run_test_vanilla(
@@ -488,7 +488,7 @@ class TestGetJob(_TestGetJobCommon):
         assert job_info.get("archive_state") == "running"
         assert not job_info.get("is_stale")
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_job_is_stale(self):
         update_controller_agent_config("snapshot_period", 1000000)
         time.sleep(1)
@@ -521,7 +521,7 @@ class TestGetJobStatisticsLz4(_TestGetJobCommon):
 class TestGetJobMonitoring(_TestGetJobBase):
     USE_PORTO = True
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_get_job_monitoring(self):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
