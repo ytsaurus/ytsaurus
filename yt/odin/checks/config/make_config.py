@@ -1168,7 +1168,7 @@ def get_checks_config():
                     "temp_tables_path": "//sys/admin/odin/remote_copy",
                 },
             },
-            "wrapper_files_count": {
+            "wrapper_node_count": {
                 "alerts": instant_force_ok,
                 "options": {
                     "file_count_threshold": 40000,
