@@ -1411,13 +1411,14 @@ The following key peculiarities exist in representing structured data in Python:
 
    ```python
    import yt.yson as yson
-   s = yson.YsonString("a")
+   s = yson.YsonString(b"a")
+   s == b"a" # True
    s.attributes["b"] = "c"
-   s == "a" # False
+   s == b"a" # False
 
-   str(s) == "a" # True
+   bytes(s) == b"a" # True
 
-   other_s = yson.YsonString("a")
+   other_s = yson.YsonString(b"a")
    other_s == s # False
 
    other_s.attributes["b"] = "c"
