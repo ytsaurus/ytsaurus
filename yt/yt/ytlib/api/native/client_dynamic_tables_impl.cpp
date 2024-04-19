@@ -1063,7 +1063,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             *schema,
             schema->GetKeyColumnCount(),
             idMapping,
-            nullptr);
+            /*validateDuplicateAndRequiredValueColumns*/ false);
 
         if (evaluator) {
             evaluator->EvaluateKeys(capturedKey, inputRowBuffer);

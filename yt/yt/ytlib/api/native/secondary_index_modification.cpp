@@ -209,7 +209,7 @@ TSharedRange<TRowModification> TSecondaryIndexModifier::ProduceFullSyncModificat
             indexSchema,
             indexSchema.GetKeyColumnCount(),
             indexIdMapping,
-            /*columnPresenceBuffer*/ nullptr,
+            /*validateDuplicateAndRequiredValueColumns*/ false,
             /*preserveIds*/ true,
             empty);
         secondaryModifications.push_back(TRowModification{
@@ -225,7 +225,7 @@ TSharedRange<TRowModification> TSecondaryIndexModifier::ProduceFullSyncModificat
             indexSchema,
             indexSchema.GetKeyColumnCount(),
             keyIndexIdMapping,
-            /*columnPresenceBuffer*/ nullptr,
+            /*validateDuplicateAndRequiredValueColumns*/ false,
             /*preserveIds*/ true);
         secondaryModifications.push_back(TRowModification{
             ERowModificationType::Delete,
@@ -325,8 +325,8 @@ TSharedRange<TRowModification> TSecondaryIndexModifier::ProduceUnfoldingModifica
             indexSchema,
             indexSchema.GetKeyColumnCount(),
             indexIdMapping,
-            /*columnPresenceBuffer=*/ nullptr,
-            /*preserveIds=*/ true,
+            /*validateDuplicateAndRequiredValueColumns*/ false,
+            /*preserveIds*/ true,
             empty);
 
         unfoldValue(permuttedRow, [&] (TUnversionedRow rowToWrite) {
@@ -344,8 +344,8 @@ TSharedRange<TRowModification> TSecondaryIndexModifier::ProduceUnfoldingModifica
             indexSchema,
             indexSchema.GetKeyColumnCount(),
             keyIndexIdMapping,
-            /*columnPresenceBuffer=*/ nullptr,
-            /*preserveIds=*/ true);
+            /*validateDuplicateAndRequiredValueColumns*/ false,
+            /*preserveIds*/ true);
 
         unfoldValue(permuttedRow, [&] (TUnversionedRow rowToDelete) {
             secondaryModifications.push_back(TRowModification{
