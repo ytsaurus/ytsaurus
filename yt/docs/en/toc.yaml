@@ -204,7 +204,7 @@ items:
          - name: Recommendations
            when: audience == "public"
            href: user-guide/data-processing/operations/recommendations.md
-         - name: Porto layers
+         - name: Root file system images
            when: audience == "public"
            href: user-guide/data-processing/porto/layer-paths.md
          - name: Switching between tables
