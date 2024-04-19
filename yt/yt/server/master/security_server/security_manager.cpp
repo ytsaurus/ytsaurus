@@ -3444,7 +3444,8 @@ private:
             return false;
         };
 
-        bool resourceUsageMatches = true;
+        bool mismatchFound = false;
+        auto mismatchLogLevel = recompute ? ELogLevel::Alert : ELogLevel::Fatal;
 
         auto& actualUsage = account->LocalStatistics().ResourceUsage;
         const auto& expectedUsage = expectedResourceUsage.Usage;
@@ -3453,11 +3454,14 @@ private:
             actualUsage,
             expectedUsage))
         {
-            YT_LOG_ALERT("Account usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
+            YT_LOG_EVENT(
+                Logger,
+                mismatchLogLevel,
+                "Account usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
                 actualUsage,
                 expectedUsage);
-            resourceUsageMatches = false;
+            mismatchFound = true;
         }
 
         auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
@@ -3467,14 +3471,17 @@ private:
             actualCommittedUsage,
             expectedCommittedUsage))
         {
-            YT_LOG_ALERT("Account committed usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
+            YT_LOG_EVENT(
+                Logger,
+                mismatchLogLevel,
+                "Account committed usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
                 actualUsage,
                 expectedUsage);
-            resourceUsageMatches = false;
+            mismatchFound = true;
         }
 
-        if (!resourceUsageMatches && recompute) {
+        if (mismatchFound && recompute) {
             YT_LOG_ALERT("Setting recomputed resource usage for account (Account: %v)",
                 account->GetName());
 
