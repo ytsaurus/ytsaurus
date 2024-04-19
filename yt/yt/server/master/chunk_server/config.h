@@ -638,6 +638,8 @@ public:
     bool StoreSequoiaReplicasOnMaster;
     bool ProcessRemovedSequoiaReplicasOnMaster;
 
+    bool EnableChunkPurgatory;
+
     //! When set of active chunk replicator shards is changed, no removal jobs
     //! will be scheduled within this period.
     TDuration RemovalJobScheduleDelay;
