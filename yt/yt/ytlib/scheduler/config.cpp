@@ -1918,6 +1918,11 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         if (spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("You do not want sampling in remote copy operation :)");
         }
+
+        if (spec->RepairErasureChunks) {
+            // If we are OK with repairing chunks, we are OK with repairing chunks from parity parts.
+            spec->ChunkAvailabilityPolicy = NChunkClient::EChunkAvailabilityPolicy::Repairable;
+        }
     });
 }
 
