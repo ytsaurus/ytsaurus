@@ -1331,7 +1331,8 @@ public:
 
         if (canHaveSequoiaReplicas) {
             std::sort(sequoiaReplicas.begin(), sequoiaReplicas.end());
-            EmplaceOrCrash(SequoiaChunkPurgatory_, chunk->GetId(), sequoiaReplicas);
+            auto& purgedReplicas = SequoiaChunkPurgatory_[chunk->GetId()];
+            purgedReplicas.insert(purgedReplicas.end(), sequoiaReplicas.begin(), sequoiaReplicas.end());
         }
 
         chunk->UnrefUsedRequisitions(
