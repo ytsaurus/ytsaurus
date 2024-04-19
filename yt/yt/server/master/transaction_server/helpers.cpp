@@ -17,7 +17,7 @@ namespace NYT::NTransactionServer {
 #define MAYBE_COPY_TRIVIAL_FIELD(dst, src, field) MAYBE_COPY_FIELD_IMPL(dst, src, field, COPY_TRIVIAL_FIELD)
 #define MAYBE_COPY_FIELD(dst, src, field) MAYBE_COPY_FIELD_IMPL(dst, src, field, COPY_FIELD)
 
-NProto::TReqStartCypressTransaction BuildReqStartCypressTransaction(
+NProto::TReqStartCypressTransaction BuildStartCypressTransactionRequest(
     NCypressTransactionClient::NProto::TReqStartTransaction rpcRequest,
     const NRpc::TAuthenticationIdentity& authenticationIdentity)
 {
@@ -39,8 +39,7 @@ NProto::TReqStartCypressTransaction BuildReqStartCypressTransaction(
 #undef MAYBE_COPY_TRIVIAL_FIELD
 #undef MAYBE_COPY_FIELD
 
-
-NProto::TReqCommitCypressTransaction BuildReqCommitCypressTransaction(
+NProto::TReqCommitCypressTransaction BuildCommitCypressTransactionRequest(
     TTransactionId transactionId,
     TTimestamp commitTimestamp,
     TRange<TTransactionId> prerequisiteTransactionIds,
@@ -54,7 +53,7 @@ NProto::TReqCommitCypressTransaction BuildReqCommitCypressTransaction(
     return request;
 }
 
-NProto::TReqAbortCypressTransaction BuildReqAbortCypressTransaction(
+NProto::TReqAbortCypressTransaction BuildAbortCypressTransactionRequest(
     TTransactionId transactionId,
     bool force,
     bool replicateViaHive,
@@ -69,6 +68,5 @@ NProto::TReqAbortCypressTransaction BuildReqAbortCypressTransaction(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT::NTransactionServer

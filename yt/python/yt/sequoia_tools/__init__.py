@@ -91,7 +91,7 @@ for text in records_text:
     for record in manifest.types:
         name = record.table_name
         if name is None:
-            raise RuntimeError("\"table_name\" field is required for sequoia tables")
+            raise RuntimeError("\"table_name\" field is required for Sequoia tables")
         group = record.table_group
         schema = _build_schema_from_fields(record.fields)
         setattr(DESCRIPTORS, name, TableDescriptor(name, group, schema))

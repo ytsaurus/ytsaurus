@@ -18,17 +18,17 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProto::TReqStartCypressTransaction BuildReqStartCypressTransaction(
+NProto::TReqStartCypressTransaction BuildStartCypressTransactionRequest(
     NCypressTransactionClient::NProto::TReqStartTransaction rpcRequest,
     const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
-NProto::TReqCommitCypressTransaction BuildReqCommitCypressTransaction(
+NProto::TReqCommitCypressTransaction BuildCommitCypressTransactionRequest(
     TTransactionId transactionId,
     TTimestamp commitTimestamp,
     TRange<TTransactionId> prerequisiteTransactionIds,
     const NRpc::TAuthenticationIdentity& authenticationIdentity);
 
-NProto::TReqAbortCypressTransaction BuildReqAbortCypressTransaction(
+NProto::TReqAbortCypressTransaction BuildAbortCypressTransactionRequest(
     TTransactionId transactionId,
     bool force,
     bool replicateViaHive,
