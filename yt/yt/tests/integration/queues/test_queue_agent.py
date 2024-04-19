@@ -3006,19 +3006,19 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 3 * 1000,
+                "export_period": 5 * 1000,
                 "use_upper_bound_for_table_names": False,
             }
         })
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
-        mid_export = self._sleep_until_next_export_instant(period=3, offset=0.5)
+        mid_export = self._sleep_until_next_export_instant(period=5, offset=0.5)
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
         self._flush_table("//tmp/q")
 
-        next_export = self._sleep_until_next_export_instant(period=3)
+        next_export = self._sleep_until_next_export_instant(period=5)
         # Flush should be fast enough. Increase period if this turns out to be flaky.
-        assert next_export - mid_export <= 3
+        assert next_export - mid_export <= 5
 
         wait(lambda: len(ls(export_dir)) == 1)
         # Given the constraints above, we check that all timestamps lie in [ts, ts + period], where ts is the timestamp in the name of the output table.
