@@ -9,6 +9,7 @@ namespace NYT::NApi::NNative {
 using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
@@ -268,26 +269,28 @@ void TClient::ValidateAuthenticationCommandPermissions(
     constexpr TStringBuf PasswordSaltAttribute = "password_salt";
     constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
 
-    bool isSuperuser = false;
+    bool canAdminister = false;
     if (Options_.User) {
-        TGetNodeOptions getOptions;
-        static_cast<TTimeoutOptions&>(getOptions) = options;
+        TCheckPermissionOptions checkPermissionOptions;
+        static_cast<TTimeoutOptions&>(checkPermissionOptions) = options;
 
-        auto path = Format("//sys/users/%v/@member_of_closure", ToYPathLiteral(*Options_.User));
-        auto rsp = WaitFor(GetNode(path, /*options*/ {}))
-            .ValueOrThrow();
-        auto groups = ConvertTo<THashSet<TString>>(rsp);
-        isSuperuser =
-            groups.contains(NSecurityClient::SuperusersGroupName) ||
-            Options_.User == NSecurityClient::RootUserName;
+        auto rspOrError = WaitFor(CheckPermission(
+            *Options_.User,
+            Format("//sys/users/%v", ToYPathLiteral(user)),
+            EPermission::Administer,
+            checkPermissionOptions));
+        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to check %Qlv permission for user", EPermission::Administer);
+
+        canAdminister = (rspOrError.Value().Action == ESecurityAction::Allow);
     }
 
-    if (!isSuperuser) {
+    if (!canAdminister) {
         if (Options_.User != user) {
             THROW_ERROR_EXCEPTION(
                 "%v can be performed either by user theirselves "
-                "or by a superuser",
-                action)
+                "or by a user having %Qlv permission on the user",
+                action,
+                EPermission::Administer)
                 << TErrorAttribute("user", user)
                 << TErrorAttribute("authenticated_user", Options_.User);
         }
