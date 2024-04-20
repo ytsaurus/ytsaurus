@@ -603,8 +603,10 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("User provided invalid password"):
             set_user_password("u", "admin2", "123456", authenticated_user="u")
         with raises_yt_error("Password change can be performed either"):
-            set_user_password("u", "admin2", "admin", authenticated_user="v")
-        set_user_password("u", "admin2", "admin", authenticated_user="u")
+            set_user_password("u", "admin2", authenticated_user="v")
+        set("//sys/users/u/@acl", [make_ace("allow", "v", "administer")])
+        set_user_password("u", "admin2", authenticated_user="v")
+        set_user_password("u", "admin3", "admin2", authenticated_user="u")
 
         enc3 = get("//sys/users/u/@hashed_password")
         assert enc3 != enc2
