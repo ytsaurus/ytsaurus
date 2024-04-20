@@ -223,6 +223,16 @@ void TChunkLocation::RemoveFromChunkSealQueue(const TChunkIdWithIndex& replica)
     ChunkSealQueue_.erase(replica);
 }
 
+TChunkLocation::TLoadScratchData* TChunkLocation::GetLoadScratchData() const
+{
+    return LoadScratchData_.get();
+}
+
+void TChunkLocation::ResetLoadScratchData()
+{
+    LoadScratchData_.reset();
+}
+
 void TChunkLocation::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -249,11 +259,9 @@ void TChunkLocation::Load(TLoadContext& context)
             EmplaceOrCrash(DestroyedReplicas_[shardId], replica);
         }
     }
-    // NB: This code does not load the replicas per se; it just
-    // reserves the appropriate hashtables. Once the snapshot is fully loaded,
-    // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
-    // See TChunkLocation::Save.
-    ReserveReplicas(TSizeSerializer::Load(context));
+
+    LoadScratchData_ = std::make_unique<TLoadScratchData>(TSizeSerializer::Load(context));
+
     Load(context, UnapprovedReplicas_);
 
     ResetDestroyedReplicasIterator();
@@ -286,6 +294,14 @@ void TChunkLocation::ResetDestroyedReplicasIterator()
         DestroyedReplicasIterators_[i] = DestroyedReplicas_[i].begin();
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkLocation::TLoadScratchData::TLoadScratchData(size_t replicasSize)
+    : Replicas(replicasSize)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkLocation::TDestroyedReplicasIterator TChunkLocation::GetDestroyedReplicasIterator(int shardId) const
 {
