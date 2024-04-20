@@ -13,27 +13,52 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
-add_subdirectory(changelog_surgeon)
-add_subdirectory(cuda_core_dump_injection)
-add_subdirectory(cypress_nbd_server)
-add_subdirectory(data_node_rpc_request)
-add_subdirectory(dump_changelog)
-add_subdirectory(dump_chunk_meta)
-add_subdirectory(force_commit_tx)
-add_subdirectory(import_table)
-add_subdirectory(journal_reader)
-add_subdirectory(offline_controller)
-add_subdirectory(offline_read)
-add_subdirectory(offline_read_fmt_write)
-add_subdirectory(parse_rpc_header)
-add_subdirectory(print_column_statistics)
-add_subdirectory(read_arrow)
-add_subdirectory(recode_table_chunk)
-add_subdirectory(run_codec)
-add_subdirectory(scheduler_simulator)
-add_subdirectory(unpack_local_changelog)
-add_subdirectory(unpack_local_snapshot)
-add_subdirectory(upload_chunk)
-add_subdirectory(yt_sudo_fixup)
+find_package(linux-headers-generic REQUIRED)
+add_executable(parse-rpc-header)
+
+
+target_compile_options(parse-rpc-header PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(parse-rpc-header PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  library-cpp-cpuid_check
+  cpp-getopt-small
+  cpp-yt-memory
+  cpp-yt-string
+  yt-yt-core
+  yt-library-program
+  yt_proto-yt-core
+)
+
+target_link_options(parse-rpc-header PRIVATE
+  -ldl
+  -lrt
+  -Wl,--no-as-needed
+  -fPIC
+  -fPIC
+  -lpthread
+  -lrt
+  -ldl
+  -lutil
+)
+
+target_sources(parse-rpc-header PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/parse_rpc_header/main.cpp
+)
+
+
+
+target_allocator(parse-rpc-header
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-default
+)
+
+vcs_info(parse-rpc-header)
+
+
 
 

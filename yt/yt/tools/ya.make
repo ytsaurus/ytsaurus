@@ -13,6 +13,7 @@ RECURSE(
     offline_controller
     offline_read
     offline_read_fmt_write
+    parse_rpc_header
     prepare_scheduling_usage
     print_column_statistics
     read_arrow
