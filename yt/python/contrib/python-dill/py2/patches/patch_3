@@ -1,0 +1,55 @@
+commit e45ee186d1c649d24a863e8db4c0b581238d05c5
+Author: Ignat Kolesnichenko <ignat@yandex-team.ru>
+Date:   Thu Dec 13 00:35:15 2018 +0300
+
+    Better pickling for classes inherited from namedtuple
+
+diff --git a/tests/shadowed_namedtuple/__init__.py b/tests/shadowed_namedtuple/__init__.py
+new file mode 100644
+index 0000000..68f44be
+--- /dev/null
++++ b/tests/shadowed_namedtuple/__init__.py
+@@ -0,0 +1,5 @@
++# This package is used by the `test_shadowed_namedtuple` test.
++# Author: Sergei Fomin (se4min at yandex-team.ru)
++
++from .shadowed import shadowed
++
+diff --git a/tests/shadowed_namedtuple/shadowed.py b/tests/shadowed_namedtuple/shadowed.py
+new file mode 100644
+index 0000000..c58acae
+--- /dev/null
++++ b/tests/shadowed_namedtuple/shadowed.py
+@@ -0,0 +1,11 @@
++# This module is used by the `test_shadowed_namedtuple` test.
++# Author: Sergei Fomin (se4min at yandex-team.ru)
++
++from collections import namedtuple
++
++class Shadowed(namedtuple("Shadowed", [])):
++    pass
++
++def shadowed():
++    return Shadowed()
++
+diff --git a/tests/test_shadowed_namedtuple.py b/tests/test_shadowed_namedtuple.py
+new file mode 100644
+index 0000000..6037e7a
+--- /dev/null
++++ b/tests/test_shadowed_namedtuple.py
+@@ -0,0 +1,15 @@
++#!/usr/bin/env python
++#
++# Author: Sergei Fomin (se4min at yandex-team.ru)
++
++from dill import dumps, loads
++from shadowed_namedtuple import shadowed
++
++def test_shadowed_namedtuple():
++    obj = shadowed()
++    obj_loaded = loads(dumps(obj))
++    assert obj.__class__ is obj_loaded.__class__
++
++if __name__ == "__main__":
++    test_shadowed_namedtuple()
++

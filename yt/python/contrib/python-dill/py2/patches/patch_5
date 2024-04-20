@@ -1,0 +1,33 @@
+commit cb3dc6ba379f08dc958741fce954207cea1a6e41
+Author: Andrey Saitgalin <asaitgalin@yandex-team.ru>
+Date:   Wed Aug 30 14:50:30 2017 +0300
+
+    Added ya.make
+
+diff --git a/ya.make b/ya.make
+new file mode 100644
+index 0000000..c81c5fb
+--- /dev/null
++++ b/ya.make
+@@ -0,0 +1,21 @@
++OWNER(g:yt g:yt-python)
++
++PY23_LIBRARY()
++
++PY_SRCS(
++    NAMESPACE yt.packages
++
++    dill/__diff.py
++    dill/__init__.py
++    dill/_dill.py
++    dill/_objects.py
++    dill/_shims.py
++    dill/detect.py
++    dill/objtypes.py
++    dill/pointers.py
++    dill/settings.py
++    dill/source.py
++    dill/temp.py
++)
++
++END()
