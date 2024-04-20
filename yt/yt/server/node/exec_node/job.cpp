@@ -3101,6 +3101,7 @@ bool TJob::IsFatalError(const TError& error)
             !AbortJobIfAccountLimitExceeded_
         ) ||
         error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
+        error.FindMatching(NChunkClient::EErrorCode::NoSuchMedium) ||
         error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
         error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
         error.FindMatching(NTableClient::EErrorCode::IncomparableTypes) ||
