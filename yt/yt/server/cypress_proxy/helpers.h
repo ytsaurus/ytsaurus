@@ -11,7 +11,22 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
 namespace NYT::NCypressProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TSharedRefArray> ExecuteVerb(
+    const ISequoiaServicePtr& service,
+    const TSharedRefArray& requestMessage,
+    const NSequoiaClient::ISequoiaClientPtr& client,
+    NLogging::TLogger logger = NLogging::TLogger(),
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsCreateRootstockRequest(const ISequoiaServiceContextPtr& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

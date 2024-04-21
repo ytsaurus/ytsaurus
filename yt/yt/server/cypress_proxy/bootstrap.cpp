@@ -150,7 +150,7 @@ public:
         return NativeRootClient_;
     }
 
-    const IYPathServicePtr& GetSequoiaService() const override
+    const ISequoiaServicePtr& GetSequoiaService() const override
     {
         return SequoiaService_;
     }
@@ -167,7 +167,7 @@ private:
 
     ILazySequoiaClientPtr SequoiaClient_;
 
-    IYPathServicePtr SequoiaService_;
+    ISequoiaServicePtr SequoiaService_;
 
     TActionQueuePtr ControlQueue_;
 

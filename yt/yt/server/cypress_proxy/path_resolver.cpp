@@ -33,20 +33,18 @@ using TYPath = NYPath::TYPath;
 class TPathResolver
 {
 public:
-    TPathResolver(
-        ISequoiaTransactionPtr transaction,
-        TYPath path)
-        : Transaction_(std::move(transaction))
-        , Path_(std::move(path))
+    TPathResolver(TSequoiaServiceContext* context)
+        : Context_(context)
     { }
 
-    TResolveResult Resolve()
+    void Resolve()
     {
-        Tokenizer_.Reset(Path_);
+        auto path = GetRequestTargetYPath(Context_->RequestHeader());
+        Tokenizer_.Reset(path);
         TYPath rewrittenPath;
 
         for (int resolveDepth = 0; ; ++resolveDepth) {
-            ValidateYPathResolutionDepth(Path_, resolveDepth);
+            ValidateYPathResolutionDepth(path, resolveDepth);
 
             if (auto rewrite = MaybeRewriteRoot()) {
                 rewrittenPath = std::move(*rewrite);
@@ -91,7 +89,7 @@ public:
                 schema->GetColumnIndex("path"),
                 schema->GetColumnIndex("node_id"),
             });
-            auto lookupRsps = WaitFor(Transaction_->LookupRows(prefixKeys, columnFilter))
+            auto lookupRsps = WaitFor(Context_->GetSequoiaTransaction()->LookupRows(prefixKeys, columnFilter))
                 .ValueOrThrow();
             YT_VERIFY(lookupRsps.size() == prefixKeys.size());
 
@@ -118,17 +116,16 @@ public:
             }
 
             if (scionFound) {
-                return result;
+                Context_->SetResolveResult(std::move(result));
+            } else {
+                Context_->SetResolveResult(TCypressResolveResult{});
             }
-
-            return TCypressResolveResult{};
+            return;
         }
     }
 
 private:
-    const ISequoiaTransactionPtr Transaction_;
-
-    const TYPath Path_;
+    TSequoiaServiceContext* Context_;
 
     TTokenizer Tokenizer_;
 
@@ -167,7 +164,7 @@ private:
 
                 std::vector<NRecords::TNodeIdToPathKey> key;
                 key.push_back(NRecords::TNodeIdToPathKey{.NodeId = TNodeId::FromString(idWithoutPrefix)});
-                auto lookupRsp = std::move(WaitFor(Transaction_->LookupRows(key, columnFilter))
+                auto lookupRsp = std::move(WaitFor(Context_->GetSequoiaTransaction()->LookupRows(key, columnFilter))
                     .ValueOrThrow()[0]);
 
                 if (!lookupRsp) {
@@ -190,14 +187,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResolveResult ResolvePath(
-    ISequoiaTransactionPtr transaction,
-    TYPath path)
+void ResolvePath(TSequoiaServiceContext* context)
 {
-    TPathResolver resolver(
-        std::move(transaction),
-        std::move(path));
-    return resolver.Resolve();
+    TPathResolver resolver(context);
+    resolver.Resolve();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

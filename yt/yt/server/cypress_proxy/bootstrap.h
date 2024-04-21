@@ -36,7 +36,7 @@ struct IBootstrap
     virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
     virtual NApi::IClientPtr GetRootClient() const = 0;
 
-    virtual const NYTree::IYPathServicePtr& GetSequoiaService() const = 0;
+    virtual const ISequoiaServicePtr& GetSequoiaService() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

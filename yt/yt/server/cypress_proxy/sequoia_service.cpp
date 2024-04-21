@@ -19,10 +19,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/ytree/helpers.h>
-#include <yt/yt/core/ytree/ypath_detail.h>
-#include <yt/yt/core/ytree/ypath_service.h>
-
 #include <yt/yt/core/ypath/tokenizer.h>
 
 namespace NYT::NCypressProxy {
@@ -35,60 +31,76 @@ using namespace NSequoiaClient;
 using namespace NYTree;
 
 using TYPath = NYPath::TYPath;
-using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSequoiaServiceContextWrapper::TSequoiaServiceContextWrapper(
+    ISequoiaServiceContextPtr underlyingContext)
+    : TServiceContextWrapper(underlyingContext)
+    , UnderlyingContext_(std::move(underlyingContext))
+{ }
+
+void TSequoiaServiceContextWrapper::SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> header)
+{
+    UnderlyingContext_->SetRequestHeader(std::move(header));
+}
+
+const ISequoiaTransactionPtr& TSequoiaServiceContextWrapper::GetSequoiaTransaction() const
+{
+    return UnderlyingContext_->GetSequoiaTransaction();
+}
+
+const TResolveResult& TSequoiaServiceContextWrapper::GetResolveResultOrThrow() const
+{
+    return UnderlyingContext_->GetResolveResultOrThrow();
+}
+
+const ISequoiaServiceContextPtr& TSequoiaServiceContextWrapper::GetUnderlyingContext() const
+{
+    return UnderlyingContext_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSequoiaService
-    : public TYPathServiceBase
+    : public ISequoiaService
 {
 public:
     explicit TSequoiaService(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
-    TResolveResult Resolve(
-        const TYPath& path,
-        const IYPathServiceContextPtr& context) override
+    void Invoke(const ISequoiaServiceContextPtr& context) override
     {
-        auto Logger = CypressProxyLogger.WithTag("CypressRequestId: %v", context->GetRequestId());
-        auto client = Bootstrap_->GetSequoiaClient();
-        auto transaction = WaitFor(StartCypressProxyTransaction(client))
-            .ValueOrThrow();
-
-        auto resolveResult = ResolvePath(transaction, path);
+        ISequoiaServicePtr proxy;
+        const auto& resolveResult = context->GetResolveResultOrThrow();
         if (std::holds_alternative<TCypressResolveResult>(resolveResult)) {
-            if (context->GetMethod() == "Create") {
-                auto options = THandlerInvocationOptions();
-                auto typedContext = DeserializeAsTypedOrThrow<TReqCreate, TRspCreate>(context, options);
-
-                if (FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock) {
-                    return TResolveResultThere{
-                        CreateRootstockProxy(
-                            Bootstrap_,
-                            std::move(transaction),
-                            path),
-                        path
-                    };
-                }
+            if (!IsCreateRootstockRequest(context)) {
+                context->Reply(TError(
+                    NObjectClient::EErrorCode::RequestInvolvesCypress,
+                    "Cypress request has been passed to Sequoia"));
+                return;
             }
 
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::RequestInvolvesCypress,
-                "Cypress request has been passed to Sequoia");
+            // NB: For rootstock resolve cannot be performed on Сypress proxy, but the transaction has to be started there.
+            // We assume path is correct, if this is not the case - prepare in 2PC will fail and the error will be propagated
+            // to the user.
+            proxy = CreateRootstockProxy(
+                Bootstrap_,
+                context->GetSequoiaTransaction(),
+                GetRequestTargetYPath(context->RequestHeader()));
+        } else {
+            const auto& sequoiaResolveResult = GetOrCrash<TSequoiaResolveResult>(resolveResult);
+            auto prefixNodeId = sequoiaResolveResult.ResolvedPrefixNodeId;
+
+            proxy = CreateNodeProxy(
+                Bootstrap_,
+                context->GetSequoiaTransaction(),
+                prefixNodeId,
+                sequoiaResolveResult.ResolvedPrefix);
         }
 
-        auto sequoiaResolveResult = GetOrCrash<TSequoiaResolveResult>(resolveResult);
-        auto prefixNodeId = sequoiaResolveResult.ResolvedPrefixNodeId;
-
-        return TResolveResultThere{
-            CreateNodeProxy(
-                Bootstrap_,
-                std::move(transaction),
-                prefixNodeId,
-                std::move(sequoiaResolveResult.ResolvedPrefix)),
-            std::move(sequoiaResolveResult.UnresolvedSuffix),
-        };
+        proxy->Invoke(context);
     }
 
 private:
@@ -97,7 +109,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::IYPathServicePtr CreateSequoiaService(IBootstrap* bootstrap)
+ISequoiaServicePtr CreateSequoiaService(IBootstrap* bootstrap)
 {
     return New<TSequoiaService>(bootstrap);
 }

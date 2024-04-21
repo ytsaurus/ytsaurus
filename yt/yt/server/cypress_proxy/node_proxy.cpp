@@ -3,9 +3,10 @@
 #include "action_helpers.h"
 #include "bootstrap.h"
 #include "helpers.h"
-#include "path_resolver.h"
 #include "private.h"
+#include "path_resolver.h"
 #include "sequoia_tree_visitor.h"
+#include "sequoia_service_detail.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -38,6 +39,7 @@
 
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -71,8 +73,60 @@ static const auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_YPATH_CONTEXT_IMPL(ISequoiaServiceContext, TTypedSequoiaServiceContext);
+
+DECLARE_SUPPORTS_METHOD(Get, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Set, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Remove, virtual TRefCounted);
+DECLARE_SUPPORTS_METHOD(Exists, TSupportsExistsBase);
+
+IMPLEMENT_SUPPORTS_METHOD(Get)
+IMPLEMENT_SUPPORTS_METHOD(Set)
+IMPLEMENT_SUPPORTS_METHOD(Remove)
+
+IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
+    Exists,
+    {
+        context->SetRequestInfo();
+        Reply(context, /*exists*/ false);
+    })
+
+void TSupportsExists::ExistsAttribute(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    const TCtxExistsPtr& context)
+{
+    context->SetRequestInfo();
+
+    Reply(context, /*exists*/ false);
+}
+
+void TSupportsExists::ExistsSelf(
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    const TCtxExistsPtr& context)
+{
+    context->SetRequestInfo();
+
+    Reply(context, /*exists*/ true);
+}
+
+void TSupportsExists::ExistsRecursive(
+    const TYPath& /*path*/,
+    TReqExists* /*request*/,
+    TRspExists* /*response*/,
+    const TCtxExistsPtr& context)
+{
+    context->SetRequestInfo();
+
+    Reply(context, /*exists*/ false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeProxyBase
-    : public TYPathServiceBase
+    : public TSequoiaServiceBase
     , public virtual TSupportsExists
     , public virtual TSupportsGet
     , public virtual TSupportsSet
@@ -90,15 +144,6 @@ public:
         , Transaction_(std::move(transaction))
     { }
 
-    TResolveResult Resolve(
-        const TYPath& path,
-        const IYPathServiceContextPtr& /*context*/) override
-    {
-        // NB: In most cases resolve should be performed by Sequoia service.
-
-        return TResolveResultHere{path};
-    }
-
 protected:
     IBootstrap* const Bootstrap_;
     // TODO(kvk1920): Since `TPathResolver` tries to resolve node's ancestors
@@ -112,7 +157,7 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Copy);
 
-    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(Exists);
         DISPATCH_YPATH_SERVICE_METHOD(Get);
@@ -122,7 +167,7 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(Create);
         DISPATCH_YPATH_SERVICE_METHOD(Copy);
 
-        return TYPathServiceBase::DoInvoke(context);
+        return false;
     }
 
     TCellId CellIdFromCellTag(TCellTag cellTag) const
@@ -573,11 +618,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    auto sourcePathResolveResult = ResolvePath(Transaction_, originalSourcePath);
-    const auto* payload = std::get_if<TSequoiaResolveResult>(&sourcePathResolveResult);
+    auto header = context->GetRequestHeader();
+    SetRequestTargetYPath(&header, originalSourcePath);
+    auto updatedMessage = NRpc::SetRequestHeader(context->GetRequestMessage(), header);
+    auto sourceContext = CreateSequoiaContext(std::move(updatedMessage), Transaction_);
+
+    ResolvePath(sourceContext.Get());
+
+    const auto& resolveResult = sourceContext->GetResolveResultOrThrow();
+    auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult);
     if (!payload) {
         // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
-        THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet", originalSourcePath);
+        THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet",
+            originalSourcePath);
     }
 
     // TODO(h0pless): This might not be the best solution in a long run, but it'll work for now.
@@ -695,7 +748,7 @@ public:
 private:
     DECLARE_YPATH_SERVICE_METHOD(NYTree::NProto, List);
 
-    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(List);
         return TNodeProxyBase::DoInvoke(context);
@@ -1213,7 +1266,7 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
 
-    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
         DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
@@ -1249,7 +1302,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, GetUploadParams)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathServicePtr CreateNodeProxy(
+ISequoiaServicePtr CreateNodeProxy(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr transaction,
     TObjectId id,
@@ -1257,8 +1310,8 @@ IYPathServicePtr CreateNodeProxy(
 {
     auto type = TypeFromId(id);
     ValidateSupportedSequoiaType(type);
-    // TODO(danilalexeev): Think of a better way of dispatch.
-    TIntrusivePtr<TNodeProxyBase> proxy;
+
+    ISequoiaServicePtr proxy;
     if (IsSequoiaCompositeNodeType(type)) {
         proxy = New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     } else if (IsChunkOwnerType(type)) {

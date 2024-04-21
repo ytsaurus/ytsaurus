@@ -1,12 +1,16 @@
 #include "private.h"
 #include "helpers.h"
 #include "action_helpers.h"
+#include "path_resolver.h"
+#include "sequoia_service_detail.h"
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
+
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -21,9 +25,13 @@ namespace NYT::NCypressProxy {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NYPath;
+using namespace NRpc;
+
+using NYT::FromProto;
 
 using TYPath = NYPath::TYPath;
 using TYPathBuf = NYPath::TYPathBuf;
@@ -78,6 +86,63 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const TTransactionStartOptions& options)
 {
     return sequoiaClient->StartTransaction(options, SequencingOptions);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TSharedRefArray> ExecuteVerb(
+    const ISequoiaServicePtr& service,
+    const TSharedRefArray& requestMessage,
+    const ISequoiaClientPtr& client,
+    NLogging::TLogger logger,
+    NLogging::ELogLevel logLevel)
+{
+    TIntrusivePtr<TSequoiaServiceContext> context;
+    try {
+        auto transaction = WaitFor(StartCypressProxyTransaction(client))
+            .ValueOrThrow();;
+
+        context = CreateSequoiaContext(
+            requestMessage,
+            std::move(transaction),
+            std::move(logger),
+            logLevel);
+        ResolvePath(context.Get());
+    } catch (const std::exception& ex) {
+        return MakeFuture(CreateErrorResponseMessage(ex));
+    }
+
+    const auto& resolveResult = context->GetResolveResultOrThrow();
+    auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult);
+    if (payload) {
+        auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
+        YT_VERIFY(ParseRequestHeader(requestMessage, requestHeader.get()));
+        NYTree::SetRequestTargetYPath(requestHeader.get(), payload->UnresolvedSuffix);
+        context->SetRequestHeader(std::move(requestHeader));
+    }
+
+    auto asyncResponseMessage = context->GetAsyncResponseMessage();
+
+    service->Invoke(context);
+
+    return asyncResponseMessage;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsCreateRootstockRequest(const ISequoiaServiceContextPtr& context)
+{
+    if (context->GetMethod() != "Create") {
+        return false;
+    }
+
+    THandlerInvocationOptions options;
+    auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(context, options);
+    if (!typedContext->DeserializeRequest()) {
+        THROW_ERROR_EXCEPTION("Error deserializing request");
+    }
+
+    return FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
