@@ -2583,12 +2583,20 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    auto calculateShardingKey = [&] (size_t shardingKeyLength) {
+        auto randomPart = RandomPartFromAllocationId(GetAllocationId());
+        auto randomPartHex = Format("%016lx", randomPart);
+        return randomPartHex.substr(0, shardingKeyLength);
+    };
+
     auto tryReplaceSlotIndex = [&] (TString& str) {
         size_t index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
             str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }
     };
+
+    auto jobProxyLoggingConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging;
 
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
@@ -2598,7 +2606,19 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-        tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+
+        if (jobProxyLoggingConfig->Mode == EJobProxyLoggingMode::Simple) {
+            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+        } else {
+            fileLogWriterConfig->FileName = NFS::JoinPaths(
+                NFS::JoinPaths(
+                    jobProxyLoggingConfig->Directory.value(),
+                    calculateShardingKey(jobProxyLoggingConfig->ShardingKeyLength.value())
+                ),
+                NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
+            );
+        }
+
         return writerConfig->BuildFullConfig(fileLogWriterConfig);
     });
 

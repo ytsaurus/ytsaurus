@@ -226,6 +226,9 @@ def add_start_subparser(subparsers):
     parser.add_argument("--cell-tag", type=int, default=1,
                         help="cluster cell tag")
 
+    parser.add_argument("--job-proxy-logging-mode", choices=["simple", "per_job_directory"], default="simple", 
+                        help="job proxy logging mode")
+
     parser.add_argument("--ytserver-all-path",
                         help="Use specified ytserver_all binary instead of per-service binaries in PATH")
 

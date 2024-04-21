@@ -394,3 +394,56 @@ class TestJobProxyProfiling(YTEnvSetup):
         op.abort()
 
         wait(lambda: profiler.get_all("resource_tracker/thread_count") == [])
+
+
+class TestJobProxyLogging(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            },
+            "job_proxy": {
+                "job_proxy_logging": {
+                    "mode": "per_job_directory",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+    }
+
+    @authors("tagirhamitov")
+    def test_separate_directory(self):
+        job_count = 3
+
+        run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count)
+        job_ids = wait_breakpoint(job_count=job_count)
+        assert len(job_ids) == job_count
+
+        for job_id in job_ids:
+            sharding_key = job_id.split("-")[0]
+            if len(sharding_key) < 8:
+                sharding_key = "0"
+            else:
+                sharding_key = sharding_key[0]
+            log_path = os.path.join(
+                self.path_to_run,
+                "logs/job_proxy-0",
+                sharding_key,
+                job_id,
+                "job_proxy.log"
+            )
+            assert os.path.exists(log_path)
