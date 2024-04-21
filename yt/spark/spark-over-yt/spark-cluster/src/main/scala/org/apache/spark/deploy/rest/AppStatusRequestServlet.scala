@@ -49,7 +49,7 @@ private[spark] class AppStatusRestResponse extends SubmitRestProtocolResponse {
     assertFieldIsSet(appId, "appId")
     assertFieldIsSet(appState, "appState")
     assertFieldIsSet(success, "success")
-    assertFieldIsSet(appSubmittedAt, "appStartedAt")
+    assertFieldIsSet(appStartedAt, "appStartedAt")
   }
 }
 
@@ -75,7 +75,7 @@ private[rest] class StandaloneAppStatusRequestServlet(
     val appStatusResponse = new AppStatusRestResponse
     appStatusResponse.appId = appId
     appStatusResponse.success = response.found
-    appStatusResponse.appState = response.info.map(_.state).orNull
+    appStatusResponse.appState = response.info.map(_.state).getOrElse("UNDEFINED")
     appStatusResponse.appSubmittedAt = response.info.map(_.submitDate).orNull
     appStatusResponse.appStartedAt = response.info.map(_.startTime).getOrElse(-1L)
     appStatusResponse.serverSparkVersion = sparkVersion

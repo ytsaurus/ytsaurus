@@ -96,7 +96,8 @@ def launch_gateway(memory="512m",
 def _submit_classpath(spark_home=None):
     spark_home = spark_home or get_spark_home()
     spyt_home = get_spyt_home()
-    return [os.path.join(home, "jars/*") for home in [spark_home, spyt_home]]
+    jars_cp = [os.path.join(home, "jars/*") for home in [spark_home, spyt_home]]
+    return [os.path.join(spyt_home, "conf")] + jars_cp
 
 
 def shutdown_gateway(gateway):

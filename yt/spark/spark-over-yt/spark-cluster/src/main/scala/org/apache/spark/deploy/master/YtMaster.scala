@@ -66,6 +66,10 @@ class YtMaster(rpcEnv: RpcEnv,
       } else {
         logInfo("Unsuccessful registration try " + driverId + " to " + appId)
       }
+
+    case UnregisterDriverToAppId(driverId) if driverId != null =>
+      logInfo("Unregistered driverId " + driverId + " to appId")
+      driverIdToApp.remove(driverId)
   }
 
   override def receiveAndReply(context: RpcCallContext): PartialFunction[Any, Unit] =
@@ -93,8 +97,9 @@ class YtMaster(rpcEnv: RpcEnv,
         context.reply(
           ApplicationStatusResponse(found = false, None))
       } else {
+        val completedApps = getBaseClassFieldValue(CompletedAppsField)
         logInfo("Asked application status for application " + appId)
-        idToApp.get(appId) match {
+        idToApp.get(appId).orElse(completedApps.find(_.id == appId)) match {
           case Some(app) =>
             val appInfo = ApplicationInfo(app.id, app.state.toString, app.startTime, app.submitDate)
             context.reply(ApplicationStatusResponse(found = true, Some(appInfo)))
@@ -118,12 +123,13 @@ class YtMaster(rpcEnv: RpcEnv,
       val appIdOption = driverIdToApp.get(driverId)
       context.reply(AppIdResponse(appIdOption))
 
-
   }
 
 }
 
 object YtMaster extends Logging {
+
+  val ENDPOINT_NAME: String = Master.ENDPOINT_NAME
 
   sealed trait BaseField[T] {
     val name: String
@@ -146,6 +152,9 @@ object YtMaster extends Logging {
   }
   private case object CompletedDriversField extends BaseField[mutable.ArrayBuffer[DriverInfo]] {
     val name = "org$apache$spark$deploy$master$Master$$completedDrivers"
+  }
+  private case object CompletedAppsField extends BaseField[mutable.ArrayBuffer[ApplicationInfo]] {
+    val name = "org$apache$spark$deploy$master$Master$$completedApps"
   }
 
   def main(argStrings: Array[String]): Unit = {

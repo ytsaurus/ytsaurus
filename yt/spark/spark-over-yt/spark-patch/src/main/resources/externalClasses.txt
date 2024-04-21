@@ -24,3 +24,5 @@ org/apache/spark/deploy/worker/DriverWrapperDecorators$
 org/apache/spark/SparkConfDecorators
 org/apache/spark/deploy/worker/ui/LogPageSpyt
 org/apache/spark/deploy/worker/DriverRunnerDecorators
+org/apache/spark/scheduler/cluster/StandaloneSchedulerBackendDecorators
+org/apache/spark/deploy/master/MasterDecorators
