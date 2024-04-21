@@ -128,6 +128,7 @@
 
 #include <yt/yt/core/concurrency/fair_share_action_queue.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+#include <yt/yt/core/concurrency/parallel_runner.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -5164,6 +5165,18 @@ private:
         YT_LOG_INFO("Finished compat-transforming chunk export data");
     }
 
+    template <class T>
+    TParallelRunner<T> CreateBackgroundParallelRunner(i64 batchSize)
+    {
+        if (auto backgroundThreadPool = Bootstrap_->GetHydraFacade()->GetSnapshotLoadBackgroundThreadPool()) {
+            return TParallelRunner<T>::CreateAsync(
+                backgroundThreadPool->GetInvoker(),
+                batchSize);
+        } else {
+            return TParallelRunner<T>::CreateSync();
+        }
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -5174,72 +5187,130 @@ private:
         // Populate nodes' chunk replica sets.
         // Compute chunk replica count.
 
-        YT_LOG_INFO("Started initializing chunks");
+        std::vector<TChunk*> crpChunks;
+        {
+            YT_LOG_INFO("Started initializing chunks");
 
-        for (auto [chunkId, chunk] : ChunkMap_) {
-            RegisterChunk(chunk);
+            constexpr int ChunkBatchSize = 100'000;
+            auto runner = CreateBackgroundParallelRunner<TChunk*>(ChunkBatchSize);
 
-            if (NeedRecomputeChunkWeightStatisticsHistogram_) {
-                UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+            for (auto [_, chunk] : ChunkMap_) {
+                RegisterChunk(chunk);
+
+                if (chunk->HasConsistentReplicaPlacementHash()) {
+                    crpChunks.push_back(chunk);
+                }
+
+                if (NeedRecomputeChunkWeightStatisticsHistogram_) {
+                    UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
+                }
+
+                if (chunk->IsForeign()) {
+                    EmplaceOrCrash(ForeignChunks_, chunk);
+                }
+
+                // TODO(aleksandra-zh): account for Sequoia replicas.
+                TotalReplicaCount_ += std::ssize(chunk->StoredReplicas());
+
+                runner.Add(chunk);
             }
 
-            // TODO(aleksandra-zh).
-            for (auto replica : chunk->StoredReplicas()) {
-                TChunkPtrWithReplicaInfo chunkWithIndexes(
-                    chunk,
-                    replica.GetReplicaIndex(),
-                    replica.GetReplicaState());
-                replica.GetPtr()->AddReplica(chunkWithIndexes);
-                ++TotalReplicaCount_;
-            }
+            runner.Run([] (TChunk* chunk) {
+                VERIFY_THREAD_AFFINITY_ANY();
 
-            if (chunk->IsForeign()) {
-                YT_VERIFY(ForeignChunks_.insert(chunk).second);
-            }
+                for (auto replica : chunk->StoredReplicas()) {
+                    auto* location = replica.GetPtr();
+                    auto* scratchData = location->GetLoadScratchData();
+                    scratchData->Replicas[scratchData->CurrentReplicaIndex++] = TChunkPtrWithReplicaInfo(
+                        chunk,
+                        replica.GetReplicaIndex(),
+                        replica.GetReplicaState());
+                }
+            })
+                .Get()
+                .ThrowOnError();
 
-            if (chunk->HasConsistentReplicaPlacementHash()) {
-                ++CrpChunkCount_;
-            }
+            YT_LOG_INFO("Finished initializing chunks");
         }
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto [id, node] : nodeTracker->Nodes()) {
-            if (!IsObjectAlive(node)) {
-                continue;
+        {
+            YT_LOG_INFO("Started initializing chunk locations");
+
+            constexpr int LocationBatchSize = 100;
+            auto runner = CreateBackgroundParallelRunner<TChunkLocation*>(LocationBatchSize);
+
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (auto [_, node] : nodeTracker->Nodes()) {
+                for (auto* location : node->ChunkLocations()) {
+                    runner.Add(location);
+                }
             }
 
-            for (auto [chunk, revision] : node->ReplicaEndorsements()) {
-                YT_VERIFY(!chunk->GetNodeWithEndorsement());
-                chunk->SetNodeWithEndorsement(node);
-            }
-            EndorsementCount_ += ssize(node->ReplicaEndorsements());
+            runner.Run([] (TChunkLocation* location) {
+                VERIFY_THREAD_AFFINITY_ANY();
 
-            for (auto* location : node->ChunkLocations()) {
-                DestroyedReplicaCount_ += location->GetDestroyedReplicasCount();
-            }
+                const auto* scratchData = location->GetLoadScratchData();
+                YT_VERIFY(scratchData->CurrentReplicaIndex == std::ssize(scratchData->Replicas));
+                for (auto replica : scratchData->Replicas) {
+                    location->AddReplica(replica);
+                }
+
+                location->ResetLoadScratchData();
+            })
+                .Get()
+                .ThrowOnError();
+
+            YT_LOG_INFO("Finished initializing chunk locations");
         }
 
-        InitBuiltins();
+        {
+            YT_LOG_INFO("Started initializing nodes");
 
-        for (auto [_, node] : nodeTracker->Nodes()) {
-            if (!IsObjectAlive(node)) {
-                continue;
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (auto [_, node] : nodeTracker->Nodes()) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+
+                for (auto [chunk, revision] : node->ReplicaEndorsements()) {
+                    YT_VERIFY(!chunk->GetNodeWithEndorsement());
+                    chunk->SetNodeWithEndorsement(node);
+                }
+                EndorsementCount_ += ssize(node->ReplicaEndorsements());
+
+                for (auto* location : node->ChunkLocations()) {
+                    DestroyedReplicaCount_ += location->GetDestroyedReplicasCount();
+                }
             }
 
-            if (node->IsValidWriteTarget()) {
-                ConsistentChunkPlacement_->AddNode(node);
+            InitBuiltins();
+
+            for (auto [_, node] : nodeTracker->Nodes()) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+
+                if (node->IsValidWriteTarget()) {
+                    ConsistentChunkPlacement_->AddNode(node);
+                }
             }
+
+            YT_LOG_INFO("Finished initializing nodes");
         }
-        // NB: chunks are added after nodes!
-        for (auto [_, chunk] : ChunkMap_) {
-            if (chunk->HasConsistentReplicaPlacementHash()) {
+
+        {
+            YT_LOG_INFO("Started initializing chunk placement");
+
+            CrpChunkCount_ = std::ssize(crpChunks);
+            for (auto* chunk : crpChunks) {
+                // NB: chunks are added after nodes!
                 ConsistentChunkPlacement_->AddChunk(chunk);
             }
+
+            ChunkPlacement_->Initialize();
+
+            YT_LOG_INFO("Finished initializing chunk placement");
         }
-
-        ChunkPlacement_->Initialize();
-
-        YT_LOG_INFO("Finished initializing chunks");
     }
 
 

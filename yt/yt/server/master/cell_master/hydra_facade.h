@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/rpc/public.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <yt/yt/core/test_framework/testing_tag.h>
 
 namespace NYT::NCellMaster {
@@ -27,33 +29,36 @@ struct IHydraFacade
 public:
     virtual void Initialize() = 0;
 
-    virtual const TMasterAutomatonPtr& GetAutomaton() const = 0;
-    virtual const NElection::IElectionManagerPtr& GetElectionManager() const = 0;
-    virtual const NHydra::IHydraManagerPtr& GetHydraManager() const = 0;
-    virtual const NHydra::IPersistentResponseKeeperPtr& GetResponseKeeper() const = 0;
-    virtual const NHydra::ILocalHydraJanitorPtr& GetLocalJanitor() const = 0;
+    virtual const TMasterAutomatonPtr& GetAutomaton() = 0;
+    virtual const NElection::IElectionManagerPtr& GetElectionManager() = 0;
+    virtual const NHydra::IHydraManagerPtr& GetHydraManager() = 0;
+    virtual const NHydra::IPersistentResponseKeeperPtr& GetResponseKeeper() = 0;
+    virtual const NHydra::ILocalHydraJanitorPtr& GetLocalJanitor() = 0;
 
-    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
-    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
-    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const = 0;
+    virtual IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) = 0;
+    virtual IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) = 0;
+    virtual IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) = 0;
 
-    virtual IInvokerPtr GetTransactionTrackerInvoker() const = 0;
+    virtual IInvokerPtr GetTransactionTrackerInvoker() = 0;
+
+    virtual NConcurrency::IThreadPoolPtr GetSnapshotSaveBackgroundThreadPool() = 0;
+    virtual NConcurrency::IThreadPoolPtr GetSnapshotLoadBackgroundThreadPool() = 0;
 
     virtual void BlockAutomaton() = 0;
     virtual void UnblockAutomaton() = 0;
 
-    virtual bool IsAutomatonLocked() const = 0;
+    virtual bool IsAutomatonLocked() = 0;
 
-    virtual void VerifyPersistentStateRead() const = 0;
+    virtual void VerifyPersistentStateRead() = 0;
 
     //! Throws TLeaderFallbackException at followers.
-    virtual void RequireLeader() const = 0;
+    virtual void RequireLeader() = 0;
 
     virtual void Reconfigure(const TDynamicCellMasterConfigPtr& newConfig) = 0;
 
-    virtual IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const = 0;
+    virtual IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) = 0;
 
-    virtual const NObjectServer::TEpochContextPtr& GetEpochContext() const = 0;
+    virtual const NObjectServer::TEpochContextPtr& GetEpochContext() = 0;
 
     virtual void CommitMutationWithSemaphore(
         const NConcurrency::TAsyncSemaphorePtr& semaphore,
