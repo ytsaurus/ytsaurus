@@ -1625,6 +1625,8 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
+        YT_LOG_INFO("Started initializing nodes");
+
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
@@ -1690,6 +1692,8 @@ private:
         {
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(it->second, it);
         }
+
+        YT_LOG_INFO("Finished initializing nodes");
     }
 
     void OnRecoveryStarted() override
