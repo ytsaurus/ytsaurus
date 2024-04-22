@@ -33,7 +33,7 @@ public:
         , ExpirationExecutor_(New<TPeriodicExecutor>(
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
-            Config_->ExpirationTime))
+            Config_->ExpirationSweepPeriod))
     {
         ExpirationExecutor_->Start();
     }
