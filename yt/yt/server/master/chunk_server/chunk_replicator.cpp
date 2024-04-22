@@ -2827,13 +2827,9 @@ bool TChunkReplicator::IsDurabilityRequired(
         return false;
     }
 
-    if (chunk->IsErasure()) {
-        return true;
-    }
-
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto replication = GetChunkAggregatedReplication(chunk, replicas);
-    return replication.IsDurabilityRequired(chunkManager);
+    return replication.IsDurabilityRequired(chunkManager, /*isErasureChunk*/ chunk->IsErasure());
 }
 
 void TChunkReplicator::OnCheckEnabled()

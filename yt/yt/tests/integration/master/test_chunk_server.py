@@ -345,6 +345,59 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert chunk_id not in get("//sys/lost_vital_chunks")
 
+    @authors("achulkov2")
+    def test_historically_non_vital_with_erasure(self):
+        create("table", "//tmp/t", attributes={"erasure_codec": "isa_reed_solomon_3_3"})
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert get(f"#{chunk_id}/@vital")
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
+
+        set("//tmp/t/@vital", False)
+        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+        assert chunk_id in get("//sys/lost_chunks")
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        wait(lambda: chunk_id not in get("//sys/lost_chunks"))
+
+    @authors("achulkov2")
+    def test_historically_non_vital_explicit_vitality_change(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert get(f"#{chunk_id}/@vital")
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
+        set("//tmp/t/@vital", False)
+
+        wait(lambda: not get(f"#{chunk_id}/@vital"))
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
+        set("//tmp/t/@vital", True)
+        wait(lambda: get(f"#{chunk_id}/@vital"))
+        assert not get(f"#{chunk_id}/@historically_non_vital")
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
+
     @authors("danilalexeev")
     def test_unexpected_overreplicated_chunks(self):
         create("table", "//tmp/t", attributes={"replication_factor": 8})
