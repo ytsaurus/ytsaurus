@@ -29,7 +29,7 @@ struct TMasterJobSensors
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterJobBase
-    : public NJobAgent::TResourceHolder
+    : public TRefCounted
 {
 public:
     DEFINE_SIGNAL(void(const NClusterNode::TJobResources& resourcesDelta), ResourcesUpdated);
@@ -45,7 +45,6 @@ public:
         IBootstrap* bootstrap);
 
     NChunkServer::TJobId GetId() const noexcept;
-    TGuid GetIdAsGuid() const noexcept override;
     NJobAgent::EJobType GetType() const;
     bool IsUrgent() const;
     const TString& GetJobTrackerAddress() const;
@@ -60,13 +59,20 @@ public:
     void Start();
     void Abort(const TError& error);
 
+    const NJobAgent::TResourceHolderPtr& GetResourceHolder() const noexcept;
+
 protected:
     IBootstrap* const Bootstrap_;
+
     const TDataNodeConfigPtr Config_;
 
     const NChunkServer::TJobId JobId_;
     const NChunkServer::NProto::TJobSpec JobSpec_;
     const TString JobTrackerAddress_;
+
+    NLogging::TLogger Logger;
+
+    NJobAgent::TResourceHolderPtr ResourceHolder_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
@@ -87,15 +93,11 @@ protected:
     void SetFailed(const TError& error);
     void SetAborted(const TError& error);
 
-    virtual TFuture<void> ReleaseCumulativeResources();
-
     IChunkPtr FindLocalChunk(TChunkId chunkId, int mediumIndex);
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex);
 
 private:
     void DoSetFinished(NJobAgent::EJobState finalState, const TError& error);
-
-    void OnResourcesAcquired() noexcept override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterJobBase)

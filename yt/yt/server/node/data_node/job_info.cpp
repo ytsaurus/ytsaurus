@@ -15,8 +15,7 @@ TBriefJobInfo::TBriefJobInfo(
     TInstant jobStartTime,
     TDuration jobDuration,
     const NClusterNode::TJobResources& baseResourceUsage,
-    const NClusterNode::TJobResources& additionalResourceUsage,
-    const std::vector<int>& jobPorts)
+    const NClusterNode::TJobResources& additionalResourceUsage)
     : JobId_(jobId)
     , JobState_(jobState)
     , JobType_(jobType)
@@ -25,7 +24,6 @@ TBriefJobInfo::TBriefJobInfo(
     , JobDuration_(jobDuration)
     , BaseResourceUsage_(baseResourceUsage)
     , AdditionalResourceUsage_(additionalResourceUsage)
-    , JobPorts_(jobPorts)
 { }
 
 void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
@@ -38,7 +36,6 @@ void TBriefJobInfo::BuildOrchid(NYTree::TFluentMap fluent) const
         .Item("duration").Value(JobDuration_)
         .Item("base_resource_usage").Value(BaseResourceUsage_)
         .Item("additional_resource_usage").Value(AdditionalResourceUsage_)
-        .Item("job_ports").Value(JobPorts_)
     .EndMap();
 }
 

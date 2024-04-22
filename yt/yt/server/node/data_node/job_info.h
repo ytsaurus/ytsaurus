@@ -31,8 +31,6 @@ private:
     NClusterNode::TJobResources BaseResourceUsage_;
     NClusterNode::TJobResources AdditionalResourceUsage_;
 
-    std::vector<int> JobPorts_;
-
     friend class TMasterJobBase;
 
     TBriefJobInfo(
@@ -43,8 +41,7 @@ private:
         TInstant jobStartTime,
         TDuration jobDuration,
         const NClusterNode::TJobResources& baseResourceUsage,
-        const NClusterNode::TJobResources& additionalResourceUsage,
-        const std::vector<int>& jobPorts);
+        const NClusterNode::TJobResources& additionalResourceUsage);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

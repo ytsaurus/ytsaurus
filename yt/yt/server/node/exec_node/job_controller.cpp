@@ -793,19 +793,28 @@ private:
 
         TForbidContextSwitchGuard guard;
 
-        auto currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceHolder));
-        YT_LOG_FATAL_UNLESS(
-            currentAllocation,
-            "Resource usage overdraft happened for the resource holder with no allocation (ResourceHolderId: %v)",
-            resourceHolder->GetIdAsGuid());
+        TAllocationPtr currentAllocation;
+        TAllocationId currentAllocationId;
 
-        auto allocationId = currentAllocation->GetId();
+        if (auto resourceOwner = resourceHolder->GetOwner()) {
+            if (currentAllocation = DynamicPointerCast<TAllocation>(std::move(resourceOwner))) {
+                currentAllocationId = currentAllocation->GetId();
 
-        YT_LOG_INFO(
-            "Handling resource usage overdraft caused by allocation resource usage update (AllocationId: %v)",
-            allocationId);
+                YT_LOG_INFO(
+                    "Handling resource usage overdraft caused by allocation resource usage update (AllocationId: %v)",
+                    currentAllocationId);
+            } else {
+                YT_LOG_INFO(
+                    "Resource usage overdraft happened for the resource holder with no allocation (ResourceHolderId: %v)",
+                    resourceHolder->GetId());
+            }
+        } else {
+            YT_LOG_INFO(
+                "Resources overdraft happened for the resource holder with no owner (ResourceHolderId: %v)",
+                resourceHolder->GetId());
+        }
 
-        if (currentAllocation->IsResourceUsageOverdraftOccurred()) {
+        if (currentAllocation && currentAllocation->IsResourceUsageOverdraftOccurred()) {
             currentAllocation->Abort(TError(
                 NExecNode::EErrorCode::ResourceOverdraft,
                 "Resource usage overdraft occurred")
@@ -821,16 +830,16 @@ private:
                         NExecNode::EErrorCode::ResourceOverdraft,
                         "Some other allocation with guarantee overdraft total node resource usage")
                         << TErrorAttribute("resource_usage", FormatResources(job->GetResourceUsage()))
-                        << TErrorAttribute("other_allocation_id", currentAllocation->GetId()));
+                        << TErrorAttribute("other_allocation_id", currentAllocationId));
                     foundJobToAbort = true;
                     break;
                 }
             }
 
             if (!foundJobToAbort) {
-                currentAllocation->Abort(TError(
-                    NExecNode::EErrorCode::NodeResourceOvercommit,
-                    "Resource usage on node overcommitted"));
+                YT_LOG_WARNING(
+                    "Resource overdraft occured, but no allocation with resource overdraft found (CurrentResourceHolderId: %v)",
+                    resourceHolder->GetId());
             }
         }
     }
@@ -1456,11 +1465,12 @@ private:
             }
 
             try {
-                if (!resourceAcquiringContext.TryAcquireResourcesFor(StaticPointerCast<TResourceHolder>(allocation))) {
+                if (!resourceAcquiringContext.TryAcquireResourcesFor(allocation->GetResourceHolder())) {
                     YT_LOG_DEBUG("Allocation was not started (AllocationId: %v)", allocationId);
                     AllocationsWaitingForResources_.push_back(std::move(allocation));
                 } else {
                     YT_LOG_DEBUG("Allocation started (AllocationId: %v)", allocationId);
+                    allocation->OnResourcesAcquired();
                 }
             } catch (const std::exception& ex) {
                 allocation->Abort(TError("Failed to acquire resources for job")
@@ -1749,14 +1759,13 @@ private:
         return schedulerJobs;
     }
 
-    void InterruptAllJobs(TError error)
+    void InterruptAllJobs(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (const auto& job : GetJobs()) {
-            const auto& Logger = job->GetLogger();
             try {
-                YT_LOG_DEBUG(error, "Trying to interrupt job");
+                YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
                 job->Interrupt(
                     GetDynamicConfig()->DisabledJobsInterruptionTimeout,
                     EInterruptReason::JobsDisabledOnNode,

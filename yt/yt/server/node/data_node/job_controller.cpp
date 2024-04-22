@@ -257,10 +257,12 @@ private:
             auto jobId = job->GetId();
             YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-            if (!resourceAcquiringContext.TryAcquireResourcesFor(StaticPointerCast<TResourceHolder>(job))) {
+            if (!resourceAcquiringContext.TryAcquireResourcesFor(job->GetResourceHolder())) {
                 YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
             } else {
                 YT_LOG_DEBUG("Job started (JobId: %v)", jobId);
+
+                job->Start();
             }
         }
 
@@ -416,11 +418,11 @@ private:
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
         for (const auto& job : GetJobs(jobTrackerAddress)) {
-            auto jobId = job->GetIdAsGuid();
+            auto jobId = job->GetId();
 
             YT_VERIFY(job->GetJobTrackerAddress() == jobTrackerAddress);
 
-            YT_VERIFY(CellTagFromId(jobId) == cellTag);
+            YT_VERIFY(CellTagFromId(jobId.Underlying()) == cellTag);
 
             auto* jobStatus = request->add_jobs();
 
