@@ -510,10 +510,16 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_reason(static_cast<int>(reason));
+
+        auto activeStore = tablet->GetActiveStore();
         // Out of band immediate rotation may happen when this mutation is scheduled but not applied.
         // This rotation request will become obsolete and may lead to an empty active store
         // being rotated.
-        ToProto(request.mutable_expected_active_store_id(), tablet->GetActiveStore()->GetId());
+        ToProto(request.mutable_expected_active_store_id(), activeStore->GetId());
+
+        // NB: Some aborted transactions that created skip list entries could be dropped on store reserialization.
+        request.set_allow_empty_store(activeStore->IsSorted() && activeStore->GetRowCount() > 0 && activeStore->GetTimestampCount() == 0);
+
         Slot_->CommitTabletMutation(request);
     }
 
@@ -1958,6 +1964,7 @@ private:
         if (request->has_expected_active_store_id()) {
             FromProto(&expectedActiveStoreId, request->expected_active_store_id());
         }
+        auto allowEmptyStore = request->allow_empty_store();
 
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -2003,7 +2010,7 @@ private:
             return;
         }
 
-        storeManager->Rotate(true, reason);
+        storeManager->Rotate(/*createNewStore*/ true, reason, allowEmptyStore);
         UpdateTabletSnapshot(tablet);
 
         if (tablet->IsPhysicallyOrdered()) {
