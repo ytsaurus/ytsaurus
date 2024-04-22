@@ -14,8 +14,8 @@ A {{product-name}} computing cluster is able:
 - To store exabytes of data.
 - To use HDD, SDD, and RAM for data storage.
 - To process data on hundreds of thousands of CPU cores.
-- To solve machine learning problems on thousands GPUs.
-- To store and process data owned by tens of thousands of platform tenants.
+- To solve machine learning problems on thousands of GPUs.
+- To store and process data from tens of thousands of platform tenants.
 
 ## Architecture
 
@@ -60,15 +60,15 @@ Key features of dynamic tables:
 - Isolation: instances serving tablets are grouped into bundles that reside on separate servers, ensuring load isolation.
 - Conflict checking at the individual key or even individual value level.
 - Hot data responses from RAM.
-- Deleting data by [TTL](https://en.wikipedia.org/wiki/Time_to_live).
+- Deleting data by [TTL](https://{{lang}}.wikipedia.org/wiki/Time_to_live).
 - A built-in SQL-like language for scanning analytical queries.
 
 In addition to dynamic tables with the k-v storage interface, the system supports dynamic tables that implement the message queue abstraction, namely topics and streams. These queues can also be considered tables because they consist of rows and have their own schema. In a transaction, you can modify rows in both the k-v dynamic table and the queue simultaneously. This enables you to build stream processing on top of {{product-name}}'s dynamic tables with exactly once semantics.
 
 ### MapReduce { #mapreduce }
 
-The {{product-name}} computational architecture is based on the MapReduce distributed computational model. The Map operation processes input data broken down into parts between the cluster's nodes without data being exchanged between such nodes. The Reduce operation groups data from different cluster nodes.
-The model helps process large amounts of data in a highly reliable manner and automatically restart a part of the computations if individual cluster nodes are unavailable.
+The {{product-name}} compute architecture is based on the MapReduce distributed computational model. The Map operation processes input data broken down into parts between the cluster's nodes without data being exchanged between such nodes. The Reduce operation groups data from different cluster nodes.
+The model helps process large amounts of data in a highly reliable manner. Parts of the computation are automatically restarted if individual cluster nodes are unavailable.
 
 MapReduce in {{product-name}} has the following features:
 - A rich model of base operations: classic MapReduce (with different shuffle strategies and support for multi-phase partitioning), Map, Erase, Sort, and some extensions of the classic model that take into account the sortedness of input data.
@@ -93,6 +93,7 @@ YQL benefits include:
 - Efficient implementation of joins, subqueries, and window functions with no restrictions on their topology or nesting.
 - Extensive function library.
 - Support for custom functions in C++, Python, and JavaScript.
+- Support for using machine learning models via CatBoost and TensorFlow.
 - Automatic execution of small parts of queries on prepared compute instances, bypassing MapReduce operations to reduce latency.
 
 ### CHYT { #chyt }
