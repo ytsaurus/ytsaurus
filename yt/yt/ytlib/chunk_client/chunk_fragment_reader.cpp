@@ -247,7 +247,7 @@ private:
         });
     }
 
-    void DropChunkReplica(TChunkId chunkId, const TPeerInfoPtr& peerInfo)
+    void DropChunkReplicasFromPeer(TChunkId chunkId, const TPeerInfoPtr& peerInfo)
     {
         {
             auto mapReaderGuard = ReaderGuard(ChunkIdToChunkInfoLock_);
@@ -975,7 +975,7 @@ private:
                 auto& probingResult = chunkProbingResults[chunkIndex];
                 auto& chunkInfo = PendingChunkInfos_[chunkIndex];
 
-                if (probingResult.ChunkId == NullObjectId) {
+                if (!probingResult.ChunkId) {
                     continue;
                 }
 
@@ -1271,10 +1271,8 @@ private:
 
         NodeIdToSuspicionMarkTime_ = Reader_->NodeStatusDirectory_->RetrieveSuspiciousNodeIdsWithMarkTime(nodeIds);
 
-        // Provide same penalty for each node across all replicas.
         // Adjust replica penalties based on suspiciousness and bans.
         // Sort replicas and feed them to controllers.
-        THashMap<TNodeId, TProbingPenalty> nodeIdToPenalty;
         for (auto& [chunkId, chunkState] : ChunkIdToChunkState_) {
             if (chunkState.ReplicasWithRevision.IsEmpty()) {
                 continue;
@@ -1282,11 +1280,6 @@ private:
 
             for (auto& replica : chunkState.ReplicasWithRevision.Replicas) {
                 auto nodeId = replica.PeerInfo->NodeId;
-                if (auto it = nodeIdToPenalty.find(nodeId); it != nodeIdToPenalty.end()) {
-                    replica.Penalty = it->second;
-                } else {
-                    EmplaceOrCrash(nodeIdToPenalty, nodeId, replica.Penalty);
-                }
                 if (NodeIdToSuspicionMarkTime_.contains(nodeId)) {
                     replica.Penalty = PenalizeSuspciousNode(replica.Penalty);
                 } else if (State_->BannedNodeIds.contains(nodeId)) {
@@ -1643,7 +1636,7 @@ private:
                 if (!subresponse.has_complete_chunk()) {
                     // NB: We do not ban peer or invalidate chunk replica cache
                     // because replica set may happen to be out of date due to eventually consistent nature of DRT.
-                    Reader_->DropChunkReplica(chunkId, peerInfo);
+                    Reader_->DropChunkReplicasFromPeer(chunkId, peerInfo);
                     OnError(TError("Peer %v does not contain chunk %v",
                         peerInfo->Address,
                         chunkId));
