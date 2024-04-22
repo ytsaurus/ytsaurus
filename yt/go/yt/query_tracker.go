@@ -10,6 +10,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/ptr"
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yterrors"
 )
@@ -20,11 +21,11 @@ const (
 
 type (
 	QueryResult struct {
-		ID             QueryID          `yson:"id"`
-		ResultIndex    int64            `yson:"result_index"`
-		Err            yterrors.Error   `yson:"error"`
-		Schema         []map[string]any `yson:"schema"`
-		DataStatistics DataStatistics   `yson:"data_statistics"`
+		ID             QueryID        `yson:"id"`
+		ResultIndex    int64          `yson:"result_index"`
+		Err            yterrors.Error `yson:"error"`
+		Schema         schema.Schema  `yson:"schema"`
+		DataStatistics DataStatistics `yson:"data_statistics"`
 	}
 
 	Query struct {
