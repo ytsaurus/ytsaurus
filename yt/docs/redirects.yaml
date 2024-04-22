@@ -3,6 +3,10 @@ common:
       to: /api/cpp/
       type: redirect
 
+    - from: /user-guide/data-processing/porto/([^/]+\.md)
+      to: /user-guide/data-processing/layers/$1
+      type: redirect
+
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/c/description.md
@@ -381,19 +385,19 @@ ru:
       type: redirect
 
     - from: /description/mr/porto/layer_paths.md
-      to: /user-guide/data-processing/porto/layer-paths.md
+      to: /user-guide/data-processing/layers/layer-paths.md
       type: redirect
 
     - from: /description/mr/porto/layers_in_yt_operation.md
-      to: /user-guide/data-processing/porto/layers-in-yt-operation.md
+      to: /user-guide/data-processing/layers/layers-in-yt-operation.md
       type: redirect
 
     - from: /description/mr/porto/layers_sandbox_tasks.md
-      to: /user-guide/data-processing/porto/layers-sandbox-tasks.md
+      to: /user-guide/data-processing/layers/layers-sandbox-tasks.md
       type: redirect
 
     - from: /description/mr/porto/recommendation.md
-      to: /user-guide/data-processing/porto/recommendation.md
+      to: /user-guide/data-processing/layers/recommendation.md
       type: redirect
 
     - from: /description/mr/reduce.md

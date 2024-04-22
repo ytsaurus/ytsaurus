@@ -1315,8 +1315,8 @@ if __name__ == "__main__":
 
 ### Porto layers { #porto_layers }
 
-When running an operation, you can specify which [porto layers](../../../user-guide/data-processing/porto/layer-paths.md) need to be prepared before running your jobs.
-There is a certain set of [ready-to-use layers](../../../user-guide/data-processing/porto/layer-paths.md#gotovye-sloi-v-kiparise) available at `//porto_layers`.
+When running an operation, you can specify which [porto layers](../../../user-guide/data-processing/layers/layer-paths.md) need to be prepared before running your jobs.
+There is a certain set of [ready-to-use layers](../../../user-guide/data-processing/layers/layer-paths.md#gotovye-sloi-v-kiparise) available at `//porto_layers`.
 
 One way you can specify a path to the proper layer using the parameter `layer_paths` in the job spec is:
 ```python
