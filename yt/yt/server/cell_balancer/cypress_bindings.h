@@ -175,6 +175,7 @@ struct TBundleConfig
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
     bool InitChaosBundles;
+    int AdditionalChaosCellCount;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -255,6 +256,7 @@ struct TGlobalCellRegistry
     ui16 CellTagLast;
 
     THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> CellTags;
+    THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> AdditionalCellTags;
 
     REGISTER_YSON_STRUCT(TGlobalCellRegistry);
 

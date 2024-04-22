@@ -557,6 +557,11 @@ private:
             CypressSetSingleNode(transaction, path, cellInfo);
         }
 
+        for (const auto& [cellTag, cellInfo] : mutations.AdditionalCellTagsToRegister) {
+            auto path = Format("%v/additional_cell_tags/%v", GlobalCellRegistryPath, cellTag);
+            CypressSetSingleNode(transaction, path, cellInfo);
+        }
+
         if (mutations.ChangedChaosCellTagLast) {
             auto path = Format("%v/cell_tag_last", GlobalCellRegistryPath);
             CypressSetSingleNode(transaction, path, mutations.ChangedChaosCellTagLast.value());

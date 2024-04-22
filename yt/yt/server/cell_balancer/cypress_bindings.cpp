@@ -89,6 +89,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("init_chaos_bundles", &TThis::InitChaosBundles)
         .Default(false);
+    registrar.Parameter("additional_chaos_cell_count", &TThis::AdditionalChaosCellCount)
+        .Default(0);
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -134,6 +136,8 @@ void TGlobalCellRegistry::Register(TRegistrar registrar)
     registrar.Parameter("cell_tag_last", &TThis::CellTagLast)
         .Default();
     registrar.Parameter("cell_tags", &TThis::CellTags)
+        .Default();
+    registrar.Parameter("additional_cell_tags", &TThis::AdditionalCellTags)
         .Default();
 }
 

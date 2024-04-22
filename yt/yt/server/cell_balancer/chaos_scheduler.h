@@ -19,6 +19,7 @@ struct TChaosSchedulerInputState
 
     TGlobalCellRegistryPtr GlobalRegistry;
     TCellTagsByBundle CellTagsByBundle;
+    TCellTagsByBundle AdditionalCellTagsByBundle;
 
     TSysConfigPtr SysConfig;
 };
@@ -42,6 +43,7 @@ struct TChaosSchedulerMutations
     THashMap<TString, TBundlesMetadataCells> ForeignMetadataCellIdsToSet;
 
     THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> CellTagsToRegister;
+    THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> AdditionalCellTagsToRegister;
     std::optional<ui16> ChangedChaosCellTagLast;
 };
 

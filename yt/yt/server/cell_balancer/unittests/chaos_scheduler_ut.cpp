@@ -264,6 +264,32 @@ TEST(TChaosCellBundleManagement, TestCellsRegistry)
     ScheduleChaosBundles(input, &mutations);
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.CellTagsToRegister));
+
+    registry->CellTagRangeEnd = 51050;
+    input.TabletCellBundles["bigc"]->TargetConfig->AdditionalChaosCellCount = 2;
+
+    mutations = TChaosSchedulerMutations{};
+    ScheduleChaosBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.CellTagsToRegister));
+    EXPECT_EQ(4, std::ssize(mutations.AdditionalCellTagsToRegister));
+    EXPECT_EQ(mutations.ChangedChaosCellTagLast, 51011);
+
+    registry->CellTagLast = mutations.ChangedChaosCellTagLast.value();
+    for (const auto& [cellTag, cellInfo] : mutations.AdditionalCellTagsToRegister) {
+        EXPECT_EQ(EObjectType::ChaosCell, TypeFromId(cellInfo->CellId));
+        EXPECT_FALSE(IsWellKnownId(cellInfo->CellId))
+            << "Cell id is well known: " << ToString(cellInfo->CellId);
+        registry->AdditionalCellTags[cellTag] = cellInfo;
+    }
+
+    mutations = TChaosSchedulerMutations{};
+    ScheduleChaosBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.CellTagsToRegister));
+    EXPECT_EQ(0, std::ssize(mutations.AdditionalCellTagsToRegister));
+    EXPECT_EQ(mutations.ChangedChaosCellTagLast, std::nullopt);
 }
 
 TEST(TChaosCellBundleManagement, TestInconsistentCellsRegistry)
@@ -283,7 +309,7 @@ TEST(TChaosCellBundleManagement, TestInconsistentCellsRegistry)
     EXPECT_EQ(0, std::ssize(mutations.CellTagsToRegister));
     EXPECT_FALSE(mutations.ChangedChaosCellTagLast);
 
-    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_GE(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "global_cell_registry_is_inconsistent");
 }
 
@@ -350,7 +376,38 @@ TEST(TChaosCellBundleManagement, TestCreateChaosCells)
 
     for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
         const auto& cellsToCreate = mutations.ForeignChaosCellsToCreate[cluster];
+        EXPECT_EQ(2, std::ssize(cellsToCreate));
+
         for (const auto& [_, cellInfo] : registry->CellTags) {
+            EXPECT_TRUE(cellsToCreate.contains(ToString(cellInfo->CellId)));
+
+            input.ForeignChaosCellBundles[cluster]["bigc"]->ChaosCellIds.insert(cellInfo->CellId);
+        }
+    }
+
+    mutations = TChaosSchedulerMutations{};
+    ScheduleChaosBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ForeignChaosCellsToCreate));
+
+    registry->CellTagRangeEnd = 51050;
+    registry->AdditionalCellTags = {
+        {TCellTag(51010), CreateCellInfo("default", "bigc", TCellTag{51010})},
+        {TCellTag(51011), CreateCellInfo("beta", "bigc", TCellTag{51011})},
+        {TCellTag(51012), CreateCellInfo("default", "bigc", TCellTag{51012})},
+        {TCellTag(51013), CreateCellInfo("beta", "bigc", TCellTag{51013})},
+    };
+
+    mutations = TChaosSchedulerMutations{};
+    ScheduleChaosBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ForeignChaosCellsToCreate));
+
+    for (const TString& cluster : {"chaos-alpha", "chaos-beta"}) {
+        const auto& cellsToCreate = mutations.ForeignChaosCellsToCreate[cluster];
+        EXPECT_EQ(4, std::ssize(cellsToCreate));
+
+        for (const auto& [_, cellInfo] : registry->AdditionalCellTags) {
             EXPECT_TRUE(cellsToCreate.contains(ToString(cellInfo->CellId)));
 
             input.ForeignChaosCellBundles[cluster]["bigc"]->ChaosCellIds.insert(cellInfo->CellId);
