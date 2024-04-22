@@ -463,6 +463,8 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
     LoadValues_.clear();
     LoadValues_.reserve(size);
 
+    this->Map_.reserve(size);
+
     SERIALIZATION_DUMP_INDENT(context) {
         for (size_t index = 0; index < size; ++index) {
             auto key = LoadSuspended<TKey>(context);
