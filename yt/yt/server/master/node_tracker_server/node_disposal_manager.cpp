@@ -467,7 +467,7 @@ private:
     void HydraFinishNodeDisposal(TReqFinishNodeDisposal* request)
     {
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
-        auto finalyGuard = Finally([&]() {
+        auto finalyGuard = Finally([&] {
             if (NodesBeingDisposed_.contains(nodeId)) {
                 EraseFromDisposalQueue(nodeId);
             }

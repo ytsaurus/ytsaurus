@@ -268,7 +268,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     int startIndex = tablet->Index;
     int endIndex = tablet->Index;
 
-    auto sizeGood = [&] () {
+    auto sizeGood = [&] {
         int tabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
         i64 tabletSize = size / tabletCount;
         return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;
@@ -708,7 +708,7 @@ void ReassignSlackTablets(
     std::sort(
         cellTablets.begin(),
         cellTablets.end(),
-        [](const auto& lhs, const auto& rhs) {
+        [] (const auto& lhs, const auto& rhs) {
             return lhs.second.size() > rhs.second.size();
         });
 

@@ -2828,7 +2828,7 @@ private:
 
         req->set_location_uuids_supported(true);
 
-        bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [](const auto& replica) {
+        bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
         });
 

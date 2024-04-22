@@ -655,7 +655,7 @@ private:
             return;
         }
 
-        auto smooth = [&](std::vector<TNodeHolder*>& candidates, int limit, auto filter) {
+        auto smooth = [&] (std::vector<TNodeHolder*>& candidates, int limit, auto filter) {
             for (auto* srcNode : nodes) {
                 if (!filter(srcNode)) {
                     continue;

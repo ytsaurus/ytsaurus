@@ -212,7 +212,7 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         }
     };
 
-    auto pushNullValue = [&](int id) {
+    auto pushNullValue = [&] (int id) {
         row[valueCount] = MakeUnversionedNullValue(id);
         ++valueCount;
     };

@@ -85,7 +85,7 @@ TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& na
 {
     TInflightCounter counter;
     counter.State_ = New<TState>();
-    profiler.AddFuncGauge(name, counter.State_, [state = counter.State_.Get()](){
+    profiler.AddFuncGauge(name, counter.State_, [state = counter.State_.Get()] {
         return state->Counter.load(std::memory_order::relaxed);
     });
     return counter;

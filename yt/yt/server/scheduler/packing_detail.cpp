@@ -113,7 +113,7 @@ double PackingMetric(
 {
     // NB: this function must be thread-safe.
 
-    auto getMetricFunction = [](EPackingMetricType metricType) {
+    auto getMetricFunction = [] (EPackingMetricType metricType) {
         switch (metricType) {
             case EPackingMetricType::Angle:
                 return AnglePackingMetric;

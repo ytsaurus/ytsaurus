@@ -413,7 +413,7 @@ private:
                 ->GetHydraFacade()
                 ->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
 
-            return BIND([=, this, this_ = MakeStrong(this)] () {
+            return BIND([=, this, this_ = MakeStrong(this)] {
                 auto req = TTableReplicaYPathProxy::Alter(FromObjectId(Id_));
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(mode));

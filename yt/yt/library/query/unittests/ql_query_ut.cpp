@@ -123,7 +123,7 @@ protected:
         int syntaxVersion = 1)
     {
         EXPECT_THROW_THAT(
-            BIND([&] () {
+            BIND([&] {
                 PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1840,7 +1840,7 @@ protected:
             };
         };
 
-        auto prepareAndExecute = [&] () {
+        auto prepareAndExecute = [&] {
             IUnversionedRowsetWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 

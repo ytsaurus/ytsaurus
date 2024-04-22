@@ -376,7 +376,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
 
     // NB: Hold the parts strongly during the async phase.
     return
-        BIND([=, this, this_ = MakeStrong(this), parts_ = GetParts()] () {
+        BIND([=, this, this_ = MakeStrong(this), parts_ = GetParts()] {
             DoSaveSnapshot(
                 writer,
                 context.Logger,

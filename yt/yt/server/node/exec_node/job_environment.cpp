@@ -144,7 +144,7 @@ public:
 
             TJobProxyProcess jobProxyProcess;
             jobProxyProcess.Process = process;
-            jobProxyProcess.Result = BIND([=] () {
+            jobProxyProcess.Result = BIND([=] {
                     // Make forks outside controller thread.
                     return process->Spawn();
                 })
@@ -699,7 +699,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
+        auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)] (const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
             auto this_ = weakThis_.Lock();
             if (this_) {
@@ -869,7 +869,8 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
-    void UpdateContainerCpuLimits() {
+    void UpdateContainerCpuLimits()
+    {
         if (MetaInstance_) {
             MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
         }

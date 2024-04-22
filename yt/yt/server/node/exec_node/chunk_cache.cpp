@@ -461,7 +461,7 @@ public:
 
     TFuture<void> RemoveChunksByLocation(const TCacheLocationPtr& location)
     {
-        return BIND([=, this, this_ = MakeStrong(this)] () {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             auto chunks = GetAll();
             for (const auto& chunk : chunks) {
                 if (chunk->GetLocation() == location) {
@@ -523,7 +523,7 @@ private:
 
     void RunBackgroundValidation()
     {
-        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] () {
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] {
             // Delay start of background validation to populate chunk cache with useful artifacts.
             TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
 

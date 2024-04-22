@@ -2017,7 +2017,7 @@ TCGExpressionGenerator Profile(
             =,
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
-        ] () {
+        ] {
             return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend);
         };
 }

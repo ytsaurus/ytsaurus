@@ -92,8 +92,8 @@ public:
     {
         TDriverModuleBase::Initialize(
             "driver_rpc_lib",
-            [](){TDriverRpc::InitType();},
-            [&](){initialize("Python RPC bindings for YT driver");},
+            [] {TDriverRpc::InitType();},
+            [&] {initialize("Python RPC bindings for YT driver");},
             std::bind(&TDriverRpcModule::moduleDictionary, this),
             &TDriverRpcModule::add_keyword_method);
 
@@ -122,9 +122,23 @@ static PyObject* init_module()
 }
 
 #if PY_MAJOR_VERSION < 3
-extern "C" EXPORT_SYMBOL void initdriver_rpc_lib() { Y_UNUSED(init_module()); }
-extern "C" EXPORT_SYMBOL void initdriver_rpc_lib_d() { initdriver_rpc_lib(); }
+extern "C" EXPORT_SYMBOL void initdriver_rpc_lib()
+{
+    Y_UNUSED(init_module());
+}
+
+extern "C" EXPORT_SYMBOL void initdriver_rpc_lib_d()
+{
+    initdriver_rpc_lib();
+}
 #else
-extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_rpc_lib() { return init_module(); }
-extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_rpc_lib_d() { return PyInit_driver_rpc_lib(); }
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_rpc_lib()
+{
+    return init_module();
+}
+
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_rpc_lib_d()
+{
+    return PyInit_driver_rpc_lib();
+}
 #endif

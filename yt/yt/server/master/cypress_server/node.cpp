@@ -309,7 +309,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     Load(context, Shard_);
     Load(context, Annotation_);
 
-    auto loadImmutableProperties = [&] () {
+    auto loadImmutableProperties = [&] {
         if (Load<bool>(context)) {
             ImmutableSequoiaProperties_ = std::make_unique<TImmutableSequoiaProperties>(
                 Load<TString>(context),

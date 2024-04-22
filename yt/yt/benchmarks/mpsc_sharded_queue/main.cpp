@@ -120,7 +120,7 @@ void Bench(const std::string& queueName, int producersCount)
 
     threads.reserve(producersCount);
     for (int i = 0; i < producersCount; ++i) {
-        threads.push_back(std::thread([&] () {
+        threads.push_back(std::thread([&] {
             EnqueueMany(TasksCount / producersCount, holder);
         }));
     }
@@ -128,7 +128,7 @@ void Bench(const std::string& queueName, int producersCount)
     std::atomic_bool stopped = false;
     i64 totalDequeued = 0;
 
-    std::thread consumer([&] () {
+    std::thread consumer([&] {
         while (!stopped) {
             ConsumeAll(holder, [&] (const std::vector<i64>& batch) {
                 totalDequeued += std::size(batch);

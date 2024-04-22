@@ -301,7 +301,7 @@ void TTransactionPresenceCache::NotifyRemoteTransactionReplicated(TTransactionId
         --SubscribedRemoteTransactionReplicationCount_;
 
         // Makes sure the futures aren't set from mutation context (which is dangerous).
-        AutomatonInvoker_->Invoke(BIND([promise = std::move(promise)] () {
+        AutomatonInvoker_->Invoke(BIND([promise = std::move(promise)] {
             promise.TrySet();
         }));
     }

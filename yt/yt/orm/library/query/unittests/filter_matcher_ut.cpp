@@ -233,7 +233,7 @@ TEST(TFilterMatcherTest, ThreadSafety)
     const size_t iterationCount = 10'000;
     const size_t threadCount = 10;
 
-    auto task = [=] () {
+    auto task = [=] {
         for (size_t i = 0; i < iterationCount; ++i) {
             if (RandomNumber<bool>()) {
                 EXPECT_FALSE(matcher->Match(TYsonStringBuf("{deploy_engine=\"QYP\"}")).ValueOrThrow());

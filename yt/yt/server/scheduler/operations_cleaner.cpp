@@ -229,7 +229,7 @@ std::vector<TString> GetPools(const INodePtr& schedulingOptionsNode)
 template <class T>
 static T FilterYsonAndLoadStruct(const TYsonString& source)
 {
-    auto getPaths = [] () {
+    auto getPaths = [] {
         std::vector<TString> result;
         for (const auto& [name, _] : T::Fields) {
             result.push_back("/" + name);

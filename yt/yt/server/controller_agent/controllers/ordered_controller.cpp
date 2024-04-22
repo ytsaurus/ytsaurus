@@ -611,7 +611,7 @@ private:
 
         ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
-        auto inferFromInput = [&] () {
+        auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
                 table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
             } else {

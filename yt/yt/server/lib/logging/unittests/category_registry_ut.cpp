@@ -64,7 +64,7 @@ TEST(TSchemafulLoggerTest, LogWithNullField)
         TColumnSchema("optional_field", ESimpleLogicalValueType::Int64).SetRequired(false)
     }));
 
-    auto logWithRequiredNullField = [&schemafulLogger] () {
+    auto logWithRequiredNullField = [&schemafulLogger] {
         LogStructuredEventFluently(schemafulLogger, ELogLevel::Info)
             .Item("optional_field").Value(0);
     };
@@ -73,7 +73,7 @@ TEST(TSchemafulLoggerTest, LogWithNullField)
     // In fact, it is safe because the execution of this function is single-threaded.
     ASSERT_DEATH(logWithRequiredNullField(), "");
 
-    auto logWithOptionalNullField = [&schemafulLogger] () {
+    auto logWithOptionalNullField = [&schemafulLogger] {
         LogStructuredEventFluently(schemafulLogger, ELogLevel::Info)
             .Item("required_field").Value(0);
     };
@@ -91,7 +91,7 @@ TEST(TSchemafulLoggerTest, LogWithNotSpecifiedField)
         TColumnSchema("optional_field", ESimpleLogicalValueType::Int64).SetRequired(false)
     }));
 
-    auto logWithNotSpecifiedField = [&schemafulLogger] () {
+    auto logWithNotSpecifiedField = [&schemafulLogger] {
         LogStructuredEventFluently(schemafulLogger, ELogLevel::Info)
             .Item("not_specified").Value(0);
     };
@@ -113,7 +113,7 @@ TEST(TSchemafulLoggerTest, LogWithWrongFieldType)
         TColumnSchema("optional_field", ESimpleLogicalValueType::Int64).SetRequired(false)
     }));
 
-    auto logWithWrongFieldType = [&schemafulLogger] () {
+    auto logWithWrongFieldType = [&schemafulLogger] {
         LogStructuredEventFluently(schemafulLogger, ELogLevel::Info)
             .Item("optional_field").Value("value");
     };

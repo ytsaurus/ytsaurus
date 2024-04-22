@@ -165,7 +165,7 @@ void TSlotManager::Initialize()
 
 void TSlotManager::Start()
 {
-    auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] () {
+    auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
@@ -888,7 +888,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
                 })
             .DoIf(
                 static_cast<bool>(rootVolumeManager),
-                [rootVolumeManager = std::move(rootVolumeManager)](TFluentMap fluent){
+                [rootVolumeManager = std::move(rootVolumeManager)] (TFluentMap fluent){
                     fluent
                         .Item("root_volume_manager").Do(std::bind(
                             &IVolumeManager::BuildOrchid,

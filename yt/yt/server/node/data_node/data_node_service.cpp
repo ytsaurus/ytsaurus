@@ -1539,7 +1539,7 @@ private:
         ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->chunk_requests())
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)](const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
                     return;

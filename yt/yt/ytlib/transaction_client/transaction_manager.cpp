@@ -1553,7 +1553,7 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
-    return transaction->Start(type, options).Apply(BIND([=] () {
+    return transaction->Start(type, options).Apply(BIND([=] {
         return TTransaction::Create(transaction);
     }));
 }

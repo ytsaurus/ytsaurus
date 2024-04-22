@@ -658,7 +658,8 @@ INodePtr BuildEmbeddedConfig(EComplexTypeMode complexTypeMode, EProtoFormatType 
     return config;
 }
 
-TTableSchemaPtr BuildEmbeddedSchema() {
+TTableSchemaPtr BuildEmbeddedSchema()
+{
     auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
         {"embedded_num", SimpleLogicalType(ESimpleLogicalValueType::Uint64)},
@@ -4467,7 +4468,7 @@ TEST_F(TProtobufFormatEnumCompat, WriteCanSkipUnknownEnumValues)
         {"inner", EValueType::Composite, "[MinusFortyTwo;Two;[MinusFortyTwo;Two];[One;MinusFortyTwo]]"},
     });
 
-    auto collectRepeated = [](const auto& repeated) {
+    auto collectRepeated = [] (const auto& repeated) {
         std::vector<TEnumCompat::ECompatEnum> values;
         for (auto value : repeated) {
             values.push_back(static_cast<TEnumCompat::ECompatEnum>(value));

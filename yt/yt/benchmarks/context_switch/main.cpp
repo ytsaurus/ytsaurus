@@ -53,7 +53,7 @@ struct TBaseClass
 {
     virtual void Foo() = 0;
 
-    virtual ~TBaseClass() {}
+    virtual ~TBaseClass() = default;
 };
 
 struct TDerivedClass

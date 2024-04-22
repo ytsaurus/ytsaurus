@@ -60,7 +60,7 @@ int main()
     std::vector<std::thread> threads;
     threads.reserve(ThreadsCount);
     for (int i = 0; i < ThreadsCount; ++i) {
-        threads.push_back(std::thread([&] () {
+        threads.push_back(std::thread([&] {
             // TStatsHolder holder;
             ExecTimes(100_MB / ThreadsCount, holder);
         }));

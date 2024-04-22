@@ -342,14 +342,14 @@ private:
         auto req = BaseHttpRequest_;
         request.Serialize(&req);
 
-        return BIND([this, this_ = MakeStrong(this)](THttpRequest req) {
+        return BIND([this, this_ = MakeStrong(this)] (THttpRequest req) {
             PrepareHttpRequest(
                 &req,
                 Config_->AccessKeyId,
                 Config_->SecretAccessKey);
 
             return Client_->MakeRequest(std::move(req))
-                .ApplyUnique(BIND([](TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .ApplyUnique(BIND([] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
                         return TError("HTTP request failed") << std::move(responseOrError);
                     }

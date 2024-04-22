@@ -172,7 +172,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
         .ThrowOnError();
 
     auto discoveryClient = CreateDiscoveryClient();
-    auto checkGroupSize = [&] () {
+    auto checkGroupSize = [&] {
         auto metaFuture = discoveryClient->GetGroupMeta(groupId);
         const auto& metaOrError = metaFuture.Get();
         if (!metaOrError.IsOK()) {
@@ -193,7 +193,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     YT_UNUSED_FUTURE(memberClient1->Stop());
 
-    auto checkMember = [&] () {
+    auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
         return members.size() == 1 && members[0].Id == memberId2;
@@ -256,7 +256,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
     WaitForPredicate(BIND(checkResponseSize, 3, false));
     WaitForPredicate(BIND(checkResponseSize, 2, true));
 
-    auto checkNonExistent = [&] () {
+    auto checkNonExistent = [&] {
         auto groupsFuture = discoveryClient->ListGroups(subgroupId4, {});
         if (!groupsFuture.Wait()) {
             return false;
@@ -284,7 +284,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
     discoveryConnectionConfig->Addresses = {addresses[3], addresses[4]};
     auto discoveryClient = CreateDiscoveryClient(discoveryConnectionConfig);
 
-    auto checkMember = [&] () {
+    auto checkMember = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& membersOrError = membersFuture.Get();
         if (!membersOrError.IsOK()) {
@@ -320,7 +320,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     TListMembersOptions options;
     options.AttributeKeys.push_back(key);
 
-    auto checkAttributes1 = [&] () {
+    auto checkAttributes1 = [&] {
         auto membersOrError = discoveryClient->ListMembers(groupId, options).Get();
         if (!membersOrError.IsOK()) {
             return false;
@@ -337,7 +337,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     auto* attributes = memberClient->GetAttributes();
     attributes->Set(key, value);
 
-    auto checkAttributes2 = [&] () {
+    auto checkAttributes2 = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
         if (members.size() != 1 || members[0].Id != memberId) {
@@ -369,7 +369,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
     auto discoveryClient = CreateDiscoveryClient();
 
-    auto checkListMembers = [&] () {
+    auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& membersOrError = membersFuture.Get();
         if (!membersOrError.IsOK()) {
@@ -393,7 +393,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
     TListMembersOptions options;
     options.Limit = 3;
 
-    auto checkListMembersSize = [&] () {
+    auto checkListMembersSize = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& membersOrError = membersFuture.Get();
         if (!membersOrError.IsOK()) {
@@ -441,7 +441,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     KillDiscoveryServer(1);
     RecreateDiscoveryServer(0);
 
-    auto checkListMembers = [&] () {
+    auto checkListMembers = [&] {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& membersOrError = membersFuture.Get();
         if (!membersOrError.IsOK()) {
@@ -493,7 +493,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
 
     auto discoveryClient = CreateDiscoveryClient();
 
-    auto checkGroups = [&] () {
+    auto checkGroups = [&] {
         for (const auto& [groupId, memberId] : testMembers) {
             auto membersFuture = discoveryClient->ListMembers(groupId, {});
             auto membersOrError = membersFuture.Get();
@@ -513,7 +513,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     WaitFor(memberClients[1]->Stop())
         .ThrowOnError();
 
-    auto checkGroupDeleted = [&] () {
+    auto checkGroupDeleted = [&] {
         const auto& [groupId, memberId] = testMembers[1];
         auto groupMetaFuture = discoveryClient->GetGroupMeta(groupId);
         return !groupMetaFuture.Get().IsOK();
@@ -813,11 +813,11 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
     }
 
     YT_UNUSED_FUTURE(memberClient1->Stop());
-    WaitForPredicate([&](){
+    WaitForPredicate([&] {
         return !SyncYPathExists(ypathService, "/sample_group1");
     });
 
-    auto checkMembers = [&] () {
+    auto checkMembers = [&] {
         return SyncYPathList(ypathService, "/") == std::vector<TString>{"sample_group2"};
     };
     WaitForPredicate(checkMembers);

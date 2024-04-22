@@ -228,7 +228,7 @@ void TQueueConsumerRegistrationManager::Resolve(
         THROW_ERROR_EXCEPTION("Error perform path resolution for queue and consumer due to expired connection");
     }
 
-    auto pathHandler = [&](NYPath::TRichYPath* path) {
+    auto pathHandler = [&] (NYPath::TRichYPath* path) {
         auto tableMountInfoOrError = WaitFor(GetTableMountInfo(*path, connection));
         HandleTableMountInfoError(*queuePath, tableMountInfoOrError, throwOnFailure, Logger);
 
@@ -274,7 +274,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
 
     auto guard = ReaderGuard(CacheSpinLock_);
 
-    auto comparePaths = [](const TRichYPath& lhs, const TRichYPath& rhs) {
+    auto comparePaths = [] (const TRichYPath& lhs, const TRichYPath& rhs) {
         return lhs.GetPath() == rhs.GetPath() && lhs.GetCluster() == rhs.GetCluster();
     };
 

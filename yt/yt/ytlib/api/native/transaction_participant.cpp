@@ -186,7 +186,7 @@ private:
         if (!CellDirectorySynchronizer_) {
             return MakeNoChannelError();
         }
-        return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this, this_ = MakeStrong(this)] {
             auto channel = CellDirectory_->FindChannelByCellId(CellId_);
             if (channel) {
                 return MakeFuture(channel);

@@ -628,7 +628,7 @@ bool TParameterizedReassignSolver::TryMoveTablet(
 
 void TParameterizedReassignSolver::SortCells()
 {
-    std::sort(Cells_.begin(), Cells_.end(), [&](const auto& lhs, const auto& rhs) {
+    std::sort(Cells_.begin(), Cells_.end(), [&] (const auto& lhs, const auto& rhs) {
         if (lhs.Node == rhs.Node) {
             return lhs.Metric < rhs.Metric;
         }

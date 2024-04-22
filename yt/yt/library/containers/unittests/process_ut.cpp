@@ -251,7 +251,7 @@ TEST_F(TPortoProcessTest, Kill)
     auto finished = p->Spawn();
 
     NConcurrency::TDelayedExecutor::Submit(
-        BIND([&] () {
+        BIND([&] {
             p->Kill(SIGKILL);
         }),
         TDuration::MilliSeconds(100));

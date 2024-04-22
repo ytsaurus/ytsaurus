@@ -1379,7 +1379,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* requisitionRegistry = GetChunkRequisitionRegistry();
 
-        auto unexportChunk = [&] () {
+        auto unexportChunk = [&] {
             chunk->Unexport(destinationCellTag, importRefCounter, requisitionRegistry, objectManager);
         };
 

@@ -282,7 +282,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
 
 TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter converter, Py::Callable middlewareConverter, bool isTiSchemaOptional)
 {
-    auto simpleConverter = [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+    auto simpleConverter = [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
         Py::Tuple args(1);
         args[0] = Py::Object(obj);
         auto pyBaseObject = middlewareConverter.apply(args);
@@ -290,7 +290,7 @@ TPythonToSkiffConverter WrapWithMiddlewareConverter(TPythonToSkiffConverter conv
     };
 
     if (isTiSchemaOptional) {
-        return [simpleConverter = std::move(simpleConverter)](PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
+        return [simpleConverter = std::move(simpleConverter)] (PyObject* obj, TCheckedInDebugSkiffWriter* writer) mutable {
             if (obj == Py_None) {
                 // The middleware may not be ready to handle None, so we avoid calling it here.
                 writer->WriteVariant8Tag(0);

@@ -2037,7 +2037,7 @@ public:
 
                 auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, aboveNodeTransaction);
 
-                auto updateNode = [&] () {
+                auto updateNode = [&] {
                     aboveNode->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
                         ? strongestLockModeBelow = ELockMode::None
                         : strongestLockModeBelow);
@@ -3188,7 +3188,7 @@ private:
         const TLockRequest& request,
         bool recursive)
     {
-        auto doCheck = [&](TCypressNode* trunkNode) {
+        auto doCheck = [&] (TCypressNode* trunkNode) {
             return DoCheckLock(trunkNode, transaction, request);
         };
 

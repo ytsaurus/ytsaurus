@@ -837,7 +837,7 @@ private:
                 auto mutationId = context->GetMutationId();
                 auto identity = GetCurrentAuthenticationIdentity();
                 asyncResponseMessage = readyEvent.Apply(
-                    BIND([=, owner = std::move(owner), prerequisiteTransactionIds = std::move(prerequisiteTransactionIds)] () {
+                    BIND([=, owner = std::move(owner), prerequisiteTransactionIds = std::move(prerequisiteTransactionIds)] {
                     return owner->CoordinatorCommitTransaction(
                         transactionId,
                         participantCellIds,

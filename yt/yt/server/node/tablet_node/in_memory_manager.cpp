@@ -387,7 +387,7 @@ private:
 
         bool failed = false;
         auto readerProfiler = New<TReaderProfiler>();
-        auto profileGuard = Finally([&] () {
+        auto profileGuard = Finally([&] {
             readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Preload, failed);
         });
 
@@ -915,7 +915,7 @@ private:
 
     TFuture<void> SendNextBatch()
     {
-        return BIND([this_ = MakeStrong(this), this] () {
+        return BIND([this_ = MakeStrong(this), this] {
             while (DoSendNextBatch())
             { }
         })

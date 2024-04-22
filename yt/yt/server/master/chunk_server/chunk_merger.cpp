@@ -1740,7 +1740,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
     for (const auto& subrequest : request->subrequests()) {
         auto jobId = FromProto<TJobId>(subrequest.job_id());
 
-        auto eraseFromQueue = [&] () {
+        auto eraseFromQueue = [&] {
             if (!IsLeader()) {
                 return;
             }

@@ -1327,7 +1327,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, ArbitraryKeyLength)
 
 TEST_F(TSingleLockSortedDynamicStoreTest, SerializeEmpty)
 {
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(0, Store_->GetRowCount());
         EXPECT_EQ(0, Store_->GetValueCount());
         EXPECT_EQ(MaxTimestamp, Store_->GetMinTimestamp());
@@ -1349,7 +1349,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeNonempty1)
         timestamps.push_back(timestamp);
     }
 
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(100, Store_->GetRowCount());
         EXPECT_EQ(100, Store_->GetValueCount());
         EXPECT_EQ(timestamps[0], Store_->GetMinTimestamp());
@@ -1380,7 +1380,7 @@ TEST_F(TSingleLockSortedDynamicStoreTest, SerializeNonempty2)
     auto ts2 = WriteRow(BuildRow("key=1;c=test", false));
     auto ts3 = DeleteRow(key);
 
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(1, Store_->GetRowCount());
         EXPECT_EQ(2, Store_->GetValueCount());
         EXPECT_EQ(ts1, Store_->GetMinTimestamp());
@@ -1960,7 +1960,7 @@ TEST_F(TMultiLockSortedDynamicStoreTest, SerializeSnapshot1)
     auto ts3 = WriteRow(BuildRow("key=1;c=test", false));
     auto ts4 = WriteRow(BuildRow("key=1;b=3.14", false), LockMask2);
 
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(1, Store_->GetRowCount());
         EXPECT_EQ(3, Store_->GetValueCount());
 

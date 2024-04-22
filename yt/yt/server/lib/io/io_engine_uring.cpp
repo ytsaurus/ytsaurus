@@ -269,7 +269,7 @@ struct TUringRequest
     virtual void SetPromise() = 0;
 };
 
-TUringRequest::~TUringRequest() { }
+TUringRequest::~TUringRequest() = default;
 
 using TUringRequestPtr = std::unique_ptr<TUringRequest>;
 

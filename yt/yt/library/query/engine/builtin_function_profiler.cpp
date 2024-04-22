@@ -937,14 +937,14 @@ public:
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
                 compareResult,
-                [&](TCGBaseContext& builder){
+                [&] (TCGBaseContext& builder){
                     if (AllScalar(argumentTypes)) {
                         return PackValues(builder, buffer, newValues, argumentTypes, &aggregate);
                     } else {
                         return PackValues(builder, buffer, newValues, argumentTypes);
                     }
                 },
-                [&](TCGBaseContext& /*builder*/){
+                [&] (TCGBaseContext& /*builder*/){
                     return aggregate;
                 }
             );

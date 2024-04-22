@@ -153,7 +153,7 @@ public:
         auto isSequoiaEnabled = config->SequoiaManager->Enable;
         auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -263,7 +263,7 @@ public:
         auto isSequoiaEnabled = config->SequoiaManager->Enable;
         auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {

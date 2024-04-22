@@ -926,7 +926,7 @@ public:
 
         auto groupedAllocationUpdates = RunInMessageOffloadInvoker(
             agent,
-            [agent, nodeManager, request, response, context, config{Config_}] () {
+            [agent, nodeManager, request, response, context, config{Config_}] {
                 const auto Logger = SchedulerLogger
                     .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
 

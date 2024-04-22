@@ -1409,7 +1409,7 @@ private:
             }
 
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
-            auto incrementRevision = Finally([this]() {
+            auto incrementRevision = Finally([this] {
                 ++ConfigRevision_;
             });
 

@@ -215,7 +215,7 @@ void ScanOpHelper(
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
-    auto finalLogger = Finally([&] () {
+    auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing scan helper");
     });
     if (context->Limit == 0) {
@@ -493,7 +493,7 @@ void MultiJoinOpHelper(
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
-    auto finalLogger = Finally([&] () {
+    auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing multijoin helper");
     });
 
@@ -525,7 +525,7 @@ void MultiJoinOpHelper(
 
     bool finished = false;
 
-    closure.ProcessJoinBatch = [&] () {
+    closure.ProcessJoinBatch = [&] {
         if (finished) {
             return true;
         }
@@ -607,7 +607,7 @@ void MultiJoinOpHelper(
             // Sort-merge join
             auto currentKey = orderedKeys.begin();
 
-            auto processSortedForeignSequence = [&] () {
+            auto processSortedForeignSequence = [&] {
                 size_t index = 0;
                 while (index != sortedForeignSequence.size() && currentKey != orderedKeys.end()) {
                     int cmpResult = fullTernaryComparer(*currentKey, sortedForeignSequence[index]);
@@ -1591,7 +1591,7 @@ void GroupOpHelper(
         consumeTotalsClosure,
         consumeTotals);
 
-    auto finalLogger = Finally([&] () {
+    auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing group helper (ProcessedRows: %v)", closure.GetProcessedRowCount());
     });
 
@@ -1656,7 +1656,7 @@ void OrderOpHelper(
     auto collectRows = PrepareFunction(collectRowsFunction);
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
-    auto finalLogger = Finally([&] () {
+    auto finalLogger = Finally([&] {
         YT_LOG_DEBUG("Finalizing order helper");
     });
 
@@ -3598,7 +3598,7 @@ uint64_t BigBHashImpl(char* s, int len)
 
 void AddRegexToFunctionContext(TFunctionContext* context, re2::RE2* regex) // NOLINT
 {
-    auto* ptr = context->CreateUntypedObject(regex, [](void* re) {
+    auto* ptr = context->CreateUntypedObject(regex, [] (void* re) {
         delete static_cast<re2::RE2*>(re);
     });
     context->SetPrivateData(ptr);

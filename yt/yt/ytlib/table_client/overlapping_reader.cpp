@@ -165,7 +165,7 @@ IUnversionedRowBatchPtr TSchemafulOverlappingLookupReader::Read(const TRowBatchR
     rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
 
-    auto readRow = [&] () {
+    auto readRow = [&] {
         for (auto& session : Sessions_) {
             YT_ASSERT(session.CurrentRow >= session.Rows.begin() && session.CurrentRow < session.Rows.end());
             RowMerger_->AddPartialRow(*session.CurrentRow);

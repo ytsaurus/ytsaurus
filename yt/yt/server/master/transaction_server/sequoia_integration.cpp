@@ -661,7 +661,7 @@ protected:
             Bootstrap_->GetCellTag());
         ToProto(Request_.mutable_hint_id(), transactionId);
 
-        auto createResponseMessage = BIND([transactionId] () {
+        auto createResponseMessage = BIND([transactionId] {
             NProto::TRspStartCypressTransaction rspProto;
             ToProto(rspProto.mutable_id(), transactionId);
             return NRpc::CreateResponseMessage(rspProto);
@@ -1041,7 +1041,7 @@ private:
                     this_ = MakeStrong(this),
                     descendentTransactionFuture = descendentTransaction,
                     dependentTransactionFuture = dependentTransaction
-                ] () {
+                ] {
                     VERIFY_INVOKER_AFFINITY(Invoker_);
                     YT_ASSERT(descendentTransactionFuture.IsSet());
                     YT_ASSERT(dependentTransactionFuture.IsSet());

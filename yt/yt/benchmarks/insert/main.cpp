@@ -134,7 +134,7 @@ public:
         registrar.Parameter("rpc_dispatcher", &TThis::RpcDispatcher)
             .DefaultNew();
         registrar.Parameter("logging", &TThis::Logging)
-            .DefaultCtor([] () { return NLogging::TLogManagerConfig::CreateSilent(); });
+            .DefaultCtor([] { return NLogging::TLogManagerConfig::CreateSilent(); });
         registrar.Parameter("connection", &TThis::Connection)
             .DefaultNew();
 
@@ -239,7 +239,8 @@ private:
 
     NLogging::TCachingDateFormatter DateFormatter_;
 
-    void CleanUp() {
+    void CleanUp()
+    {
         const auto window = (TInstant::Now().MilliSeconds() - 10*1000) * 256;
 
         auto it = Measurements_.begin();
@@ -253,7 +254,8 @@ private:
         }
     }
 
-    ui64 GetTick() {
+    ui64 GetTick()
+    {
         for (;;) {
             ui64 oldTick = LastTick_;
             ui64 tick = TInstant::Now().MilliSeconds() * 256;

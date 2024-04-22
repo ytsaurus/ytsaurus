@@ -53,11 +53,11 @@ bool TLayerJobExperiment::IsEnabled(
         std::all_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [](const auto& userJobSpec) { return userJobSpec->LayerPaths.empty(); }) &&
+            [] (const auto& userJobSpec) { return userJobSpec->LayerPaths.empty(); }) &&
         std::any_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [](const auto& userJobSpec) { return !userJobSpec->FilePaths.empty(); });
+            [] (const auto& userJobSpec) { return !userJobSpec->FilePaths.empty(); });
 }
 
 void TLayerJobExperiment::PatchUserJobSpec(
@@ -131,7 +131,7 @@ bool TMtnJobExperiment::IsEnabled(
         std::all_of(
             userJobSpecs.begin(),
             userJobSpecs.end(),
-            [](const auto& userJobSpec) { return !userJobSpec->NetworkProject; });
+            [] (const auto& userJobSpec) { return !userJobSpec->NetworkProject; });
 }
 
 void TMtnJobExperiment::PatchUserJobSpec(

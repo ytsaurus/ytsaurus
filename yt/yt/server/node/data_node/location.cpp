@@ -578,7 +578,7 @@ bool TChunkLocation::Resurrect()
 
     YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
 
-    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
             // Remove disabled lock file if exists.
             auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
@@ -1312,7 +1312,7 @@ TFuture<void> TChunkLocation::SynchronizeActions()
 
     return AllSet(futures)
         .AsVoid()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             // All actions with this location ended here.
             auto actionsGuard = Guard(ActionsContainerLock_);
             YT_VERIFY(Actions_.empty());
@@ -1875,7 +1875,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         CreateDisableLockFile(reason);
     }
 
-    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {

@@ -232,7 +232,7 @@ public:
             return;
         }
 
-        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] () {
+        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] {
             auto state = owner->GetState();
             if (state != EPeerState::Leading && state != EPeerState::Following) {
                 return;

@@ -261,7 +261,7 @@ static Py::Object DumpSkiffStructuredImpl(Py::Tuple &args, Py::Dict &kwargs)
             pySchemas.size(),
             skiffSchemas.size()));
     }
-    
+
     ValidateArgumentsEmpty(args, kwargs);
 
     std::vector<TPythonToSkiffConverter> converters;

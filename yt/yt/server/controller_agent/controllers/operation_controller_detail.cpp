@@ -717,7 +717,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
 
-    auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
+    auto initializeAction = BIND([this_ = MakeStrong(this), this] {
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();

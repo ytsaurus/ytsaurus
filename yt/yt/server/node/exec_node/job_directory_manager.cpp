@@ -234,7 +234,7 @@ public:
         YT_LOG_DEBUG("Mounting tmpfs (Config: %v)",
             ConvertToYsonString(config, EYsonFormat::Text));
 
-        return BIND([=, this, this_ = MakeStrong(this)] () {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             RunTool<TMountTmpfsAsRootTool>(config);
             YT_VERIFY(Directories_.insert(path).second);
         })
@@ -244,7 +244,7 @@ public:
 
     TFuture<void> CleanDirectories(const TString& pathPrefix) override
     {
-        return BIND([=, this, this_ = MakeStrong(this)] () {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             std::vector<TString> toRelease;
             auto it = Directories_.lower_bound(pathPrefix);
             while (it != Directories_.end() && (*it == pathPrefix || it->StartsWith(pathPrefix + "/"))) {

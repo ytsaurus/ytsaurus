@@ -136,7 +136,7 @@ void SerializeMapFragment(
     }
 
     auto onItem = [&] (PyObject* item) {
-        auto itemGuard = Finally([item] () { Py::_XDECREF(item); });
+        auto itemGuard = Finally([item] { Py::_XDECREF(item); });
 
         auto key = Py::Object(PyTuple_GetItem(item, 0), false);
         auto value = Py::Object(PyTuple_GetItem(item, 1), false);

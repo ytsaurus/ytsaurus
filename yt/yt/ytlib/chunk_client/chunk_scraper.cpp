@@ -125,7 +125,7 @@ private:
             return;
         }
 
-        auto finallyGuard = Finally([&] () {
+        auto finallyGuard = Finally([&] {
             LocateChunks();
         });
 

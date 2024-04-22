@@ -24,7 +24,7 @@ void TSkiffRawIterator::Initialize(
 
     Consumer_ = std::make_unique<TPythonSkiffRawRecordBuilder>(
         pythonSkiffschemaList.size(),
-        BIND([&] () { ExtractRow(); }));
+        BIND([&] { ExtractRow(); }));
     Parser_ = CreateSkiffMultiTableParser<TPythonSkiffRawRecordBuilder>(
         Consumer_.get(),
         pythonSkiffschemaList,

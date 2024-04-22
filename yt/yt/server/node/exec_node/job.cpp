@@ -218,7 +218,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
     GuardedAction(
         "DoStart",
-        [&] () {
+        [&] {
             auto now = TInstant::Now();
             PreparationStartTime_ = now;
 
@@ -2212,11 +2212,11 @@ void TJob::OnJobProxyFinished(const TError& error)
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
-        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
             ExtraGpuCheckStartTime_ = TInstant::Now();
         })
             .Via(Invoker_));
-        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
             ExtraGpuCheckFinishTime_ = TInstant::Now();
         })
             .Via(Invoker_));
@@ -2322,7 +2322,7 @@ void TJob::Cleanup()
     {
         auto* inputNodeDirectory = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext)
             ->release_input_node_directory();
-        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] () {
+        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] {
             delete inputNodeDirectory;
         }));
     }

@@ -1004,7 +1004,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, DontSuggestMoreResourcesThanOperat
     std::vector<TFuture<void>> futures;
     auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
-        auto future = BIND([&, i]() {
+        auto future = BIND([&, i] {
             DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[i], operationElement);
         }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));

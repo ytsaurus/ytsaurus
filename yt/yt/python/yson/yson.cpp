@@ -794,9 +794,23 @@ static PyObject* init_module()
 }
 
 #if PY_MAJOR_VERSION < 3
-extern "C" EXPORT_SYMBOL void inityson_lib() { Y_UNUSED(init_module()); }
-extern "C" EXPORT_SYMBOL void inityson_lib_d() { inityson_lib(); }
+extern "C" EXPORT_SYMBOL void inityson_lib()
+{
+    Y_UNUSED(init_module());
+}
+
+extern "C" EXPORT_SYMBOL void inityson_lib_d()
+{
+    inityson_lib();
+}
 #else
-extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib() { return init_module(); }
-extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib_d() { return PyInit_yson_lib(); }
+extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib()
+{
+    return init_module();
+}
+
+extern "C" EXPORT_SYMBOL PyObject* PyInit_yson_lib_d()
+{
+    return PyInit_yson_lib();
+}
 #endif

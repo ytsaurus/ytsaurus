@@ -41,7 +41,8 @@ static void uring_submit_and_wait(struct io_uring* ring)
     io_uring_cqe_seen(ring, cqe);
 }
 
-int main() {
+int main()
+{
     struct io_uring_params p = {};
     struct io_uring ring;
 

@@ -526,7 +526,7 @@ private:
 
         // Throttling control.
         i64 dataWeightToThrottle = 0;
-        auto acquireThrottler = [&] () {
+        auto acquireThrottler = [&] {
             Throttler_->Acquire(dataWeightToThrottle);
             dataWeightToThrottle = 0;
         };

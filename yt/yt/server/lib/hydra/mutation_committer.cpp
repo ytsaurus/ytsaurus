@@ -782,7 +782,7 @@ void TLeaderCommitter::DrainQueue()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto popMutationQueue = [&] () {
+    auto popMutationQueue = [&] {
         const auto& mutation = MutationQueue_.front();
         MutationQueueDataSize_ -= GetMutationDataSize(mutation);
         MutationQueue_.pop_front();

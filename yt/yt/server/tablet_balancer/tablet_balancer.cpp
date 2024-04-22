@@ -1048,7 +1048,7 @@ void TTabletBalancer::ExecuteReshardIteration(
 
     auto descriptorRanges = [&]<class It>(It begin, It end) {
         std::vector<std::pair<It, It>> ranges;
-        auto firstSplit = std::find_if(begin, end, [](const auto& descriptor) {
+        auto firstSplit = std::find_if(begin, end, [] (const auto& descriptor) {
             return std::get<0>(descriptor.Priority);
         });
 

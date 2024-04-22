@@ -506,7 +506,7 @@ private:
         std::sort(
             cellTablets.begin(),
             cellTablets.end(),
-            [](const auto& lhs, const auto& rhs) {
+            [] (const auto& lhs, const auto& rhs) {
                 return lhs.second.size() > rhs.second.size();
             });
 

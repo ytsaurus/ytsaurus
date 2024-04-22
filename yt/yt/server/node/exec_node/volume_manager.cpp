@@ -819,7 +819,7 @@ private:
 
             auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());
 
-            NFS::WrapIOErrors([&] () {
+            NFS::WrapIOErrors([&] {
                 TFileInput metaFileInput(metaFile);
                 metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
             });
@@ -1319,7 +1319,7 @@ private:
             &builder,
             overlayDataArray.begin(),
             overlayDataArray.end(),
-            [](TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
+            [] (TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
                 builder->AppendString(volumeOrLayer.GetPath());
             },
             ";");
@@ -1841,7 +1841,7 @@ private:
         std::vector<TFuture<TFetchedArtifactKey>> futures;
         for (const auto& pair : CachedLayerDescriptors_) {
             auto future = BIND(
-                [=, this, this_ = MakeStrong(this)] () {
+                [=, this, this_ = MakeStrong(this)] {
                     const auto& path = pair.first;
                     const auto& fetchedKey = pair.second;
                     auto revision = fetchedKey.ArtifactKey
@@ -2093,7 +2093,7 @@ public:
             ProfilingExecutor_->Stop(),
             RegularTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false),
             NirvanaTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false)
-        }).Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        }).Apply(BIND([=, this, this_ = MakeStrong(this)] {
             OnProfiling();
         }));
     }
@@ -2348,7 +2348,7 @@ public:
 
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
             YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
                 volumeId,
                 layer.nbd_export_id(),
@@ -2426,7 +2426,7 @@ public:
 
         // At first remove overlay volume, then remove constituent volumes and layers.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, overlayDataArray = OverlayDataArray_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() mutable {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, overlayDataArray = OverlayDataArray_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] () mutable {
             YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
 
             std::vector<TFuture<void>> futures;
@@ -2516,7 +2516,7 @@ public:
             volumeId,
             volumePath);
 
-        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() {
+        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
             YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
@@ -2833,7 +2833,7 @@ private:
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
 
-            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] () {
+            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] {
                 YT_LOG_DEBUG("Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
                     tag,
                     layer.nbd_export_id(),
@@ -3161,7 +3161,7 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
         std::move(memoryUsageTracker),
         bootstrap);
 
-    return volumeManager->Initialize().Apply(BIND([=] () {
+    return volumeManager->Initialize().Apply(BIND([=] {
         return static_cast<IVolumeManagerPtr>(volumeManager);
     }));
 }

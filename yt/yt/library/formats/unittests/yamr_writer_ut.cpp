@@ -35,7 +35,8 @@ protected:
 
     TStringStream OutputStream_;
 
-    TSchemalessWriterForYamrTest() {
+    TSchemalessWriterForYamrTest()
+    {
         NameTable_ = New<TNameTable>();
         KeyId_ = NameTable_->RegisterName("key");
         SubkeyId_ = NameTable_->RegisterName("subkey");

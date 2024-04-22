@@ -672,7 +672,7 @@ void EnrichKeyRange(
             step = generator->Next();
             upperRow[prefixSize] = step;
 
-            enumerateModulo(prefixRow, [&] () {
+            enumerateModulo(prefixRow, [&] {
                 Copy(prefixRow, lowerRow, prefixSize);
                 Copy(prefixRow, upperRow, prefixSize);
                 yieldRange(lowerRow, upperRow, lowerSentinel, std::nullopt);
@@ -684,13 +684,13 @@ void EnrichKeyRange(
         prefixRow[prefixSize] = step;
         lowerRow[prefixSize] = step;
         upperRow[prefixSize] = upperBound;
-        enumerateModulo(prefixRow, [&] () {
+        enumerateModulo(prefixRow, [&] {
             Copy(prefixRow, lowerRow, prefixSize);
             Copy(prefixRow, upperRow, prefixSize);
             yieldRange(lowerRow, upperRow, std::nullopt, upperSentinel);
         });
     } else {
-        enumerateModulo(prefixRow, [&] () {
+        enumerateModulo(prefixRow, [&] {
             Copy(prefixRow, lowerRow, shrinkSize);
             Copy(prefixRow, upperRow, shrinkSize);
             yieldRange(lowerRow, upperRow, lowerSentinel, upperSentinel);

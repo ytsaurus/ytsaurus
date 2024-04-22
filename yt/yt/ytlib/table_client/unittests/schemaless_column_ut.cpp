@@ -48,7 +48,7 @@ TEST(TSchemalessColumnTest, Simple)
         rows.begin(),
         rows.end(),
         expected.begin(),
-        [](TUnversionedOwningRow owningRow) {
+        [] (TUnversionedOwningRow owningRow) {
             return owningRow.Get();
         });
 

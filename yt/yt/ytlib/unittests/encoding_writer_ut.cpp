@@ -49,7 +49,7 @@ void DoTestEncodingWriter(
     std::generate_n(std::back_inserter(base), blockSize, [&rnd] {
         return rnd() % 127 + 1;
     });
-    std::generate_n(std::back_inserter(blocks), blockNum, [base, &rnd, &whole]() mutable {
+    std::generate_n(std::back_inserter(blocks), blockNum, [base, &rnd, &whole] () mutable {
         base[rnd() % base.size()] = rnd() % 127 + 1;
         whole += base;
         return TSharedRef::FromString(base);

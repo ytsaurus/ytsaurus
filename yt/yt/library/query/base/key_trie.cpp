@@ -636,7 +636,7 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
 }
 
 TString ToString(TKeyTriePtr node) {
-    auto printOffset = [](int offset) {
+    auto printOffset = [] (int offset) {
         TString str;
         for (int i = 0; i < offset; ++i) {
             str += "  ";

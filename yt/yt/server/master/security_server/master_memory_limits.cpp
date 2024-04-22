@@ -112,7 +112,7 @@ std::optional<TViolatedMasterMemoryLimits> CheckChange(
     const TMasterMemoryLimits& delta) noexcept
 {
     std::optional<TViolatedMasterMemoryLimits> result;
-    auto violated = [&] () {
+    auto violated = [&] {
         return result ? &*result : &result.emplace();
     };
 

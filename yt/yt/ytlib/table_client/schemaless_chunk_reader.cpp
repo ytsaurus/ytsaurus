@@ -1234,7 +1234,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
 
     i64 dataWeight = 0;
 
-    auto success = [&] () {
+    auto success = [&] {
         if (!BeginRead()) {
             // Not ready yet.
             return true;
@@ -1449,7 +1449,7 @@ public:
 
         int valueIndex = 0;
 
-        auto pushNullValue = [&](int columnId) {
+        auto pushNullValue = [&] (int columnId) {
             auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 valueIndex,
                 columnId,
@@ -1459,7 +1459,7 @@ public:
             ++valueIndex;
         };
 
-        auto pushRegularValue = [&](int columnIndex) {
+        auto pushRegularValue = [&] (int columnIndex) {
             auto columnId = columnIdMapping[columnIndex];
             if (columnId == -1) {
                 return;

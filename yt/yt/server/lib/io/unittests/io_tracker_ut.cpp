@@ -165,7 +165,7 @@ TEST(TIOTrackerTest, Concurrent)
     auto threadPool = CreateThreadPool(threadCount, "TrackerTestThread");
     std::vector<TFuture<void>> asyncResults;
     for (int i = 0; i < threadCount; ++i) {
-        auto asyncResult = BIND([&, i] () {
+        auto asyncResult = BIND([&, i] {
             for (int j = 0; j < enqueuePerThreadCount; ++j) {
                 ioTracker->Enqueue(CreateEvent(1, 1, "iter", ToString(i)));
             }
@@ -188,7 +188,7 @@ TEST(TIOTrackerTest, Concurrent)
 
 TEST(TIOTrackerTest, Disable)
 {
-    auto createConfig = [](bool enable, bool enableRaw) {
+    auto createConfig = [] (bool enable, bool enableRaw) {
         auto config = New<TIOTrackerConfig>();
         config->Enable = enable;
         config->EnableRaw = enableRaw;
@@ -208,7 +208,7 @@ TEST(TIOTrackerTest, Disable)
         aggregateEventCount += 1;
     }));
 
-    auto setAndWaitForConfig = [&](const TIOTrackerConfigPtr& config) {
+    auto setAndWaitForConfig = [&] (const TIOTrackerConfigPtr& config) {
         ioTracker->SetConfig(config);
         // Wait until the new config applies. When it happens, GetConfig() will return the
         // same pointer that we passed to SetConfig above. So, it is OK to compare configs by

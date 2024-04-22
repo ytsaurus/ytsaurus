@@ -653,7 +653,8 @@ void TChunkRequisitionRegistry::EnsureBuiltinRequisitionsInitialized(
     FakeRefBuiltinRequisitions();
 }
 
-void TChunkRequisitionRegistry::FakeRefBuiltinRequisitions() {
+void TChunkRequisitionRegistry::FakeRefBuiltinRequisitions()
+{
     // Fake reference - always keep builtin requisitions.
     Ref(EmptyChunkRequisitionIndex);
     Ref(MigrationChunkRequisitionIndex);

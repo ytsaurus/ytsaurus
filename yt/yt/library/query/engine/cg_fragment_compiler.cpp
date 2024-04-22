@@ -1408,7 +1408,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                 evalData = builder->Create##optype(lhsData, rhsData); \
                 break;
 
-        auto compareNulls = [&] () {
+        auto compareNulls = [&] {
             if (useCanonicalNullRelations) {
                 return TCGValue::CreateNull(builder, type);
             }
@@ -1638,7 +1638,7 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
                     Value* lhsLength = lhsValue.GetLength();
                     Value* rhsLength = rhsValue.GetLength();
 
-                    auto codegenEqual = [&] () {
+                    auto codegenEqual = [&] {
                         return CodegenIf<TCGBaseContext, Value*>(
                             builder,
                             builder->CreateICmpEQ(lhsLength, rhsLength),
