@@ -1,4 +1,4 @@
-# Meta information tree
+# Metadata tree
 
 This section describes Cypress, the meta information tree. Cypress contains various system information as well as indications of where user data is stored. This section includes three subsections describing a [general tree view](#description), [Cypress node attributes](#attributes), and [TTL for Cypress nodes](#TTL).
 
@@ -32,7 +32,7 @@ Using YPath, you can represent Cypress as follows:
   ...
 ```
 
-You can manipulate Cypress via a CLI.
+You can manipulate Cypress via a [CLI](../../../api/cli/cli.md).
 
 ## Cypress node attributes { #attributes }
 
@@ -57,7 +57,7 @@ In addition to attributes common to all objects, Cypress nodes have additional a
 | `account` | `string` | Account used to keep track of the resources being used by a specific node |
 | `annotation` | `string` | Human-readable [summary description](../../../user-guide/storage/annotations.md) of an object |
 
-Each node has its own attribute responsible for access control. Therefore, its attributes include `inherit_acl`, `acl`, and `owner`. For more information, see the [Access control system](../../../user-guide/storage/access-control.md) section.
+Each node has its own attribute responsible for access control. Therefore, its attributes include `inherit_acl`, `acl`, and `owner`. For more information, see [Access control system](../../../user-guide/storage/access-control.md).
 
 ### Time attributes { #time_attributes }
 
@@ -67,13 +67,13 @@ When a node is created and every time a node is modified, the system updates its
 
 The `access_time` attribute stores the most recent node access time. Attribute access does not count. In addition, to improve performance, the system does not update this attribute for every access transaction but rather accumulates such transactions and updates `access_time` approximately once per second.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 In rare cases, an attribute may have been accessed without an `access_time` update because of a master server fault.
 
 {% endnote %}
 
-Most commands used for reads and writes include the `suppress_access_tracking` and the `suppress_modification_tracking` options that disable `access_time`, `modification_time`, and `revision` updates, respectively. for reading and writing. In particular, the web interface uses `suppress_access_tracking`, such that content viewing via the web UI does not result in `access_time` updates.
+Most commands used for reads and writes include the `suppress_access_tracking` and the `suppress_modification_tracking` options that disable `access_time`, `modification_time`, and `revision` updates, respectively. for reading and writing. In particular, the {{web-interface}} uses `suppress_access_tracking`, so viewing the contents via the web UI doesn't trigger `access_time` updates.
 
 {% note info "Note" %}
 
@@ -100,7 +100,7 @@ A time interval is specified in milliseconds:
 yt set //home/project/path/table/@expiration_timeout 604800000
 ```
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 You cannot restore data deleted using this mechanism. Use it with caution.
 
@@ -116,8 +116,20 @@ A node is not automatically deleted if at the specified moment in time it is sub
 
 When you copy and move a node, `expiration_time` and `expiration_timeout` are reset by default, so the copy will not automatically delete. Commands include the `preserve-expiration-time` and the `preserve-expiration-timeout` options that enable you to change their behavior.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 A number of API calls that create temporary tables set such tables' `expiration_time`/`expiration_timeout` to purge them automatically. You must keep that in mind and not store important data in such tables.
 
 {% endnote %}
+
+Deletion may occur earlier if the node is located in a subtree with a smaller `expiration_time`/`expiration_timeout` value at the root. To get the actual deletion time of a node, use the `effective_expiration` attribute:
+
+```bash
+$ yt get //home/project/path/table/@effective_expiration
+{
+  "time": {"value": 42, "path": //testator/path}
+  "timeout": {"value": 42, "path": //testator/path}
+}
+```
+
+If the path from the root to the node doesn't contain `expiration_time` or another relevant attribute, a YSON entity is written to the `“time”` field instead.
