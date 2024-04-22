@@ -137,19 +137,20 @@ TMasterJobBase::TMasterJobBase(
     TString jobTrackerAddress,
     const TJobResources& resourceLimits,
     IBootstrap* bootstrap)
-    : TResourceHolder(
-        bootstrap->GetJobResourceManager().Get(),
-        EResourcesConsumerType::MasterJob,
-        DataNodeLogger.WithTag(
-            "JobId: %v, JobType: %v",
-            jobId,
-            CheckedEnumCast<EJobType>(jobSpec.type())),
-        resourceLimits)
-    , Bootstrap_(bootstrap)
+    : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->DataNode)
     , JobId_(jobId)
     , JobSpec_(jobSpec)
     , JobTrackerAddress_(std::move(jobTrackerAddress))
+    , Logger(DataNodeLogger.WithTag(
+        "JobId: %v, JobType: %v",
+        jobId,
+        CheckedEnumCast<EJobType>(jobSpec.type())))
+    , ResourceHolder_(TResourceHolder::CreateResourceHolder(
+        jobId.Underlying(),
+        bootstrap->GetJobResourceManager().Get(),
+        EResourcesConsumerType::MasterJob,
+        resourceLimits))
     , NodeDirectory_(Bootstrap_->GetNodeDirectory())
     , StartTime_(TInstant::Now())
 {
@@ -179,7 +180,7 @@ void TMasterJobBase::Start()
             }
         }).Via(Bootstrap_->GetJobInvoker()));
 
-    YT_VERIFY(GetPorts().empty());
+    YT_VERIFY(ResourceHolder_->GetPorts().empty());
 }
 
 bool TMasterJobBase::IsStarted() const noexcept
@@ -187,16 +188,6 @@ bool TMasterJobBase::IsStarted() const noexcept
     VERIFY_THREAD_AFFINITY(JobThread);
 
     return Started_;
-}
-
-void TMasterJobBase::OnResourcesAcquired() noexcept
-{
-    Start();
-}
-
-TFuture<void> TMasterJobBase::ReleaseCumulativeResources()
-{
-    return VoidFuture;
 }
 
 void TMasterJobBase::Abort(const TError& error)
@@ -218,18 +209,18 @@ void TMasterJobBase::Abort(const TError& error)
     }
 }
 
+const TResourceHolderPtr& TMasterJobBase::GetResourceHolder() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return ResourceHolder_;
+}
+
 NChunkServer::TJobId TMasterJobBase::GetId() const noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return JobId_;
-}
-
-TGuid TMasterJobBase::GetIdAsGuid() const noexcept
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return JobId_.Underlying();
 }
 
 EJobType TMasterJobBase::GetType() const
@@ -264,7 +255,7 @@ TJobResources TMasterJobBase::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetResourceUsage();
+    return ResourceHolder_->GetResourceUsage();
 }
 
 TJobResult TMasterJobBase::GetResult() const
@@ -289,7 +280,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
     auto [
         baseResourceUsage,
         additionalResourceUsage
-    ] = TResourceHolder::GetDetailedResourceUsage();
+    ] = ResourceHolder_->GetDetailedResourceUsage();
 
     return TBriefJobInfo(
         JobId_,
@@ -299,8 +290,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
         GetStartTime(),
         /*jobDuration=*/ TInstant::Now() - GetStartTime(),
         baseResourceUsage,
-        additionalResourceUsage,
-        TResourceHolder::GetPorts());
+        additionalResourceUsage);
 }
 
 TFuture<void> TMasterJobBase::GuardedRun()
@@ -369,15 +359,6 @@ void TMasterJobBase::DoSetFinished(
         return;
     }
 
-    // Job resources lifetime steps:
-    // 1. Resources are allocated for job for the entire lifetime of job.
-    // 2. Job started.
-    // 3. Resources are allocated for a job by request of the job (while ResourceState == Acquired).
-    // 4. Job finished.
-    // 5. Resources are released for a job by request of the job (while ResourceState == Acquired).
-    // 6. Resources allocated for the entire lifetime of the job are released (allocated resources are reset to zero).
-
-    // 4th step.
     JobState_ = finalState;
     ToProto(Result_.mutable_error(), error);
 
@@ -390,19 +371,9 @@ void TMasterJobBase::DoSetFinished(
                 error,
                 "Master job finished with error");
 
-            // 5th step.
-            YT_UNUSED_FUTURE(ReleaseCumulativeResources()
-                // 6th step.
-                .Apply(BIND(&TMasterJobBase::ReleaseResources, MakeStrong(this))
-                .AsyncVia(Bootstrap_->GetJobInvoker()))
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                    YT_LOG_FATAL_IF(
-                        !error.IsOK(),
-                        error,
-                        "Failed to release master job resources");
-                })
-                .Via(Bootstrap_->GetJobInvoker())));
-        }));
+            ResourceHolder_->ReleaseBaseResources();
+        })
+            .Via(Bootstrap_->GetJobInvoker()));
 
         JobFuture_.Reset();
     }
@@ -1227,82 +1198,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSystemMemoryUsageTracker
-    : public IMemoryUsageTracker
-{
-public:
-    TJobSystemMemoryUsageTracker(
-        TWeakPtr<TResourceHolder> resourceHolder)
-        : ResourceHolder_(std::move(resourceHolder))
-    { }
-
-    bool Acquire(i64 size) override
-    {
-        TJobResources resources;
-        resources.SystemMemory = size;
-        return ResourceHolder_.Lock()->UpdateAdditionalResourceUsage(resources);
-    }
-
-    TError TryAcquire(i64 /*size*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    TError TryChange(i64 /*size*/) override
-    {
-        // Job cannot set self memory.
-        YT_UNIMPLEMENTED();
-    }
-
-    void Release(i64 size) override
-    {
-        TJobResources resources;
-        resources.SystemMemory = -size;
-        ResourceHolder_.Lock()->UpdateAdditionalResourceUsage(resources);
-    }
-
-    i64 GetFree() const override
-    {
-        return GetLimit() - GetUsed();
-    }
-
-    void SetLimit(i64 /*size*/) override
-    {
-        // Job cannot set self limits.
-        YT_UNIMPLEMENTED();
-    }
-
-    i64 GetLimit() const override
-    {
-        auto resource = ResourceHolder_.Lock()->GetResourceLimits();
-        return resource.SystemMemory ? resource.SystemMemory : std::numeric_limits<i64>::max();
-    }
-
-    i64 GetUsed() const override
-    {
-        auto holder = ResourceHolder_.Lock();
-        auto resource = holder->GetResourceUsage();
-        return resource.SystemMemory;
-    }
-
-    bool IsExceeded() const override
-    {
-        return GetFree() <= 0;
-    }
-
-    TSharedRef Track(TSharedRef reference, bool /*keepExistingTracking*/) override
-    {
-        return reference;
-    }
-
-private:
-    const TWeakPtr<TResourceHolder> ResourceHolder_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobSystemMemoryUsageTracker);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkMergeJob
     : public TMasterJobBase
 {
@@ -1494,11 +1389,6 @@ private:
             YT_LOG_ALERT(ShallowMergeValidationError_, "Shallow merge validation failed");
             THROW_ERROR ShallowMergeValidationError_;
         }
-    }
-
-    TFuture<void> ReleaseCumulativeResources() override
-    {
-        return MultiReaderMemoryManager_->Finalize();
     }
 
     TFuture<void> DoRun() override

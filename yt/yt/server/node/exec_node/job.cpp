@@ -160,19 +160,16 @@ TJob::TJob(
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
     const TJobCommonConfigPtr& commonConfig)
-    : TResourceHolder(
-        bootstrap->GetJobResourceManager().Get(),
-        EResourcesConsumerType::SchedulerAllocation,
-        ExecNodeLogger.WithTag(
-            "JobId: %v, OperationId: %v, JobType: %v",
-            jobId,
-            operationId,
-            CheckedEnumCast<EJobType>(jobSpec.type())),
-        allocation)
-    , Id_(jobId)
+    : Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
+    , Logger(ExecNodeLogger.WithTag(
+        "JobId: %v, OperationId: %v, JobType: %v",
+        jobId,
+        operationId,
+        CheckedEnumCast<EJobType>(jobSpec.type())))
     , Allocation_(std::move(allocation))
+    , ResourceHolder_(Allocation_->GetResourceHolder())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
@@ -773,18 +770,11 @@ TJobId TJob::GetId() const noexcept
     return Id_;
 }
 
-TGuid TJob::GetIdAsGuid() const noexcept
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Id_.Underlying();
-}
-
 TAllocationId TJob::GetAllocationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TAllocationId(GetIdAsGuid());
+    return AllocationIdFromJobId(Id_);
 }
 
 TOperationId TJob::GetOperationId() const
@@ -981,7 +971,7 @@ NClusterNode::TJobResources TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetResourceUsage();
+    return ResourceHolder_->GetResourceUsage();
 }
 
 bool TJob::IsGpuRequested() const
@@ -993,7 +983,7 @@ const std::vector<int>& TJob::GetPorts() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetPorts();
+    return ResourceHolder_->GetPorts();
 }
 
 const TError& TJob::GetJobError() const
@@ -1034,7 +1024,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
-        TResourceHolder::SetBaseResourceUsage(newUsage);
+        ResourceHolder_->SetBaseResourceUsage(newUsage);
     }
 }
 
@@ -1192,7 +1182,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
     auto [
         baseResourceUsage,
         additionalResourceUsage
-    ] = TResourceHolder::GetDetailedResourceUsage();
+    ] = ResourceHolder_->GetDetailedResourceUsage();
 
     return TBriefJobInfo(
         GetId(),
@@ -1905,7 +1895,8 @@ std::vector<TDevice> TJob::GetGpuDevices()
 
 bool TJob::IsFullHostGpuJob() const
 {
-    return !GpuSlots_.empty() && GpuSlots_.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
+    const auto& gpuSlots = GetGpuSlots();
+    return !gpuSlots.empty() && gpuSlots.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
 }
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
@@ -2167,7 +2158,7 @@ IUserSlotPtr TJob::GetUserSlot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    const auto& userSlot = Allocation_ ? Allocation_->GetUserSlot() : UserSlot_;
+    const auto& userSlot = ResourceHolder_->GetUserSlot();
 
     return StaticPointerCast<IUserSlot>(userSlot);
 }
@@ -2176,7 +2167,7 @@ std::vector<TGpuSlotPtr> TJob::GetGpuSlots() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    const auto& gpuSlots = Allocation_ ? Allocation_->GetGpuSlots() : GpuSlots_;
+    const auto& gpuSlots = ResourceHolder_->GetGpuSlots();
 
     std::vector<TGpuSlotPtr> result;
     result.reserve(std::size(gpuSlots));
@@ -2340,7 +2331,7 @@ void TJob::Cleanup()
     GpuStatistics_.clear();
 
     if (IsStarted()) {
-        ReleaseCumulativeResources();
+        ResourceHolder_->ReleaseNonSlotResources();
     }
 
     if (RootVolume_) {
@@ -2372,7 +2363,7 @@ void TJob::Cleanup()
         }
     }
 
-    ReleaseResources();
+    ResourceHolder_->ReleaseBaseResources();
 
     SetJobPhase(EJobPhase::Finished);
 

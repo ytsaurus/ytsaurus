@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -538,7 +540,8 @@ IUserSlotPtr CreateSlot(
     NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
-    auto slot = New<TUserSlot>(
+    auto slot = NewWithOffloadedDtor<TUserSlot>(
+        bootstrap->GetJobInvoker(),
         slotManager,
         std::move(location),
         std::move(environment),

@@ -65,7 +65,7 @@ struct TArtifact
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public NJobAgent::TResourceHolder
+    : public TRefCounted
 {
     struct TNameWithAddress
     {
@@ -114,7 +114,6 @@ public:
     void OnResultReceived(NControllerAgent::NProto::TJobResult jobResult);
 
     TJobId GetId() const noexcept;
-    TGuid GetIdAsGuid() const noexcept override;
     NScheduler::TAllocationId GetAllocationId() const;
 
     TOperationId GetOperationId() const;
@@ -257,7 +256,10 @@ private:
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
 
+    NLogging::TLogger Logger;
+
     TAllocationPtr Allocation_;
+    NJobAgent::TResourceHolderPtr ResourceHolder_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
@@ -383,7 +385,7 @@ private:
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
-    void OnResourcesAcquired() noexcept override;
+    void OnResourcesAcquired() noexcept;
 
     // Helpers.
 
