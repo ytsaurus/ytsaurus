@@ -28,6 +28,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   server-lib-shell
   server-lib-user_job
   yt-library-sparse_coredump
+  library-query-row_comparer
 )
 target_sources(yt-server-job_proxy PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/job_proxy/asan_warning_filter.cpp

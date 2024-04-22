@@ -43,6 +43,7 @@ PEERDIR(
     yt/yt/server/lib/shell
     yt/yt/server/lib/user_job
     yt/yt/library/sparse_coredump
+    yt/yt/library/query/row_comparer
 )
 
 END()

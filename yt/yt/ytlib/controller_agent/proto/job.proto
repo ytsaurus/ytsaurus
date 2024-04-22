@@ -440,6 +440,8 @@ message TJobSpecExt
     // At most one job profiler is supported for now.
     repeated TJobProfilerSpec job_profilers = 37;
 
+    optional bool enable_codegen_comparator = 39;
+
     reserved 8, 28;
 }
 
