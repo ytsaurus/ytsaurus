@@ -4,9 +4,6 @@ on:
       runs-on-value:
         required: true
         type: string
-    secrets:
-      NEBIUS_TESTMO_TOKEN:
-        required: true
 
 jobs:
   check:
@@ -38,10 +35,3 @@ jobs:
         shell: bash
         run: |
           ytsaurus/yt/odin/tests/run_tests.sh
-
-      - name: Testmo unittests upload
-        shell: bash
-        run: |
-          export TESTMO_TOKEN="${{ secrets.NEBIUS_TESTMO_TOKEN }}"
-          testmo automation:run:submit --instance https://nebius.testmo.net --project-id 4 --name "Run ${{ github.run_id }}" --source "unittests" --results "../build/junit-*.xml"
-
