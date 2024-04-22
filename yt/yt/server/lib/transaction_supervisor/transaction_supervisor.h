@@ -43,8 +43,9 @@ struct ITransactionSupervisor
 
     // Awfull hack for tests only.
     // TODO(aleksandra-zh): remove when Sequoia tx sequencer will be implemented.
-    virtual void SetPreparedSequoiaTxCount(int count) = 0;
-    virtual void ChangePreparedSequoiaTxCount(int delta) = 0;
+    virtual void ClearSequoiaTxRegistry() = 0;
+    virtual void RegisterPreparedSequoiaTx(TTransactionId id) = 0;
+    virtual void UnregisterPreparedSequoiaTx(TTransactionId id) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)
