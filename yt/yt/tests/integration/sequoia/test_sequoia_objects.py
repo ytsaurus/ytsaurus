@@ -1,18 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-<<<<<<< releases/yt/stable/23.2: Fix Sequoia transaction ids
     authors, create, get, remove, get_singular_chunk_id, write_table, wait,
     select_rows, create_domestic_medium, ls, set, get_driver)
-=======
-    authors, create, get, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
-    link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address)
-
-from yt.wrapper import yson
->>>>>>> cherry-pick: Fix purgatory corrupting destroyed replicas after node restart
-
-from yt_helpers import profiler_factory
 
 ##################################################################
 
