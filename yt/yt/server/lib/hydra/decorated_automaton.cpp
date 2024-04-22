@@ -1219,7 +1219,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
-            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost)",
+            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
                 hosts,
                 localHost,
                 *sanitizedLocalHost);
