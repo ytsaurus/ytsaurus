@@ -1,6 +1,7 @@
 Checks: >
   -*,
   arcadia-typeid-name-restriction,
+  arcadia-ascii-compare-ignorecase,
   # bugprone-use-after-move is disabled as it does not treat . as a synchornization point, as guaranteed by C++17
   # See the discussion in
   # https://github.com/llvm/llvm-project/issues/57758
