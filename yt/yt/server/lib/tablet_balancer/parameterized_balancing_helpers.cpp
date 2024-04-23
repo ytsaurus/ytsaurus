@@ -490,7 +490,7 @@ void TParameterizedReassignSolver::CalculateModifyingFactors()
     NodeFactor_ = nodeCount / totalMetric;
 
     //  Per-cell dispersion is less important than per-node so we decrease its absolute value
-    CellFactor_ = nodeCount / cellCount;
+    CellFactor_ *= nodeCount / cellCount;
 
     YT_LOG_DEBUG(
         "Calculated modifying factors (CellFactor: %v, NodeFactor: %v)",
