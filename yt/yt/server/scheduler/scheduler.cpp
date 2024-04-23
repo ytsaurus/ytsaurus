@@ -319,6 +319,9 @@ public:
             .Counter("/metering/guarantees/record_count");
         GuaranteesMeteringUsageQuantityCounter_ = SchedulerProfiler
             .Counter("/metering/guarantees/usage_quantity");
+
+        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
+        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
     }
 
     const NApi::NNative::IClientPtr& GetClient() const
@@ -2148,8 +2151,8 @@ private:
 
         Strategy_->OnMasterConnected();
 
-        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
-        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
+        TotalResourceLimitsProfiler_.Start();
+        TotalResourceUsageProfiler_.Start();
 
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
             return NodeManager_->GetActiveJobCount();
@@ -2175,8 +2178,8 @@ private:
 
     void DoCleanup()
     {
-        TotalResourceLimitsProfiler_.Reset();
-        TotalResourceUsageProfiler_.Reset();
+        TotalResourceLimitsProfiler_.Stop();
+        TotalResourceUsageProfiler_.Stop();
 
         {
             auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
