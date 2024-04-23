@@ -506,7 +506,7 @@ class Row:
 
 #### Схемы { #table_schema }
 
-Каждая таблица в YT имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.yt.yandex.net/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [датакласса](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, это происходит автоматически при записи таблицы.Однако иногда приходится собирать схему вручную, это может быть удобно делать с помощью builder-интерфейса, например:
+Каждая таблица в {{product-name}} имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.yt.yandex.net/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [датакласса](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, это происходит автоматически при записи таблицы. Однако иногда приходится собирать схему вручную, это может быть удобно делать с помощью builder-интерфейса, например:
 
 ```python
 import yt.type_info.typing as ti
