@@ -77,11 +77,11 @@ public:
                 /*partitionTag*/ std::nullopt,
                 MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
-            TCallback<TUUComparerSignature> CGComparer;
+            TCallback<TUUComparerSignature> cgComparer;
             if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
-                CGComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
+                cgComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
             }
-            return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator(std::move(CGComparer)));
+            return CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator(std::move(cgComparer)));
         };
 
         auto transactionId = FromProto<TTransactionId>(JobSpecExt_.output_transaction_id());

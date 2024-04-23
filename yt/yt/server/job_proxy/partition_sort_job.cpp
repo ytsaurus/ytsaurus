@@ -76,15 +76,15 @@ public:
         ReaderFactory_ = [=, this, this_ = MakeStrong(this)] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
-            TCallback<TUUComparerSignature> CGComparer;
+            TCallback<TUUComparerSignature> cgComparer;
             if (JobSpecExt_.enable_codegen_comparator() && outputSchema->IsCGCompatarorApplicable()) {
-                CGComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
+                cgComparer = NQueryClient::GenerateStaticTableKeyComparer(outputSchema->GetKeyColumnTypes());
             }
 
             return CreatePartitionSortReader(
                 tableReaderConfig,
                 Host_->GetChunkReaderHost(),
-                outputSchema->ToComparator(std::move(CGComparer)),
+                outputSchema->ToComparator(std::move(cgComparer)),
                 nameTable,
                 BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
                 dataSourceDirectory,

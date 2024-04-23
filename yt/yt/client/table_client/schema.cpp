@@ -1259,14 +1259,15 @@ TTableSchemaPtr TTableSchema::ToModifiedSchema(ETableSchemaModification schemaMo
     }
 }
 
-TComparator TTableSchema::ToComparator(TCallback<TUUComparerSignature> CGComparator) const
+TComparator TTableSchema::ToComparator(TCallback<TUUComparerSignature> cgComparator) const
 {
     std::vector<ESortOrder> sortOrders(KeyColumnCount_);
     for (int index = 0; index < KeyColumnCount_; ++index) {
         YT_VERIFY(Columns()[index].SortOrder());
         sortOrders[index] = *Columns()[index].SortOrder();
     }
-    return TComparator(std::move(sortOrders), std::move(CGComparator));
+
+    return TComparator(std::move(sortOrders), std::move(cgComparator));
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
