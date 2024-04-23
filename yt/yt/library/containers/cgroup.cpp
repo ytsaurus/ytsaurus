@@ -443,6 +443,7 @@ const TString TCpuAccounting::Name = "cpuacct";
 TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
 {
     #define XX(name) lhs.name = lhs.name.ValueOrThrow() - rhs.name.ValueOrThrow();
+    XX(BurstUsageTime)
     XX(UserUsageTime)
     XX(SystemUsageTime)
     XX(WaitTime)
