@@ -30,8 +30,6 @@ using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
 
-using TYPath = NYPath::TYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSequoiaServiceContextWrapper::TSequoiaServiceContextWrapper(
@@ -88,7 +86,7 @@ public:
             proxy = CreateRootstockProxy(
                 Bootstrap_,
                 context->GetSequoiaTransaction(),
-                GetRequestTargetYPath(context->RequestHeader()));
+                TAbsoluteYPath(GetRequestTargetYPath(context->RequestHeader())));
         } else {
             const auto& sequoiaResolveResult = GetOrCrash<TSequoiaResolveResult>(resolveResult);
             auto prefixNodeId = sequoiaResolveResult.ResolvedPrefixNodeId;

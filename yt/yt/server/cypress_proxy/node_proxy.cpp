@@ -65,7 +65,7 @@ using namespace NYTree;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using TYPath = NYPath::TYPath;
+using TYPath = NSequoiaClient::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +92,7 @@ IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     })
 
 void TSupportsExists::ExistsAttribute(
-    const TYPath& /*path*/,
+    const NYPath::TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
@@ -113,7 +113,7 @@ void TSupportsExists::ExistsSelf(
 }
 
 void TSupportsExists::ExistsRecursive(
-    const TYPath& /*path*/,
+    const NYPath::TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
@@ -136,7 +136,7 @@ public:
     TNodeProxyBase(
         IBootstrap* bootstrap,
         TObjectId id,
-        TYPath path,
+        TAbsoluteYPath path,
         ISequoiaTransactionPtr transaction)
         : Bootstrap_(bootstrap)
         , Id_(id)
@@ -150,7 +150,7 @@ protected:
     // too we already known their ids. Ancestors' ids could be passed to the
     // constructor in order to reduce lookup count when ancestors are needed.
     const TObjectId Id_;
-    const TYPath Path_;
+    const TAbsoluteYPath Path_;
     const ISequoiaTransactionPtr Transaction_;
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
@@ -177,7 +177,7 @@ protected:
 
     TCellId CellIdFromObjectId(TObjectId id)
     {
-        return Bootstrap_->GetNativeConnection()->GetMasterCellId(CellTagFromId(id));
+        return CellIdFromCellTag(CellTagFromId(id));
     }
 
     TObjectServiceProxy CreateReadProxyToCell(TCellTag cellTag)
@@ -191,11 +191,7 @@ protected:
 
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
-        return CreateObjectServiceReadProxy(
-            Bootstrap_->GetNativeRootClient(),
-            EMasterChannelKind::Follower,
-            CellTagFromId(id),
-            Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
+        return CreateReadProxyToCell(CellTagFromId(id));
     }
 
     TObjectServiceProxy CreateWriteProxyForObject(TObjectId id)
@@ -289,7 +285,7 @@ protected:
         context->SetRequestInfo("Force: %v", force);
 
         NRecords::TPathToNodeIdKey selfKey{
-            .Path = MangleSequoiaPath(Path_),
+            .Path = Path_.ToMangledSequoiaPath(),
         };
         Transaction_->LockRow(selfKey, ELockType::Exclusive);
 
@@ -322,14 +318,14 @@ protected:
         if (TypeFromId(Id_) == EObjectType::Scion) {
             subtreeRootCell = RemoveRootstock();
         } else {
-            auto [parentPath, _] = DirNameAndBaseName(Path_);
+            auto parentPath = Path_.GetDirPath();
             LockRowInPathToIdTable(parentPath, Transaction_);
 
             parentId = LookupNodeId(parentPath, Transaction_);
             subtreeRootCell = CellTagFromId(parentId);
         }
 
-        auto mangledPath = MangleSequoiaPath(Path_);
+        auto mangledPath = Path_.ToMangledSequoiaPath();
 
         // NB: For non-recursive removal we have to check if directory is empty.
         // This can be done via requesting just 2 rows.
@@ -368,7 +364,7 @@ protected:
     }
 
     void ExistsAttribute(
-        const TYPath& /*path*/,
+        const NYPath::TYPath& /*path*/,
         TReqExists* request,
         TRspExists* response,
         const TCtxExistsPtr& context) override
@@ -380,7 +376,7 @@ protected:
     }
 
     void GetAttribute(
-        const TYPath& /*path*/,
+        const NYPath::TYPath& /*path*/,
         TReqGet* request,
         TRspGet* response,
         const TCtxGetPtr& context) override
@@ -392,7 +388,7 @@ protected:
     }
 
     void SetAttribute(
-        const TYPath& /*path*/,
+        const NYPath::TYPath& /*path*/,
         TReqSet* request,
         TRspSet* response,
         const TCtxSetPtr& context) override
@@ -404,7 +400,7 @@ protected:
     }
 
     void RemoveAttribute(
-        const TYPath& /*path*/,
+        const NYPath::TYPath& /*path*/,
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override
@@ -465,7 +461,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
             type);
     }
 
-    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    TYPath unresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
     if (unresolvedSuffixTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -507,9 +503,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
 
     TString targetName;
     if (unresolvedSuffixTokens.empty() && force) {
-        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
-        parentPath = std::move(updatedParentPath);
-        targetName = std::move(updatedTargetName);
+        parentPath = TAbsoluteYPath(Path_.GetDirPath());
+        targetName = Path_.GetBaseName();
         // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
         parentId = LookupNodeId(parentPath, Transaction_);
 
@@ -522,7 +517,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
                 Path_);
         }
 
-        targetName = TYPath(unresolvedSuffixTokens.back());
+        targetName = unresolvedSuffixTokens.back();
         unresolvedSuffixTokens.pop_back();
     }
 
@@ -568,7 +563,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Invalid number of additional paths");
     }
 
-    const auto& originalSourcePath = ypathExt.additional_paths(0);
+    TAbsoluteYPathBuf originalSourcePath(ypathExt.additional_paths(0));
     auto options = FromProto<TCopyOptions>(*request);
 
     // These are handled on cypress proxy and are not needed on master.
@@ -619,7 +614,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
     }
 
     auto header = context->GetRequestHeader();
-    SetRequestTargetYPath(&header, originalSourcePath);
+    SetRequestTargetYPath(&header, originalSourcePath.Underlying());
     auto updatedMessage = NRpc::SetRequestHeader(context->GetRequestMessage(), header);
     auto sourceContext = CreateSequoiaContext(std::move(updatedMessage), Transaction_);
 
@@ -640,13 +635,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
 
     // NB: Rewriting in case there were symlinks in the original source path.
     const auto& sourceRootPath = payload->ResolvedPrefix;
-    if (!payload->UnresolvedSuffix.empty()) {
+    if (!payload->UnresolvedSuffix.Empty()) {
         auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
 
     // Validate there are no duplicate or missing destination nodes.
-    auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    TYPath unresolvedDestinationSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
     auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
     if (destinationSuffixDirectoryTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -677,9 +672,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
 
     auto overwriteDestinationSubtree = destinationSuffixDirectoryTokens.empty() && force;
     if (overwriteDestinationSubtree) {
-        auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
-        parentPath = std::move(updatedParentPath);
-        targetName = std::move(updatedTargetName);
+        // auto [updatedParentPath, updatedTargetName] = DirNameAndBaseName(Path_);
+        parentPath = TAbsoluteYPath(Path_.GetDirPath());
+        targetName = Path_.GetBaseName();
         parentId = LookupNodeId(parentPath, Transaction_);
     } else {
         if (!IsSequoiaCompositeNodeType(TypeFromId(Id_))) {
@@ -705,8 +700,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
     // Thus to check that subtrees don't overlap it's enough to check source root with
     // first and last elements of the destination subtree.
     if (options.Mode == ENodeCloneMode::Move && (nodesToRemove.empty() ||
-        sourceRootPath < DemangleSequoiaPath(nodesToRemove.front().Key.Path) ||
-        DemangleSequoiaPath(nodesToRemove.back().Key.Path) < sourceRootPath))
+        sourceRootPath < TAbsoluteYPath(nodesToRemove.front().Key.Path) ||
+        TAbsoluteYPath(nodesToRemove.back().Key.Path) < sourceRootPath))
     {
         // TODO(h0pless): Maybe add parentId to resolve result, then it can be passed here to avoid another lookup.
         RemoveSelectedSubtree(nodesToCopy, Transaction_);
@@ -766,13 +761,12 @@ private:
             YT_VERIFY(Owner_);
         }
 
-        void BeginTree(const TYPath& rootPath)
+        void BeginTree(const TAbsoluteYPath& rootPath)
         {
             YT_VERIFY(NodeStack_.size() == 0);
 
-            auto [parentPath, thisName] = DirNameAndBaseName(rootPath);
-            ParentPath_ = std::move(parentPath);
-            Key_ = std::move(thisName);
+            ParentPath_ = TAbsoluteYPath(rootPath.GetDirPath());
+            Key_ = rootPath.GetBaseName();
         }
 
         TNodeId EndTree()
@@ -831,18 +825,17 @@ private:
         {
             auto nodeId = CreateNode(EObjectType::SequoiaMapNode);
             AddNode(nodeId, true);
-            ParentPath_ = Format("%v/%v", ParentPath_, Key_);
+            ParentPath_.Append(Key_);
         }
 
         void OnMyKeyedItem(TStringBuf key) override
         {
-            Key_ = TString(key);
+            Key_ = ToStringLiteral(key);
         }
 
         void OnMyEndMap() override
         {
-            const auto& key = NodeStack_.top().first;
-            ParentPath_ = ParentPath_.substr(0, ParentPath_.size() - key.size() - 1);
+            ParentPath_ = TAbsoluteYPath(ParentPath_.GetDirPath());
             NodeStack_.pop();
         }
 
@@ -854,14 +847,14 @@ private:
     private:
         const TMapLikeNodeProxy* Owner_;
         TString Key_;
-        TYPath ParentPath_;
+        TAbsoluteYPath ParentPath_;
         TNodeId ResultNodeId_;
         std::stack<std::pair<TString, TNodeId>> NodeStack_;
 
         TNodeId CreateNode(EObjectType type)
         {
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
-            NCypressProxy::CreateNode(type, nodeId, Format("%v/%v", ParentPath_, Key_), Owner_->Transaction_);
+            NCypressProxy::CreateNode(type, nodeId, YPathJoin(ParentPath_, Key_), Owner_->Transaction_);
             return nodeId;
         }
 
@@ -929,7 +922,7 @@ private:
                 "Node %Qv already exists",
                 key);
 
-            auto subtreeRootPath = Format("%v/%v", Owner_->Path_, key);
+            auto subtreeRootPath = YPathJoin(Owner_->Path_, ToStringLiteral(key));
             TreeBuilder_.BeginTree(subtreeRootPath);
             Forward(&TreeBuilder_, std::bind(&TMapNodeSetter::OnForwardingFinished, this, TString(key)));
         }
@@ -963,7 +956,7 @@ private:
         }
 
         NRecords::TPathToNodeIdKey selfKey{
-            .Path = MangleSequoiaPath(Path_),
+            .Path = Path_.ToMangledSequoiaPath(),
         };
         Transaction_->LockRow(selfKey, ELockType::Exclusive);
 
@@ -1107,7 +1100,7 @@ private:
     }
 
     void GetRecursive(
-        const TYPath& path,
+        const NYPath::TYPath& path,
         TReqGet* request,
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
@@ -1132,7 +1125,7 @@ private:
     }
 
     void SetRecursive(
-        const TYPath& path,
+        const NYPath::TYPath& path,
         TReqSet* request,
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
@@ -1144,7 +1137,7 @@ private:
             recursive,
             request->force());
 
-        auto unresolvedSuffix = "/" + path;
+        auto unresolvedSuffix = TYPath("/" + path);
         auto destinationPath = Path_ + unresolvedSuffix;
         auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
         auto targetName = unresolvedSuffixTokens.back();
@@ -1172,7 +1165,7 @@ private:
         AttachChild(
             targetParentId,
             targetNodeId,
-            TYPath(targetName),
+            targetName,
             Transaction_);
 
         WaitFor(Transaction_->Commit({
@@ -1186,7 +1179,7 @@ private:
     }
 
     void RemoveRecursive(
-        const TYPath& path,
+        const NYPath::TYPath& path,
         TReqRemove* request,
         TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override
@@ -1224,7 +1217,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         limit,
         attributeFilter);
 
-    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
+    TYPath unresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
     if (auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
         !unresolvedSuffixTokens.empty())
     {
@@ -1306,7 +1299,7 @@ ISequoiaServicePtr CreateNodeProxy(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr transaction,
     TObjectId id,
-    TYPath resolvedPath)
+    TAbsoluteYPath resolvedPath)
 {
     auto type = TypeFromId(id);
     ValidateSupportedSequoiaType(type);

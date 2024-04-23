@@ -34,7 +34,7 @@ struct TCopyOptions
 
 void WriteSequoiaNodeRows(
     NCypressClient::TNodeId id,
-    const NYPath::TYPath& path,
+    NSequoiaClient::TAbsoluteYPathBuf path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void DeleteSequoiaNodeRows(
@@ -50,12 +50,12 @@ void SetNode(
 void CreateNode(
     NCypressClient::EObjectType type,
     NCypressClient::TNodeId id,
-    const NYPath::TYPath& path,
+    NSequoiaClient::TAbsoluteYPathBuf path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 NCypressClient::TNodeId CopyNode(
     NCypressClient::TNodeId sourceNodeId,
-    const NYPath::TYPath& destinationNodePath,
+    NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -68,7 +68,7 @@ void RemoveNode(
 void AttachChild(
     NCypressClient::TNodeId parentId,
     NCypressClient::TNodeId childId,
-    const NYPath::TYPath& childKey,
+    const TString& childKey,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void DetachChild(
@@ -77,7 +77,7 @@ void DetachChild(
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void LockRowInPathToIdTable(
-    const NYPath::TYPath& path,
+    NSequoiaClient::TAbsoluteYPathBuf path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     NTableClient::ELockType lockType = NTableClient::ELockType::SharedStrong);
 

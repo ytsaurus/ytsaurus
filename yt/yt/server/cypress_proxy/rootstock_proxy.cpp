@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -41,7 +42,7 @@ class TRootstockProxy
 public:
     TRootstockProxy(
         IBootstrap* bootstrap,
-        TYPath path,
+        TAbsoluteYPath path,
         ISequoiaTransactionPtr transaction)
         : Bootstrap_(bootstrap)
         , Path_(std::move(path))
@@ -50,7 +51,7 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    const TYPath Path_;
+    const TAbsoluteYPath Path_;
     const ISequoiaTransactionPtr Transaction_;
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
@@ -115,17 +116,17 @@ private:
         attributes->Set("scion_id", scionId);
 
         Transaction_->WriteRow(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(Path_)},
+            .Key = {.Path = Path_.ToMangledSequoiaPath()},
             .NodeId = scionId,
         });
         Transaction_->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = scionId},
-            .Path = Path_,
+            .Path = Path_.ToString(),
         });
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         rootstockAction.mutable_request()->CopyFrom(*request);
-        rootstockAction.set_path(Path_);
+        rootstockAction.set_path(Path_.ToString());
 
         auto* createRootstockRequest = rootstockAction.mutable_request();
         ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
@@ -162,7 +163,7 @@ private:
 ISequoiaServicePtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr transaction,
-    TYPath resolvedPath)
+    TAbsoluteYPath resolvedPath)
 {
     return New<TRootstockProxy>(
         bootstrap,

@@ -8,6 +8,8 @@
 
 namespace NYT::NSequoiaClient {
 
+using namespace NYPath;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
@@ -32,6 +34,17 @@ NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix)
 {
     return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
+}
+
+TString ToStringLiteral(TStringBuf path)
+{
+    TStringBuilder builder;
+    for (TTokenizer tokenizer(path); tokenizer.GetType() != ETokenType::EndOfStream; tokenizer.Advance()) {
+        builder.AppendString(tokenizer.GetType() == ETokenType::Literal
+            ? tokenizer.GetLiteralValue()
+            : TString(tokenizer.GetToken()));
+    }
+    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

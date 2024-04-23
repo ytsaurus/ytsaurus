@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 
@@ -15,10 +15,10 @@ struct TCypressResolveResult
 
 struct TSequoiaResolveResult
 {
-    NYTree::TYPath ResolvedPrefix;
+    NSequoiaClient::TAbsoluteYPath ResolvedPrefix;
     NCypressClient::TNodeId ResolvedPrefixNodeId;
 
-    NYTree::TYPath UnresolvedSuffix;
+    NSequoiaClient::TYPath UnresolvedSuffix;
 };
 
 using TResolveResult = std::variant<

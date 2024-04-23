@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/child_node.record.h>
 
@@ -33,8 +34,7 @@ using namespace NRpc;
 
 using NYT::FromProto;
 
-using TYPath = NYPath::TYPath;
-using TYPathBuf = NYPath::TYPathBuf;
+using TYPath = NSequoiaClient::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +117,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
     if (payload) {
         auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
         YT_VERIFY(ParseRequestHeader(requestMessage, requestHeader.get()));
-        NYTree::SetRequestTargetYPath(requestHeader.get(), payload->UnresolvedSuffix);
+        NYTree::SetRequestTargetYPath(requestHeader.get(), payload->UnresolvedSuffix.Underlying());
         context->SetRequestHeader(std::move(requestHeader));
     }
 
@@ -147,47 +147,44 @@ bool IsCreateRootstockRequest(const ISequoiaServiceContextPtr& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TYPathBuf> TokenizeUnresolvedSuffix(const TYPath& unresolvedSuffix)
+std::vector<TString> TokenizeUnresolvedSuffix(const TYPath& unresolvedSuffix)
 {
     constexpr auto TypicalPathTokenCount = 3;
-    std::vector<TYPathBuf> pathTokens;
+    std::vector<TString> pathTokens;
     pathTokens.reserve(TypicalPathTokenCount);
 
-    TTokenizer tokenizer(unresolvedSuffix);
+    TTokenizer tokenizer(unresolvedSuffix.Underlying());
     tokenizer.Advance();
 
     while (tokenizer.GetType() != ETokenType::EndOfStream) {
         tokenizer.Expect(ETokenType::Slash);
         tokenizer.Advance();
         tokenizer.Expect(ETokenType::Literal);
-        pathTokens.push_back(tokenizer.GetToken());
+        pathTokens.push_back(tokenizer.GetLiteralValue());
         tokenizer.Advance();
     };
 
     return pathTokens;
 }
 
-TYPath JoinNestedNodesToPath(
-    const TYPath& parentPath,
-    const std::vector<TYPathBuf>& childKeys)
+TAbsoluteYPath JoinNestedNodesToPath(
+    const TAbsoluteYPath& parentPath,
+    const std::vector<TString>& childKeys)
 {
     TStringBuilder builder;
 
-    auto nestedLength = std::accumulate(
-        childKeys.begin(),
-        childKeys.end(),
-        size_t(0),
-        [] (size_t result, TYPathBuf childKey) {
-            return result + childKey.size() + 1;
-        });
-    builder.Reserve(parentPath.size() + nestedLength);
+    auto nestedLength = 0;
+    for (const auto& childKey : childKeys) {
+        nestedLength += std::ssize(childKey) + 1;
+    }
+    builder.Reserve(std::ssize(parentPath.Underlying()) + nestedLength);
 
-    builder.AppendString(parentPath);
+    builder.AppendString(parentPath.Underlying());
     for (auto childKey : childKeys) {
         builder.AppendChar('/');
-        builder.AppendString(childKey);
+        AppendYPathLiteral(&builder, childKey);
     }
-    return builder.Flush();
+    return TAbsoluteYPath(builder.Flush());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -211,7 +208,7 @@ void ValidateSupportedSequoiaType(EObjectType type)
     }
 }
 
-void ThrowAlreadyExists(const TYPath& path)
+void ThrowAlreadyExists(const TAbsoluteYPath& path)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::AlreadyExists,
@@ -219,7 +216,7 @@ void ThrowAlreadyExists(const TYPath& path)
         path);
 }
 
-void ThrowNoSuchChild(const TYPath& existingPath, const TYPathBuf& missingPath)
+void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,
@@ -232,10 +229,10 @@ void ThrowNoSuchChild(const TYPath& existingPath, const TYPathBuf& missingPath)
 
 // TODO(h0pless): Change this to TFuture<std::vector>.
 std::vector<NRecords::TPathToNodeId> SelectSubtree(
-    const TYPath& path,
+    const TAbsoluteYPath& path,
     const ISequoiaTransactionPtr& transaction)
 {
-    auto mangledPath = MangleSequoiaPath(path);
+    auto mangledPath = path.ToMangledSequoiaPath();
     return WaitFor(transaction->SelectRows<NRecords::TPathToNodeIdKey>({
         .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),
@@ -247,11 +244,11 @@ std::vector<NRecords::TPathToNodeId> SelectSubtree(
 }
 
 TNodeId LookupNodeId(
-    const TYPath& path,
+    TAbsoluteYPathBuf path,
     const ISequoiaTransactionPtr& transaction)
 {
     NRecords::TPathToNodeIdKey nodeKey{
-        .Path = MangleSequoiaPath(path),
+        .Path = path.ToMangledSequoiaPath(),
     };
     auto rows = WaitFor(transaction->LookupRows<NRecords::TPathToNodeIdKey>({nodeKey}))
         .ValueOrThrow();
@@ -269,9 +266,9 @@ TNodeId LookupNodeId(
 }
 
 TNodeId CreateIntermediateNodes(
-    const TYPath& parentPath,
+    const TAbsoluteYPath& parentPath,
     TNodeId parentId,
-    const std::vector<TYPathBuf>& nodeKeys,
+    const std::vector<TString>& nodeKeys,
     const ISequoiaTransactionPtr& transaction)
 {
     auto currentNodePath = parentPath;
@@ -287,7 +284,7 @@ TNodeId CreateIntermediateNodes(
             currentNodeId,
             currentNodePath,
             transaction);
-        AttachChild(prevNodeId, currentNodeId, TYPath(key), transaction);
+        AttachChild(prevNodeId, currentNodeId, key, transaction);
         prevNodeId = currentNodeId;
     }
     return prevNodeId;
@@ -295,16 +292,19 @@ TNodeId CreateIntermediateNodes(
 
 TNodeId CopySubtree(
     const std::vector<NRecords::TPathToNodeId>& sourceNodes,
-    const TYPath& sourceRootPath,
-    const TYPath& destinationRootPath,
+    const TAbsoluteYPath& sourceRootPath,
+    const TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
-    THashMap<TYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
+    THashMap<TAbsoluteYPath, std::vector<std::pair<TString, TNodeId>>> nodePathToChildren;
     TNodeId destinationNodeId;
     for (auto it = sourceNodes.rbegin(); it != sourceNodes.rend(); ++it) {
-        auto destinationNodePath = DemangleSequoiaPath(it->Key.Path);
-        destinationNodePath.replace(0, sourceRootPath.size(), destinationRootPath);
+        TAbsoluteYPath destinationNodePath(it->Key.Path);
+        destinationNodePath.Underlying().replace(
+            0,
+            sourceRootPath.Underlying().size(),
+            destinationRootPath.Underlying());
         destinationNodeId = CopyNode(
             it->NodeId,
             destinationNodePath,
@@ -319,7 +319,8 @@ TNodeId CopySubtree(
             nodePathToChildren.erase(nodeIt);
         }
 
-        auto [parentPath, childKey] = DirNameAndBaseName(destinationNodePath);
+        TAbsoluteYPath parentPath(destinationNodePath.GetDirPath());
+        auto childKey = destinationNodePath.GetBaseName();
         nodePathToChildren[std::move(parentPath)].emplace_back(std::move(childKey), destinationNodeId);
     }
 
@@ -335,10 +336,10 @@ void RemoveSelectedSubtree(
 {
     YT_VERIFY(!subtreeNodes.empty());
 
-    THashMap<TYPath, TNodeId> pathToNodeId;
+    THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
     pathToNodeId.reserve(subtreeNodes.size());
     for (const auto& node : subtreeNodes) {
-        pathToNodeId[DemangleSequoiaPath(node.Key.Path)] = node.NodeId;
+        pathToNodeId[TAbsoluteYPath(node.Key.Path)] = node.NodeId;
     }
 
     for (auto nodeIt = subtreeNodes.begin() + (removeRoot ? 0 : 1); nodeIt < subtreeNodes.end(); ++nodeIt) {
@@ -346,9 +347,9 @@ void RemoveSelectedSubtree(
     }
 
     for (auto it = subtreeNodes.rbegin(); it < subtreeNodes.rend(); ++it) {
-        auto [parentPath, childKey] = DirNameAndBaseName(DemangleSequoiaPath(it->Key.Path));
-        if (auto parentIt = pathToNodeId.find(parentPath)) {
-            DetachChild(parentIt->second, childKey, transaction);
+        TAbsoluteYPath path(it->Key.Path);
+        if (auto parentIt = pathToNodeId.find(path.GetDirPath())) {
+            DetachChild(parentIt->second, path.GetBaseName(), transaction);
         }
     }
 
@@ -357,26 +358,25 @@ void RemoveSelectedSubtree(
         return;
     }
 
-    auto subtreeRootPath = DemangleSequoiaPath(subtreeNodes.front().Key.Path);
-    auto [subtreeRootParentPath, subtreeRootKey] = DirNameAndBaseName(subtreeRootPath);
+    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Key.Path);
     if (!subtreeParentIdHint) {
-        subtreeParentIdHint = LookupNodeId(subtreeRootParentPath, transaction);
+        subtreeParentIdHint = LookupNodeId(subtreeRootPath.GetDirPath(), transaction);
     }
-    DetachChild(subtreeParentIdHint, subtreeRootKey, transaction);
+    DetachChild(subtreeParentIdHint, subtreeRootPath.GetBaseName(), transaction);
 }
 
 TFuture<void> RemoveSubtree(
-    const TYPath& path,
+    const TAbsoluteYPath& path,
     const ISequoiaTransactionPtr& transaction,
     bool removeRoot,
     TNodeId subtreeParentIdHint)
 {
     if (!subtreeParentIdHint && removeRoot) {
-        auto subtreeParentPath = removeRoot ? DirNameAndBaseName(path).first : path;
+        auto subtreeParentPath = removeRoot ? TAbsoluteYPath(path.GetDirPath()) : path;
         subtreeParentIdHint = LookupNodeId(subtreeParentPath, transaction);
     }
 
-    auto mangledPath = MangleSequoiaPath(path);
+    auto mangledPath = path.ToMangledSequoiaPath();
     return transaction->SelectRows<NRecords::TPathToNodeIdKey>({
         .WhereConjuncts = {
             Format("path >= %Qv", mangledPath),

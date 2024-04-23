@@ -54,46 +54,46 @@ TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NYPath::TYPathBuf> TokenizeUnresolvedSuffix(const NYPath::TYPath& unresolvedSuffix);
-NYPath::TYPath JoinNestedNodesToPath(
-    const NYPath::TYPath& parentPath,
-    const std::vector<NYPath::TYPathBuf>& childKeys);
+std::vector<TString> TokenizeUnresolvedSuffix(const NSequoiaClient::TYPath& unresolvedSuffix);
+NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
+    const NSequoiaClient::TAbsoluteYPath& parentPath,
+    const std::vector<TString>& childKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
 bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 void ValidateSupportedSequoiaType(NCypressClient::EObjectType type);
-void ThrowAlreadyExists(const NYPath::TYPath& path);
-void ThrowNoSuchChild(const NYPath::TYPath& existingPath, const NYPath::TYPathBuf& missingPath);
+void ThrowAlreadyExists(const NSequoiaClient::TAbsoluteYPath& path);
+void ThrowNoSuchChild(const NSequoiaClient::TAbsoluteYPath& existingPath, TStringBuf missingPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NSequoiaClient::NRecords::TPathToNodeId> SelectSubtree(
-    const NYPath::TYPath& path,
+    const NSequoiaClient::TAbsoluteYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 NCypressClient::TNodeId LookupNodeId(
-    const NYPath::TYPath& path,
+    NSequoiaClient::TAbsoluteYPathBuf path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Returns bottommost created node ID.
 NCypressClient::TNodeId CreateIntermediateNodes(
-    const NYPath::TYPath& parentPath,
+    const NSequoiaClient::TAbsoluteYPath& parentPath,
     NCypressClient::TNodeId parentId,
-    const std::vector<NYPath::TYPathBuf>& nodeKeys,
+    const std::vector<TString>& nodeKeys,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 NCypressClient::TNodeId CopySubtree(
     const std::vector<NSequoiaClient::NRecords::TPathToNodeId>& sourceNodes,
-    const NYPath::TYPath& sourceRootPath,
-    const NYPath::TYPath& destinationRootPath,
+    const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
+    const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Select subtree and remove it. #subtreeParentIdHint is only used when #removeRoot is set to true.
 TFuture<void> RemoveSubtree(
-    const NYPath::TYPath& path,
+    const NSequoiaClient::TAbsoluteYPath& path,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     bool removeRoot = true,
     NCypressClient::TNodeId subtreeParentIdHint = {});

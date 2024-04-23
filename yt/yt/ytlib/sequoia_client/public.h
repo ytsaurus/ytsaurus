@@ -53,8 +53,17 @@ DECLARE_REFCOUNTED_STRUCT(ILazySequoiaClient)
 
 YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, NYPath::TYPath);
 
-class TYPath;
-class TYPathBuf;
+template <bool Absolute>
+class TBasicYPath;
+
+template <bool Absolute>
+class TBasicYPathBuf;
+
+using TYPath = TBasicYPath<false>;
+using TYPathBuf = TBasicYPathBuf<false>;
+
+using TAbsoluteYPath = TBasicYPath<true>;
+using TAbsoluteYPathBuf = TBasicYPathBuf<true>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
