@@ -227,6 +227,7 @@ DEFINE_ENUM(EMasterReign,
     ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
     ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
     ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
+    ((SecondaryIndexSchemaValidation_24_1)                          (2560))  // sabdenovch
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -241,6 +242,7 @@ DEFINE_ENUM(EMasterReign,
     ((AccountProfilingIncumbency)                                   (2610))  // h0pless
     ((RemoveParameterizedBalancingMetricSetting)                    (2611))  // alexelexa
     ((RipAevum)                                                     (2612))  // babenko
+    ((SecondaryIndexSchemaValidation)                               (2613))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
