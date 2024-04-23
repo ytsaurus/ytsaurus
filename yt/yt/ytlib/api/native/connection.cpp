@@ -812,6 +812,7 @@ public:
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
+        ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
 
         Config_.Store(dynamicConfig);
     }
