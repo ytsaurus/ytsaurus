@@ -86,6 +86,7 @@ DEFINE_ENUM(EStatField,
     (CpuSystemUsage)
     (CpuWait)
     (CpuThrottled)
+    (CpuCfsThrottled)
     (ContextSwitches)
     (ContextSwitchesDelta)
     (ThreadCount)
