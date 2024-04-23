@@ -48,9 +48,9 @@ DECLARE_REFCOUNTED_CLASS(TResolveCache)
 struct TNodeFactoryOptions;
 struct ICypressNodeFactory;
 
-DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TDirectVersionedObjectIdHash)
-DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TVersionedObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TCypressNode)
 
@@ -75,10 +75,10 @@ using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
 
 DECLARE_MASTER_OBJECT_TYPE(TAccessControlObject)
-DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TAccessControlObjectNamespace)
-DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TObjectIdEntropyHash)
 
 class TLinkNode;
 class TDocumentNode;

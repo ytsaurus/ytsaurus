@@ -140,7 +140,7 @@ void ValidateSuperuserOnAttributeModification(
 
 int GetAccountShardIndex(TAccountId accountId)
 {
-    return TDirectObjectIdHash()(accountId) % AccountShardCount;
+    return GetShardIndex<AccountShardCount>(accountId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

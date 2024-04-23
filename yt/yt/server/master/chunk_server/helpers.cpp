@@ -1249,7 +1249,7 @@ void SerializeMediumOverrides(
 
 int GetChunkShardIndex(TChunkId chunkId)
 {
-    return TDirectObjectIdHash()(chunkId) % ChunkShardCount;
+    return GetShardIndex<ChunkShardCount>(chunkId);
 }
 
 std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant now)

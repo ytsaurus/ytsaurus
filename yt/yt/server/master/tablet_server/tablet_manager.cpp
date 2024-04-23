@@ -2810,7 +2810,7 @@ private:
     bool FillMountConfigKeys_ = false;
 
     //! Hash parts of the avenue ids generated in current mutation.
-    THashSet<ui32> GeneratedAvenueIdHashes_;
+    THashSet<ui32> GeneratedAvenueIdEntropies_;
 
     // COMPAT(ifsmirnov)
     bool RecomputeAggregateTabletStatistics_ = false;
@@ -3302,7 +3302,7 @@ private:
                         throw;
                     }
 
-                    GeneratedAvenueIdHashes_.clear();
+                    GeneratedAvenueIdEntropies_.clear();
 
                     // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
                     // and unban remount.
@@ -3741,7 +3741,7 @@ private:
                 IsDynamicStoreReadEnabled(typedTable, GetDynamicConfig()));
         }
 
-        GeneratedAvenueIdHashes_.clear();
+        GeneratedAvenueIdEntropies_.clear();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         TTabletResources resourceUsageDelta;
@@ -3825,7 +3825,7 @@ private:
 
     TAvenueEndpointId GenerateAvenueEndpointId(TTabletBase* tablet)
     {
-        ui32 hash = HashFromId(tablet->GetId());
+        ui32 entropy = EntropyFromId(tablet->GetId());
 
         // Try to keep as many lower bits as possible.
         {
@@ -3833,17 +3833,17 @@ private:
             ui32 upperBitMask = 0;
             ui32 saltOffset = 32;
 
-            while (GeneratedAvenueIdHashes_.contains(hash)) {
+            while (GeneratedAvenueIdEntropies_.contains(entropy)) {
                 if (salt == upperBitMask) {
                     --saltOffset;
                     upperBitMask ^= 1u << saltOffset;
                 }
                 ++salt;
-                hash = (hash & ~upperBitMask) ^ (salt << saltOffset);
+                entropy = (entropy & ~upperBitMask) ^ (salt << saltOffset);
             }
         }
 
-        GeneratedAvenueIdHashes_.insert(hash);
+        GeneratedAvenueIdEntropies_.insert(entropy);
 
         auto* mutationContext = GetCurrentMutationContext();
 
@@ -3851,7 +3851,7 @@ private:
             EObjectType::AliceAvenueEndpoint,
             CellTagFromId(tablet->GetId()),
             mutationContext->GetVersion(),
-            hash);
+            entropy);
 
         mutationContext->CombineStateHash(result);
 

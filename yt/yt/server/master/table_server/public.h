@@ -21,9 +21,9 @@ using TMasterTableSchemaId = NObjectClient::TObjectId;
 using TTableCollocationId = NTableClient::TTableCollocationId;
 using TSecondaryIndexId = NObjectClient::TObjectId;
 
-DECLARE_ENTITY_TYPE(TMasterTableSchema, TMasterTableSchemaId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TSecondaryIndex, TSecondaryIndexId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TMasterTableSchema, TMasterTableSchemaId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TTableCollocation, TTableCollocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TSecondaryIndex, TSecondaryIndexId, NObjectClient::TObjectIdEntropyHash)
 
 class TTableNode;
 class TReplicatedTableNode;

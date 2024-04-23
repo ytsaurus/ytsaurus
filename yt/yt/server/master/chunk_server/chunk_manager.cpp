@@ -749,7 +749,7 @@ public:
             return false;
         }
 
-        return static_cast<int>(HashFromId(chunkId) % 100) < probability;
+        return static_cast<int>(EntropyFromId(chunkId) % 100) < probability;
     }
 
     bool CanHaveSequoiaReplicas(TChunkId chunkId) const override

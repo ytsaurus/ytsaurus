@@ -244,7 +244,7 @@ inline bool TRequisitionEntry::operator==(const TRequisitionEntry& rhs) const
 
 inline size_t TRequisitionEntry::GetHash() const
 {
-    auto result = NObjectClient::TDirectObjectIdHash()(Account->GetId());
+    auto result = NObjectClient::TObjectIdEntropyHash()(Account->GetId());
     HashCombine(result, MediumIndex);
     HashCombine(result, ReplicationPolicy.GetReplicationFactor());
     HashCombine(result, ReplicationPolicy.GetDataPartsOnly());

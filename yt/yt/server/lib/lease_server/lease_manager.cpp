@@ -223,7 +223,7 @@ private:
     ELeaseState State_ = ELeaseState::Unknown;
 };
 
-DECLARE_ENTITY_TYPE(TLease, TLeaseId, NObjectClient::TDirectObjectIdHash);
+DECLARE_ENTITY_TYPE(TLease, TLeaseId, NObjectClient::TObjectIdEntropyHash);
 
 ////////////////////////////////////////////////////////////////////////////////
 

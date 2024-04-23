@@ -128,7 +128,7 @@ DECLARE_REFCOUNTED_STRUCT(ITransactionManagerHost)
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletData)
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTableReplicaData)
 DECLARE_REFCOUNTED_STRUCT(TChaosTabletData)
-DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(TSampleKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
@@ -233,7 +233,7 @@ DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletHost)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)

@@ -71,7 +71,7 @@ namespace {
 
 int GetChunkLocationShardIndex(TChunkLocationUuid uuid)
 {
-    return TDirectObjectIdHash()(uuid) % ChunkLocationShardCount;
+    return GetShardIndex<ChunkLocationShardCount>(uuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
