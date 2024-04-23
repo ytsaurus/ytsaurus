@@ -191,14 +191,18 @@ TJobResourcesProfiler::TJobResourcesProfiler()
 
 void TJobResourcesProfiler::Init(const NProfiling::TProfiler& profiler, NProfiling::EMetricType metricType)
 {
-    Producer_->SetEnabled(true);
     profiler.AddProducer("", Producer_);
     MetricType_ = metricType;
 }
 
-void TJobResourcesProfiler::Reset()
+void TJobResourcesProfiler::Stop()
 {
     Producer_->SetEnabled(false);
+}
+
+void TJobResourcesProfiler::Start()
+{
+    Producer_->SetEnabled(true);
 }
 
 void TJobResourcesProfiler::Update(const TJobResources& resources)
