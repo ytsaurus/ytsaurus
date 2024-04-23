@@ -118,8 +118,11 @@ private[spark] class SparkSubmitSpyt {
       } else {
         childArgs ++= Array("--main-class", args.mainClass)
       }
-      // TODO look at yarn or k8s cases for some python and r additional options
-      // TODO maybe some YT-specific configuration
+
+      if (args.isPython) {
+        sparkConf.set("spark.ytsaurus.redirectToStderr", "true")
+      }
+
       if (args.childArgs != null) {
         appendChildArgs(args, childArgs)
       }
