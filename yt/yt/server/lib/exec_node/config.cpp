@@ -302,6 +302,12 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
 {
     static const auto DefaultSensors = ConvertTo<THashMap<TString, TUserJobSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
+            .Item("cpu/burst").BeginMap()
+                .Item("path").Value("/user_job/cpu/burst")
+                .Item("type").Value("counter")
+                .Item("source").Value("statistics")
+                .Item("profiling_name").Value("/user_job/cpu/burst")
+            .EndMap()
             .Item("cpu/user").BeginMap()
                 .Item("path").Value("/user_job/cpu/user")
                 .Item("type").Value("counter")

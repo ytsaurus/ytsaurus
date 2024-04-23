@@ -508,6 +508,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
 
         writer->AddGauge("/cpu_to_vcpu_factor", factor);
 
+        if (totalStatistics.CpuStatistics.BurstUsageTime.IsOK()) {
+            i64 burstUsageTimeUs = totalStatistics.CpuStatistics.BurstUsageTime.Value().MicroSeconds();
+            double burstUsagePercent = std::max<double>(0.0, 100. * burstUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/burst", burstUsagePercent);
+        }
+
         if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
             i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
             double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs * factor / timeDeltaUsec);
