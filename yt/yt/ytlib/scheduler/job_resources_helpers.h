@@ -66,8 +66,11 @@ class TJobResourcesProfiler
 public:
     TJobResourcesProfiler();
 
-    void Init(const NProfiling::TProfiler& profiler, NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
-    void Reset();
+    void Init(
+        const NProfiling::TProfiler& profiler,
+        NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
+    void Start();
+    void Stop();
     void Update(const TJobResources& resources);
 
 private:
