@@ -6,7 +6,7 @@
 
 #include <yt/cpp/mapreduce/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -294,159 +294,159 @@ TVector<TFeaturesSkiffRow> WriteSimpleFeaturesTable(TTestFixture& fixture, const
 
 /////////////////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(SkiffRowTest) {
-    Y_UNIT_TEST(ReadingSimpleBasic) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto path = fixture.GetWorkingDir() + "/table";
-        TVector<TTestSkiffRow> expectedRows = WriteSimpleTable(fixture, path);
+TEST(SkiffRowTest, ReadingSimpleBasic) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto path = fixture.GetWorkingDir() + "/table";
+    TVector<TTestSkiffRow> expectedRows = WriteSimpleTable(fixture, path);
 
-        auto reader = client->CreateTableReader<TTestSkiffRow>(path);
-        TVector<TTestSkiffRow> gotRows;
+    auto reader = client->CreateTableReader<TTestSkiffRow>(path);
+    TVector<TTestSkiffRow> gotRows;
 
-        ui64 expectedRowIndex = 0;
-        for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
-            UNIT_ASSERT(!reader->IsRawReaderExhausted());
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRowIndex(), expectedRowIndex);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRangeIndex(), 0);
+    ui64 expectedRowIndex = 0;
+    for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
+        EXPECT_TRUE(!reader->IsRawReaderExhausted());
+        EXPECT_EQ(reader->GetRowIndex(), expectedRowIndex);
+        EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 0);
+        EXPECT_EQ(static_cast<int>(reader->GetRangeIndex()), 0);
 
-            gotRows.push_back(reader->MoveRow());
-        }
-        UNIT_ASSERT(reader->IsRawReaderExhausted());
+        gotRows.push_back(reader->MoveRow());
+    }
+    EXPECT_TRUE(reader->IsRawReaderExhausted());
 
-        for (size_t i = 0; i < expectedRows.size(); ++i) {
-            const auto& expectedRow = expectedRows[i];
-            const auto& gotRow = gotRows[i];
-            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
+    for (size_t i = 0; i < expectedRows.size(); ++i) {
+        const auto& expectedRow = expectedRows[i];
+        const auto& gotRow = gotRows[i];
+        EXPECT_EQ(gotRow, expectedRow);
+    }
+}
+
+TEST(SkiffRowTest, ReadingGivenColumns) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto path = fixture.GetWorkingDir() + "/table";
+    TVector<TFeaturesSkiffRow> expectedRows = WriteSimpleFeaturesTable(fixture, path);
+
+    TNode featureColumns = TNode().Add("feature_1").Add("feature_2");
+    TTableReaderOptions options = TTableReaderOptions().FormatHints(
+        TFormatHints().SkiffRowHints(TSkiffRowHints().Attributes(featureColumns)));
+
+    auto reader = client->CreateTableReader<TFeaturesSkiffRow>(path, options);
+    TVector<TFeaturesSkiffRow> gotRows;
+
+    ui64 expectedRowIndex = 0;
+    for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
+        EXPECT_TRUE(!reader->IsRawReaderExhausted());
+        EXPECT_EQ(reader->GetRowIndex(), expectedRowIndex);
+        EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 0);
+        EXPECT_EQ(static_cast<int>(reader->GetRangeIndex()), 0);
+
+        gotRows.push_back(reader->MoveRow());
+    }
+    EXPECT_TRUE(reader->IsRawReaderExhausted());
+
+    for (size_t i = 0; i < expectedRows.size(); ++i) {
+        const auto& expectedRow = expectedRows[i];
+        const auto& gotRow = gotRows[i];
+        EXPECT_EQ(gotRow, expectedRow);
+    }
+}
+
+TEST(SkiffRowTest, ReadingSimpleSkipRow) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto path = fixture.GetWorkingDir() + "/table";
+    TVector<TTestSkiffRow> writtenRows = WriteSimpleTable(fixture, path);
+
+    auto reader = client->CreateTableReader<TTestSkiffRow>(path);
+    TVector<TTestSkiffRow> gotRows;
+
+    ui64 expectedRowIndex = 0;
+    for (; reader->IsValid(); reader->Next(), expectedRowIndex += 2) {
+        EXPECT_TRUE(!reader->IsRawReaderExhausted());
+        EXPECT_EQ(reader->GetRowIndex(), expectedRowIndex);
+        EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 0);
+        EXPECT_EQ(static_cast<int>(reader->GetRangeIndex()), 0);
+
+        gotRows.push_back(reader->MoveRow());
+        reader->Next();  // additional `Next` for skipping one row
+    }
+    EXPECT_TRUE(reader->IsRawReaderExhausted());
+
+    for (size_t i = 0; i < writtenRows.size(); i += 2) {
+        const auto& expectedRow = writtenRows[i];
+        const auto& gotRow = gotRows[i / 2];
+
+        EXPECT_EQ(gotRow, expectedRow);
+    }
+}
+
+TEST(SkiffRowTest, ReadingTableWithRanges) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto path = fixture.GetWorkingDir() + "/table1";
+    TVector<TTestSkiffRow> writtenRows = WriteSimpleTable(fixture, path);
+
+    auto reader = client->CreateTableReader<TTestSkiffRow>(TRichYPath(path)
+        .AddRange(TReadRange::FromRowIndices(0, 10))
+        .AddRange(TReadRange::FromRowIndices(40, 50))
+        .AddRange(TReadRange::FromRowIndices(90, 100)));
+    TVector<TTestSkiffRow> gotRows;
+
+    TVector<ui64> expectedRowIndices;
+    expectedRowIndices.reserve(30);
+    for (ui64 i = 0; i < 100; ++i) {
+        if (i < 10 || (i >= 40 && i < 50) || i >= 90) {
+            expectedRowIndices.push_back(i);
         }
     }
 
-    Y_UNIT_TEST(ReadingGivenColumns) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto path = fixture.GetWorkingDir() + "/table";
-        TVector<TFeaturesSkiffRow> expectedRows = WriteSimpleFeaturesTable(fixture, path);
+    size_t currentRowShift = 0;
+    for (; reader->IsValid(); reader->Next(), ++currentRowShift) {
+        EXPECT_TRUE(!reader->IsRawReaderExhausted());
+        EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 0);
 
-        TNode featureColumns = TNode().Add("feature_1").Add("feature_2");
-        TTableReaderOptions options = TTableReaderOptions().FormatHints(
-            TFormatHints().SkiffRowHints(TSkiffRowHints().Attributes(featureColumns)));
+        ui64 expectedRowIndex = expectedRowIndices[currentRowShift];
+        EXPECT_EQ(reader->GetRowIndex(), expectedRowIndex);
 
-        auto reader = client->CreateTableReader<TFeaturesSkiffRow>(path, options);
-        TVector<TFeaturesSkiffRow> gotRows;
-
-        ui64 expectedRowIndex = 0;
-        for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
-            UNIT_ASSERT(!reader->IsRawReaderExhausted());
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRowIndex(), expectedRowIndex);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRangeIndex(), 0);
-
-            gotRows.push_back(reader->MoveRow());
+        ui32 expectedRangeIndex = 0;
+        if (expectedRowIndex >= 40 && expectedRowIndex < 50) {
+            expectedRangeIndex = 1;
+        } else if (expectedRowIndex >= 90) {
+            expectedRangeIndex = 2;
         }
-        UNIT_ASSERT(reader->IsRawReaderExhausted());
+        EXPECT_EQ(reader->GetRangeIndex(), expectedRangeIndex);
 
-        for (size_t i = 0; i < expectedRows.size(); ++i) {
-            const auto& expectedRow = expectedRows[i];
-            const auto& gotRow = gotRows[i];
-            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
-        }
+        gotRows.push_back(reader->MoveRow());
     }
+    EXPECT_TRUE(reader->IsRawReaderExhausted());
 
-    Y_UNIT_TEST(ReadingSimpleSkipRow) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto path = fixture.GetWorkingDir() + "/table";
-        TVector<TTestSkiffRow> writtenRows = WriteSimpleTable(fixture, path);
-
-        auto reader = client->CreateTableReader<TTestSkiffRow>(path);
-        TVector<TTestSkiffRow> gotRows;
-
-        ui64 expectedRowIndex = 0;
-        for (; reader->IsValid(); reader->Next(), expectedRowIndex += 2) {
-            UNIT_ASSERT(!reader->IsRawReaderExhausted());
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRowIndex(), expectedRowIndex);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRangeIndex(), 0);
-
-            gotRows.push_back(reader->MoveRow());
-            reader->Next();  // additional `Next` for skipping one row
-        }
-        UNIT_ASSERT(reader->IsRawReaderExhausted());
-
-        for (size_t i = 0; i < writtenRows.size(); i += 2) {
-            const auto& expectedRow = writtenRows[i];
-            const auto& gotRow = gotRows[i / 2];
-
-            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
-        }
+    size_t currentGotRowIndex = 0;
+    for (auto rowIndex : expectedRowIndices) {
+        const auto& expectedRow = writtenRows[rowIndex];
+        const auto& gotRow  = gotRows[currentGotRowIndex++];
+        EXPECT_EQ(gotRow, expectedRow);
     }
+}
 
-    Y_UNIT_TEST(ReadingTableWithRanges) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto path = fixture.GetWorkingDir() + "/table1";
-        TVector<TTestSkiffRow> writtenRows = WriteSimpleTable(fixture, path);
+TEST(SkiffRowTest, ReadingWithIncorrectParser) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto path = fixture.GetWorkingDir() + "/table";
 
-        auto reader = client->CreateTableReader<TTestSkiffRow>(TRichYPath(path)
-            .AddRange(TReadRange::FromRowIndices(0, 10))
-            .AddRange(TReadRange::FromRowIndices(40, 50))
-            .AddRange(TReadRange::FromRowIndices(90, 100)));
-        TVector<TTestSkiffRow> gotRows;
+    auto writer = fixture.GetClient()->CreateTableWriter<TNode>(path);
+    writer->AddRow(TNode()("value", 123));
+    writer->Finish();
 
-        TVector<ui64> expectedRowIndices;
-        expectedRowIndices.reserve(30);
-        for (ui64 i = 0; i < 100; ++i) {
-            if (i < 10 || (i >= 40 && i < 50) || i >= 90) {
-                expectedRowIndices.push_back(i);
-            }
-        }
+    auto reader = client->CreateTableReader<TBadSkiffRow>(path);
+    EXPECT_TRUE(reader->IsValid());
+    EXPECT_TRUE(!reader->IsRawReaderExhausted());
 
-        size_t currentRowShift = 0;
-        for (; reader->IsValid(); reader->Next(), ++currentRowShift) {
-            UNIT_ASSERT(!reader->IsRawReaderExhausted());
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
-
-            ui64 expectedRowIndex = expectedRowIndices[currentRowShift];
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRowIndex(), expectedRowIndex);
-
-            ui32 expectedRangeIndex = 0;
-            if (expectedRowIndex >= 40 && expectedRowIndex < 50) {
-                expectedRangeIndex = 1;
-            } else if (expectedRowIndex >= 90) {
-                expectedRangeIndex = 2;
-            }
-            UNIT_ASSERT_VALUES_EQUAL(reader->GetRangeIndex(), expectedRangeIndex);
-
-            gotRows.push_back(reader->MoveRow());
-        }
-        UNIT_ASSERT(reader->IsRawReaderExhausted());
-
-        size_t currentGotRowIndex = 0;
-        for (auto rowIndex : expectedRowIndices) {
-            const auto& expectedRow = writtenRows[rowIndex];
-            const auto& gotRow  = gotRows[currentGotRowIndex++];
-            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
-        }
-    }
-
-    Y_UNIT_TEST(ReadingWithIncorrectParser) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto path = fixture.GetWorkingDir() + "/table";
-
-        auto writer = fixture.GetClient()->CreateTableWriter<TNode>(path);
-        writer->AddRow(TNode()("value", 123));
-        writer->Finish();
-
-        auto reader = client->CreateTableReader<TBadSkiffRow>(path);
-        UNIT_ASSERT(reader->IsValid());
-        UNIT_ASSERT(!reader->IsRawReaderExhausted());
-
-        UNIT_ASSERT_EXCEPTION_SATISFIES(reader->GetRow(), yexception, [](const yexception& ex) {
-            return TString(ex.what()).Contains("Premature end of stream while parsing Skiff");
-        });
-    }
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        reader->GetRow(),
+        yexception,
+        "Premature end of stream while parsing Skiff"
+    );
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

@@ -5,7 +5,7 @@
 #include <yt/cpp/mapreduce/client/client.h>
 #include <yt/cpp/mapreduce/client/yt_poller.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 using namespace NYT;
 using namespace NYT::NDetail;
@@ -37,70 +37,68 @@ private:
     std::atomic<int>& Counter_;
 };
 
-Y_UNIT_TEST_SUITE(Shutdown)
+TEST(Shutdown, DiscardItem)
 {
-    Y_UNIT_TEST(DiscardItem)
+    auto testClient = CreateTestClient();
+    auto client = TClientPtr(static_cast<TClient*>(testClient.Get()));
+
+    std::atomic<int> discardCounter = 0;
+
+    client->GetYtPoller().Watch(new TPollableItem(discardCounter));
+
+    client->Shutdown();
+    EXPECT_TRUE(discardCounter == 1);
+
+    client->Shutdown();
+    EXPECT_TRUE(discardCounter == 1);
+}
+
+TEST(Shutdown, CallAfterShutdown)
+{
+    auto client = CreateTestClient();
+    EXPECT_NO_THROW(client->WhoAmI());
+
+    client->Shutdown();
+    EXPECT_THROW(client->WhoAmI(), TApiUsageError);
+}
+
+TEST(Shutdown, FutureCancellation)
+{
+    TTestFixture fixture;
+    auto workingDir = fixture.GetWorkingDir();
+    TYPath path = workingDir + "/node";
+
+    auto client1 = fixture.GetClient();
+    client1->Set(path, 1);
+    auto tx1 = client1->StartTransaction();
+    tx1->Lock(path, ELockMode::LM_EXCLUSIVE);
+
+    ::NThreading::TFuture<void> applied;
     {
-        auto testClient = CreateTestClient();
-        auto client = TClientPtr(static_cast<TClient*>(testClient.Get()));
+        auto client2 = fixture.CreateClient();
 
-        std::atomic<int> discardCounter = 0;
+        auto tx2 = client2->StartTransaction();
+        auto lock2 = tx2->Lock(path, ELockMode::LM_EXCLUSIVE, TLockOptions().Waitable(true));
 
-        client->GetYtPoller().Watch(new TPollableItem(discardCounter));
+        auto future = lock2->GetAcquiredFuture();
 
-        client->Shutdown();
-        UNIT_ASSERT(discardCounter == 1);
+        applied = future.Apply([client2=client2] (auto&& future) {
+            EXPECT_TRUE(future.HasException());
+            future.TryRethrow();
+            FAIL() << "Unreachable";
+        });
 
-        client->Shutdown();
-        UNIT_ASSERT(discardCounter == 1);
+        client2->Shutdown();
     }
 
-    Y_UNIT_TEST(CallAfterShutdown)
-    {
-        auto client = CreateTestClient();
-        UNIT_ASSERT_NO_EXCEPTION(client->WhoAmI());
+    EXPECT_TRUE(applied.HasException());
+    tx1->Abort();
 
-        client->Shutdown();
-        UNIT_ASSERT_EXCEPTION(client->WhoAmI(), TApiUsageError);
-    }
-
-    Y_UNIT_TEST(FutureCancellation)
-    {
-        TTestFixture fixture;
-        auto workingDir = fixture.GetWorkingDir();
-        TYPath path = workingDir + "/node";
-
-        auto client1 = fixture.GetClient();
-        client1->Set(path, 1);
-        auto tx1 = client1->StartTransaction();
-        tx1->Lock(path, ELockMode::LM_EXCLUSIVE);
-
-        ::NThreading::TFuture<void> applied;
-        {
-            auto client2 = fixture.CreateClient();
-
-            auto tx2 = client2->StartTransaction();
-            auto lock2 = tx2->Lock(path, ELockMode::LM_EXCLUSIVE, TLockOptions().Waitable(true));
-
-            auto future = lock2->GetAcquiredFuture();
-
-            applied = future.Apply([client2=client2] (auto&& future) {
-                UNIT_ASSERT(future.HasException());
-                future.TryRethrow();
-                UNIT_FAIL("Unreachable");
-            });
-
-            client2->Shutdown();
-        }
-
-        UNIT_ASSERT(applied.HasException());
-        tx1->Abort();
-
-        try {
-            applied.TryRethrow();
-        } catch (const std::exception& exc) {
-            UNIT_ASSERT_STRING_CONTAINS_C(exc.what(), "cancelled", "Operation expected to be cancelled");
-        }
+    try {
+        applied.TryRethrow();
+    } catch (const std::exception& exc) {
+        // Operation expected to be cancelled
+        EXPECT_TRUE(TString(exc.what()).Contains("cancelled"));
     }
 }
 

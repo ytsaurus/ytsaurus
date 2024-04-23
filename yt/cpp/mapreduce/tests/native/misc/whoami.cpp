@@ -3,24 +3,21 @@
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/errors.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(WhoAmI)
+TEST(WhoAmI, Test)
 {
-    Y_UNIT_TEST(Test)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
 
-        auto authInfo = client->WhoAmI();
-        UNIT_ASSERT_EQUAL(authInfo.Login, "root");
-    }
+    auto authInfo = client->WhoAmI();
+    EXPECT_EQ(authInfo.Login, "root");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

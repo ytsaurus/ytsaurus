@@ -5,7 +5,7 @@
 
 #include <yt/cpp/mapreduce/http/abortable_http_response.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <library/cpp/threading/future/async.h>
 
@@ -24,67 +24,64 @@ static TInstant GetLastPingTime(const IClientBasePtr& client, const ITransaction
     return TInstant::ParseIso8601(node.AsString());
 };
 
-Y_UNIT_TEST_SUITE(CustomClientConfig)
+TEST(CustomClientConfig, TestRetries)
 {
-    Y_UNIT_TEST(TestRetries)
+    TConfigPtr config = MakeIntrusive<TConfig>();
+    config->RetryCount = 4;
+
+    TTestFixture fixture(TCreateClientOptions().Config(config));
+
+    TConfig::Get()->UseAbortableResponse = true;
+    TConfig::Get()->RetryCount = 6;
+
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    client->Create(workingDir + "/table", NT_MAP);
     {
-        TConfigPtr config = MakeIntrusive<TConfig>();
-        config->RetryCount = 4;
+        auto outage = TAbortableHttpResponse::StartOutage("/set");
+        EXPECT_THROW(client->Set(workingDir + "/table/@my_attr", 42), TAbortedForTestPurpose);
+    }
+    {
+        auto outage = TAbortableHttpResponse::StartOutage("/set", config->RetryCount - 1);
+        EXPECT_NO_THROW(client->Set(workingDir + "/table/@my_attr", -43));
+    }
+}
 
-        TTestFixture fixture(TCreateClientOptions().Config(config));
+TEST(CustomClientConfig, TestTransactionAutoPing)
+{
+    auto config = MakeIntrusive<TConfig>();
+    config->PingInterval = TDuration::MilliSeconds(100);
 
-        TConfig::Get()->UseAbortableResponse = true;
-        TConfig::Get()->RetryCount = 6;
+    TTestFixture fixture(TCreateClientOptions().Config(config));
 
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
+    TConfig::Get()->PingInterval = TDuration::Seconds(5);
 
-        client->Create(workingDir + "/table", NT_MAP);
-        {
-            auto outage = TAbortableHttpResponse::StartOutage("/set");
-            UNIT_ASSERT_EXCEPTION(client->Set(workingDir + "/table/@my_attr", 42), TAbortedForTestPurpose);
-        }
-        {
-            auto outage = TAbortableHttpResponse::StartOutage("/set", config->RetryCount - 1);
-            UNIT_ASSERT_NO_EXCEPTION(client->Set(workingDir + "/table/@my_attr", -43));
-        }
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    {
+        auto transaction = client->StartTransaction();
+
+        const auto pt1 = GetLastPingTime(client, transaction);
+        Sleep(TDuration::Seconds(1));
+        const auto pt2 = GetLastPingTime(client, transaction);
+        EXPECT_TRUE(pt1 != pt2);
     }
 
-    Y_UNIT_TEST(TestTransactionAutoPing)
     {
-        auto config = MakeIntrusive<TConfig>();
-        config->PingInterval = TDuration::MilliSeconds(100);
+        TStartTransactionOptions opts;
+        opts.AutoPingable(false);
+        auto transaction = client->StartTransaction(opts);
 
-        TTestFixture fixture(TCreateClientOptions().Config(config));
+        const auto pt1 = GetLastPingTime(client, transaction);
+        Sleep(TDuration::Seconds(1));
+        const auto pt2 = GetLastPingTime(client, transaction);
+        EXPECT_EQ(pt1, pt2);
 
-        TConfig::Get()->PingInterval = TDuration::Seconds(5);
-
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        {
-            auto transaction = client->StartTransaction();
-
-            const auto pt1 = GetLastPingTime(client, transaction);
-            Sleep(TDuration::Seconds(1));
-            const auto pt2 = GetLastPingTime(client, transaction);
-            UNIT_ASSERT(pt1 != pt2);
-        }
-
-        {
-            TStartTransactionOptions opts;
-            opts.AutoPingable(false);
-            auto transaction = client->StartTransaction(opts);
-
-            const auto pt1 = GetLastPingTime(client, transaction);
-            Sleep(TDuration::Seconds(1));
-            const auto pt2 = GetLastPingTime(client, transaction);
-            UNIT_ASSERT_VALUES_EQUAL(pt1, pt2);
-
-            transaction->Ping();
-            const auto pt3 = GetLastPingTime(client, transaction);
-            UNIT_ASSERT(pt1 != pt3);
-        }
+        transaction->Ping();
+        const auto pt3 = GetLastPingTime(client, transaction);
+        EXPECT_TRUE(pt1 != pt3);
     }
 }
 

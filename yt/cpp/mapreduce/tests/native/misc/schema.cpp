@@ -10,111 +10,109 @@
 
 #include <yt/cpp/mapreduce/http/abortable_http_response.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/random/fast.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
 
-Y_UNIT_TEST_SUITE(Schema) {
-    Y_UNIT_TEST(Required)
+TEST(Schema, Required)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    client->Create(workingDir + "/table", NT_TABLE,
+        TCreateOptions().Attributes(
+            TNode()
+            ("schema", TTableSchema().AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true)).ToNode())
+        ));
+
     {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        client->Create(workingDir + "/table", NT_TABLE,
-            TCreateOptions().Attributes(
-                TNode()
-                ("schema", TTableSchema().AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true)).ToNode())
-            ));
-
-        {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
-            writer->AddRow(TNode()("value", "foo"));
-            writer->Finish();
-        }
-        try {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
-            writer->AddRow(TNode()("value", TNode::CreateEntity()));
-            writer->Finish();
-            UNIT_FAIL("expected to throw");
-        } catch (const std::exception& ex) {
-            if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
-                throw;
-            }
-        }
-        try {
-            auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
-            writer->AddRow(TNode::CreateMap());
-            writer->Finish();
-            UNIT_FAIL("expected to throw");
-        } catch (const std::exception& ex) {
-            if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
-                throw;
-            }
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
+        writer->AddRow(TNode()("value", "foo"));
+        writer->Finish();
+    }
+    try {
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
+        writer->AddRow(TNode()("value", TNode::CreateEntity()));
+        writer->Finish();
+        FAIL() << "expected to throw";
+    } catch (const std::exception& ex) {
+        if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
+            throw;
         }
     }
-
-    Y_UNIT_TEST(SchemaAsPathAttribute) {
-        auto schema = TTableSchema()
-            .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
-            .AddColumn(TColumnSchema().Name("value").Type(VT_INT64));
-
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Schema(schema));
-
-        TVector<TNode> expected = {
-            TNode()("key", "one")("value", 1),
-        };
-        {
-            for (const auto& e : expected) {
-                writer->AddRow(e);
-            }
-            writer->Finish();
+    try {
+        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Append(true));
+        writer->AddRow(TNode::CreateMap());
+        writer->Finish();
+        FAIL() << "expected to throw";
+    } catch (const std::exception& ex) {
+        if (!TString(ex.what()).Contains("cannot have \"null\" value")) {
+            throw;
         }
+    }
+}
 
-        TTableSchema actualSchema;
-        Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
-        UNIT_ASSERT(AreSchemasEqual(actualSchema, schema));
+TEST(Schema, SchemaAsPathAttribute) {
+    auto schema = TTableSchema()
+        .AddColumn(TColumnSchema().Name("key").Type(VT_STRING))
+        .AddColumn(TColumnSchema().Name("value").Type(VT_INT64));
 
-        TVector<TNode> actual = ReadTable(client, workingDir + "/table");
-        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/table").Schema(schema));
+
+    TVector<TNode> expected = {
+        TNode()("key", "one")("value", 1),
+    };
+    {
+        for (const auto& e : expected) {
+            writer->AddRow(e);
+        }
+        writer->Finish();
     }
 
-    Y_UNIT_TEST(DeletedColumn) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
+    TTableSchema actualSchema;
+    Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
+    EXPECT_TRUE(AreSchemasEqual(actualSchema, schema));
 
-        client->Create(workingDir + "/table", NT_TABLE,
-            TCreateOptions().Attributes(
-                TNode()
-                ("schema", TTableSchema()
-                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true))
-                    .AddColumn(TColumnSchema().Name("data").Type(VT_STRING, true)).ToNode())
-            ));
+    TVector<TNode> actual = ReadTable(client, workingDir + "/table");
+    EXPECT_EQ(actual, expected);
+}
 
-        auto updatedSchema = TTableSchema()
-                    .AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true))
-                    .AddColumn(TColumnSchema().StableName("data").Deleted(true));
+TEST(Schema, DeletedColumn) {
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
 
-        TAlterTableOptions alterOptions;
-        alterOptions.Schema(updatedSchema);
+    client->Create(workingDir + "/table", NT_TABLE,
+        TCreateOptions().Attributes(
+            TNode()
+            ("schema", TTableSchema()
+                .AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true))
+                .AddColumn(TColumnSchema().Name("data").Type(VT_STRING, true)).ToNode())
+        ));
 
-        client->AlterTable(workingDir + "/table", alterOptions);
+    auto updatedSchema = TTableSchema()
+                .AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true))
+                .AddColumn(TColumnSchema().StableName("data").Deleted(true));
 
-        TTableSchema actualSchema;
-        Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
-        UNIT_ASSERT(AreSchemasEqual(actualSchema, updatedSchema));
+    TAlterTableOptions alterOptions;
+    alterOptions.Schema(updatedSchema);
 
-        // Verify that the deleted column is excluded from the skiff schema.
-        auto skiffSchema = NYT::NDetail::CreateSkiffSchema(actualSchema);
+    client->AlterTable(workingDir + "/table", alterOptions);
 
-        UNIT_ASSERT_VALUES_EQUAL(std::ssize(skiffSchema->GetChildren()), 2);
-        UNIT_ASSERT_VALUES_EQUAL(skiffSchema->GetChildren()[0]->GetName(), "value");
-    }
+    TTableSchema actualSchema;
+    Deserialize(actualSchema, client->Get(workingDir + "/table/@schema"));
+    EXPECT_TRUE(AreSchemasEqual(actualSchema, updatedSchema));
+
+    // Verify that the deleted column is excluded from the skiff schema.
+    auto skiffSchema = NYT::NDetail::CreateSkiffSchema(actualSchema);
+
+    EXPECT_EQ(std::ssize(skiffSchema->GetChildren()), 2);
+    EXPECT_EQ(skiffSchema->GetChildren()[0]->GetName(), "value");
 }

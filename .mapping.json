@@ -724,6 +724,7 @@
   "yt/cpp/mapreduce/raw_client/ut/CMakeLists.txt":"",
   "yt/cpp/mapreduce/skiff/CMakeLists.txt":"",
   "yt/cpp/mapreduce/tests/CMakeLists.txt":"",
+  "yt/cpp/mapreduce/tests/gtest_main/CMakeLists.txt":"",
   "yt/cpp/mapreduce/tests/native/CMakeLists.txt":"",
   "yt/cpp/mapreduce/tests/native/proto_lib/CMakeLists.txt":"",
   "yt/cpp/mapreduce/tests/yt_initialize_hook/CMakeLists.txt":"",

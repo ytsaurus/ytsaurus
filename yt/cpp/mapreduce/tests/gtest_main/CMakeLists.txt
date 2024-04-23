@@ -13,10 +13,29 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build 
 # system may be rejected.
 
-add_subdirectory(gtest_main)
-add_subdirectory(native)
-add_subdirectory(yt_initialize_hook)
-add_subdirectory(yt_unittest_lib)
-add_subdirectory(yt_unittest_main)
+find_package(linux-headers-generic REQUIRED)
+add_library(mapreduce-tests-gtest_main)
+
+
+target_compile_options(mapreduce-tests-gtest_main PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(mapreduce-tests-gtest_main PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  cpp-testing-gtest
+  cpp-mapreduce-interface
+  cpp-mapreduce-client
+)
+
+target_sources(mapreduce-tests-gtest_main PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/gtest_main/main.cpp
+)
+
+
+
+
 
 
