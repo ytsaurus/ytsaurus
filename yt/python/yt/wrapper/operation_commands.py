@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated, utcnow
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .constants import LOCAL_MODE_URL_PATTERN
@@ -375,7 +375,7 @@ class PrintOperationInfo(object):
 
         creation_time_str = get_operation_attributes(operation, fields=["start_time"], client=client)["start_time"]
         creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
-        self.operation_start_time = creation_time + (datetime.now() - datetime.utcnow())
+        self.operation_start_time = creation_time + (datetime.now() - utcnow())
 
         self.client = client
         self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])

@@ -13,7 +13,7 @@ try:
 except ImportError:
     from six import PY3
 
-from yt.common import datetime_to_string, YtResponseError
+from yt.common import datetime_to_string, YtResponseError, utcnow
 import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
@@ -495,12 +495,12 @@ class TestCypressCommands(object):
             with pytest.raises(RuntimeError):
                 t.commit()
 
-        tx_id = yt.start_transaction(deadline=datetime.datetime.utcnow() + datetime.timedelta(seconds=5))
+        tx_id = yt.start_transaction(deadline=utcnow() + datetime.timedelta(seconds=5))
         assert yt.exists("#" + tx_id)
         time.sleep(6)
         assert not yt.exists("#" + tx_id)
 
-        tx_id = yt.start_transaction(deadline=datetime_to_string(datetime.datetime.utcnow() + datetime.timedelta(seconds=5)))
+        tx_id = yt.start_transaction(deadline=datetime_to_string(utcnow() + datetime.timedelta(seconds=5)))
         assert yt.exists("#" + tx_id)
         time.sleep(6)
         assert not yt.exists("#" + tx_id)

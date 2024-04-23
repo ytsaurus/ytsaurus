@@ -6,7 +6,7 @@ from yt.wrapper.errors import create_http_response_error, YtRpcUnavailable
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
-                               escape_c)
+                               escape_c, utcnow)
 
 try:
     from yt.packages.six.moves import xrange, cPickle as pickle
@@ -120,7 +120,7 @@ def test_merge_blobs_by_size_performance():
 @authors("ignat")
 def test_time_functions():
     now = datetime.now()
-    now_utc = datetime.utcnow()
+    now_utc = utcnow()
     str1 = datetime_to_string(now_utc)
     str2 = datetime_to_string(now, is_local=True)
     tm1 = date_string_to_timestamp(str1)

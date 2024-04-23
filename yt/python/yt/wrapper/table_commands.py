@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size, typing)
+                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size, typing, utcnow)
 from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .constants import YSON_PACKAGE_INSTALLATION_TEXT
@@ -33,7 +33,7 @@ except ImportError:
     from six.moves import map as imap, filter as ifilter, xrange
 
 from copy import deepcopy
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 # Auxiliary methods
 
@@ -136,7 +136,7 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
                                    get_config(client)["temp_expiration_timeout"])
     timeout = timedelta(milliseconds=expiration_timeout)
     attributes = update(
-        {"expiration_time": datetime_to_string(datetime.utcnow() + timeout)},
+        {"expiration_time": datetime_to_string(utcnow() + timeout)},
         get_value(attributes, {}))
     _create_table(name, attributes=attributes, client=client)
     return name

@@ -1,6 +1,7 @@
 from .conftest import authors
 from .helpers import TEST_DIR, wait
 
+from yt.wrapper.common import utcnow
 from yt.wrapper.batch_helpers import create_batch_client
 from yt.wrapper.batch_response import apply_function_to_result
 from yt.wrapper.batch_execution import YtBatchRequestFailedError
@@ -14,7 +15,6 @@ except ImportError:
 
 import pytest
 
-import datetime
 import tempfile
 import time
 import os
@@ -406,7 +406,7 @@ class TestBatchExecutionOperationCommands(object):
             os.chmod(f.name, 0x777)
             op1 = yt.run_map("echo $YT_JOB_ID > {} && cat".format(f.name), table, table, job_count=1, format="json")
             job_id = f.read().strip()
-        after_op1 = datetime.datetime.utcnow()
+        after_op1 = utcnow()
         op2 = yt.run_sort(table, table, sort_by=["x"])
         op3 = yt.run_reduce("cat", table, table, reduce_by=["x"], format="json")
 

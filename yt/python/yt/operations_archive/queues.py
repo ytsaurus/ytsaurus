@@ -1,6 +1,8 @@
 import yt.logger as logger
 
-from datetime import datetime, timedelta
+from yt.common import utcnow
+
+from datetime import timedelta
 from threading import Thread, Lock
 
 from time import sleep
@@ -21,10 +23,10 @@ class Timer(object):
         if self.start is not None:
             raise Exception("Recursive usage of class Timer")
         else:
-            self.start = datetime.utcnow()
+            self.start = utcnow()
 
     def __exit__(self, type, value, traceback):
-        self.elapsed += datetime.utcnow() - self.start
+        self.elapsed += utcnow() - self.start
         self.start = None
 
 class ThreadSafeCounter(object):
@@ -158,9 +160,9 @@ def wait_for_queue(queue, name, end_time=None, sleep_timeout=0.2):
                     name,
                     len(queue),
                     queue.executing_count,
-                    str(end_time - datetime.utcnow()) if end_time is not None else "inf")
+                    str(end_time - utcnow()) if end_time is not None else "inf")
         counter += 1
-        if end_time is not None and datetime.utcnow() > end_time:
+        if end_time is not None and utcnow() > end_time:
             logger.info("Waiting timeout is expired for queue '%s'", name)
             queue.close()
             result.extend(queue.clear())
