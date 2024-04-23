@@ -10,13 +10,14 @@ def check_node_count(yt_client, path, count_threshold, cluster_name, logger, sta
         count = yt_client.get(f"{path}/@count")
         if count >= count_threshold:
             logger.info(f"{path}/@count:{count} -ge threshold:{count_threshold}")
-            check_link = get_link(cluster_name, "wrapper_files_count")  # TODO: rename odin check later
+            check_link = get_link(cluster_name, "wrapper_node_count")
             return states.UNAVAILABLE_STATE, \
                 f"{path}/@count:{count} -ge threshold:{count_threshold} {check_link}"
     else:
         return states.PARTIALLY_AVAILABLE_STATE, f"Wrapper file path do not exist: {path}"
     logger.info(f"{path}/@count:{count} -lt threshold:{count_threshold}")
-    return states.FULLY_AVAILABLE_STATE
+    return states.FULLY_AVAILABLE_STATE, \
+        f"{path}/@count:{count} -lt threshold:{count_threshold}"
 
 
 def run_check(yt_client, logger, options, states):
