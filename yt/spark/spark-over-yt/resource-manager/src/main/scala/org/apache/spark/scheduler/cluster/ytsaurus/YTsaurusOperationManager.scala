@@ -24,17 +24,18 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 private[spark] class YTsaurusOperationManager(
-                                               ytClient: YTsaurusClient,
-                                               user: String,
-                                               token: String,
-                                               portoLayers: YTreeNode,
-                                               filePaths: YTreeNode,
-                                               environment: YTreeMapNode,
-                                               home: String,
-                                               sparkClassPath: String,
-                                               javaCommand: String,
-                                               ytsaurusJavaOptions: Seq[String]
-) extends Logging {
+    ytClient: YTsaurusClient,
+    user: String,
+    token: String,
+    portoLayers: YTreeNode,
+    filePaths: YTreeNode,
+    pythonPaths: YTreeMapNode,
+    environment: YTreeMapNode,
+    home: String,
+    sparkClassPath: String,
+    javaCommand: String,
+    ytsaurusJavaOptions: Seq[String])
+  extends Logging {
   import YTsaurusOperationManager._
 
   def startDriver(conf: SparkConf, appArgs: ApplicationArguments): YTsaurusOperation = {
@@ -105,7 +106,7 @@ private[spark] class YTsaurusOperationManager(
 
   private def createSpec(conf: SparkConf, taskName: String, opParams: OperationParameters): VanillaSpec = {
 
-    val poolParameters = conf.getOption("spark.ytsaurus.pool")
+    val poolParameters = conf.get(YTSAURUS_POOL)
       .map(pool => Map("pool" -> YTree.stringNode(pool))).getOrElse(Map.empty)
 
     val opSpecBuilder: VanillaSpec.BuilderBase[_] = VanillaSpec.builder()
@@ -196,7 +197,7 @@ private[spark] class YTsaurusOperationManager(
     resourceProfile: ResourceProfile,
     numExecutors: Int): OperationParameters = {
 
-    val isPythonApp = conf.get(IS_PYTHON_APP)
+    val isPythonApp = conf.get(YTSAURUS_IS_PYTHON)
 
     val driverUrl = RpcEndpointAddress(
       conf.get(DRIVER_HOST_ADDRESS),
@@ -216,6 +217,20 @@ private[spark] class YTsaurusOperationManager(
     }
 
     val executorOpts = conf.get(EXECUTOR_JAVA_OPTIONS).getOrElse("")
+
+    val execEnvironmentBuilder = environment.toMapBuilder
+
+    if (isPythonApp && conf.get(YTSAURUS_PYTHON_VERSION).isDefined) {
+      val pythonVersion = conf.get(YTSAURUS_PYTHON_VERSION).get
+      val pythonPathOpt = pythonPaths.get(pythonVersion)
+      if (pythonPathOpt.isEmpty) {
+        throw new SparkException(
+          s"Python version $pythonVersion is not supported. Please check the path specified in " +
+            s"$GLOBAL_CONFIG_PATH for supported versions"
+        )
+      }
+      execEnvironmentBuilder.key("PYSPARK_EXECUTOR_PYTHON").value(pythonPathOpt.get())
+    }
 
     val executorCommand = (Seq(
       prepareEnvCommand, home,
@@ -244,7 +259,7 @@ private[spark] class YTsaurusOperationManager(
       .key("memory_limit").value(memoryLimit)
       .key("layer_paths").value(portoLayers)
       .key("file_paths").value(filePaths)
-      .key("environment").value(environment)
+      .key("environment").value(execEnvironmentBuilder.endMap().build())
       .endMap()
 
     val attemptId = s" [${sys.env.getOrElse("YT_TASK_JOB_INDEX", "0")}]"
@@ -276,6 +291,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
 
       val portoLayers = releaseConfig.getListO("layer_paths").orElse(YTree.listBuilder().buildList())
       val filePaths = releaseConfig.getListO("file_paths").orElse(YTree.listBuilder().buildList())
+      val pythonPaths = globalConfig.getMapO("python_cluster_paths").orElse(YTree.mapBuilder().buildMap())
 
       applicationFiles(conf).foreach { fileName =>
         filePaths.add(YTree.stringNode(fileName))
@@ -302,6 +318,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
         token,
         portoLayers,
         filePaths,
+        pythonPaths,
         environment,
         home,
         sparkClassPath,

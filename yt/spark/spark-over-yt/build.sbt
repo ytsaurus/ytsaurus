@@ -99,7 +99,7 @@ lazy val `cluster` = (project in file("spark-cluster"))
   )
 
 lazy val `spark-submit` = (project in file("spark-submit"))
-  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `resource-manager` % Test)
+  .dependsOn(`cluster` % "compile->compile;test->test;provided->provided", `resource-manager` % "compile->compile;test->test")
   .enablePlugins(JavaAgent)
   .settings(
     libraryDependencies ++= scaldingArgs,

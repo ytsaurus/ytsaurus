@@ -1,17 +1,18 @@
 package org.apache.spark.deploy
 
 import javassist.CtMethod
-import javassist.bytecode.{CodeAttribute, CodeIterator, ConstPool, Mnemonic, Opcode, StackMapTable, YTsaurusBytecodeUtils}
+import javassist.bytecode.{CodeAttribute, ConstPool, Opcode, StackMapTable, YTsaurusBytecodeUtils}
 import org.apache.hadoop.conf.{Configuration => HadoopConfiguration}
-import org.apache.spark.{SparkConf, SparkException}
+import org.apache.spark.SparkConf
+import org.apache.spark.deploy.ytsaurus.Config.{YTSAURUS_IS_PYTHON, YTSAURUS_POOL, YTSAURUS_PYTHON_VERSION}
 import org.apache.spark.internal.config._
 import org.apache.spark.launcher.SparkLauncher
 import org.apache.spark.util.{DependencyUtils, Utils}
 import tech.ytsaurus.spyt.patch.MethodProcesor
 import tech.ytsaurus.spyt.patch.annotations.{Decorate, DecoratedMethod, OriginClass}
 
-import java.util
 import scala.collection.mutable.ArrayBuffer
+import scala.sys.process.Process
 
 @Decorate
 @OriginClass("org.apache.spark.deploy.SparkSubmit")
@@ -89,10 +90,16 @@ private[spark] class SparkSubmitSpyt {
       OptionAssigner(args.driverCores, YTSAURUS, CLUSTER, confKey = DRIVER_CORES.key),
 
       // YTsaurus only
-      OptionAssigner(args.queue, YTSAURUS, ALL_DEPLOY_MODES, confKey = "spark.ytsaurus.pool"),
+      OptionAssigner(args.queue, YTSAURUS, ALL_DEPLOY_MODES, confKey = YTSAURUS_POOL.key),
+      OptionAssigner(args.isPython.toString, YTSAURUS, ALL_DEPLOY_MODES, confKey = YTSAURUS_IS_PYTHON.key),
     )
 
     childArgs ++= processOptions(options, deployMode, clusterManager, sparkConf)
+
+    if (clusterManager == YTSAURUS && args.isPython && deployMode == CLIENT) {
+      val basePythonVersion = getBasePythonVersion(sparkConf)
+      sparkConf.set(YTSAURUS_PYTHON_VERSION.key, basePythonVersion)
+    }
 
     if (isYTsaurusCluster) {
       childMainClass = YTSAURUS_CLUSTER_SUBMIT_CLASS
@@ -186,6 +193,18 @@ object SparkSubmitSpyt {
     args.childArgs.foreach { arg =>
       childArgs += ("--arg", arg)
     }
+  }
+
+  private[deploy] def getBasePythonVersion(sparkConf: SparkConf): String = {
+    // Exact copy from main method of org.apache.spark.deploy.PythonRunner
+    val pythonExec = sparkConf.get(PYSPARK_DRIVER_PYTHON)
+      .orElse(sparkConf.get(PYSPARK_PYTHON))
+      .orElse(sys.env.get("PYSPARK_DRIVER_PYTHON"))
+      .orElse(sys.env.get("PYSPARK_PYTHON"))
+      .getOrElse("python3")
+
+    val pythonVersion = Process(pythonExec, Seq("-V")).!!.replace("Python","").trim()
+    pythonVersion.substring(0, pythonVersion.indexOf('.', pythonVersion.indexOf('.') + 1))
   }
 }
 

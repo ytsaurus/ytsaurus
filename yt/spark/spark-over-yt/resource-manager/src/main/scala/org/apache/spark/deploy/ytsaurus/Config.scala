@@ -52,6 +52,24 @@ object Config {
     .longConf
     .createWithDefault(10000)
 
+  val YTSAURUS_POOL = ConfigBuilder("spark.ytsaurus.pool")
+    .doc("YTsaurus scheduler pool to execute this job")
+    .version("3.2.2")
+    .stringConf
+    .createOptional
+
+  val YTSAURUS_IS_PYTHON = ConfigBuilder("spark.ytsaurus.isPython")
+    .internal()
+    .version("3.2.2")
+    .booleanConf
+    .createWithDefault(false)
+
+  val YTSAURUS_PYTHON_VERSION = ConfigBuilder("spark.ytsaurus.python.version")
+    .internal()
+    .version("3.2.2")
+    .stringConf
+    .createOptional
+
   val DRIVER_OPERATION_ID = "spark.ytsaurus.driver.operation.id"
   val EXECUTOR_OPERATION_ID = "spark.ytsaurus.executor.operation.id"
   val SPARK_PRIMARY_RESOURCE = "spark.ytsaurus.primary.resource"
