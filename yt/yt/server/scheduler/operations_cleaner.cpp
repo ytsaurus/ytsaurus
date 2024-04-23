@@ -251,25 +251,25 @@ static T FilterYsonAndLoadStruct(const TYsonString& source)
     return result;
 }
 
-struct TAnnotationsAndScheduligOptions
+struct TAnnotationsAndSchedulingOptions
 {
     INodePtr Annotations;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAnnotationsAndScheduligOptions::*>> Fields = {
-            {"annotations", &TAnnotationsAndScheduligOptions::Annotations},
-            {"scheduling_options_per_pool_tree", &TAnnotationsAndScheduligOptions::SchedulingOptionsPerPoolTree},
+    static const inline std::vector<std::pair<TString, INodePtr TAnnotationsAndSchedulingOptions::*>> Fields = {
+        {"annotations", &TAnnotationsAndSchedulingOptions::Annotations},
+        {"scheduling_options_per_pool_tree", &TAnnotationsAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
 };
 
-struct TAclAndScheduligOptions
+struct TAclAndSchedulingOptions
 {
     INodePtr Acl;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAclAndScheduligOptions::*>> Fields = {
-            {"acl", &TAclAndScheduligOptions::Acl},
-            {"scheduling_options_per_pool_tree", &TAclAndScheduligOptions::SchedulingOptionsPerPoolTree},
+    static const inline std::vector<std::pair<TString, INodePtr TAclAndSchedulingOptions::*>> Fields = {
+        {"acl", &TAclAndSchedulingOptions::Acl},
+        {"scheduling_options_per_pool_tree", &TAclAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
 };
 
@@ -283,12 +283,12 @@ struct TFilteredSpecAttributes
     INodePtr TablePath;
 
     static const inline std::vector<std::pair<TString, INodePtr TFilteredSpecAttributes::*>> Fields = {
-            {"pool", &TFilteredSpecAttributes::Pool},
-            {"title", &TFilteredSpecAttributes::Title},
-            {"input_table_paths", &TFilteredSpecAttributes::InputTablePaths},
-            {"output_table_paths", &TFilteredSpecAttributes::OutputTablePaths},
-            {"output_table_path", &TFilteredSpecAttributes::OutputTablePath},
-            {"table_path", &TFilteredSpecAttributes::TablePath}
+        {"pool", &TFilteredSpecAttributes::Pool},
+        {"title", &TFilteredSpecAttributes::Title},
+        {"input_table_paths", &TFilteredSpecAttributes::InputTablePaths},
+        {"output_table_paths", &TFilteredSpecAttributes::OutputTablePaths},
+        {"output_table_path", &TFilteredSpecAttributes::OutputTablePath},
+        {"table_path", &TFilteredSpecAttributes::TablePath}
     };
 };
 
@@ -305,7 +305,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     };
 
-    auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAnnotationsAndScheduligOptions>(request.RuntimeParameters);
+    auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAnnotationsAndSchedulingOptions>(request.RuntimeParameters);
     auto filteredSpec = FilterYsonAndLoadStruct<TFilteredSpecAttributes>(request.Spec);
 
     std::vector<TString> parts;
@@ -464,7 +464,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     TYsonString acl;
 
     if (request.RuntimeParameters) {
-        auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAclAndScheduligOptions>(request.RuntimeParameters);
+        auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAclAndSchedulingOptions>(request.RuntimeParameters);
         pools = ConvertToYsonString(GetPools(filteredRuntimeParameters.SchedulingOptionsPerPoolTree));
         poolTreeToPool = ConvertToYsonString(GetPoolTreeToPool(filteredRuntimeParameters.SchedulingOptionsPerPoolTree));
         if (filteredRuntimeParameters.Acl) {
