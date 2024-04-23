@@ -175,7 +175,7 @@ public class EntitySkiffSerializer<T> {
             SkiffSerializer serializer
     ) {
         byte[] dataInBigEndian = Decimal.textToBinary(
-                value.toString(),
+                value.toPlainString(),
                 decimalType.getPrecision(),
                 decimalType.getScale()
         );
