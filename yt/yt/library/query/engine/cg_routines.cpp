@@ -2787,7 +2787,7 @@ void ListHasIntersection(
         ++i;
     }
     if (i < rhsNodeList.size()) {
-        auto element= rhsNodeList[i];
+        auto element = rhsNodeList[i];
         switch (element->GetType()) {
             case ENodeType::String:
                 found = ListHasIntersectionImpl<ENodeType::String, TString>(lhsNode, rhsNode);
