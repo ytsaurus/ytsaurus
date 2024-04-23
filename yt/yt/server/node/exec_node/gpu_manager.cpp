@@ -206,6 +206,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         TestGpuInfoUpdateExecutor_->Start();
     }
 
+    RdmaDeviceInfoUpdateExecutor_->Start();
+
     Bootstrap_->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
 }
