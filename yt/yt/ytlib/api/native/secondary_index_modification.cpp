@@ -32,11 +32,11 @@ TSecondaryIndexModifier::TSecondaryIndexModifier(
     TSharedRange<TRowModification> modifications,
     const TTableMountInfoPtr& tableMountInfo,
     std::vector<TTableMountInfoPtr> indexInfos,
-    const TLogger& logger)
+    TLogger logger)
     : TableSchema_(std::move(tableSchema))
     , Modifications_(std::move(modifications))
     , RowBuffer_(New<TRowBuffer>(TSecondaryIndexModificationsBufferTag{}))
-    , Logger(logger)
+    , Logger(std::move(logger))
     , NameTable_(std::move(nameTable))
     , IndexInfos_(std::move(indexInfos))
 {

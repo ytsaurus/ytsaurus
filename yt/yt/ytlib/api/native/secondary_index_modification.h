@@ -17,7 +17,7 @@ public:
         TSharedRange<TRowModification> modifications,
         const NTabletClient::TTableMountInfoPtr& tableMountInfo,
         std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
-        const NLogging::TLogger& logger);
+        NLogging::TLogger logger);
 
     std::vector<NTableClient::TUnversionedRow> GetLookupKeys();
 
