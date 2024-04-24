@@ -4231,7 +4231,7 @@ private:
                 durabilityRequired = it->second;
             } else {
                 auto replication = requisitionRegistry->GetReplication(requisitionIndex);
-                durabilityRequired = replication.IsDurable(this, /*isErasureChunk*/ chunk->IsErasure());
+                durabilityRequired = replication.IsDurable(this, chunk->IsErasure());
                 EmplaceOrCrash(durabilityRequiredCache, requisitionIndex, durabilityRequired);
             }
 
