@@ -151,6 +151,19 @@ void TTestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_cell_directory_override", &TThis::MasterCellDirectoryOverride)
         .Default();
+    registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& edge : config->FrozenHiveEdges) {
+            if (edge.size() != 2) {
+                config->FrozenHiveEdges.clear();
+
+                THROW_ERROR_EXCEPTION("Wrong Hive edge format; expected 2 values, but got %v",
+                    edge.size());
+            }
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

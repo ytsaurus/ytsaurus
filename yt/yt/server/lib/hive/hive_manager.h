@@ -38,6 +38,17 @@ DEFINE_REFCOUNTED_TYPE(TSerializedMessage)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THiveEdge
+{
+    TCellId SourceCellId;
+    TCellId DestinationCellId;
+};
+
+void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf format);
+TString ToString(const THiveEdge& edge);
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: single (unless noted otherwise)
  */
@@ -100,6 +111,9 @@ public:
      *  \note Thread affinity: any
      */
     virtual TFuture<void> SyncWith(TCellId cellId, bool enableBatching) = 0;
+
+    //! This is intended to be used in tests to simulate bad connection.
+    virtual void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) = 0;
 
     DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(CellMailbox, CellMailboxes, TCellMailbox);
     DECLARE_INTERFACE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(AvenueMailbox, AvenueMailboxes, TAvenueMailbox);
