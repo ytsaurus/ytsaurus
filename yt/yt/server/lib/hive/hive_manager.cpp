@@ -68,6 +68,18 @@ static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf /*format*/)
+{
+    builder->AppendFormat("[%v->%v]", edge.SourceCellId, edge.DestinationCellId);
+}
+
+TString ToString(const THiveEdge& edge)
+{
+    return ToStringViaBuilder(edge);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 static NConcurrency::TFlsSlot<TCellId> HiveMutationSenderId;
 
 bool IsHiveMutation()
@@ -295,6 +307,23 @@ public:
         return mailbox;
     }
 
+    void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) override
+    {
+        if (!FrozenEdges_.empty()) {
+            YT_LOG_DEBUG("Unfreezing Hive edges (Edges: %v)",
+                FrozenEdges_);
+            FrozenEdges_.clear();
+        }
+
+        if (edgesToFreeze.empty()) {
+            return;
+        }
+
+        FrozenEdges_ = std::move(edgesToFreeze);
+        YT_LOG_DEBUG("Freezing Hive edges (Edges: %v)",
+            edgesToFreeze);
+    }
+
     void RemoveCellMailbox(TCellMailbox* mailbox) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -500,6 +529,8 @@ private:
     TTimeCounter AsyncPostingTimeCounter_;
     THashMap<TCellId, TTimeCounter> PerCellSyncTimeCounter_;
 
+    std::vector<THiveEdge> FrozenEdges_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     // RPC handlers.
@@ -632,6 +663,19 @@ private:
                 NHiveClient::EErrorCode::MailboxNotCreatedYet,
                 "Mailbox %v is not created yet",
                 srcCellId);
+        }
+
+        if (mailbox->IsCell()) {
+            for (const auto& edge : FrozenEdges_) {
+                if (edge.DestinationCellId == SelfCellId_ && edge.SourceCellId == srcCellId) {
+                    YT_LOG_DEBUG(
+                        "Simulating connection instability; "
+                        "not posting messages to another cell (SelfCellId: %v, SrcCellId: %v)",
+                        SelfCellId_,
+                        srcCellId);
+                    return;
+                }
+            }
         }
 
         bool shouldCommit = DoPostMessages(request, response);
