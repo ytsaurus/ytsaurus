@@ -98,7 +98,8 @@ public:
             YT_LOG_ALERT("Loaded a lease object from an older snapshot; "
                 "the lease is likely stuck, consider forcing transaction abort "
                 "(LeaseId: %v, ContextVersion: %v)",
-                Id_);
+                Id_,
+                context.GetVersion());
         } else {
             Persist(context, OwnerCellId_);
         }
