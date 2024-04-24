@@ -37,6 +37,8 @@ TIssueTokenCommand::TIssueTokenCommand()
     RegisterParameter("user", User_);
     RegisterParameter("password_sha256", PasswordSha256_)
         .Default();
+    RegisterParameter("description", Options.Description)
+        .Default();
 }
 
 void TIssueTokenCommand::DoExecute(ICommandContextPtr context)
@@ -79,6 +81,8 @@ TListUserTokensCommand::TListUserTokensCommand()
     RegisterParameter("user", User_);
     RegisterParameter("password_sha256", PasswordSha256_)
         .Default();
+    RegisterParameter("with_metadata", Options.WithMetadata)
+        .Default(false);
 }
 
 void TListUserTokensCommand::DoExecute(ICommandContextPtr context)
@@ -89,7 +93,11 @@ void TListUserTokensCommand::DoExecute(ICommandContextPtr context)
         Options))
         .ValueOrThrow();
 
-    context->ProduceOutputValue(ConvertToYsonString(result.Tokens));
+    if (Options.WithMetadata) {
+        context->ProduceOutputValue(ConvertToYsonString(result.Metadata));
+    } else {
+        context->ProduceOutputValue(ConvertToYsonString(result.Tokens));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

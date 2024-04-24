@@ -1819,11 +1819,13 @@ def set_user_password(user, new_password, current_password=None, **kwargs):
     return execute_command("set_user_password", kwargs)
 
 
-def issue_token(user, password=None, **kwargs):
+def issue_token(user, password=None, description=None, **kwargs):
     kwargs["user"] = user
     if password:
         password = hashlib.sha256(password.encode("utf-8")).hexdigest()
         kwargs["password_sha256"] = password
+    if description:
+        kwargs["description"] = description
     token = execute_command("issue_token", kwargs, parse_yson=True)
     token_sha256 = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return token, token_sha256
@@ -1838,12 +1840,13 @@ def revoke_token(user, token_sha256, password=None, **kwargs):
     return execute_command("revoke_token", kwargs)
 
 
-def list_user_tokens(user, password=None, **kwargs):
+def list_user_tokens(user, password=None, with_metadata=False, **kwargs):
     kwargs["user"] = user
+    kwargs["with_metadata"] = with_metadata
     if password:
         password = hashlib.sha256(password.encode("utf-8")).hexdigest()
         kwargs["password_sha256"] = password
-    return execute_command("list_user_tokens", kwargs, parse_yson=True)
+    return execute_command("list_user_tokens", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def migrate_replication_cards(chaos_cell_id, replication_card_ids=None, **kwargs):
