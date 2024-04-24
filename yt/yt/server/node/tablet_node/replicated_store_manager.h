@@ -50,7 +50,7 @@ public:
     void InitializeRotation() override;
     void ScheduleRotation(NLsm::EStoreRotationReason reason) override;
     void UnscheduleRotation() override;
-    void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
+    void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore) override;
 
     void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint) override;
     void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;

@@ -160,9 +160,9 @@ void TReplicatedStoreManager::UnscheduleRotation()
     LogStoreManager_->UnscheduleRotation();
 }
 
-void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationReason reason)
+void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore)
 {
-    LogStoreManager_->Rotate(createNewStore, reason);
+    LogStoreManager_->Rotate(createNewStore, reason, allowEmptyStore);
 }
 
 void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
