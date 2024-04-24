@@ -61,6 +61,8 @@ class TDiscoveryV2Config
     , public NDiscoveryClient::TMemberClientConfig
 {
 public:
+    TDuration DiscoveryReadinessTimeout;
+
     REGISTER_YSON_STRUCT(TDiscoveryV2Config);
 
     static void Register(TRegistrar registrar);
