@@ -23,11 +23,13 @@
 #include <Columns/ColumnTuple.h>
 #include <Columns/ColumnVector.h>
 #include <Columns/IColumn.h>
+#include <Common/formatIPv6.h>
 #include <Core/Types.h>
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeCustom.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeIPv4andIPv6.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
@@ -578,6 +580,85 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TIPAddressType>
+class TIPAddressConverter
+    : public IConverter
+{
+public:
+    static_assert(std::is_same_v<TIPAddressType, DB::IPv4>
+        || std::is_same_v<TIPAddressType, DB::IPv6>);
+
+    // Trailing zero byte is counted.
+    static constexpr i64 IPAddressMaxTextLength = (std::is_same_v<TIPAddressType, DB::IPv4>)
+        ? (IPV4_MAX_TEXT_LENGTH + 1)
+        : (IPV6_MAX_TEXT_LENGTH + 1);
+
+    TIPAddressConverter() = default;
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        Column_ = column;
+        Data_ = reinterpret_cast<const TIPAddressType*>(column->getDataAt(0).data);
+        CurrentValueIndex_ = 0;
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        YT_VERIFY(values.size() == Column_->size());
+
+        Buffer_.resize(values.size() * IPAddressMaxTextLength);
+
+        for (int index = 0; index < std::ssize(values); ++index) {
+            const auto* chValue = Data_ + index;
+            char* ytValue = Buffer_.begin() + IPAddressMaxTextLength * index;
+            DoConvertIPAddress(ytValue, chValue);
+            values[index] = MakeUnversionedStringValue(ytValue, strlen(ytValue));
+        }
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        YT_ASSERT(CurrentValueIndex_ < std::ssize(*Column_));
+
+        if (!writer) {
+            ++CurrentValueIndex_;
+            return;
+        }
+
+        const auto* chValue = Data_ + CurrentValueIndex_;
+        char ytValue[IPAddressMaxTextLength];
+        DoConvertIPAddress(ytValue, chValue);
+        writer->WriteBinaryString(TStringBuf(ytValue, strlen(ytValue)));
+
+        ++CurrentValueIndex_;
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        return SimpleLogicalType(ESimpleLogicalValueType::String);
+    }
+
+private:
+    const DB::IColumn* Column_ = nullptr;
+    const TIPAddressType* Data_ = nullptr;
+    i64 CurrentValueIndex_ = 0;
+    // Buffer to store formatted addresses.
+    TString Buffer_;
+
+    void DoConvertIPAddress(char* ytValue, const TIPAddressType* ip)
+    {
+        if constexpr (std::is_same_v<TIPAddressType, DB::IPv4>) {
+            DB::formatIPv4(reinterpret_cast<const unsigned char *>(ip), ytValue);
+        } else if constexpr (std::is_same_v<TIPAddressType, DB::IPv6>) {
+            DB::formatIPv6(reinterpret_cast<const unsigned char *>(ip), ytValue);
+        } else {
+            YT_ABORT();
+        }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -783,6 +864,18 @@ private:
         }
     }
 
+    IConverterPtr CreateIPAddressConverter(const DB::DataTypePtr& dataType)
+    {
+        switch (dataType->getTypeId()) {
+            case DB::TypeIndex::IPv4:
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv4::FieldType>>();
+            case DB::TypeIndex::IPv6:
+                return std::make_unique<TIPAddressConverter<DB::DataTypeIPv6::FieldType>>();
+            default:
+                YT_ABORT();
+        }
+    }
+
     IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
     {
         switch (dataType->getTypeId()) {
@@ -815,6 +908,9 @@ private:
             case DB::TypeIndex::Enum8:
             case DB::TypeIndex::Enum16:
                 return CreateEnumConverter(dataType);
+            case DB::TypeIndex::IPv4:
+            case DB::TypeIndex::IPv6:
+                return CreateIPAddressConverter(dataType);
             default:
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %v to YT type system is not supported",

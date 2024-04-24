@@ -268,3 +268,15 @@ class TestQueriesChyt(ClickHouseTestBase):
             query = start_query("chyt", "select CAST('a', 'Nullable(Enum16(\\'a\\' = 1))') as a", settings=settings)
             query.track()
             assert query.read_result(0) == [{"a": "a"}]
+
+    @authors("gudqeit")
+    def test_conversion_for_ip_addresses(self, query_tracker):
+        with Clique(1, alias="*ch_alias"):
+            settings = {"clique": "ch_alias", "cluster": "primary"}
+            query = start_query("chyt", "select toIPv4('127.0.0.1') as ip", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"ip": "127.0.0.1"}]
+
+            query = start_query("chyt", "select toIPv6('127.0.0.1') as ip", settings=settings)
+            query.track()
+            assert query.read_result(0) == [{"ip": "::ffff:127.0.0.1"}]
