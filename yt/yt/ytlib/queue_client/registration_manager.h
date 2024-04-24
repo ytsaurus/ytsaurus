@@ -36,7 +36,7 @@ public:
 
     // NB: May return stale results in regard to the other methods in this class.
     // NB: If cache bypass is enabled, this call will always refresh the cache itself.
-    TGetRegistrationResult GetRegistration(
+    TGetRegistrationResult GetRegistrationOrThrow(
         NYPath::TRichYPath queue,
         NYPath::TRichYPath consumer);
 

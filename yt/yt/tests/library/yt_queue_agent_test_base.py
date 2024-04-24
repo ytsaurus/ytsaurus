@@ -401,7 +401,7 @@ class TestQueueAgentBase(YTEnvSetup):
         return schema, queue_id
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
         if without_meta:
             attributes = {
                 "dynamic": True,
@@ -413,7 +413,7 @@ class TestQueueAgentBase(YTEnvSetup):
             if mount:
                 sync_mount_table(path)
         else:
-            create("queue_consumer", path, attributes=kwargs)
+            create("queue_consumer", path, driver=driver, attributes=kwargs)
             if not mount:
                 wait_for_tablet_state(path, "mounted")
                 sync_unmount_table(path)
