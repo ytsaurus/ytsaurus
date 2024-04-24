@@ -1366,6 +1366,7 @@ private:
 
     TIssueTokenResult DoIssueTokenImpl(
         const TString& user,
+        const TString& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
 
