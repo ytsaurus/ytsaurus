@@ -1244,6 +1244,41 @@ TEST_F(TReplicatedTableTrackerTest, ClusterStateChecks)
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 }
 
+TEST_F(TReplicatedTableTrackerTest, ReplicaLagTimeCapping)
+{
+    auto client = Host_->GetMockClient(Cluster1);
+    MockGoodReplicaCluster(client);
+    MockGoodBundle(client);
+    MockGoodTable(client);
+
+    auto tableId = Host_->CreateReplicatedTable();
+    auto replicaId = Host_->CreateTableReplica(
+        tableId,
+        ETableReplicaMode::Async,
+        /*enabled*/ true,
+        Cluster1,
+        TablePath1,
+        /*replicaLagTime*/ std::nullopt);
+
+    auto options = Host_->GetTableOptions(tableId);
+    options->SyncReplicaLagThreshold = TDuration::Seconds(5);
+    Host_->SetTableOptions(tableId, std::move(options));
+
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeRemained(replicaId);
+
+    Host_->SetReplicaLagTime(replicaId, TDuration::Seconds(1));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
+
+    Host_->SetReplicaLagTime(replicaId, TDuration::Minutes(10));
+    Sleep(WarmUpPeriod);
+    Host_->ValidateReplicaModeRemained(replicaId);
+
+    Sleep(TDuration::Seconds(10));
+    Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
+}
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////

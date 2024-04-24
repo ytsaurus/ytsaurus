@@ -3041,6 +3041,7 @@ class TestChaos(ChaosTestBase):
             "enable_replicated_table_tracker": True,
             "tablet_cell_bundle_name_ttl": 1000,
             "tablet_cell_bundle_name_failure_interval": 100,
+            "preferred_sync_replica_clusters": ["primary"],
         }
         create("chaos_replicated_table", "//tmp/crt", attributes={
             "chaos_cell_bundle": "c",

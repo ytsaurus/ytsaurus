@@ -728,9 +728,23 @@ public:
             return ReplicaLagTime_;
         }
 
-        void SetReplicaLagTime(std::optional<TDuration> replicaLagTime)
+        void SetReplicaLagTime(std::optional<TDuration> replicaLagTime, TInstant now)
         {
+            if (!replicaLagTime) {
+                ReplicaLagTime_ = std::nullopt;
+                LastReplicaLagTimeUpdate_ = std::nullopt;
+                return;
+            }
+
+            if (LastReplicaLagTimeUpdate_) {
+                TDuration replicaLagTimeThreshold = ReplicaLagTime_
+                    ? *ReplicaLagTime_ + (now - *LastReplicaLagTimeUpdate_)
+                    : TDuration::Max();
+                replicaLagTime = std::min(*replicaLagTime, replicaLagTimeThreshold);
+            }
+
             ReplicaLagTime_ = replicaLagTime;
+            LastReplicaLagTimeUpdate_ = now;
         }
 
         const TCounter& GetReplicaModeSwitchCounter() const
@@ -752,6 +766,9 @@ public:
         bool TrackingEnabled_;
         EReplicaState State_;
         std::optional<TDuration> ReplicaLagTime_;
+        // NB: This variable is added to tackle problem with lag computation in case of rare writes to tablet.
+        // Right after such writes current instant may be much larger than previous replication timestamp.
+        std::optional<TInstant> LastReplicaLagTimeUpdate_;
 
         TFuture<TString> BundleNameFuture_ = MakeFuture<TString>(
             TError("Bundle name has not been fetched yet"));
@@ -1512,11 +1529,12 @@ private:
         }
 
         int updateCount = 0;
+        auto now = TInstant::Now();
         for (auto [replicaId, lagTime] : ReplicaLagTimesOrError_.Value()) {
             auto it = IdToReplica_.find(replicaId);
             if (it != IdToReplica_.end()) {
                 ++updateCount;
-                it->second.SetReplicaLagTime(lagTime);
+                it->second.SetReplicaLagTime(lagTime, now);
             }
         }
 
