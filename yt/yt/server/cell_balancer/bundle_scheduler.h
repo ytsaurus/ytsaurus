@@ -145,6 +145,8 @@ struct TSchedulerMutations
 
     THashMap<TString, bool> ChangedDecommissionedFlag;
     THashMap<TString, bool> ChangedEnableBundleBalancerFlag;
+    THashMap<TString, bool> ChangedMuteTabletCellsCheck;
+    THashMap<TString, bool> ChangedMuteTabletCellSnapshotsCheck;
 
     THashMap<TString, TString> ChangedProxyRole;
     THashSet<TString> RemovedProxyRole;
@@ -168,7 +170,7 @@ struct TSchedulerMutations
     THashMap<TString, i64> ChangedTabletStaticMemory;
     THashMap<TString, TString> ChangedBundleShortName;
 
-    THashMap<TString, TString> InitializedNodeTagFilters;
+    THashMap<TString, TString> ChangedNodeTagFilters;
     THashMap<TString, TBundleConfigPtr> InitializedBundleTargetConfig;
 };
 
@@ -224,6 +226,7 @@ TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& re
 THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies);
 std::vector<TString> FlattenBundleInstancies(const THashMap<TString,std::vector<TString>>& instancies);
 
+TString GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -754,6 +754,19 @@ void SetNodeTagFilter(
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
 
+    if (bundleInfo->TargetConfig->EnableDrillsMode || GetDrillsNodeTagFilter(bundleInfo, bundleName) == nodeTagFilter) {
+        YT_LOG_WARNING("Bundle has drills mode enabled. To disable drills mode set bundle attribute @bundle_controller_target_config/enable_drills_mode=%false (Bundle: %v)",
+            bundleName);
+
+        mutations->AlertsToFire.push_back({
+            .Id = "bundle_has_drills_mode_enabled",
+            .BundleName = bundleName,
+            .Description = Format("Bundle %Qv has drills mode enabled",
+                bundleName),
+        });
+        return;
+    }
+
     if (nodeTagFilter.empty()) {
         YT_LOG_WARNING("Bundle does not have node_tag_filter attribute (Bundle: %v)",
             bundleName);
