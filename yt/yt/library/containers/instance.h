@@ -17,6 +17,7 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::CpuSystemUsage,
     EStatField::CpuWait,
     EStatField::CpuThrottled,
+    EStatField::CpuCfsThrottled,
     EStatField::ContextSwitches,
     EStatField::ContextSwitchesDelta,
     EStatField::ThreadCount,
