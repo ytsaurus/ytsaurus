@@ -162,20 +162,22 @@ TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
     }
 
     return LastAppendResult_
-        .Apply(BIND([this, this_ = MakeStrong(this), &lastDataSize = LastDataSize_] {
-            i64 dataSize = Chunk_->GetDataSize();
-            YT_VERIFY(lastDataSize <= dataSize);
-            if (dataSize > lastDataSize) {
-                TIOCounters result{
-                    .Bytes = dataSize - lastDataSize,
-                    .IORequests = 1
-                };
-                lastDataSize = dataSize;
-                return result;
-            }
-            return TIOCounters{};
-        })
-            .AsyncVia(SessionInvoker_));
+        .Apply(BIND([this, this_ = MakeStrong(this)] {
+            i64 newDataSize = Chunk_->GetDataSize();
+            auto oldDataSize = std::exchange(LastDataSize_, newDataSize);
+            YT_VERIFY(oldDataSize <= newDataSize);
+
+            // FinishChunk must induce a barrier as follows:
+            // if FinishChunk succeeds and is subsequently followed by GetChunkMeta returning N rows,
+            // no client writing to this chunk may ever receive a successful flush acknowlegement for >N rows.
+            // See YT-21626 for the details.
+            ValidateActive();
+
+            return TIOCounters{
+                .Bytes = newDataSize - oldDataSize,
+                .IORequests = oldDataSize == newDataSize ? 0 : 1,
+            };
+        }).AsyncVia(SessionInvoker_));
 }
 
 void TJournalSession::OnFinished()
