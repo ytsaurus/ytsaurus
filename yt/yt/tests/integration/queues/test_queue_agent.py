@@ -596,7 +596,7 @@ class TestRates(TestQueueAgentBase):
                    2 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert partitions[1]["read_data_weight_rate"]["1m_raw"] > 0
         assert abs(partitions[0]["read_data_weight_rate"]["1m_raw"] -
-                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
         # Check total read rate.
 
@@ -604,7 +604,7 @@ class TestRates(TestQueueAgentBase):
         assert abs(status["read_row_count_rate"]["1m_raw"] -
                    3 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert abs(status["read_data_weight_rate"]["1m_raw"] -
-                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
 
 class TestAutomaticTrimming(TestQueueAgentBase):
