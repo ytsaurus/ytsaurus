@@ -778,11 +778,11 @@ TFuture<void> TQueueExporter::RunExportIteration()
 
     auto exportTaskFuture = exportTask->Run();
 
-    exportTaskFuture.Subscribe(BIND([
+    exportTaskFuture.SubscribeUnique(BIND([
         this,
         this_ = MakeStrong(this),
         config = std::move(config)
-    ] (const TErrorOr<TQueueExportProgressPtr>& exportProgress) {
+    ] (TErrorOr<TQueueExportProgressPtr>&& exportProgress) {
         if (!exportProgress.IsOK()) {
             AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
