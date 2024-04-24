@@ -154,6 +154,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers")
     parser.add_argument("--master-cache-count", type=int, default=0, help="number of master caches")
     parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents")
+    parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)
