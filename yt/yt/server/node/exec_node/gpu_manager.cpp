@@ -132,6 +132,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
 {
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
     if (!StaticConfig_->Enable) {
         return;
     }
@@ -174,7 +176,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         if (shouldInitializeLayers) {
             FetchDriverLayerExecutor_->Start();
         } else {
-            OnFetchDriverLayerInfo();
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)));
         }
     } else {
         YT_LOG_INFO("No GPU driver layer directory specified");
