@@ -353,7 +353,7 @@ private:
         NProto::TReqDestroyObjects* request,
         const TTransactionPrepareOptions& options);
 
-    TFuture<void> DestroySequoiaObjects(NProto::TReqDestroyObjects request);
+    TFuture<void> DestroySequoiaObjects(std::unique_ptr<NProto::TReqDestroyObjects> request);
 
     void DoRemoveObject(TObject* object);
     void SendObjectLifeStageConfirmation(TObjectId objectId);
@@ -1955,17 +1955,17 @@ TFuture<void> TObjectManager::DestroyObjects(std::vector<TObjectId> objectIds)
 {
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
 
-    NProto::TReqDestroyObjects sequoiaRequest;
+    auto sequoiaRequest = std::make_unique<NProto::TReqDestroyObjects>();
     NProto::TReqDestroyObjects nonSequoiaRequest;
     for (auto objectId : objectIds) {
         const auto& handler = GetHandler(TypeFromId(objectId));
         auto* object = handler->FindObject(objectId);
         if (!object) {
-            // Looks ok.
+            // Looks OK.
             continue;
         }
         if (sequoiaConfig->Enable && IsSequoiaId(objectId)) {
-            ToProto(sequoiaRequest.add_object_ids(), objectId);
+            ToProto(sequoiaRequest->add_object_ids(), objectId);
         } else {
             ToProto(nonSequoiaRequest.add_object_ids(), objectId);
         }
@@ -1978,9 +1978,8 @@ TFuture<void> TObjectManager::DestroyObjects(std::vector<TObjectId> objectIds)
             ->CommitAndLog(Logger)
             .AsVoid());
     }
-
-    if (!sequoiaRequest.object_ids().empty()) {
-        futures.push_back(DestroySequoiaObjects(sequoiaRequest));
+    if (!sequoiaRequest->object_ids().empty()) {
+        futures.push_back(DestroySequoiaObjects(std::move(sequoiaRequest)));
     }
 
     return AllSucceeded(std::move(futures))
@@ -2008,13 +2007,13 @@ void TObjectManager::HydraPrepareDestroyObjects(
     DoDestroyObjects(request);
 }
 
-TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects request)
+TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReqDestroyObjects> request)
 {
     return Bootstrap_
         ->GetSequoiaClient()
         ->StartTransaction()
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
-            for (auto protoId : request.object_ids()) {
+            for (const auto& protoId : request->object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);
                 auto type = TypeFromId(id);
                 const auto& handler = GetHandler(type);
@@ -2027,7 +2026,7 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects r
 
             transaction->AddTransactionAction(
                 Bootstrap_->GetCellTag(),
-                NTransactionClient::MakeTransactionActionData(request));
+                NTransactionClient::MakeTransactionActionData(*request));
 
             NApi::TTransactionCommitOptions commitOptions{
                 .CoordinatorCellId = Bootstrap_->GetCellId(),

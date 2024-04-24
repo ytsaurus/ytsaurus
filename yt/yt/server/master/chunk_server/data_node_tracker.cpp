@@ -162,14 +162,14 @@ public:
 
             preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
 
-            preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
-            preparedRequest->SequoiaRequest.mutable_location_directory()->CopyFrom(originalRequest.location_directory());
+            preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
+            preparedRequest->SequoiaRequest->mutable_location_directory()->CopyFrom(originalRequest.location_directory());
 
             for (const auto& chunkInfo : originalRequest.chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
                 if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
                 }
@@ -183,20 +183,20 @@ public:
             .Run())
             .ValueOrThrow();
 
-        if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.removed_chunks()) {
+        if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
                 if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
                 }
             }
 
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.added_chunks()) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
                 if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
                 }
             }
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
+            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 
@@ -273,14 +273,14 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_added_chunks()->Clear();
             preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
 
-            preparedRequest->SequoiaRequest.set_node_id(originalRequest.node_id());
-            preparedRequest->SequoiaRequest.mutable_location_directory()->CopyFrom(originalRequest.location_directory());
+            preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
+            preparedRequest->SequoiaRequest->mutable_location_directory()->CopyFrom(originalRequest.location_directory());
 
             for (const auto& chunkInfo : originalRequest.added_chunks()) {
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
                 if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest.add_added_chunks() = chunkInfo;
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
                 }
@@ -290,7 +290,7 @@ public:
                 auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
                 auto locationIndex = chunkInfo.location_index();
                 if (sequoiaLocationIndices.contains(locationIndex) && chunkManager->CanHaveSequoiaReplicas(chunkId, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest.add_removed_chunks() = chunkInfo;
+                    *preparedRequest->SequoiaRequest->add_removed_chunks() = chunkInfo;
                 } else {
                     *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
                 }
@@ -304,20 +304,20 @@ public:
             .Run())
             .ValueOrThrow();
 
-        if (preparedRequest->SequoiaRequest.removed_chunks_size() + preparedRequest->SequoiaRequest.added_chunks_size() > 0) {
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.removed_chunks()) {
+        if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
                 if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
                 }
             }
 
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest.added_chunks()) {
+            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
                 if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest.add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
                 }
             }
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(preparedRequest->SequoiaRequest))
+            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 
@@ -578,7 +578,7 @@ private:
         TReqFullHeartbeat NonSequoiaRequest;
         TRspFullHeartbeat NonSequoiaResponse;
 
-        TReqModifyReplicas SequoiaRequest;
+        std::unique_ptr<TReqModifyReplicas> SequoiaRequest = std::make_unique<TReqModifyReplicas>();
     };
 
     struct TIncrementalHeartbeatRequest
@@ -587,7 +587,7 @@ private:
         TReqIncrementalHeartbeat NonSequoiaRequest;
         TRspIncrementalHeartbeat NonSequoiaResponse;
 
-        TReqModifyReplicas SequoiaRequest;
+        std::unique_ptr<TReqModifyReplicas> SequoiaRequest = std::make_unique<TReqModifyReplicas>();
     };
 
     TChunkLocationUuidMap& GetChunkLocationShard(TChunkLocationUuid uuid)
