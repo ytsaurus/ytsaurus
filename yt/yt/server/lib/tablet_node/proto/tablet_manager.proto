@@ -281,6 +281,7 @@ message TReqRotateStore
     required uint64 mount_revision = 2;
     optional int32 reason = 3; // EStoreRotationReason
     optional NYT.NProto.TGuid expected_active_store_id = 4;
+    optional bool allow_empty_store = 5;
 }
 
 message TReqSplitPartition

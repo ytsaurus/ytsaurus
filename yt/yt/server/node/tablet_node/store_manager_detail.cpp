@@ -500,7 +500,7 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
     UpdateInMemoryMode();
 }
 
-void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
+void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason, bool allowEmptyStore)
 {
     RotationScheduled_ = false;
     if (reason != EStoreRotationReason::Periodic) {
@@ -511,7 +511,7 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason)
 
     if (activeStore) {
         if (createNewStore && activeStore->GetRowCount() == 0 && reason != EStoreRotationReason::Discard) {
-            YT_LOG_ALERT("Empty dynamic store rotated (StoreId: %v, Reason: %v)",
+            YT_LOG_ALERT_IF(!allowEmptyStore, "Empty dynamic store rotated (StoreId: %v, Reason: %v)",
                 activeStore->GetId(),
                 reason);
         }

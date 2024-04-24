@@ -75,7 +75,7 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
-    void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason) override;
+    void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore = false) override;
 
     bool IsStoreLocked(IStorePtr store) const override;
     std::vector<IStorePtr> GetLockedStores() const override;
