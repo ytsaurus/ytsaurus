@@ -149,6 +149,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TTableReaderOptions> GetOptionsOverride(const TTableReaderOptions& options, int tableIndex);
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TRow>
 class TUnorderedTableReaderFactory
     : public ITableReaderFactory<TRow>
@@ -174,6 +178,7 @@ public:
     {
         TRichYPath path;
         TReaderEntry<TRow> entry;
+
         {
             TGuard<TMutex> guard(Lock_);
             while (!TableSlicer_.IsValid()) {
@@ -185,11 +190,15 @@ public:
                 TableSlicer_ = TTableSlicer(Paths_[TableIndex_], totalRowCount / ThreadCount_ + 1);
             }
             entry.TableIndex = TableIndex_;
+
             path = TRichYPath(Paths_[TableIndex_]);
             path.MutableRanges() = {TableSlicer_.GetRange()};
             TableSlicer_.Next();
         }
-        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
+
+        auto optionsOverride = GetOptionsOverride(Options_, TableIndex_);
+
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride ? *optionsOverride : Options_);
         return entry;
     }
 
@@ -245,7 +254,10 @@ public:
             const auto& ranges = path.GetRanges();
             entry.RangeCount = ranges ? ranges->size() : 0;
         }
-        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
+
+        auto optionsOverride = GetOptionsOverride(Options_, TableIndex_);
+
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), optionsOverride ? *optionsOverride : Options_);
         return entry;
     }
 
