@@ -503,6 +503,7 @@ public:
 
     i64 BufferRowCount;
     std::optional<int> PipeCapacity;
+    bool UseDeliveryFencedPipeWriter;
 
     int PipeIOPoolSize;
 
