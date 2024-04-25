@@ -35,10 +35,10 @@ using namespace NNodeTrackerClient;
 
 using TVertexDescriptor = TString;
 
-const TString TDataFlowGraph::SourceDescriptor("source");
-const TString TDataFlowGraph::SinkDescriptor("sink");
-const TString TDataFlowGraph::CoreDescriptor("core");
-const TString TDataFlowGraph::StderrDescriptor("stderr");
+const TVertexDescriptor TDataFlowGraph::SourceDescriptor("source");
+const TVertexDescriptor TDataFlowGraph::SinkDescriptor("sink");
+const TVertexDescriptor TDataFlowGraph::CoreDescriptor("core");
+const TVertexDescriptor TDataFlowGraph::StderrDescriptor("stderr");
 
 DECLARE_REFCOUNTED_CLASS(TVertex)
 DECLARE_REFCOUNTED_CLASS(TEdge)
