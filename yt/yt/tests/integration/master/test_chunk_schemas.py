@@ -433,13 +433,12 @@ class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
 
 class TestChunkTeleportation(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["cypress_node_host", "chunk_host"]},
+        "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["chunk_host"]},
         "12": {"roles": ["chunk_host"]},
-        "13": {"roles": ["transaction_coordinator"]},
     }
 
     def _schedule_unfreeze(self):
