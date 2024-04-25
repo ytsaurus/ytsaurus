@@ -716,7 +716,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             if (executionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(
                     innerBuilder,
-                    {std::make_pair(this_->SymbolName_, functionType)});
+                    {std::pair(this_->SymbolName_, functionType)});
             } else {
                 LoadLlvmFunctions(
                     innerBuilder,
