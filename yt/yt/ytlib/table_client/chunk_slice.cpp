@@ -428,6 +428,10 @@ std::optional<THashSet<int>> GetBlockFilter(
 
         auto columnMetaExt = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
 
+        if (!columnMetaExt) {
+            return {};
+        }
+
         for (const auto& columName : *columnStableNames) {
             if (auto columnId = nameTable->FindId(columName.Underlying())) {
                 YT_VERIFY(*columnId < columnMetaExt->columns_size());

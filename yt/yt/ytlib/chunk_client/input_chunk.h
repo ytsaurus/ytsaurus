@@ -67,6 +67,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(double, ColumnSelectivityFactor, 1.0);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, StripedErasure, false);
+
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;
@@ -114,6 +115,7 @@ public:
     //! Factor providing a ratio of data weight inferred from limits to the total data weight.
     //! It is used to propagate the reduction of a chunk total weight to chunk and data slices that are formed from it.
     //! NB: Setting this factor overrides generic logic which computes a row selectivity factor based on a limit-inferred row count.
+    //! NB: This factor overrides the value of the column selectivity factor.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<double>, BlockSelectivityFactor);
 
 public:
@@ -139,11 +141,27 @@ public:
     //! Releases memory occupied by HeavyColumnarStatisticsExt.
     void ReleaseHeavyColumnarStatisticsExt();
 
+    //! Returns the approximate row count based on the row indexes specified in lower/upper limit.
     i64 GetRowCount() const;
+
+    //! Returns the approximate data weight based on the exact total chunk data weight, the row indexes specified
+    //! in lower/upper limits and the input chunks selectivity factors (see next paragraph).
+    //! Columnar factors are considered for all formats, i.e. we approximate the logical data weight bounded by all selectors.
+    //!
+    //! The data weight reduction logic is performed as follows:
+    //!   1. If `BlockSelectivityFactor` is set, we assume that it single-handedly accounts for the data weight that will be read.
+    //!   2. Otherwise, we compute the row selectivity factor as the proportion of rows bounded by limits out of all the rows in the chunk
+    //!      and use it alongisde `ColumnSelectivityFactor`.
     i64 GetDataWeight() const;
+    //! Same as above, but for uncompressed data size.
+    //! Columnar factors are only considered for columnar formats, i.e. we approximate the uncompressed data size that needs to be read from disk.
     i64 GetUncompressedDataSize() const;
+    //! Same as above, but for uncompressed data size.
+    //! Columnar factors are only considered for columnar formats, i.e. we approximate the compressed data size that needs to be read from disk.
     i64 GetCompressedDataSize() const;
 
+    //! Returns the combined selectivity factor, which is used to propogate reductions based on external knowledge about the chunk slice referencing this input chunk.
+    //! The combined selectivity factor is equal to `BlockSelectivityFactor`, if it is set, and to `ColumnSelectivityFactor` otherwise.
     double GetSelectivityFactor() const;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);

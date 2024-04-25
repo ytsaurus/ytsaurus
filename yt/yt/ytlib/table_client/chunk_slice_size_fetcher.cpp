@@ -72,7 +72,7 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
 
     // We use this name table to replace all column names with their ids across the whole rpc request message.
-    TNameTablePtr nameTable = New<TNameTable>();
+    auto nameTable = New<TNameTable>();
 
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];

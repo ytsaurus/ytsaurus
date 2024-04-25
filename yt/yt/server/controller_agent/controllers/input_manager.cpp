@@ -346,7 +346,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
 
             // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
-            // We do not fetch slice sizes in cases when ChunkSliceFetcher will later be used, since it performs similar computations and will misuse the scaling factors.
+            // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
             // To be more exact, we do not fetch slice sizes in operations that use any of the two sorted controllers.
             bool willFetchChunkSliceStatistics =
                 !shouldSkipChunkInFetchers &&
@@ -402,7 +402,6 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     if (chunkSliceSizeFetcher && chunkSliceSizeFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching input chunk slice statistics for input tables (ChunkCount: %v)",
             chunkSliceSizeFetcher->GetChunkCount());
-        // TODO(achulkov2): Do we need a cancellation stage similar to columnar statistics fetch? It is a testing option.
         chunkSliceSizeFetcher->SetCancelableContext(GetCancelableContext());
         WaitFor(chunkSliceSizeFetcher->Fetch())
             .ThrowOnError();

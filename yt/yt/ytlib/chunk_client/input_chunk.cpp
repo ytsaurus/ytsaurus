@@ -287,7 +287,7 @@ i64 TInputChunk::GetRowCount() const
 
 double TInputChunk::GetSelectivityFactor() const
 {
-    return GetBlockSelectivityFactor().value_or(1.0) * GetColumnSelectivityFactor();
+    return GetBlockSelectivityFactor().value_or(GetColumnSelectivityFactor());
 }
 
 i64 TInputChunk::GetDataWeight() const
@@ -322,13 +322,13 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelecti
     } else {
         auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
         result = std::ceil(rowSelectivityFactor * result);
-    }
 
-    if (applyColumnarSelectivityToNonColumnarFormats ||
-        ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
-        ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
-    {
-        result = std::ceil(ColumnSelectivityFactor_ * result);
+        if (applyColumnarSelectivityToNonColumnarFormats ||
+            ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
+            ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
+        {
+            result = std::ceil(ColumnSelectivityFactor_ * result);
+        }
     }
 
     return std::max<i64>({result, rowCount, 1});
