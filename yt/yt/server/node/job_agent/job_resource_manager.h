@@ -46,14 +46,14 @@ public:
     virtual double GetCpuToVCpuFactor() const = 0;
 
     //! Returns resource usage of running jobs.
-    virtual NClusterNode::TJobResources GetResourceUsage(bool includeWaiting = false) const = 0;
+    virtual NClusterNode::TJobResources GetResourceUsage(bool includePending = false) const = 0;
 
     //! Compares new usage with resource limits. Detects resource overdraft.
     virtual bool CheckMemoryOverdraft(const NClusterNode::TJobResources& delta) = 0;
 
     virtual TResourceAcquiringContext GetResourceAcquiringContext() = 0;
 
-    virtual int GetWaitingResourceHolderCount() = 0;
+    virtual int GetPendingResourceHolderCount() = 0;
 
     virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumer) = 0;
 
@@ -96,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(TJobResourceManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EResourcesState,
-    ((Waiting)   (0))
+    ((Pending)   (0))
     ((Acquired)  (1))
     ((Released)  (2))
 );
@@ -204,7 +204,7 @@ private:
 
     std::vector<int> Ports_;
 
-    EResourcesState State_ = EResourcesState::Waiting;
+    EResourcesState State_ = EResourcesState::Pending;
 
     void Register();
     void Unregister();

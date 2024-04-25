@@ -103,13 +103,13 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
-    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
-    bool hasWaitingResourceHolders = jobResourceManager->GetWaitingResourceHolderCount();
+    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includePending*/ true);
+    bool hasPendingResourceHolders = jobResourceManager->GetPendingResourceHolderCount() > 0;
 
     auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
 
     if (!Dominates(MinSpareResources_, ToJobResources(ToNodeResources(freeResources))) &&
-        !hasWaitingResourceHolders)
+        !hasPendingResourceHolders)
     {
         scheduleOutOfBandHeartbeat();
     }
