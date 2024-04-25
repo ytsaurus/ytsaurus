@@ -49,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkFragmentReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TThrottlerProvider = std::function<const NConcurrency::IThroughputThrottlerPtr& (EWorkloadCategory /*category*/)>;
+using TThrottlerProvider = std::function<const NConcurrency::IThroughputThrottlerPtr& (EWorkloadCategory category)>;
 
 IChunkFragmentReaderPtr CreateChunkFragmentReader(
     TChunkFragmentReaderConfigPtr config,

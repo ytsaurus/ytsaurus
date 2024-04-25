@@ -144,7 +144,6 @@ struct TMediumThroughputLimits
 
 DEFINE_REFCOUNTED_TYPE(TMediumThroughputLimits)
 
-
 ///////////////////////////////////////////////////////////////////////////////
 
 struct TBundleDynamicConfig
