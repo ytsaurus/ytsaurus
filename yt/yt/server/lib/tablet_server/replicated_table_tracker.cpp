@@ -733,18 +733,26 @@ public:
             if (!replicaLagTime) {
                 ReplicaLagTime_ = std::nullopt;
                 LastReplicaLagTimeUpdate_ = std::nullopt;
+                YT_LOG_DEBUG("Replica lag time is zero (ReplicaId %v)", Id_);
                 return;
             }
 
+            TDuration cappedReplicaLagTime = *replicaLagTime;
             if (LastReplicaLagTimeUpdate_) {
                 TDuration replicaLagTimeThreshold = ReplicaLagTime_
                     ? *ReplicaLagTime_ + (now - *LastReplicaLagTimeUpdate_)
                     : TDuration::Max();
-                replicaLagTime = std::min(*replicaLagTime, replicaLagTimeThreshold);
+                cappedReplicaLagTime = std::min(*replicaLagTime, replicaLagTimeThreshold);
             }
 
-            ReplicaLagTime_ = replicaLagTime;
+            ReplicaLagTime_ = cappedReplicaLagTime;
             LastReplicaLagTimeUpdate_ = now;
+
+            YT_LOG_DEBUG(
+                "Replica lag time is  (ReplicaId %v, LagTime: %v, CappedLagTime: %v)",
+                Id_,
+                *replicaLagTime,
+                cappedReplicaLagTime);
         }
 
         const TCounter& GetReplicaModeSwitchCounter() const
