@@ -123,7 +123,7 @@ public:
                         continue;
                     }
 
-                    replicaIterator->second = std::move(ComputeReplicasLag(replicationCard->Replicas()));
+                    replicaIterator->second = ComputeReplicasLag(replicationCard->Replicas());
                 }
 
                 const auto& computedLags = replicaIterator->second;
