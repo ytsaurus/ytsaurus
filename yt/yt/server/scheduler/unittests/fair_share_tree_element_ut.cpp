@@ -144,12 +144,6 @@ public:
         return result;
     }
 
-    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
-        const TSchedulingTagFilter& /*filter*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
     {
         YT_UNIMPLEMENTED();

@@ -52,9 +52,6 @@ public:
     NScheduler::TMemoryDistribution GetExecNodeMemoryDistribution(
         const NScheduler::TSchedulingTagFilter& filter) const override;
 
-    NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
-        const NScheduler::TSchedulingTagFilter& filter) const override;
-
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
     void AbortAllocationsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;

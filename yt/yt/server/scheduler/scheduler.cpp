@@ -2526,25 +2526,6 @@ private:
         }
     }
 
-    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto descriptors = GetCachedExecNodeDescriptors();
-
-        if (filter.IsEmpty()) {
-            return descriptors;
-        }
-
-        auto result = New<TRefCountedExecNodeDescriptorMap>();
-        for (const auto& [nodeId, descriptor] : *descriptors) {
-            if (filter.CanSchedule(descriptor->Tags)) {
-                EmplaceOrCrash(*result, descriptor->Id, descriptor);
-            }
-        }
-        return result;
-    }
-
     TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
