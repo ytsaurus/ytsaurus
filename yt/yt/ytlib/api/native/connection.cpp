@@ -351,7 +351,9 @@ public:
             MakeStrong(this),
             NodeDirectory_);
 
-        ChunkReplicaCache_ = CreateChunkReplicaCache(this);
+        ChunkReplicaCache_ = CreateChunkReplicaCache(
+            this,
+            Profiler_.WithPrefix("/chunk_replica_cache"));
 
         SetupTvmIdSynchronization();
     }
