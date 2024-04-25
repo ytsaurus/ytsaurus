@@ -18,11 +18,9 @@ from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 try:
     from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
     from yt.packages.six.moves import xrange, map as imap
-    from yt.packages.six.moves.urllib.parse import urlparse
 except ImportError:
     from six import reraise, add_metaclass, PY3, iterbytes, iteritems
     from six.moves import xrange, map as imap
-    from six.moves.urllib.parse import urlparse
 
 import os
 import sys
@@ -32,6 +30,7 @@ import socket
 import stat
 
 from datetime import datetime
+from urllib.parse import urlparse
 from socket import error as SocketError
 from abc import ABCMeta, abstractmethod
 from copy import deepcopy
