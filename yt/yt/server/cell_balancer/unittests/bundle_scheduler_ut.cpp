@@ -5069,7 +5069,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     // Add new node to bundle
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
-    input.Bundles["bigd"]->ForbiddenDataCenters = { offlineDC };
+    input.Bundles["bigd"]->TargetConfig->ForbiddenDataCenters = { offlineDC };
 
     for (const auto& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};

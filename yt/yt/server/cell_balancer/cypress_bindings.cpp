@@ -93,6 +93,8 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("enable_drills_mode", &TThis::EnableDrillsMode)
         .Default(false);
+    registrar.Parameter("forbidden_data_centers", &TThis::ForbiddenDataCenters)
+        .Optional();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -176,8 +178,6 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "short_name", &TThis::ShortName)
         .Optional();
     RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
-        .Optional();
-    RegisterAttribute(registrar, "forbidden_data_centers", &TThis::ForbiddenDataCenters)
         .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);

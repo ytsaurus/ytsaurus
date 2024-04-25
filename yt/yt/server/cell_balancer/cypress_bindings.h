@@ -180,6 +180,8 @@ struct TBundleConfig
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
 
+    THashSet<TString> ForbiddenDataCenters;
+
     REGISTER_YSON_STRUCT(TBundleConfig);
 
     static void Register(TRegistrar registrar);
@@ -292,7 +294,6 @@ struct TBundleInfo
     TString NodeTagFilter;
     std::optional<TString> ShortName;
     std::optional<TString> RpcProxyRole;
-    THashSet<TString> ForbiddenDataCenters;
 
     bool EnableBundleController;
     bool EnableInstanceAllocation;
