@@ -942,21 +942,21 @@ std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static thread_local IWebAssemblyCompartment* CurrentCompartment;
+YT_DEFINE_THREAD_LOCAL(IWebAssemblyCompartment*, CurrentCompartment);
 
 IWebAssemblyCompartment* GetCurrentCompartment()
 {
-    return CurrentCompartment;
+    return CurrentCompartment();
 }
 
 void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
 {
-    CurrentCompartment = compartment;
+    CurrentCompartment() = compartment;
     if (compartment) {
         Runtime::Table::setCurrentTable(
-            static_cast<TWebAssemblyCompartment*>(CurrentCompartment)->GetGlobalOffsetTable());
+            static_cast<TWebAssemblyCompartment*>(compartment)->GetGlobalOffsetTable());
         Runtime::Memory::setCurrentMemory(
-            static_cast<TWebAssemblyCompartment*>(CurrentCompartment)->GetLinearMemory());
+            static_cast<TWebAssemblyCompartment*>(compartment)->GetLinearMemory());
     } else {
         Runtime::Table::setCurrentTable(nullptr);
         Runtime::Memory::setCurrentMemory(nullptr);
@@ -965,7 +965,7 @@ void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
 
 bool HasCurrentCompartment()
 {
-    return CurrentCompartment != nullptr;
+    return CurrentCompartment() != nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

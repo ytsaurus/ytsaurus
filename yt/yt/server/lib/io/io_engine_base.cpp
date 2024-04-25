@@ -105,28 +105,25 @@ void TIOEngineSensors::RegisterReadBytes(i64 count)
     TotalReadBytesCounter.fetch_add(count, std::memory_order::relaxed);
 }
 
-void TIOEngineSensors::UpdateKernelStatistics()
+YT_PREVENT_TLS_CACHING void TIOEngineSensors::UpdateKernelStatistics()
 {
     constexpr auto UpdatePeriod = TDuration::Seconds(1);
 
-    YT_THREAD_LOCAL(std::optional<TInstant>) LastUpdateInstant;
-    YT_THREAD_LOCAL(TTaskDiskStatistics) LastStatistics;
-
-    auto& lastStatistics = GetTlsRef(LastStatistics);
-    auto& lastUpdateInstant = GetTlsRef(LastUpdateInstant);
+    thread_local std::optional<TInstant> LastUpdateInstant;
+    thread_local TTaskDiskStatistics LastStatistics;
 
     auto now = TInstant::Now();
-    if (!lastUpdateInstant || (now - *lastUpdateInstant) > UpdatePeriod) {
-        if (lastUpdateInstant) {
+    if (!LastUpdateInstant || (now - *LastUpdateInstant) > UpdatePeriod) {
+        if (LastUpdateInstant) {
             auto current = GetSelfThreadTaskDiskStatistics();
 
-            KernelReadBytesCounter.Increment(current.ReadBytes - lastStatistics.ReadBytes);
-            KernelWrittenBytesCounter.Increment(current.WriteBytes - lastStatistics.WriteBytes);
+            KernelReadBytesCounter.Increment(current.ReadBytes - LastStatistics.ReadBytes);
+            KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStatistics.WriteBytes);
 
-            lastStatistics = current;
+            LastStatistics = current;
         }
 
-        lastUpdateInstant = now;
+        LastUpdateInstant = now;
     }
 }
 

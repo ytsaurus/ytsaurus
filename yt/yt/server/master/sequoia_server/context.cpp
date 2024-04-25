@@ -142,16 +142,16 @@ ISequoiaContextPtr CreateSequoiaContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_THREAD_LOCAL(ISequoiaContextPtr) SequoiaContext;
+YT_DEFINE_THREAD_LOCAL(ISequoiaContextPtr, SequoiaContext);
 
 void SetSequoiaContext(ISequoiaContextPtr context)
 {
-    GetTlsRef(SequoiaContext) = std::move(context);
+    SequoiaContext() = std::move(context);
 }
 
 const ISequoiaContextPtr& GetSequoiaContext()
 {
-    return GetTlsRef(SequoiaContext);
+    return SequoiaContext();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +171,7 @@ TSequoiaContextGuard::TSequoiaContextGuard(
 
 TSequoiaContextGuard::~TSequoiaContextGuard()
 {
-    auto& sequoiaContext = GetTlsRef(SequoiaContext);
+    auto& sequoiaContext = SequoiaContext();
     if (sequoiaContext) {
         sequoiaContext->SubmitRows();
     }
