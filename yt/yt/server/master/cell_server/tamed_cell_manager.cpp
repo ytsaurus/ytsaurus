@@ -1656,11 +1656,6 @@ private:
         node->UpdateCellarSize(cellarType, newSize);
     }
 
-    void OnNodeRegistered(TNode* node)
-    {
-        node->InitCellars();
-    }
-
     void OnNodeUnregistered(TNode* node)
     {
         YT_LOG_DEBUG("Node unregistered (Address: %v)",

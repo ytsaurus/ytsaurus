@@ -452,6 +452,12 @@ void TNode::SetState(
         descriptor.RegistrationPending = false;
     }
 
+    // NB: To remove pending registration flag during replication of node to secondary master.
+    if (descriptor.RegistrationPending && state == ENodeState::Offline) {
+        descriptor.RegistrationPending = false;
+        mustRecomputeState = true;
+    }
+
     descriptor.State = state;
 
     if (mustRecomputeState) {
