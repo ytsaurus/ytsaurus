@@ -4,7 +4,7 @@ from yt_chaos_test_base import ChaosTestBase
 from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_unmount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
-                         advance_consumer, insert_rows)
+                         advance_consumer, insert_rows, wait_for_tablet_state)
 
 from yt.common import YtError, update_inplace, update
 
@@ -401,7 +401,7 @@ class TestQueueAgentBase(YTEnvSetup):
         return schema, queue_id
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
         if without_meta:
             attributes = {
                 "dynamic": True,
@@ -413,8 +413,9 @@ class TestQueueAgentBase(YTEnvSetup):
             if mount:
                 sync_mount_table(path)
         else:
-            create("queue_consumer", path, attributes=kwargs)
+            create("queue_consumer", path, driver=driver, attributes=kwargs)
             if not mount:
+                wait_for_tablet_state(path, "mounted")
                 sync_unmount_table(path)
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
