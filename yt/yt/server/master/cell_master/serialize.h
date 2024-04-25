@@ -244,6 +244,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveParameterizedBalancingMetricSetting)                    (2611))  // alexelexa
     ((RipAevum)                                                     (2612))  // babenko
     ((SecondaryIndexSchemaValidation)                               (2613))  // sabdenovch
+    ((ErasureChunksCanBeNonVital)                                   (2614))  // achulkov2
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

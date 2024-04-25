@@ -155,12 +155,8 @@ int TChunkReplication::GetSize() const
     return std::ssize(Entries_);
 }
 
-bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManager) const
+bool TChunkReplication::IsDurable(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const
 {
-    if (!GetVital()) {
-        return false;
-    }
-
     for (auto entry : Entries_) {
         auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
         if (medium->IsOffshore()) {
@@ -168,12 +164,17 @@ bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManage
         }
 
         YT_VERIFY(medium->IsDomestic());
-        if (!medium->AsDomestic()->GetTransient() && entry.Policy().GetReplicationFactor() > 1) {
+        if (!medium->AsDomestic()->GetTransient() && (entry.Policy().GetReplicationFactor() > 1 || isErasureChunk)) {
             return true;
         }
     }
 
     return false;
+}
+
+bool TChunkReplication::IsDurabilityRequired(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const
+{
+    return GetVital() && IsDurable(chunkManager, isErasureChunk);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replication, TStringBuf /*spec*/)
