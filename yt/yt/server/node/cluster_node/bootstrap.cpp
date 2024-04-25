@@ -794,6 +794,13 @@ private:
         connectionOptions.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         connectionOptions.BlockCache = GetBlockCache();
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
+
+        SetupClusterConnectionDynamicConfigUpdate(
+            Connection_,
+            Config_->ClusterConnectionDynamicConfigPolicy,
+            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
+            Logger);
+
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);

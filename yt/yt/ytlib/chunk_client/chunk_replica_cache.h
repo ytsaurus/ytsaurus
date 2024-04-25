@@ -36,6 +36,8 @@ public:
     virtual void RegisterReplicas(
         TChunkId chunkId,
         const NChunkClient::TChunkReplicaWithMediumList& replicas) = 0;
+
+    virtual void Reconfigure(TChunkReplicaCacheConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReplicaCache)

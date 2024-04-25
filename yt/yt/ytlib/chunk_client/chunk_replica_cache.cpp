@@ -27,13 +27,13 @@ class TChunkReplicaCache
 public:
     explicit TChunkReplicaCache(NApi::NNative::IConnectionPtr connection)
         : Connection_(connection)
-        , Config_(connection->GetConfig()->ChunkReplicaCache)
         , NodeDirectory_(connection->GetNodeDirectory())
         , Logger(connection->GetLogger())
         , ExpirationExecutor_(New<TPeriodicExecutor>(
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
-            Config_->ExpirationSweepPeriod))
+            connection->GetConfig()->ChunkReplicaCache->ExpirationSweepPeriod))
+        , Config_(connection->GetConfig()->ChunkReplicaCache)
     {
         ExpirationExecutor_->Start();
     }
@@ -287,13 +287,20 @@ public:
             });
     }
 
+    void Reconfigure(TChunkReplicaCacheConfigPtr config) override
+    {
+        ExpirationExecutor_->SetPeriod(config->ExpirationSweepPeriod);
+        Config_ = std::move(config);
+    }
+
 private:
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
-    const TChunkReplicaCacheConfigPtr Config_;
     const TNodeDirectoryPtr NodeDirectory_;
     const NLogging::TLogger Logger;
 
     const TPeriodicExecutorPtr ExpirationExecutor_;
+
+    TChunkReplicaCacheConfigPtr Config_;
 
     struct TEntry
     {
@@ -371,7 +378,8 @@ private:
         YT_LOG_DEBUG("Started expired chunk replica sweep");
 
         std::vector<TChunkId> expiredChunkIds;
-        auto deadline = TInstant::Now() - Config_->ExpirationTime;
+        auto config = Config_;
+        auto deadline = TInstant::Now() - config->ExpirationTime;
         int totalChunkCount;
 
         {
