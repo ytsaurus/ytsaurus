@@ -159,6 +159,34 @@ struct TMasterCellDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! This can simulate connection instability.
+    /*!
+    *  Please keep in mind that this is still a part of dynamic config,
+    *  which means it is being replicated using Hive. Thus, there are two anomalies:
+    *  Let's call primary cell P and secondary cells S1 and S2.
+    *  1. When taking an unfrozen configuration and attempting to freeze [P->S1] and [S1->S2]
+    *  the latter won't be applied.
+    *  2. Assuming [S1->S2] is already frozen, and a command to freeze [P->S1] is issued, the
+    *  [S1->S2] connection will stay frozen, despite going unmentioned in the new frozen edge list.
+    *  Both aforementioned quirks can be overcome. The latter, by expilicitly unfreezing everything, and
+    *  the former by first freezing [S1->S2], waiting a bit and then freezing [P->S1];
+    *  in essence by reproducing a quirk #2.
+    */
+    std::vector<std::vector<NObjectClient::TCellTag>> FrozenHiveEdges;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicMulticellManagerConfig
     : public NYTree::TYsonStruct
 {
@@ -171,6 +199,9 @@ public:
 
     // COMPAT(aleksandra-zh)
     bool RemoveSecondaryCellDefaultRoles;
+
+    // NB: Section for testing purposes.
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TDynamicMulticellManagerConfig);
 

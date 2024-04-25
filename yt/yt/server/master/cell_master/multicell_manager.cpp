@@ -1204,15 +1204,36 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager;
     }
 
+    void HandleTestingFacilities()
+    {
+        if (!Bootstrap_->GetConfig()->ExposeTestingFacilities) {
+            return;
+        }
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        const auto& testingConfig = GetDynamicConfig()->Testing;
+        const auto& edges = testingConfig->FrozenHiveEdges;
+
+        std::vector<THiveEdge> edgesToFreeze;
+        for (const auto& edge : edges) {
+            edgesToFreeze.emplace_back(THiveEdge{
+                .SourceCellId = GetCellId(edge[0]),
+                .DestinationCellId = GetCellId(edge[1])});
+        }
+        hiveManager->FreezeEdges(std::move(edgesToFreeze));
+    }
+
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        const auto& dynamicConfig = GetDynamicConfig();
         if (CellStatisticsGossipExecutor_) {
-            CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
+            CellStatisticsGossipExecutor_->SetPeriod(dynamicConfig->CellStatisticsGossipPeriod);
         }
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
+
+        HandleTestingFacilities();
     }
 
     std::vector<TError> GetAlerts() const

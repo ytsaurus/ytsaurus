@@ -7,15 +7,15 @@
 #include "chunk_replicator.h"
 #include "helpers.h"
 #include "chunk_owner_base.h"
-#include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "chunk_owner_node_proxy.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
+#include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/yt/server/master/cell_master/multi_phase_cell_sync_session.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
@@ -636,7 +636,21 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithTransactionCoordinatorCell(context, transactionId);
+
+        TCellTagList cellTagsToSyncWith;
+        cellTagsToSyncWith.push_back(CellTagFromId(transactionId));
+
+        // Syncing with native chunk cells to ensure chunk schema has been received.
+        for (auto chunk : request->chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunk.id());
+            cellTagsToSyncWith.push_back(CellTagFromId(chunkId));
+        }
+
+        SortUnique(cellTagsToSyncWith);
+
+        auto syncSession = New<TMultiPhaseCellSyncSession>(Bootstrap_, context->GetRequestId());
+        WaitFor(syncSession->Sync(cellTagsToSyncWith))
+            .ThrowOnError();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateImportChunksMutation(context);
@@ -921,7 +935,7 @@ private:
 
         auto cellTag = CellTagFromId(transactionId);
         auto cellId = multicellManager->GetCellId(cellTag);
-        auto syncFuture = hiveManager->SyncWith(cellId, true);
+        auto syncFuture = hiveManager->SyncWith(cellId, /*enableBatching*/ true);
 
         YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
             context->GetRequestId(),

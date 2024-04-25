@@ -127,6 +127,25 @@ void TMasterCellDescriptor::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        for (const auto& edge : config->FrozenHiveEdges) {
+            if (edge.size() != 2) {
+                config->FrozenHiveEdges.clear();
+
+                THROW_ERROR_EXCEPTION("Wrong Hive edge format; expected 2 values, but got %v",
+                    edge.size());
+            }
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cell_statistics_gossip_period", &TThis::CellStatisticsGossipPeriod)
@@ -137,6 +156,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("remove_secondary_cell_default_roles", &TThis::RemoveSecondaryCellDefaultRoles)
         .Default(false);
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
