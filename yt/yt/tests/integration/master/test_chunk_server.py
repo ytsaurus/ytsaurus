@@ -4,7 +4,7 @@ from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
-    multicell_sleep, update_nodes_dynamic_config, switch_leader, set_node_banned, add_maintenance, remove_maintenance,
+    multicell_sleep, update_nodes_dynamic_config, switch_leader, set_node_banned, set_all_nodes_banned, add_maintenance, remove_maintenance,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
 
@@ -354,9 +354,7 @@ class TestChunkServer(YTEnvSetup):
         assert get(f"#{chunk_id}/@vital")
         assert not get(f"#{chunk_id}/@historically_non_vital")
 
-        nodes = list(get("//sys/cluster_nodes"))
-        for node in nodes:
-            set_node_banned(node, True)
+        set_all_nodes_banned(True)
 
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
 
@@ -364,8 +362,7 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
         assert chunk_id in get("//sys/lost_chunks")
 
-        for node in nodes:
-            set_node_banned(node, False)
+        set_all_nodes_banned(False)
 
         wait(lambda: chunk_id not in get("//sys/lost_chunks"))
 
@@ -387,14 +384,11 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: get(f"#{chunk_id}/@vital"))
         assert not get(f"#{chunk_id}/@historically_non_vital")
 
-        nodes = list(get("//sys/cluster_nodes"))
-        for node in nodes:
-            set_node_banned(node, True)
+        set_all_nodes_banned(True)
 
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
 
-        for node in nodes:
-            set_node_banned(node, False)
+        set_all_nodes_banned(False)
 
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
 
