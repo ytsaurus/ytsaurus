@@ -175,7 +175,7 @@ public:
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
                 *heartbeat.mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
-                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage(/*includeWaiting*/ true));
+                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage(/*includePending*/ true));
             })
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run())

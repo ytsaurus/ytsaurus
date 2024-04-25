@@ -668,7 +668,7 @@ TJobResources TNodeResourceManager::GetJobResourceUsage() const
 
     return WaitFor(BIND([this, this_ = MakeStrong(this)] {
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-        return jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
+        return jobResourceManager->GetResourceUsage(/*includePending*/ true);
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run())

@@ -111,6 +111,7 @@ public:
 
         Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
         Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
+        Profiler_.AddProducer("/pending_resource_usage", PendingResourceUsageBuffer_);
 
         if (StaticConfig_->PortSet) {
             FreePorts_ = *StaticConfig_->PortSet;
@@ -175,6 +176,11 @@ public:
 
         ResourceUsageBuffer_->Update([this] (ISensorWriter* writer) {
             ProfileResources(writer, GetResourceUsage());
+        });
+
+        PendingResourceUsageBuffer_->Update([this] (ISensorWriter* writer) {
+            auto guard = ReaderGuard(ResourcesLock_);
+            ProfileResources(writer, PendingResourceUsage_);
         });
 
         ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
@@ -280,26 +286,26 @@ public:
         return ResourceUsage_;
     }
 
-    TJobResources GetResourceUsage(bool includeWaiting = false) const override
+    TJobResources GetResourceUsage(bool includePending = false) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TJobResources resourceUsage;
 
-        std::optional<TJobResources> maybeWaitingResources;
+        std::optional<TJobResources> maybePendingResourceUsage;
 
         {
             auto guard = ReaderGuard(ResourcesLock_);
 
             resourceUsage = ResourceUsage_;
 
-            if (includeWaiting) {
-                maybeWaitingResources = WaitingResources_;
+            if (includePending) {
+                maybePendingResourceUsage = PendingResourceUsage_;
             }
         }
 
-        if (maybeWaitingResources) {
-            resourceUsage += WaitingResources_;
+        if (maybePendingResourceUsage) {
+            resourceUsage += PendingResourceUsage_;
 
             resourceUsage.UserSlots = ResourceUsage_.UserSlots;
             resourceUsage.Gpu = ResourceUsage_.Gpu;
@@ -514,24 +520,24 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         TJobResources currentResourceUsage;
-        TJobResources waitingResources;
+        TJobResources pendingResourceUsage;
 
-        YT_VERIFY(resourceHolder->State_ == EResourcesState::Waiting);
+        YT_VERIFY(resourceHolder->State_ == EResourcesState::Pending);
         const auto& resources = resourceHolder->BaseResourceUsage_;
         {
             auto guard = WriterGuard(ResourcesLock_);
-            WaitingResources_ += resources;
-            ++WaitingResourceHolderCount_;
+            PendingResourceUsage_ += resources;
+            ++PendingResourceHolderCount_;
 
             currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+            pendingResourceUsage = PendingResourceUsage_;
         }
 
         YT_LOG_DEBUG(
-            "Resource holder registered (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+            "Resource holder registered (Resources: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
             FormatResources(resources),
             FormatResources(currentResourceUsage),
-            FormatResources(waitingResources));
+            FormatResources(pendingResourceUsage));
     }
 
     bool TryReserveResources(const TLogger& Logger, const TJobResources& resources)
@@ -539,7 +545,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         TJobResources currentResourceUsage;
-        TJobResources waitingResources;
+        TJobResources pendingResourceUsage;
 
         auto resourceLimits = GetResourceLimits();
 
@@ -556,18 +562,18 @@ public:
             }
 
             ResourceUsage_ += resources;
-            WaitingResources_ -= resources;
-            --WaitingResourceHolderCount_;
+            PendingResourceUsage_ -= resources;
+            --PendingResourceHolderCount_;
 
             currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+            pendingResourceUsage = PendingResourceUsage_;
         }
 
         YT_LOG_DEBUG(
-            "Resources reserved (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+            "Resources reserved (Resources: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
             FormatResources(resources),
             FormatResources(currentResourceUsage),
-            FormatResources(waitingResources));
+            FormatResources(pendingResourceUsage));
 
         return true;
     }
@@ -587,25 +593,25 @@ public:
         gpuSlots.clear();
 
         TJobResources currentResourceUsage;
-        TJobResources waitingResources;
+        TJobResources pendingResourceUsage;
 
         {
             auto guard = WriterGuard(ResourcesLock_);
-            WaitingResources_ += resources;
+            PendingResourceUsage_ += resources;
             ResourceUsage_ -= resources;
-            ++WaitingResourceHolderCount_;
+            ++PendingResourceHolderCount_;
 
             DoReleasePorts(Logger, ports);
 
             currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+            pendingResourceUsage = PendingResourceUsage_;
         }
 
         YT_LOG_DEBUG(
-            "Resources acquisition failed (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
+            "Resources acquisition failed (Resources: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
             FormatResources(resources),
             FormatResources(currentResourceUsage),
-            FormatResources(waitingResources));
+            FormatResources(pendingResourceUsage));
 
         NotifyResourcesReleased(resourceHolder->ResourcesConsumerType, /*fullyReleased*/ true);
     }
@@ -784,21 +790,21 @@ public:
         YT_VERIFY(resourceHolderStarted || ports.empty());
 
         TJobResources currentResourceUsage;
-        TJobResources waitingResources;
+        TJobResources pendingResourceUsage;
 
         {
             auto guard = WriterGuard(ResourcesLock_);
             if (resourceHolderStarted) {
                 ResourceUsage_ -= resources;
             } else {
-                WaitingResources_ -= resources;
-                --WaitingResourceHolderCount_;
+                PendingResourceUsage_ -= resources;
+                --PendingResourceHolderCount_;
             }
 
             DoReleasePorts(Logger, ports);
 
             currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+            pendingResourceUsage = PendingResourceUsage_;
         }
 
         if (resourceHolderStarted && resources.SystemMemory) {
@@ -816,11 +822,11 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resources released (ResourceHolderStarted: %v, Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+            "Resources released (ResourceHolderStarted: %v, Delta: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
             resourceHolderStarted,
             FormatResources(resources),
             FormatResources(currentResourceUsage),
-            FormatResources(waitingResources));
+            FormatResources(pendingResourceUsage));
 
         if (resourceHolderStarted) {
             NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ true);
@@ -836,14 +842,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         TJobResources currentResourceUsage;
-        TJobResources waitingResources;
+        TJobResources pendingResourceUsage;
 
         {
             auto guard = WriterGuard(ResourcesLock_);
             ResourceUsage_ += resourceDelta;
 
             currentResourceUsage = ResourceUsage_;
-            waitingResources = WaitingResources_;
+            pendingResourceUsage = PendingResourceUsage_;
         }
 
         bool resourceUsageOverdraftOccurred = false;
@@ -871,18 +877,18 @@ public:
 
         if (resourceUsageOverdraftOccurred) {
             YT_LOG_INFO(
-                "Resource usage overdraft detected during updating resource usage (Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+                "Resource usage overdraft detected during updating resource usage (Delta: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
                 FormatResources(resourceDelta),
                 FormatResourceUsage(currentResourceUsage, resourceLimits),
-                FormatResources(waitingResources));
+                FormatResources(pendingResourceUsage));
 
             ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
         } else {
             YT_LOG_DEBUG(
-                "Resource usage updated (Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
+                "Resource usage updated (Delta: %v, ResourceUsage: %v, PendingResourceUsage: %v)",
                 FormatResources(resourceDelta),
                 FormatResourceUsage(currentResourceUsage, resourceLimits),
-                FormatResources(waitingResources));
+                FormatResources(pendingResourceUsage));
         }
 
         return resourceUsageOverdraftOccurred;
@@ -900,12 +906,12 @@ public:
         return TResourceAcquiringContext{this};
     }
 
-    int GetWaitingResourceHolderCount() final
+    int GetPendingResourceHolderCount() final
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto guard = ReaderGuard(ResourcesLock_);
-        return WaitingResourceHolderCount_;
+        return PendingResourceHolderCount_;
     }
 
     void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumerType) override
@@ -957,6 +963,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr PendingResourceUsageBuffer_ = New<TBufferedProducer>();
 
     TGauge MajorPageFaultsGauge_;
     TGauge FreeMemoryWatermarkMultiplierGauge_;
@@ -966,8 +973,8 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
 
     TJobResources ResourceUsage_ = ZeroJobResources();
-    TJobResources WaitingResources_ = ZeroJobResources();
-    int WaitingResourceHolderCount_ = 0;
+    TJobResources PendingResourceUsage_ = ZeroJobResources();
+    int PendingResourceHolderCount_ = 0;
 
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
     TPeriodicExecutorPtr MemoryPressureDetector_;
@@ -984,9 +991,9 @@ private:
         NClusterNode::TJobResources ResourceLimits;
         NClusterNode::TJobResources ResourceUsage;
 
-        NClusterNode::TJobResources WaitingResources;
+        NClusterNode::TJobResources PendingResourceUsage;
 
-        int WaitingResourceHolderCount;
+        int PendingResourceHolderCount;
 
         i64 LastMajorPageFaultCount;
 
@@ -1005,16 +1012,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        TJobResources waitingResources;
-        int waitingResourceHolderCount;
+        TJobResources pendingResourceUsage;
+        int pendingResourceHolderCount;
 
         std::vector<int> ports;
 
         {
             auto guard = ReaderGuard(ResourcesLock_);
 
-            waitingResources = WaitingResources_;
-            waitingResourceHolderCount = WaitingResourceHolderCount_;
+            pendingResourceUsage = PendingResourceUsage_;
+            pendingResourceHolderCount = PendingResourceHolderCount_;
 
             ports = GetFreePorts();
         }
@@ -1022,8 +1029,8 @@ private:
         return {
             .ResourceLimits = GetResourceLimits(),
             .ResourceUsage = GetResourceUsage(),
-            .WaitingResources = waitingResources,
-            .WaitingResourceHolderCount = waitingResourceHolderCount,
+            .PendingResourceUsage = pendingResourceUsage,
+            .PendingResourceHolderCount = pendingResourceHolderCount,
             .LastMajorPageFaultCount = LastMajorPageFaultCount_,
             .FreeMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_,
             .CpuToVCpuFactor = GetCpuToVCpuFactor(),
@@ -1084,8 +1091,8 @@ private:
         BuildYsonFluently(consumer).BeginMap()
             .Item("resource_limits").Value(jobResourceManagerInfo.ResourceLimits)
             .Item("resource_usage").Value(ToNodeResources(jobResourceManagerInfo.ResourceUsage))
-            .Item("waiting_resources").Value(jobResourceManagerInfo.WaitingResources)
-            .Item("waiting_resource_holder_count").Value(jobResourceManagerInfo.WaitingResourceHolderCount)
+            .Item("pending_resources").Value(jobResourceManagerInfo.PendingResourceUsage)
+            .Item("pending_resource_holder_count").Value(jobResourceManagerInfo.PendingResourceHolderCount)
             .Item("last_major_page_fault_count").Value(jobResourceManagerInfo.LastMajorPageFaultCount)
             .Item("free_memory_multiplier").Value(jobResourceManagerInfo.FreeMemoryWatermarkMultiplier)
             .Item("cpu_to_vcpu_factor").Value(jobResourceManagerInfo.CpuToVCpuFactor)
@@ -1465,7 +1472,7 @@ void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResource
 {
     auto guard = WriterGuard(ResourcesLock_);
 
-    YT_VERIFY(State_ == EResourcesState::Waiting);
+    YT_VERIFY(State_ == EResourcesState::Pending);
 
     Ports_ = std::move(acquiredResources.Ports);
 
@@ -1634,7 +1641,7 @@ void TResourceHolder::UpdateResourceDemand(
 {
     auto guard = WriterGuard(ResourcesLock_);
 
-    YT_VERIFY(State_ == EResourcesState::Waiting);
+    YT_VERIFY(State_ == EResourcesState::Pending);
     YT_VERIFY(AdditionalResourceUsage_ == ZeroJobResources());
 
     YT_LOG_DEBUG(
