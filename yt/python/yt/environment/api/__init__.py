@@ -78,6 +78,7 @@ class LocalYtConfig(object):
     http_proxy_ports = attr.ib(factory=list)
     https_proxy_ports = attr.ib(factory=list)
     rpc_proxy_ports = attr.ib(factory=list)
+    discovery_server_ports = attr.ib(factory=list)
 
     port_locks_path = attr.ib(None)
     local_port_range = attr.ib(None)

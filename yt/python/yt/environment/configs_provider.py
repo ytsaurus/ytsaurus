@@ -488,7 +488,8 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
     ports = []
 
     for i in xrange(yt_config.discovery_server_count):
-        rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
+        rpc_port = yt_config.discovery_server_ports[i] if yt_config.discovery_server_ports else next(ports_generator)
+        monitoring_port = next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         server_addresses.append(address)
         ports.append((rpc_port, monitoring_port))
