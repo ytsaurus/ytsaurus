@@ -202,6 +202,9 @@ void TJobIOConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
+    registrar.Parameter("use_delivery_fenced_pipe_writer", &TThis::UseDeliveryFencedPipeWriter)
+        .Default(false);
+
     registrar.Parameter("pipe_io_pool_size", &TThis::PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);

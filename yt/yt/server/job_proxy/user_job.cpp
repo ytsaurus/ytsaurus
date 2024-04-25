@@ -1060,10 +1060,11 @@ private:
     void PrepareInputTablePipe()
     {
         YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v)",
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
             InputPipePath_,
             DefaultArtifactPermissions,
-            JobIOConfig_->PipeCapacity);
+            JobIOConfig_->PipeCapacity,
+            JobIOConfig_->UseDeliveryFencedPipeWriter);
 
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
@@ -1073,7 +1074,9 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter();
+        auto asyncOutput = JobIOConfig_->UseDeliveryFencedPipeWriter
+            ? pipe->CreateDeliveryFencedAsyncWriter()
+            : pipe->CreateAsyncWriter();
 
         TablePipeWriters_.push_back(asyncOutput);
 
@@ -1081,7 +1084,7 @@ private:
         //! as it only ever flushes once the socket is closed.
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
             asyncOutput,
-            /*enableContextSaving*/ !JobIOConfig_->PipeCapacity.has_value());
+            /*enableContextSaving*/ !(JobIOConfig_->PipeCapacity.has_value() || JobIOConfig_->UseDeliveryFencedPipeWriter));
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
