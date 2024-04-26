@@ -395,6 +395,22 @@ class Migration(object):
             latest_version = max(latest_version, max(self.actions.keys()))
         return latest_version
 
+    def get_schemas(self, version=None):
+        if version is None:
+            version = self.get_latest_version()
+
+        # NB: Everything is copied to prevent user from changing
+        # initial_table_infos or conversions.
+        table_infos = copy.deepcopy(self.initial_table_infos)
+        for version in range(self.initial_version + 1, version + 1):
+            for conversion in self.transforms.get(version, []):
+                if conversion.source:
+                    del table_infos[conversion.source]
+                if conversion.table_info:
+                    table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
+
+        return table_infos
+
     def create_tables(self, client, target_version, tables_path, shard_count, override_tablet_cell_bundle="default"):
         """Creates tables of given version"""
         assert target_version == self.initial_version or target_version in self.transforms
