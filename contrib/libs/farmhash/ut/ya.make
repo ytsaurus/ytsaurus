@@ -1,6 +1,6 @@
 UNITTEST_FOR(contrib/libs/farmhash)
 
-OWNER(
+SUBSCRIBER(
     g:cpp-contrib
 )
 

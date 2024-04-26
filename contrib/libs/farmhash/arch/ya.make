@@ -1,3 +1,3 @@
-OWNER(
+SUBSCRIBER(
     g:cpp-contrib
 )
