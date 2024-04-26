@@ -1,0 +1,1 @@
+{% include [Lambda expressions](../../_includes/api/cpp/lambda.md) %}

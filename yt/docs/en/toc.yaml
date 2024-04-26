@@ -375,10 +375,10 @@ items:
                  href: api/cpp/description.md
                - name: Protobuf representation of tables
                  href: api/cpp/protobuf.md
-               # - name: Лямбда-выражения
-               #   href: api/cpp/lambda.md
-               # - name: Примеры использования
-               #   href: api/cpp/examples.md
+               - name: Lambda expressions
+                 href: api/cpp/lambda.md
+               - name: Usage examples
+                 href: api/cpp/examples.md
               # - name: Reference
               #   href: api/cpp/reference.md
            - name: Go API
