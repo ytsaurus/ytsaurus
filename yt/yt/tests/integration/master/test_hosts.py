@@ -2,7 +2,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
-    authors, ls, get, set, remove, create_rack, exists, create_host, remove_host)
+    authors, ls, get, set, remove, create_rack, exists, create_host, remove_host, get_driver)
 
 from yt.common import YtError
 
@@ -157,6 +157,7 @@ class TestHostsMulticell(TestHosts):
 class TestPreserveRackForNewHost(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("gritukan")
     def test_preserve_rack_for_new_host(self):
@@ -176,3 +177,4 @@ class TestPreserveRackForNewHost(YTEnvSetup):
 
         assert get("//sys/cluster_nodes/{}/@host".format(node)) == "sas1-2345"
         assert get("//sys/cluster_nodes/{}/@rack".format(node)) == "r"
+        assert get("//sys/cluster_nodes/{}/@rack".format(node), driver=get_driver(1)) == "r"
