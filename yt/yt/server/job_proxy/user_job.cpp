@@ -1683,14 +1683,21 @@ private:
             return;
         }
 
-        if (blockIOStats) {
+        auto validBlockStats = [] (const std::optional<TJobEnvironmentBlockIOStatistics>& blockStats) {
+            return
+                blockStats &&
+                blockStats->IOOps.has_value() &&
+                blockStats->IOReadOps.has_value();
+        };
+
+        if (validBlockStats(blockIOStats)) {
             if (UserJobSpec_.has_iops_threshold() &&
-                blockIOStats->IOOps > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
+                blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
                 YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                    blockIOStats->IOReadOps,
-                    blockIOStats->IOOps,
+                    blockIOStats->IOReadOps.value(),
+                    blockIOStats->IOOps.value(),
                     UserJobSpec_.iops_threshold());
                 Woodpecker_ = true;
 
