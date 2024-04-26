@@ -871,11 +871,16 @@ private:
 
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
+
             if (HealthChecker_) {
                 HealthChecker_->RunCheck();
             }
         } catch (const std::exception& ex) {
-            Disable(ex, /*persistentDisable*/ true);
+            auto error = TError(ex);
+            Disable(
+                ex,
+                /*persistentDisable*/ !error.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+
             THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
                 Config_->Path)
                 << ex;
@@ -919,9 +924,10 @@ private:
 
             if (HealthChecker_) {
                 HealthChecker_->SubscribeFailed(BIND([=, this, this_ = MakeWeak(this)] (const TError& result) {
-                    Disable(result, true);
-                })
-                    .Via(LocationQueue_->GetInvoker()));
+                    Disable(
+                        result,
+                        /*persistentDisable*/ !result.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+                }).Via(LocationQueue_->GetInvoker()));
                 HealthChecker_->Start();
             }
         } catch (const std::exception& ex) {
@@ -1686,7 +1692,7 @@ public:
         return result;
     }
 
-    TFuture<void> Disable(const TError& error, bool persistentDisable = true)
+    TFuture<void> Disable(const TError& error, bool persistentDisable = false)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
