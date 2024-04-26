@@ -21,11 +21,6 @@ import pytest
 from copy import deepcopy
 import sys
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 
 class NonCopyable:
     def __init__(self, fun):
@@ -206,20 +201,19 @@ class TestSpecBuilders(object):
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
 
-        if PY3:
-            import pathlib
-            spec_builder = MapSpecBuilder() \
-                .begin_mapper() \
-                    .command("PYTHONPATH=. {} capitalize_b.py".format(get_python())) \
-                    .file_paths(yt.LocalFile(pathlib.Path(get_test_file_path("capitalize_b.py")))) \
-                    .format(yt.DsvFormat()) \
-                .end_mapper() \
-                .input_table_paths(yt.TablePath(table, columns=["b"])) \
-                .output_table_paths(other_table) # noqa
-            yt.run_operation(spec_builder)
-            records = yt.read_table(other_table, raw=False)
-            assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
-            assert sorted([rec["c"] for rec in records]) == []
+        import pathlib
+        spec_builder = MapSpecBuilder() \
+            .begin_mapper() \
+                .command("PYTHONPATH=. {} capitalize_b.py".format(get_python())) \
+                .file_paths(yt.LocalFile(pathlib.Path(get_test_file_path("capitalize_b.py")))) \
+                .format(yt.DsvFormat()) \
+            .end_mapper() \
+            .input_table_paths(yt.TablePath(table, columns=["b"])) \
+            .output_table_paths(other_table) # noqa
+        yt.run_operation(spec_builder)
+        records = yt.read_table(other_table, raw=False)
+        assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
+        assert sorted([rec["c"] for rec in records]) == []
 
     @authors("ignat")
     def test_reduce_combiner(self):

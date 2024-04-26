@@ -4,26 +4,13 @@ from yt.common import (require, flatten, update, update_inplace, which, YtError,
 import yt.yson as yson
 import yt.json_wrapper as json
 
-try:
-    from yt.packages.six import iteritems, itervalues, PY3, Iterator, text_type, binary_type, string_types
-    from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
-except ImportError:
-    from six import iteritems, itervalues, PY3, Iterator, text_type, binary_type, string_types
-    from six.moves import xrange, map as imap, filter as ifilter, zip as izip
+from collections.abc import Iterable
+import typing  # noqa
 
-try:
-    from collections.abc import Iterable
-except ImportError:
-    from collections import Iterable
 try:
     from yt.packages.decorator import decorator
 except ImportError:
     from decorator import decorator
-
-try:
-    import typing  # noqa
-except ImportError:
-    import yt.packages.typing as typing  # noqa
 
 import argparse
 import collections
@@ -35,7 +22,6 @@ import random
 import re
 import socket
 import sys
-import threading
 import types
 
 try:
@@ -51,8 +37,6 @@ except ImportError:
             linux_distribution = None
 
 from multiprocessing.pool import ThreadPool
-from multiprocessing.dummy import (Process as DummyProcess,
-                                   current_process as dummy_current_process)
 # Python3 compatibility
 try:
     from collections.abc import Mapping
@@ -75,19 +59,19 @@ def hide_fields(object, fields, prefixes, prefix_re=None, hidden_value="hidden")
         for key in fields:
             if key in object:
                 object[key] = hidden_value
-        for key, value in iteritems(object):
-            if prefixes and isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
+        for key, value in object.items():
+            if prefixes and isinstance(value, str) and any(value.startswith(prefix) for prefix in prefixes):
                 object[key] = hidden_value
-            elif prefix_re and isinstance(value, text_type if PY3 else binary_type) and prefix_re.search(value):
+            elif prefix_re and isinstance(value, str) and prefix_re.search(value):
                 object[key] = prefix_re.sub(hidden_value, value)
             else:
                 hide_fields(value, fields, prefixes, prefix_re, hidden_value)
     elif isinstance(object, list):
-        for index in xrange(len(object)):
+        for index in range(len(object)):
             value = object[index]
-            if prefixes and isinstance(value, text_type if PY3 else binary_type) and any(value.startswith(prefix) for prefix in prefixes):
+            if prefixes and isinstance(value, str) and any(value.startswith(prefix) for prefix in prefixes):
                 object[index] = hidden_value
-            elif prefix_re and isinstance(value, text_type if PY3 else binary_type) and prefix_re.search(value):
+            elif prefix_re and isinstance(value, str) and prefix_re.search(value):
                 object[index] = prefix_re.sub(hidden_value, value)
             else:
                 hide_fields(value, fields, prefixes, prefix_re, hidden_value)
@@ -155,7 +139,7 @@ def parse_bool(word):
 def is_prefix(list_a, list_b):
     if len(list_a) > len(list_b):
         return False
-    for i in xrange(len(list_a)):
+    for i in range(len(list_a)):
         if list_a[i] != list_b[i]:
             return False
     return True
@@ -174,15 +158,15 @@ def dict_depth(obj):
     if not isinstance(obj, dict):
         return 0
     else:
-        return 1 + max(imap(dict_depth, itervalues(obj)))
+        return 1 + max(map(dict_depth, obj.values()))
 
 
 def first_not_none(iter):
-    return next(ifilter(None, iter))
+    return next(filter(None, iter))
 
 
 def merge_dicts(*dicts):
-    return dict(chain(*[iteritems(d) for d in dicts]))
+    return dict(chain(*[d.items() for d in dicts]))
 
 
 def merge_blobs_by_size(blobs, chunk_size):
@@ -248,10 +232,7 @@ def chunk_iter_string(string, chunk_size):
 
 
 def get_stream_size_or_none(stream):
-    if (
-        PY3 and isinstance(stream, (bytes, str))
-        or not PY3 and isinstance(stream, string_types)
-    ):
+    if (isinstance(stream, (bytes, str))):
         return len(stream)
     return None
 
@@ -282,7 +263,7 @@ def generate_uuid(generator=None):
     def get_int():
         return hex(generator.randint(0, 2**32 - 1))[2:].rstrip("L")
 
-    return "-".join([get_int() for _ in xrange(4)])
+    return "-".join([get_int() for _ in range(4)])
 
 
 def generate_traceparent(generator=None):
@@ -482,10 +463,7 @@ def get_disk_size(filepath, round=4 * 1024):
 
 
 def get_binary_std_stream(stream):
-    if PY3:
-        return stream.buffer
-    else:
-        return stream
+    return stream.buffer
 
 
 def get_disk_space_from_resources(resources):
@@ -507,7 +485,7 @@ def set_param(params, name, value, transform=None):
 
 def remove_nones_from_dict(obj):
     result = deepcopy(obj)
-    for key, value in iteritems(obj):
+    for key, value in obj.items():
         if value is None:
             del result[key]
             continue
@@ -544,21 +522,8 @@ def is_master_transaction(transaction_id):
     return object_type_from_uuid(transaction_id) in (1, 4)
 
 
-if not PY3:
-    class _DummyProcess(DummyProcess):
-        def start(self):
-            assert self._parent is dummy_current_process()
-            self._start_called = True
-            if hasattr(self._parent, "_children"):
-                self._parent._children[self] = None
-            threading.Thread.start(self)
-
-    class ThreadPoolHelper(ThreadPool):
-        # See: http://bugs.python.org/issue10015
-        Process = _DummyProcess
-else:
-    class ThreadPoolHelper(ThreadPool):
-        pass
+class ThreadPoolHelper(ThreadPool):
+    pass
 
 
 def escape_c(string):
@@ -606,7 +571,7 @@ def escape_c(string):
     if isinstance(string, bytes) and not hasattr(string, 'encode') or isinstance(string, bytearray):
         return "".join("\\x" + hex_digit(bt // 16) + hex_digit(bt % 16) for bt in string)
     else:
-        return "".join(starmap(escape_symbol, izip(string, string[1:] + chr(0))))
+        return "".join(starmap(escape_symbol, zip(string, string[1:] + chr(0))))
 
 
 def simplify_structure(obj):
@@ -619,10 +584,10 @@ def simplify_structure(obj):
 
     if isinstance(obj, list):
         list_cls = yson.YsonList if is_yson_type else list
-        obj = list_cls(imap(simplify_structure, obj))
+        obj = list_cls(map(simplify_structure, obj))
     elif isinstance(obj, dict):
         dict_cls = yson.YsonMap if is_yson_type else dict
-        obj = dict_cls((k, simplify_structure(v)) for k, v in iteritems(obj))
+        obj = dict_cls((k, simplify_structure(v)) for k, v in obj.items())
     elif hasattr(obj, "to_yson_type"):
         obj = obj.to_yson_type()
     else:
@@ -653,12 +618,9 @@ def format_disk_space(num, suffix="B"):
 
 
 def is_of_iterable_type(obj):
-    iterable_types = (list, types.GeneratorType, Iterator, Iterable)
+    iterable_types = (list, types.GeneratorType, Iterable)
     return isinstance(obj, iterable_types)
 
 
 def get_arg_spec(func):
-    if PY3:
-        return inspect.getfullargspec(func)
-    else:
-        return inspect.getargspec(func)
+    return inspect.getfullargspec(func)

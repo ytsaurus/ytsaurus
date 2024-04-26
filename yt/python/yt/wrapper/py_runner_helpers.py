@@ -6,11 +6,6 @@ try:
 except ImportError:
     _CPP_WRAPPER_AVAILABLE = False
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import inspect
 import os
 import sys
@@ -241,7 +236,7 @@ def apply_stdout_fd_protection(output_streams, protection_type):
 
     # NB: move file descriptors 1 (stdout) and 0 (stdin) so that we don't write operation output
     # to them. In particular, this protects from third-party C/C++ libraries writing to stdout.
-    for index in xrange(len(output_streams)):
+    for index in range(len(output_streams)):
         stream = output_streams[index]
         if stream.fd in (stdin_fd, stdout_fd):
             output_streams[index] = stream.dup()
@@ -275,11 +270,6 @@ def check_allowed_structured_skiff_attributes(params):
 
 def process_rows(operation_dump_filename, config_dump_filename, start_time):
     from itertools import chain, groupby, starmap
-    try:
-        from itertools import imap
-    except ImportError:  # Python 3
-        imap = map
-
     import time
 
     import yt.yson
@@ -375,9 +365,9 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         skiff_output_schemas = params.output_format.get_schemas()
 
     if params.use_yamr_descriptors:
-        output_streams = [FDOutputStream(i + 3) for i in xrange(params.output_table_count)]
+        output_streams = [FDOutputStream(i + 3) for i in range(params.output_table_count)]
     else:
-        output_streams = [FDOutputStream(i * 3 + 1) for i in xrange(params.output_table_count)]
+        output_streams = [FDOutputStream(i * 3 + 1) for i in range(params.output_table_count)]
 
     apply_stdout_fd_protection(output_streams, yt.wrapper.config["pickling"]["stdout_fd_protection"])
 
@@ -391,7 +381,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             if params.job_type == "mapper" or raw:
                 result = chain(
                     start(),
-                    chain.from_iterable(imap(run, rows)),
+                    chain.from_iterable(map(run, rows)),
                     finish())
             else:
                 is_aggregator = params.attributes.get("is_reduce_aggregator", False)
@@ -410,7 +400,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
                     if is_structured_skiff:
                         result = chain(
                             start(),
-                            chain.from_iterable(imap(run, grouped_rows)),
+                            chain.from_iterable(map(run, grouped_rows)),
                             finish(),
                         )
                     else:

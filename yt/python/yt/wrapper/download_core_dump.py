@@ -9,22 +9,13 @@ from yt.common import YtError, YtResponseError
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six import b, PY3
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six import b, PY3
-    from six.moves import xrange, map as imap
-
 import os.path
 
 
 def bytes_to_str(byte_string):
     """Converts bytes to str for PY3. Does nothing for PY2.
     """
-    if PY3:
-        return byte_string.decode(encoding="latin-1")
-    return byte_string
+    return byte_string.decode(encoding="latin-1")
 
 
 def stringify_core_table(row):
@@ -81,7 +72,7 @@ class CoreDumpWriter(object):
         self.current_core_size = None
         self.saved_core_dumps = set()
         self.sparse = sparse
-        self.buffer = b("")
+        self.buffer = b""
         self.total_size = 0
         self.total_disk_usage = 0
 
@@ -92,13 +83,13 @@ class CoreDumpWriter(object):
         if self.sparse:
             buffer_ptr = 0
             while buffer_ptr + SPARSE_CORE_DUMP_PAGE_SIZE + 1 < len(self.buffer):
-                if self.buffer[buffer_ptr:buffer_ptr + 1] == b("0"):
+                if self.buffer[buffer_ptr:buffer_ptr + 1] == b"0":
                     zero_block_length = 0
-                    for idx in xrange(buffer_ptr + 1 + UINT64_LENGTH, buffer_ptr, -1):
+                    for idx in range(buffer_ptr + 1 + UINT64_LENGTH, buffer_ptr, -1):
                         zero_block_length = 256 * zero_block_length + ord(self.buffer[idx:idx + 1])
                     self.current_file.seek(zero_block_length, 1)
                 else:
-                    if self.buffer[buffer_ptr:buffer_ptr + 1] != b("1"):
+                    if self.buffer[buffer_ptr:buffer_ptr + 1] != b"1":
                         logger.error("Sparse core dump is corrupted")
                         return
                     self.current_file.write(self.buffer[buffer_ptr + 1:buffer_ptr + 1 + SPARSE_CORE_DUMP_PAGE_SIZE])
@@ -108,16 +99,16 @@ class CoreDumpWriter(object):
 
             if finalizing:
                 if self.buffer:
-                    if self.buffer[0:1] != b("1"):
+                    if self.buffer[0:1] != b"1":
                         logger.error("Sparse core dump is corrupted")
                         return
                     self.current_file.write(self.buffer[1:])
-                self.buffer = b("")
+                self.buffer = b""
         else:
             if not self.current_file:
                 return
             self.current_file.write(self.buffer)
-            self.buffer = b("")
+            self.buffer = b""
 
     def flush(self):
         self.process_buffer(True)
@@ -222,8 +213,8 @@ def download_core_dump(output_directory, job_id=None, operation_id=None, core_ta
         raise YtError("core_indices could not be specified without specifying job_id")
 
     table = TablePath(core_table_path, ranges=ranges, client=client)
-    rows = imap(stringify_core_table,
-                read_table(table=table, client=client, raw=False, format=YsonFormat(encoding=None)))
+    rows = map(stringify_core_table,
+               read_table(table=table, client=client, raw=False, format=YsonFormat(encoding=None)))
 
     try:
         sparse = get(core_table_path + "/@sparse", client=client)

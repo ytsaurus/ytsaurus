@@ -8,11 +8,6 @@ from yt.wrapper.batch_execution import YtBatchRequestFailedError
 
 import yt.wrapper as yt
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import pytest
 
 import tempfile
@@ -115,7 +110,7 @@ class TestBatchExecution(object):
         assert table_type.get_result() == "table"
         assert map_node_type.get_result() == "map_node"
 
-        tables = ["{0}/table_{1}".format(TEST_DIR + "/batch_node_list", str(i)) for i in xrange(10)]
+        tables = ["{0}/table_{1}".format(TEST_DIR + "/batch_node_list", str(i)) for i in range(10)]
         for table in tables:
             client.create("table", table, recursive=True)
         client.commit_batch()
@@ -123,7 +118,7 @@ class TestBatchExecution(object):
         list_result = client.list(TEST_DIR + "/batch_node_list")
         client.commit_batch()
 
-        assert set(list_result.get_result()) == set(("table_" + str(i) for i in xrange(10)))
+        assert set(list_result.get_result()) == set(("table_" + str(i) for i in range(10)))
 
     @authors("ostyakov")
     def test_acl_commands(self):

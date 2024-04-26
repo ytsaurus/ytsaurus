@@ -46,11 +46,9 @@ class HeavyProxyProvider(ProxyProvider):
             self.state = state
 
         from yt.packages.requests import ConnectionError
-        try:
-            from yt.packages.six.moves.http_client import BadStatusLine
-        except ImportError:
-            from six.moves.http_client import BadStatusLine
+        from http.client import BadStatusLine
         from socket import error as SocketError
+
         self.ban_errors = (ConnectionError, BadStatusLine, SocketError, YtRequestTimedOut, YtProxyUnavailable)
 
     def _get_light_proxy(self):

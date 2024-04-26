@@ -7,25 +7,13 @@ import yt.yson as yson
 from yt.wrapper.string_iter_io import StringIterIO
 from yt.wrapper.format import extract_key, create_format
 
-try:
-    from yt.packages.six import byte2int, iterbytes, PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import byte2int, iterbytes, PY3
-    from six.moves import xrange
-
 import yt.wrapper as yt
 
-from flaky import flaky
 import pytest
-
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
-
 import random
 import time
+from flaky import flaky
+from io import BytesIO
 from itertools import chain
 
 
@@ -36,8 +24,8 @@ def test_string_iter_io_read():
     for add_eoln in [False, True]:
         io = StringIterIO(iter(strings), add_eoln)
         sep = b"\n" if add_eoln else b""
-        for c in iterbytes(sep.join(strings)):
-            assert c == byte2int(io.read(1))
+        for c in bytes(sep.join(strings)):
+            assert c == io.read(1)[0]
 
 
 @authors("ignat")
@@ -48,7 +36,7 @@ def test_string_iter_io_readline():
         io = StringIterIO(iter(strings), add_eoln)
         sep = b"\n" if add_eoln else b""
         lines = sep.join(strings).split(b"\n")
-        for i in xrange(len(lines)):
+        for i in range(len(lines)):
             line = lines[i]
             if i + 1 != len(lines):
                 line += b"\n"
@@ -403,7 +391,7 @@ def test_yson_dump_rows_speed():
     format = yt.YsonFormat()
     rows = []
 
-    for _ in xrange(1000):
+    for _ in range(1000):
         if random.randint(0, 10) == 1:
             entity = yson.YsonEntity()
             entity.attributes["@table_index"] = random.randint(0, 1)
@@ -415,13 +403,13 @@ def test_yson_dump_rows_speed():
     NUM_ITERATIONS = 1000
 
     start_time = time.time()
-    for _ in xrange(NUM_ITERATIONS):
+    for _ in range(NUM_ITERATIONS):
         stream = BytesIO()
         format.dump_rows(rows, stream)
 
     one_stream_dump_time = time.time() - start_time
     start_time = time.time()
-    for _ in xrange(NUM_ITERATIONS):
+    for _ in range(NUM_ITERATIONS):
         stream = BytesIO()
         stream2 = BytesIO()
         format.dump_rows(rows, [stream, stream2])
@@ -433,32 +421,31 @@ def test_yson_dump_rows_speed():
                       "to two streams took {1} seconds".format(one_stream_dump_time, two_streams_dump_time)
 
 
-if PY3:
-    @authors("ignat")
-    def test_none_encoding():
-        def check(format, bytes_row, text_row, expected_bytes, fail_exc=yt.YtError):
-            stream = BytesIO()
+@authors("ignat")
+def test_none_encoding():
+    def check(format, bytes_row, text_row, expected_bytes, fail_exc=yt.YtError):
+        stream = BytesIO()
 
-            format.dump_rows([bytes_row], stream)
+        format.dump_rows([bytes_row], stream)
+        assert stream.getvalue() == expected_bytes
+
+        if fail_exc is not None:
+            with pytest.raises(fail_exc):
+                format.dump_rows([text_row], stream)
+        else:
+            stream = BytesIO()
+            format.dump_rows([text_row], stream)
             assert stream.getvalue() == expected_bytes
 
-            if fail_exc is not None:
-                with pytest.raises(fail_exc):
-                    format.dump_rows([text_row], stream)
-            else:
-                stream = BytesIO()
-                format.dump_rows([text_row], stream)
-                assert stream.getvalue() == expected_bytes
-
-        check(yt.YamrFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
-        check(yt.DsvFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b"x=y\n")
-        check(yt.YamredDsvFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
-        check(yt.YsonFormat(format="text", encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x"="y";};\n',
-              fail_exc=yson.YsonError)
-        check(yt.SchemafulDsvFormat(encoding=None, columns=["x"]), {b"x": b"y"}, {"x": "y"}, b"y\n",
-              fail_exc=KeyError)
-        check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
-              fail_exc=None)
+    check(yt.YamrFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
+    check(yt.DsvFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b"x=y\n")
+    check(yt.YamredDsvFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
+    check(yt.YsonFormat(format="text", encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x"="y";};\n',
+          fail_exc=yson.YsonError)
+    check(yt.SchemafulDsvFormat(encoding=None, columns=["x"]), {b"x": b"y"}, {"x": "y"}, b"y\n",
+          fail_exc=KeyError)
+    check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
+          fail_exc=None)
 
 
 @authors("levysotsky")

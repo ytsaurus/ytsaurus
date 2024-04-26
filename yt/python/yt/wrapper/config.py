@@ -8,11 +8,6 @@ import yt.json_wrapper as json
 import yt.logger as logger
 import yt.yson as yson
 
-try:
-    import yt.packages.six as six
-except ImportError:
-    import six
-
 import os
 import sys
 import types
@@ -44,7 +39,6 @@ class Config(types.ModuleType, client_state.ClientState):
         self.json_module = json
         self.yson_module = yson
         self.client_state_module = client_state
-        self.six_module = six
         self.config = None
 
         self._init()
@@ -64,7 +58,7 @@ class Config(types.ModuleType, client_state.ClientState):
                 self.default_config_module.get_default_config())
 
         # Update params from env.
-        for key, value in self.six_module.iteritems(os.environ):
+        for key, value in os.environ.items():
             prefix = "YT_"
             if not key.startswith(prefix):
                 continue

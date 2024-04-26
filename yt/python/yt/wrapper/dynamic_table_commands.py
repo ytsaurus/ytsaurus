@@ -16,15 +16,7 @@ from .transaction import null_transaction_id
 from .retries import Retrier, default_chaos_monkey
 from .batch_helpers import create_batch_client
 
-try:
-    from cStringIO import StringIO as BytesIO
-except ImportError:  # Python 3
-    from io import BytesIO
-
-try:
-    from yt.packages.six import iteritems
-except ImportError:
-    from six import iteritems
+from io import BytesIO
 
 import yt.logger as logger
 
@@ -901,7 +893,7 @@ class BackupManifest(object):
     def merge(self, other):
         assert isinstance(other, BackupManifest)
 
-        for cluster_name, cluster_manifest in iteritems(other.clusters):
+        for cluster_name, cluster_manifest in other.clusters.items():
             self.update_cluster(cluster_name, cluster_manifest)
         return self
 
@@ -909,7 +901,7 @@ class BackupManifest(object):
         clusters = {
             name: cluster._serialize()
             for name, cluster
-            in iteritems(self.clusters)
+            in self.clusters.items()
         }
         return {"clusters": clusters}
 

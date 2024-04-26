@@ -1,11 +1,5 @@
-try:
-    from yt.packages.six.moves.queue import Queue, Empty
-    from yt.packages.six.moves import xrange
-    from yt.packages.six import Iterator
-except ImportError:
-    from six.moves.queue import Queue, Empty
-    from six.moves import xrange
-    from six import Iterator
+from collections.abc import Iterable
+from queue import Queue, Empty
 
 import threading
 
@@ -111,7 +105,7 @@ class _Worker(threading.Thread):
         self.state = self.TERMINATED
 
 
-class _ImapIterator(Iterator):
+class _ImapIterator(Iterable):
     FREE = 0
     BUSY = 1
 
@@ -128,7 +122,7 @@ class _ImapIterator(Iterator):
 
         self._is_task_iterator_stopped = False
 
-        for _ in xrange(self._pool.get_thread_count() - self._task_queue.qsize()):
+        for _ in range(self._pool.get_thread_count() - self._task_queue.qsize()):
             self.try_to_put_next_task()
 
     def try_to_put_next_task(self):
@@ -209,7 +203,7 @@ class ThreadPool(object):
         self._thread_count = thread_count
 
         self._workers = [_Worker(self._task_queue, self._result_queue, initfunc, initargs)
-                         for _ in xrange(thread_count)]
+                         for _ in range(thread_count)]
 
         self._state = self.RUNNING
         self._iterable_state = _ImapIterator.FREE

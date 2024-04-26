@@ -7,11 +7,6 @@ from .config import get_backend_type
 from .driver import get_api_version
 from .http_helpers import get_proxy_address_url, get_token, make_request_with_retries
 
-try:
-    from yt.packages.six import b, PY3
-except ImportError:
-    from six import b, PY3
-
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
 try:
@@ -77,10 +72,10 @@ class JobShell(object):
         self.proxy_url = get_proxy_address_url(client=self.yt_client)
         self.api_version = get_api_version(client=client)
 
-        self.environment = [b"YT_PROXY=" + b(self.proxy_url)]
+        self.environment = [b"YT_PROXY=" + bytes(self.proxy_url, "utf-8")]
         self.token = get_token(client=client)
         if self.token is not None:
-            self.environment.append(b"YT_TOKEN=" + b(self.token))
+            self.environment.append(b"YT_TOKEN=" + bytes(self.token, "utf-8"))
 
         self.current_proxy = None
 
@@ -121,13 +116,13 @@ class JobShell(object):
         if self.interactive and (not height or not width):
             width, height = self._terminal_size()
         parameters = {
-            b"operation": b(operation),
+            b"operation": bytes(operation, "utf-8"),
         }
         if operation == "spawn":
             if self.inactivity_timeout is not None:
                 parameters[b"inactivity_timeout"] = self.inactivity_timeout
             if command:
-                parameters[b"command"] = b(command)
+                parameters[b"command"] = bytes(command, "utf-8")
             parameters[b"environment"] = self.environment
         if height is not None:
             parameters[b"height"] = height
@@ -138,15 +133,15 @@ class JobShell(object):
         if input_offset is not None:
             parameters[b"input_offset"] = input_offset
         if term is not None:
-            parameters[b"term"] = b(term)
+            parameters[b"term"] = bytes(term, "utf-8")
         if self.shell_id:
             parameters[b"shell_id"] = self.shell_id
         request = {
-            b"job_id": b(self.job_id),
+            b"job_id": bytes(self.job_id, "utf-8"),
             b"parameters": parameters
         }
         if self.shell_name is not None:
-            request[b"shell_name"] = b(self.shell_name)
+            request[b"shell_name"] = bytes(self.shell_name, "utf-8")
         req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text", encoding=None)
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req
@@ -203,7 +198,7 @@ class JobShell(object):
         self.current_proxy = None
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
-                if PY3 and sys.version_info.minor <= 5:
+                if sys.version_info.minor <= 5:
                     error = json.loads(err.response.headers["X-Yt-Error"], encoding=None)
                 else:
                     error = json.loads(err.response.headers["X-Yt-Error"])

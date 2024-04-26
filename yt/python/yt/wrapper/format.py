@@ -20,17 +20,9 @@ import yt.json_wrapper as json
 import yt.logger as logger
 from yt.yson import YsonString, YsonUnicode
 
-try:
-    from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
-                                 indexbytes, int2byte, raise_from)
-    from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
-except ImportError:
-    from six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
-                     indexbytes, int2byte, raise_from)
-    from six.moves import xrange, map as imap, zip as izip, filter as ifilter
-
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
+from collections.abc import Iterable
 import copy
 import struct
 import sys
@@ -76,7 +68,7 @@ class YtFormatReadError(YtFormatError):
 
 
 # This class should not be put inside class method to avoid reference loop.
-class RowsIterator(Iterator):
+class RowsIterator(Iterable):
     def __init__(self, rows, extract_control_attributes, table_index_attribute_name, row_index_attribute_name,
                  range_index_attribute_name, key_switch_attribute_name, tablet_index_attribute_name):
         self.rows = iter(rows)
@@ -120,7 +112,7 @@ class RowsIterator(Iterator):
             error = YtFormatError("Failed to decode string, it usually means that "
                                   "you are using python3 and store byte string in YT table; "
                                   "try to specify none encoding")
-            raise_from(error, None)
+            raise error from None
 
         raise StopIteration()
 
@@ -171,12 +163,13 @@ def rows_generator(rows, extract_control_attributes,
             row_index += 1
 
 
-@add_metaclass(ABCMeta)
 class Format(object):
     """YT data representations.
 
        Abstract base class for different formats.
     """
+    __metaclass__ = ABCMeta
+
     _COLUMN_KEY_DEFAULT_ENCODING = "utf-8"
 
     def __init__(self, name, attributes=None, raw=None, encoding=_ENCODING_SENTINEL):
@@ -207,15 +200,12 @@ class Format(object):
     attributes = property(_get_attributes, _set_attributes)
 
     def _encode_string(self, string):
-        if not PY3:
-            return string
-
-        if isinstance(string, binary_type):
+        if isinstance(string, bytes):
             if self._encoding is not None:
                 raise YtError('Bytes object "{0}" cannot be encoded to "{1}"". Consider passing None to "encoding" '
                               'parameter in format constructor'.format(string, self._encoding))
             return string
-        elif isinstance(string, text_type):
+        elif isinstance(string, str):
             if self._encoding is None:
                 raise YtError('Cannot encode unicode string "{0}" because encoding is not specified. '
                               'Consider passing "encoding" parameter to format constructor'.format(string))
@@ -224,11 +214,9 @@ class Format(object):
             raise YtError("Object {0} is not string object".format(repr(string)))
 
     def _coerce_column_key(self, key):
-        if not PY3:
-            return key
-        if self._encoding is None and isinstance(key, text_type):
+        if self._encoding is None and isinstance(key, str):
             return key.encode(self._COLUMN_KEY_DEFAULT_ENCODING)
-        if self._encoding is not None and isinstance(key, binary_type):
+        if self._encoding is not None and isinstance(key, bytes):
             return key.decode(self._encoding)
         return key
 
@@ -261,20 +249,20 @@ class Format(object):
     @staticmethod
     def _escape(string, escape_dict):
         string = string.replace(b"\\", b"\\\\")
-        for sym, escaped in iteritems(escape_dict):
+        for sym, escaped in escape_dict.items():
             string = string.replace(sym, escaped)
         return string
 
     @staticmethod
     def _unescape(string, escape_dict):
-        for sym, unescaped in iteritems(escape_dict):
+        for sym, unescaped in escape_dict.items():
             string = string.replace(sym, unescaped)
         return string.replace(b"\\", b"")
 
     @staticmethod
     def _get_encoding(encoding):
         if encoding is _ENCODING_SENTINEL:
-            return "utf-8" if PY3 else None
+            return "utf-8"
 
         return encoding
 
@@ -370,10 +358,10 @@ class Format(object):
                             extract_control_attributes, table_index_column_name, transform_column_name):
         table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,\
             key_switch_attribute_name, tablet_index_attribute_name = \
-            list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index", b"key_switch", b"tablet_index"]))
+            list(map(transform_column_name, [b"table_index", b"row_index", b"range_index", b"key_switch", b"tablet_index"]))
 
         table_index_column_name, range_index_column_name, row_index_column_name = \
-            list(imap(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
+            list(map(transform_column_name, [table_index_column_name, "@range_index", "@row_index"]))
 
         if control_attributes_mode == "row_fields":
             return rows_generator(rows, extract_control_attributes,
@@ -590,10 +578,7 @@ class DsvFormat(Format):
             return self._escape(string, {b'\n': b'\\n', b'\r': b'\\r', b'\t': b'\\t', b'\0': b'\\0'})
 
         def convert_to_bytes(value):
-            if not PY3:  # Fast path
-                return str(value)
-
-            if isinstance(value, (text_type, binary_type)):
+            if isinstance(value, (str, bytes)):
                 return self._encode_string(value)
             else:
                 return str(value).encode("ascii")
@@ -601,16 +586,12 @@ class DsvFormat(Format):
         # NOTE: Statbox bindings work with byte strings only. But
         # it is likely that row will contain unicode key or value in Python 3
         # so bindings are disabled for Python 3.
-        if sb_misc is not None and self._encoding is None and not PY3:
-            stream.write(sb_misc.tskv_encode(row))
-            stream.write(b"\n")
-        else:
-            length = len(row)
-            for i, item in enumerate(iteritems(row)):
-                stream.write(escape_key(convert_to_bytes(item[0])))
-                stream.write(b"=")
-                stream.write(escape_value(convert_to_bytes(item[1])))
-                stream.write(b"\n" if i == length - 1 else b"\t")
+        length = len(row)
+        for i, item in enumerate(row.items()):
+            stream.write(escape_key(convert_to_bytes(item[0])))
+            stream.write(b"=")
+            stream.write(escape_value(convert_to_bytes(item[1])))
+            stream.write(b"\n" if i == length - 1 else b"\t")
 
     def _dump_rows(self, rows, stream_or_streams):
         stream = stream_or_streams[0] if isinstance(stream_or_streams, list) else stream_or_streams
@@ -644,7 +625,7 @@ class DsvFormat(Format):
                         if index == -1:
                             key_tokens.append(token)
                             break
-                        if index == 0 or int2byte(indexbytes(token, index - 1)) != b"\\":
+                        if index == 0 or bytes((token[index - 1], )) != b"\\":
                             key_tokens.append(token[:index])
                             value_tokens.append(token[index + 1:])
                             inside_key = False
@@ -656,11 +637,11 @@ class DsvFormat(Format):
             key_dict = copy.deepcopy(value_dict)
             key_dict[b'\\='] = b'='
 
-            key = b"\\".join(imap(lambda t: self._unescape(t, key_dict), key_tokens))
-            value = b"\\".join(imap(lambda t: self._unescape(t, value_dict), value_tokens))
+            key = b"\\".join(map(lambda t: self._unescape(t, key_dict), key_tokens))
+            value = b"\\".join(map(lambda t: self._unescape(t, value_dict), value_tokens))
             return decode(key, value)
 
-        return dict(imap(unescape_dsv_field, ifilter(None, string.strip(b"\n").split(b"\t"))))
+        return dict(map(unescape_dsv_field, filter(None, string.strip(b"\n").split(b"\t"))))
 
 
 class YsonFormat(Format):
@@ -697,7 +678,7 @@ class YsonFormat(Format):
         super(YsonFormat, self).__init__("yson", all_attributes, raw, encoding)
 
         self._dump_encoding = self._encoding
-        if encoding is _ENCODING_SENTINEL or not PY3:
+        if encoding is _ENCODING_SENTINEL:
             self._dump_encoding = "utf-8"
 
         if control_attributes_mode is None:
@@ -790,7 +771,7 @@ class YsonFormat(Format):
                       **kwargs)
             return
 
-        class RowsIterator(Iterator):
+        class RowsIterator(Iterable):
             def __init__(self, rows, coerced_table_index_column):
                 self.is_finished = False
                 self.table_index = 0
@@ -938,7 +919,7 @@ class YamrFormat(Format):
             return None
 
         if self._encoding is not None:
-            result_of_loading = list(imap(lambda field: field.decode(self._encoding), result_of_loading))
+            result_of_loading = list(map(lambda field: field.decode(self._encoding), result_of_loading))
 
         return Record(*result_of_loading)
 
@@ -990,7 +971,7 @@ class YamrFormat(Format):
                 continue
 
             if self._encoding is not None:
-                fields = list(imap(lambda s: s.decode(self._encoding), fields))
+                fields = list(map(lambda s: s.decode(self._encoding), fields))
 
             yield Record(*fields, tableIndex=table_index, recordIndex=row_index)
 
@@ -1021,7 +1002,7 @@ class YamrFormat(Format):
 
     def _read_lenval_values(self, stream, unparsed):
         fields = []
-        for iter in xrange(self.fields_number):
+        for iter in range(self.fields_number):
             len_bytes = stream.read(4)
             if iter == 0 and not len_bytes:
                 return None
@@ -1080,8 +1061,7 @@ class YamrFormat(Format):
                     table_switcher = struct.pack("ii", -1, new_table_index)
                 else:
                     table_switcher = "{0}\n".format(new_table_index)
-                    if PY3:
-                        table_switcher = table_switcher.encode("ascii")
+                    table_switcher = table_switcher.encode("ascii")
                 stream_or_streams.write(table_switcher)
                 table_index = new_table_index
 
@@ -1158,7 +1138,7 @@ class JsonFormat(Format):
         self.control_attributes_mode = control_attributes_mode
         self.table_index_column = table_index_column
 
-        self.enable_ujson = enable_ujson and not PY3
+        self.enable_ujson = False
         self.json_module = JsonFormat._get_json_module(enable_ujson=enable_ujson)
 
         # TODO(ignat): use Format._create_property
@@ -1168,7 +1148,7 @@ class JsonFormat(Format):
 
     def _load_python_string(self, string):
         def _decode_byte_string(string):
-            assert isinstance(string, binary_type)
+            assert isinstance(string, bytes)
             if self._encoding is not None:
                 return string.decode(self._encoding)
             else:
@@ -1192,16 +1172,16 @@ class JsonFormat(Format):
             return obj
 
         if isinstance(obj, dict):
-            return dict([(self._load_python_string(key), self._decode(value)) for key, value in iteritems(obj)])
+            return dict([(self._load_python_string(key), self._decode(value)) for key, value in obj.items()])
         elif isinstance(obj, list):
-            return list(imap(self._decode, obj))
-        elif isinstance(obj, binary_type) or isinstance(obj, text_type):
+            return list(map(self._decode, obj))
+        elif isinstance(obj, bytes) or isinstance(obj, str):
             return self._load_python_string(obj)
         else:
             return obj
 
     def _dump_python_string(self, string):
-        if isinstance(string, text_type):
+        if isinstance(string, str):
             if self._dump_encoding == "utf-8" and self.encode_utf8 is False:
                 # In this case we can do nothing, unicode string would be correctly written
                 # without any additional encoding.
@@ -1216,7 +1196,7 @@ class JsonFormat(Format):
                     return string
                 else:
                     return string.encode(self._dump_encoding).decode("latin1")
-        elif isinstance(string, binary_type):
+        elif isinstance(string, bytes):
             if self.encode_utf8 is False:
                 try:
                     return string.decode("ascii")
@@ -1232,10 +1212,10 @@ class JsonFormat(Format):
             return obj
 
         if isinstance(obj, dict):
-            return dict([(self._dump_python_string(key), self._encode(value)) for key, value in iteritems(obj)])
+            return dict([(self._dump_python_string(key), self._encode(value)) for key, value in obj.items()])
         elif isinstance(obj, list):
-            return list(imap(self._encode, obj))
-        elif isinstance(obj, binary_type) or isinstance(obj, text_type):
+            return list(map(self._encode, obj))
+        elif isinstance(obj, bytes) or isinstance(obj, str):
             return self._dump_python_string(obj)
         else:
             return obj
@@ -1244,26 +1224,23 @@ class JsonFormat(Format):
         if raw:
             return string
         string = string.rstrip(b"\n")
-        if PY3:
-            # NB: in python3 json expects unicode string as input,
-            # default encoding for standard json libraries is utf-8.
-            string = string.decode("utf-8")
+        # NB: in python3 json expects unicode string as input,
+        # default encoding for standard json libraries is utf-8.
+        string = string.decode("utf-8")
         return self._decode(self.json_module.loads(string))
 
     def _dump(self, obj, stream):
         stream_writer = stream
-        if PY3:
-            # NB: in python3 json writes unicode string as output,
-            # default encoding for standard json libraries is utf-8.
-            stream_writer = getwriter("utf-8")(stream)
+        # NB: in python3 json writes unicode string as output,
+        # default encoding for standard json libraries is utf-8.
+        stream_writer = getwriter("utf-8")(stream)
         return self.json_module.dump(self._encode(obj), stream_writer)
 
     def _dumps(self, obj):
         value = self.json_module.dumps(self._encode(obj))
-        if PY3:
-            # NB: in python3 json writes unicode string as output,
-            # default encoding for standard json libraries is utf-8.
-            value = value.encode("utf-8")
+        # NB: in python3 json writes unicode string as output,
+        # default encoding for standard json libraries is utf-8.
+        value = value.encode("utf-8")
         return value
 
     def load_row(self, stream, raw=None):
@@ -1350,10 +1327,9 @@ class JsonFormat(Format):
     def dumps_node(self, object):
         """Dumps python object."""
         value = self.json_module.dumps(self._encode(yson.yson_to_json(object)))
-        if PY3:
-            # NB: in python3 json writes unicode string as output,
-            # default encoding for standard json libraries is utf-8.
-            value = value.encode("utf-8")
+        # NB: in python3 json writes unicode string as output,
+        # default encoding for standard json libraries is utf-8.
+        value = value.encode("utf-8")
         return value
 
 
@@ -1423,7 +1399,7 @@ class SchemafulDsvFormat(Format):
         else:
             self._columns = self.columns
 
-        self._coerced_columns = list(imap(self._coerce_column_key, self._columns))
+        self._coerced_columns = list(map(self._coerce_column_key, self._columns))
         self._coerced_table_index_column = self._coerce_column_key(self.attributes["table_index_column"])
 
     columns = Format._create_property("columns")
@@ -1464,7 +1440,7 @@ class SchemafulDsvFormat(Format):
 
         def convert_table_index_to_str(row):
             index_str = str(row[self._coerced_table_index_column])
-            if PY3 and self._encoding is None:
+            if self._encoding is None:
                 index_str = index_str.encode("ascii")
             row[self._coerced_table_index_column] = index_str
 
@@ -1494,11 +1470,11 @@ class SchemafulDsvFormat(Format):
             if not self.enable_escaping:
                 return field
             unescape_dict = {b'\\n': b'\n', b'\\r': b'\r', b'\\t': b'\t', b'\\0': b'\0'}
-            return decode(b"\\".join(imap(lambda token: self._unescape(token, unescape_dict),
-                                          field.split(b"\\\\"))))
+            return decode(b"\\".join(map(lambda token: self._unescape(token, unescape_dict),
+                                         field.split(b"\\\\"))))
 
-        return dict(izip(imap(self._coerce_column_key, self._columns),
-                         imap(unescape_field, line.rstrip(b"\n").split(b"\t"))))
+        return dict(zip(map(self._coerce_column_key, self._columns),
+                        map(unescape_field, line.rstrip(b"\n").split(b"\t"))))
 
 
 class CppUninitializedFormat(Format):

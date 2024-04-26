@@ -18,13 +18,6 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-try:
-    from yt.packages.six import PY3, iteritems, text_type, binary_type
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import PY3, iteritems, text_type, binary_type
-    from six.moves import map as imap
-
 import re
 import copy
 import string
@@ -162,12 +155,8 @@ def module_relpath(module_names, module_file, client):
     """
     search_extensions = get_config(client)["pickling"]["search_extensions"]
     if search_extensions is None:
-        if PY3:
-            import importlib.machinery
-            suffixes = importlib.machinery.all_suffixes()
-        else:
-            import imp
-            suffixes = [suf for suf, _, _ in imp.get_suffixes()]
+        import importlib.machinery
+        suffixes = importlib.machinery.all_suffixes()
     else:
         suffixes = ["." + ext for ext in search_extensions]
 
@@ -326,11 +315,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
         files_to_compress[relpath] = file
 
-    for name, module in list(iteritems(sys.modules)):
+    for name, module in list(sys.modules.items()):
         if module_filter is not None and not module_filter(module):
             continue
         # NB: python3 tests could not properly pickle pkg_resources package.
-        if PY3 and "pkg_resources" in str(module):
+        if "pkg_resources" in str(module):
             continue
 
         if hasattr(module, "__file__"):
@@ -383,7 +372,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
     additional_files = get_value(get_config(client)["pickling"]["additional_files_to_archive"], [])
     additional_files = [(relpath, filepath) for filepath, relpath in additional_files]
-    all_files = list(iteritems(files_to_compress)) + additional_files
+    all_files = list(files_to_compress.items()) + additional_files
 
     files_sorted = sorted(all_files, key=lambda item: os.path.getmtime(item[1]))
     file_chunks = split_files_into_chunks(files_sorted, get_config(client)["pickling"]["modules_chunk_size"])
@@ -439,7 +428,7 @@ def simplify(function_name):
         if sym not in string.ascii_letters and sym not in string.digits:
             return "_"
         return sym
-    return "".join(imap(fix, function_name[:30]))
+    return "".join(map(fix, function_name[:30]))
 
 
 def get_function_name(function):
@@ -519,12 +508,12 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
     with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
-    return list(imap(file_argument_builder, [function_filename, config_filename]))
+    return list(map(file_argument_builder, [function_filename, config_filename]))
 
 
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
-    if isinstance(modules_info, (text_type, binary_type)):
+    if isinstance(modules_info, (str, bytes)):
         modules_info = [{"filename": modules_info, "hash": calc_md5_from_file(modules_info), "tmpfs": False}]
 
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])

@@ -10,11 +10,6 @@ from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
 from yt.wrapper import YtError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 from flaky import flaky
 
 import copy
@@ -178,13 +173,13 @@ class TestParseYpath(object):
             pytest.skip("speed tests disabled under asan")
 
         start_time = time.time()
-        for _ in xrange(50):
+        for _ in range(50):
             for path in TEST_PATHS:
                 parse_ypath(path)
         print("Python YPath parser: {0}".format(time.time() - start_time), file=sys.stderr)
 
         start_time = time.time()
-        for _ in xrange(50):
+        for _ in range(50):
             for path in TEST_PATHS:
                 make_parse_ypath_request(path)
         print("C++ YPath parser (local): {0}".format(time.time() - start_time), file=sys.stderr)

@@ -8,11 +8,6 @@ from yt.wrapper.job_commands import get_job_input, get_job_fail_context
 import yt.logger as logger
 import yt.wrapper as yt
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import collections
 import os
 import stat
@@ -54,10 +49,10 @@ def make_environment_string(environment):
 
 def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
     if use_yamr_descriptors:
-        return [1, 2] + [i + 3 for i in xrange(output_table_count)]
+        return [1, 2] + [i + 3 for i in range(output_table_count)]
     else:
         # descriptor #5 is for job statistics
-        return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
+        return [2, 5] + [3 * i + 1 for i in range(output_table_count)]
 
 
 def parse_bash_command_line(command_line):

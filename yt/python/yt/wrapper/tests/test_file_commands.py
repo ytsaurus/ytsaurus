@@ -3,11 +3,6 @@
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, set_config_options, failing_heavy_request
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 from yt.wrapper.common import MB
 from yt.wrapper.driver import make_request
 from yt.wrapper import heavy_commands, parallel_writer
@@ -118,12 +113,8 @@ class TestFileCommands(object):
         data = u"строка"
         path = TEST_DIR + "/filename"
         yt.create("file", path)
-        if not PY3:
+        with pytest.raises(yt.YtError):
             yt.write_file(path, data)
-            assert yt.read_file(path).read().decode("utf-8") == data
-        else:
-            with pytest.raises(yt.YtError):
-                yt.write_file(path, data)
 
     @authors("asaitgalin")
     def test_write_compressed_file_data(self):

@@ -15,13 +15,6 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.common import _pretty_format_for_logging, get_fqdn as _get_fqdn
 
-try:
-    from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six import reraise, add_metaclass, PY3, iterbytes, iteritems
-    from six.moves import xrange, map as imap
-
 import os
 import sys
 import time
@@ -36,10 +29,7 @@ from abc import ABCMeta, abstractmethod
 from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
-try:
-    from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
-except ImportError:
-    from six.moves.http_client import BadStatusLine, IncompleteRead
+from http.client import BadStatusLine, IncompleteRead
 
 # Used to distinguish
 try:
@@ -60,7 +50,7 @@ _FAILED_TO_RECEIVE_TOKEN_WARNED = False
 
 
 def format_logging_params(params):
-    return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
+    return ", ".join(["{}: {}".format(key, value) for key, value in params.items()])
 
 
 def _hexify(message):
@@ -69,7 +59,7 @@ def _hexify(message):
             return chr(byte)
         else:
             return hex(byte)
-    return "".join(map(convert, iterbytes(message)))
+    return "".join(map(convert, message))
 
 
 def _hexify_recursively(obj):
@@ -77,7 +67,7 @@ def _hexify_recursively(obj):
         for key in obj:
             obj[key] = _hexify_recursively(obj[key])
     elif isinstance(obj, list):
-        for index in xrange(len(obj)):
+        for index in range(len(obj)):
             obj[key] = _hexify_recursively(obj[key])
     elif isinstance(obj, bytes):
         return _hexify(obj)
@@ -98,8 +88,9 @@ def get_retriable_errors():
             YtSequoiaRetriableError)
 
 
-@add_metaclass(ABCMeta)
 class ProxyProvider(object):
+    __metaclass__ = ABCMeta
+
     @abstractmethod
     def __call__(self):
         pass
@@ -203,10 +194,7 @@ def check_response_is_decodable(response, format):
             raise YtIncorrectResponse("Response body can not be decoded from JSON", response)
     elif format == "yson":
         try:
-            if PY3:
-                yson.loads(response.content, encoding=None)
-            else:
-                yson.loads(response.content)
+            yson.loads(response.content, encoding=None)
         except (yson.YsonError, TypeError):
             raise YtIncorrectResponse("Response body can not be decoded from YSON", response)
 
@@ -220,10 +208,9 @@ def create_response(response, request_info, request_id, error_format, client):
         if header_format == "json":
             return yson.json_to_yson(json.loads(str))
         if header_format == "yson":
-            if PY3:
-                # NOTE: Actually this is latin-1 encoding. urllib uses it to
-                # decode headers, so it is used here to encode them back to bytes.
-                str = str.encode("iso-8859-1")
+            # NOTE: Actually this is latin-1 encoding. urllib uses it to
+            # decode headers, so it is used here to encode them back to bytes.
+            str = str.encode("iso-8859-1")
             return yson.loads(str)
         raise YtError("Incorrect header format: {0}".format(header_format))
 
@@ -385,7 +372,7 @@ class RequestRetrier(Retrier):
         try:
             session = _get_session(client=self.client)
             if isinstance(self.requests_timeout, tuple):
-                timeout = tuple(imap(lambda elem: elem / 1000.0, self.requests_timeout))
+                timeout = tuple(map(lambda elem: elem / 1000.0, self.requests_timeout))
             else:
                 timeout = self.requests_timeout / 1000.0
             response = create_response(session.request(self.method, url, timeout=deepcopy(timeout), **self.kwargs),
@@ -402,7 +389,7 @@ class RequestRetrier(Retrier):
                     # See YT-4053.
                     rsp = create_response(error.response, request_info, self.request_id, self.error_format, self.client)
                 except:  # noqa
-                    reraise(*exc_info)
+                    raise exc_info[1].with_traceback(exc_info[2])
                 check_response_is_decodable(rsp, "json")
                 _raise_for_status(rsp, request_info)
             raise

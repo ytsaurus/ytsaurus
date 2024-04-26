@@ -10,11 +10,6 @@ from .format import create_format
 from .http_helpers import get_retriable_errors
 from .retries import Retrier, default_chaos_monkey
 
-try:
-    from yt.packages.six.moves import zip as izip
-except ImportError:
-    from six.moves import zip as izip
-
 from copy import deepcopy
 
 
@@ -40,17 +35,17 @@ class BatchRequestRetrier(Retrier):
         self._client = client
 
     def action(self):
-        for tasks, responses in izip(chunk_iter_list(self._tasks, self._max_batch_size),
-                                     chunk_iter_list(self._responses, self._max_batch_size)):
+        for tasks, responses in zip(chunk_iter_list(self._tasks, self._max_batch_size),
+                                    chunk_iter_list(self._responses, self._max_batch_size)):
             results = execute_batch(tasks, concurrency=self._concurrency, client=self._client)
             if get_api_version(self._client) == "v4":
                 results = results["results"]
-            for result, response in izip(results, responses):
+            for result, response in zip(results, responses):
                 response.set_result(result)
 
         tasks = []
         responses = []
-        for task, response in izip(self._tasks, self._responses):
+        for task, response in zip(self._tasks, self._responses):
             if not response.is_ok():
                 error = YtResponseError(response.get_error())
                 if isinstance(error, get_retriable_errors()):

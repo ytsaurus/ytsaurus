@@ -25,13 +25,7 @@ import yt.json_wrapper as json
 import yt.yson as yson
 import yt.logger as logger
 
-try:
-    from yt.packages.six import PY3, text_type, binary_type
-    from yt.packages.six.moves import map as imap, filter as ifilter, xrange
-except ImportError:
-    from six import PY3, text_type, binary_type
-    from six.moves import map as imap, filter as ifilter, xrange
-
+import builtins
 from copy import deepcopy
 from datetime import timedelta
 
@@ -41,10 +35,10 @@ from datetime import timedelta
 def _get_format_from_tables(tables, ignore_unexisting_tables):
     """Tries to get format from tables, raises :class:`YtError <yt.common.YtError>` if tables \
        have different _format attribute."""
-    not_none_tables = list(ifilter(None, flatten(tables)))
+    not_none_tables = list(filter(None, flatten(tables)))
 
     if ignore_unexisting_tables:
-        tables_to_extract = list(ifilter(lambda x: exists(TablePath(x)), not_none_tables))
+        tables_to_extract = list(filter(lambda x: exists(TablePath(x)), not_none_tables))
     else:
         tables_to_extract = not_none_tables
 
@@ -62,7 +56,7 @@ def _get_format_from_tables(tables, ignore_unexisting_tables):
             return create_format(format_name)
         return None
 
-    formats = list(imap(extract_format, tables_to_extract))
+    formats = list(map(extract_format, tables_to_extract))
 
     def format_repr(format):
         if format is not None:
@@ -218,7 +212,7 @@ def write_table(
             _create_table(path, ignore_existing=True, client=client)
 
     is_input_stream_filelike = hasattr(input_stream, "read")
-    is_input_stream_str = isinstance(input_stream, (text_type, binary_type))
+    is_input_stream_str = isinstance(input_stream, (str, bytes))
     can_split_input = (isinstance(input_stream, typing.Iterable) and not is_input_stream_filelike and not is_input_stream_str) \
         or format.is_raw_load_supported()
     enable_retries = get_config(client)["write_retries"]["enable"] and \
@@ -449,7 +443,7 @@ def _slice_row_ranges_for_parallel_read(ranges, row_count, data_size, data_size_
             lower_limit = 0 if "lower_limit" not in range else range["lower_limit"]["row_index"]
             upper_limit = row_count if "upper_limit" not in range else range["upper_limit"]["row_index"]
 
-        for start in xrange(lower_limit, upper_limit, rows_per_thread):
+        for start in builtins.range(lower_limit, upper_limit, rows_per_thread):
             end = min(start + rows_per_thread, upper_limit)
             result.append((start, end))
 
@@ -603,8 +597,7 @@ class _ReadTableRetriableState(object):
         @staticmethod
         def dump_control_row(row):
             row = json.dumps(yson.yson_to_json(row))
-            if PY3:
-                row = row.encode("utf-8")
+            row = row.encode("utf-8")
             return row + b"\n"
 
     class SkiffControlRowFormat:
@@ -948,7 +941,7 @@ def copy_table(source_table, destination_table, replace=True, client=None):
         copy(source_tables[0], destination_table, recursive=True, client=client)
     else:
         is_sorted_merge = \
-            all(imap(lambda t: is_sorted(t, client=client), source_tables)) \
+            all(map(lambda t: is_sorted(t, client=client), source_tables)) \
             and not destination_table.append
         mode = "sorted" if is_sorted_merge else "ordered"
         run_merge(source_tables, destination_table, mode, client=client)
@@ -1076,7 +1069,7 @@ def get_table_columnar_statistics(paths, client=None):
     :param paths: paths to tables
     :type paths: list of (str or :class:`TablePath <yt.wrapper.ypath.TablePath>`)
     """
-    paths = list(imap(lambda path: TablePath(path, client=client), flatten(paths)))
+    paths = list(map(lambda path: TablePath(path, client=client), flatten(paths)))
     return make_formatted_request("get_table_columnar_statistics", params={"paths": paths}, client=client, format=None)
 
 
@@ -1092,7 +1085,7 @@ def partition_tables(paths, partition_mode=None, data_weight_per_partition=None,
     :param adjust_data_weight_per_partition: allow the data weight per partition to exceed data_weight_per_partition when max_partition_count is set
     """
     params = {}
-    set_param(params, "paths", list(imap(lambda path: TablePath(path, client=client), flatten(paths))))
+    set_param(params, "paths", list(map(lambda path: TablePath(path, client=client), flatten(paths))))
     set_param(params, "partition_mode", partition_mode)
     set_param(params, "data_weight_per_partition", data_weight_per_partition)
     set_param(params, "max_partition_count", max_partition_count)

@@ -12,11 +12,6 @@ from yt.common import YT_NULL_TRANSACTION_ID
 import yt.logger as logger
 import yt.yson as yson
 
-try:
-    from yt.packages.six import string_types, raise_from
-except ImportError:
-    from six import string_types, raise_from
-
 from copy import deepcopy
 
 _DEFAULT_COMMAND_PARAMS = {
@@ -154,7 +149,7 @@ def get_structured_format(format, client):
             format = YsonFormat()
         else:
             format = JsonFormat()
-    if isinstance(format, string_types):
+    if isinstance(format, str):
         format = create_format(format)
     return format
 
@@ -192,7 +187,7 @@ def make_formatted_request(command_name, params, format, **kwargs):
             error = YtFormatError("Failed to decode string, it usually means that "
                                   "you are using python3 and non-unicode data in YT; "
                                   "try to specify structured_data_format with none encoding")
-            raise_from(error, None)
+            raise error from None
         return structured_result
     else:
         return format.postprocess(result)

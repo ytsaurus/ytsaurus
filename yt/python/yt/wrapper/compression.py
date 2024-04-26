@@ -1,10 +1,5 @@
-from yt.wrapper.common import YtError, GB, chunk_iter_string, is_arcadia_python
+from yt.wrapper.common import YtError, GB, chunk_iter_string
 import yt.logger as logger
-
-try:
-    from yt.packages.six import binary_type, PY3
-except ImportError:
-    from six import binary_type, PY3
 
 try:
     import zlib_fork_safe as zlib
@@ -16,7 +11,8 @@ except ImportError:
 
 def is_zlib_parallel():
     # NB: zlib in non-Arcadia Python 2.7 is single-threaded.
-    return PY3 or is_arcadia_python() or _ZLIB_FORK_SAFE
+    # return PY3 or is_arcadia_python() or _ZLIB_FORK_SAFE
+    return True
 
 
 def try_enable_parallel_write_gzip(config_enable):
@@ -39,7 +35,7 @@ class _Compressor(object):
         self.finish_func = finish_func
 
     def __call__(self, obj):
-        if isinstance(obj, binary_type):
+        if isinstance(obj, bytes):
             obj_iterator = chunk_iter_string(obj, 2 * GB)
         else:
             obj_iterator = obj

@@ -3,17 +3,12 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 import yt
 
 FRAMEWORKS = {
     "dill": ("yt.packages.dill",),
-    "cloudpickle": ("yt.packages.cloudpickle", "cloudpickle"),
-    "pickle": ("yt.packages.six.moves.cPickle", "six.moves.cPickle"),
+    "cloudpickle": ("yt.packages.cloudpickle", "cloudpickle",),
+    "pickle": ("pickle",),
 }
 
 
@@ -29,7 +24,7 @@ def import_framework_module(framework):
         except ImportError:
             pass
 
-    if framework == "dill" and PY3:
+    if framework == "dill":
         # NB: python3.8 has changes DEFAULT_PROTOCTOL to 4.
         # We set protocol implicitly for client<->server compatibility.
         result_module.settings["protocol"] = 3

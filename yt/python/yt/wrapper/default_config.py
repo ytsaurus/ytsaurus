@@ -10,11 +10,6 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
 
-try:
-    import yt.packages.six as six
-except ImportError:
-    import six
-
 import os
 import sys
 from copy import deepcopy
@@ -830,7 +825,7 @@ def _update_from_env_vars(config, shortcuts=None):
     if not shortcuts:
         shortcuts = SHORTCUTS
 
-    for key, value in six.iteritems(os.environ):
+    for key, value in os.environ.items():
         prefix = "YT_"
         if not key.startswith(prefix):
             continue
