@@ -68,6 +68,9 @@ public:
     //! Fired when a node gets registered.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeRegistered);
 
+    //! Fires when secondary master receives node replication.
+    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeReplicated);
+
     //! Fired when a node becomes online.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeOnline);
 

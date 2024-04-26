@@ -132,15 +132,9 @@ void ValidateIndexSchema(
                 typeMismatchCallback(indexColumn, *tableColumn);
             }
 
-            THROW_ERROR_EXCEPTION_IF(indexColumn.SortOrder() && tableColumn->Aggregate(),
+            THROW_ERROR_EXCEPTION_IF(tableColumn->Aggregate(),
                 "Cannot create index on an aggregate column %Qv",
                 indexColumn.Name());
-
-            THROW_ERROR_EXCEPTION_IF(tableColumn->Expression() != indexColumn.Expression(),
-                "Expression mismatch in evaluated column %Qv: table expression %Qv, index expression %Qv",
-                indexColumn.Name(),
-                tableColumn->Expression(),
-                indexColumn.Expression());
         } else {
             if (!indexColumn.SortOrder()) {
                 THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,

@@ -227,6 +227,9 @@ DEFINE_ENUM(EMasterReign,
     ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
     ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
     ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
+    ((SecondaryIndexSchemaValidation_24_1)                          (2560))  // sabdenovch
+    ((NodeReplicationMutation)                                      (2561))  // cherepashka
+    ((TraceIdInSequoia)                                             (2562))  // cherepashka
     // 24.2 starts here.
 );
 

@@ -415,8 +415,9 @@ public:
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+        auto isPrimaryMaster = Bootstrap_->IsPrimaryMaster();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (isPrimaryMaster) {
             for (auto locationUuid : chunkLocationUuids) {
                 if (IsObjectAlive(FindChunkLocationByUuid(locationUuid))) {
                     continue;
@@ -442,7 +443,13 @@ public:
             }
         }
 
-        if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+        ReplicateChunkLocations(node, chunkLocationUuids);
+        for (auto locationUuid : chunkLocationUuids) {
+            auto* location = FindChunkLocationByUuid(locationUuid);
+            location->SetState(EChunkLocationState::Online);
+        }
+
+        if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
@@ -450,6 +457,13 @@ public:
 
             dataNodeInfoExt->set_require_location_uuids(false);
         }
+    }
+
+    void ReplicateChunkLocations(
+        TNode* node,
+        const std::vector<TChunkLocationUuid>& chunkLocationUuids) override
+    {
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         node->ClearChunkLocations();
 
@@ -477,13 +491,10 @@ public:
                 location->SetNode(node);
                 node->AddRealChunkLocation(location);
             }
-
-            location->SetState(EChunkLocationState::Online);
         }
 
         node->ChunkLocations().shrink_to_fit();
     }
-
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation);
 

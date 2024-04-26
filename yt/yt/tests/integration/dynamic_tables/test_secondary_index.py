@@ -4,13 +4,15 @@ from yt.common import wait
 
 from yt_commands import (
     create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
-    authors, set, get, exists, remove, copy, get_driver,
+    authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows,
     sorted_dicts, raises_yt_error,
 )
 
 from yt.test_helpers import assert_items_equal
+
+import pytest
 
 ##################################################################
 
@@ -31,7 +33,29 @@ PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     {"name": "valueB", "type": "boolean"},
 ]
 
+PRIMARY_SCHEMA_WITH_AGGREGATE = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "int64"},
+    {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
+]
+
+PRIMARY_SCHEMA_WITH_EXPRESSION = [
+    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(keyA)"},
+    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyB", "type": "string", "sort_order": "ascending"},
+    {"name": "valueA", "type": "int64"},
+    {"name": "valueB", "type": "boolean"},
+]
+
 INDEX_ON_VALUE_SCHEMA = [
+    {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyB", "type": "string", "sort_order": "ascending"},
+    {"name": "valueB", "type": "boolean"},
+]
+
+INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION = [
+    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(valueA)"},
     {"name": "valueA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
@@ -240,6 +264,56 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         self._mount("//tmp/table")
         with raises_yt_error("Cannot create index on a mounted table"):
             self._create_secondary_index()
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("schema_pair", (
+        ([{"name": "not_sorted", "type": "int64"}], INDEX_ON_VALUE_SCHEMA),
+        (PRIMARY_SCHEMA, [{"name": "not_sorted", "type": "int64"}]),
+        (PRIMARY_SCHEMA_WITH_EXTRA_KEY, INDEX_ON_VALUE_SCHEMA),
+        (PRIMARY_SCHEMA, INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "string"}]),
+        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
+            {"name": "aggregate_value", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+        ]),
+        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
+            {"name": "value", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
+        ]),
+    ))
+    def test_secondary_index_illegal_schema_combinations(self, schema_pair):
+        self._create_table("//tmp/table", schema_pair[0])
+        self._create_table("//tmp/index", schema_pair[1])
+
+        with raises_yt_error():
+            create_secondary_index("//tmp/table", "//tmp/index", "full_sync")
+
+    @authors("sabdenovch")
+    def test_secondary_index_alter_extra_key_order(self):
+        self._create_basic_tables()
+
+        with raises_yt_error():
+            alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+
+        alter_table("//tmp/index_table", schema=[
+            {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+            {"name": "keyB", "type": "string", "sort_order": "ascending"},
+            {"name": "keyC", "type": "int64", "sort_order": "ascending"},
+            {"name": "valueB", "type": "boolean"},
+        ])
+        alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+
+    @authors("sabdenovch")
+    def test_secondary_index_alter_extra_value_order(self):
+        self._create_basic_tables()
+
+        with raises_yt_error():
+            alter_table("//tmp/table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
+
+        alter_table("//tmp/table", schema=PRIMARY_SCHEMA + [{"name": "extraValue", "type": "int64"}])
+        alter_table("//tmp/index_table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
 
 
 ##################################################################
@@ -576,6 +650,17 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"value": 8, "key": 4, EMPTY_COLUMN_NAME: None},
             {"value": 9, "key": 4, EMPTY_COLUMN_NAME: None},
         ])
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
+    @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
+    def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
+        self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
+        index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
+        if index_table_schema == INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION:
+            index_row["__hash__"] = 3509085207357874260
+        self._insert_rows([{"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}])
+        self._expect_from_index([index_row])
 
 
 ##################################################################

@@ -52,6 +52,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/table_client/schema.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -2091,7 +2093,39 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
 
-        if (!config->EnableDescendingSortOrder || (dynamic && !config->EnableDescendingSortOrderDynamic)) {
+        if (table->IsDynamic()) {
+            for (const auto* index : table->SecondaryIndices()) {
+                const auto& indexTableSchema = index->GetIndexTable()->GetSchema()->AsTableSchema();
+                switch (index->GetKind()) {
+                    case ESecondaryIndexKind::FullSync:
+                        ValidateFullSyncIndexSchema(*schema, *indexTableSchema);
+                        break;
+                    case ESecondaryIndexKind::Unfolding:
+                        FindUnfoldingColumnAndValidate(*schema, *indexTableSchema);
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+            }
+
+            if (const auto* index = table->GetIndexTo()) {
+                const auto& tableSchema = index->GetTable()->GetSchema()->AsTableSchema();
+                switch (index->GetKind()) {
+                    case ESecondaryIndexKind::FullSync:
+                        ValidateFullSyncIndexSchema(*tableSchema, *schema);
+                        break;
+                    case ESecondaryIndexKind::Unfolding:
+                        FindUnfoldingColumnAndValidate(*tableSchema, *schema);
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }
+
+        if (!config->EnableDescendingSortOrder ||
+            dynamic && !config->EnableDescendingSortOrderDynamic)
+        {
             ValidateNoDescendingSortOrder(*schema);
         }
 

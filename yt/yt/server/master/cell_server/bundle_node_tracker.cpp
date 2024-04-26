@@ -36,6 +36,7 @@ public:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
+        nodeTracker->SubscribeNodeReplicated(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeOnline(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeBanChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
