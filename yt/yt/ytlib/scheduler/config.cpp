@@ -480,7 +480,6 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 {
     static const std::vector<TString> DefaultSensorNames = {
-        "cpu/burst",
         "cpu/user",
         "cpu/system",
         "cpu/wait",

@@ -75,7 +75,6 @@ TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, c
 
 void AssertGauges(const std::vector<std::tuple<TString, TTagList, double>>& gauges) {
     THashSet<TString> sensors{
-        "/cpu/burst",
         "/cpu/user",
         "/cpu/total",
         "/cpu/system",
@@ -117,7 +116,6 @@ void AssertGauges(const std::vector<std::tuple<TString, TTagList, double>>& gaug
     };
 
     THashSet<TString> mayBeEmpty{
-        "/cpu/burst",
         "/cpu/wait",
         "/cpu/throttled",
         "/cpu/cfs_throttled",

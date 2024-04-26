@@ -270,7 +270,6 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"job_proxy/max_memory", "Maximum amount of memory used by the job proxy process", "bytes"},
         {"job_proxy/memory_reserve", "Amount of memory guaranteed for the job proxy at the time of start", "bytes"},
 
-        {"job_proxy/cpu/burst", "Burst CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/user", "User mode CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/system", "Kernel mode CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/wait", "Wait CPU time of the job proxy process", "ms"},
@@ -304,7 +303,6 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/tmpfs_volumes/*/size", "Current (or final) amount of tmpfs used by user job in this volume", "bytes"},
         {"user_job/tmpfs_volumes/*/max_size", "Maximum amount of tmpfs used by user job in this volume during execution", "bytes"},
 
-        {"user_job/cpu/burst", "Burst CPU time of the job", "ms"},
         {"user_job/cpu/user", "User mode CPU time of the job", "ms"},
         {"user_job/cpu/system", "Kernel mode CPU time of the job", "ms"},
         {"user_job/cpu/wait", "Wait CPU time of the job", "ms"},

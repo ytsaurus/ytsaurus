@@ -11,7 +11,6 @@ namespace NYT::NContainers {
 ////////////////////////////////////////////////////////////////////////////////
 
 const std::vector<EStatField> InstanceStatFields{
-    EStatField::CpuBurstUsage,
     EStatField::CpuUsage,
     EStatField::CpuUserUsage,
     EStatField::CpuSystemUsage,
