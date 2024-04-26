@@ -77,7 +77,6 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
             .SystemUsageTime = statistics.SystemUsageTime.ValueOrThrow(),
             .WaitTime = statistics.WaitTime.ValueOrThrow(),
             .ThrottledTime = statistics.ThrottledTime.ValueOrThrow(),
-            .CfsThrottledTime = statistics.CfsThrottledTime.ValueOrThrow(),
             .ContextSwitchesDelta = statistics.ContextSwitchesDelta.ValueOrThrow(),
             .PeakThreadCount = statistics.PeakThreadCount.ValueOrThrow()
         };

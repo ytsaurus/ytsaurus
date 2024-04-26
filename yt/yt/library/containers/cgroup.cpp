@@ -447,7 +447,6 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     XX(SystemUsageTime)
     XX(WaitTime)
     XX(ThrottledTime)
-    XX(CfsThrottledTime)
     XX(ContextSwitchesDelta)
     XX(PeakThreadCount)
     #undef XX

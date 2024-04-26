@@ -118,7 +118,6 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/cpu/system",
             "porto/cpu/wait",
             "porto/cpu/throttled",
-            "porto/cpu/cfs_throttled",
             "porto/cpu/guarantee",
             "porto/cpu/limit",
             "porto/cpu/thread_count",
@@ -158,7 +157,6 @@ class TestPortoMetrics(MetricsTestBase):
         may_be_empty = [
             "porto/cpu/wait",
             "porto/cpu/throttled",
-            "porto/cpu/cfs_throttled",
             "porto/cpu/guarantee",
             "porto/memory/major_page_faults",
             "porto/memory/memory_guarantee",

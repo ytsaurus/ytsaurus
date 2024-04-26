@@ -26,7 +26,6 @@ struct TJobEnvironmentCpuStatistics
     TDuration SystemUsageTime;
     TDuration WaitTime;
     TDuration ThrottledTime;
-    TDuration CfsThrottledTime;
     ui64 ContextSwitchesDelta = 0;
     ui64 PeakThreadCount = 0;
 };
