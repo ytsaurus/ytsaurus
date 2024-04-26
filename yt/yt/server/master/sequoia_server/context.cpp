@@ -25,6 +25,7 @@ using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTracing;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -158,13 +159,16 @@ const ISequoiaContextPtr& GetSequoiaContext()
 
 TSequoiaContextGuard::TSequoiaContextGuard(ISecurityManagerPtr securityManager)
     : UserGuard_(std::move(securityManager))
+    , TraceContextGuard_(nullptr)
 { }
 
 TSequoiaContextGuard::TSequoiaContextGuard(
         ISequoiaContextPtr context,
         ISecurityManagerPtr securityManager,
-        TAuthenticationIdentity identity)
+        TAuthenticationIdentity identity,
+        TTraceContextPtr traceContext)
     : UserGuard_(std::move(securityManager), std::move(identity))
+    , TraceContextGuard_(std::move(traceContext))
 {
     SetSequoiaContext(std::move(context));
 }
