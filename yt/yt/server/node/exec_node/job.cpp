@@ -2330,7 +2330,7 @@ void TJob::Cleanup()
     // Release resources.
     GpuStatistics_.clear();
 
-    if (IsStarted()) {
+    if (IsStarted() && !Allocation_) {
         ResourceHolder_->ReleaseNonSlotResources();
     }
 
@@ -2363,7 +2363,11 @@ void TJob::Cleanup()
         }
     }
 
-    ResourceHolder_->ReleaseBaseResources();
+    if (!Allocation_) {
+        ResourceHolder_->ReleaseBaseResources();
+    } else {
+        ResourceHolder_.Reset();
+    }
 
     SetJobPhase(EJobPhase::Finished);
 
