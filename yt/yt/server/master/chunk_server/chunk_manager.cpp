@@ -5943,7 +5943,7 @@ private:
                     TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
                     // Weird but OK.
                     if (location->RemoveReplica(replica)) {
-                        YT_LOG_ALERT("Location had a destroyed Sequoia chunk replica (LocationUuid: %v, ChunkId: %v)",
+                        YT_LOG_DEBUG("Location had a destroyed Sequoia chunk replica (LocationUuid: %v, ChunkId: %v)",
                             locationUuid,
                             chunkId);
                     }
