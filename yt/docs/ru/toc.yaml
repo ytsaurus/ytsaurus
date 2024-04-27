@@ -435,6 +435,8 @@ items:
           #        href: admin-guide/production.md
       - name: Тегирование нод кластера
         href: admin-guide/node-tags.md
+      - name: Расширение мастер-сервера
+        href: admin-guide/cell-addition.md
       - name: Возможные проблемы
         href: admin-guide/problems.md
   - name: Релизы
