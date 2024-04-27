@@ -396,6 +396,7 @@ class Migration(object):
         return latest_version
 
     def get_schemas(self, version=None):
+        """Returns mapping from table name to its schema"""
         if version is None:
             version = self.get_latest_version()
 
@@ -409,7 +410,7 @@ class Migration(object):
                 if conversion.table_info:
                     table_infos[conversion.table] = copy.deepcopy(conversion.table_info)
 
-        return table_infos
+        return {table: table_info.schema for table, table_info in table_infos.items()}
 
     def create_tables(self, client, target_version, tables_path, shard_count, override_tablet_cell_bundle="default"):
         """Creates tables of given version"""
