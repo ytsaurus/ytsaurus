@@ -117,6 +117,10 @@ def is_intrusive_list(fibers):
     return str(fibers).find("Head_") != -1
 
 
+def is_util_intrusive_list(fibers):
+    return str(fibers).find("TIntrusiveList") != -1
+
+
 def get_first_node(fibers):
     words = str(fibers).split(' ')
 
@@ -166,6 +170,13 @@ def parse_vector(addresses, fibers):
         addresses.append(address)
 
 
+def parse_util_list(addresses, fibers):
+    for line in format_string_multiline(fibers).split('\n'):
+        if line.find('[') == -1:
+            continue
+        address = line.split(' ')[-3].replace(']', '')
+        addresses.append(address)
+
 def get_registered_fiber_addresses():
     def eval_func():
         return gdb.parse_and_eval('NYT::NConcurrency::TFiberRegistry::Get()->Fibers_')
@@ -175,11 +186,15 @@ def get_registered_fiber_addresses():
         return []
     addresses = []
 
+    if is_util_intrusive_list(fibers):
+        parse_util_list(addresses, fibers)
+        return addresses
+
     if is_intrusive_list(fibers):
         parse_intrusive_list(addresses, fibers)
-    else:
-        parse_vector(addresses, fibers)
+        return addresses
 
+    parse_vector(addresses, fibers)
     return addresses
 
 
