@@ -692,6 +692,8 @@ public:
     void InitPersistentState(NYTree::INodePtr persistentState);
     NYTree::INodePtr BuildPersistentState() const;
 
+    bool IsGpuTree() const;
+
     //! Testing.
     void OnAllocationStartedInTest(
         TSchedulerOperationElement* element,

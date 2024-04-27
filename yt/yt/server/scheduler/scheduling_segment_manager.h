@@ -41,7 +41,8 @@ using TNodeWithMovePenaltyList = std::vector<TNodeWithMovePenalty>;
 struct TSetNodeSchedulingSegmentOptions
 {
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
-    ESchedulingSegment Segment = ESchedulingSegment::Default;
+    ESchedulingSegment OldSegment = ESchedulingSegment::Default;
+    ESchedulingSegment NewSegment = ESchedulingSegment::Default;
 };
 
 using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
@@ -163,6 +164,15 @@ private:
     void SetNodeSegment(TFairShareTreeAllocationSchedulerNodeState* node, ESchedulingSegment segment, TUpdateSchedulingSegmentsContext* context) const;
 
     void LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const;
+    void LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const;
+    void BuildGpuOperationInfo(
+        TOperationId operationId,
+        const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,
+        NYTree::TFluentMap fluent) const;
+    void BuildGpuNodeInfo(
+        const TFairShareTreeAllocationSchedulerNodeState& nodeState,
+        NYTree::TFluentMap fluent) const;
+
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;
 };
 

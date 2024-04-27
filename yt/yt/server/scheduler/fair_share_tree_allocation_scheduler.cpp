@@ -2545,6 +2545,16 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->LastRunningAllocationStatisticsUpdateTime = schedulingContext->GetNow();
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
+    if (IsGpuTree()) {
+        nodeState->RunningAllocations.clear();
+        nodeState->RunningAllocations.reserve(schedulingContext->RunningAllocations().size());
+        for (const auto& allocation : schedulingContext->RunningAllocations()) {
+            TFairShareTreeAllocationSchedulerAllocationState fairShareTreeAllocationSchedulerAllocationState;
+            fairShareTreeAllocationSchedulerAllocationState.OperationId = allocation->GetOperationId();
+            fairShareTreeAllocationSchedulerAllocationState.ResourceLimits = allocation->ResourceLimits();
+            EmplaceOrCrash(nodeState->RunningAllocations, allocation->GetId(), std::move(fairShareTreeAllocationSchedulerAllocationState));
+        }
+    }
 
     bool hasUserSlotsBefore = !nodeState->Descriptor || nodeState->Descriptor->ResourceLimits.GetUserSlots() > 0;
     bool hasUserSlotsAfter = schedulingContext->GetNodeDescriptor()->ResourceLimits.GetUserSlots() > 0;
@@ -2670,6 +2680,11 @@ void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperat
             operationState->SchedulingSegmentModule);
     }
 
+    if (IsGpuTree()) {
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationRegistered)
+            .Item("operation_id").Value(operationId);
+    }
+
     EmplaceOrCrash(
         OperationIdToState_,
         operationId,
@@ -2687,8 +2702,15 @@ void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOper
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    EraseOrCrash(OperationIdToState_, element->GetOperationId());
-    EraseOrCrash(OperationIdToSharedState_, element->GetOperationId());
+    auto operationId = element->GetOperationId();
+
+    if (IsGpuTree()) {
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationUnregistered)
+            .Item("operation_id").Value(operationId);
+    }
+
+    EraseOrCrash(OperationIdToState_, operationId);
+    EraseOrCrash(OperationIdToSharedState_, operationId);
 }
 
 void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
@@ -2826,7 +2848,8 @@ void TFairShareTreeAllocationScheduler::BuildSchedulingAttributesForNode(TNodeId
 
     fluent
         .Item("scheduling_segment").Value(nodeState->SchedulingSegment)
-        .Item("running_job_statistics").Value(nodeState->RunningAllocationStatistics);
+        .Item("running_job_statistics").Value(nodeState->RunningAllocationStatistics)
+        .Item("running_allocations").Value(nodeState->RunningAllocations);
 }
 
 void TFairShareTreeAllocationScheduler::BuildSchedulingAttributesStringForOngoingAllocations(
@@ -3153,6 +3176,11 @@ INodePtr TFairShareTreeAllocationScheduler::BuildPersistentState() const
         ? PersistentState_
         : InitialPersistentState_;
     return ConvertToNode(persistentState);
+}
+
+bool TFairShareTreeAllocationScheduler::IsGpuTree() const
+{
+    return Config_->MainResource == EJobResourceType::Gpu;
 }
 
 void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
@@ -3964,11 +3992,12 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
         movedNodes.size());
 
     std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount> movedNodesPerNodeShard;
-    for (auto [nodeId, newSegment] : movedNodes) {
+    for (auto [nodeId, oldSegment, newSegment] : movedNodes) {
         auto shardId = StrategyHost_->GetNodeShardId(nodeId);
         movedNodesPerNodeShard[shardId].push_back(TSetNodeSchedulingSegmentOptions{
             .NodeId = nodeId,
-            .Segment = newSegment,
+            .OldSegment = oldSegment,
+            .NewSegment = newSegment,
         });
     }
 
@@ -3979,7 +4008,7 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
             [&, this_ = MakeStrong(this), shardId, movedNodes = std::move(movedNodesPerNodeShard[shardId])] {
                 auto& nodeStates = NodeStateShards_[shardId].NodeIdToState;
                 std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
-                for (auto [nodeId, newSegment] : movedNodes) {
+                for (auto [nodeId, _, newSegment] : movedNodes) {
                     auto it = nodeStates.find(nodeId);
                     if (it == nodeStates.end()) {
                         missingNodeIdsWithSegments.emplace_back(nodeId, newSegment);
