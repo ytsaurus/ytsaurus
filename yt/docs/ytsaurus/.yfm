@@ -29,6 +29,3 @@ docs-viewer:
     hidden: true
     title: YT-public
     description: "YTsaurus public docs"
-
-  gtm:
-    id: GTM-W2MMVTR
