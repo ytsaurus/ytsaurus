@@ -564,3 +564,17 @@ class TestDynamicTablesLeases(YTEnvSetup):
         commit_transaction(t_tx, prerequisite_transaction_ids=[m_tx])
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
+
+    @authors("gryzlov-ad")
+    def test_start_tablet_transaction_prerequisites(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        m_tx = start_transaction(type="master")
+        t_tx = start_transaction(type="tablet", prerequisite_transaction_ids=[m_tx])
+        insert_rows("//tmp/t", [{"k": "k", "v": "v"}], tx=t_tx)
+
+        abort_transaction(m_tx)
+
+        with raises_yt_error("Prerequisite check failed"):
+            commit_transaction(t_tx)

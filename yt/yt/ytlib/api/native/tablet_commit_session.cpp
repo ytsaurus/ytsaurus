@@ -242,7 +242,11 @@ private:
         }
 
         if (batchIndex == 0) {
-            ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
+            auto prerequisiteTransactions = transaction->GetPrerequisiteTransactionIds();
+            for (const auto& transactionId : Options_.PrerequisiteTransactionIds) {
+                prerequisiteTransactions.push_back(transactionId);
+            }
+            ToProto(req->mutable_prerequisite_transaction_ids(), prerequisiteTransactions);
         }
 
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "
