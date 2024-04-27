@@ -29,6 +29,19 @@ void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TFairShareTreeAllocationSchedulerAllocationState
+    : public NYTree::TYsonStructLite
+{
+    TOperationId OperationId;
+    TJobResources ResourceLimits;
+
+    REGISTER_YSON_STRUCT_LITE(TFairShareTreeAllocationSchedulerAllocationState);
+
+    static void Register(TRegistrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Make this refcounted?
 struct TFairShareTreeAllocationSchedulerNodeState
 {
@@ -41,6 +54,8 @@ struct TFairShareTreeAllocationSchedulerNodeState
     TRunningAllocationStatistics RunningAllocationStatistics;
     std::optional<NProfiling::TCpuInstant> LastRunningAllocationStatisticsUpdateTime;
     bool ForceRunningAllocationStatisticsUpdate = false;
+
+    THashMap<TAllocationId, TFairShareTreeAllocationSchedulerAllocationState> RunningAllocations;
 };
 
 using TFairShareTreeAllocationSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeAllocationSchedulerNodeState>;

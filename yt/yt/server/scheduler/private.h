@@ -131,6 +131,17 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (ResourceLimitsViolated)
 );
 
+DEFINE_ENUM(EGpuSchedulingLogEventType,
+    (FairShareInfo)
+    (OperationRegistered)
+    (OperationUnregistered)
+    (SchedulingSegmentsInfo)
+    (OperationAssignedToModule)
+    (FailedToAssignOperation)
+    (OperationModuleAssignmentRevoked)
+    (MovedNodes)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TOperationElementsBySchedulingPriority = TEnumIndexedArray<EOperationSchedulingPriority, TNonOwningOperationElementList>;
@@ -150,6 +161,7 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedAllocationPreemptionStatusMapPerOperation)
 
 inline const auto SchedulerEventLogger = NLogging::TLogger("SchedulerEventLog").WithEssential();
 inline const auto SchedulerStructuredLogger = NLogging::TLogger("SchedulerStructuredLog").WithEssential();
+inline const auto SchedulerGpuEventLogger = NLogging::TLogger("SchedulerGpuStructuredLog").WithEssential();
 inline const auto SchedulerResourceMeteringLogger = NLogging::TLogger("SchedulerResourceMetering").WithEssential();
 
 inline const NProfiling::TProfiler SchedulerProfiler{"/scheduler"};
