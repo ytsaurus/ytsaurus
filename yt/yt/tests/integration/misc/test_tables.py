@@ -3039,6 +3039,35 @@ class TestTablesMulticell(TestTables):
         assert get("//tmp/t/@snapshot_statistics/chunk_count") == 2
         assert get("//tmp/t/@delta_statistics/chunk_count") == 0
 
+    @authors("whatsername")
+    def test_write_invalid_sorted_any(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
+        )
+
+        wrong_values = [
+            [1, {}],
+            [2, {}],
+        ]
+        values = [
+            [1, []],
+            [2, ["abc"]],
+        ]
+
+        def gen_data(values):
+            data = []
+            for v in values:
+                data.append({"key": v})
+            return data
+
+        with raises_yt_error("Error validating column"):
+            write_table("//tmp/t", gen_data(wrong_values))
+
+        write_table("//tmp/t", gen_data(values))
+
+
 ##################################################################
 
 
