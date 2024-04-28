@@ -1428,27 +1428,25 @@ private:
 
     std::optional<TCounters> GetCounters() const
     {
-        try {
-            auto counters = TCounters{
-                .FilesystemRead = IOEngine_->GetTotalReadBytes(),
-                .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
-            };
+        auto counters = TCounters{
+            .FilesystemRead = IOEngine_->GetTotalReadBytes(),
+            .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
+        };
 
-            auto diskStats = NYT::GetDiskStats();
-            auto it = diskStats.find(DeviceName_);
-            if (it != diskStats.end()) {
-                counters.DiskRead = it->second.SectorsRead * UnixSectorSize;
-                counters.DiskWritten = it->second.SectorsWritten * UnixSectorSize;
+        try {
+            auto stat = NYT::GetBlockDeviceStat(DeviceName_);
+            if (stat) {
+                counters.DiskRead = stat->SectorsRead * UnixSectorSize;
+                counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
             } else {
                 YT_LOG_WARNING("Cannot find disk IO statistics (DeviceName: %v)",
                     DeviceName_);
             }
-
-            return counters;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get disk IO statistics");
         }
-        return {};
+
+        return counters;
     }
 
     static i64 CalculateRate(i64 oldValue, i64 newValue, TDuration duration)
