@@ -223,6 +223,8 @@ def create_driver_for_cell(driver, cell_id):
         del config["master_cache"]
     if "timestamp_provider" in config:
         del config["timestamp_provider"]
+    if "cypress_proxy" in config:
+        del config["cypress_proxy"]
 
     del config["secondary_masters"]
 
