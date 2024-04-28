@@ -3040,7 +3040,7 @@ class TestTablesMulticell(TestTables):
         assert get("//tmp/t/@delta_statistics/chunk_count") == 0
 
     @authors("whatsername")
-    def test_write_invalid_sorted_any(self):
+    def test_write_sorted_any(self):
         create(
             "table",
             "//tmp/t",
@@ -3062,10 +3062,47 @@ class TestTablesMulticell(TestTables):
                 data.append({"key": v})
             return data
 
+        write_table("<append=%true>//tmp/t", gen_data(values))
+        with raises_yt_error("Error validating column"):
+            write_table("<append=%true>//tmp/t", gen_data(wrong_values))
+
+        write_table("//tmp/t", gen_data(values))
         with raises_yt_error("Error validating column"):
             write_table("//tmp/t", gen_data(wrong_values))
 
-        write_table("//tmp/t", gen_data(values))
+    @authors("whatsername")
+    def test_lookup_sorted_any(self):
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"schema": [
+                {"name": "key", "type": "any", "sort_order": "ascending"},
+                {"name": "value", "type": "any"},
+            ]},
+        )
+
+        values = [
+            (321, "a"),
+            ([1, []], "a"),
+            ([1, []], 321),
+            ([2, ["abc"]], "a"),
+            ([3, 123], "a"),
+        ]
+
+        def gen_data(values):
+            data = []
+            for k, v in values:
+                data.append({"key": k, "value": v})
+            return data
+
+        write_table("<append=%true>//tmp/t", gen_data(values))
+
+        actual = read_table(
+            '<ranges=[{\
+                lower_limit={row_index=1;};\
+                upper_limit={row_index=3;}}]>//tmp/t')
+
+        assert actual == gen_data([values[1], values[2]])
 
 
 ##################################################################
