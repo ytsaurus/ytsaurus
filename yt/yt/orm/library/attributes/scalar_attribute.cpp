@@ -1,6 +1,7 @@
 #include "scalar_attribute.h"
 
 #include "helpers.h"
+#include "proto_visitor.h"
 
 #include <yt/yt/core/misc/error.h>
 
@@ -29,10 +30,12 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::Message;
+using ::google::protobuf::Reflection;
 using ::google::protobuf::UnknownField;
 using ::google::protobuf::UnknownFieldSet;
-using ::google::protobuf::Reflection;
 using ::google::protobuf::internal::WireFormatLite;
 using ::google::protobuf::io::CodedOutputStream;
 using ::google::protobuf::io::StringOutputStream;
@@ -479,111 +482,159 @@ void Traverse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClearHandler
-    : public IHandler</*IsMutable*/ true>
+class TClearVisitor
+    : public TProtoVisitor<Message*>
 {
 public:
-    explicit TClearHandler(bool skipMissing)
-        : SkipMissing_(skipMissing)
-    { }
-
-    void HandleRegular(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf path) const final
+    TClearVisitor(bool allowMissing)
     {
-        const auto* reflection = message->GetReflection();
-        // HasField does not work for repeated field, because there is no difference between empty list and unset list.
-        THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_ || field->is_repeated() || reflection->HasField(*message, field),
-            "Attribute %Qv is missing",
-            path);
-        reflection->ClearField(message, field);
+        AllowMissing_ = allowMissing;
+        AllowAsterisk_ = true;
     }
 
-    void HandleListItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TIndexParseResult parseIndexResult,
-        TStringBuf path) const final
+protected:
+    void VisitWholeMessage(
+        Message* message,
+        EVisitReason reason) override
     {
-        YT_VERIFY(field->is_repeated());
-        const auto* reflection = message->GetReflection();
-        int count = reflection->FieldSize(*message, field);
-        parseIndexResult.EnsureIndexType(EListIndexType::Absolute, path);
-        parseIndexResult.EnsureIndexIsWithinBounds(count, path);
-        for (int index = parseIndexResult.Index + 1; index < count; ++index) {
-            reflection->SwapElements(message, field, index - 1, index);
-        }
-        reflection->RemoveLast(message, field);
-    }
-
-    void HandleListExpansion(
-        TGenericMessage* /*message*/,
-        const FieldDescriptor* /*field*/,
-        TStringBuf /*prefixPath*/,
-        TStringBuf /*suffixPath*/) const final
-    {
-        THROW_ERROR_EXCEPTION("Clear handler does not support list expansions");
-    }
-
-    void HandleMapItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        const TString& key,
-        TStringBuf path) const final
-    {
-        YT_VERIFY(field->is_map());
-        TString tmp;
-        const auto* reflection = message->GetReflection();
-        int count = reflection->FieldSize(*message, field);
-        auto item = LookupMapItem<IsMutable>(message, field, key);
-        if (!item) {
-            THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute %Qv is missing", path);
+        if (PathComplete()) {
+            // Asterisk means clear all fields but keep the message present.
+            message->Clear();
             return;
         }
 
-        reflection->SwapElements(message, field, item->Index, count - 1);
-        reflection->RemoveLast(message, field);
+        TProtoVisitor::VisitWholeMessage(message, reason);
     }
 
-    void HandleUnknown(TGenericMessage* message, NYPath::TTokenizer& tokenizer) const final
+    void VisitWholeMapField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
     {
-        TString key = tokenizer.GetLiteralValue();
-        TString value;
-        auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
-        auto index = LookupUnknownYsonFieldsItem(unknownFields, key, value);
-        if (!index.has_value()) {
-            THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute %Qv is missing", tokenizer.GetPrefixPlusToken());
-        } else if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-            unknownFields->DeleteSubrange(*index, 1);
-        } else if (RemoveFromNodeByPath(value, tokenizer)) {
-            auto* item = unknownFields->mutable_field(*index)->mutable_length_delimited();
-            *item = SerializeUnknownYsonFieldsItem(key, value);
-        } else {
-            THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute \"%v%v\" is missing",
-                tokenizer.GetPrefixPlusToken(),
-                tokenizer.GetSuffix());
+        if (PathComplete()) {
+            // User supplied a useless trailing asterisk. Avoid quardatic deletion.
+            VisitField(message, fieldDescriptor, EVisitReason::Manual);
+            return;
         }
+
+        TProtoVisitor::VisitWholeMapField(message, fieldDescriptor, reason);
     }
 
-    bool HandleMissing(TStringBuf path) const final
+    void VisitWholeRepeatedField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
     {
-        THROW_ERROR_EXCEPTION_UNLESS(SkipMissing_, "Attribute %Qv is missing", path);
-        return false;
+        if (PathComplete()) {
+            // User supplied a useless trailing asterisk. Avoid quardatic deletion.
+            VisitField(message, fieldDescriptor, EVisitReason::Manual);
+            return;
+        }
+
+        TProtoVisitor::VisitWholeRepeatedField(message, fieldDescriptor, reason);
     }
 
-private:
-    const bool SkipMissing_;
+    void VisitUnrecognizedField(
+        Message* message,
+        const Descriptor* descriptor,
+        TString name,
+        EVisitReason reason) override
+    {
+        auto* unknownFields = message->GetReflection()->MutableUnknownFields(message);
 
-    static bool RemoveFromNodeByPath(TString& nodeString, NYPath::TTokenizer& tokenizer)
+        TString value;
+        auto index = LookupUnknownYsonFieldsItem(unknownFields, name, value);
+
+        if (index.has_value()) {
+            if (PathComplete()) {
+                unknownFields->DeleteSubrange(*index, 1);
+                return;
+            }
+            if (RemoveFromNodeByPath(value)) {
+                auto* item = unknownFields->mutable_field(*index)->mutable_length_delimited();
+                *item = SerializeUnknownYsonFieldsItem(name, value);
+                return;
+            }
+        }
+
+        TProtoVisitor::VisitUnrecognizedField(message, descriptor, std::move(name), reason);
+    }
+
+    void VisitField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
+    {
+        auto* reflection = message->GetReflection();
+        if (PathComplete()) {
+            if (!fieldDescriptor->has_presence() ||
+                reflection->HasField(*message, fieldDescriptor))
+            {
+                reflection->ClearField(message, fieldDescriptor);
+                return;
+            } // Else let the basic implementation of AllowMissing do the check.
+        }
+
+        TProtoVisitor::VisitField(message, fieldDescriptor, reason);
+    }
+
+    void VisitMapFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        Message* entryMessage,
+        TString key,
+        EVisitReason reason) override
+    {
+        if (PathComplete()) {
+            int index = LocateMapEntry(message, fieldDescriptor, entryMessage).Value();
+            DeleteRepeatedFieldEntry(message, fieldDescriptor, index);
+            return;
+        }
+
+        TProtoVisitor::VisitMapFieldEntry(
+            message,
+            fieldDescriptor,
+            entryMessage,
+            std::move(key),
+            reason);
+    }
+
+    void VisitRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason) override
+    {
+        if (PathComplete()) {
+            DeleteRepeatedFieldEntry(message, fieldDescriptor, index);
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
+    bool RemoveFromNodeByPath(TString& nodeString)
     {
         auto root = ConvertToNode(TYsonStringBuf{nodeString});
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        if (RemoveNodeByYPath(root, NYPath::TYPath{tokenizer.GetInput()})) {
+        Expect(NYPath::ETokenType::Slash);
+        if (RemoveNodeByYPath(root, NYPath::TYPath{Tokenizer_.GetInput()})) {
             nodeString = ConvertToYsonString(root).ToString();
             return true;
         }
         return false;
+    }
+
+    void DeleteRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index)
+    {
+        auto* reflection = message->GetReflection();
+        int size = reflection->FieldSize(*message, fieldDescriptor);
+        for (++index; index < size; ++index) {
+            reflection->SwapElements(message, fieldDescriptor, index - 1, index);
+        }
+        reflection->RemoveLast(message, fieldDescriptor);
     }
 };
 
@@ -1300,9 +1351,10 @@ void ClearProtobufFieldByPath(
     bool skipMissing)
 {
     if (path.empty()) {
+        // Skip visitor machinery in the simple use case.
         message.Clear();
     } else {
-        Traverse(&message, path, TClearHandler{skipMissing});
+        TClearVisitor(skipMissing).Visit(&message, path);
     }
 }
 

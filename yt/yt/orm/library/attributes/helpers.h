@@ -1,10 +1,13 @@
 #pragma once
 
-#include <yt/yt/core/ypath/public.h>
+#include "public.h"
 
+#include <yt/yt/core/ypath/public.h>
+#include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/ytree/public.h>
 
-#include <yt/yt/core/yson/public.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/message.h>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -62,6 +65,25 @@ struct TIndexParseResult
 
 // Parses list index from 'end', 'begin', 'before:<index>', 'after:<index>' or Integer in [-count, count).
 TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError CombineErrors(const TError& error1, const TError& error2);
+
+std::partial_ordering CompareScalarFields(
+    const NProtoBuf::Message* message1,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor1,
+    const NProtoBuf::Message* message2,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor2);
+
+TErrorOr<int> LocateMapEntry(
+    const NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const NProtoBuf::Message* keyMessage);
+
+TErrorOr<TString> MapKeyFieldToString(
+    const NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* keyFieldDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
