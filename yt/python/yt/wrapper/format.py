@@ -356,7 +356,7 @@ class Format(object):
     @staticmethod
     def _process_input_rows(rows, control_attributes_mode,
                             extract_control_attributes, table_index_column_name, transform_column_name):
-        table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,\
+        table_index_attribute_name, row_index_attribute_name, range_index_attribute_name, \
             key_switch_attribute_name, tablet_index_attribute_name = \
             list(map(transform_column_name, [b"table_index", b"row_index", b"range_index", b"key_switch", b"tablet_index"]))
 
