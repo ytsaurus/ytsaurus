@@ -1973,6 +1973,15 @@ class TestMultiTreeOperations(YTEnvSetup):
         check_count(statistics, "default", 2)
         check_count(statistics, "other", 1)
 
+
+##################################################################
+
+
+class TestOffloadingPools(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
     @authors("renadeen")
     def test_offloading_pool_simple(self):
         create_pool("primary_pool", pool_tree="default")
@@ -2126,6 +2135,50 @@ class TestMultiTreeOperations(YTEnvSetup):
 
         for job in op.get_running_jobs().values():
             assert job["address"] != offload_node
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
+    def test_offloading_without_pool_to_simple_existing_pool(self):
+        create_pool(
+            "some_pool",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "some_pool"})
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "some_pool")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
+    def test_offloading_without_pool_to_username_pool(self):
+        create_pool(
+            "root",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "root")
 
         release_breakpoint()
         op.track()
