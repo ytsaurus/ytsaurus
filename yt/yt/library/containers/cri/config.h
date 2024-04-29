@@ -18,6 +18,9 @@ public:
     //! gRPC endpoint for CRI image manager service.
     TString ImageEndpoint;
 
+    //! Retry requests on generic error with these message prefixes.
+    std::vector<TString> RetryErrorPrefixes;
+
     //! CRI namespace where this executor operates.
     TString Namespace;
 

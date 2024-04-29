@@ -744,14 +744,21 @@ private:
         }
     }
 
-    static TRetryChecker GetRetryChecker()
+    TRetryChecker GetRetryChecker()
     {
-        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
-            return IsRetriableError(error) ||
-                   (error.GetCode() == NYT::EErrorCode::Generic &&
-                    error.GetMessage() == "server is not initialized yet");
+        return BIND_NO_PROPAGATE([config = Config_] (const TError& error) {
+            if (IsRetriableError(error)) {
+                return true;
+            }
+            if (error.GetCode() == NYT::EErrorCode::Generic) {
+                for (const auto& prefix: config->RetryErrorPrefixes) {
+                    if (error.GetMessage().StartsWith(prefix)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
         });
-        return Result;
     }
 };
 
