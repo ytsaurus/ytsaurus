@@ -19,6 +19,7 @@ from yt.wrapper.operation_commands import (
 from yt.wrapper.schema import SortColumn, TableSchema
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
+from yt.wrapper.errors import YtOperationFailedError
 
 from yt.test_helpers import are_almost_equal
 
@@ -26,6 +27,7 @@ from yt.yson import YsonMap, YsonList, is_unicode, get_bytes
 from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.local import start, stop
 
@@ -1511,6 +1513,39 @@ class TestPythonOperations(object):
 
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
+
+    @authors("dmifedorov")
+    @add_failed_operation_stderrs_to_error_message
+    def test_ignore_system_modules_in_pickling(self):
+        if arcadia_interop.yatest_common is not None:
+            # The test doesn't work in arcadia env since the latter doesn't use pickling at all.
+            pytest.skip()
+
+        def foo(rec):
+            import fakemodule
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            init_file = os.path.join(tmp_dir, "__init__.py")
+            open(init_file, "w").close()
+
+            class fakemodule:
+                __file__ = init_file
+
+            with set_config_option("pickling/ignore_system_modules", True):
+                with pytest.raises(YtOperationFailedError) as exc_info:
+                    try:
+                        sys.modules["fakemodule"] = fakemodule
+                        yt.run_map(foo, table, table)
+                    finally:
+                        del sys.modules["fakemodule"]
+
+        # We check only one operation since there is no reason for errors to be different across the operations.
+        assert "ModuleNotFoundError" in exc_info.value.attributes["stderrs"][0]["stderr"]
+
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
