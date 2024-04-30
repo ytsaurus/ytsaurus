@@ -1,18 +1,20 @@
 Boost Multiprecision Library
 ============================
 
->ANNOUNCEMENT: This library now requires a compliant C++14 compiler.
+>ANNOUNCEMENT: This library requires a compliant C++14 compiler.
 
 |                  |  Master  |   Develop   |
 |------------------|----------|-------------|
-| Drone            |  [![Build Status](https://drone.cpp.al/api/badges/boostorg/multiprecision/status.svg?ref=refs/heads/master)](https://drone.cpp.al/boostorg/multiprecision) | [![Build Status](https://drone.cpp.al/api/badges/boostorg/multiprecision/status.svg)](https://drone.cpp.al/boostorg/multiprecision) |
-| Github Actions | [![Build Status](https://github.com/boostorg/multiprecision/workflows/multiprecision/badge.svg?branch=master)](https://github.com/boostorg/multiprecision/actions) | [![Build Status](https://github.com/boostorg/multiprecision/workflows/multiprecision/badge.svg?branch=develop)](https://github.com/boostorg/multiprecision/actions) |
+| Drone            | [![Build Status](https://drone.cpp.al/api/badges/boostorg/multiprecision/status.svg?ref=refs/heads/master)](https://drone.cpp.al/boostorg/multiprecision)          | [![Build Status](https://drone.cpp.al/api/badges/boostorg/multiprecision/status.svg)](https://drone.cpp.al/boostorg/multiprecision) |
+| Github Actions   | [![Build Status](https://github.com/boostorg/multiprecision/workflows/multiprecision/badge.svg?branch=master)](https://github.com/boostorg/multiprecision/actions) | [![Build Status](https://github.com/boostorg/multiprecision/workflows/multiprecision/badge.svg?branch=develop)](https://github.com/boostorg/multiprecision/actions) |
+| Codecov          | [![codecov](https://codecov.io/gh/boostorg/multiprecision/branch/master/graph/badge.svg)](https://codecov.io/gh/boostorg/multiprecision/branch/master)             | [![codecov](https://codecov.io/gh/boostorg/multiprecision/branch/develop/graph/badge.svg)](https://codecov.io/gh/boostorg/multiprecision/branch/develop) |
 
- The Multiprecision Library provides integer, rational, floating-point, complex and interval number types in C++ that have more range and 
- precision than C++'s ordinary built-in types. The big number types in Multiprecision can be used with a wide selection of basic 
- mathematical operations, elementary transcendental functions as well as the functions in Boost.Math. The Multiprecision types can 
- also interoperate with the built-in types in C++ using clearly defined conversion rules. This allows Boost.Multiprecision to be 
- used for all kinds of mathematical calculations involving integer, rational and floating-point types requiring extended range and precision.
+
+The Multiprecision Library provides integer, rational, floating-point, complex and interval number types in C++ that have more range and 
+precision than C++'s ordinary built-in types. The big number types in Multiprecision can be used with a wide selection of basic 
+mathematical operations, elementary transcendental functions as well as the functions in Boost.Math. The Multiprecision types can 
+also interoperate with the built-in types in C++ using clearly defined conversion rules. This allows Boost.Multiprecision to be 
+used for all kinds of mathematical calculations involving integer, rational and floating-point types requiring extended range and precision.
 
 Multiprecision consists of a generic interface to the mathematics of large numbers as well as a selection of big number back ends, with 
 support for integer, rational and floating-point types. Boost.Multiprecision provides a selection of back ends provided off-the-rack in 
@@ -25,10 +27,47 @@ for better performance than naive user-defined types.
 
 The full documentation is available on [boost.org](http://www.boost.org/doc/libs/release/libs/multiprecision/index.html).
 
+## Using Multiprecision ##
+
+<p align="center">
+  <a href="https://godbolt.org/z/546vnEjvh" alt="godbolt">
+    <img src="https://img.shields.io/badge/try%20it%20on-godbolt-green" /></a>
+</p>
+
+In the following example, we use Multiprecision's Boost-licensed binary
+floating-point backend type `cpp_bin_float` to compute ${\sim}100$ decimal digits of
+
+$$\sqrt{\pi} = \Gamma \left( \frac{1}{2} \right)~{\approx}~1.772453850905516027298{\ldots}\text{,}$$
+
+where we also observe that Multiprecision can seemlesly interoperate with
+[Boost.Math](https://github.com/boostorg/math).
+
+```
+#include <iomanip>
+#include <iostream>
+
+#include <boost/multiprecision/cpp_bin_float.hpp>
+#include <boost/math/special_functions/gamma.hpp>
+
+auto main() -> int
+{
+  using big_float_type = boost::multiprecision::cpp_bin_float_100;
+
+  const big_float_type sqrt_pi { sqrt(boost::math::constants::pi<big_float_type>()) };
+
+  const big_float_type one_half { big_float_type(1) / 2 };
+
+  const big_float_type gamma_half { boost::math::tgamma(one_half) }; 
+
+  std::cout << std::setprecision(std::numeric_limits<big_float_type>::digits10) << "sqrt_pi   : " << sqrt_pi    << std::endl;
+  std::cout << std::setprecision(std::numeric_limits<big_float_type>::digits10) << "gamma_half: " << gamma_half << std::endl;
+}
+```
+
 ## Standalone ##
 
 Defining BOOST_MP_STANDALONE allows Boost.Multiprecision to be used with the only dependency being [Boost.Config](https://github.com/boostorg/config). Our [package on this page](https://github.com/boostorg/multiprecision/releases)
-already includes a copy of Boost.Config so no other donwloads are required. Some functionality is reduced in this mode. A static_assert message will alert you if a particular feature has been disabled by standalone mode.
+already includes a copy of Boost.Config so no other downloads are required. Some functionality is reduced in this mode. A static_assert message will alert you if a particular feature has been disabled by standalone mode.
 [Boost.Math](https://github.com/boostorg/math) standalone mode is compatiable, and recommended if special functions are required for the floating point types.
 
 ## Support, bugs and feature requests ##
