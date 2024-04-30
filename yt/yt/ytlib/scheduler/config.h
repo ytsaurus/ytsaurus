@@ -131,7 +131,7 @@ class TOffloadingPoolSettingsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Pool;
+    std::optional<TString> Pool;
 
     std::optional<double> Weight;
 
