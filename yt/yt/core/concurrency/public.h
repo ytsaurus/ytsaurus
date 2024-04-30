@@ -6,6 +6,11 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Enables fiber instances reuse for improved performance.
+#define YT_REUSE_FIBERS
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TActionQueue)
 DECLARE_REFCOUNTED_STRUCT(IThreadPool)
 
@@ -102,7 +107,7 @@ DECLARE_REFCOUNTED_STRUCT(IPoolWeightProvider)
 
 DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool)
 
-class TFiber;
+DECLARE_REFCOUNTED_CLASS(TFiber)
 
 DECLARE_REFCOUNTED_STRUCT(TFairThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(TFairThrottlerBucketConfig)

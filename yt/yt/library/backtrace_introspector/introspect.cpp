@@ -40,67 +40,61 @@ std::vector<TFiberIntrospectionInfo> IntrospectFibers()
 {
     YT_LOG_INFO("Fiber introspection started");
 
+    auto fibers = TFiber::List();
+
     YT_LOG_INFO("Collecting waiting fibers backtraces");
 
     std::vector<TFiberIntrospectionInfo> infos;
     THashSet<TFiberId> waitingFiberIds;
-    THashMap<TFiberId, EFiberState> fiberStates;
-
-    auto introspectionAction = [&] (NYT::NConcurrency::TFiber::TFiberList& fibers) {
-        for (auto& fiberRef : fibers) {
-            auto* fiber = &fiberRef;
-
-            auto fiberId = fiber->GetFiberId();
-            if (fiberId == InvalidFiberId) {
-                continue;
-            }
-
-            EmplaceOrCrash(fiberStates, fiberId, EFiberState::Introspecting);
-
-            EFiberState state;
-            if (!fiber->TryIntrospectWaiting(state, [&] {
-                YT_LOG_DEBUG("Waiting fiber is successfully locked for introspection (FiberId: %x)",
-                    fiberId);
-
-                const auto& propagatingStorage = fiber->GetPropagatingStorage();
-                const auto* traceContext = TryGetTraceContextFromPropagatingStorage(propagatingStorage);
-
-                TFiberIntrospectionInfo info{
-                    .State = EFiberState::Waiting,
-                    .FiberId = fiberId,
-                    .WaitingSince = fiber->GetWaitingSince(),
-                    .TraceId = traceContext ? traceContext->GetTraceId() : TTraceId(),
-                    .TraceLoggingTag = traceContext ? traceContext->GetLoggingTag() : TString(),
-                };
-
-                auto optionalContext = TrySynthesizeLibunwindContextFromMachineContext(*fiber->GetMachineContext());
-                if (!optionalContext) {
-                    YT_LOG_WARNING("Failed to synthesize libunwind context (FiberId: %x)",
-                        fiberId);
-                    return;
-                }
-
-                TLibunwindCursor cursor(*optionalContext);
-                while (!cursor.IsFinished()) {
-                    info.Backtrace.push_back(cursor.GetCurrentIP());
-                    cursor.MoveNext();
-                }
-
-                infos.push_back(std::move(info));
-                InsertOrCrash(waitingFiberIds, fiberId);
-
-                YT_LOG_DEBUG("Fiber introspection completed (FiberId: %x)",
-                    info.FiberId);
-            })) {
-                YT_LOG_DEBUG("Failed to lock fiber for introspection (FiberId: %x, State: %v)",
-                    fiberId,
-                    state);
-                fiberStates[fiberId] = state;
-            }
+    THashSet<TFiberId> fiberIds;
+    for (const auto& fiber : fibers) {
+        auto fiberId = fiber->GetFiberId();
+        if (fiberId == InvalidFiberId) {
+            continue;
         }
-    };
 
-    TFiber::ReadFibers(introspectionAction);
+        InsertOrCrash(fiberIds, fiberId);
+
+        EFiberState state;
+        if (!fiber->TryIntrospectWaiting(state, [&] {
+            YT_LOG_DEBUG("Waiting fiber is successfully locked for introspection (FiberId: %x)",
+                fiberId);
+
+            const auto& propagatingStorage = fiber->GetPropagatingStorage();
+            const auto* traceContext = TryGetTraceContextFromPropagatingStorage(propagatingStorage);
+
+            TFiberIntrospectionInfo info{
+                .State = EFiberState::Waiting,
+                .FiberId = fiberId,
+                .WaitingSince = fiber->GetWaitingSince(),
+                .TraceId = traceContext ? traceContext->GetTraceId() : TTraceId(),
+                .TraceLoggingTag = traceContext ? traceContext->GetLoggingTag() : TString(),
+            };
+
+            auto optionalContext = TrySynthesizeLibunwindContextFromMachineContext(*fiber->GetMachineContext());
+            if (!optionalContext) {
+                YT_LOG_WARNING("Failed to synthesize libunwind context (FiberId: %x)",
+                    fiberId);
+                return;
+            }
+
+            TLibunwindCursor cursor(*optionalContext);
+            while (!cursor.IsFinished()) {
+                info.Backtrace.push_back(cursor.GetCurrentIP());
+                cursor.MoveNext();
+            }
+
+            infos.push_back(std::move(info));
+            InsertOrCrash(waitingFiberIds, fiberId);
+
+            YT_LOG_DEBUG("Fiber introspection completed (FiberId: %x)",
+                info.FiberId);
+        })) {
+            YT_LOG_DEBUG("Failed to lock fiber for introspection (FiberId: %x, State: %v)",
+                fiberId,
+                state);
+        }
+    }
 
     YT_LOG_INFO("Collecting running fibers backtraces");
 
@@ -129,7 +123,8 @@ std::vector<TFiberIntrospectionInfo> IntrospectFibers()
         });
     }
 
-    for (const auto& [fiberId, fiberState] : fiberStates) {
+    for (const auto& fiber : fibers) {
+        auto fiberId = fiber->GetFiberId();
         if (fiberId == InvalidFiberId) {
             continue;
         }
@@ -141,7 +136,7 @@ std::vector<TFiberIntrospectionInfo> IntrospectFibers()
         }
 
         infos.push_back(TFiberIntrospectionInfo{
-            .State = fiberState,
+            .State = fiber->GetState(),
             .FiberId = fiberId,
         });
     }

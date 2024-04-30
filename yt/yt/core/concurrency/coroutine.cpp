@@ -6,8 +6,8 @@ namespace NYT::NConcurrency::NDetail {
 
 TCoroutineBase::~TCoroutineBase()
 {
-    if (State_ == EState::Running) {
-        State_ = EState::Abandoned;
+    if (State_ == ECoroState::Running) {
+        State_ = ECoroState::Abandoned;
         Resume();
     }
 
@@ -18,7 +18,7 @@ void TCoroutineBase::Suspend()
 {
     std::launder(&CoroutineContext)->SwitchTo(&CallerContext_);
 
-    if (State_ == EState::Abandoned) {
+    if (State_ == ECoroState::Abandoned) {
         throw TCoroutineAbandonedException{};
     }
 }
@@ -36,7 +36,7 @@ void TCoroutineBase::Resume()
 
 bool TCoroutineBase::IsCompleted() const noexcept
 {
-    return State_ == EState::Completed;
+    return State_ == ECoroState::Completed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
