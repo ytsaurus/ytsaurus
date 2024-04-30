@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/cache_config.h>
+
 #include <yt/yt/core/rpc/config.h>
 
 namespace NYT::NContainers::NCri {
@@ -71,6 +73,43 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCriAuthConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCriImageCacheConfig
+    : public TSlruCacheConfig
+{
+public:
+    //! Manage only images with these prefixes, except images explicitly marked
+    //! as unmanaged. Present unmanaged images could be used, but they are not
+    //! accounted and never removed or pulled from/into cache on demand.
+    std::vector<TString> ManagedPrefixes;
+
+    //! Never pull or remove images with these prefixes.
+    std::vector<TString> UnmanagedPrefixes;
+
+    //! List of images which must be prefetched and kept in cache.
+    std::vector<TString> PinnedImages;
+
+    //! Initial estimation for space required for pulling image into cache.
+    i64 ImageSizeEstimation;
+
+    //! Multiplier for image size to account space used by unpacked images.
+    //! Workaround for: https://github.com/containerd/containerd/issues/9261
+    double ImageCompressionRatioEstimation;
+
+    //! Always pull image with tag "latest".
+    bool AlwaysPullLatest;
+
+    //! Pull images periodically.
+    TDuration PullPeriod;
+
+    REGISTER_YSON_STRUCT(TCriImageCacheConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriImageCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
