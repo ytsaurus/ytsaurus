@@ -569,49 +569,11 @@ public:
         return req->Invoke();
     }
 
-    TFuture<TCriImageDescriptor> PullImage(
+    TFuture<TCriImageApi::TRspPullImagePtr> PullImage(
         const TCriImageDescriptor& image,
-        bool always,
-        TCriAuthConfigPtr authConfig,
-        TCriPodSpecPtr podSpec) override
+        TCriAuthConfigPtr authConfig = nullptr,
+        TCriPodSpecPtr podSpec = nullptr) override
     {
-        if (!always) {
-            return GetImageStatus(image)
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TCriImageApi::TRspImageStatusPtr& imageStatus) {
-                    if (imageStatus->has_image()) {
-                        const auto& imageId = imageStatus->image().id();
-                        YT_LOG_DEBUG("Docker image found in cache (Image: %v, ImageId: %v)", image, imageId);
-                        return MakeFuture(TCriImageDescriptor{.Image = imageId});
-                    }
-                    return PullImage(image, /*always*/ true, authConfig, podSpec);
-                }));
-        }
-
-        auto pullPromise = NewPromise<void>();
-        {
-            auto guard = Guard(SpinLock_);
-            if (auto* pullFuture = InflightImagePulls_.FindPtr(image.Image)) {
-                YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
-                return pullFuture->ToImmediatelyCancelable()
-                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                        // Ignore errors and retry pull after end of previous concurrent attempt.
-                        Y_UNUSED(error);
-                        return PullImage(image, /*always*/ false, authConfig, podSpec);
-                    }));
-            }
-
-            // Future for in-flight pull should not be canceled by waiters,
-            // but could become canceled when original pull is canceled.
-            auto pullFuture = pullPromise.ToFuture().ToUncancelable();
-            EmplaceOrCrash(InflightImagePulls_, image.Image, pullFuture);
-            pullFuture.Subscribe(BIND([=, this, weakThis = MakeWeak(this)] (const TError&) {
-                if (auto this_ = weakThis.Lock()) {
-                    auto guard = Guard(SpinLock_);
-                    InflightImagePulls_.erase(image.Image);
-                }
-            }));
-        }
-
         auto req = ImageApi_.PullImage();
         FillImageSpec(req->mutable_image(), image);
         if (authConfig) {
@@ -620,23 +582,7 @@ public:
         if (podSpec) {
             FillPodSandboxConfig(req->mutable_sandbox_config(), *podSpec);
         }
-
-        YT_LOG_DEBUG("Docker image pull started (Image: %v, Authenticated: %v)",
-            image,
-            authConfig.operator bool());
-        auto pullFuture = req->Invoke();
-        pullPromise.SetFrom(pullFuture);
-
-        return pullFuture.Apply(BIND([=] (const TErrorOr<TCriImageApi::TRspPullImagePtr>& rspOrError) {
-            YT_LOG_DEBUG_UNLESS(rspOrError.IsOK(), rspOrError, "Docker image pull failed (Image: %v)",
-                image);
-            const auto& rsp = rspOrError.ValueOrThrow();
-            const auto& imageId = rsp->image_ref();
-            YT_LOG_DEBUG("Docker image pull finished (Image: %v, ImageId: %v)",
-                image,
-                imageId);
-            return TCriImageDescriptor{.Image = imageId};
-        }));
+        return req->Invoke();
     }
 
     TFuture<void> RemoveImage(const TCriImageDescriptor& image) override
@@ -661,9 +607,6 @@ private:
     TCriImageApi ImageApi_;
 
     std::atomic<ui32> Attempt_;
-
-    THashMap<TString, TFuture<void>> InflightImagePulls_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, const TCriContainerResources& spec)
     {

@@ -12,6 +12,7 @@ SRCS(
     cri_api.cpp
     cri_executor.cpp
     config.cpp
+    image_cache.cpp
 )
 
 ADDINCL(

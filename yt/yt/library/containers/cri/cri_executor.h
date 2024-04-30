@@ -185,9 +185,8 @@ struct ICriExecutor
         const TCriImageDescriptor& image,
         bool verbose = false) = 0;
 
-    virtual TFuture<TCriImageDescriptor> PullImage(
+    virtual TFuture<TCriImageApi::TRspPullImagePtr> PullImage(
         const TCriImageDescriptor& image,
-        bool always = false,
         TCriAuthConfigPtr authConfig = nullptr,
         TCriPodSpecPtr podSpec = nullptr) = 0;
 
