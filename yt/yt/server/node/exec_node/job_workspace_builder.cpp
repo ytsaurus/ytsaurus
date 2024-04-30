@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
-#include <yt/yt/library/containers/cri/cri_executor.h>
+#include <yt/yt/library/containers/cri/image_cache.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -603,12 +603,12 @@ public:
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager,
-        ICriExecutorPtr executor)
+        ICriImageCachePtr imageCache)
         : TJobWorkspaceBuilder(
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
-        , Executor_(std::move(executor))
+        , ImageCache_(std::move(imageCache))
     { }
 
 private:
@@ -660,8 +660,8 @@ private:
 
             YT_LOG_INFO("Preparing root volume (Image: %v)", imageDescriptor);
 
-            return Executor_->PullImage(imageDescriptor, /*always*/ false, Context_.DockerAuth)
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageDescriptor>& imageOrError) {
+            return ImageCache_->PullImage(imageDescriptor, Context_.DockerAuth)
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCriImageCacheEntryPtr>& imageOrError) {
                     if (!imageOrError.IsOK()) {
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
@@ -670,11 +670,10 @@ private:
                             << imageOrError;
                     }
 
-                    // TODO(khlebnikov) Result image may differ from requested?
-                    const auto& imageResult = imageOrError.Value();
-                    YT_LOG_INFO("Root volume prepared (Image: %v)", imageResult);
+                    const auto& imageId = imageOrError.Value()->ImageId();
+                    YT_LOG_INFO("Root volume prepared (ImageId: %v)", imageId);
 
-                    ResultHolder_.DockerImage = imageResult.Image;
+                    ResultHolder_.DockerImage = imageId.Image;
                     VolumePrepareFinishTime_ = TInstant::Now();
                     UpdateTimers_.Fire(MakeStrong(this));
                 }));
@@ -709,7 +708,7 @@ private:
     }
 
 private:
-    const ICriExecutorPtr Executor_;
+    const ICriImageCachePtr ImageCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,13 +717,13 @@ TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
     IInvokerPtr invoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager,
-    ICriExecutorPtr executor)
+    ICriImageCachePtr imageCache)
 {
     return New<TCriJobWorkspaceBuilder>(
         std::move(invoker),
         std::move(context),
         std::move(directoryManager),
-        std::move(executor));
+        std::move(imageCache));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -156,7 +156,7 @@ TJobWorkspaceBuilderPtr CreateCriJobWorkspaceBuilder(
     IInvokerPtr invoker,
     TJobWorkspaceBuildingContext context,
     IJobDirectoryManagerPtr directoryManager,
-    NContainers::NCri::ICriExecutorPtr executor);
+    NContainers::NCri::ICriImageCachePtr imageCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

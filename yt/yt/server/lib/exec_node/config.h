@@ -150,6 +150,8 @@ class TCriJobEnvironmentConfig
 public:
     NContainers::NCri::TCriExecutorConfigPtr CriExecutor;
 
+    NContainers::NCri::TCriImageCacheConfigPtr CriImageCache;
+
     TString JobProxyImage;
 
     //! Bind mounts for job proxy container.
