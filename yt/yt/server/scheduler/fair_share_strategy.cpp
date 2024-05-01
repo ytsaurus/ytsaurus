@@ -676,7 +676,7 @@ public:
                         } else {
                             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
                             treeParams->Weight = offloadingPoolSettings->Weight;
-                            treeParams->Pool = offloadingPoolSettings->Pool
+                            treeParams->Pool = offloadingPoolSettings->Pool && !offloadingPoolSettings->Pool->empty()
                                 ? tree->CreatePoolName(offloadingPoolSettings->Pool, user)
                                 : tree->CreatePoolName(options->Pool.GetSpecifiedPoolName(), user);
                             treeParams->Tentative = offloadingPoolSettings->Tentative;
