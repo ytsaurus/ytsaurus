@@ -109,7 +109,7 @@ class Arbiter(object):
                 in sorted(self.cfg.settings.items(),
                           key=lambda setting: setting[1]))))
 
-        # set enviroment' variables
+        # set environment' variables
         if self.cfg.env:
             for k, v in self.cfg.env.items():
                 os.environ[k] = v
@@ -495,7 +495,7 @@ class Arbiter(object):
         workers = list(self.WORKERS.items())
         for (pid, worker) in workers:
             try:
-                if time.time() - worker.tmp.last_update() <= self.timeout:
+                if time.monotonic() - worker.tmp.last_update() <= self.timeout:
                     continue
             except (OSError, ValueError):
                 continue
