@@ -160,11 +160,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellTrackerImpl::TCellTrackerImpl(
-    NCellMaster::TBootstrap* bootstrap,
-    TInstant startTime)
+TCellTrackerImpl::TCellTrackerImpl(NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , StartTime_(startTime)
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
@@ -461,11 +458,6 @@ void TCellTrackerImpl::SchedulePeerRevocation(
     TCellBase* cell,
     ICellBalancer* balancer)
 {
-    // Don't perform failover until enough time has passed since the start.
-    if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout) {
-        return;
-    }
-
     for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
             continue;
@@ -544,44 +536,49 @@ TError TCellTrackerImpl::IsFailed(
 {
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
+    if (!node) {
+        return TError(
+            NCellServer::EErrorCode::NodeDoesNotExist,
+            "Node %v does not exist",
+            peer.Descriptor.GetDefaultAddress());
+    }
 
-    if (node) {
-        if (!peer.Node && peer.LastSeenTime + timeout < TInstant::Now()) {
-            return TError(
-                NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,
-                "Node %v did not report appearance of cell within timeout",
-                peer.Descriptor.GetDefaultAddress());
-        }
+    // Don't perform failover until enough time has passed since the start.
+    if (!peer.Node && peer.LastSeenTime + timeout < TInstant::Now()) {
+        return TError(
+            NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,
+            "Node %v did not report appearance of cell within timeout",
+            peer.Descriptor.GetDefaultAddress());
+    }
 
-        if (node->IsBanned()) {
-            return TError(
-                NCellServer::EErrorCode::NodeBanned,
-                "Node %v banned",
-                node->GetDefaultAddress());
-        }
+    if (node->IsBanned()) {
+        return TError(
+            NCellServer::EErrorCode::NodeBanned,
+            "Node %v banned",
+            node->GetDefaultAddress());
+    }
 
-        if (node->IsDecommissioned()) {
-            return TError(
-                NCellServer::EErrorCode::NodeDecommissioned,
-                "Node %v decommissioned",
-                node->GetDefaultAddress());
-        }
+    if (node->IsDecommissioned()) {
+        return TError(
+            NCellServer::EErrorCode::NodeDecommissioned,
+            "Node %v decommissioned",
+            node->GetDefaultAddress());
+    }
 
-        if (node->AreTabletCellsDisabled()) {
-            return TError(
-                NCellServer::EErrorCode::NodeTabletSlotsDisabled,
-                "Node %v tablet slots disabled",
-                node->GetDefaultAddress());
-        }
+    if (node->AreTabletCellsDisabled()) {
+        return TError(
+            NCellServer::EErrorCode::NodeTabletSlotsDisabled,
+            "Node %v tablet slots disabled",
+            node->GetDefaultAddress());
+    }
 
-        if (!cell->GetArea()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
-            return TError(
-                NCellServer::EErrorCode::NodeFilterMismatch,
-                "Node %v does not satisfy tag filter of cell bundle %Qv area %Qv",
-                node->GetDefaultAddress(),
-                cell->GetArea()->GetCellBundle()->GetName(),
-                cell->GetArea()->GetName());
-        }
+    if (!cell->GetArea()->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
+        return TError(
+            NCellServer::EErrorCode::NodeFilterMismatch,
+            "Node %v does not satisfy tag filter of cell bundle %Qv area %Qv",
+            node->GetDefaultAddress(),
+            cell->GetArea()->GetCellBundle()->GetName(),
+            cell->GetArea()->GetName());
     }
 
     return TError();
