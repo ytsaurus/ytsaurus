@@ -1,10 +1,13 @@
 from __future__ import print_function
 
+from dataclasses import dataclass
+from itertools import chain
+
 from . import config
 from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
-                     get_disk_size, is_arcadia_python, get_arg_spec)
+                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job)
 from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -756,3 +759,106 @@ def with_formats(func, input_format=None, output_format=None):
     if output_format is not None:
         _set_attribute(func, "output_format", output_format)
     return func
+
+
+YT_RESPOWNED_IN_CONTAINER_KEY = "YT_RESPAWNED_IN_CONTAINER"
+
+
+@dataclass
+class DockerRespawner:
+    image: str
+    platform: str
+    docker_path: str
+
+    def _get_docker_env_args(self, environment):
+        return list(chain(*[
+            ("-e", "{0}={1}".format(key, value))
+            for key, value in environment.items()
+        ]))
+
+    def _get_docker_mount_args(self, paths):
+        return list(chain(*[
+            ("-v", "{0}:{0}".format(path))
+            for path in paths
+        ]))
+
+    @property
+    def _main_script_path(self):
+        return os.path.abspath(sys.argv[0])
+
+    @property
+    def _cwd(self):
+        return os.path.abspath(os.getcwd())
+
+    @property
+    def _homedir(self):
+        return os.path.expanduser("~")
+
+    @property
+    def _python_lib_paths(self):
+        return [
+            os.path.abspath(path)
+            for path in sys.path
+        ]
+
+    def make_command(self, environment):
+        yt_env_variables = {
+            key: value
+            for key, value in environment.items()
+            if key.startswith('YT_')
+        }
+        yt_env_variables["BASE_LAYER"] = yt_env_variables.get("BASE_LAYER", self.image)
+        pythonpath_env = ":".join(self._python_lib_paths)
+        mount_paths = [
+            path
+            for path in [self._cwd, *self._python_lib_paths]
+            if path is not None and os.path.commonpath([path, self._homedir]) != self._homedir
+        ] + [self._homedir]
+        docker_env_args = self._get_docker_env_args(
+            {
+                "CWD": self._cwd,
+                "PYTHONPATH": pythonpath_env,
+                YT_RESPOWNED_IN_CONTAINER_KEY: "1",
+                **yt_env_variables,
+            }
+        )
+        docker_mount_args = self._get_docker_mount_args(mount_paths)
+        command = [
+            self.docker_path, "run",
+            "--platform", self.platform,
+            "-it", "--rm",
+            *docker_env_args,
+            *docker_mount_args,
+            self.image,
+            "python3", self._main_script_path,
+        ]
+        return command
+
+    def run(self, environment):
+        command = self.make_command(environment)
+        logger.info(" ".join(command))
+        process = subprocess.Popen(
+            command,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            bufsize=1,
+            universal_newlines=True,
+        )
+        exit_code = process.wait()
+        if exit_code:
+            sys.exit(exit_code)
+
+
+def respawn_in_docker(image, target_platform="linux/amd64", docker_path="docker"):
+    def inner(func):
+        def wrapped(*args, **kwargs):
+            if os.environ.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
+                return func(*args, **kwargs)
+            respawner = DockerRespawner(
+                image=image,
+                platform=target_platform,
+                docker_path=docker_path,
+            )
+            respawner.run(os.environ)
+        return wrapped
+    return inner

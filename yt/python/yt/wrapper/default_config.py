@@ -746,7 +746,7 @@ SHORTCUTS = {
     "POOL": "pool",
     "MEMORY_LIMIT": "memory_limit",
     "SPEC": "spec_defaults",
-    "BASE_LAYER" : "operation_base_layer",
+    "BASE_LAYER": "operation_base_layer",
     "TABLE_WRITER": "table_writer",
 
     "RETRY_READ": "read_retries/enable",
