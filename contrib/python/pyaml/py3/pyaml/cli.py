@@ -29,6 +29,21 @@ def safe_replacement(path, *open_args, mode=None, xattrs=None, **open_kws):
 			try: os.unlink(tmp.name)
 			except FileNotFoundError: pass
 
+def file_line_iter(src, sep='\0\n', bs=128 * 2**10):
+	'Generator for src-file chunks, split by any of the separator chars'
+	buff0 = buff = ''
+	while True:
+		eof = len(buff := src.read(bs)) < bs
+		while buff:
+			for n in sorted(buff.find(c) for c in sep):
+				if n >= 0: break
+			else: buff0 += buff; break
+			chunk, buff = buff[:n], buff[n+1:]
+			buff0, chunk = '', buff0 + chunk
+			yield chunk
+		if eof: break
+	if buff0: yield buff0
+
 
 def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 	import argparse, textwrap
@@ -53,6 +68,11 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 			M = min count of values in a list/mapping to split.
 			"g" can be added to clump single-line values at the top of such lists/maps.
 		Values examples: 20g, 5/1g, 60/4, g, 10.'''))
+	parser.add_argument('-l', '--lines', action='store_true', help=dd('''
+		Read input as a list of \\0 (ascii null char) or newline-separated
+			json/yaml "lines", common with loggers or other incremental data dumps.
+		Each input entry will be exported as a separate YAML document (after "---").
+		Empty or whitespace-only input entries are skipped without errors.'''))
 	parser.add_argument('-q', '--quiet', action='store_true',
 		help='Disable sanity-check on the output and suppress stderr warnings.')
 	opts = parser.parse_args(sys.argv[1:] if argv is None else argv)
@@ -61,7 +81,9 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 		parser.error('-r/--replace option can only be used with a file path, not stdin')
 
 	src = open(opts.path) if opts.path else stdin
-	try: data = yaml.safe_load(src)
+	try:
+		data = list( yaml.safe_load_all(src) if not opts.lines else
+			(yaml.safe_load(chunk) for chunk in file_line_iter(src) if chunk.strip()) )
 	finally: src.close()
 
 	pyaml_kwargs = dict()
@@ -76,11 +98,12 @@ def main(argv=None, stdin=sys.stdin, stdout=sys.stdout, stderr=sys.stderr):
 			if count: vspacing['split_count'] = int(count.strip())
 			pyaml_kwargs['vspacing'] = vspacing
 
-	ys = pyaml.dump(data, **pyaml_kwargs)
+	if len(data) > 1: ys = pyaml.dump_all(data, **pyaml_kwargs)
+	else: ys = pyaml.dump(data[0], **pyaml_kwargs) # avoids leading "---"
 
 	if not opts.quiet:
 		try:
-			data_chk = yaml.safe_load(ys)
+			data_chk = list(yaml.safe_load_all(ys))
 			try: data_hash = json.dumps(data, sort_keys=True)
 			except: pass # too complex for checking with json
 			else:
