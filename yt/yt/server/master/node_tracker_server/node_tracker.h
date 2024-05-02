@@ -262,7 +262,6 @@ public:
 
     //! Sets node state and sends it to primary master.
     virtual void SetNodeLocalState(TNode* node, ENodeState state) = 0;
-
 private:
     friend class TNodeTypeHandler;
     friend class THostTypeHandler;

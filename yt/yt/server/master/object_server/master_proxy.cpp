@@ -232,7 +232,7 @@ private:
             const auto& masterCellConnectionConfigs = multicellManager->GetMasterCellConnectionConfigs();
             auto* protoCellDirectory = response->mutable_cell_directory();
 
-            auto addCell = [&] (const NApi::NNative::TMasterConnectionConfigPtr& cellConfig) {
+            auto addCell = [&] (const auto& cellConfig) {
                 auto* cellDirectoryItem = protoCellDirectory->add_items();
                 ToProto(cellDirectoryItem, cellConfig);
 

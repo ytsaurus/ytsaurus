@@ -28,6 +28,7 @@ using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::ENodeState;
+using NNodeTrackerClient::ECellAggregatedStateReliability;
 using NNodeTrackerClient::ENodeFlavor;
 using NNodeTrackerClient::InvalidNodeId;
 using NNodeTrackerClient::THostId;

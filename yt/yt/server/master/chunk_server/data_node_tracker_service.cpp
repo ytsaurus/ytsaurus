@@ -50,6 +50,9 @@ private:
         ValidateLocationDirectory(*request);
         SyncWithUpstream();
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -69,6 +72,9 @@ private:
         ValidatePeer(EPeerKind::Leader);
         ValidateLocationDirectory(*request);
         SyncWithUpstream();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 

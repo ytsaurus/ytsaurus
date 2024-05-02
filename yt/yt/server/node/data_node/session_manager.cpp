@@ -9,7 +9,8 @@
 #include "journal_session.h"
 #include "location.h"
 
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -137,7 +138,8 @@ ISessionPtr TSessionManager::StartSession(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto chunkCellTag = CellTagFromId(sessionId.ChunkId);
-    const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
+    const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+    auto masterCellTags = clusterNodeMasterConnector->GetMasterCellTags();
     if (Find(masterCellTags, chunkCellTag) == masterCellTags.end()) {
         YT_LOG_ALERT("Attempt to start a write session with an unknown master cell tag (SessionId: %v, CellTag: %v)",
             sessionId,

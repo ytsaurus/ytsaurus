@@ -26,6 +26,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -87,11 +89,23 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TNode::TCellNodeDescriptor::IsReliable() const
+{
+    return CellReliability == ECellAggregatedStateReliability::StaticallyKnown
+        || CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
+}
+
 void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
+
     Persist(context, State);
     Persist(context, RegistrationPending);
+
+    // COMPAT(cherepashka)
+    if (context.IsSave() || context.IsLoad() && context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
+        Persist(context, CellReliability);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,6 +176,10 @@ void TNode::ComputeAggregatedState()
     std::optional<ENodeState> result;
     auto registrationPending = false;
     for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
+        if (!descriptor.IsReliable()) {
+            continue;
+        }
+
         if (result) {
             if (*result != descriptor.State) {
                 result = ENodeState::Mixed;
@@ -187,6 +205,48 @@ void TNode::ComputeDefaultAddress()
     DefaultAddress_ = NNodeTrackerClient::GetDefaultAddress(GetAddressesOrThrow(EAddressType::InternalRpc));
 }
 
+bool TNode::MustReportHeartbeatsToAllMasters() const
+{
+    const auto& heartbeats = GetHeartbeatTypes();
+    return heartbeats.contains(ENodeHeartbeatType::Data)
+            || heartbeats.contains(ENodeHeartbeatType::Tablet)
+            || heartbeats.contains(ENodeHeartbeatType::Cellar);
+
+}
+
+THashSet<ENodeHeartbeatType> TNode::GetHeartbeatTypes() const
+{
+    THashSet<ENodeHeartbeatType> result;
+    result.insert(ENodeHeartbeatType::Cluster);
+
+    for (auto flavor : Flavors()) {
+        switch (flavor) {
+            case ENodeFlavor::Data:
+                result.insert(ENodeHeartbeatType::Data);
+                break;
+
+            case ENodeFlavor::Exec:
+                if (!GetExecNodeIsNotDataNode()) {
+                    result.insert(ENodeHeartbeatType::Data);
+                }
+                result.insert(ENodeHeartbeatType::Exec);
+                break;
+
+            case ENodeFlavor::Tablet:
+                result.insert(ENodeHeartbeatType::Tablet);
+                result.insert(ENodeHeartbeatType::Cellar);
+                break;
+
+            case ENodeFlavor::Chaos:
+                result.insert(ENodeHeartbeatType::Cellar);
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+    return result;
+}
 bool TNode::IsDataNode() const
 {
     return Flavors_.contains(ENodeFlavor::Data);
@@ -240,7 +300,9 @@ bool TNode::ReportedTabletNodeHeartbeat() const
 void TNode::ValidateRegistered()
 {
     auto state = GetLocalState();
-    if (state == ENodeState::Registered || state == ENodeState::Online) {
+    auto cellDescriptorReliability = GetLocalCellAggregatedStateReliability();
+    if (state == ENodeState::Registered || state == ENodeState::Online
+        || cellDescriptorReliability == ECellAggregatedStateReliability::DuringPropagation) {
         return;
     }
 
@@ -355,20 +417,32 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 }
 
 
-void TNode::InitializeStates(TCellTag cellTag, const TCellTagList& secondaryCellTags)
+void TNode::InitializeStates(
+    TCellTag selfCellTag,
+    const TCellTagList& secondaryCellTags,
+    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags)
 {
-    auto addCell = [&] (TCellTag someTag) {
-        if (MulticellDescriptors_.find(someTag) == MulticellDescriptors_.end()) {
-            EmplaceOrCrash(MulticellDescriptors_, someTag, TCellNodeDescriptor{ENodeState::Offline, TCellNodeStatistics(), /*registrationPending*/ false});
+    auto addCell = [&] (TCellTag cellTag) {
+        if (!MulticellDescriptors_.contains(cellTag)) {
+            auto reliability = dynamicallyPropagatedMastersCellTags.contains(cellTag)
+                ? ECellAggregatedStateReliability::DuringPropagation
+                : ECellAggregatedStateReliability::StaticallyKnown;
+
+            TCellNodeDescriptor descriptor{
+                ENodeState::Offline,
+                TCellNodeStatistics(),
+                /*registrationPending*/ false,
+                reliability};
+            EmplaceOrCrash(MulticellDescriptors_, cellTag, descriptor);
         }
     };
 
-    addCell(cellTag);
+    addCell(selfCellTag);
     for (auto secondaryCellTag : secondaryCellTags) {
         addCell(secondaryCellTag);
     }
 
-    LocalStatePtr_ = &MulticellDescriptors_[cellTag].State;
+    LocalDescriptorPtr_ = &MulticellDescriptors_[selfCellTag];
 
     ComputeAggregatedState();
 }
@@ -386,18 +460,39 @@ void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
 
 ENodeState TNode::GetLocalState() const
 {
-    return LocalStatePtr_ ? *LocalStatePtr_ : ENodeState::Unknown;
+    return LocalDescriptorPtr_ ? LocalDescriptorPtr_->State : ENodeState::Unknown;
 }
 
 void TNode::SetLocalState(ENodeState state)
 {
-    if (*LocalStatePtr_ != state) {
-        *LocalStatePtr_ = state;
+    if (LocalDescriptorPtr_->State != state) {
+        LocalDescriptorPtr_->State = state;
         ComputeAggregatedState();
 
         if (state == ENodeState::Unregistered) {
             ClearCellStatistics();
         }
+    }
+}
+
+ECellAggregatedStateReliability TNode::GetCellAggregatedStateReliability(TCellTag cellTag) const
+{
+    const auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+    return descriptor.CellReliability;
+}
+
+ECellAggregatedStateReliability TNode::GetLocalCellAggregatedStateReliability() const
+{
+    return LocalDescriptorPtr_? LocalDescriptorPtr_->CellReliability : ECellAggregatedStateReliability::Unknown;
+}
+
+void TNode::SetLocalCellAggregatedStateReliability(ECellAggregatedStateReliability reliability)
+{
+    ValidateReliabilityTransition(LocalDescriptorPtr_->CellReliability, reliability);
+
+    if (LocalDescriptorPtr_->CellReliability != reliability) {
+        LocalDescriptorPtr_->CellReliability = reliability;
+        ComputeAggregatedState();
     }
 }
 
@@ -473,6 +568,22 @@ void TNode::SetStatistics(
 
     auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
     descriptor.Statistics = statistics;
+}
+
+void TNode::SetCellAggregatedStateReliability(
+    TCellTag cellTag,
+    ECellAggregatedStateReliability reliability)
+{
+    YT_VERIFY(HasMutationContext());
+
+    auto& descriptor = GetOrCrash(MulticellDescriptors_, cellTag);
+
+    if (descriptor.CellReliability != reliability) {
+        ValidateReliabilityTransition(descriptor.CellReliability, reliability);
+
+        descriptor.CellReliability = reliability;
+        ComputeAggregatedState();
+    }
 }
 
 bool TNode::GetRegistrationPending() const
@@ -650,8 +761,13 @@ void TNode::Load(TLoadContext& context)
 
         MulticellDescriptors_.clear();
         MulticellDescriptors_.reserve(multicellStates.size());
-        for (const auto& [cellTag, state] : multicellStates) {
-            MulticellDescriptors_.emplace(cellTag, TCellNodeDescriptor{state, TCellNodeStatistics(), false});
+        for (auto [cellTag, state] : multicellStates) {
+            TCellNodeDescriptor descriptor{
+                state,
+                TCellNodeStatistics(),
+                /*registrationPending*/ false,
+                ECellAggregatedStateReliability::StaticallyKnown};
+            MulticellDescriptors_.emplace(cellTag, descriptor);
         }
     }
 
@@ -894,6 +1010,51 @@ void TNode::AddSessionHint(int mediumIndex, ESessionType sessionType)
             ++HintedRepairSessionCount_[mediumIndex];
             ++TotalHintedRepairSessionCount_;
             break;
+        default:
+            YT_ABORT();
+    }
+}
+
+void TNode::ValidateReliabilityTransition(
+    ECellAggregatedStateReliability oldReliability,
+    ECellAggregatedStateReliability newReliability) const
+{
+    auto maybeLogAlertReliability =
+        [&] (std::initializer_list<ECellAggregatedStateReliability> allowedReliabilities) {
+            if (Find(allowedReliabilities, newReliability) == allowedReliabilities.end()) {
+                return;
+            }
+
+            YT_LOG_ALERT(
+                "Invalid reliability transition (OldReliability: %v, NewReliability: %v)",
+                oldReliability,
+                newReliability);
+        };
+
+    switch (newReliability) {
+        case ECellAggregatedStateReliability::Unknown: {
+            maybeLogAlertReliability({
+                ECellAggregatedStateReliability::StaticallyKnown,
+                ECellAggregatedStateReliability::DuringPropagation});
+            break;
+        }
+        case ECellAggregatedStateReliability::StaticallyKnown: {
+            maybeLogAlertReliability({ECellAggregatedStateReliability::Unknown});
+            break;
+        }
+        case ECellAggregatedStateReliability::DuringPropagation: {
+            maybeLogAlertReliability({
+                ECellAggregatedStateReliability::Unknown,
+                ECellAggregatedStateReliability::DynamicallyDiscovered});
+            break;
+        }
+        case ECellAggregatedStateReliability::DynamicallyDiscovered: {
+            maybeLogAlertReliability({
+                ECellAggregatedStateReliability::Unknown,
+                ECellAggregatedStateReliability::DuringPropagation});
+            break;
+        }
+
         default:
             YT_ABORT();
     }
@@ -1324,6 +1485,10 @@ TCellNodeStatistics TNode::ComputeClusterStatistics() const
     TCellNodeStatistics result = ComputeCellStatistics();
 
     for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
+        if (!descriptor.IsReliable()) {
+            continue;
+        }
+
         result += descriptor.Statistics;
     }
     return result;

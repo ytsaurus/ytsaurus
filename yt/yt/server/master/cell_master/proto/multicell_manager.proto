@@ -24,6 +24,13 @@ message TReqStartSecondaryMasterRegistration
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqReplicateDynamicallyPropagatedMasterCellTags
+{
+    repeated int32 dynamically_propagated_masters_cell_tags = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TCellStatistics
 {
     required int64 chunk_count = 1;

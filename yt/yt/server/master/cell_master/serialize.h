@@ -230,6 +230,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexSchemaValidation_24_1)                          (2560))  // sabdenovch
     ((NodeReplicationMutation)                                      (2561))  // cherepashka
     ((TraceIdInSequoia)                                             (2562))  // cherepashka
+    ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

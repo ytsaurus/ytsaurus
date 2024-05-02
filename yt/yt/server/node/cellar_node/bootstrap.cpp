@@ -6,6 +6,7 @@
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/security_manager.h>
@@ -204,7 +205,8 @@ public:
             return;
         }
 
-        for (auto masterCellTag : GetMasterCellTags()) {
+        const auto& clusterNodeMasterConnector = GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
             MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
         }
     }

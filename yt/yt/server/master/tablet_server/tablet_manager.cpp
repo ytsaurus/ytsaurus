@@ -236,6 +236,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDeallocateServant, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraMaterializeExtraMountConfigKeys, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
         tabletNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
@@ -2713,6 +2714,17 @@ public:
                     *it);
             }
         }
+    }
+
+    void MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
+    {
+        NProto::TReqMaterializeExtraMountConfigKeys request;
+        for (const auto& key : MountConfigKeysFromNodes_) {
+            request.add_table_mount_config_keys(key);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, cellTag);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
@@ -5838,6 +5850,14 @@ private:
         }
     }
 
+    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* request)
+    {
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
+    }
+
     void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -7744,6 +7764,11 @@ TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
 void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
 {
     Impl_->UpdateExtraMountConfigKeys(std::move(keys));
+}
+
+void TTabletManager::MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
+{
+    Impl_->MaterizlizeExtraMountConfigKeys(cellTag);
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(

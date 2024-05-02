@@ -114,6 +114,7 @@
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
+#include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
@@ -237,6 +238,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
+    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
 
 public:
     TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -416,11 +418,6 @@ public:
         return cellTag == PrimaryMasterCellTagSentinel
             ? GetCellId()
             : ReplaceCellTagInId(GetCellId(), cellTag);
-    }
-
-    const THashSet<TCellTag>& GetMasterCellTags() const override
-    {
-        return MasterConnector_->GetMasterCellTags();
     }
 
     std::vector<TString> GetMasterAddressesOrThrow(TCellTag cellTag) const override
@@ -635,6 +632,11 @@ public:
     NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override
     {
         return TabletNodeBootstrap_.get();
+    }
+
+    const NClusterNode::IBootstrap* GetClusterNodeBootstrap() const override
+    {
+        return this;
     }
 
     bool NeedDataNodeBootstrap() const override
@@ -1243,9 +1245,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND([this] (NYson::IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND(
+            [this] (NYson::IYsonConsumer* consumer) {
+            auto secondaryMasterConnectionConfigs = IsConnected()
+                ? GetSecondaryMasterConnectionConfigs()
+                : TSecondaryMasterConnectionConfigs();
             BuildYsonFluently(consumer)
-                .Value(GetSecondaryMasterConnectionConfigs());
+                .Value(std::move(secondaryMasterConnectionConfigs));
         }))->Via(GetControlInvoker());
     }
 
@@ -1524,45 +1530,68 @@ private:
     }
 
     void OnMasterCellDirectoryChanged(
-        const THashSet<TCellTag>& additionalSecondaryTags,
+        const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& reconfiguredSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryCellTags)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         YT_LOG_ALERT_UNLESS(
-            additionalSecondaryTags.empty(),
-            "Unexpected appearance of master cells in received configuration detected (UnexpectedCellTags: %v)",
-            additionalSecondaryTags);
-        YT_LOG_ALERT_UNLESS(
             removedSecondaryCellTags.empty(),
-            "Some cells disappeared in received configuration of secondary masters (DisappearedCellTags: %v)",
+            "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryCellTags);
 
-        THashSet<TCellTag> reconfiguredCellTags;
-        reconfiguredCellTags.reserve(reconfiguredSecondaryMasterConfigs.size());
+        THashSet<TCellTag> addedSecondaryCellTags;
+        THashSet<TCellTag> reconfiguredSecondaryCellTags;
+        addedSecondaryCellTags.reserve(addedSecondaryMasterConfigs.size());
+        reconfiguredSecondaryCellTags.reserve(reconfiguredSecondaryMasterConfigs.size());
+
+        auto addMasterCell = [&] (const auto& masterConfig) {
+            InitCachingObjectService(masterConfig->CellId);
+            InitProxyingChunkService(masterConfig);
+            Connection_->GetCellDirectory()->ReconfigureCell(masterConfig);
+        };
+
+        auto reconfigureMasterCell = [&] (const auto& masterConfig) {
+            auto cellTag = CellTagFromId(masterConfig->CellId);
+            // NB: It's necessary to reinitialize only ProxyingChunkServices_, since it uses the config completely,
+            // while in CachingObjectServices_ only the CellId is used - it does not need to be reinitialized.
+            RpcServer_->UnregisterService(ProxyingChunkServices_[cellTag]);
+            InitProxyingChunkService(masterConfig);
+        };
+
+        for (const auto& [cellTag, masterConfig] : addedSecondaryMasterConfigs) {
+            addMasterCell(masterConfig);
+            InsertOrCrash(addedSecondaryCellTags, cellTag);
+        }
+
+        for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
+            reconfigureMasterCell(masterConfig);
+            InsertOrCrash(reconfiguredSecondaryCellTags, cellTag);
+        }
+
+        // For consistency it is important to start reporting heartbeats before update of SecondaryMasterConnectionConfigs_, which is viewable.
+        // But before it is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
+        MasterConnector_->AddMasterCellTags(addedSecondaryCellTags);
+        ReadyToReportHeartbeatsToNewMasters_.Fire(addedSecondaryMasterConfigs);
+
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);
-            auto reconfigureMasterCell = [&] (const auto& masterConfig) {
-                auto cellTag = CellTagFromId(masterConfig->CellId);
+            for (const auto& [cellTag, masterConfig] : addedSecondaryMasterConfigs) {
+                EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
+            }
+            for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
                 auto masterConfigIt = SecondaryMasterConnectionConfigs_.find(cellTag);
                 YT_VERIFY(masterConfigIt != SecondaryMasterConnectionConfigs_.end());
                 masterConfigIt->second = masterConfig;
-                // NB: It's necessary to reinitialize only ProxyingChunkServices_, since it uses the config completely,
-                // while in CachingObjectServices_ only the CellId is used - it does not need to be reinitialized.
-                RpcServer_->UnregisterService(ProxyingChunkServices_[cellTag]);
-                InitProxyingChunkService(masterConfig);
-            };
-
-            for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
-                reconfigureMasterCell(masterConfig);
-                InsertOrCrash(reconfiguredCellTags, cellTag);
             }
         }
 
-        YT_LOG_INFO(
-            "Received new master cell cluster configuration (ReconfiguredCellTags: %v)",
-            reconfiguredCellTags);
+        YT_LOG_INFO("Received new master cell cluster configuration "
+            "(AddedCellTags: %v, ReconfiguredCellTags: %v, RemovedCellTags: %v)",
+            addedSecondaryCellTags,
+            reconfiguredSecondaryCellTags,
+            addedSecondaryCellTags);
     }
 
     TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() const
@@ -1610,6 +1639,10 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     Bootstrap_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE([this] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);
+        }));
+    Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
+        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs) {
+            ReadyToReportHeartbeatsToNewMasters_.Fire(addedSecondaryMasterConfigs);
         }));
 }
 
@@ -1721,11 +1754,6 @@ TCellId TBootstrapBase::GetCellId() const
 TCellId TBootstrapBase::GetCellId(TCellTag cellTag) const
 {
     return Bootstrap_->GetCellId(cellTag);
-}
-
-const THashSet<TCellTag>& TBootstrapBase::GetMasterCellTags() const
-{
-    return Bootstrap_->GetMasterCellTags();
 }
 
 std::vector<TString> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cellTag) const
@@ -1916,6 +1944,11 @@ NExecNode::IBootstrap* TBootstrapBase::GetExecNodeBootstrap() const
 NChaosNode::IBootstrap* TBootstrapBase::GetChaosNodeBootstrap() const
 {
     return Bootstrap_->GetChaosNodeBootstrap();
+}
+
+const NClusterNode::IBootstrap* TBootstrapBase::GetClusterNodeBootstrap() const
+{
+    return Bootstrap_->GetClusterNodeBootstrap();
 }
 
 NTabletNode::IBootstrap* TBootstrapBase::GetTabletNodeBootstrap() const

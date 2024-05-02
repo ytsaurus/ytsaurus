@@ -93,6 +93,7 @@ public:
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
     bool IsMulticell() const;
+    bool IsDynamicallyPropagatedMaster() const;
 
     void VerifyPersistentStateRead() const;
 
@@ -103,6 +104,7 @@ public:
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
     const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
+    const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMastersCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;

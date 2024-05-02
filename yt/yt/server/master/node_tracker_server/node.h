@@ -110,7 +110,9 @@ public:
         ENodeState State = ENodeState::Unknown;
         TCellNodeStatistics Statistics;
         bool RegistrationPending = false;
+        ECellAggregatedStateReliability CellReliability = ECellAggregatedStateReliability::StaticallyKnown;
 
+        bool IsReliable() const;
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
     using TMulticellDescriptors = THashMap<NObjectClient::TCellTag, TCellNodeDescriptor>;
@@ -130,6 +132,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Version);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<ENodeFlavor>, Flavors);
+
+    //! Returns |true| if node must report heartbeats to all masters including secondaries.
+    bool MustReportHeartbeatsToAllMasters() const;
+    THashSet<ENodeHeartbeatType> GetHeartbeatTypes() const;
 
     //! Helpers for |Flavors| access.
     bool IsDataNode() const;
@@ -275,6 +281,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
     DEFINE_BYVAL_RW_PROPERTY(ENodeState, LastGossipState, ENodeState::Unknown);
+    DEFINE_BYVAL_RW_PROPERTY(ECellAggregatedStateReliability, LastCellAggregatedStateReliability, ECellAggregatedStateReliability::Unknown);
 
     DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
     DEFINE_BYVAL_RW_PROPERTY(bool, DisposalTickScheduled);
@@ -313,16 +320,24 @@ public:
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
     void InitializeStates(
-        NObjectClient::TCellTag cellTag,
-        const NObjectClient::TCellTagList& secondaryCellTags);
+        NObjectClient::TCellTag selfCellTag,
+        const NObjectClient::TCellTagList& secondaryCellTags,
+        const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags);
 
     //! Recomputes node IO weights from statistics.
     void RecomputeIOWeights(const NChunkServer::IChunkManagerPtr& chunkManager);
 
-    //! Gets the local state by dereferencing local state pointer.
+    //! Gets the local state by dereferencing local descriptor pointer.
     ENodeState GetLocalState() const;
-    //! Sets the local state by dereferencing local state pointer.
+    //! Sets the local state by dereferencing local descriptor pointer.
     void SetLocalState(ENodeState state);
+
+    //! Gets the cell reliability for node descriptor.
+    ECellAggregatedStateReliability GetCellAggregatedStateReliability(NObjectClient::TCellTag cellTag) const;
+    //! Gets the local cell reliability by dereferencing local descriptor pointer.
+    ECellAggregatedStateReliability GetLocalCellAggregatedStateReliability() const;
+    //! Sets the local cell reliability by dereferencing local descriptor pointer.
+    void SetLocalCellAggregatedStateReliability(ECellAggregatedStateReliability reliability);
 
     //! Sets state for the given cell.
     void SetState(
@@ -332,7 +347,11 @@ public:
     //! Sets statistics for the given cell.
     void SetStatistics(
         NObjectClient::TCellTag cellTag,
-        const TCellNodeStatistics& descriptor);
+        const TCellNodeStatistics& statistics);
+    //! Sets descriptor reliability for the given cell.
+    void SetCellAggregatedStateReliability(
+        NObjectClient::TCellTag cellTag,
+        ECellAggregatedStateReliability reliability);
     void SetRegistrationPending(NObjectClient::TCellTag selfCellTag);
 
     //! If states are same for all cells then returns this common value.
@@ -443,11 +462,15 @@ private:
     TMediumMap<std::optional<double>> FillFactors_;
     TMediumMap<std::optional<int>> SessionCount_;
 
-    ENodeState* LocalStatePtr_ = nullptr;
+    TCellNodeDescriptor* LocalDescriptorPtr_ = nullptr;
     ENodeState AggregatedState_ = ENodeState::Unknown;
     bool RegistrationPending_ = false;
 
     THashMap<NCellarClient::ECellarType, NNodeTrackerClient::NProto::TCellarNodeStatistics> CellarNodeStatistics_;
+
+    void ValidateReliabilityTransition(
+        ECellAggregatedStateReliability currentReliability,
+        ECellAggregatedStateReliability newReliability) const;
 
     int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 

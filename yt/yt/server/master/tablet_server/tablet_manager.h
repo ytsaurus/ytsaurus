@@ -175,6 +175,7 @@ public:
     NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const;
 
     void UpdateExtraMountConfigKeys(std::vector<TString> keys);
+    void MaterizlizeExtraMountConfigKeys(NObjectClient::TCellTag cellTag) const;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
     TTabletBase* GetTabletOrThrow(TTabletId id);

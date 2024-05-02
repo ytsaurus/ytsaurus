@@ -4,6 +4,10 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NClusterNode {
@@ -88,7 +92,14 @@ struct IMasterConnector
     *  \note
     *  Thread affinity: any
     */
-    virtual const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const = 0;
+    virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
+
+    //! Modifies master cell tags list with the transmitted set.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual void AddMasterCellTags(const THashSet<NObjectClient::TCellTag>& addedSecondaryMasterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

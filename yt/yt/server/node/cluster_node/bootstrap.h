@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -105,7 +107,6 @@ struct IBootstrapBase
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
-    virtual const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const = 0;
     virtual std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
     virtual void ResetAndRegisterAtMaster() = 0;
@@ -117,6 +118,7 @@ struct IBootstrapBase
 
     DECLARE_INTERFACE_SIGNAL(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
+    DECLARE_INTERFACE_SIGNAL(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
 
     // Node directory.
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const = 0;
@@ -184,6 +186,7 @@ struct IBootstrapBase
     virtual NExecNode::IBootstrap* GetExecNodeBootstrap() const = 0;
     virtual NChaosNode::IBootstrap* GetChaosNodeBootstrap() const = 0;
     virtual NTabletNode::IBootstrap* GetTabletNodeBootstrap() const = 0;
+    virtual const NClusterNode::IBootstrap* GetClusterNodeBootstrap() const = 0;
 
     // COMPAT(gritukan)
     virtual bool NeedDataNodeBootstrap() const = 0;
@@ -224,6 +227,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
+    DEFINE_SIGNAL_OVERRIDE(void(const NCellMasterClient::TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
 
 public:
     explicit TBootstrapBase(IBootstrapBase* bootstrap);
@@ -260,7 +264,6 @@ public:
 
     NObjectClient::TCellId GetCellId() const override;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
-    const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const override;
     std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
     void ResetAndRegisterAtMaster() override;
@@ -318,6 +321,7 @@ public:
     NExecNode::IBootstrap* GetExecNodeBootstrap() const override;
     NChaosNode::IBootstrap* GetChaosNodeBootstrap() const override;
     NTabletNode::IBootstrap* GetTabletNodeBootstrap() const override;
+    const NClusterNode::IBootstrap* GetClusterNodeBootstrap() const override;
 
     bool NeedDataNodeBootstrap() const override;
 

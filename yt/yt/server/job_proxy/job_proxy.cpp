@@ -33,6 +33,8 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -683,6 +685,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
     connection->GetQueueConsumerRegistrationManager()->StartSync();
+    connection->GetMasterCellDirectorySynchronizer()->Start();
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     auto proxyCoordinator = CreateProxyCoordinator();
@@ -780,6 +783,7 @@ TJobResult TJobProxy::RunJob()
         RetrieveJobSpec();
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
+        clusterConnection->GetMasterCellDirectorySynchronizer()->Start();
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);

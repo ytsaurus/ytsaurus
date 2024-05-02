@@ -83,6 +83,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeTabletSlotsDisabled)      (1403))
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
+    ((MasterCellNotReady)           (1406))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

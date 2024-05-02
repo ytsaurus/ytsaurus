@@ -111,6 +111,11 @@ message TReqUpdateTabletTrimmedRowCount
     required int64 trimmed_row_count = 3;
 }
 
+message TReqMaterializeExtraMountConfigKeys
+{
+    repeated string table_mount_config_keys = 1;
+}
+
 message TReqUpdateTableReplicaStatistics
 {
     required NYT.NProto.TGuid tablet_id = 1;
