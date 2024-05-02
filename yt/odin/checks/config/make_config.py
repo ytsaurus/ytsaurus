@@ -1342,6 +1342,7 @@ def get_checks_config():
                 enable_discovery,
                 enable_nightly_compression,
                 bundle_controller,
+                enable_tablet_cell_snapshot_convergence,
             ),
             "freud-gnd": deep_merge(
                 snapshot_validation,
