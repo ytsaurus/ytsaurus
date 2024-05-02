@@ -14,7 +14,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, remove, map,
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    with_breakpoint, wait_breakpoint, print_debug,
+    with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
     read_table, write_table, Operation)
 
 from yt.common import YtResponseError
@@ -316,6 +316,161 @@ class TestHttpProxy(HttpProxyTestBase):
             wait(lambda: not requests.get(self._get_proxy_address() + "/ping").ok)
 
         wait(lambda: requests.get(self._get_proxy_address() + "/ping").ok)
+
+
+class TestSolomonProxy(HttpProxyTestBase):
+    # Instances of the same component have different monitoring ports, since everything is exposed on localhost.
+    # For this reason we are only testing components that have a single configured instance ¯\_(ツ)_/¯.
+    # Let's explicitly configure them that way.
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_HTTP_PROXIES = 1
+    NUM_RPC_PROXIES = 1
+
+    # Just to make the test run faster.
+    NUM_SECONDARY_MASTER_CELLS = 0
+
+    DELTA_PROXY_CONFIG = {
+        "solomon_proxy": {
+            "public_component_names": ["rpc_proxies", "primary_masters", "http_proxies"],
+            # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
+        }
+    }
+
+    # This is sad, but I don't see any other way to retrieve the generated monitoring ports during cluster configuration.
+    @classmethod
+    def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
+        super(TestSolomonProxy, cls).apply_config_patches(configs, ytserver_version, cluster_index, cluster_path)
+
+        primary_master_config = list(configs["master"].values())[0][0]
+        rpc_proxy_config = configs["rpc_proxy"][0]
+        http_proxy_config = configs["http_proxy"][0]
+        scheduler_config = configs["scheduler"][0]
+
+        configs["http_proxy"][0]["solomon_proxy"]["endpoint_providers"] = [
+            {
+                "component_type": "primary_masters",
+                "monitoring_port": primary_master_config["monitoring_port"],
+                # We use this to distinguish instances based on their name.
+                "include_port_in_instance_name": True,
+            },
+            {
+                "component_type": "rpc_proxies",
+                "monitoring_port": rpc_proxy_config["monitoring_port"],
+                "include_port_in_instance_name": True,
+            },
+            {
+                "component_type": "http_proxies",
+                "monitoring_port": http_proxy_config["monitoring_port"],
+                "include_port_in_instance_name": True,
+            },
+            # Not declared public above!
+            {
+                "component_type": "schedulers",
+                "monitoring_port": scheduler_config["monitoring_port"],
+                "include_port_in_instance_name": True,
+            },
+        ]
+
+        # This isn't very pretty either, but it will do for now.
+        # TODO(achulkov2): Initialize host for all components similar to jaeger init?
+        primary_master_config["solomon_exporter"]["host"] = "master.yt.test"
+        rpc_proxy_config["solomon_exporter"]["host"] = "rpc-proxy.yt.test"
+        http_proxy_config["solomon_exporter"]["host"] = "http-proxy.yt.test"
+        scheduler_config["solomon_exporter"]["host"] = "scheduler.yt.test"
+
+    @staticmethod
+    def filter_sensors(sensors, sensor_name=None, host=None):
+        def match(sensor, sensor_name, host):
+            sensor_filter = sensor_name is None or sensor_name in sensor["labels"]["sensor"]
+            host_filter = host is None or host in sensor["labels"]["host"]
+            return all([sensor_filter, host_filter])
+
+        return [sensor for sensor in sensors if match(sensor, sensor_name, host)]
+
+    def get_sensors_raw(self, **kwargs):
+        rsp = requests.get(f"{self._get_proxy_address()}/solomon_proxy/sensors", **kwargs)
+        try_parse_yt_error_headers(rsp)
+        return rsp
+
+    def get_sensors(self, **kwargs):
+        rsp = self.get_sensors_raw(**kwargs)
+        return rsp.json().get("sensors", [])
+
+    # We use the build version sensor as an indicator sensor.
+    @staticmethod
+    def get_instance_count(sensors, sensor_name="build.version"):
+        return len(TestSolomonProxy.filter_sensors(sensors, sensor_name=sensor_name))
+
+    @authors("achulkov2")
+    def test_basic(self):
+        sensors = self.get_sensors()
+
+        # Sensors for schedulers are not returned, since they are declared public.
+        assert len(self.filter_sensors(sensors, host="scheduler")) == 0
+
+        build_version_sensors = self.filter_sensors(sensors, sensor_name="build.version")
+        # Sensors for schedulers are not returned, since they are declared public.
+        assert len(build_version_sensors) == 3
+
+        # No labels should be lost!
+        assert self.filter_sensors(build_version_sensors, host="http-proxy")[0]["labels"]["proxy_role"] == "data"
+        assert self.filter_sensors(build_version_sensors, host="rpc-proxy")[0]["labels"]["proxy_role"] == "default"
+
+    @authors("achulkov2")
+    def test_filters(self):
+        # Component name.
+        rpc_proxy_sensors = self.get_sensors(params={"component": "rpc_proxies"})
+        assert self.filter_sensors(rpc_proxy_sensors, host="rpc-proxy") == rpc_proxy_sensors
+
+        # Instance name.
+        http_proxy_instance_sensors = self.get_sensors(params={"instance": f"localhost:{self.Env.configs['http_proxy'][0]['port']}"})
+        assert self.filter_sensors(http_proxy_instance_sensors, host="http-proxy") == http_proxy_instance_sensors
+        assert self.get_instance_count(http_proxy_instance_sensors) == 1
+
+        # Instance labels.
+        rpc_proxy_address = ls("//sys/rpc_proxies")[0]
+
+        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", True)
+        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 2)
+
+        set(f"//sys/rpc_proxies/{rpc_proxy_address}/@banned", False)
+        wait(lambda: self.get_instance_count(self.get_sensors(params={"instance_banned": "0"})) == 3)
+
+        # Solomon shards (which are also instance labels).
+        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "all"})) == 3
+        assert self.get_instance_count(self.get_sensors(params={"instance_shard": "we-miss-prime"})) == 0
+
+    @authors("achulkov2")
+    def test_sharding(self):
+        first_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 0, "shard_count": 2}))
+        second_shard_size = self.get_instance_count(self.get_sensors(params={"shard_index": 1, "shard_count": 2}))
+        assert first_shard_size + second_shard_size == 3
+
+    @authors("achulkov2")
+    def test_formats(self):
+        # Json (default).
+        assert self.get_instance_count(self.get_sensors(headers={"Accept": "application/json"})) == 3
+
+        # Prometheus.
+        prometheus_sensors_rsp = self.get_sensors_raw(headers={"Accept": "text/plain"})
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "# TYPE" not in line and "build_version" in line]) == 3
+        # No counter-to-rate transformation for prometheus format.
+        assert len([line for line in prometheus_sensors_rsp.text.split("\n") if "_rate" in line]) == 0
+
+        # Spack (only check for errors).
+        self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack"})
+        self.get_sensors_raw(headers={"Accept": "application/x-solomon-spack", "Accept-Encoding": "zstd"})
+
+    @authors("achulkov2")
+    def test_errors(self):
+        with raises_yt_error("Invalid sharding configuration"):
+            self.get_sensors(params={"shard_index": 5, "shard_count": 2})
+
+        # This also checks that solomon parameters are actually forwarded to endpoints.
+        # An error is thrown in case all endpoint respond with errors.
+        with raises_yt_error("Could not pull sensors from any endpoint"):
+            self.get_sensors(params={"period": "5s"})
 
 
 class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
