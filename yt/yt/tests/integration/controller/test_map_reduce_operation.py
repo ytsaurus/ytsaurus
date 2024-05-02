@@ -1220,6 +1220,8 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("max42", "galtsev")
     def test_data_balancing(self):
+        skip_if_old(self.Env, (24, 1), "Data balancing is broken in older versions")
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
