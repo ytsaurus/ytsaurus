@@ -99,6 +99,7 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
 {
     try {
         return TJobEnvironmentCpuStatistics {
+            .BurstUsageTime = ValueOrNullopt(statistics.BurstUsageTime),
             .UserUsageTime = ValueOrNullopt(statistics.UserUsageTime),
             .SystemUsageTime = ValueOrNullopt(statistics.SystemUsageTime),
             .WaitTime = ValueOrNullopt(statistics.WaitTime),

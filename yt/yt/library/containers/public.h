@@ -81,6 +81,7 @@ YT_DEFINE_ERROR_ENUM(
 DEFINE_ENUM(EStatField,
     // CPU
     (CpuUsage)
+    (CpuBurstUsage)
     (CpuUserUsage)
     (CpuSystemUsage)
     (CpuWait)

@@ -107,6 +107,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
             currentThreadCountPeak.Value())
         : currentThreadCountPeak.IsOK() ? currentThreadCountPeak : PeakThreadCount_;
 
+    auto burstTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuBurstUsage);
     auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUsage);
     auto systemTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuSystemUsage);
     auto userTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUserUsage);
@@ -116,6 +117,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
     auto guaranteeTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuGuarantee);
 
     return TCpuStatistics{
+        .BurstUsageTime = ExtractDuration(burstTimeNs),
         .TotalUsageTime = ExtractDuration(totalTimeNs),
         .UserUsageTime = ExtractDuration(userTimeNs),
         .SystemUsageTime = ExtractDuration(systemTimeNs),
@@ -308,6 +310,7 @@ TErrorOr<ui64> TPortoResourceTracker::CalculateCounterDelta(
 static bool IsCumulativeStatistics(EStatField statistic)
 {
     return
+        statistic == EStatField::CpuBurstUsage ||
         statistic == EStatField::CpuUsage ||
         statistic == EStatField::CpuUserUsage ||
         statistic == EStatField::CpuSystemUsage ||
@@ -443,6 +446,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
     i64 timeDeltaUsec)
 {
     {
+        if (totalStatistics.CpuStatistics.BurstUsageTime.IsOK()) {
+            i64 burstUsageTimeUs = totalStatistics.CpuStatistics.BurstUsageTime.Value().MicroSeconds();
+            double burstUsagePercent = std::max<double>(0.0, 100. * burstUsageTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/burst", burstUsagePercent);
+        }
+
         if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
             i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
             double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs / timeDeltaUsec);
@@ -490,6 +499,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
         auto factor = *PodSpec_->CpuToVCpuFactor;
 
         writer->AddGauge("/cpu_to_vcpu_factor", factor);
+
+        if (totalStatistics.CpuStatistics.BurstUsageTime.IsOK()) {
+            i64 burstUsageTimeUs = totalStatistics.CpuStatistics.BurstUsageTime.Value().MicroSeconds();
+            double burstUsagePercent = std::max<double>(0.0, 100. * burstUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/burst", burstUsagePercent);
+        }
 
         if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
             i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
