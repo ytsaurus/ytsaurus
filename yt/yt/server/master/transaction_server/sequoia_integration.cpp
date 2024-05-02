@@ -879,7 +879,7 @@ private:
 //! dependent transactions.
 /*!
  *  This class is used to implement transaction finishing: when transaction is
- *  comitted or aborted, all its dependent (and nested) transactions are aborted
+ *  committed or aborted, all its dependent (and nested) transactions are aborted
  *  too. To achive this we have to collect all dependent transactions and find
  *  topmost ones: it's sufficient to abort only subtree's root because it leads
  *  to abortion of all subtree.
