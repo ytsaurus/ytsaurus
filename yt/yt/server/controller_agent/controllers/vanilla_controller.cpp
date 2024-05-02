@@ -369,7 +369,7 @@ public:
 
     void ValidateSnapshot() const override
     {
-        if (!Spec_->FailOnJobRestart) {
+        if (!HasJobUniquenessRequirements()) {
             return;
         }
 
@@ -383,9 +383,9 @@ public:
         if (expectedJobCount != jobCounter->GetRunning()) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Cannot revive operation when \"fail_on_job_restart\" spec option is set and not "
-                "all jobs have already been started according to the operation snapshot"
-                " (i.e. not all jobs are running or completed)")
+                "Cannot revive operation when \"fail_on_job_restart\" option is set in operation spec or user job spec "
+                "and not all jobs have already been started according to the operation snapshot "
+                "(i.e. not all jobs are running or completed)")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::JobCountMismatchAfterRevival)
                 << TErrorAttribute("operation_type", OperationType)
                 << TErrorAttribute("expected_job_count", expectedJobCount)

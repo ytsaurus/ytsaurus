@@ -911,6 +911,8 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
+    bool HasJobUniquenessRequirements() const;
+    bool IsJobUniquenessRequired(const TJobletPtr& joblet) const;
     virtual void OnJobUniquenessViolated(TError error);
 
     void GracefullyFailOperation(TError error);

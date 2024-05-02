@@ -667,10 +667,10 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
 
     if (CleanStart) {
-        if (Spec_->FailOnJobRestart) {
+        if (HasJobUniquenessRequirements()) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Cannot use clean restart when spec option \"fail_on_job_restart\" is set")
+                "Cannot use clean restart when option \"fail_on_job_restart\" is set in operation spec or user job spec")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
         }
 
@@ -1428,10 +1428,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     if (!Config->EnableJobRevival) {
-        if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
+        if (HasJobUniquenessRequirements() && !JobletMap.empty()) {
             OnJobUniquenessViolated(TError(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set")
+                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
             return result;
         }
@@ -3451,9 +3451,9 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart) {
+    if (IsJobUniquenessRequired(joblet)) {
         OnJobUniquenessViolated(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
+            "Job failed; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobFailed)
             << error);
@@ -3597,14 +3597,14 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart &&
+    if (IsJobUniquenessRequired(joblet) &&
         wasScheduled &&
         joblet->IsStarted() &&
         abortReason != EAbortReason::GetSpecFailed)
     {
         OnJobUniquenessViolated(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
+            "Job aborted; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
             << TErrorAttribute("job_abort_reason", abortReason));
@@ -5395,6 +5395,17 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     YT_LOG_DEBUG("Operation timed out");
 
     GracefullyFailOperation(GetTimeLimitError());
+}
+
+bool TOperationControllerBase::HasJobUniquenessRequirements() const
+{
+    return NControllers::HasJobUniquenessRequirements(Spec_, GetUserJobSpecs());
+}
+
+bool TOperationControllerBase::IsJobUniquenessRequired(const TJobletPtr& joblet) const
+{
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    return Spec_->FailOnJobRestart || (userJobSpec && userJobSpec->FailOnJobRestart);
 }
 
 void TOperationControllerBase::OnJobUniquenessViolated(TError error)
@@ -10694,7 +10705,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
 void TOperationControllerBase::ValidateRevivalAllowed() const
 {
-    if (Spec_->FailOnJobRestart) {
+    if (HasJobUniquenessRequirements()) {
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Cannot revive operation when spec option \"fail_on_job_restart\" is set")

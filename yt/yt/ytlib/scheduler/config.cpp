@@ -1075,6 +1075,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(1)
         .GreaterThan(0);
 
+    registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
+        .Default(false);
+
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {
             THROW_ERROR_EXCEPTION(

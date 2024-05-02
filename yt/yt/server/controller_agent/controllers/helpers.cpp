@@ -368,4 +368,16 @@ bool IsStaticTableWithHunks(TInputTablePtr table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasJobUniquenessRequirements(
+    const NScheduler::TOperationSpecBasePtr& operationSpec,
+    const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs)
+{
+    return operationSpec->FailOnJobRestart ||
+        std::any_of(userJobSpecs.begin(), userJobSpecs.end(), [] (const auto& userJobSpec) {
+            return userJobSpec->FailOnJobRestart;
+        });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
