@@ -10,6 +10,7 @@ SRCS(
     context.cpp
     access_checker.cpp
     api.cpp
+    component_discovery.cpp
     dynamic_config_manager.cpp
     http_authenticator.cpp
     formats.cpp
@@ -18,6 +19,7 @@ SRCS(
     framing.cpp
     config.cpp
     profilers.cpp
+    solomon_proxy.cpp
     zookeeper_bootstrap_proxy.cpp
 
     clickhouse/discovery_cache.cpp

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "component_discovery.h"
 
 #include <yt/yt/server/http_proxy/clickhouse/public.h>
 
@@ -22,6 +23,8 @@
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
+#include <yt/yt/library/profiling/solomon/proxy.h>
+
 #include <yt/yt/client/driver/public.h>
 
 #include <yt/yt/client/formats/public.h>
@@ -31,6 +34,51 @@
 #include <yt/yt/core/https/public.h>
 
 namespace NYT::NHttpProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYTComponentEndpointProviderConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    EYTComponentType ComponentType;
+    //! This monitoring port will be used with all hosts discovered for the configured component.
+    int MonitoringPort;
+    //! A list of native solomon shards names to pull.
+    //! The endpoint provider will produce a separate endpoint with each shard and a corresponding instance tag for each discovered host.
+    //! Defaults to the `all` shard.
+    std::vector<TString> Shards;
+
+    //! If set to true, instance names will contain the discovered main port of the corresponding service.
+    //! Set to false by default. Mostly useful in tests, real clusters have anti-affinity rules.
+    bool IncludePortInInstanceName;
+
+    //! Duration after which a HTTP proxy is considered offline by the discovery mechanism.
+    TDuration ProxyDeathAge;
+
+    REGISTER_YSON_STRUCT(TYTComponentEndpointProviderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TYTComponentEndpointProviderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! TODO(achulkov2): Dynamic config.
+class TSolomonProxyConfig
+    : public NProfiling::TSolomonProxyConfig
+{
+public:
+    //! No endpoints are specified by default, which leads to an empty result.
+    std::vector<TYTComponentEndpointProviderConfigPtr> EndpointProviders;
+
+    REGISTER_YSON_STRUCT(TSolomonProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSolomonProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,6 +293,9 @@ public:
     bool RetryReadOnlyResponseError;
 
     NZookeeperProxy::TZookeeperProxyConfigPtr ZookeeperProxy;
+
+    //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
+    TSolomonProxyConfigPtr SolomonProxy;
 
     REGISTER_YSON_STRUCT(TProxyConfig);
 

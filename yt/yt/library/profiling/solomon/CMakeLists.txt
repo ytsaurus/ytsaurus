@@ -44,8 +44,10 @@ target_proto_messages(library-profiling-solomon PRIVATE
 target_sources(library-profiling-solomon PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/percpu.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/producer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/remote.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp
