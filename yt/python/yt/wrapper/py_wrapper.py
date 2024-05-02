@@ -1,8 +1,5 @@
 from __future__ import print_function
 
-from dataclasses import dataclass
-from itertools import chain
-
 from . import config
 from .config import get_config
 from .pickling import Pickler
@@ -25,6 +22,7 @@ import re
 import copy
 import string
 import inspect
+import itertools
 import os
 import shutil
 import tarfile
@@ -44,6 +42,8 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
+
+YT_RESPOWNED_IN_CONTAINER_KEY = "YT_RESPAWNED_IN_CONTAINER"
 
 
 class TarInfo(tarfile.TarInfo):
@@ -761,60 +761,69 @@ def with_formats(func, input_format=None, output_format=None):
     return func
 
 
-YT_RESPOWNED_IN_CONTAINER_KEY = "YT_RESPAWNED_IN_CONTAINER"
-
-
-@dataclass
 class DockerRespawner:
-    image: str
-    platform: str
-    docker_path: str
+    def __init__(
+            self,
+            image,
+            platform,
+            docker_path,
+            env,
+            main_scipt_path=None,
+            cwd=None,
+            homedir=None,
+            python_lib_paths=None,
+            mount=None,
+    ):
+        self._image = image
+        self._platform = platform
+        self._docker_path = docker_path
+        self._env = env
+        self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
+        self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
+        self._homedir = homedir if homedir is not None else os.path.expanduser("~")
+        self._python_lib_paths = (
+            python_lib_paths
+            if python_lib_paths is not None else
+            [os.path.abspath(path) for path in sys.path]
+        )
+        self._mount = mount
 
-    def _get_docker_env_args(self, environment):
-        return list(chain(*[
+    def _make_docker_env_args(self, env):
+        return list(itertools.chain(*[
             ("-e", "{0}={1}".format(key, value))
-            for key, value in environment.items()
+            for key, value in env.items()
         ]))
 
-    def _get_docker_mount_args(self, paths):
-        return list(chain(*[
+    def _make_docker_mount_args(self, paths):
+        return list(itertools.chain(*[
             ("-v", "{0}:{0}".format(path))
             for path in paths
         ]))
 
-    @property
-    def _main_script_path(self):
-        return os.path.abspath(sys.argv[0])
-
-    @property
-    def _cwd(self):
-        return os.path.abspath(os.getcwd())
-
-    @property
-    def _homedir(self):
-        return os.path.expanduser("~")
-
-    @property
-    def _python_lib_paths(self):
-        return [
-            os.path.abspath(path)
-            for path in sys.path
-        ]
-
-    def make_command(self, environment):
-        yt_env_variables = {
-            key: value
-            for key, value in environment.items()
-            if key.startswith('YT_')
-        }
-        yt_env_variables["BASE_LAYER"] = yt_env_variables.get("BASE_LAYER", self.image)
-        pythonpath_env = ":".join(self._python_lib_paths)
+    def _make_mount_paths(self):
+        # use user provided values
+        if self._mount is not None:
+            return self._mount
         mount_paths = [
             path
-            for path in [self._cwd, *self._python_lib_paths]
+            for path in [self._cwd, os.path.dirname(self._main_script_path), *self._python_lib_paths]
             if path is not None and os.path.commonpath([path, self._homedir]) != self._homedir
         ] + [self._homedir]
-        docker_env_args = self._get_docker_env_args(
+        mount_paths = list(set(mount_paths))
+        mount_paths.sort()
+        return mount_paths
+
+    def make_command(self):
+        yt_env_variables = {
+            key: value
+            for key, value in self._env.items()
+            if key.startswith('YT_')
+        }
+        yt_env_variables["BASE_LAYER"] = yt_env_variables.get("BASE_LAYER", self._image)
+        pythonpath_env = ":".join(self._python_lib_paths)
+
+        mount_paths = self._make_mount_paths()
+        docker_env_args = self._make_docker_env_args(
             {
                 "CWD": self._cwd,
                 "PYTHONPATH": pythonpath_env,
@@ -822,20 +831,20 @@ class DockerRespawner:
                 **yt_env_variables,
             }
         )
-        docker_mount_args = self._get_docker_mount_args(mount_paths)
+        docker_mount_args = self._make_docker_mount_args(mount_paths)
         command = [
-            self.docker_path, "run",
-            "--platform", self.platform,
+            self._docker_path, "run",
+            "--platform", self._platform,
             "-it", "--rm",
             *docker_env_args,
             *docker_mount_args,
-            self.image,
+            self._image,
             "python3", self._main_script_path,
         ]
         return command
 
-    def run(self, environment):
-        command = self.make_command(environment)
+    def run(self):
+        command = self.make_command()
         logger.info(" ".join(command))
         process = subprocess.Popen(
             command,
@@ -849,16 +858,25 @@ class DockerRespawner:
             sys.exit(exit_code)
 
 
-def respawn_in_docker(image, target_platform="linux/amd64", docker_path="docker"):
+def respawn_in_docker(
+        image,
+        target_platform="linux/amd64",
+        docker_path="docker",
+        env=None,
+        mount=None,
+):
     def inner(func):
         def wrapped(*args, **kwargs):
-            if os.environ.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
+            environment = env if env is not None else os.environ
+            if environment.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
                 return func(*args, **kwargs)
             respawner = DockerRespawner(
                 image=image,
                 platform=target_platform,
                 docker_path=docker_path,
+                env=environment,
+                mount=mount,
             )
-            respawner.run(os.environ)
+            respawner.run()
         return wrapped
     return inner
