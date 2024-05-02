@@ -725,11 +725,7 @@ class TJobProxyLoggingConfig
 public:
     EJobProxyLoggingMode Mode;
 
-    std::optional<TString> Directory;
-
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
-
-    std::optional<int> ShardingKeyLength;
 
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;
@@ -791,6 +787,25 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobProxyLogManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Directory;
+    int ShardingKeyLength;
+    TDuration LogsDeadline;
+
+    std::optional<int> MaxParallelism;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecNodeConfig
     : public NYTree::TYsonStruct
 {
@@ -806,6 +821,8 @@ public:
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
     TJobProxyConfigPtr JobProxy;
+
+    TJobProxyLogManagerConfigPtr JobProxyLogManager;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 
