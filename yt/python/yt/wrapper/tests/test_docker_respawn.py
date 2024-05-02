@@ -10,18 +10,17 @@ def test_docker_respawner():
         platform="arm64",
         docker_path="docker_test",
         env={
-            "SOME_KEY": "SOME_VALUE",
+            "SOME_KEY": "SOME_VALUE",  # should be skipped
             "YT_SOME_KEY": "YT_SOME_VALUE",
-            "ANOTHER_SOME_KEY": "ANOTHER_SOME_VALUE",
+            "ANOTHER_KEY": "ANOTHER_VALUE",  # should be skipped
             "YT_TEST_KEY": "YT_TEST_VALUE",
         },
-        main_scipt_path="/home/user/yt/main.py",
-        cwd="/home/user/yt/lib",
-        homedir="/root",
+        main_scipt_path="/home/user2/yt/main.py",
+        cwd="/root",
+        homedir="/home/user",
         python_lib_paths=[
             "/usr/lib/python4.2/site-packages",
-            "/root/python/site-packages",
-            "/home/user/.venv/",
+            "/home/user/.venv/",  # in homedir -> not in mounts
         ],
     )
     assert respawner.make_command() == [
@@ -30,19 +29,19 @@ def test_docker_respawner():
         "--platform", "arm64",
         "-it",
         "--rm",
-        "-e", "CWD=/home/user/yt/lib",
-        "-e", "PYTHONPATH=/usr/lib/python4.2/site-packages:/root/python/site-packages:/home/user/.venv/",
+        "-e", "CWD=/root",
+        "-e", "PYTHONPATH=/usr/lib/python4.2/site-packages:/home/user/.venv/",
         "-e", "YT_RESPAWNED_IN_CONTAINER=1",
         "-e", "YT_SOME_KEY=YT_SOME_VALUE",
         "-e", "YT_TEST_KEY=YT_TEST_VALUE",
         "-e", "BASE_LAYER=some_image",
-        "-v", "/home/user/.venv/:/home/user/.venv/",
-        "-v", "/home/user/yt:/home/user/yt",
-        "-v", "/home/user/yt/lib:/home/user/yt/lib",
-        "-v", "/root:/root",
+        "-v", "/home/user:/home/user",  # user's homedir
+        "-v", "/home/user2/yt:/home/user2/yt",  # main script's dir
+        "-v", "/root:/root",  # current cwd
+        # a part of pythonpython outside homedir
         "-v", "/usr/lib/python4.2/site-packages:/usr/lib/python4.2/site-packages",
         "some_image",
-        "python3", "/home/user/yt/main.py",
+        "python3", "/home/user2/yt/main.py",
     ]
 
 
@@ -52,16 +51,12 @@ def test_docker_respawner_user_overrides():
         image="some_image",
         platform="arm64",
         docker_path="docker_test",
-        env={
-            "SOME_KEY": "SOME_VALUE",
-            "YT_SOME_KEY": "YT_SOME_VALUE",
-            "ANOTHER_SOME_KEY": "ANOTHER_SOME_VALUE",
-            "YT_TEST_KEY": "YT_TEST_VALUE",
-        },
+        env={},
         main_scipt_path="/home/user/yt/main.py",
         cwd="/home/user/yt/lib",
         homedir="/root",
         python_lib_paths=[
+            # should be skipped
             "/usr/lib/python4.2/site-packages",
             "/root/python/site-packages",
             "/home/user/.venv/",
@@ -77,9 +72,8 @@ def test_docker_respawner_user_overrides():
         "-e", "CWD=/home/user/yt/lib",
         "-e", "PYTHONPATH=/usr/lib/python4.2/site-packages:/root/python/site-packages:/home/user/.venv/",
         "-e", "YT_RESPAWNED_IN_CONTAINER=1",
-        "-e", "YT_SOME_KEY=YT_SOME_VALUE",
-        "-e", "YT_TEST_KEY=YT_TEST_VALUE",
         "-e", "BASE_LAYER=some_image",
+        # only paths from mount param
         "-v", "/custom/path:/custom/path",
         "-v", "/etc/custom/path2:/etc/custom/path2",
         "some_image",
