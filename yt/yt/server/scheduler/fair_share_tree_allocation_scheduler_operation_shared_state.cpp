@@ -127,7 +127,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationStarted(
     TSchedulerOperationElement* operationElement,
     TAllocationId allocationId,
     const TJobResourcesWithQuota& resourceUsage,
-    const TJobResources& precommitedResources,
+    const TJobResources& precommittedResources,
     TControllerEpoch scheduleAllocationEpoch,
     bool force)
 {
@@ -138,7 +138,7 @@ bool TFairShareTreeAllocationSchedulerOperationSharedState::OnAllocationStarted(
     }
 
     AddAllocation(allocationId, resourceUsage);
-    operationElement->CommitHierarchicalResourceUsage(resourceUsage, precommitedResources);
+    operationElement->CommitHierarchicalResourceUsage(resourceUsage, precommittedResources);
     UpdatePreemptibleAllocationsList(operationElement);
 
     return true;

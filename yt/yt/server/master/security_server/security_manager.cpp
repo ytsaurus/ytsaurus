@@ -590,14 +590,14 @@ public:
             buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
             buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
 
-            auto profileDetailed = [&] (double usage, double commitedUsage, TString name)  {
+            auto profileDetailed = [&] (double usage, double committedUsage, TString name)  {
                 {
                     TWithTagGuard guard(&buffer, "status", "commited");
-                    buffer.AddGauge(name, commitedUsage);
+                    buffer.AddGauge(name, committedUsage);
                 }
                 {
                     TWithTagGuard guard(&buffer, "status", "uncommited");
-                    buffer.AddGauge(name, std::max(0., double(usage - commitedUsage)));
+                    buffer.AddGauge(name, std::max(0., double(usage - committedUsage)));
                 }
             };
 
@@ -617,7 +617,7 @@ public:
             auto diskSpace = statistics.ResourceUsage.GetPatchedDiskSpace(
                 chunkManager,
                 additionalMediumIndexes);
-            auto commitedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
+            auto committedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
                 chunkManager,
                 additionalMediumIndexes);
 
@@ -628,10 +628,10 @@ public:
                 TWithTagGuard guard(&buffer, "medium", medium->GetName());
                 buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
                 auto committedIt = std::find_if(
-                    commitedDiskSpace.begin(),
-                    commitedDiskSpace.end(),
+                    committedDiskSpace.begin(),
+                    committedDiskSpace.end(),
                     [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
-                if (committedIt != commitedDiskSpace.end()) {
+                if (committedIt != committedDiskSpace.end()) {
                     profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
                 }
             }

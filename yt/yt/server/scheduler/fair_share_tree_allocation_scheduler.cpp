@@ -3193,7 +3193,7 @@ void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
         element,
         allocationId,
         resourceUsage,
-        /*precommitedResources*/ {},
+        /*precommittedResources*/ {},
         /*scheduleAllocationEpoch*/ TControllerEpoch(0));
 }
 
