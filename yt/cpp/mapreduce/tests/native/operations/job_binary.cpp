@@ -2,7 +2,7 @@
 
 #include <yt/cpp/mapreduce/interface/client.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/generic/yexception.h>
 
@@ -96,100 +96,97 @@ void WriteTestTable(IClientPtr client, const TYPath& workingDir)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(JobBinary)
+TEST(JobBinary, VerifyMapperDoesntWorkFromOriginalBinary)
 {
-    Y_UNIT_TEST(VerifyMapperDoesntWorkFromOriginalBinary)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        WriteTestTable(client, workingDir);
-        auto runMap = [&] {
-            client->Map(
-                TMapOperationSpec()
-                .MaxFailedJobCount(1)
-                .AddInput<TNode>(workingDir + "/input")
-                .AddOutput<TNode>(workingDir + "/output"),
-                new THackedFileKeyValueSwapper);
-        };
-        UNIT_ASSERT_EXCEPTION(runMap(), TOperationFailedError);
-    }
-
-    void JobBinaryLocalPath(bool enableLocalModeOptimization)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
-        if (!enableLocalModeOptimization) {
-            TConfig::Get()->FileCacheReplicationFactor = 1;
-        }
-
-        WriteTestTable(client, workingDir);
-
-        TTempFile fixedExecutable("fixed_executable");
-        WriteFixedExecutable(fixedExecutable.Name());
-
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    WriteTestTable(client, workingDir);
+    auto runMap = [&] {
         client->Map(
             TMapOperationSpec()
             .MaxFailedJobCount(1)
-            .MapperSpec(TUserJobSpec().JobBinaryLocalPath(fixedExecutable.Name()))
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output"),
             new THackedFileKeyValueSwapper);
+    };
+    EXPECT_THROW(runMap(), TOperationFailedError);
+}
 
-        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
-        UNIT_ASSERT_VALUES_EQUAL(actual, ExpectedOutput);
+void JobBinaryLocalPath(bool enableLocalModeOptimization)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
+    if (!enableLocalModeOptimization) {
+        TConfig::Get()->FileCacheReplicationFactor = 1;
     }
 
-    Y_UNIT_TEST(JobBinaryLocalPath_LocalModeOn)
+    WriteTestTable(client, workingDir);
+
+    TTempFile fixedExecutable("fixed_executable");
+    WriteFixedExecutable(fixedExecutable.Name());
+
+    client->Map(
+        TMapOperationSpec()
+        .MaxFailedJobCount(1)
+        .MapperSpec(TUserJobSpec().JobBinaryLocalPath(fixedExecutable.Name()))
+        .AddInput<TNode>(workingDir + "/input")
+        .AddOutput<TNode>(workingDir + "/output"),
+        new THackedFileKeyValueSwapper);
+
+    TVector<TNode> actual = ReadTable(client, workingDir + "/output");
+    EXPECT_EQ(actual, ExpectedOutput);
+}
+
+TEST(JobBinary, JobBinaryLocalPath_LocalModeOn)
+{
+    JobBinaryLocalPath(true);
+}
+
+TEST(JobBinary, JobBinaryLocalPath_LocalModeOff)
+{
+    JobBinaryLocalPath(false);
+}
+
+void JobBinaryCypressPath(bool enableLocalModeOptimization)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
+
+    WriteTestTable(client, workingDir);
+
     {
-        JobBinaryLocalPath(true);
+        auto writer = client->CreateFileWriter(TRichYPath(workingDir + "/fixed_executable").Executable(true));
+        WriteFixedExecutable(writer.Get());
+        writer->Finish();
     }
 
-    Y_UNIT_TEST(JobBinaryLocalPath_LocalModeOff)
-    {
-        JobBinaryLocalPath(false);
-    }
+    client->Map(
+        TMapOperationSpec()
+        .MaxFailedJobCount(1)
+        .MapperSpec(TUserJobSpec().JobBinaryCypressPath(workingDir + "/fixed_executable"))
+        .AddInput<TNode>(workingDir + "/input")
+        .AddOutput<TNode>(workingDir + "/output"),
+        new THackedFileKeyValueSwapper);
 
-    void JobBinaryCypressPath(bool enableLocalModeOptimization)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
+    TVector<TNode> actual = ReadTable(client, workingDir + "/output");
+    EXPECT_EQ(actual, ExpectedOutput);
+}
 
-        TConfig::Get()->EnableLocalModeOptimization = enableLocalModeOptimization;
+TEST(JobBinary, JobBinaryCypressPath_LocalModeOn)
+{
+    JobBinaryLocalPath(true);
+}
 
-        WriteTestTable(client, workingDir);
-
-        {
-            auto writer = client->CreateFileWriter(TRichYPath(workingDir + "/fixed_executable").Executable(true));
-            WriteFixedExecutable(writer.Get());
-            writer->Finish();
-        }
-
-        client->Map(
-            TMapOperationSpec()
-            .MaxFailedJobCount(1)
-            .MapperSpec(TUserJobSpec().JobBinaryCypressPath(workingDir + "/fixed_executable"))
-            .AddInput<TNode>(workingDir + "/input")
-            .AddOutput<TNode>(workingDir + "/output"),
-            new THackedFileKeyValueSwapper);
-
-        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
-        UNIT_ASSERT_VALUES_EQUAL(actual, ExpectedOutput);
-    }
-
-    Y_UNIT_TEST(JobBinaryCypressPath_LocalModeOn)
-    {
-        JobBinaryLocalPath(true);
-    }
-
-    Y_UNIT_TEST(JobBinaryCypressPath_LocalModeOff)
-    {
-        JobBinaryLocalPath(false);
-    }
+TEST(JobBinary, JobBinaryCypressPath_LocalModeOff)
+{
+    JobBinaryLocalPath(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,16 +26,13 @@ target_link_libraries(yt-cpp-mapreduce-tests-native-operations PUBLIC
   contrib-libs-cxxsupp
   yutil
   library-cpp-cpuid_check
-  cpp-testing-unittest_main
-  mapreduce-tests-yt_initialize_hook
-  cpp-testing-unittest
   cpp-mapreduce-client
   cpp-mapreduce-common
   cpp-mapreduce-interface
   mapreduce-library-lazy_sort
   mapreduce-library-operation_tracker
   mapreduce-tests-yt_unittest_lib
-  mapreduce-tests-yt_unittest_main
+  mapreduce-tests-gtest_main
   tests-native-proto_lib
   cpp-mapreduce-util
 )
