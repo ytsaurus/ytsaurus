@@ -195,6 +195,53 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         ContainsRegex("Type mismatch in expression"));
 }
 
+TEST_F(TQueryPrepareTest, KeywordAlias)
+{
+    const auto Keywords = {
+        "select",
+        "from",
+        "where",
+        "having",
+        "offset",
+        "limit",
+        "join",
+        "array",
+        "using",
+        "asc",
+        "desc",
+        "left",
+        "as",
+        "on",
+        "and",
+        "or",
+        "is",
+        "not",
+        "null",
+        "between",
+        "in",
+        "transform",
+        "like",
+        "ilike",
+        "rlike",
+        "regexp",
+        "escape",
+        "false",
+        "true",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "inf"
+    };
+
+    for (const auto* keyword : Keywords) {
+        ExpectPrepareThrowsWithDiagnostics(
+            Format("k as %v from [//t]", keyword),
+            HasSubstr("unexpected keyword"));
+    }
+}
+
 TEST_F(TQueryPrepareTest, AnyInNull)
 {
     {
