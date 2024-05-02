@@ -1274,6 +1274,8 @@ public:
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
+    bool FailOnJobRestart;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

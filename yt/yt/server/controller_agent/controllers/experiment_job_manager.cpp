@@ -18,7 +18,7 @@ bool TJobExperimentBase::IsEnabled(
     return operationSpec &&
         operationSpec->JobExperiment &&
         !operationSpec->TryAvoidDuplicatingJobs &&
-        !operationSpec->FailOnJobRestart &&
+        !HasJobUniquenessRequirements(operationSpec, userJobSpecs) &&
         operationSpec->MaxProbingJobCountPerTask != 0 &&
         operationSpec->MaxSpeculativeJobCountPerTask != 0 &&
         std::all_of(userJobSpecs.begin(), userJobSpecs.end(), [] (const auto& userJobSpec) {

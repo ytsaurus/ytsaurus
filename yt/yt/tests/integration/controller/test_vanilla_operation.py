@@ -225,6 +225,45 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
+    @authors("eshcherbin")
+    def test_fail_on_job_restart_in_specific_task(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": events_on_fs().execute_once("exit 1"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": "echo nothing >/dev/null",
+                        "fail_on_job_restart": True,
+                    },
+                },
+                "max_failed_job_count": 2,
+            }
+        )
+        op.wait_for_state("completed")
+
+        with pytest.raises(YtError):
+            op = vanilla(
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": events_on_fs().execute_once("exit 1"),
+                            "fail_on_job_restart": True,
+                        },
+                        "task_b": {
+                            "job_count": 1,
+                            "command": "echo nothing >/dev/null",
+                        },
+                    },
+                    "max_failed_job_count": 2,
+                }
+            )
+
     @authors("max42")
     def test_revival_with_fail_on_job_restart(self):
         op = vanilla(
