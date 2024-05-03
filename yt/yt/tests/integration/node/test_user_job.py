@@ -2501,16 +2501,11 @@ class TestHealExecNode(YTEnvSetup):
                 f.write("{foo=bar}")
 
         def is_disabled():
-            with raises_yt_error(required=False) as err:
-                op = run_test_vanilla("sleep 0.1")
-                op.track()
-            return len(err) > 0
+            return get(f"//sys/cluster_nodes/{node_address}/@resource_limits/user_slots") == 0
 
         wait(is_disabled)
 
-        with raises_yt_error(yt_error_codes.NoOnlineNodeToScheduleJob):
-            op = run_test_vanilla("sleep 0.1")
-            op.track()
+        op = run_test_vanilla("sleep 0.1")
 
         with raises_yt_error("Healing requested for unknown location"):
             heal_exec_node(node_address, ["unknownslot"])
@@ -2520,6 +2515,8 @@ class TestHealExecNode(YTEnvSetup):
 
         for location in locations:
             os.remove("{}/disabled".format(location["path"]))
+
+        assert op.get_state() != "completed"
 
         heal_exec_node(node_address, ["slot0"])
 
