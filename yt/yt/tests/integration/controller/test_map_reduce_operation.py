@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 import yt_error_codes
 
