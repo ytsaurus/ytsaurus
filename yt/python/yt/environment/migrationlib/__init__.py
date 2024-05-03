@@ -412,12 +412,12 @@ class Migration(object):
 
         return {table: table_info.schema for table, table_info in table_infos.items()}
 
-    def create_tables(self, client, target_version, tables_path, shard_count, override_tablet_cell_bundle="default"):
+    def create_tables(self, client, target_version, tables_path, shard_count, override_tablet_cell_bundle="default", force_initialize=False):
         """Creates tables of given version"""
         assert target_version == self.initial_version or target_version in self.transforms
         assert target_version >= self.initial_version
 
-        if not client.exists(tables_path):
+        if not client.exists(tables_path) or force_initialize:
             self._initialize_migration(
                 client,
                 tables_path=tables_path,
