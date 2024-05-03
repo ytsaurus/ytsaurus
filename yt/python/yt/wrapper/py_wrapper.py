@@ -767,7 +767,7 @@ class DockerRespawner:
             image,
             target_platform,
             docker,
-            env,
+            env=None,
             main_scipt_path=None,
             cwd=None,
             homedir=None,
@@ -779,6 +779,13 @@ class DockerRespawner:
         self._platform = target_platform
         self._docker = docker
         self._env = env
+        if self._env is None:
+            # by default, we forward only YT-specific variables
+            self._env = {
+                key: value
+                for key, value in os.environ.items()
+                if key.startswith('YT_')
+            }
         self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
         self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
         self._homedir = homedir if homedir is not None else os.path.expanduser("~")
@@ -827,12 +834,8 @@ class DockerRespawner:
 
 
     def make_command(self):
-        yt_env_variables = {
-            key: value
-            for key, value in self._env.items()
-            if key.startswith('YT_')
-        }
-        yt_env_variables["YT_BASE_LAYER"] = yt_env_variables.get("YT_BASE_LAYER", self._image)
+        env = self._env.copy()
+        env["YT_BASE_LAYER"] = env.get("YT_BASE_LAYER", self._image)
         pythonpath_env = ":".join(self._python_lib_paths)
 
         mount_paths = self._make_mount_paths()
@@ -841,7 +844,7 @@ class DockerRespawner:
                 "CWD": self._cwd,
                 "PYTHONPATH": pythonpath_env,
                 YT_RESPOWNED_IN_CONTAINER_KEY: "1",
-                **yt_env_variables,
+                **env,
             }
         )
         docker_mount_args = self._make_docker_mount_args(mount_paths)
@@ -859,7 +862,8 @@ class DockerRespawner:
 
     def run(self):
         command = self.make_command()
-        logger.info(" ".join(command))
+        logger.info("Start respawn in docker")
+        logger.info("Command: " + " ".join(command))
         process = subprocess.Popen(
             command,
             stdout=sys.stdout,
@@ -880,16 +884,39 @@ def respawn_in_docker(
         mount=None,
         need_sudo=False,
 ):
+    """
+    Decorator for function main.
+    The wrapped function will be executed inside the Docker container in order to provide
+    the most similar execution environment as on the YTSaurus cluster.
+    All operation invocations like yt.run_map automatically assume the specified docker image.
+
+    Args:
+        :param bool ordered: force ordered input for mapper.
+        :param str image: docker image (same format as in the operation's spec)
+        :param Optional[str] target_platform: target platform for the docker container
+        :param str docker: docker executable name/path
+        :param Optional[dict] env: environment variables to pass to the docker container
+        If not set it will use global variables with the YT_ prefix
+        :param Optional[list[str]] mount: mount points for the docker container
+        If not set it will use homedir, cwd and python lib paths
+        :param bool need_sudo: Whether sudo privileges are needed to run docker
+    Example:
+        @respawn_in_docker("python3.10")
+        def main():
+            pass
+
+        if __name__ == "__main__":
+            main()
+    """
     def inner(func):
         def wrapped(*args, **kwargs):
-            environment = env if env is not None else os.environ
-            if environment.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
+            if os.environ.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
                 return func(*args, **kwargs)
             respawner = DockerRespawner(
                 image=image,
                 target_platform=target_platform,
                 docker=docker,
-                env=environment,
+                env=env,
                 mount=mount,
                 need_sudo=need_sudo,
             )
