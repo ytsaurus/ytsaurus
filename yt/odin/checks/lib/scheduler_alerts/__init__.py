@@ -68,7 +68,7 @@ def run_check_impl(yt_client,
             if alert_type == "update_fair_share":
                 filtered_alert = filter_pool_trees(alert, skip_pool_trees, include_pool_trees)
                 if filtered_alert is not None:
-                    alerts.append(alert)
+                    alerts.append(filtered_alert)
             else:
                 alerts.append(alert)
         if len(alerts) > 0:
