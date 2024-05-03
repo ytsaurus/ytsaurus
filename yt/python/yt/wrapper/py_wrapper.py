@@ -766,17 +766,18 @@ class DockerRespawner:
             self,
             image,
             target_platform,
-            docker_path,
+            docker,
             env,
             main_scipt_path=None,
             cwd=None,
             homedir=None,
             python_lib_paths=None,
             mount=None,
+            need_sudo=False,
     ):
         self._image = image
         self._platform = target_platform
-        self._docker_path = docker_path
+        self._docker = docker
         self._env = env
         self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
         self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
@@ -787,6 +788,7 @@ class DockerRespawner:
             [os.path.abspath(path) for path in sys.path]
         )
         self._mount = mount
+        self._need_sudo = need_sudo
 
     def _make_docker_env_args(self, env):
         return list(itertools.chain(*[
@@ -818,13 +820,19 @@ class DockerRespawner:
             return "--platform", self._platform
         return tuple()
 
+    def _make_sudo(self):
+        if self._need_sudo:
+            return ("sudo",)
+        return tuple()
+
+
     def make_command(self):
         yt_env_variables = {
             key: value
             for key, value in self._env.items()
             if key.startswith('YT_')
         }
-        yt_env_variables["BASE_LAYER"] = yt_env_variables.get("BASE_LAYER", self._image)
+        yt_env_variables["YT_BASE_LAYER"] = yt_env_variables.get("YT_BASE_LAYER", self._image)
         pythonpath_env = ":".join(self._python_lib_paths)
 
         mount_paths = self._make_mount_paths()
@@ -838,7 +846,8 @@ class DockerRespawner:
         )
         docker_mount_args = self._make_docker_mount_args(mount_paths)
         command = [
-            self._docker_path, "run",
+            *self._make_sudo(),
+            self._docker, "run",
             *self._make_docker_platform(),
             "-it", "--rm",
             *docker_env_args,
@@ -866,9 +875,10 @@ class DockerRespawner:
 def respawn_in_docker(
         image,
         target_platform=None,
-        docker_path="docker",
+        docker="docker",
         env=None,
         mount=None,
+        need_sudo=False,
 ):
     def inner(func):
         def wrapped(*args, **kwargs):
@@ -878,9 +888,10 @@ def respawn_in_docker(
             respawner = DockerRespawner(
                 image=image,
                 target_platform=target_platform,
-                docker_path=docker_path,
+                docker=docker,
                 env=environment,
                 mount=mount,
+                need_sudo=need_sudo,
             )
             respawner.run()
         return wrapped
