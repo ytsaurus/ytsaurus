@@ -12,7 +12,7 @@ namespace NYT::NAuth {
 
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
-    ITvmServicePtr tvmService,
+    std::vector<ITvmServicePtr> tvmServices,
     NConcurrency::IPollerPtr poller,
     NProfiling::TProfiler profiler = {});
 

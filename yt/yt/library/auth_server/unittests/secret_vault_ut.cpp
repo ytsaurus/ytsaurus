@@ -31,6 +31,9 @@ static const TString HighAsciiValue = "secret-value-Æ";
 static const TString SecretEncoding = "EBCDIC";
 static const TString UserTicket = "the-user-ticket";
 
+static const TTvmId OurTvmId = 100500;
+static const TTvmId AlsoOurTvmId = 100501;
+
 class TDefaultSecretVaultTest
     : public ::testing::Test
 {
@@ -50,9 +53,16 @@ protected:
     ISecretVaultServicePtr CreateDefaultSecretVaultService(
         TDefaultSecretVaultServiceConfigPtr config = {})
     {
+        std::vector<ITvmServicePtr> tvmServices;
+        if (config && config->DefaultTvmIdForNewTokens) {
+            tvmServices.push_back(New<TMockTvmService>(*config->DefaultTvmIdForNewTokens));
+            tvmServices.push_back(New<TMockTvmService>(*config->DefaultTvmIdForExistingTokens));
+        } else {
+            tvmServices.push_back(New<TMockTvmService>(OurTvmId));
+        }
         return NAuth::CreateDefaultSecretVaultService(
             config ? config : CreateDefaultSecretVaultServiceConfig(),
-            New<TMockTvmService>(),
+            std::move(tvmServices),
             CreateThreadPoolPoller(1, "HttpPoller"));
     }
 
@@ -68,15 +78,18 @@ protected:
         }
     }
 
-    void SetCallback(const TString& response)
+    void SetCallback(TString response, TTvmId tvmId = OurTvmId)
     {
-        MockHttpServer_.SetCallback([&] (TClientRequest* request) {
+        MockHttpServer_.SetCallback([=] (TClientRequest* request) {
             const auto& firstLine = request->Input().FirstLine();
             const auto& body = request->Input().ReadAll();
             if (firstLine.StartsWith("POST /1/tokens/?consumer=yp.unittest")) {
                 EXPECT_THAT(body, HasSubstr(SecretSignature));
+                EXPECT_THAT(body, HasSubstr(Format("ticket:yav:%v", tvmId)));
                 request->Output() << HttpResponse(200, response);
             } else if (firstLine.StartsWith("POST /1/secrets/secret-id/tokens/")) {
+                auto* header = request->Input().Headers().FindHeader("X-Ya-Service-Ticket");
+                EXPECT_THAT(header->Value(), HasSubstr(Format("ticket:yav:%v", tvmId)));
                 EXPECT_THAT(body, HasSubstr(SecretSignature));
                 request->Output() << HttpResponse(200, response);
             } else {
@@ -90,14 +103,18 @@ private:
         : public ITvmService
     {
     public:
+        TMockTvmService(TTvmId tvmId)
+            : TvmId_(tvmId)
+        { }
+
         TTvmId GetSelfTvmId() override
         {
-            return 100500;
+            return TvmId_;
         }
 
         TString GetServiceTicket(const TString& serviceAlias) override
         {
-            return Format("ticket:%v", serviceAlias);
+            return Format("ticket:%v:%v", serviceAlias, TvmId_);
         }
 
         TString GetServiceTicket(TTvmId /*serviceId*/) override
@@ -114,6 +131,9 @@ private:
         {
             THROW_ERROR_EXCEPTION("Not implemented");
         }
+
+    private:
+        TTvmId TvmId_;
     };
 
     TMockHttpServer MockHttpServer_;
@@ -334,7 +354,8 @@ TEST_F(TDefaultSecretVaultTest, GetToken)
     } else {
         auto response = WaitFor(service->GetDelegationToken(request));
         ASSERT_TRUE(response.IsOK());
-        ASSERT_EQ("TheToken", response.ValueOrThrow());
+        ASSERT_EQ("TheToken", response.ValueOrThrow().Token);
+        ASSERT_EQ(OurTvmId, response.ValueOrThrow().TvmId);
     }
 }
 
@@ -348,9 +369,9 @@ TEST_F(TDefaultSecretVaultTest, RevokeToken)
         .BeginMap()
             .Item("status").Value("ok")
             .Item("result").BeginList()
-                .Item().BeginMap()
-                    .Item("status").Value("ok")
-                .EndMap()
+            .Item().BeginMap()
+                .Item("status").Value("ok")
+            .EndMap()
             .EndList()
         .EndMap();
     consumer->Flush();
@@ -367,8 +388,6 @@ TEST_F(TDefaultSecretVaultTest, RevokeToken)
 
     service->RevokeDelegationToken(request);
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TDefaultSecretVaultTest, GetTokenFails)
 {
@@ -396,6 +415,89 @@ TEST_F(TDefaultSecretVaultTest, GetTokenFails)
 
     auto response = WaitFor(service->GetDelegationToken(request));
     ASSERT_FALSE(response.IsOK());
+}
+
+TEST_F(TDefaultSecretVaultTest, MultipleTvmsGetSecret)
+{
+    TStringStream outputStream;
+    auto consumer = NJson::CreateJsonConsumer(&outputStream);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("secrets")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("status").Value("ok")
+                    .Item("value")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("key").Value(SecretKey)
+                            .Item("value").Value(SecretValue)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("status").Value("ok")
+        .EndMap();
+
+    consumer->Flush();
+
+    SetCallback(outputStream.Str(), AlsoOurTvmId);
+
+    auto config = CreateDefaultSecretVaultServiceConfig();
+    config->DefaultTvmIdForNewTokens = OurTvmId;
+    config->DefaultTvmIdForExistingTokens = AlsoOurTvmId;
+
+    auto service = CreateDefaultSecretVaultService(config);
+
+    std::vector<ISecretVaultService::TSecretSubrequest> subrequests;
+    subrequests.push_back({
+        SecretId,
+        SecretVersion,
+        SecretDelegationToken,
+        SecretSignature});
+
+    ASSERT_TRUE(WaitFor(service->GetSecrets(subrequests)).IsOK());
+}
+
+TEST_F(TDefaultSecretVaultTest, MultipleTvmsGetToken)
+{
+    TStringStream outputStream;
+    auto jsonConfig = New<NJson::TJsonFormatConfig>();
+    jsonConfig->EncodeUtf8 = false;
+    auto consumer = NJson::CreateJsonConsumer(&outputStream, NYson::EYsonType::Node, jsonConfig);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("status").Value("ok")
+            .Item("token").Value(SecretDelegationToken)
+        .EndMap();
+    consumer->Flush();
+
+    SetCallback(outputStream.Str(), AlsoOurTvmId);
+
+    auto config = CreateDefaultSecretVaultServiceConfig();
+    config->DefaultTvmIdForNewTokens = OurTvmId;
+    config->DefaultTvmIdForExistingTokens = AlsoOurTvmId;
+
+    auto service = CreateDefaultSecretVaultService(config);
+
+    ISecretVaultService::TDelegationTokenRequest request = {
+        UserTicket,
+        SecretId,
+        SecretSignature,
+        "a comment",
+        AlsoOurTvmId,
+    };
+
+    auto response = WaitFor(service->GetDelegationToken(request));
+    if (IsDummyTvmServiceImplementation()) {
+        ASSERT_FALSE(response.IsOK());
+    } else {
+        ASSERT_TRUE(response.IsOK());
+        ASSERT_EQ(SecretDelegationToken, response.ValueOrThrow().Token);
+        ASSERT_EQ(AlsoOurTvmId, response.ValueOrThrow().TvmId);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

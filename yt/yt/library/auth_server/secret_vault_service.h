@@ -19,13 +19,9 @@ struct ISecretVaultService
         TString SecretVersion;
         TString DelegationToken;
         TString Signature;
+        std::optional<TTvmId> TvmId;
 
-        bool operator == (const TSecretSubrequest& other) const
-        {
-            return
-                std::tie(SecretId, SecretVersion, DelegationToken, Signature) ==
-                std::tie(other.SecretId, other.SecretVersion, other.DelegationToken, other.Signature);
-        }
+        auto operator <=> (const TSecretSubrequest& other) const = default;
 
         operator size_t() const
         {
@@ -34,6 +30,7 @@ struct ISecretVaultService
             HashCombine(hash, SecretVersion);
             HashCombine(hash, DelegationToken);
             HashCombine(hash, Signature);
+            HashCombine(hash, TvmId);
             return hash;
         }
     };
@@ -61,15 +58,24 @@ struct ISecretVaultService
         TString SecretId;
         TString Signature;
         TString Comment;
+        std::optional<TTvmId> TvmId;
     };
 
-    virtual TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) = 0;
+    struct TDelegationTokenResponse
+    {
+        TString Token;
+        TTvmId TvmId;
+    };
+
+    virtual TFuture<TDelegationTokenResponse> GetDelegationToken(
+        TDelegationTokenRequest request) = 0;
 
     struct TRevokeDelegationTokenRequest
     {
         TString DelegationToken;
         TString SecretId;
         TString Signature;
+        std::optional<TTvmId> TvmId;
     };
 
     virtual void RevokeDelegationToken(TRevokeDelegationTokenRequest request) = 0;

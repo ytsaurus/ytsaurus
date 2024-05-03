@@ -19,9 +19,10 @@ public:
         return MakeFuture(std::move(results));
     }
 
-    TFuture<TString> GetDelegationToken(TDelegationTokenRequest /*request*/) override
+    TFuture<TDelegationTokenResponse> GetDelegationToken(
+        TDelegationTokenRequest /*request*/) override
     {
-        return MakeFuture<TString>(TError("Secret Vault is not configured"));
+        return MakeFuture<TDelegationTokenResponse>(TError("Secret Vault is not configured"));
     }
 
     void RevokeDelegationToken(TRevokeDelegationTokenRequest /*request*/) override

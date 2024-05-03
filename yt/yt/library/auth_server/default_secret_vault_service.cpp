@@ -54,11 +54,13 @@ class TDefaultSecretVaultService
 public:
     TDefaultSecretVaultService(
         TDefaultSecretVaultServiceConfigPtr config,
-        ITvmServicePtr tvmService,
+        std::vector<ITvmServicePtr> tvmServices,
         IPollerPtr poller,
         NProfiling::TProfiler profiler)
         : Config_(std::move(config))
-        , TvmService_(std::move(tvmService))
+        , TvmServices_(BuildTvmServiceMap(std::move(tvmServices)))
+        , DefaultTvmIdForNewTokens_(DeduceDefaultTvmId(Config_->DefaultTvmIdForNewTokens))
+        , DefaultTvmIdForExistingTokens_(DeduceDefaultTvmId(Config_->DefaultTvmIdForExistingTokens))
         , HttpClient_(Config_->Secure
                       ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
                       : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
@@ -81,10 +83,10 @@ public:
             .Run();
     }
 
-    TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    TFuture<TDelegationTokenResponse> GetDelegationToken(TDelegationTokenRequest request) override
     {
         if (request.Signature.empty() || request.SecretId.empty() || request.UserTicket.empty()) {
-            return MakeFuture<TString>(TError(
+            return MakeFuture<TDelegationTokenResponse>(TError(
                 "Invalid call for delegation token with signature %Qv, secret id %Qv "
                 "and user ticket length %v",
                 request.Signature,
@@ -188,7 +190,12 @@ public:
 
 private:
     const TDefaultSecretVaultServiceConfigPtr Config_;
-    const ITvmServicePtr TvmService_;
+
+    using TTvmServiceMap = THashMap<TTvmId, ITvmServicePtr>;
+    const TTvmServiceMap TvmServices_;
+
+    TTvmId DefaultTvmIdForNewTokens_;
+    TTvmId DefaultTvmIdForExistingTokens_;
 
     const NHttp::IClientPtr HttpClient_;
 
@@ -221,8 +228,7 @@ private:
             const auto headers = New<THeaders>();
             headers->Add("Content-Type", "application/json");
 
-            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
-            const auto body = MakeGetSecretsRequestBody(vaultTicket, subrequests);
+            const auto body = MakeGetSecretsRequestBody(subrequests);
 
             const auto responseBody = HttpPost(url, body, headers);
             const auto response = ParseVaultResponse(responseBody);
@@ -312,7 +318,7 @@ private:
         }
     }
 
-    TString DoGetDelegationToken(TDelegationTokenRequest request)
+    TDelegationTokenResponse DoGetDelegationToken(TDelegationTokenRequest request)
     {
         const auto callId = TGuid::Create();
 
@@ -329,7 +335,8 @@ private:
         try {
             const auto url = MakeRequestUrl(Format("/1/secrets/%v/tokens/", request.SecretId), false);
             const auto headers = New<THeaders>();
-            const auto vaultTicket = TvmService_->GetServiceTicket(Config_->VaultServiceId);
+            const auto& tvmService = GetTvmService(request.TvmId, DefaultTvmIdForNewTokens_);
+            const auto vaultTicket = tvmService->GetServiceTicket(Config_->VaultServiceId);
             headers->Add("Content-Type", "application/json");
             headers->Add("X-Ya-User-Ticket", request.UserTicket);
             headers->Add("X-Ya-Service-Ticket", vaultTicket);
@@ -352,7 +359,10 @@ private:
                     GetWarningMessageFromResponse(response));
             }
 
-            return response->GetChildValueOrThrow<TString>("token");
+            return TDelegationTokenResponse{
+                .Token = response->GetChildValueOrThrow<TString>("token"),
+                .TvmId = tvmService->GetSelfTvmId(),
+            };
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
             auto error = TError("Failed to get delegation token from Vault")
@@ -377,7 +387,6 @@ private:
     }
 
     TSharedRef MakeGetSecretsRequestBody(
-        const TString& vaultTicket,
         const std::vector<TSecretSubrequest>& subrequests)
     {
         TString body;
@@ -388,9 +397,12 @@ private:
                 .Item("tokenized_requests").DoListFor(subrequests,
                     [&] (auto fluent, const auto& subrequest) {
                         auto map = fluent.Item().BeginMap();
-                        if (!vaultTicket.empty()) {
-                            map.Item("service_ticket").Value(vaultTicket);
-                        }
+                        const auto& tvmService = GetTvmService(
+                            subrequest.TvmId,
+                            DefaultTvmIdForExistingTokens_);
+                        const auto vaultTicket =
+                            tvmService->GetServiceTicket(Config_->VaultServiceId);
+                        map.Item("service_ticket").Value(vaultTicket);
                         if (!subrequest.DelegationToken.empty()) {
                             map.Item("token").Value(subrequest.DelegationToken);
                         }
@@ -418,7 +430,7 @@ private:
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
                 .Item("signature").Value(request.Signature)
-                .Item("tvm_client_id").Value(TvmService_->GetSelfTvmId())
+                .Item("tvm_client_id").Value(request.TvmId.value_or(DefaultTvmIdForNewTokens_))
                 .DoIf(!request.Comment.empty(),
                     [&] (auto fluent) {
                         fluent.Item("comment").Value(request.Comment);
@@ -433,6 +445,8 @@ private:
         TString body;
         TStringOutput stream(body);
         auto jsonWriter = CreateJsonConsumer(&stream);
+        const auto& tvmService = GetTvmService(request.TvmId, DefaultTvmIdForExistingTokens_);
+        const auto vaultTicket = tvmService->GetServiceTicket(Config_->VaultServiceId);
         BuildYsonFluently(jsonWriter.get())
             .BeginMap()
                 .Item("tokenized_requests").BeginList()
@@ -440,8 +454,7 @@ private:
                         .Item("token").Value(request.DelegationToken)
                         .Item("signature").Value(request.Signature)
                         .Item("secret_uuid").Value(request.SecretId)
-                        .Item("service_ticket")
-                            .Value(TvmService_->GetServiceTicket(Config_->VaultServiceId))
+                        .Item("service_ticket").Value(vaultTicket)
                     .EndMap()
                 .EndList()
             .EndMap();
@@ -544,17 +557,55 @@ private:
         auto warningMessageNode = node->FindChild("warning_message");
         return warningMessageNode ? warningMessageNode->GetValue<TString>() : "Vault warning";
     }
+
+    static TTvmServiceMap BuildTvmServiceMap(std::vector<ITvmServicePtr> tvmServices)
+    {
+        TTvmServiceMap result;
+        for (auto& tvmService : tvmServices) {
+            TTvmId id = tvmService->GetSelfTvmId();
+            auto [_, inserted] = result.try_emplace(id, std::move(tvmService));
+            THROW_ERROR_EXCEPTION_UNLESS(inserted,
+                "Multiple TVM services binding to same id %v",
+                id);
+        }
+        return result;
+    }
+
+    TTvmId DeduceDefaultTvmId(std::optional<TTvmId> configuredTvmId) const
+    {
+        if (configuredTvmId.has_value()) {
+            THROW_ERROR_EXCEPTION_UNLESS(TvmServices_.contains(configuredTvmId.value()),
+                "Requested TVM id %v not provided",
+                configuredTvmId.value());
+            return configuredTvmId.value();
+        } else {
+            THROW_ERROR_EXCEPTION_UNLESS(TvmServices_.size() == 1,
+                "Cannot deduce which TVM service to use out of %v",
+                TvmServices_.size());
+            return TvmServices_.begin()->first;
+        }
+    }
+
+    ITvmServicePtr GetTvmService(std::optional<TTvmId> requestedTvmId, TTvmId defaultTvmId) const
+    {
+        TTvmId effectiveTvmId = requestedTvmId.value_or(defaultTvmId);
+        auto it = TvmServices_.find(effectiveTvmId);
+        THROW_ERROR_EXCEPTION_IF(it == TvmServices_.end(),
+                "Requested TVM id %v not provided",
+                effectiveTvmId);
+        return it->second;
+    }
 }; // TDefaultSecretVaultService
 
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
-    ITvmServicePtr tvmService,
+    std::vector<ITvmServicePtr> tvmServices,
     IPollerPtr poller,
     NProfiling::TProfiler profiler)
 {
     return New<TDefaultSecretVaultService>(
         std::move(config),
-        std::move(tvmService),
+        std::move(tvmServices),
         std::move(poller),
         std::move(profiler));
 }

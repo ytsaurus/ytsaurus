@@ -320,6 +320,8 @@ public:
     TString VaultServiceId;
     TString Consumer;
     bool EnableRevocation;
+    std::optional<TTvmId> DefaultTvmIdForNewTokens;
+    std::optional<TTvmId> DefaultTvmIdForExistingTokens;
 
     REGISTER_YSON_STRUCT(TDefaultSecretVaultServiceConfig);
 
