@@ -27,6 +27,10 @@ on:
       image-tag:
         required: true
         type: string
+      nightly-image-tag:
+        required: true
+        type: string
+
     secrets:
       DOCKER_HUB_LOGIN:
         required: true
@@ -47,24 +51,26 @@ jobs:
         run: |
           mkdir -p ../docker-ytsaurus-build
           IMAGE_TAG=${{ inputs.image-tag }}
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
 
           bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
           docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: Query tracker image
         if: ${{ inputs.publish-query-tracker }}
         run: |
           mkdir -p ../docker-query-tracker-build
           IMAGE_TAG=${{ inputs.image-tag }}
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
 
           bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
 
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
-          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: CHYT image
         if: ${{ inputs.publish-chyt }}
@@ -100,19 +106,21 @@ jobs:
         if: ${{ inputs.publish-ytsaurus }}
         run: |
           IMAGE_TAG=${{ inputs.image-tag }}-relwithdebinfo
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-relwithdebinfo
 
           mv ../build_relwithdebinfo/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all
 
           bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
           docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: Query tracker image (relwithdebinfo)
         if: ${{ inputs.publish-query-tracker }}
         run: |
           IMAGE_TAG=${{ inputs.image-tag }}-relwithdebinfo
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-relwithdebinfo
 
           mv ../build_relwithdebinfo/yt/yt/server/all/ytserver-all ../build/yt/yt/server/all/ytserver-all || true
           mv ../build_relwithdebinfo/yt/yql/agent/bin/ytserver-yql-agent ../build/yt/yql/agent/bin/ytserver-yql-agent || true
@@ -120,8 +128,8 @@ jobs:
           bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_relwithdebinfo --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
 
           docker push ytsaurus/query-tracker:${IMAGE_TAG}
-          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
+          docker push ytsaurus/query-tracker-nightly:${NIGHTLY_IMAGE_TAG}
 
       - name: Chyt image (relwithdebinfo)
         if: ${{ inputs.publish-chyt }}
