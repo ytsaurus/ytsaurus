@@ -765,7 +765,7 @@ class DockerRespawner:
     def __init__(
             self,
             image,
-            platform,
+            target_platform,
             docker_path,
             env,
             main_scipt_path=None,
@@ -775,7 +775,7 @@ class DockerRespawner:
             mount=None,
     ):
         self._image = image
-        self._platform = platform
+        self._platform = target_platform
         self._docker_path = docker_path
         self._env = env
         self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
@@ -813,6 +813,11 @@ class DockerRespawner:
         mount_paths.sort()
         return mount_paths
 
+    def _make_docker_platform(self):
+        if self._platform is not None:
+            return "--platform", self._platform
+        return tuple()
+
     def make_command(self):
         yt_env_variables = {
             key: value
@@ -834,7 +839,7 @@ class DockerRespawner:
         docker_mount_args = self._make_docker_mount_args(mount_paths)
         command = [
             self._docker_path, "run",
-            "--platform", self._platform,
+            *self._make_docker_platform(),
             "-it", "--rm",
             *docker_env_args,
             *docker_mount_args,
@@ -860,7 +865,7 @@ class DockerRespawner:
 
 def respawn_in_docker(
         image,
-        target_platform="linux/amd64",
+        target_platform=None,
         docker_path="docker",
         env=None,
         mount=None,

@@ -7,7 +7,7 @@ from yt.wrapper.py_wrapper import DockerRespawner, respawn_in_docker
 def test_docker_respawner():
     respawner = DockerRespawner(
         image="some_image",
-        platform="arm64",
+        target_platform="arm64",
         docker_path="docker_test",
         env={
             "SOME_KEY": "SOME_VALUE",  # should be skipped
