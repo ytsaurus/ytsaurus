@@ -90,7 +90,7 @@ public:
 
     DEFINE_SIGNAL_OVERRIDE(
         void(i64 mapped),
-        ReservedMemoryOvercommited);
+        ReservedMemoryOvercommitted);
 
 public:
     explicit TImpl(IBootstrapBase* bootstrap)
@@ -1170,7 +1170,7 @@ private:
             return;
         }
 
-        ReservedMemoryOvercommited_.Fire(mappedMemory);
+        ReservedMemoryOvercommitted_.Fire(mappedMemory);
     }
 
     void CheckMemoryPressure()

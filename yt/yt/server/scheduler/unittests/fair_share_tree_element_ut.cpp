@@ -629,7 +629,7 @@ protected:
 
     void IncreaseOperationResourceUsage(const TSchedulerOperationElementPtr& operationElement, TJobResources resourceUsageDelta)
     {
-        operationElement->CommitHierarchicalResourceUsage(resourceUsageDelta, /*precommitedResources*/ {});
+        operationElement->CommitHierarchicalResourceUsage(resourceUsageDelta, /*precommittedResources*/ {});
     }
 
     void DoFairShareUpdate(

@@ -131,8 +131,8 @@ public:
             BIND_NO_PROPAGATE(&TJobController::OnResourceReleased, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()),
             EResourcesConsumerType::SchedulerAllocation);
-        JobResourceManager_->SubscribeReservedMemoryOvercommited(
-            BIND_NO_PROPAGATE(&TJobController::OnReservedMemoryOvercommited, MakeWeak(this))
+        JobResourceManager_->SubscribeReservedMemoryOvercommitted(
+            BIND_NO_PROPAGATE(&TJobController::OnReservedMemoryOvercommitted, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
         JobResourceManager_->SubscribeResourceUsageOverdraftOccurred(
             BIND_NO_PROPAGATE(&TJobController::OnResourceUsageOverdraftOccurred, MakeWeak(this))
@@ -1662,7 +1662,7 @@ private:
         }
     }
 
-    void OnReservedMemoryOvercommited(i64 mappedMemory)
+    void OnReservedMemoryOvercommitted(i64 mappedMemory)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 

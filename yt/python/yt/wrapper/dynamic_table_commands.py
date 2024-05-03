@@ -23,6 +23,9 @@ import yt.logger as logger
 from copy import deepcopy
 import time
 
+SYNC_LAST_COMMITTED_TIMESTAMP = 0x3fffffffffffff01
+ASYNC_LAST_COMMITTED_TIMESTAMP = 0x3fffffffffffff04
+# COMPAT(ignat)
 SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 

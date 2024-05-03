@@ -883,7 +883,7 @@ public:
         TJobResources* availableResourceLimitsOutput = nullptr);
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
     void DecreaseHierarchicalResourceUsagePrecommit(const TJobResources& precommittedResources);
-    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommitedResources);
+    void CommitHierarchicalResourceUsage(const TJobResources& resourceUsage, const TJobResources& precommittedResources);
     void ReleaseResources(bool markAsNonAlive);
 
     //! Other methods.

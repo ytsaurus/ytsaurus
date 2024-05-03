@@ -71,7 +71,7 @@ public:
 
     DECLARE_INTERFACE_SIGNAL(
         void(i64 mapped),
-        ReservedMemoryOvercommited);
+        ReservedMemoryOvercommitted);
 
 protected:
     friend TResourceHolder;
