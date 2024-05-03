@@ -892,7 +892,17 @@ TJobResult TJobProxy::RunJob()
 
         OnSpawned();
     } catch (const std::exception& ex) {
+        auto isSupervisorProxyTimeoutError = [] (const TError& error) {
+            auto serviceAttribute = error.Attributes().Find<std::optional<TString>>("service");
+            return error.GetCode() == NYT::EErrorCode::Timeout &&
+                serviceAttribute == TSupervisorServiceProxy::GetDescriptor().ServiceName;
+        };
+
         YT_LOG_ERROR(ex, "Failed to prepare job proxy");
+        auto error = TError(ex);
+        if (error.FindMatching(isSupervisorProxyTimeoutError)) {
+            Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
+        }
         Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
