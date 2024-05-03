@@ -857,6 +857,25 @@ void TError::Load(TStreamLoadContext& context)
     Impl_ = std::move(impl);
 }
 
+std::optional<TError> TError::FindMatching(std::function<bool(const TError&)> filter) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    if (filter(*this)) {
+        return *this;
+    }
+
+    for (const auto& innerError : InnerErrors()) {
+        if (auto innerResult = innerError.FindMatching(filter)) {
+            return innerResult;
+        }
+    }
+
+    return {};
+}
+
 std::optional<TError> TError::FindMatching(TErrorCode code) const
 {
     if (!Impl_) {
@@ -878,21 +897,14 @@ std::optional<TError> TError::FindMatching(TErrorCode code) const
 
 std::optional<TError> TError::FindMatching(const THashSet<TErrorCode>& codes) const
 {
-    if (!Impl_) {
-        return {};
-    }
+    return FindMatching([&] (TErrorCode code) {
+        return codes.contains(code);
+    });
+}
 
-    if (codes.contains(GetCode())) {
-        return *this;
-    }
-
-    for (const auto& innerError : InnerErrors()) {
-        if (auto innerResult = innerError.FindMatching(codes)) {
-            return innerResult;
-        }
-    }
-
-    return {};
+std::optional<TError> TError::FindMatching(std::function<bool(TErrorCode)> filter) const
+{
+    return FindMatching([filter = std::move(filter)] (const TError& error) { return filter(error.GetCode()); });
 }
 
 TError::TErrorOr(std::unique_ptr<TImpl> impl)
