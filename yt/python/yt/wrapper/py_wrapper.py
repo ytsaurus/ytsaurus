@@ -767,6 +767,7 @@ class DockerRespawner:
             image,
             target_platform,
             docker,
+            python,
             env=None,
             main_scipt_path=None,
             cwd=None,
@@ -789,6 +790,7 @@ class DockerRespawner:
         self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
         self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
         self._homedir = homedir if homedir is not None else os.path.expanduser("~")
+        # we need to provide all python libraries to a container to ensure picking works
         self._python_lib_paths = (
             python_lib_paths
             if python_lib_paths is not None else
@@ -813,6 +815,9 @@ class DockerRespawner:
         # use user provided values
         if self._mount is not None:
             return self._mount
+        # if we mount the entire local file system in docker under an arbitrary name
+        # we will break the symlinks,
+        # so we have to find only the paths necessary for work and mount them along the same paths
         mount_paths = [
             path
             for path in [self._cwd, os.path.dirname(self._main_script_path), *self._python_lib_paths]
@@ -832,10 +837,12 @@ class DockerRespawner:
             return ("sudo",)
         return tuple()
 
-
     def make_command(self):
         env = self._env.copy()
+        # ensure using the same image in all operations
         env["YT_BASE_LAYER"] = env.get("YT_BASE_LAYER", self._image)
+        # ATTENTION
+        # we use linux-specific separator for PYTHONPATH
         pythonpath_env = ":".join(self._python_lib_paths)
 
         mount_paths = self._make_mount_paths()
@@ -880,30 +887,39 @@ def respawn_in_docker(
         image,
         target_platform=None,
         docker="docker",
+        python="python3",
         env=None,
         mount=None,
         need_sudo=False,
 ):
     """
-    Decorator for function main.
+    Decorator for function main to prevent problems with pickle.
     The wrapped function will be executed inside the Docker container in order to provide
     the most similar execution environment as on the YTSaurus cluster.
     All operation invocations like yt.run_map automatically assume the specified docker image.
 
     Args:
-        :param bool ordered: force ordered input for mapper.
         :param str image: docker image (same format as in the operation's spec)
         :param Optional[str] target_platform: target platform for the docker container
         :param str docker: docker executable name/path
+        :param str python: python executable name/path
         :param Optional[dict] env: environment variables to pass to the docker container
         If not set it will use global variables with the YT_ prefix
         :param Optional[list[str]] mount: mount points for the docker container
         If not set it will use homedir, cwd and python lib paths
-        :param bool need_sudo: Whether sudo privileges are needed to run docker
+        :param bool need_sudo: whether sudo privileges are needed to run docker
     Example:
+        from yt import wrapper
+        from .lib import mapper
+
         @respawn_in_docker("python3.10")
         def main():
-            pass
+            client = wrapper.YtClient()
+            client.run_map(
+                mapper,
+                source_table=//tmp/foo,
+                destination_table=//tmp/bar,
+            )
 
         if __name__ == "__main__":
             main()
@@ -919,6 +935,7 @@ def respawn_in_docker(
                 env=env,
                 mount=mount,
                 need_sudo=need_sudo,
+                python=python,
             )
             respawner.run()
         return wrapped
