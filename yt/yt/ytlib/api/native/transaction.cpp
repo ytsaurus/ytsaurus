@@ -870,8 +870,6 @@ private:
 
             const auto& rowBuffer = transaction->RowBuffer_;
 
-            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
-
             ModificationsData_.resize(Modifications_.size());
             for (int modificationIndex = 0; modificationIndex < std::ssize(Modifications_); ++modificationIndex) {
                 const auto& modification = Modifications_[modificationIndex];
@@ -885,7 +883,7 @@ private:
                             *modificationSchema,
                             modificationSchema->GetKeyColumnCount(),
                             modificationIdMapping,
-                            modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
+                            /*validateDuplicateAndRequiredValueColumns*/ modification.Type == ERowModificationType::Write);
 
                         if (tableInfo->HunkStorageId) {
                             auto rowPayloads = ExtractHunks(modificationsData.CapturedRow, modificationSchema);
@@ -996,8 +994,6 @@ private:
             auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
-
-            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
 
             std::vector<int> columnIndexToLockIndex;
             GetLocksMapping(
@@ -1113,7 +1109,7 @@ private:
                                 TVersionedRow(modification.Row),
                                 *primarySchema,
                                 primaryIdMapping,
-                                &columnPresenceBuffer,
+                                /*validateDuplicateAndRequiredValueColumns*/ true,
                                 Options_.AllowMissingKeyColumns);
                             if (evaluator) {
                                 evaluator->EvaluateKeys(capturedRow, rowBuffer);
@@ -1126,7 +1122,7 @@ private:
                                 *primarySchema,
                                 primarySchema->GetKeyColumnCount(),
                                 primaryIdMapping,
-                                &columnPresenceBuffer);
+                                /*validateDuplicateAndRequiredValueColumns*/ true);
                             row = capturedRow.ToTypeErasedRow();
                             tabletInfo = GetOrderedTabletForRow(
                                 tableInfo,

@@ -513,13 +513,12 @@ private:
     {
         const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
         const auto& modificationIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
-        // TODO(babenko): maybe pass columnPresenceBuffer.
         auto capturedRow = RowBuffer_->CaptureAndPermuteRow(
             row,
             *primarySchema,
             primarySchema->GetKeyColumnCount(),
             modificationIdMapping,
-            /*columnPresenceBuffer*/ nullptr);
+            /*validateDuplicateAndRequiredValueColumns*/ false);
         if (evaluator) {
             evaluator->EvaluateKeys(capturedRow, RowBuffer_);
         }

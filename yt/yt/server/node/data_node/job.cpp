@@ -1332,7 +1332,7 @@ private:
                     *Schema_,
                     Schema_->GetColumnCount(),
                     idMapping,
-                    nullptr);
+                    /*validateDuplicateAndRequiredValueColumns*/ false);
                 permutedRows.push_back(permutedRow);
             }
 
