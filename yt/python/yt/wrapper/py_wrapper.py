@@ -877,7 +877,7 @@ def respawn_in_docker(
                 return func(*args, **kwargs)
             respawner = DockerRespawner(
                 image=image,
-                platform=target_platform,
+                target_platform=target_platform,
                 docker_path=docker_path,
                 env=environment,
                 mount=mount,
