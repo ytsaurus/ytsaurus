@@ -70,6 +70,7 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -86,7 +87,11 @@ jobs:
           else
             IMAGE_TAG=dev-test
           fi
+
+          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=format:%cs)-${GITHUB_SHA}
+
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
   docker:
     name: Docker images
@@ -101,6 +106,7 @@ jobs:
       publish-local: true
       publish-strawberry: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
       DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
