@@ -8,9 +8,9 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
+YT_PREVENT_TLS_CACHING void LazyDictCopy(TLazyDict* source, TLazyDict* destination, bool deep)
 {
-    YT_THREAD_LOCAL(PyObject*) deepcopyFunction = nullptr;
+    thread_local PyObject* deepcopyFunction = nullptr;
     if (!deepcopyFunction) {
         auto copyModule = Py::Object(PyImport_ImportModule("copy"), /* owned */ true);
         if (copyModule.ptr() == nullptr) {

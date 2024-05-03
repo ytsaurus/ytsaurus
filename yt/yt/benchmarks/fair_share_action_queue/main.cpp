@@ -155,7 +155,7 @@ std::vector<i64> TThreadHistogram::ComputePercentileValues(TRange<double> percen
     return THistogram::ComputePercentileValues(timeBins, timeOffsets, percentiles);
 }
 
-thread_local TThreadHistogram ThreadHistogram;
+YT_DEFINE_THREAD_LOCAL(TThreadHistogram, ThreadHistogram);
 
 struct TTask final
 {
@@ -189,7 +189,7 @@ struct TTask final
     {
         if (WaitTimeHistogram && ScheduledAt != 0) {
             auto waitTime = CpuDurationToDuration(GetCpuInstant() - ScheduledAt);
-            ThreadHistogram.Add(waitTime.MicroSeconds());
+            ThreadHistogram().Add(waitTime.MicroSeconds());
         }
         auto iteration = IterationsLeft--;
         YT_VERIFY(iteration > 0);

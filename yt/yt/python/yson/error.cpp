@@ -13,9 +13,9 @@ Py::Exception CreateYsonError(const TString& message, const TError& error)
     return CreateYsonError(message, NYTree::ConvertTo<Py::Object>(std::vector<TError>({error})));
 }
 
-Py::Exception CreateYsonError(const TString& message, TContext* context)
+YT_PREVENT_TLS_CACHING Py::Exception CreateYsonError(const TString& message, TContext* context)
 {
-    YT_THREAD_LOCAL(PyObject*) ysonErrorClass = nullptr;
+    thread_local PyObject* ysonErrorClass = nullptr;
     if (!ysonErrorClass) {
         auto ysonModule = Py::Module(PyImport_ImportModule("yt.yson.common"), /* owned */ true);
         ysonErrorClass = PyObject_GetAttrString(ysonModule.ptr(), "YsonError");
