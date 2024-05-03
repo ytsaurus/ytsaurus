@@ -57,33 +57,33 @@ protected:
     // Advances tokenizer over a slash unless it's optional here.
     void SkipSlash();
     // Throws if the token type is wrong.
-    void Expect(NYPath::ETokenType type);
+    void Expect(NYPath::ETokenType type) const;
     // Returns true if the tokenizer has completed the path.
-    bool PathComplete();
+    bool PathComplete() const;
 
     /// Index management.
     // Computes the repeated field index from the current token.
-    TErrorOr<TIndexParseResult> ParseCurrentListIndex(int size);
+    TErrorOr<TIndexParseResult> ParseCurrentListIndex(int size) const;
     // Generates a map entry message with the key converted to appropriate type and filled in.
     std::unique_ptr<NProtoBuf::Message> MakeMapKeyMessage(
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
-        const TString& key);
+        const TString& key) const;
 
     /// Error management.
     // Same as error.h but uses our throw.
     template <typename TValue>
-    TValue ValueOrThrow(TErrorOr<TValue> value);
+    TValue ValueOrThrow(TErrorOr<TValue> value) const;
     // Feeds the arguments to TError, enriches it with path info and throws.
     template <typename... Args>
-    [[noreturn]] void Throw(Args&&... args);
+    [[noreturn]] void Throw(Args&&... args) const;
 };
 
 /// Construction kit for pain-free (hopefully) protobuf traversals.
 //
-// 1. Make your own visitor by subclassing a suitable specialization of TProtoVisitor. The template
-// parameter is the fully qualified (with const, ref, or pointer) message wrapper (pointer or
-// container of pointers) supplied to all methods. See traits for actual specializations.
-// Or write your own.
+// 1. Make your own visitor by subclassing a suitable specialization of TProtoVisitor. Make it final
+// to inline virtuals. The template parameter is the fully qualified (with const, ref, or pointer)
+// message wrapper (pointer or container of pointers) supplied to all methods. See traits for actual
+// specializations. Or write your own.
 //
 // 2. Set policy flags of TProtoVisitorBase in the constructor.
 //
@@ -161,6 +161,12 @@ protected:
         const NProtoBuf::Descriptor* descriptor,
         TString name,
         EVisitReason reason);
+    // Called when there is a problem with looking up the message descriptor (e.g., mismatching
+    // descriptors in a wrap or an empty wrap). Throws the error by default.
+    virtual void OnDescriptorError(
+        TMessageParam message,
+        EVisitReason reason,
+        TError error);
 
     /// Generic field router. Calls map/repeated/singular variants.
     virtual void VisitField(
@@ -196,18 +202,21 @@ protected:
         TMessageParam entryMessage,
         TString key,
         EVisitReason reason);
-    // The entry was not located. The specific parameters are:
+    // There was an error looking up the entry (key not found or mismatching in the wrap). Throws
+    // the error by default. The specific parameters are:
     // - message is the one containing the map
     // - fieldDescriptor describes the map (see its message_type()->map_key() and map_value())
     // - keyMessage is the synthetic entry with the key field set used to locate the message;
     //   consider using it if you are creating new entries
     // - key is the string representation of the key for convenience.
-    virtual void VisitMissingMapFieldEntry(
+    // If the error was seen in VisitWholeMapField, key parameters are not provided.
+    virtual void OnKeyError(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         std::unique_ptr<NProtoBuf::Message> keyMessage,
         TString key,
-        EVisitReason reason);
+        EVisitReason reason,
+        TError error);
 
     /// Repeated field section.
     // Called for, yes, repeated fields.
@@ -235,15 +244,47 @@ protected:
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         int index,
         EVisitReason reason);
+    // Called when there is a problem with evaluating field size (e.g., mismatching sizes in a
+    // wrap). Throws the error by default.
+    virtual void OnSizeError(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error);
+    // Called when there is a problem with evaluating field index (e.g., out of bounds).
+    // Throws the error by default unless missing values are allowed.
+    virtual void OnIndexError(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error);
 
     /// Singular field section.
-    // Called to visit a plain old singular field. Checks presence according to flags and reason.
-    // Also called by default from VisitMapFieldEntry. Be careful about clearing that one.
-    // Default implementation calls VisitMessage or throws.
+    // Called to visit a plain old singular field. Checks presence and calls
+    // Visit[Present|Missing]SingularField or OnPresenceError.
     virtual void VisitSingularField(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason);
+    // Called to visit a present singular field. Also called by default from VisitMapFieldEntry.
+    // Default implementation calls VisitMessage or throws.
+    virtual void VisitPresentSingularField(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason);
+    // Called to visit a missing singular field. Throws unless convinced otherwise by flags and
+    // reason.
+    virtual void VisitMissingSingularField(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason);
+    // Called when there is a problem with evaluating field precense (e.g., mismatching presence in
+    // a wrap). Throws the error by default.
+    virtual void OnPresenceError(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

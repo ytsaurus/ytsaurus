@@ -70,6 +70,7 @@ struct TProtoVisitorTraits
 // - std::pair<[const] Message*, [const] Message*>&
 // - std::vector<[const] Message*>&
 // - TCompactVector<[const] Message*, N>&
+// Null message pointers are allowed and are treated meaningfully by all methods.
 
 ////////////////////////////////////////////////////////////////////////////////
 

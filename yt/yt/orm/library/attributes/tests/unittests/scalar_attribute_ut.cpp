@@ -873,7 +873,7 @@ TEST_F(TScalarAttributesEqualitySuite, Simple)
     Message1.set_bool_field(false);
 
     // Yson nodes comparison does not consider not set field and default field values equal.
-    EXPECT_EQ(AreEqual("/bool_field"), true);
+    EXPECT_FALSE(AreEqual("/bool_field"));
 
     Message1.set_int32_field(15);
     Message2.set_int32_field(16);
@@ -889,6 +889,7 @@ TEST_F(TScalarAttributesEqualitySuite, Map)
     auto getMap = [] (NProto::TMessage& message) -> auto& {
         return *message.mutable_string_to_int32_map();
     };
+    EXPECT_TRUE(AreEqual("/string_to_int32_map"));
     getMap(Message1)["a"] = 42;
     EXPECT_FALSE(AreEqual("/string_to_int32_map"));
 

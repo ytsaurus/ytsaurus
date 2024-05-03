@@ -12,7 +12,7 @@ namespace NYT::NOrm::NAttributes {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TValue>
-TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> value)
+TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> value) const
 {
     if (value.IsOK()) {
         return std::move(value).Value();
@@ -22,7 +22,7 @@ TValue TProtoVisitorBase::ValueOrThrow(TErrorOr<TValue> value)
 }
 
 template <typename... Args>
-[[noreturn]] void TProtoVisitorBase::Throw(Args&&... args)
+[[noreturn]] void TProtoVisitorBase::Throw(Args&&... args) const
 {
     THROW_ERROR TError(std::forward<Args>(args)...)
         << TErrorAttribute("path", Tokenizer_.GetPath())
@@ -62,9 +62,14 @@ void TProtoVisitor<TWrappedMessage>::VisitMessage(TMessageParam message, EVisitR
     } else {
         Expect(NYPath::ETokenType::Literal);
 
-        auto* descriptor = ValueOrThrow(TTraits::GetDescriptor(message));
+        auto errorOrDescriptor = TTraits::GetDescriptor(message);
+        if (!errorOrDescriptor.IsOK()) {
+            OnDescriptorError(message, reason, std::move(errorOrDescriptor));
+            return;
+        }
+        const auto* descriptor = errorOrDescriptor.Value();
 
-        auto* fieldDescriptor = descriptor->FindFieldByName(Tokenizer_.GetLiteralValue());
+        const auto* fieldDescriptor = descriptor->FindFieldByName(Tokenizer_.GetLiteralValue());
         if (fieldDescriptor) {
             Tokenizer_.Advance();
             VisitField(message, fieldDescriptor, EVisitReason::Path);
@@ -83,7 +88,12 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMessage(TMessageParam message, EV
         Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in message traversals");
     }
 
-    auto* descriptor = ValueOrThrow(TTraits::GetDescriptor(message));
+    auto errorOrDescriptor = TTraits::GetDescriptor(message);
+    if (!errorOrDescriptor.IsOK()) {
+        OnDescriptorError(message, reason, std::move(errorOrDescriptor));
+        return;
+    }
+    const auto* descriptor = errorOrDescriptor.Value();
 
     for (int i = 0; !StopIteration_ && i < descriptor->field_count(); ++i) {
         NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
@@ -110,6 +120,18 @@ void TProtoVisitor<TWrappedMessage>::VisitUnrecognizedField(
             name,
             descriptor->full_name());
     }
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::OnDescriptorError(
+    TMessageParam message,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(reason);
+
+    Throw(std::move(error));
 }
 
 template <typename TWrappedMessage>
@@ -160,18 +182,23 @@ void TProtoVisitor<TWrappedMessage>::VisitMapField(
             message,
             fieldDescriptor,
             keyMessage.get());
-        if (errorOrEntry.GetCode() == EErrorCode::MissingKey) {
-            VisitMissingMapFieldEntry(
+        if (!errorOrEntry.IsOK()) {
+            OnKeyError(
                 message,
                 fieldDescriptor,
                 std::move(keyMessage),
                 std::move(key),
-                EVisitReason::Path);
+                EVisitReason::Path,
+                std::move(errorOrEntry));
             return;
         }
-        auto entry = ValueOrThrow(std::move(errorOrEntry));
 
-        VisitMapFieldEntry(message, fieldDescriptor, entry, std::move(key), EVisitReason::Path);
+        VisitMapFieldEntry(
+            message,
+            fieldDescriptor,
+            std::move(errorOrEntry).Value(),
+            std::move(key),
+            EVisitReason::Path);
     }
 }
 
@@ -185,20 +212,23 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeMapField(
         Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in map traversals");
     }
 
-    auto entries = ValueOrThrow(
-        TTraits::GetMessagesFromWholeMapField(message, fieldDescriptor));
+    auto errorOrEntries = TTraits::GetMessagesFromWholeMapField(message, fieldDescriptor);
+    if (!errorOrEntries.IsOK()) {
+        OnKeyError(
+            message,
+            fieldDescriptor,
+            {},
+            {},
+            reason,
+            std::move(errorOrEntries));
+        return;
+    }
+    auto& entries = errorOrEntries.Value();
 
-    // Let's consume the map without reallocations.
-    auto it = entries.begin();
-    while (!StopIteration_ && it != entries.end()) {
-        TString key = it->first;
-        TMessageParam entry = std::move(it->second);
-        entries.erase(it);
-        it = entries.begin();
-
+    for (auto& [key, entry] : entries) {
         NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
         Stack_.Push(key);
-        VisitMapFieldEntry(message, fieldDescriptor, entry, std::move(key), reason);
+        VisitMapFieldEntry(message, fieldDescriptor, entry, key, reason);
         Stack_.Pop();
     }
 }
@@ -215,27 +245,29 @@ void TProtoVisitor<TWrappedMessage>::VisitMapFieldEntry(
     Y_UNUSED(key);
 
     auto* valueFieldDescriptor = fieldDescriptor->message_type()->map_value();
-    VisitSingularField(entryMessage, valueFieldDescriptor, reason);
+    VisitPresentSingularField(entryMessage, valueFieldDescriptor, reason);
 }
 
 template <typename TWrappedMessage>
-void TProtoVisitor<TWrappedMessage>::VisitMissingMapFieldEntry(
+void TProtoVisitor<TWrappedMessage>::OnKeyError(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     std::unique_ptr<NProtoBuf::Message> keyMessage,
     TString key,
-    EVisitReason reason)
+    EVisitReason reason,
+    TError error)
 {
     Y_UNUSED(message);
     Y_UNUSED(fieldDescriptor);
     Y_UNUSED(keyMessage);
+    Y_UNUSED(key);
     Y_UNUSED(reason);
 
-    if (AllowMissing_) {
+    if (AllowMissing_ && error.GetCode() == EErrorCode::MissingKey) {
         return;
     }
 
-    Throw(EErrorCode::MissingKey, "Map does not contain key %v", key);
+    Throw(std::move(error));
 }
 
 template <typename TWrappedMessage>
@@ -261,12 +293,18 @@ void TProtoVisitor<TWrappedMessage>::VisitRepeatedField(
         Tokenizer_.Advance();
         VisitWholeRepeatedField(message, fieldDescriptor, EVisitReason::Asterisk);
     } else {
-        int size = ValueOrThrow(TTraits::GetRepeatedFieldSize(message, fieldDescriptor));
-        auto errorOrIndexParseResult = ParseCurrentListIndex(size);
-        if (AllowMissing_ && errorOrIndexParseResult.GetCode() == EErrorCode::OutOfBounds) {
+        auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
+        if (!errorOrSize.IsOK()) {
+            OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
             return;
         }
-        auto indexParseResult = ValueOrThrow(std::move(errorOrIndexParseResult));
+        auto errorOrIndexParseResult = ParseCurrentListIndex(errorOrSize.Value());
+        if (!errorOrIndexParseResult.IsOK()) {
+            OnIndexError(message, fieldDescriptor, reason, std::move(errorOrIndexParseResult));
+            return;
+        }
+        Tokenizer_.Advance();
+        auto& indexParseResult = errorOrIndexParseResult.Value();
         switch (indexParseResult.IndexType) {
             case EListIndexType::Absolute:
                 VisitRepeatedFieldEntry(
@@ -298,9 +336,13 @@ void TProtoVisitor<TWrappedMessage>::VisitWholeRepeatedField(
         Throw(EErrorCode::Unimplemented, "Cannot handle asterisks in repeated field traversals");
     }
 
-    int size = ValueOrThrow(TTraits::GetRepeatedFieldSize(message, fieldDescriptor));
+    auto errorOrSize = TTraits::GetRepeatedFieldSize(message, fieldDescriptor);
+    if (!errorOrSize.IsOK()) {
+        OnSizeError(message, fieldDescriptor, reason, std::move(errorOrSize));
+        return;
+    }
 
-    for (int index = 0; !StopIteration_ && index < size; ++index) {
+    for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
         NYPath::TTokenizer::TCheckpoint checkpoint(Tokenizer_);
         Stack_.Push(index);
         VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
@@ -347,22 +389,62 @@ void TProtoVisitor<TWrappedMessage>::VisitRepeatedFieldEntryRelative(
 }
 
 template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::OnSizeError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Throw(std::move(error));
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::OnIndexError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    if (AllowMissing_ && error.GetCode() == EErrorCode::OutOfBounds) {
+        return;
+    }
+
+    Throw(std::move(error));
+}
+
+template <typename TWrappedMessage>
 void TProtoVisitor<TWrappedMessage>::VisitSingularField(
     TMessageParam message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
-    if (fieldDescriptor->has_presence()) {
-        bool present = ValueOrThrow(TTraits::IsSingularFieldPresent(message, fieldDescriptor));
-        if (!present) {
-            if (!AllowMissing_ && reason == EVisitReason::Path) {
-                Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
-            } else {
-                return;
-            }
-        }
+    auto errorOrPresent = TTraits::IsSingularFieldPresent(message, fieldDescriptor);
+    if (!errorOrPresent.IsOK()) {
+        OnPresenceError(message, fieldDescriptor, reason, std::move(errorOrPresent));
+        return;
+    }
+    if (!errorOrPresent.Value()) {
+        VisitMissingSingularField(message, fieldDescriptor, reason);
+        return;
     }
 
+    VisitPresentSingularField(message, fieldDescriptor, reason);
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::VisitPresentSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
     if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
         TMessageReturn next =
             TTraits::GetMessageFromSingularField(message, fieldDescriptor);
@@ -375,6 +457,34 @@ void TProtoVisitor<TWrappedMessage>::VisitSingularField(
     } else {
         Throw(EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
     }
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::VisitMissingSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(reason);
+
+    if (!AllowMissing_ && reason == EVisitReason::Path) {
+        Throw(EErrorCode::MissingField, "Missing field %v", fieldDescriptor->full_name());
+    }
+}
+
+template <typename TWrappedMessage>
+void TProtoVisitor<TWrappedMessage>::OnPresenceError(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason,
+    TError error)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Throw(std::move(error));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

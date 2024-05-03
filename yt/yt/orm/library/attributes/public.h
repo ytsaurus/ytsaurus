@@ -20,7 +20,6 @@ DEFINE_ENUM(EAttributePathMatchResult,
 YT_DEFINE_ERROR_ENUM(
     ((Empty)                    (70001))
     ((MalformedPath)            (70002))
-    ((MissingMessage)           (70003))
     ((MissingField)             (70004))
     ((MissingKey)               (70005))
     ((InvalidMap)               (70006))

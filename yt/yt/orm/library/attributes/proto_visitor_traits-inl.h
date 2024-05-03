@@ -17,28 +17,22 @@ namespace NDetail {
 template <typename TValue>
 void Reduce(
     TErrorOr<TValue>& currentValue,
-    const TErrorOr<TValue>& newValue,
-    EErrorCode errorCode)
+    TErrorOr<TValue> newValue,
+    EErrorCode mismatchErrorCode)
 {
-    if (currentValue.IsOK()) {
-        if (newValue.IsOK()) {
-            if (currentValue.Value() == newValue.Value) {
-                return;
-            } else {
-                currentValue = TError(errorCode, "Mismatched messages")
-                    << TErrorAttribute("first", currentValue.Value())
-                    << TErrorAttribute("other", newValue.Value());
+    if (currentValue.IsOK() && newValue.IsOK()) {
+        if (currentValue.Value() != newValue.Value()) {
+            auto result = TError(mismatchErrorCode, "Mismatched messages");
+            if constexpr (std::is_integral_v<TValue>) {
+                result <<= TErrorAttribute("value_current", currentValue.Value());
+                result <<= TErrorAttribute("value_new", newValue.Value());
             }
-        } else {
-            currentValue = TError(errorCode, "Some messages had errors")
-                << newValue;
+            currentValue = result;
         }
-    } else {
-        if (currentValue.GetCode() == EErrorCode::Empty) {
-            currentValue = newValue;
-        } else if (!newValue.IsOK()) {
-            currentValue <<= newValue;
-        }
+    } else if (currentValue.GetCode() == EErrorCode::Empty) {
+        currentValue = std::move(newValue);
+    } else if (newValue.GetCode() != EErrorCode::Empty) {
+        ReduceErrors(currentValue, std::move(newValue), mismatchErrorCode);
     }
 }
 
@@ -57,10 +51,10 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
     static TErrorOr<const NProtoBuf::Descriptor*> GetDescriptor(TMessageParam message)
     {
         if (message == nullptr) {
-            return TError(EErrorCode::MissingMessage, "Received nullptr instead of message");
-        } else {
-            return message->GetDescriptor();
+            return TError(EErrorCode::Empty, "Received nullptr instead of message");
         }
+
+        return message->GetDescriptor();
     }
 
     static TErrorOr<bool> IsSingularFieldPresent(
@@ -68,7 +62,15 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
         YT_VERIFY(!fieldDescriptor->is_repeated());
-        YT_VERIFY(fieldDescriptor->has_presence());
+
+        if (message == nullptr) {
+            return false;
+        }
+
+        if (!fieldDescriptor->has_presence()) {
+            return true;
+        }
+
         return message->GetReflection()->HasField(*message, fieldDescriptor);
     }
 
@@ -77,6 +79,11 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
         YT_VERIFY(!fieldDescriptor->is_repeated());
+
+        if (message == nullptr) {
+            return nullptr;
+        }
+
         if constexpr (std::is_const_v<TQualifiedMessage>) {
             return &message->GetReflection()->GetMessage(*message, fieldDescriptor);
         } else {
@@ -89,6 +96,11 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
         YT_VERIFY(fieldDescriptor->is_repeated());
+
+        if (message == nullptr) {
+            return 0;
+        }
+
         return message->GetReflection()->FieldSize(*message, fieldDescriptor);
     }
 
@@ -98,6 +110,11 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         int index)
     {
         YT_VERIFY(fieldDescriptor->is_repeated());
+
+        if (message == nullptr) {
+            return nullptr;
+        }
+
         if constexpr (std::is_const_v<TQualifiedMessage>) {
             return &message->GetReflection()->GetRepeatedMessage(
                 *message,
@@ -118,6 +135,10 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
     {
         YT_VERIFY(fieldDescriptor->is_map());
 
+        if (message == nullptr) {
+            return nullptr;
+        }
+
         auto errorOrIndex = LocateMapEntry(message, fieldDescriptor, keyMessage);
         if (!errorOrIndex.IsOK()) {
             return TError(errorOrIndex);
@@ -137,6 +158,8 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
         TMapReturn result;
         result.reserve(size);
 
+        // Null message means zero size, empty return.
+
         auto* keyFieldDescriptor = fieldDescriptor->message_type()->map_key();
 
         for (int index = 0; index < size; ++index) {
@@ -149,6 +172,7 @@ struct TProtoVisitorTraits<TQualifiedMessage*>
                 std::move(errorOrKey).Value(),
                 std::move(entry));
             if (!inserted) {
+                // Strictly speaking, this is allowed by protobuf, but not by yson.
                 return TError(EErrorCode::InvalidMap, "Map has equal keys");
             }
         }
@@ -178,10 +202,12 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
     template <typename TValue>
     static TErrorOr<std::pair<TValue, TValue>> Combine(
         TErrorOr<TValue> first,
-        TErrorOr<TValue> second)
+        TErrorOr<TValue> second,
+        EErrorCode mismatchErrorCode)
     {
         if (!first.IsOK() || !second.IsOK()) {
-            return CombineErrors(std::move(first), std::move(second));
+            ReduceErrors(first, std::move(second), mismatchErrorCode);
+            return TError(first);
         } else {
             return Combine(std::move(first).Value(), std::move(second).Value());
         }
@@ -261,7 +287,8 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
             TSubTraits::GetMessageFromMapFieldEntry(
                 message.second,
                 fieldDescriptor,
-                keyMessage));
+                keyMessage),
+            EErrorCode::MismatchingKeys);
     }
 
     using TMapReturn = THashMap<TString, TMessageReturn>;
@@ -269,19 +296,25 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
-        auto errorsOrSubResults = Combine(
-            TSubTraits::GetMessagesFromWholeMapField(message.first, fieldDescriptor),
-            TSubTraits::GetMessagesFromWholeMapField(message.second, fieldDescriptor));
+        auto errorsOrSubResults1 =
+            TSubTraits::GetMessagesFromWholeMapField(message.first, fieldDescriptor);
+        auto errorsOrSubResults2 =
+            TSubTraits::GetMessagesFromWholeMapField(message.second, fieldDescriptor);
 
-        if (!errorsOrSubResults.IsOK()) {
-            return errorsOrSubResults;
+        if (!errorsOrSubResults1.IsOK() || !errorsOrSubResults2.IsOK()) {
+            ReduceErrors(
+                errorsOrSubResults1,
+                std::move(errorsOrSubResults2),
+                EErrorCode::MismatchingKeys);
+            return TError(errorsOrSubResults1);
         }
 
-        const auto& subResults1 = errorsOrSubResults.Value().first;
-        const auto& subResults2 = errorsOrSubResults.Value().second;
+        auto& subResults1 = errorsOrSubResults1.Value();
+        auto& subResults2 = errorsOrSubResults2.Value();
 
         if (subResults1.size() != subResults2.size()) {
-            return TError(EErrorCode::MismatchingSize,
+            // The key sets are different. MismatchingSize is reserved for repeated fields.
+            return TError(EErrorCode::MismatchingKeys,
                 "Mismatching map sizes %v vs %v",
                 subResults1.size(),
                 subResults2.size());
@@ -290,15 +323,15 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
         TMapReturn result;
         result.reserve(subResults1.size());
 
-        for (auto it1 : subResults1) {
-            auto it2 = subResults2.find(it1->first);
+        for (auto& [key, value1] : subResults1) {
+            auto it2 = subResults2.find(key);
             if (it2 == subResults2.end()) {
                 return TError(EErrorCode::MismatchingKeys,
                     "Mismathing keys in maps: no match for %v",
-                    it1.first);
+                    key);
             }
 
-            result.emplace(it1.first, Combine(it1.second, it2.second));
+            result.emplace(key, Combine(value1, it2->second));
         }
 
         return result;
@@ -329,13 +362,20 @@ struct TProtoVisitorTraitsForVector
     static void Accumulate(
         TErrorOr<TMessageReturn>& result,
         TErrorOr<TQualifiedMessage*> message,
-        size_t size)
+        size_t size,
+        EErrorCode mismatchErrorCode)
     {
-        if (!result.IsOK() || !message.IsOK()) {
-            result = message;
-        } else {
-            Accumulate(result, message, size);
+        if (result.IsOK()) {
+            if (message.IsOK()) {
+                Accumulate(result, message, size);
+                return;
+            } else if (result.Value().empty()) {
+                result = TError(message);
+                return;
+            }
         }
+
+        ReduceErrors(result, message, mismatchErrorCode);
     }
 
     static TErrorOr<const NProtoBuf::Descriptor*> GetDescriptor(TMessageParam message)
@@ -357,8 +397,7 @@ struct TProtoVisitorTraitsForVector
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
-        TErrorOr<bool> result(
-            TError(EErrorCode::Empty, "Empty message param"));
+        TErrorOr<bool> result(TError(EErrorCode::Empty, "Empty message param"));
 
         for (TQualifiedMessage* entry : message) {
             NDetail::Reduce(
@@ -425,8 +464,7 @@ struct TProtoVisitorTraitsForVector
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         const NProtoBuf::Message* keyMessage)
     {
-        TErrorOr<TMessageReturn> result(
-            TError(EErrorCode::Empty, "Empty message param"));
+        TErrorOr<TMessageReturn> result;
 
         for (TQualifiedMessage* entry : message) {
             Accumulate(
@@ -446,29 +484,32 @@ struct TProtoVisitorTraitsForVector
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor)
     {
-        TErrorOr<TMapReturn> result(
-            TError(EErrorCode::Empty, "Empty message param"));
+        TErrorOr<TMapReturn> errorOrResult;
 
         for (TQualifiedMessage* entry : message) {
             auto errorOrSubResult =
                 TSubTraits::GetMessagesFromWholeMapField(entry, fieldDescriptor);
-            if (!errorOrSubResult.IsOK()) {
-                return errorOrSubResult;
+            if (!errorOrResult.IsOK || !errorOrSubResult.IsOK()) {
+                ReduceErrors(
+                    errorOrResult,
+                    std::move(errorOrSubResult),
+                    EErrorCode::MismatchingKeys);
+                continue;
             }
-            const auto& subResult = errorOrSubResult.Value();
 
-            if (result.GetCode() == EErrorCode::Empty) {
-                result = TMapReturn();
-                result.Value().reserve(subResult.size());
-                for (const auto& [key, value] : subResult) {
-                    TMessageReturn& entry = result.Value()[key];
-                    entry.reserve(message.size());
-                    entry.push_back(value);
+            auto& result = errorOrResult.Value();
+            auto& subResult = errorOrSubResult.Value();
+
+            if (entry == message.front()) {
+                result.reserve(subResult.size());
+                for (auto& [key, value] : subResult) {
+                    Accumulate(result[key], value);
                 }
-            } else if (result.Value().size() != subResult.size()) {
-                return TError(EErrorCode::MismatchingSize,
+            } else if (result.size() != subResult.size()) {
+                errorOrResult = TError(
+                    EErrorCode::MismatchingKeys,
                     "Mismatching map sizes %v vs %v",
-                    result.Value().size(),
+                    result.size(),
                     subResult.size());
             } else {
                 for (auto it1 : result.Value()) {
@@ -478,13 +519,12 @@ struct TProtoVisitorTraitsForVector
                             "Mismathing keys in maps: no match for %v",
                             it1.first);
                     }
-
                     Accumulate(it1.second, it2.second);
                 }
             }
         }
 
-        return result;
+        return errorOrResult;
     }
 };
 
@@ -493,13 +533,13 @@ struct TProtoVisitorTraitsForVector
 } // namespace NDetail
 
 template <typename TQualifiedMessage>
-struct TProtoVisitorTraits<const std::vector<TQualifiedMessage*>>
+struct TProtoVisitorTraits<const std::vector<TQualifiedMessage*>&>
     : public NDetail::TProtoVisitorTraitsForVector<
         std::vector<TQualifiedMessage*>, TQualifiedMessage>
 { };
 
 template <typename TQualifiedMessage, size_t N>
-struct TProtoVisitorTraits<const TCompactVector<TQualifiedMessage*, N>>
+struct TProtoVisitorTraits<const TCompactVector<TQualifiedMessage*, N>&>
     : public NDetail::TProtoVisitorTraitsForVector<
         TCompactVector<TQualifiedMessage*, N>, TQualifiedMessage>
 { };

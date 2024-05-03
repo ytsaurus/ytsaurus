@@ -226,67 +226,145 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CombineErrors(TError error1, TError error2)
+// The error coalescing makes sure the top-level error code is either common to all errors or is the
+// mismatch code. This is important for comparisons.
+void ReduceErrors(TError& base, TError incoming, EErrorCode mismatchErrorCode)
 {
-    if (error1.IsOK()) {
-        return error2;
-    } else if (error2.IsOK()) {
-        return error1;
+    if (base.IsOK()) {
+        YT_VERIFY(!incoming.IsOK());
+        base = TError(mismatchErrorCode, "Some messages have errors")
+            << std::move(incoming);
+    } else if (incoming.IsOK()) {
+        base = TError(mismatchErrorCode, "Some messages have errors")
+            << std::move(base);
+    } else if (base.GetCode() == mismatchErrorCode) {
+        base <<= std::move(incoming);
+    } else if (base.GetCode() == incoming.GetCode()) {
+        base <<= std::move(incoming);
     } else {
-        return std::move(error1) << std::move(error2);
+        base = TError(mismatchErrorCode, "Some messages have errors")
+            << std::move(base)
+            << std::move(incoming);
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 std::partial_ordering CompareScalarFields(
-    const Message* message1,
-    const FieldDescriptor* fieldDescriptor1,
-    const Message* message2,
-    const FieldDescriptor* fieldDescriptor2)
+    const Message* lhsMessage,
+    const FieldDescriptor* lhsFieldDescriptor,
+    const Message* rhsMessage,
+    const FieldDescriptor* rhsFieldDescriptor)
 {
-    if (fieldDescriptor1->cpp_type() != fieldDescriptor2->cpp_type()) {
+    if (lhsFieldDescriptor->cpp_type() != rhsFieldDescriptor->cpp_type()) {
         return std::partial_ordering::unordered;
     }
 
-    auto* reflection1 = message1->GetReflection();
-    auto* reflection2 = message2->GetReflection();
+    auto* lhsReflection = lhsMessage->GetReflection();
+    auto* rhsReflection = rhsMessage->GetReflection();
 
-    switch (fieldDescriptor1->cpp_type()) {
+    switch (lhsFieldDescriptor->cpp_type()) {
         case FieldDescriptor::CppType::CPPTYPE_INT32:
-            return reflection1->GetInt32(*message1, fieldDescriptor1)
-                <=> reflection2->GetInt32(*message2, fieldDescriptor2);
+            return lhsReflection->GetInt32(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetInt32(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_UINT32:
-            return reflection1->GetUInt32(*message1, fieldDescriptor1)
-                <=> reflection2->GetUInt32(*message2, fieldDescriptor2);
+            return lhsReflection->GetUInt32(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetUInt32(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_INT64:
-            return reflection1->GetInt64(*message1, fieldDescriptor1)
-                <=> reflection2->GetInt64(*message2, fieldDescriptor2);
+            return lhsReflection->GetInt64(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetInt64(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_UINT64:
-            return reflection1->GetUInt64(*message1, fieldDescriptor1)
-                <=> reflection2->GetUInt64(*message2, fieldDescriptor2);
+            return lhsReflection->GetUInt64(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetUInt64(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_DOUBLE:
-            return reflection1->GetDouble(*message1, fieldDescriptor1)
-                <=> reflection2->GetDouble(*message2, fieldDescriptor2);
+            return lhsReflection->GetDouble(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetDouble(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_FLOAT:
-            return reflection1->GetFloat(*message1, fieldDescriptor1)
-                <=> reflection2->GetFloat(*message2, fieldDescriptor2);
+            return lhsReflection->GetFloat(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetFloat(*rhsMessage, rhsFieldDescriptor);
         case FieldDescriptor::CppType::CPPTYPE_BOOL:
-            return reflection1->GetBool(*message1, fieldDescriptor1)
-                <=> reflection2->GetBool(*message2, fieldDescriptor2);
-        case FieldDescriptor::CppType::CPPTYPE_ENUM:
-            return reflection1->GetEnumValue(*message1, fieldDescriptor1)
-                <=> reflection2->GetEnumValue(*message2, fieldDescriptor2);
+            return lhsReflection->GetBool(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetBool(*rhsMessage, rhsFieldDescriptor);
+        case FieldDescriptor::CppType::CPPTYPE_ENUM: {
+            if (lhsFieldDescriptor->enum_type() != rhsFieldDescriptor->enum_type()) {
+                return std::partial_ordering::unordered;
+            }
+            return lhsReflection->GetEnumValue(*lhsMessage, lhsFieldDescriptor)
+                <=> rhsReflection->GetEnumValue(*rhsMessage, rhsFieldDescriptor);
+        }
         case FieldDescriptor::CppType::CPPTYPE_STRING: {
-            TString scratch1;
-            TString scratch2;
-            return
-                reflection1->GetStringReference(*message1, fieldDescriptor1, &scratch1).ConstRef()
-                <=>
-                reflection2->GetStringReference(*message2, fieldDescriptor2, &scratch2).ConstRef();
+            TString lhsScratch;
+            TString rhsScratch;
+            return lhsReflection->
+                GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
+                <=> rhsReflection->
+                GetStringReference(*rhsMessage, rhsFieldDescriptor, &rhsScratch).ConstRef();
         }
         default:
             return std::partial_ordering::unordered;
+    }
+}
+
+std::partial_ordering CompareRepeatedFieldEntries(
+    const Message* lhsMessage,
+    const FieldDescriptor* lhsFieldDescriptor,
+    int lhsIndex,
+    const Message* rhsMessage,
+    const FieldDescriptor* rhsFieldDescriptor,
+    int rhsIndex)
+{
+    if (lhsFieldDescriptor->cpp_type() != rhsFieldDescriptor->cpp_type()) {
+        return std::partial_ordering::unordered;
+    }
+
+    auto* lhsReflection = lhsMessage->GetReflection();
+    auto* rhsReflection = rhsMessage->GetReflection();
+
+    switch (lhsFieldDescriptor->cpp_type()) {
+        case FieldDescriptor::CppType::CPPTYPE_INT32:
+            return lhsReflection->GetRepeatedInt32(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedInt32(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_UINT32:
+            return lhsReflection->GetRepeatedUInt32(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedUInt32(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_INT64:
+            return lhsReflection->GetRepeatedInt64(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedInt64(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_UINT64:
+            return lhsReflection->GetRepeatedUInt64(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedUInt64(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_DOUBLE:
+            return lhsReflection->GetRepeatedDouble(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedDouble(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_FLOAT:
+            return lhsReflection->GetRepeatedFloat(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedFloat(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_BOOL:
+            return lhsReflection->GetRepeatedBool(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedBool(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        case FieldDescriptor::CppType::CPPTYPE_ENUM: {
+            if (lhsFieldDescriptor->enum_type() != rhsFieldDescriptor->enum_type()) {
+                return std::partial_ordering::unordered;
+            }
+            return lhsReflection->GetRepeatedEnumValue(*lhsMessage, lhsFieldDescriptor, lhsIndex)
+                <=> rhsReflection->GetRepeatedEnumValue(*rhsMessage, rhsFieldDescriptor, rhsIndex);
+        }
+    case FieldDescriptor::CppType::CPPTYPE_STRING: {
+        TString lhsScratch;
+        TString rhsScratch;
+        return lhsReflection-> GetRepeatedStringReference(
+            *lhsMessage,
+            lhsFieldDescriptor,
+            lhsIndex,
+            &lhsScratch).ConstRef()
+            <=> rhsReflection->GetRepeatedStringReference(
+            *rhsMessage,
+            rhsFieldDescriptor,
+            rhsIndex,
+            &rhsScratch).ConstRef();
+    }
+    default:
+        return std::partial_ordering::unordered;
     }
 }
 

@@ -68,13 +68,21 @@ TIndexParseResult ParseListIndex(TStringBuf token, i64 count);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError CombineErrors(const TError& error1, const TError& error2);
+void ReduceErrors(TError& base, TError incoming, EErrorCode mismatchErrorCode);
 
 std::partial_ordering CompareScalarFields(
-    const NProtoBuf::Message* message1,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor1,
-    const NProtoBuf::Message* message2,
-    const NProtoBuf::FieldDescriptor* fieldDescriptor2);
+    const NProtoBuf::Message* lhsMessage,
+    const NProtoBuf::FieldDescriptor* lhsFieldDescriptor,
+    const NProtoBuf::Message* rhsMessage,
+    const NProtoBuf::FieldDescriptor* rhsFieldDescriptor);
+
+std::partial_ordering CompareRepeatedFieldEntries(
+    const NProtoBuf::Message* lhsMessage,
+    const NProtoBuf::FieldDescriptor* lhsFieldDescriptor,
+    int lhsIndex,
+    const NProtoBuf::Message* rhsMessage,
+    const NProtoBuf::FieldDescriptor* rhsFieldDescriptor,
+    int rhsIndex);
 
 TErrorOr<int> LocateMapEntry(
     const NProtoBuf::Message* message,

@@ -482,7 +482,7 @@ void Traverse(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClearVisitor
+class TClearVisitor final
     : public TProtoVisitor<Message*>
 {
 public:
@@ -636,7 +636,7 @@ protected:
         }
         reflection->RemoveLast(message, fieldDescriptor);
     }
-};
+}; //TClearVisitor
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1029,294 +1029,251 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TComparisonHandler
-    : public IHandler</*IsMutable*/ false>
+class TComparisonVisitor final
+    : public TProtoVisitor<const std::pair<const Message*, const Message*>&>
 {
 public:
-    void HandleRegular(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf /*path*/) const final
+    TComparisonVisitor()
     {
-        YT_VERIFY(State_.index() == 0);
-        State_.emplace<TExistingField>(TExistingField{
-            .ParentMessage = message,
-            .Field = field
-        });
+        AllowAsterisk_ = true;
+        VisitEverythingAfterPath_ = true;
     }
 
-    void HandleListItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TIndexParseResult parseIndexResult,
-        TStringBuf path) const final
-    {
-        YT_VERIFY(State_.index() == 0);
-        YT_VERIFY(field->is_repeated());
+    bool Equal_ = true;
 
-        parseIndexResult.EnsureIndexType(EListIndexType::Absolute, path);
-        auto* reflection = message->GetReflection();
-        auto count = reflection->FieldSize(*message, field);
-        std::optional<int> indexIfPresent;
-        if (!parseIndexResult.IsOutOfBounds(count)) {
-            indexIfPresent = parseIndexResult.Index;
+protected:
+    void NotEqual()
+    {
+        Equal_ = false;
+        StopIteration_ = true;
+    }
+
+    void OnDescriptorError(
+        const std::pair<const Message*, const Message*>& message,
+        EVisitReason reason,
+        TError error) override
+    {
+        if (error.GetCode() == EErrorCode::Empty) {
+            // Both messages are null.
+            return;
         }
 
-        State_.emplace<TRepeatedFieldElement>(TRepeatedFieldElement{
-            .ParentMessage = message,
-            .Field = field,
-            .IndexIfPresent = indexIfPresent
-        });
+        TProtoVisitor::OnDescriptorError(message, reason, std::move(error));
     }
 
-    void HandleListExpansion(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        TStringBuf prefixPath,
-        TStringBuf suffixPath) const final
+    void OnKeyError(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        std::unique_ptr<NProtoBuf::Message> keyMessage,
+        TString key,
+        EVisitReason reason,
+        TError error) override
     {
-        YT_VERIFY(State_.index() == 0);
-        YT_VERIFY(field->is_repeated());
-        State_.emplace<TRepeatedFieldSubpath>(TRepeatedFieldSubpath{
-            .ParentMessage = message,
-            .Field = field,
-            .Prefix = NYPath::TYPath{prefixPath},
-            .Path = NYPath::TYPath{suffixPath},
-        });
-    }
-
-    void HandleMapItem(
-        TGenericMessage* message,
-        const FieldDescriptor* field,
-        const TString& key,
-        TStringBuf /*path*/) const final
-    {
-        YT_VERIFY(State_.index() == 0);
-
-        auto itemIfPresent = LookupMapItem<IsMutable>(message, field, key);
-        std::optional<int> indexIfPresent;
-        if (itemIfPresent) {
-            indexIfPresent = itemIfPresent->Index;
+        if (error.GetCode() == EErrorCode::MissingKey) {
+            // Both fields are equally missing.
+            return;
         }
-        State_.emplace<TRepeatedFieldElement>(TRepeatedFieldElement{
-            .ParentMessage = message,
-            .Field = field,
-            .IndexIfPresent = indexIfPresent
-        });
+        if (error.GetCode() == EErrorCode::MismatchingKeys) {
+            // One present, one missing.
+            NotEqual();
+            return;
+        }
+
+        TProtoVisitor::OnKeyError(
+            message,
+            fieldDescriptor,
+            std::move(keyMessage),
+            std::move(key),
+            reason,
+            std::move(error));
     }
 
-    void HandleUnknown(TGenericMessage* /*message*/, NYPath::TTokenizer& tokenizer) const final
+    void VisitRepeatedFieldEntry(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason) override
     {
-        THROW_ERROR_EXCEPTION("Attribute %Qv contains unknown field %Qv", tokenizer.GetPrefix(), tokenizer.GetToken());
-    }
-
-    bool HandleMissing(TStringBuf /*path*/) const final
-    {
-        YT_VERIFY(State_.index() == 0);
-        State_.emplace<TMissingField>(TMissingField{});
-        return false;
-    }
-
-    bool operator==(const TComparisonHandler& rhs) const
-    {
-        THROW_ERROR_EXCEPTION_IF(State_.index() == 0 || rhs.State_.index() == 0,
-            "Protobuf comparison by path failed: traverse result is undefined");
-        if (State_.index() != rhs.State_.index()) {
-            auto* existing = std::get_if<TExistingField>(&State_);
-            if (!existing) {
-                existing = std::get_if<TExistingField>(&rhs.State_);
+        if (PathComplete()
+            && fieldDescriptor->type() != NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
+        {
+            if (CompareRepeatedFieldEntries(
+                message.first,
+                fieldDescriptor,
+                index,
+                message.second,
+                fieldDescriptor,
+                index) != std::partial_ordering::equivalent)
+            {
+                NotEqual();
             }
-            auto* missing = std::get_if<TMissingField>(&State_);
-            if (!missing) {
-                missing = std::get_if<TMissingField>(&rhs.State_);
-            }
+            return;
+        }
 
-            if (existing && missing) {
-                return *existing == *missing;
+        TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
+    }
+
+    void OnSizeError(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error) override
+    {
+        if (error.GetCode() == EErrorCode::MismatchingSize) {
+            if (reason == EVisitReason::Path) {
+                // The caller wants to pinpoint a specific entry in two arrays of different sizes...
+                // let's try!
+                auto sizes = ValueOrThrow(TTraits::Combine(
+                    TTraits::TSubTraits::GetRepeatedFieldSize(message.first, fieldDescriptor),
+                    TTraits::TSubTraits::GetRepeatedFieldSize(message.second, fieldDescriptor),
+                    EErrorCode::MismatchingSize));
+
+                // Negative index may result in different parsed values!
+                auto errorOrIndexParseResults = TTraits::Combine(
+                    ParseCurrentListIndex(sizes.first),
+                    ParseCurrentListIndex(sizes.second),
+                    EErrorCode::MismatchingSize);
+
+
+                if (errorOrIndexParseResults.GetCode() == EErrorCode::MismatchingSize) {
+                    // Probably just one is out of bounds.
+                    NotEqual();
+                    return;
+                }
+                if (errorOrIndexParseResults.GetCode() == EErrorCode::OutOfBounds) {
+                    // Equally out of bounds.
+                    return;
+                }
+                auto indexParseResults = ValueOrThrow(errorOrIndexParseResults);
+
+                if (indexParseResults.first.IndexType != EListIndexType::Relative ||
+                    indexParseResults.second.IndexType != EListIndexType::Relative)
+                {
+                    Throw(EErrorCode::MalformedPath,
+                        "Unexpected relative path specifier %v",
+                        Tokenizer_.GetToken());
+                }
+                Tokenizer_.Advance();
+
+                if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
+                    auto next = TTraits::Combine(
+                        TTraits::TSubTraits::GetMessageFromRepeatedField(
+                            message.first,
+                            fieldDescriptor,
+                            indexParseResults.first.Index),
+                        TTraits::TSubTraits::GetMessageFromRepeatedField(
+                            message.second,
+                            fieldDescriptor,
+                            indexParseResults.second.Index));
+                    VisitMessage(next, EVisitReason::Manual);
+                } else {
+                    if (CompareRepeatedFieldEntries(
+                            message.first,
+                            fieldDescriptor,
+                            indexParseResults.first.Index,
+                            message.second,
+                            fieldDescriptor,
+                            indexParseResults.second.Index) != std::partial_ordering::equivalent)
+                        {
+                            NotEqual();
+                        }
+                }
             } else {
-                THROW_ERROR_EXCEPTION("Protobuf comparison by path failed: fields types are of different type");
+                // Not a specific path request and mismatching size... done.
+                NotEqual();
             }
+
+            return;
         }
-        return State_ == rhs.State_;
+
+        TProtoVisitor::OnSizeError(message, fieldDescriptor, reason, std::move(error));
     }
 
-private:
-    struct TMissingField
+    void OnIndexError(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error) override
     {
-        bool operator==(const TMissingField& /*rhs*/) const
-        {
-            return true;
+        if (error.GetCode() == EErrorCode::OutOfBounds) {
+            // Equally misplaced path. Would have been a size error if it were a mismatch.
+            return;
         }
-    };
 
-    struct TExistingField
+        TProtoVisitor::OnIndexError(message, fieldDescriptor, reason, std::move(error));
+    }
+
+    void VisitPresentSingularField(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
     {
-        TGenericMessage* ParentMessage;
-        const FieldDescriptor* Field;
-
-        bool operator==(const TExistingField& rhs) const
+        if (PathComplete()
+            && fieldDescriptor->type() != NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
         {
-            YT_VERIFY(Field == rhs.Field);
-            MessageDifferencer differencer;
-
-            differencer.set_message_field_comparison(MessageDifferencer::MessageFieldComparison::EQUAL);
-
-            std::vector<const FieldDescriptor*> fieldsToCompare{Field};
-            return differencer.CompareWithFields(
-                *ParentMessage,
-                *rhs.ParentMessage,
-                fieldsToCompare,
-                fieldsToCompare);
+            if (CompareScalarFields(
+                message.first,
+                fieldDescriptor,
+                message.second,
+                fieldDescriptor) != std::partial_ordering::equivalent)
+            {
+                NotEqual();
+            }
+            return;
         }
 
-        bool operator==(const TMissingField& /*rhs*/) const
-        {
-            auto* defaultMessage = ParentMessage
-                ->GetReflection()
-                ->GetMessageFactory()
-                ->GetPrototype(ParentMessage->GetDescriptor());
-            YT_VERIFY(defaultMessage);
-            auto rhs = TExistingField{defaultMessage, Field};
-            return rhs == *this;
-        }
-    };
+        TProtoVisitor::VisitPresentSingularField(message, fieldDescriptor, reason);
+    }
 
-    struct TRepeatedFieldElement
+    void VisitMissingSingularField(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason) override
     {
-        TGenericMessage* ParentMessage;
-        const FieldDescriptor* Field;
-        std::optional<int> IndexIfPresent;
+        Y_UNUSED(message);
+        Y_UNUSED(fieldDescriptor);
+        Y_UNUSED(reason);
 
-        bool operator==(const TRepeatedFieldElement& rhs) const
-        {
-            YT_VERIFY(ParentMessage->GetReflection() == rhs.ParentMessage->GetReflection());
-            YT_VERIFY(Field == rhs.Field);
-            if (IndexIfPresent.has_value() != rhs.IndexIfPresent.has_value()) {
-                return false;
-            } else if (!IndexIfPresent) {
-                return true;
-            }
-            google::protobuf::util::DefaultFieldComparator comparator;
+        // Both fields are equally missing.
+    }
 
-            auto result = comparator.Compare(
-                *ParentMessage,
-                *rhs.ParentMessage,
-                Field,
-                *IndexIfPresent,
-                *IndexIfPresent,
-                /*fieldContext*/ nullptr);
-            switch (result) {
-                case google::protobuf::util::FieldComparator::SAME:
-                case google::protobuf::util::FieldComparator::DIFFERENT:
-                    return result == FieldComparator::SAME;
-                case google::protobuf::util::FieldComparator::RECURSE: {
-                    MessageDifferencer differencer;
-
-                    return differencer.Equals(
-                        *TMutabilityTraits<IsMutable>::GetRepeatedMessage(
-                            ParentMessage,
-                            Field,
-                            *IndexIfPresent),
-                        *TMutabilityTraits<IsMutable>::GetRepeatedMessage(
-                            rhs.ParentMessage,
-                            rhs.Field,
-                            *rhs.IndexIfPresent));
-                };
-                default:
-                    YT_ABORT();
-            }
-        }
-    };
-
-    struct TRepeatedFieldSubpath
+    void OnPresenceError(
+        const std::pair<const Message*, const Message*>& message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason,
+        TError error) override
     {
-        TGenericMessage* ParentMessage;
-        const FieldDescriptor* Field;
-        NYPath::TYPath Prefix;
-        NYPath::TYPath Path;
-
-        bool AreRepeatedFieldsEqualAtIndex(
-            TGenericMessage& lhsMessage,
-            TGenericMessage& rhsMessage,
-            const Reflection* reflection,
-            const FieldDescriptor* field,
-            int index) const
-        {
-            switch (field->type()) {
-                case FieldDescriptor::TYPE_INT32:
-                case FieldDescriptor::TYPE_SINT32:
-                case FieldDescriptor::TYPE_SFIXED32:
-                    return reflection->GetRepeatedInt32(lhsMessage, field, index) == reflection->GetRepeatedInt32(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_INT64:
-                case FieldDescriptor::TYPE_SINT64:
-                case FieldDescriptor::TYPE_SFIXED64:
-                    return reflection->GetRepeatedInt64(lhsMessage, field, index) == reflection->GetRepeatedInt64(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_UINT32:
-                case FieldDescriptor::TYPE_FIXED32:
-                    return reflection->GetRepeatedUInt32(lhsMessage, field, index) == reflection->GetRepeatedUInt32(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_UINT64:
-                case FieldDescriptor::TYPE_FIXED64:
-                    return reflection->GetRepeatedUInt64(lhsMessage, field, index) == reflection->GetRepeatedUInt64(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_FLOAT:
-                    return reflection->GetRepeatedFloat(lhsMessage, field, index) == reflection->GetRepeatedFloat(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_DOUBLE:
-                    return reflection->GetRepeatedDouble(lhsMessage, field, index) == reflection->GetRepeatedDouble(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_BOOL:
-                    return reflection->GetRepeatedBool(lhsMessage, field, index) == reflection->GetRepeatedBool(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_STRING:
-                case FieldDescriptor::TYPE_BYTES: {
-                    TProtoStringType s1, s2;
-                    return reflection->GetRepeatedStringReference(lhsMessage, field, index, &s1) == reflection->GetRepeatedStringReference(rhsMessage, field, index, &s2);
-                }
-                case FieldDescriptor::TYPE_ENUM:
-                    return reflection->GetRepeatedEnumValue(lhsMessage, field, index) == reflection->GetRepeatedEnumValue(rhsMessage, field, index);
-                case FieldDescriptor::TYPE_MESSAGE:
-                    return NDetail::AreProtoMessagesEqualByPath(
-                        reflection->GetRepeatedMessage(lhsMessage, field, index),
-                        reflection->GetRepeatedMessage(rhsMessage, field, index),
-                        Path);
-                default:
-                    return false;
+        if (error.GetCode() == EErrorCode::MismatchingPresence) {
+            if (!PathComplete()
+                && fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE)
+            {
+                // Try to check that the actual field is absent in both messages.
+                auto next = TTraits::Combine(
+                    TTraits::TSubTraits::IsSingularFieldPresent(
+                        message.first,
+                        fieldDescriptor).Value()
+                    ? TTraits::TSubTraits::GetMessageFromSingularField(
+                        message.first,
+                        fieldDescriptor)
+                    : nullptr,
+                    TTraits::TSubTraits::IsSingularFieldPresent(
+                        message.second,
+                        fieldDescriptor).Value()
+                    ? TTraits::TSubTraits::GetMessageFromSingularField(
+                        message.second,
+                        fieldDescriptor)
+                    : nullptr);
+                    VisitMessage(next, EVisitReason::Manual);
+            } else {
+                // One present, one missing.
+                NotEqual();
             }
+            return;
         }
 
-        bool operator==(const TRepeatedFieldSubpath& rhs) const
-        {
-            YT_VERIFY(Field == rhs.Field);
-            YT_VERIFY(Prefix == rhs.Prefix);
-            YT_VERIFY(Path == rhs.Path);
-            THROW_ERROR_EXCEPTION_UNLESS(Field->type() == FieldDescriptor::TYPE_MESSAGE || Path.empty(),
-                "Cannot compare subpaths %Qv of primitive type values at %Qv",
-                Prefix,
-                Path);
-            auto* lhsMessage = ParentMessage;
-            auto* rhsMessage = rhs.ParentMessage;
-            const auto* reflection = lhsMessage->GetReflection();
-            YT_VERIFY(reflection == rhsMessage->GetReflection());
-
-            if (reflection->FieldSize(*lhsMessage, Field) != reflection->FieldSize(*rhsMessage, Field)) {
-                return false;
-            }
-
-            int size = reflection->FieldSize(*lhsMessage, Field);
-            for (int i = 0; i < size; i++) {
-                if (!AreRepeatedFieldsEqualAtIndex(*lhsMessage, *rhsMessage, reflection, Field, i)) {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-    };
-
-    mutable std::variant<
-        std::monostate,
-        TExistingField,
-        TMissingField,
-        TRepeatedFieldElement,
-        TRepeatedFieldSubpath
-    > State_;
-};
+        TProtoVisitor::OnPresenceError(message, fieldDescriptor, reason, std::move(error));
+    }
+}; // TComparisonVisitor
 
 } // namespace
 
@@ -1329,16 +1286,9 @@ bool AreProtoMessagesEqualByPath(
     const google::protobuf::Message& rhs,
     const NYPath::TYPath& path)
 {
-    TComparisonHandler lhsHandler;
-    TComparisonHandler rhsHandler;
-
-    THROW_ERROR_EXCEPTION_UNLESS(lhs.GetDescriptor() == rhs.GetDescriptor(),
-        "Field %Qv cannot be compared with field %Qv", lhs.GetTypeName(), rhs.GetTypeName());
-
-    Traverse(&lhs, path, lhsHandler);
-    Traverse(&rhs, path, rhsHandler);
-
-    return lhsHandler == rhsHandler;
+    TComparisonVisitor visitor;
+    visitor.Visit(std::pair(&lhs, &rhs), path);
+    return visitor.Equal_;
 }
 
 } // namespace NDetail

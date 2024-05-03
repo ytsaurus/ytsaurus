@@ -24,7 +24,7 @@ void TProtoVisitorBase::SkipSlash()
     Throw(EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
 }
 
-void TProtoVisitorBase::Expect(NYPath::ETokenType type)
+void TProtoVisitorBase::Expect(NYPath::ETokenType type) const
 {
     if (Tokenizer_.GetType() == type) {
         return;
@@ -42,12 +42,12 @@ void TProtoVisitorBase::Expect(NYPath::ETokenType type)
     Throw(error);
 }
 
-bool TProtoVisitorBase::PathComplete()
+bool TProtoVisitorBase::PathComplete() const
 {
     return Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
 }
 
-TErrorOr<TIndexParseResult> TProtoVisitorBase::ParseCurrentListIndex(int size)
+TErrorOr<TIndexParseResult> TProtoVisitorBase::ParseCurrentListIndex(int size) const
 {
     Expect(NYPath::ETokenType::Literal);
     auto indexParseResult = ParseListIndex(Tokenizer_.GetToken(), size);
@@ -58,14 +58,13 @@ TErrorOr<TIndexParseResult> TProtoVisitorBase::ParseCurrentListIndex(int size)
             Tokenizer_.GetToken(),
             size);
     }
-    Tokenizer_.Advance();
 
     return indexParseResult;
 }
 
 std::unique_ptr<Message> TProtoVisitorBase::MakeMapKeyMessage(
     const FieldDescriptor* fieldDescriptor,
-    const TString& key)
+    const TString& key) const
 {
     auto* descriptor = fieldDescriptor->message_type();
     std::unique_ptr<Message> result{
