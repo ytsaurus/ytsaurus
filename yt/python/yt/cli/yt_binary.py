@@ -2223,13 +2223,13 @@ def remove_maintenance(**kwargs):
 
 
 def add_maintenance_request_parsers(add_parser):
-    parser = add_parser("add_maintenance", add_maintenance)
+    parser = add_parser("add-maintenance", add_maintenance)
     parser.add_argument("--component", type=str)
     parser.add_argument("--address", type=str)
     parser.add_argument("--type", type=str)
     parser.add_argument("--comment", type=str)
 
-    parser = add_parser("remove_maintenance", remove_maintenance)
+    parser = add_parser("remove-maintenance", remove_maintenance)
     parser.add_argument("-c", "--component", type=str)
     parser.add_argument("-a", "--address", type=str)
     parser.add_argument("--id", default=None)
@@ -2740,6 +2740,8 @@ def main_func():
 
     if HAS_IDM_CLI_HELPERS:
         add_idm_parser(subparsers)
+
+    add_maintenance_request_parsers(add_parser)
 
     add_admin_parser(subparsers)
 
