@@ -635,7 +635,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
 
     // NB: Rewriting in case there were symlinks in the original source path.
     const auto& sourceRootPath = payload->ResolvedPrefix;
-    if (!payload->UnresolvedSuffix.Empty()) {
+    if (!payload->UnresolvedSuffix.IsEmpty()) {
         auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(payload->UnresolvedSuffix);
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
@@ -766,7 +766,7 @@ private:
             YT_VERIFY(NodeStack_.size() == 0);
 
             ParentPath_ = TAbsoluteYPath(rootPath.GetDirPath());
-            Key_ = rootPath.GetBaseName();
+            ChildKey_ = rootPath.GetBaseName();
         }
 
         TNodeId EndTree()
@@ -825,12 +825,12 @@ private:
         {
             auto nodeId = CreateNode(EObjectType::SequoiaMapNode);
             AddNode(nodeId, true);
-            ParentPath_.Append(Key_);
+            ParentPath_.Append(ChildKey_);
         }
 
         void OnMyKeyedItem(TStringBuf key) override
         {
-            Key_ = ToStringLiteral(key);
+            ChildKey_ = ToStringLiteral(key);
         }
 
         void OnMyEndMap() override
@@ -846,7 +846,7 @@ private:
 
     private:
         const TMapLikeNodeProxy* Owner_;
-        TString Key_;
+        TString ChildKey_;
         TAbsoluteYPath ParentPath_;
         TNodeId ResultNodeId_;
         std::stack<std::pair<TString, TNodeId>> NodeStack_;
@@ -854,7 +854,7 @@ private:
         TNodeId CreateNode(EObjectType type)
         {
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
-            NCypressProxy::CreateNode(type, nodeId, YPathJoin(ParentPath_, Key_), Owner_->Transaction_);
+            NCypressProxy::CreateNode(type, nodeId, YPathJoin(ParentPath_, ChildKey_), Owner_->Transaction_);
             return nodeId;
         }
 
@@ -869,11 +869,11 @@ private:
                 ResultNodeId_ = nodeId;
             } else {
                 auto parentId = NodeStack_.top().second;
-                AttachChild(parentId, nodeId, Key_, Owner_->Transaction_);
+                AttachChild(parentId, nodeId, ChildKey_, Owner_->Transaction_);
             }
 
             if (push) {
-                NodeStack_.emplace(Key_, nodeId);
+                NodeStack_.emplace(ChildKey_, nodeId);
             }
         }
     };
@@ -917,20 +917,21 @@ private:
 
         void OnMyKeyedItem(TStringBuf key) override
         {
+            auto childKey = ToStringLiteral(key);
             THROW_ERROR_EXCEPTION_IF(
-                Children_.contains(key),
+                Children_.contains(childKey),
                 "Node %Qv already exists",
-                key);
+                childKey);
 
-            auto subtreeRootPath = YPathJoin(Owner_->Path_, ToStringLiteral(key));
+            auto subtreeRootPath = YPathJoin(Owner_->Path_, childKey);
             TreeBuilder_.BeginTree(subtreeRootPath);
-            Forward(&TreeBuilder_, std::bind(&TMapNodeSetter::OnForwardingFinished, this, TString(key)));
+            Forward(&TreeBuilder_, std::bind(&TMapNodeSetter::OnForwardingFinished, this, std::move(childKey)));
         }
 
-        void OnForwardingFinished(TString itemKey)
+        void OnForwardingFinished(TString childKey)
         {
             auto childId = TreeBuilder_.EndTree();
-            EmplaceOrCrash(Children_, std::move(itemKey), childId);
+            EmplaceOrCrash(Children_, std::move(childKey), childId);
         }
 
         void OnMyEndMap() override
@@ -1304,15 +1305,13 @@ ISequoiaServicePtr CreateNodeProxy(
     auto type = TypeFromId(id);
     ValidateSupportedSequoiaType(type);
 
-    ISequoiaServicePtr proxy;
     if (IsSequoiaCompositeNodeType(type)) {
-        proxy = New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+        return New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     } else if (IsChunkOwnerType(type)) {
-        proxy = New<TChunkOwnerNodeSequoiaProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+        return New<TChunkOwnerNodeSequoiaProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     } else {
-        proxy = New<TNodeProxyBase>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
+        return New<TNodeProxyBase>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     }
-    return proxy;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

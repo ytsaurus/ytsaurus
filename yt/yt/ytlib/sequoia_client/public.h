@@ -51,7 +51,7 @@ DECLARE_REFCOUNTED_STRUCT(ILazySequoiaClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, NYPath::TYPath);
+YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, TString);
 
 template <bool Absolute>
 class TBasicYPath;

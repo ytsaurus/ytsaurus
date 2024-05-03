@@ -113,10 +113,11 @@ TFuture<TSharedRefArray> ExecuteVerb(
     }
 
     const auto& resolveResult = context->GetResolveResultOrThrow();
-    auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult);
-    if (payload) {
+    if (auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
         auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
-        YT_VERIFY(ParseRequestHeader(requestMessage, requestHeader.get()));
+        if (!ParseRequestHeader(requestMessage, requestHeader.get())) {
+            THROW_ERROR_EXCEPTION("Error parsing request header");
+        }
         NYTree::SetRequestTargetYPath(requestHeader.get(), payload->UnresolvedSuffix.Underlying());
         context->SetRequestHeader(std::move(requestHeader));
     }

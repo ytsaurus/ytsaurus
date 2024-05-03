@@ -13,7 +13,7 @@ namespace NYT::NSequoiaClient {
 struct TSlashRootDesignatorTag
 { };
 
-using TRootDesignator = std::variant<TGuid, TSlashRootDesignatorTag>;
+using TRootDesignator = std::variant<NObjectClient::TObjectId, TSlashRootDesignatorTag>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,13 +29,11 @@ public:
     //! Returns the last path segment.
     TString GetBaseName() const;
 
-    [[nodiscard]] bool Empty() const;
+    [[nodiscard]] bool IsEmpty() const;
 
     //! Returns formatted path with escaping of special characters.
     TString ToString() const;
     TMangledSequoiaPath ToMangledSequoiaPath() const;
-    //! Returns formatted path without escaping of special characters.
-    TString ToStringLiteral() const;
 
     //! Compares paths lexicographically according to their 'String' representation.
     template <class T>

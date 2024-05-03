@@ -45,7 +45,7 @@ TString TYPathBase<Absolute, TUnderlying>::GetBaseName() const
 }
 
 template <bool Absolute, class TUnderlying>
-bool TYPathBase<Absolute, TUnderlying>::Empty() const
+bool TYPathBase<Absolute, TUnderlying>::IsEmpty() const
 {
     return Path_.empty();
 }
@@ -60,12 +60,6 @@ template <bool Absolute, class TUnderlying>
 TMangledSequoiaPath TYPathBase<Absolute, TUnderlying>::ToMangledSequoiaPath() const
 {
     return MangleSequoiaPath(Path_);
-}
-
-template <bool Absolute, class TUnderlying>
-TString TYPathBase<Absolute, TUnderlying>::ToStringLiteral() const
-{
-    return NSequoiaClient::ToStringLiteral(Path_);
 }
 
 template <bool Absolute, class TUnderlying>

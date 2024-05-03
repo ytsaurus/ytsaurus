@@ -93,7 +93,7 @@ std::pair<TLogicalTime, TConsistentState> TLogicalTimeRegistry::GetConsistentSta
             "Logical time entry has been evicted");
     }
 
-    TConsistentState resultState = it != TimeInfoMap_.end()
+    auto resultState = it != TimeInfoMap_.end()
         ? it->second.AdjustedState
         : currentState;
 

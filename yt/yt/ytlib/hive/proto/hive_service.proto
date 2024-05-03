@@ -102,7 +102,7 @@ message TRspGetConsistentState
 {
     required int64 logical_time = 1;
     required int64 sequence_number = 2;
-    required int64 segment_id = 3;
+    required int32 segment_id = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

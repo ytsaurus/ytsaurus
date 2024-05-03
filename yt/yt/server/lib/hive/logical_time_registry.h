@@ -18,7 +18,7 @@ namespace NYT::NHiveServer {
 struct TConsistentState
 {
     i64 SequenceNumber;
-    i64 SegmentId;
+    int SegmentId;
 };
 
 class TLogicalTimeRegistry

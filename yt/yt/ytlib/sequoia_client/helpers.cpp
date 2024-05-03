@@ -19,11 +19,6 @@ TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
     return TMangledSequoiaPath(NYPath::TYPath(path) + "/");
 }
 
-TMangledSequoiaPath MangleSequoiaPath(const NYPath::TYPath& path)
-{
-    return MangleSequoiaPath(NYPath::TYPathBuf(path));
-}
-
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
     YT_VERIFY(!mangledPath.Underlying().empty());
@@ -36,15 +31,16 @@ TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(cons
     return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
 }
 
-TString ToStringLiteral(TStringBuf path)
+TString ToStringLiteral(TStringBuf key)
 {
     TStringBuilder builder;
-    for (TTokenizer tokenizer(path); tokenizer.GetType() != ETokenType::EndOfStream; tokenizer.Advance()) {
-        builder.AppendString(tokenizer.GetType() == ETokenType::Literal
-            ? tokenizer.GetLiteralValue()
-            : TString(tokenizer.GetToken()));
-    }
-    return builder.Flush();
+    TTokenizer tokenizer(key);
+    tokenizer.Advance();
+    tokenizer.Expect(ETokenType::Literal);
+    auto literal = tokenizer.GetLiteralValue();
+    tokenizer.Advance();
+    tokenizer.Expect(ETokenType::EndOfStream);
+    return literal;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
