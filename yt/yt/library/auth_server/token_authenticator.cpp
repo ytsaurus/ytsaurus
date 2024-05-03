@@ -232,7 +232,10 @@ private:
             if (callResult.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_DEBUG(callResult, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
-                THROW_ERROR_EXCEPTION("Token is missing in Cypress");
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
+                    "Token is missing in Cypress")
+                    << TErrorAttribute("token_hash", tokenHash)
+                    << callResult;
             } else {
                 YT_LOG_DEBUG(callResult, "Cypress authentication failed (TokenHash: %v)",
                     tokenHash);
