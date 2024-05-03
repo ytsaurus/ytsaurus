@@ -286,13 +286,13 @@ public:
         return MasterCellTags_;
     }
 
-    void AddMasterCellTags(const THashSet<TCellTag>& addedSecondaryMasterCellTags) override
+    void AddMasterCellTags(const THashSet<TCellTag>& newSecondaryMasterCellTags) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
             auto guard = WriterGuard(MasterCellTagsLock_);
-            for (auto cellTag : addedSecondaryMasterCellTags) {
+            for (auto cellTag : newSecondaryMasterCellTags) {
                 InsertOrCrash(MasterCellTags_, cellTag);
             }
         }

@@ -337,31 +337,31 @@ private:
 
     void ReconfigureMasterCellDirectory(
         const TSecondaryMasterConnectionConfigs& oldSecondaryMasterConnectionConfigs,
-        const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs,
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs,
         const TCellTagList& secondaryMasterCellTags)
     {
         TCellIdList secondaryMasterCellIds;
-        THashSet<TCellTag> addedSecondaryCellTags;
-        THashSet<TCellTag> reconfiguredSecondaryCellTags;
-        TSecondaryMasterConnectionConfigs addedSecondaryMasterConfigs;
-        TSecondaryMasterConnectionConfigs reconfiguredSecondaryMasterConfigs;
-        secondaryMasterCellIds.reserve(secondaryMasterConnectionConfigs.size());
-        addedSecondaryCellTags.reserve(secondaryMasterConnectionConfigs.size());
-        reconfiguredSecondaryCellTags.reserve(secondaryMasterConnectionConfigs.size());
-        addedSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
-        reconfiguredSecondaryMasterConfigs.reserve(secondaryMasterConnectionConfigs.size());
+        THashSet<TCellTag> newSecondaryCellTags;
+        THashSet<TCellTag> changedSecondaryCellTags;
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
+        TSecondaryMasterConnectionConfigs changedSecondaryMasterConfigs;
+        secondaryMasterCellIds.reserve(newSecondaryMasterConnectionConfigs.size());
+        newSecondaryCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
+        changedSecondaryCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
+        newSecondaryMasterConfigs.reserve(newSecondaryMasterConnectionConfigs.size());
+        changedSecondaryMasterConfigs.reserve(newSecondaryMasterConnectionConfigs.size());
 
-        for (const auto& [cellTag, secondaryMaster] : secondaryMasterConnectionConfigs) {
+        for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConnectionConfigs) {
             if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
-                EmplaceOrCrash(addedSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(addedSecondaryCellTags, cellTag);
+                EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, secondaryMaster);
+                InsertOrCrash(newSecondaryCellTags, cellTag);
             } else if (secondaryMaster->Addresses != GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses) {
                 YT_LOG_INFO("Master cell will be reconfigured (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
                     cellTag,
                     secondaryMaster->Addresses,
                     GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses);
-                EmplaceOrCrash(reconfiguredSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(reconfiguredSecondaryCellTags, cellTag);
+                EmplaceOrCrash(changedSecondaryMasterConfigs, cellTag, secondaryMaster);
+                InsertOrCrash(changedSecondaryCellTags, cellTag);
             }
             secondaryMasterCellIds.push_back(secondaryMaster->CellId);
         }
@@ -371,7 +371,7 @@ private:
         THashSet<TCellTag> removedSecondaryCellTags;
         removedSecondaryCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
         for (const auto& [cellTag, _] : oldSecondaryMasterConnectionConfigs) {
-            if (!secondaryMasterConnectionConfigs.contains(cellTag)) {
+            if (!newSecondaryMasterConnectionConfigs.contains(cellTag)) {
                 InsertOrCrash(removedSecondaryCellTags, cellTag);
             }
         }
@@ -382,29 +382,29 @@ private:
 
         {
             auto guard = WriterGuard(SpinLock_);
-            for (const auto& [_, secondaryMaster] : addedSecondaryMasterConfigs) {
+            for (const auto& [_, secondaryMaster] : newSecondaryMasterConfigs) {
                 InitMasterChannels(secondaryMaster);
             }
-            for (const auto& [cellTag, secondaryMaster] : reconfiguredSecondaryMasterConfigs) {
+            for (const auto& [cellTag, secondaryMaster] : changedSecondaryMasterConfigs) {
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
             }
             // TODO(cherepashka): add logic for removal of master cells.
 
-            SecondaryMasterConnectionConfigs_ = secondaryMasterConnectionConfigs;
+            SecondaryMasterConnectionConfigs_ = newSecondaryMasterConnectionConfigs;
             SecondaryMasterCellIds_ = std::move(secondaryMasterCellIds);
             SecondaryMasterCellTags_ = secondaryMasterCellTags;
         }
 
         YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
-            "(AddedCellTags: %v, ReconfiguredCellTags: %v, RemovedCellTags: %v)",
-            addedSecondaryCellTags,
-            reconfiguredSecondaryCellTags,
+            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
+            newSecondaryCellTags,
+            changedSecondaryCellTags,
             removedSecondaryCellTags);
 
         CellDirectoryChanged_.Fire(
-            addedSecondaryMasterConfigs,
-            reconfiguredSecondaryMasterConfigs,
+            newSecondaryMasterConfigs,
+            changedSecondaryMasterConfigs,
             removedSecondaryCellTags);
     }
 

@@ -99,7 +99,7 @@ struct IMasterConnector
     *  \note
     *  Thread affinity: any
     */
-    virtual void AddMasterCellTags(const THashSet<NObjectClient::TCellTag>& addedSecondaryMasterCellTags) = 0;
+    virtual void AddMasterCellTags(const THashSet<NObjectClient::TCellTag>& newSecondaryMasterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

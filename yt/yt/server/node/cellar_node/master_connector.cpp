@@ -196,17 +196,17 @@ private:
         }
     }
 
-    void OnReadyToReportHeartbeatsToNewMasters(const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs)
+    void OnReadyToReportHeartbeatsToNewMasters(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         std::vector<TFuture<bool>> futures;
-        std::vector<TCellTag> addedSecondaryCellTags;
-        futures.reserve(addedSecondaryMasterConfigs.size());
-        addedSecondaryCellTags.reserve(addedSecondaryMasterConfigs.size());
-        for (const auto& [cellTag, _] : addedSecondaryMasterConfigs) {
-            addedSecondaryCellTags.emplace_back(cellTag);
+        std::vector<TCellTag> newSecondaryCellTags;
+        futures.reserve(newSecondaryMasterConfigs.size());
+        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
+            newSecondaryCellTags.emplace_back(cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
                 futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
                     return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
@@ -219,22 +219,22 @@ private:
             resultsOrError.IsOK(),
             resultsOrError,
             "Failed to report cellar node heartbeat to new masters "
-            "(AddedCellTags: %v)",
-            addedSecondaryCellTags);
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
 
         if (resultsOrError.IsOK()) {
             auto results = resultsOrError.Value();
             YT_LOG_WARNING_UNLESS(
                 AllOf(results, [] (auto result) { return result; }),
                 "Some of cellar heartbeats failed, node will re-register at primary master "
-                "(AddedCellTags: %v)",
-                addedSecondaryCellTags);
+                "(NewCellTags: %v)",
+                newSecondaryCellTags);
         }
 
         YT_LOG_INFO(
             "Received master cell directory change, attempted to report heartbeats to the new cells "
-            "(AddedCellTags: %v)",
-            addedSecondaryCellTags);
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
     }
 
     void OnDynamicConfigChanged(

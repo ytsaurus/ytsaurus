@@ -239,7 +239,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(NNodeTrackerClient::TNodeId nodeId), MasterConnected);
     DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
     DEFINE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
-    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
+    DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToReportHeartbeatsToNewMasters);
 
 public:
     TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
@@ -1531,8 +1531,8 @@ private:
     }
 
     void OnMasterCellDirectoryChanged(
-        const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs,
-        const TSecondaryMasterConnectionConfigs& reconfiguredSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryCellTags)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1542,10 +1542,10 @@ private:
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryCellTags);
 
-        THashSet<TCellTag> addedSecondaryCellTags;
-        THashSet<TCellTag> reconfiguredSecondaryCellTags;
-        addedSecondaryCellTags.reserve(addedSecondaryMasterConfigs.size());
-        reconfiguredSecondaryCellTags.reserve(reconfiguredSecondaryMasterConfigs.size());
+        THashSet<TCellTag> newSecondaryCellTags;
+        THashSet<TCellTag> changedSecondaryCellTags;
+        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        changedSecondaryCellTags.reserve(changedSecondaryMasterConfigs.size());
 
         auto addMasterCell = [&] (const auto& masterConfig) {
             InitCachingObjectService(masterConfig->CellId);
@@ -1561,27 +1561,27 @@ private:
             InitProxyingChunkService(masterConfig);
         };
 
-        for (const auto& [cellTag, masterConfig] : addedSecondaryMasterConfigs) {
+        for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
             addMasterCell(masterConfig);
-            InsertOrCrash(addedSecondaryCellTags, cellTag);
+            InsertOrCrash(newSecondaryCellTags, cellTag);
         }
 
-        for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
+        for (const auto& [cellTag, masterConfig] : changedSecondaryMasterConfigs) {
             reconfigureMasterCell(masterConfig);
-            InsertOrCrash(reconfiguredSecondaryCellTags, cellTag);
+            InsertOrCrash(changedSecondaryCellTags, cellTag);
         }
 
         // For consistency it is important to start reporting heartbeats before update of SecondaryMasterConnectionConfigs_, which is viewable.
         // But before it is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
-        MasterConnector_->AddMasterCellTags(addedSecondaryCellTags);
-        ReadyToReportHeartbeatsToNewMasters_.Fire(addedSecondaryMasterConfigs);
+        MasterConnector_->AddMasterCellTags(newSecondaryCellTags);
+        ReadyToReportHeartbeatsToNewMasters_.Fire(newSecondaryMasterConfigs);
 
         {
             auto guard = WriterGuard(SecondaryMasterConnectionLock_);
-            for (const auto& [cellTag, masterConfig] : addedSecondaryMasterConfigs) {
+            for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
                 EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
             }
-            for (const auto& [cellTag, masterConfig] : reconfiguredSecondaryMasterConfigs) {
+            for (const auto& [cellTag, masterConfig] : changedSecondaryMasterConfigs) {
                 auto masterConfigIt = SecondaryMasterConnectionConfigs_.find(cellTag);
                 YT_VERIFY(masterConfigIt != SecondaryMasterConnectionConfigs_.end());
                 masterConfigIt->second = masterConfig;
@@ -1589,10 +1589,10 @@ private:
         }
 
         YT_LOG_INFO("Received new master cell cluster configuration "
-            "(AddedCellTags: %v, ReconfiguredCellTags: %v, RemovedCellTags: %v)",
-            addedSecondaryCellTags,
-            reconfiguredSecondaryCellTags,
-            addedSecondaryCellTags);
+            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
+            newSecondaryCellTags,
+            changedSecondaryCellTags,
+            removedSecondaryCellTags);
     }
 
     TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() const
@@ -1642,8 +1642,8 @@ TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
             PopulateAlerts_.Fire(alerts);
         }));
     Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
-        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& addedSecondaryMasterConfigs) {
-            ReadyToReportHeartbeatsToNewMasters_.Fire(addedSecondaryMasterConfigs);
+        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
+            ReadyToReportHeartbeatsToNewMasters_.Fire(newSecondaryMasterConfigs);
         }));
 }
 
