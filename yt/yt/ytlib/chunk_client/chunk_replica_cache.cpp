@@ -43,7 +43,8 @@ public:
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
             connection->GetConfig()->ChunkReplicaCache->ExpirationSweepPeriod))
-        , Config_(connection->GetConfig()->ChunkReplicaCache)
+        , ExpirationTime_(connection->GetConfig()->ChunkReplicaCache->ExpirationTime)
+        , MaxChunksPerLocate_(connection->GetConfig()->ChunkReplicaCache->MaxChunksPerLocate)
     {
         ExpirationExecutor_->Start();
     }
@@ -148,6 +149,7 @@ public:
             }
 
             ChunkLocations_.Increment(cellTagToStillMissingIndices.size());
+            auto maxChunksPerLocate = MaxChunksPerLocate_.load();
             for (auto& [cellTag, stillMissingIndices] : cellTagToStillMissingIndices) {
                 try {
                     auto channel = connection->GetMasterCellDirectory()->GetMasterChannelOrThrow(
@@ -192,7 +194,7 @@ public:
 
                         ToProto(currentReq->add_subrequests(), chunkId);
 
-                        if (std::ssize(currentChunkIds) >= Config_->MaxChunksPerLocate) {
+                        if (std::ssize(currentChunkIds) >= maxChunksPerLocate) {
                             flushCurrent();
                         }
                     }
@@ -332,7 +334,8 @@ public:
     void Reconfigure(TChunkReplicaCacheConfigPtr config) override
     {
         ExpirationExecutor_->SetPeriod(config->ExpirationSweepPeriod);
-        Config_ = std::move(config);
+        ExpirationTime_.store(config->ExpirationTime);
+        MaxChunksPerLocate_.store(config->MaxChunksPerLocate);
     }
 
 private:
@@ -352,7 +355,8 @@ private:
 
     const TPeriodicExecutorPtr ExpirationExecutor_;
 
-    TChunkReplicaCacheConfigPtr Config_;
+    std::atomic<TDuration> ExpirationTime_;
+    std::atomic<int> MaxChunksPerLocate_;
 
     struct TEntry
     {
@@ -429,11 +433,12 @@ private:
 
     void OnExpirationSweep()
     {
-        YT_LOG_DEBUG("Started expired chunk replica sweep");
-
         std::vector<TChunkId> expiredChunkIds;
-        auto config = Config_;
-        auto deadline = TInstant::Now() - config->ExpirationTime;
+        auto deadline = TInstant::Now() - ExpirationTime_.load();
+
+        YT_LOG_DEBUG("Started expired chunk replica sweep (Deadline: %v)",
+            deadline);
+
         int totalChunkCount;
 
         {

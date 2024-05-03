@@ -109,6 +109,7 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
@@ -795,12 +796,6 @@ private:
         connectionOptions.BlockCache = GetBlockCache();
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
-        SetupClusterConnectionDynamicConfigUpdate(
-            Connection_,
-            Config_->ClusterConnectionDynamicConfigPolicy,
-            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
-            Logger);
-
         Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
@@ -1439,6 +1434,12 @@ private:
         JobResourceManager_->OnDynamicConfigChanged(
             oldConfig->JobResourceManager,
             newConfig->JobResourceManager);
+
+        auto newChunkReplicaCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChunkReplicaCache);
+        if (const auto& newExpirationTime = newConfig->ChunkReplicaCacheConfig->ExpirationTime; newExpirationTime) {
+            newChunkReplicaCacheConfig->ExpirationTime = *newExpirationTime;
+        }
+        Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

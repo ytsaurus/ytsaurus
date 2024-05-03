@@ -135,6 +135,21 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkReplicaCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> ExpirationTime;
+
+    REGISTER_YSON_STRUCT(TChunkReplicaCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceLimitsDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -428,6 +443,9 @@ public:
 
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
+
+    //! Chunk replica cache config overrides
+    TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCacheConfig;
 
     bool UsePortoNetworkLimitInThrottler;
 
