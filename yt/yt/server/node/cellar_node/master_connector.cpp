@@ -208,7 +208,7 @@ private:
         for (const auto& [cellTag, _] : addedSecondaryMasterConfigs) {
             addedSecondaryCellTags.emplace_back(cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
-                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag] () {
+                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
                     return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }

@@ -769,7 +769,7 @@ private:
             if (clusterNodeMasterConnector->IsConnected()) {
                 delta->State = EMasterConnectorState::Registered;
 
-                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag] () {
+                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
                     return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }
