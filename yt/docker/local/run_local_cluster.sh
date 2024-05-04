@@ -23,7 +23,6 @@ rpc_proxy_count=0
 rpc_proxy_port=8002
 node_count=1
 queue_agent_count=1
-discovery_server_count=0
 enable_debug_logging=false
 yt_fqdn=''
 
@@ -52,7 +51,6 @@ Usage: $script_name [-h|--help]
                     [--rpc-proxy-port port]
                     [--node-count count]
                     [--queue-agent-count count]
-                    [--discovery-server-count count]
                     [--enable-debug-logging true|false]
                     [--stop]
 
@@ -71,7 +69,6 @@ Usage: $script_name [-h|--help]
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
   --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
   --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
-  --discovery-server-count: Sets the number of discovery servers to start in yt local cluster (default: $discovery_server_count)
   --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
@@ -140,10 +137,6 @@ while [[ $# -gt 0 ]]; do
         ;;
         --queue-agent-count)
         queue_agent_count="$2"
-        shift 2
-        ;;
-        --discovery-server-count)
-        discovery_server_count="$2"
         shift 2
         ;;
         --enable-debug-logging)
@@ -228,7 +221,6 @@ cluster_container=$(
         --rpc-proxy-port ${rpc_proxy_port} \
         --node-count ${node_count} \
         --queue-agent-count ${queue_agent_count} \
-        --discovery-server-count ${discovery_server_count} \
         ${params} \
 )
 
