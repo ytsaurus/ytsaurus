@@ -153,6 +153,8 @@ void TTestConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
         .Default();
+    registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& edge : config->FrozenHiveEdges) {

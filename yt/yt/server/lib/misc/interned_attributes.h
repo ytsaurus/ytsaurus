@@ -152,6 +152,7 @@
     XX(DiskSpace, disk_space) \
     XX(Domestic, domestic) \
     XX(Dynamic, dynamic) \
+    XX(DynamicallyPropagatedMastersCellTags, dynamically_propagated_masters_cell_tags) \
     XX(DynamicConfigVersion, dynamic_config_version) \
     XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \

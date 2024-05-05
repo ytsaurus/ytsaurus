@@ -53,6 +53,19 @@ DEFINE_ENUM(ENodeState,
     ((BeingDisposed) (5))
 );
 
+DEFINE_ENUM(ECellAggregatedStateReliability,
+    // Used internally.
+    ((Unknown)                  (0))
+    // Node knows about this cell from config.
+    ((StaticallyKnown)          (1))
+    // Indicates that node will receive information about this cell dynamically,
+    // no need to take into account information about node from cell,
+    // marked as ECellAggregatedStateReliability::DuringPropagation during computing aggregated state on primary master.
+    ((DuringPropagation)        (2))
+    // Indicates that node already received information about this cell dynamically.
+    ((DynamicallyDiscovered)    (3))
+);
+
 DEFINE_ENUM(ENodeRole,
     ((MasterCache)       (0))
     ((TimestampProvider) (1))

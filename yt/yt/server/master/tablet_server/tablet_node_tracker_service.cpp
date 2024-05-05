@@ -45,6 +45,9 @@ private:
         ValidatePeer(EPeerKind::Leader);
         SyncWithUpstream();
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
+
         auto nodeId = FromProto<NNodeTrackerClient::TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();

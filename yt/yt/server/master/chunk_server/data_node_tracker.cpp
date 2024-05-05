@@ -444,10 +444,7 @@ public:
         }
 
         ReplicateChunkLocations(node, chunkLocationUuids);
-        for (auto locationUuid : chunkLocationUuids) {
-            auto* location = FindChunkLocationByUuid(locationUuid);
-            location->SetState(EChunkLocationState::Online);
-        }
+        MakeLocationsOnline(chunkLocationUuids);
 
         if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
@@ -494,6 +491,14 @@ public:
         }
 
         node->ChunkLocations().shrink_to_fit();
+    }
+
+    void MakeLocationsOnline(const std::vector<TChunkLocationUuid>& chunkLocationUuids) override
+    {
+        for (auto locationUuid : chunkLocationUuids) {
+            auto* location = FindChunkLocationByUuid(locationUuid);
+            location->SetState(EChunkLocationState::Online);
+        }
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation);

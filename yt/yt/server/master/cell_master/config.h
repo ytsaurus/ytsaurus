@@ -183,6 +183,7 @@ class TTestConfig
 public:
     // NB: Temporary field to test dynamic reconfiguration of master cell cluster on nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
+    THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
 
     //! This can simulate connection instability.
     /*!

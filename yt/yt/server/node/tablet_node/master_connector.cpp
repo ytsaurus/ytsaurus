@@ -7,6 +7,8 @@
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -38,6 +40,7 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NApi::NNative;
 using namespace NCellMasterClient;
 using namespace NCellarAgent;
 using namespace NCellarClient;
@@ -78,10 +81,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
-
-        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
-        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+        Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
+            BIND_NO_PROPAGATE(&TMasterConnector::OnReadyToReportHeartbeatsToNewMasters, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& cellarNodeMasterConnector = Bootstrap_->GetCellarNodeMasterConnector();
@@ -128,19 +129,45 @@ private:
         StartHeartbeats();
     }
 
-    void OnMasterCellDirectoryChanged(
-        const THashSet<TCellTag>& addedSecondaryCellTags,
-        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<TCellTag>& removedSecondaryCellTags)
+    void OnReadyToReportHeartbeatsToNewMasters(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        std::vector<TFuture<bool>> futures;
+        THashSet<TCellTag> newSecondaryCellTags;
+        futures.reserve(newSecondaryMasterConfigs.size());
+        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
+            InsertOrCrash(newSecondaryCellTags, cellTag);
+            if (clusterNodeMasterConnector->IsConnected()) {
+                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
+                    return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                }).AsyncVia(HeartbeatInvoker_).Run());
+            }
+        }
+
+        auto resultsOrError = WaitFor(AllSucceeded(std::move(futures)));
         YT_LOG_ALERT_UNLESS(
-            addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
-            "Unexpected master cell configuration detected "
-            "(AddedCellTags: %v, RemovedCellTags: %v)",
-            addedSecondaryCellTags,
-            removedSecondaryCellTags);
+            resultsOrError.IsOK(),
+            resultsOrError,
+            "Failed to report tablet node heartbeat to new masters "
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
+
+        if (resultsOrError.IsOK()) {
+            auto results = resultsOrError.Value();
+            YT_LOG_WARNING_UNLESS(
+                AllOf(results, [] (auto result) { return result; }),
+                "Some of tablet heartbeats failed, node will re-register at primary master "
+                "(NewCellTags: %v)",
+                newSecondaryCellTags);
+        }
+
+        YT_LOG_INFO(
+            "Received master cell directory change, successfully reported heartbeats to the new cells "
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
     }
 
     void OnDynamicConfigChanged(
@@ -159,23 +186,27 @@ private:
 
         YT_LOG_INFO("Starting tablet node heartbeats");
 
-        for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
-            DoScheduleHeartbeat(cellTag, /* immediately */ true);
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+            YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ true));
         }
     }
 
-    void DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
+    TFuture<bool> DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
-        TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this), cellTag),
-            delay,
-            HeartbeatInvoker_);
+        return TDelayedExecutor::MakeDelayed(delay, HeartbeatInvoker_)
+            .Apply(BIND([this, _this = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
+                if (error.IsOK()) {
+                    return ReportHeartbeat(cellTag);
+                }
+                return MakeFuture<bool>(error);
+            }));
     }
 
-    void ReportHeartbeat(TCellTag cellTag)
+    TFuture<bool> ReportHeartbeat(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -198,15 +229,21 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+            YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ false));
+            return MakeFuture(true);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting tablet node heartbeat to master (CellTag: %v)",
                 cellTag);
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+            if (IsRetriableError(rspOrError)
+                || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)
+                || rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady)) {
+                return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                    cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
+            return MakeFuture(false);
         }
     }
 

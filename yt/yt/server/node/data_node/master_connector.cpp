@@ -13,6 +13,8 @@
 #include "session_manager.h"
 #include "io_throughput_meter.h"
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -27,6 +29,7 @@
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
@@ -55,6 +58,7 @@
 namespace NYT::NDataNode {
 
 using namespace NCellMasterClient;
+using namespace NApi::NNative;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkServer;
@@ -117,34 +121,17 @@ public:
 
         LocationUuidsRequired_ = true;
 
-        for (auto cellTag : Bootstrap_->GetMasterCellTags()) {
-            auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
-
-            auto cellTagData = std::make_unique<TPerCellTagData>();
-            EmplaceOrCrash(PerCellTagData_, cellTag, std::move(cellTagData));
-
-            for (const auto& jobTrackerAddress : Bootstrap_->GetMasterAddressesOrThrow(cellTag)) {
-                auto jobTrackerData = std::make_unique<TPerJobTrackerData>();
-                jobTrackerData->CellTag = cellTag;
-
-                const auto& channelFactory = Bootstrap_->GetConnection()->GetChannelFactory();
-                auto channel = channelFactory->CreateChannel(jobTrackerAddress);
-                jobTrackerData->Channel = CreateRealmChannel(std::move(channel), cellId);
-
-                EmplaceOrCrash(PerJobTrackerData_, jobTrackerAddress, std::move(jobTrackerData));
-
-                JobTrackerAddresses_.push_back(jobTrackerAddress);
-            }
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+            InitPerCellData(cellTag, Bootstrap_->GetMasterAddressesOrThrow(cellTag));
         }
 
         Shuffle(JobTrackerAddresses_.begin(), JobTrackerAddresses_.end());
 
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
         Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
-
-        const auto& connection = Bootstrap_->GetClient()->GetNativeConnection();
-        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
+        Bootstrap_->SubscribeReadyToReportHeartbeatsToNewMasters(
+            BIND_NO_PROPAGATE(&TMasterConnector::OnReadyToReportHeartbeatsToNewMasters, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
@@ -496,14 +483,11 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        for (auto cellTag : masterCellTags) {
-            controlInvoker->Invoke(BIND(
-                &TMasterConnector::DoScheduleHeartbeat,
-                MakeWeak(this),
-                cellTag,
-                immediately,
-                /*outOfOrder*/ true));
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+            controlInvoker->Invoke(BIND([this, _this = MakeWeak(this), cellTag, immediately] () {
+                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ immediately, /*outOfOrder*/ true));
+            }));
         }
     }
 
@@ -525,7 +509,8 @@ public:
 
     bool IsOnline() const override
     {
-        return OnlineCellCount_.load() == std::ssize(Bootstrap_->GetMasterCellTags());
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        return OnlineCellCount_.load() == std::ssize(clusterNodeMasterConnector->GetMasterCellTags());
     }
 
     void SetLocationUuidsRequired(bool value) override
@@ -574,6 +559,7 @@ private:
         int ScheduledDataNodeHeartbeatCount = 0;
 
     };
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerCellTagDataLock_);
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
 
     struct TPerJobTrackerData
@@ -587,12 +573,14 @@ private:
         //! Prevents concurrent job heartbeats.
         TAsyncReaderWriterLock JobHeartbeatLock;
     };
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerJobTrackerDataLock_);
     THashMap<TString, std::unique_ptr<TPerJobTrackerData>> PerJobTrackerData_;
 
     IBootstrap* const Bootstrap_;
 
     const TMasterConnectorConfigPtr Config_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobTrackerAddressesLock_);
     std::vector<TString> JobTrackerAddresses_;
     int JobHeartbeatJobTrackerIndex_ = 0;
 
@@ -696,8 +684,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        for (auto cellTag : masterCellTags) {
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Offline;
 
@@ -724,8 +712,8 @@ private:
 
         HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        for (auto cellTag : masterCellTags) {
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
             auto* delta = GetChunksDelta(cellTag);
             delta->State = EMasterConnectorState::Registered;
         }
@@ -733,19 +721,81 @@ private:
         StartHeartbeats();
     }
 
-    void OnMasterCellDirectoryChanged(
-        const THashSet<TCellTag>& addedSecondaryCellTags,
-        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<TCellTag>& removedSecondaryCellTags)
+    void InitPerCellData(TCellTag cellTag, const std::vector<TString>& masterAddresses)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
+        auto cellTagData = std::make_unique<TPerCellTagData>();
+        {
+            auto guard = WriterGuard(PerCellTagDataLock_);
+            EmplaceOrCrash(PerCellTagData_, cellTag, std::move(cellTagData));
+        }
+
+        for (const auto& jobTrackerAddress : masterAddresses) {
+            auto jobTrackerData = std::make_unique<TPerJobTrackerData>();
+            jobTrackerData->CellTag = cellTag;
+
+            const auto& channelFactory = Bootstrap_->GetConnection()->GetChannelFactory();
+            auto channel = channelFactory->CreateChannel(jobTrackerAddress);
+            jobTrackerData->Channel = CreateRealmChannel(std::move(channel), cellId);
+
+            {
+                auto guard = WriterGuard(PerJobTrackerDataLock_);
+                EmplaceOrCrash(PerJobTrackerData_, jobTrackerAddress, std::move(jobTrackerData));
+            }
+
+            {
+                auto guard = WriterGuard(JobTrackerAddressesLock_);
+                JobTrackerAddresses_.push_back(jobTrackerAddress);
+            }
+        }
+    }
+
+    void OnReadyToReportHeartbeatsToNewMasters(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        std::vector<TFuture<bool>> futures;
+        THashSet<TCellTag> newSecondaryCellTags;
+        futures.reserve(newSecondaryMasterConfigs.size());
+        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        for (const auto& [cellTag, config] : newSecondaryMasterConfigs) {
+            InsertOrCrash(newSecondaryCellTags, cellTag);
+            YT_VERIFY(config->Addresses);
+            InitPerCellData(cellTag, *config->Addresses);
+            auto* delta = GetChunksDelta(cellTag);
+            if (clusterNodeMasterConnector->IsConnected()) {
+                delta->State = EMasterConnectorState::Registered;
+
+                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
+                    return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+                }).AsyncVia(HeartbeatInvoker_).Run());
+            }
+        }
+
+        auto resultsOrError = WaitFor(AllSucceeded(std::move(futures)));
         YT_LOG_ALERT_UNLESS(
-            addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
-            "Unexpected master cell configuration detected "
-            "(AddedCellTags: %v, RemovedCellTags: %v)",
-            addedSecondaryCellTags,
-            removedSecondaryCellTags);
+            resultsOrError.IsOK(),
+            resultsOrError,
+            "Failed to report full data node heartbeat to new masters "
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
+
+        if (resultsOrError.IsOK()) {
+            auto results = resultsOrError.Value();
+            YT_LOG_WARNING_UNLESS(
+                AllOf(results, [] (auto result) { return result; }),
+                "Some of data heartbeats failed, node will re-register at primary master "
+                "(NewCellTags: %v)",
+                newSecondaryCellTags);
+        }
+
+        YT_LOG_INFO(
+            "Received master cell directory change, attempted to report heartbeats to the new cells "
+            "(NewCellTags: %v)",
+            newSecondaryCellTags);
     }
 
     void OnDynamicConfigChanged(
@@ -773,47 +823,51 @@ private:
 
         YT_LOG_INFO("Starting data node and job heartbeats");
 
-        const auto& masterCellTags = Bootstrap_->GetMasterCellTags();
-        for (auto cellTag : masterCellTags) {
-            DoScheduleHeartbeat(cellTag, /*immediately*/ true, /*outOfOrder*/ false);
+        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
+            YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ true, /*outOfOrder*/ false));
         }
 
         DoScheduleJobHeartbeat(/*immediately*/ true);
     }
 
-    void DoScheduleHeartbeat(TCellTag cellTag, bool immediately, bool outOfOrder)
+    TFuture<bool> DoScheduleHeartbeat(TCellTag cellTag, bool immediately, bool outOfOrder)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!Initialized_) {
             YT_LOG_WARNING("Master connector is not initialized");
-            return;
+            return MakeFuture(false);
         }
 
         auto* cellTagData = GetCellTagData(cellTag);
 
         // Out-of-order heartbeats are best effort, so we do not execute them if node is not online.
         if (outOfOrder && cellTagData->ChunksDelta->State != EMasterConnectorState::Online) {
-            return;
+            return MakeFuture(false);
         }
 
         ++cellTagData->ScheduledDataNodeHeartbeatCount;
 
         auto delay = immediately ? TDuration::Zero() : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
-        TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::ReportHeartbeat, MakeWeak(this), cellTag),
-            delay,
-            HeartbeatInvoker_);
+        return TDelayedExecutor::MakeDelayed(delay, HeartbeatInvoker_)
+            .Apply(BIND([this, _this = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
+                if (error.IsOK()) {
+                    return ReportHeartbeat(cellTag);
+                }
+                return MakeFuture<bool>(error);
+            }));
     }
 
     void DoScheduleJobHeartbeat(bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto jobTrackerAddresses = GetJobTrackerAddresses();
         auto delay = immediately ? TDuration::Zero() : JobHeartbeatPeriod_ + RandomDuration(JobHeartbeatPeriodSplay_);
-        delay /= JobTrackerAddresses_.size();
+        delay /= jobTrackerAddresses.size();
 
-        const auto& jobTrackerAddress = JobTrackerAddresses_[JobHeartbeatJobTrackerIndex_];
+        const auto& jobTrackerAddress = jobTrackerAddresses[JobHeartbeatJobTrackerIndex_];
 
         TDelayedExecutor::Submit(
             BIND(
@@ -840,6 +894,7 @@ private:
             .ValueOrThrow();
 
         auto state = GetMasterConnectorState(cellTag);
+        auto jobTrackerAddresses = GetJobTrackerAddresses();
         if (state == EMasterConnectorState::Online) {
             TJobTrackerServiceProxy proxy(jobTrackerData->Channel);
 
@@ -884,12 +939,13 @@ private:
                     jobTrackerAddress,
                     sequenceNumber);
             } else {
-                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (JobTrackerAddress: %v, SequenceNumber: %v)",
+                YT_LOG_WARNING(rspOrError, "Error reporting job heartbeat to master (CellTag: %v, JobTrackerAddress: %v, SequenceNumber: %v)",
+                    cellTag,
                     jobTrackerAddress,
                     sequenceNumber);
 
                 if (!outOfOrder) {
-                    JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % JobTrackerAddresses_.size();
+                    JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % jobTrackerAddresses.size();
                 }
 
                 if (NRpc::IsRetriableError(rspOrError)) {
@@ -903,13 +959,13 @@ private:
         }
 
         if (!outOfOrder) {
-            JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % JobTrackerAddresses_.size();
+            JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % jobTrackerAddresses.size();
 
             DoScheduleJobHeartbeat(/*immediately*/ false);
         }
     }
 
-    void ReportHeartbeat(TCellTag cellTag)
+    TFuture<bool> ReportHeartbeat(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -923,19 +979,17 @@ private:
         auto state = GetMasterConnectorState(cellTag);
         switch (state) {
             case EMasterConnectorState::Registered:
-                ReportFullHeartbeat(cellTag);
-                break;
+                return ReportFullHeartbeat(cellTag);
 
             case EMasterConnectorState::Online:
-                ReportIncrementalHeartbeat(cellTag);
-                break;
+                return ReportIncrementalHeartbeat(cellTag);
 
             default:
                 YT_ABORT();
         }
     }
 
-    void ReportFullHeartbeat(TCellTag cellTag)
+    TFuture<bool> ReportFullHeartbeat(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -977,20 +1031,26 @@ private:
                 cellTag);
 
             // Schedule next heartbeat.
-            DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+            YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false));
+            return MakeFuture(true);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
 
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+            if (IsRetriableError(rspOrError)
+                || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)
+                || rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady)) {
+                return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                    cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
+            return MakeFuture(false);
         }
     }
 
-    void ReportIncrementalHeartbeat(TCellTag cellTag)
+    TFuture<bool> ReportIncrementalHeartbeat(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1013,8 +1073,9 @@ private:
             // Schedule next heartbeat if no more heartbeats are scheduled.
             auto* cellTagData = GetCellTagData(cellTag);
             if (cellTagData->ScheduledDataNodeHeartbeatCount == 0) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false));
             }
+            return MakeFuture(true);
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
                 cellTag);
@@ -1022,10 +1083,13 @@ private:
             OnIncrementalHeartbeatFailed(cellTag);
 
             if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+                return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                    cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
+            return MakeFuture(false);
         }
     }
 
@@ -1181,6 +1245,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto guard = ReaderGuard(PerCellTagDataLock_);
+        // Nothing is ever deleted from PerCellTagData_, therefore it is safe to return raw pointer.
         return GetOrCrash(PerCellTagData_, cellTag).get();
     }
 
@@ -1196,7 +1262,15 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto guard = ReaderGuard(PerJobTrackerDataLock_);
+        // Nothing is ever deleted from PerJobTrackerData_, therefore it is safe to return raw pointer.
         return GetOrCrash(PerJobTrackerData_, jobTrackerAddress).get();
+    }
+
+    std::vector<TString> GetJobTrackerAddresses() const
+    {
+        auto guard = ReaderGuard(JobTrackerAddressesLock_);
+        return JobTrackerAddresses_;
     }
 
     TChunksDelta* GetChunksDelta(TObjectId id)

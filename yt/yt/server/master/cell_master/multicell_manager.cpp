@@ -22,9 +22,9 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/ytlib/api/native/config.h>
-
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -91,6 +91,7 @@ public:
             Config_->UpstreamSyncDelay))
     {
         TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));
+        TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraReplicateDynamicallyPropagatedMasterCellTags, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraOnSecondaryMasterRegisteredAtPrimary, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraRegisterSecondaryMasterAtSecondary, Unretained(this)));
         TMasterAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TMulticellManager::HydraStartSecondaryMasterRegistration, Unretained(this)));
@@ -141,6 +142,13 @@ public:
         return Bootstrap_->IsMulticell();
     }
 
+    bool IsDynamicallyPropagatedMaster() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DynamicallyPropagated_.load();
+    }
+
     TCellId GetCellId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -183,6 +191,14 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSecondaryCellTags();
+    }
+
+    THashSet<TCellTag> GetDynamicallyPropagatedMastersCellTags() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = ReaderGuard(DynamicallyPropagatedMastersCellTagsLock_);
+        return DynamicallyPropagatedMastersCellTags_;
     }
 
     const TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const override
@@ -253,7 +269,6 @@ public:
         }
     }
 
-
     bool IsLocalMasterCellRegistered() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
@@ -274,6 +289,16 @@ public:
         Bootstrap_->VerifyPersistentStateRead();
 
         return MasterEntryExists(cellTag);
+    }
+
+    void ValidateRegisteredMasterCell() const override
+    {
+        // The new cell, that will be dynamically propagated, will receive information about it's
+        // "dynamically propagated" state only after registration on primary, so here validation via
+        // IsDynamicallyPropagatedMaster will not work.
+        THROW_ERROR_EXCEPTION_UNLESS(IsLocalMasterCellRegistered(),
+            NCellServer::EErrorCode::MasterCellNotReady,
+            "Master cell is not ready, it is not registered at primary yet")
     }
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) const override
@@ -475,8 +500,6 @@ public:
         return UpstreamSyncBatcher_->Run();
     }
 
-
-    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ValidateSecondaryMasterRegistration);
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateKeysToSecondaryMaster);
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateValuesToSecondaryMaster);
 
@@ -509,6 +532,10 @@ private:
     std::map<TCellTag, TMasterEntry> RegisteredMasterMap_;
     TCellTagList RegisteredMasterCellTags_;
     EPrimaryRegisterState RegisterState_ = EPrimaryRegisterState::None;
+    // NB: After registration on primary, the current cell doesn't add itself into RegisteredMasterMap_,
+    // so after loading from snapshot it will consider itself as "in process of dynamic propogation" even if it was already propagated or statically known,
+    // to differ that cases this flag is used.
+    bool EverRegistered_ = false;
 
     NProto::TCellStatistics LocalCellStatistics_;
     NProto::TCellStatistics ClusterCellStatisics_;
@@ -537,6 +564,10 @@ private:
 
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
     NProfiling::TEventTimer UpstreamSyncTimer_ = CellMasterProfiler.Timer("/upstream_sync_time");
+
+    std::atomic<bool> DynamicallyPropagated_ = false;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DynamicallyPropagatedMastersCellTagsLock_);
+    THashSet<TCellTag> DynamicallyPropagatedMastersCellTags_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -570,6 +601,18 @@ private:
                 entry.Index);
         }
 
+        {
+            auto guard = WriterGuard(DynamicallyPropagatedMastersCellTagsLock_);
+            for (auto cellTag : GetSecondaryCellTags()) {
+                if (!RegisteredMasterMap_.contains(cellTag)) {
+                    InsertOrCrash(DynamicallyPropagatedMastersCellTags_, cellTag);
+                }
+            }
+            if (EverRegistered_) {
+                EraseOrCrash(DynamicallyPropagatedMastersCellTags_, GetCellTag());
+            }
+            DynamicallyPropagated_.store(DynamicallyPropagatedMastersCellTags_.contains(GetCellTag()));
+        }
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
     }
@@ -584,19 +627,28 @@ private:
         RegisteredMasterCellTags_.clear();
         RegisterState_ = EPrimaryRegisterState::None;
         CellTagToMasterMailbox_.clear();
+        DynamicallyPropagatedMastersCellTags_.clear();
         PrimaryMasterMailbox_ = nullptr;
         LocalCellStatistics_ = {};
         ClusterCellStatisics_ = {};
+        DynamicallyPropagated_.store(false);
+        EverRegistered_ = false;
     }
 
 
     void LoadValues(TLoadContext& context)
     {
         using NYT::Load;
+
         Load(context, RegisteredMasterMap_);
         Load(context, RegisterState_);
         Load(context, LocalCellStatistics_);
         Load(context, ClusterCellStatisics_);
+        if (context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
+            Load(context, EverRegistered_);
+        } else {
+            EverRegistered_ = IsSecondaryMaster();
+        }
     }
 
     void SaveValues(TSaveContext& context) const
@@ -607,6 +659,7 @@ private:
         Save(context, RegisterState_);
         Save(context, LocalCellStatistics_);
         Save(context, ClusterCellStatisics_);
+        Save(context, EverRegistered_);
     }
 
     void OnRecoveryComplete() override
@@ -693,7 +746,6 @@ private:
         OnStopEpoch();
     }
 
-
     void OnStartEpoch()
     { }
 
@@ -705,13 +757,11 @@ private:
         ClearCaches();
     }
 
-
     void ClearCaches()
     {
         auto guard = WriterGuard(MasterChannelCacheLock_);
         MasterChannelCache_.clear();
     }
-
 
     void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request) noexcept
     {
@@ -731,8 +781,6 @@ private:
             if (MasterEntryExists(cellTag))  {
                 THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
-
-            ValidateSecondaryMasterRegistration_.Fire(cellTag);
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error registering secondary master (CellTag: %v)",
                 cellTag);
@@ -743,6 +791,16 @@ private:
         }
 
         RegisterMasterEntry(cellTag);
+
+        {
+            // Before replicating keys & values it is needed to replicate dynamically propagated master cell tags,
+            // because some further replication results depend on these cell tags.
+            NProto::TReqReplicateDynamicallyPropagatedMasterCellTags request;
+            for (auto cellTag : GetDynamicallyPropagatedMastersCellTags()) {
+                request.add_dynamically_propagated_masters_cell_tags(ToProto<int>(cellTag));
+            }
+            PostToMaster(request, cellTag, true);
+        }
 
         ReplicateKeysToSecondaryMaster_.Fire(cellTag);
         ReplicateValuesToSecondaryMaster_.Fire(cellTag);
@@ -773,6 +831,20 @@ private:
         }
     }
 
+    void HydraReplicateDynamicallyPropagatedMasterCellTags(NProto::TReqReplicateDynamicallyPropagatedMasterCellTags* request) noexcept
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsSecondaryMaster());
+
+        if (!EverRegistered_) {
+            auto guard = WriterGuard(DynamicallyPropagatedMastersCellTagsLock_);
+            for (auto cellTag : request->dynamically_propagated_masters_cell_tags()) {
+                InsertOrCrash(DynamicallyPropagatedMastersCellTags_, FromProto<TCellTag>(cellTag));
+            }
+            DynamicallyPropagated_.store(DynamicallyPropagatedMastersCellTags_.contains(GetCellTag()));
+        }
+    }
+
     void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response) noexcept
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -786,6 +858,7 @@ private:
         }
 
         RegisterState_ = EPrimaryRegisterState::Registered;
+        EverRegistered_ = true;
 
         YT_LOG_INFO("Successfully registered at primary master");
     }
@@ -947,9 +1020,19 @@ private:
         return false;
     }
 
+    bool IsDiscoveredMasterCell(TCellTag cellTag) const
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto guard = ReaderGuard(DynamicallyPropagatedMastersCellTagsLock_);
+        return !DynamicallyPropagatedMastersCellTags_.contains(cellTag);
+    }
 
     void RegisterMasterMailbox(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+
         if (CellTagToMasterMailbox_.contains(cellTag)) {
             return;
         }
@@ -966,6 +1049,8 @@ private:
 
     void RegisterMasterEntry(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
         YT_VERIFY(FindMasterMailbox(cellTag));
 
         if (RegisteredMasterMap_.find(cellTag) != RegisteredMasterMap_.end()) {
@@ -1019,7 +1104,6 @@ private:
         auto it = CellTagToMasterMailbox_.find(cellTag);
         return it == CellTagToMasterMailbox_.end() ? nullptr : it->second;
     }
-
 
     void OnStartSecondaryMasterRegistration()
     {
@@ -1279,6 +1363,21 @@ private:
         if (SyncHiveClocksExecutor_) {
             SyncHiveClocksExecutor_->SetPeriod(dynamicConfig->SyncHiveClocksPeriod);
         }
+
+        const auto& testingConfig = GetDynamicConfig()->Testing;
+        // TODO(cherepashka): temporary logic.
+        if (testingConfig->MasterCellDirectoryOverride) {
+            GetMasterCellConnectionConfigs()->SecondaryMasters = testingConfig->MasterCellDirectoryOverride->SecondaryMasters;
+        }
+
+        {
+            auto guard = WriterGuard(DynamicallyPropagatedMastersCellTagsLock_);
+            for (auto cellTag : testingConfig->DiscoveredMastersCellTags) {
+                DynamicallyPropagatedMastersCellTags_.erase(cellTag);
+            }
+            DynamicallyPropagated_.store(DynamicallyPropagatedMastersCellTags_.contains(GetCellTag()));
+        }
+
         RecomputeMasterCellRoles();
         RecomputeMasterCellNames();
 
@@ -1325,6 +1424,11 @@ private:
         // best updated gradually, without intermediate resetting to zero.
         auto populateCellRoles = [&] (TCellTag cellTag) {
             auto roles = ComputeMasterCellRolesFromConfig(cellTag);
+            THROW_ERROR_EXCEPTION_IF(!IsDiscoveredMasterCell(cellTag) && roles != EMasterCellRoles::None,
+                "Attempted to set master cell roles to master that is not discovered by all nodes "
+                "(CellTag: %v, Roles: %v)",
+                cellTag,
+                roles)
 
             MasterCellRolesMap_[cellTag] = roles;
 
@@ -1395,7 +1499,7 @@ private:
                 (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost);
         }
 
-        if (config->RemoveSecondaryCellDefaultRoles) {
+        if (config->RemoveSecondaryCellDefaultRoles || !IsDiscoveredMasterCell(cellTag)) {
             return EMasterCellRoles::None;
         }
 
