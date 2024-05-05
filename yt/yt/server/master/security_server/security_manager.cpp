@@ -590,14 +590,14 @@ public:
             buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
             buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
 
-            auto profileDetailed = [&] (double usage, double committedUsage, TString name)  {
+            auto profileDetailed = [&] (i64 usage, i64 committedUsage, TString name)  {
                 {
-                    TWithTagGuard guard(&buffer, "status", "commited");
+                    TWithTagGuard guard(&buffer, "status", "committed");
                     buffer.AddGauge(name, committedUsage);
                 }
                 {
-                    TWithTagGuard guard(&buffer, "status", "uncommited");
-                    buffer.AddGauge(name, std::max(0., double(usage - committedUsage)));
+                    TWithTagGuard guard(&buffer, "status", "uncommitted");
+                    buffer.AddGauge(name, std::max(static_cast<i64>(0), usage - committedUsage));
                 }
             };
 
