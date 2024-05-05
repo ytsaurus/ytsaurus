@@ -749,7 +749,7 @@ public:
             LastReplicaLagTimeUpdate_ = now;
 
             YT_LOG_DEBUG(
-                "Replica lag time is  (ReplicaId %v, LagTime: %v, CappedLagTime: %v)",
+                "Set replica lag time (ReplicaId %v, LagTime: %v, CappedLagTime: %v)",
                 Id_,
                 *replicaLagTime,
                 cappedReplicaLagTime);
