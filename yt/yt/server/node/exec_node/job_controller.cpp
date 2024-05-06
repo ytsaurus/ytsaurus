@@ -299,7 +299,7 @@ public:
 
         const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
 
-        return JobsDisabledByMaster_.load() || slotManager->HasFatalAlert();
+        return JobsDisabledByMaster_.load() || slotManager->IsJobSchedulingDisabled();
     }
 
     void ScheduleStartAllocations()

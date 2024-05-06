@@ -45,6 +45,10 @@ YT_DEFINE_ERROR_ENUM(
     ((NoLayerLocationAvailable)              (1136))
     ((ArtifactFetchFailed)                   (1137))
     ((LayerLocationDisabled)                 (1138))
+    ((PortoVolumeManagerFailure)             (1139))
+    ((PortoHealthCheckFailed)                (1140))
+    ((PortoExecutorFailure)                  (1141))
+    ((JobCleanupTimeout)                     (1142))
 );
 
 DEFINE_ENUM(EJobPhase,

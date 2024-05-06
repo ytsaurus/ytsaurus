@@ -248,7 +248,7 @@ public:
                 execNodeBootstrap->GetChunkCache()->IsEnabled() &&
                 !execNodeBootstrap->GetJobController()->AreJobsDisabled() &&
                 !Bootstrap_->IsReadOnly() &&
-                slotManager->IsEnabled();
+                !slotManager->IsJobSchedulingDisabled();
 
             result.UserSlots = scheduleJobEnabled
                 ? slotManager->GetSlotCount()
