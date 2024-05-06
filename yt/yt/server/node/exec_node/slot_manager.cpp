@@ -115,7 +115,9 @@ void TSlotManager::OnPortoHealthCheckSuccess()
 
         auto volumeManager = RootVolumeManager_.Acquire();
         if (volumeManager && !volumeManager->IsEnabled() && IsInitialized()) {
-            Disable(TError("Layer cache is disabled"));
+            Disable(TError(
+                EErrorCode::PortoVolumeManagerFailure,
+                "Layer cache is disabled"));
             return;
         }
 
@@ -129,12 +131,28 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (IsJobEnvironmentResurrectionEnabled() && IsEnabled()) {
-        YT_LOG_INFO("Porto health check failed, disable slot manager");
+    if (!IsJobEnvironmentResurrectionEnabled()) {
+        return;
+    }
+
+    auto error = result
+            << TError(EErrorCode::PortoHealthCheckFailed, "Porto health check failed");
+
+    if (!IsJobSchedulingDisabled()) {
+        YT_LOG_INFO(
+            "Porto health check failed, disable slot manager (Error: %v)",
+            result);
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
-        Disable(result);
+        Disable(std::move(error));
+        return;
+    }
+
+    // NB: Either way we light up the alert.
+    auto guard = WriterGuard(AlertsLock_);
+    if (!Alerts_.HasArmedAlert(ESlotManagerAlertType::PortoFailure)) {
+        Alerts_.SetAlertError(std::move(error));
     }
 }
 
@@ -213,7 +231,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     {
         auto guard = WriterGuard(AlertsLock_);
-        Alerts_ = {};
+        Alerts_.Clear();
     }
 
     JobEnvironment_ = CreateJobEnvironment(
@@ -286,6 +304,15 @@ void TSlotManager::OnDynamicConfigChanged(
         PortoHealthChecker_->OnDynamicConfigChanged(portoEnvironmentConfig->PortoExecutor);
     }
 
+    {
+        auto guard = WriterGuard(AlertsLock_);
+        if (newConfig->DisableJobsOnGpuCheckFailure) {
+            Alerts_.RearmAlert(ESlotManagerAlertType::GpuCheckFailed);
+        } else {
+            Alerts_.DisarmAlert(ESlotManagerAlertType::GpuCheckFailed);
+        }
+    }
+
     Bootstrap_->GetJobInvoker()->Invoke(
         BIND([
             oldConfig,
@@ -322,7 +349,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (!IsEnabled()) {
+    if (IsJobSchedulingDisabled()) {
         THROW_ERROR_EXCEPTION(EErrorCode::SchedulerJobsDisabled, "Slot manager disabled");
     }
 
@@ -442,46 +469,114 @@ bool TSlotManager::IsInitialized() const
     return State_.load() == ESlotManagerState::Initialized;
 }
 
+bool TSlotManager::IsFixableByResurrect(ESlotManagerAlertType alertType)
+{
+    return TAlertSet::IsFixableByResurrect(alertType);
+}
+
+bool TSlotManager::IsFixableByRequest(ESlotManagerAlertType alertType)
+{
+    return TAlertSet::IsFixableByRequest(alertType);
+}
+
+bool TSlotManager::IsTransient(ESlotManagerAlertType alertType)
+{
+    return !IsPersistent(alertType);
+}
+
+bool TSlotManager::IsPersistent(ESlotManagerAlertType alertType)
+{
+    return TAlertSet::IsPersistent(alertType);
+}
+
+bool TSlotManager::IsJobSchedulingDisabled() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!IsEnabled()) {
+        return true;
+    }
+
+    auto guard = ReaderGuard(AlertsLock_);
+    return GuardedHasArmedAlerts();
+}
+
+bool TSlotManager::HasArmedPersistentAlerts() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    auto guard = ReaderGuard(AlertsLock_);
+
+    return GuardedHasArmedPersistentAlerts();
+}
+
 bool TSlotManager::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = ReaderGuard(AliveLocationsLock_);
+    bool hasAliveLocations = false;
+    {
+        auto guard = ReaderGuard(AliveLocationsLock_);
+        hasAliveLocations = !AliveLocations_.empty();
+    }
 
     auto volumeManager = RootVolumeManager_.Acquire();
     auto isVolumeManagerEnabled = JobEnvironmentType_ != EJobEnvironmentType::Porto || volumeManager && volumeManager->IsEnabled();
 
-    bool enabled =
+    return
         JobProxyReady_.load() &&
         IsInitialized() &&
         SlotCount_ > 0 &&
-        !AliveLocations_.empty() &&
+        hasAliveLocations &&
         JobEnvironment_->IsEnabled() &&
         isVolumeManagerEnabled;
-
-    return enabled && !HasSlotDisablingAlert();
 }
 
-bool TSlotManager::HasGpuAlerts() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
-
-    bool disableJobsOnGpuCheckFailure = DynamicConfig_.Acquire()->DisableJobsOnGpuCheckFailure;
-
-    return !Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK() ||
-        (disableJobsOnGpuCheckFailure && !Alerts_[ESlotManagerAlertType::GpuCheckFailed].IsOK());
-}
-
-bool TSlotManager::HasNonFatalAlerts() const
+bool TSlotManager::GuardedHasArmedAlerts() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
     VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
 
     return
-        !Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK() ||
-        !Alerts_[ESlotManagerAlertType::JobProxyUnavailable].IsOK() ||
-        HasGpuAlerts();
+        GuardedHasArmedPersistentAlerts() ||
+        GuardedHasArmedTransientAlerts();
+}
+
+bool TSlotManager::GuardedHasArmedPersistentAlerts() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
+
+    return
+        Alerts_.HasArmedPersistentAlert(/*inverseCondition*/ false);
+}
+
+bool TSlotManager::GuardedHasArmedTransientAlerts() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
+
+    return
+        Alerts_.HasArmedPersistentAlert(/*inverseCondition*/ true);
+}
+
+bool TSlotManager::FixableByResurrect() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+    auto guard = ReaderGuard(AlertsLock_);
+
+    return
+        !Alerts_.HasArmedFixableByResurrectAlert(/*inverseCondition*/ true);
+}
+
+bool TSlotManager::CanResurrect() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    bool jobSchedulingDisabled = IsJobSchedulingDisabled();
+
+    auto guard = ReaderGuard(AlertsLock_);
+
+    return jobSchedulingDisabled && FixableByResurrect();
 }
 
 TDuration TSlotManager::GetDisableJobsBackoff()
@@ -509,7 +604,10 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
     {
         auto guard = ReaderGuard(AlertsLock_);
 
-        alerts = Alerts_;
+        const auto& listedAlerts = Alerts_.ListAlerts();
+        for (auto alertType : TEnumTraits<ESlotManagerAlertType>::GetDomainValues()) {
+            alerts[alertType] = listedAlerts[alertType].Error;
+        }
     }
 
     return {
@@ -538,30 +636,10 @@ auto TSlotManager::GetStateSnapshot() const
     return std::move(snapshotOrError.Value());
 }
 
-bool TSlotManager::HasSlotDisablingAlert() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = ReaderGuard(AlertsLock_);
-
-    return HasFatalAlert() || HasNonFatalAlerts();
-}
-
-bool TSlotManager::CanResurrect() const
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    bool disabled = !IsEnabled();
-
-    auto guard = ReaderGuard(AlertsLock_);
-
-    return disabled &&
-        !HasNonFatalAlerts();
-}
-
 double TSlotManager::GetIdleCpuFraction() const
 {
-    return DynamicConfig_.Acquire()->IdleCpuFraction;
+    return DynamicConfig_.Acquire()
+        ->IdleCpuFraction;
 }
 
 i64 TSlotManager::GetMajorPageFaultCount() const
@@ -577,19 +655,8 @@ i64 TSlotManager::GetMajorPageFaultCount() const
 
 bool TSlotManager::EnableNumaNodeScheduling() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    return dynamicConfig
-        ? dynamicConfig->EnableNumaNodeScheduling
-        : false;
-}
-
-bool TSlotManager::HasFatalAlert() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    auto guard = ReaderGuard(AlertsLock_);
-
-    return !Alerts_[ESlotManagerAlertType::GenericPersistentError].IsOK();
+    return DynamicConfig_.Acquire()
+        ->EnableNumaNodeScheduling;
 }
 
 void TSlotManager::ForceInitialize()
@@ -611,15 +678,16 @@ void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTy
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    bool needInitialize;
     {
         auto guard = WriterGuard(AlertsLock_);
 
         for (auto alertType : alertTypes) {
-            Alerts_[alertType] = {};
+            Alerts_.ClearAlertError(alertType);
         }
-    }
 
-    auto needInitialize = !HasSlotDisablingAlert();
+        needInitialize = !GuardedHasArmedAlerts();
+    }
 
     if (!IsInitialized() && needInitialize) {
         SubscribeDisabled(BIND(&TSlotManager::ForceInitialize, MakeWeak(this)));
@@ -653,7 +721,7 @@ void TSlotManager::SetDisableState()
     Disabled_.FireAndClear();
 }
 
-bool TSlotManager::Disable(const TError& error)
+bool TSlotManager::Disable(TError error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -673,10 +741,11 @@ bool TSlotManager::Disable(const TError& error)
         auto guard = WriterGuard(AlertsLock_);
 
         auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Scheduler jobs disabled")
+        // NB: Must copy here since error is used in volume manager too.
             << error;
         YT_LOG_WARNING(wrappedError, "Disabling slot manager");
-
-        Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
+        Alerts_.SetAlertError(
+            std::move(wrappedError));
     }
 
     auto dynamicConfig = DynamicConfig_.Acquire();
@@ -697,7 +766,7 @@ bool TSlotManager::Disable(const TError& error)
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
-            .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, error)
+            .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
             .AsyncVia(Bootstrap_->GetControlInvoker()))
             .WithTimeout(timeout));
         if (dynamicConfig->AbortOnFreeVolumeSynchronizationFailed) {
@@ -724,7 +793,7 @@ bool TSlotManager::Disable(const TError& error)
 
 void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_WARNING(
         error,
@@ -732,8 +801,38 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 
     {
         auto guard = WriterGuard(AlertsLock_);
-        Alerts_[ESlotManagerAlertType::GpuCheckFailed] = error;
+        Alerts_.SetAlertError(error, ESlotManagerAlertType::GpuCheckFailed);
     }
+}
+
+void TSlotManager::OnPortoExecutorFailed(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Disable(TError(EErrorCode::PortoExecutorFailure, "Porto exeuctor failed") << error);
+}
+
+void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    // NB(arkady-e1ppa): This call is sync and this event has already
+    // been logged before going there.
+
+    YT_VERIFY(error.FindMatching(EErrorCode::JobCleanupTimeout));
+
+    Disable(std::move(error));
+}
+
+void TSlotManager::OnJobEnvironmentDisabled(TError error)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_VERIFY(error.FindMatching(EErrorCode::JobEnvironmentDisabled));
+
+    YT_LOG_WARNING(error, "Job environment disabled. Disabling slot manager.");
+
+    Disable(std::move(error));
 }
 
 void TSlotManager::OnJobFinished(const TJobPtr& job)
@@ -749,17 +848,27 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
 
     auto dynamicConfig = DynamicConfig_.Acquire();
 
-    if (ConsecutiveAbortedSchedulerJobCount_ > dynamicConfig->MaxConsecutiveJobAborts) {
-        if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions].IsOK()) {
+    auto setAlert = [&] (ESlotManagerAlertType alertType, TError error, TClosure resetter) {
+        if (!Alerts_.HasArmedAlert(alertType)) {
             auto delay = GetDisableJobsBackoff();
 
-            auto error = TError("Too many consecutive scheduler job abortions")
-                << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts);
-            YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
-            Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = error;
+            YT_LOG_WARNING(
+                error,
+                "Scheduler jobs disabled (Until: %v, AlertType: %v)",
+                TInstant::Now() + delay,
+                alertType);
+            Alerts_.SetAlertError(std::move(error), alertType);
 
-            TDelayedExecutor::Submit(BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)), delay, Bootstrap_->GetJobInvoker());
+            TDelayedExecutor::Submit(std::move(resetter), delay, Bootstrap_->GetJobInvoker());
         }
+    };
+
+    if (ConsecutiveAbortedSchedulerJobCount_ > dynamicConfig->MaxConsecutiveJobAborts) {
+        setAlert(
+            ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
+            TError("Too many consecutive scheduler job abortions")
+                << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveJobAborts),
+            BIND(&TSlotManager::ResetConsecutiveAbortedJobCount, MakeStrong(this)));
     }
 
     if (job->IsGpuRequested()) {
@@ -770,19 +879,11 @@ void TSlotManager::OnJobFinished(const TJobPtr& job)
         }
 
         if (ConsecutiveFailedGpuJobCount_ > dynamicConfig->MaxConsecutiveGpuJobFailures) {
-            if (Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures].IsOK()) {
-                auto delay = GetDisableJobsBackoff();
-
-                auto error = TError("Too many consecutive GPU job failures")
-                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures);
-                YT_LOG_WARNING(error, "Scheduler jobs disabled until %v", TInstant::Now() + delay);
-                Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = error;
-
-                TDelayedExecutor::Submit(
-                    BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)),
-                    delay,
-                    Bootstrap_->GetJobInvoker());
-            }
+            setAlert(
+                ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
+                TError("Too many consecutive GPU job failures")
+                    << TErrorAttribute("max_consecutive_job_aborts", dynamicConfig->MaxConsecutiveGpuJobFailures),
+                BIND(&TSlotManager::ResetConsecutiveFailedGpuJobCount, MakeStrong(this)));
         }
     }
 }
@@ -793,15 +894,17 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
 
     // TODO(gritukan): Most likely #IsExecNode condition will not be required after bootstraps split.
     if (!StaticConfig_->Testing->SkipJobProxyUnavailableAlert && Bootstrap_->IsExecNode()) {
-        auto& alert = Alerts_[ESlotManagerAlertType::JobProxyUnavailable];
+        auto hasAlert = Alerts_.HasArmedAlert(ESlotManagerAlertType::JobProxyUnavailable);
 
-        if (alert.IsOK() && !error.IsOK()) {
+        if (!hasAlert && !error.IsOK()) {
             YT_LOG_INFO(error, "Disabling scheduler jobs due to job proxy unavailability");
-        } else if (!alert.IsOK() && error.IsOK()) {
-            YT_LOG_INFO(error, "Enable scheduler jobs as job proxy became available");
+        } else if (hasAlert && error.IsOK()) {
+            YT_LOG_INFO("Enable scheduler jobs as job proxy became available");
         }
 
-        alert = error;
+        Alerts_.SetAlertError(
+            error,
+            ESlotManagerAlertType::JobProxyUnavailable);
     }
     JobProxyReady_.store(true);
 }
@@ -812,7 +915,7 @@ void TSlotManager::ResetConsecutiveAbortedJobCount()
 
     auto guard = WriterGuard(AlertsLock_);
 
-    Alerts_[ESlotManagerAlertType::TooManyConsecutiveJobAbortions] = {};
+    Alerts_.ClearAlertError(ESlotManagerAlertType::TooManyConsecutiveJobAbortions);
     ConsecutiveAbortedSchedulerJobCount_ = 0;
     DisableJobsBackoffStrategy_.Restart();
 }
@@ -823,7 +926,7 @@ void TSlotManager::ResetConsecutiveFailedGpuJobCount()
 
     auto guard = WriterGuard(AlertsLock_);
 
-    Alerts_[ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures] = {};
+    Alerts_.ClearAlertError(ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures);
     ConsecutiveFailedGpuJobCount_ = 0;
     DisableJobsBackoffStrategy_.Restart();
 }
@@ -832,9 +935,10 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 {
     auto guard = WriterGuard(AlertsLock_);
 
-    for (const auto& alert : Alerts_) {
-        if (!alert.IsOK()) {
-            alerts->push_back(alert);
+    for (const auto& alert : Alerts_.ListAlerts()) {
+        const auto& error = alert.Error;
+        if (!error.IsOK()) {
+            alerts->push_back(error);
         }
     }
 
@@ -949,14 +1053,6 @@ bool TSlotManager::ShouldSetUserId() const
     return !StaticConfig_->DoNotSetUserId;
 }
 
-bool TSlotManager::IsResettableAlertType(ESlotManagerAlertType alertType)
-{
-    return
-        alertType == ESlotManagerAlertType::GpuCheckFailed ||
-        alertType == ESlotManagerAlertType::TooManyConsecutiveJobAbortions ||
-        alertType == ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures;
-}
-
 void TSlotManager::AsyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -970,32 +1066,33 @@ void TSlotManager::AsyncInitialize()
         }
 
         YT_LOG_INFO("Waiting for all locations to initialize");
-        auto initResult = WaitFor(AllSet(initLocationFutures));
-        YT_LOG_INFO("Locations initialization finished");
 
-        if (!initResult.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to initialize slot locations")
-                << initResult;
+        {
+            auto error = WaitFor(AllSet(initLocationFutures));
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Shutdown encountered");
         }
+        YT_LOG_INFO("Locations initialization finished");
 
         // To this moment all old processed must have been killed, so we can safely clean up old volumes
         // during root volume manager initialization.
         auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
         JobEnvironmentType_ = environmentConfig->Type;
         if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-            auto volumeManagerOrError = WaitFor(CreatePortoVolumeManager(
+            auto volumeManager = WaitFor(CreatePortoVolumeManager(
                 Bootstrap_->GetConfig()->DataNode,
                 Bootstrap_->GetDynamicConfigManager(),
                 CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
                 Bootstrap_->GetControlInvoker(),
                 Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
-                Bootstrap_));
-            if (volumeManagerOrError.IsOK()) {
-                RootVolumeManager_.Store(volumeManagerOrError.Value());
-            } else {
-                THROW_ERROR_EXCEPTION("Failed to initialize volume manager")
-                    << volumeManagerOrError;
-            }
+                Bootstrap_))
+                    .ValueOrThrow(
+                        EErrorCode::PortoVolumeManagerFailure,
+                        "Failed to initialize volume manager");
+
+            RootVolumeManager_.Store(volumeManager);
         }
 
         auto dynamicConfig = DynamicConfig_.Acquire();
@@ -1028,6 +1125,8 @@ void TSlotManager::AsyncInitialize()
         YT_LOG_INFO("Slot manager async initialization finished");
         State_.store(ESlotManagerState::Initialized);
     } catch (const std::exception& ex) {
+        // Failed to init volume manager or some of locations.
+        // Anything else?
         auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
             << ex;
 
@@ -1035,7 +1134,9 @@ void TSlotManager::AsyncInitialize()
 
         {
             auto guard = WriterGuard(AlertsLock_);
-            Alerts_[ESlotManagerAlertType::GenericPersistentError] = std::move(wrappedError);
+            // Could be either porto failure (volume manager -> can resurrect?)
+            // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
+            Alerts_.SetAlertError(std::move(wrappedError));
         }
 
         SetDisableState();
@@ -1133,6 +1234,178 @@ TSlotManager::TSlotGuard::~TSlotGuard()
 {
     SlotManager_->ReleaseSlot(SlotType_, SlotIndex_, RequestedCpu_, NumaNodeIdAffinity_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+ESlotManagerAlertType DeduceAlertType(const TError& error) noexcept
+{
+    if (error.FindMatching(EErrorCode::JobEnvironmentDisabled)) {
+        return ESlotManagerAlertType::JobEnvironmentFailure;
+    }
+    if (
+        error.FindMatching(EErrorCode::PortoVolumeManagerFailure) ||
+        error.FindMatching(EErrorCode::PortoHealthCheckFailed) ||
+        error.FindMatching(EErrorCode::JobCleanupTimeout) ||
+        error.FindMatching(EErrorCode::PortoExecutorFailure))
+    {
+        return ESlotManagerAlertType::PortoFailure;
+    }
+
+    YT_LOG_WARNING("Encountered unexpected error. Falling back to NotClassified alert. (Error %v)", error);
+
+    return ESlotManagerAlertType::NotClassified;
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSlotManager::TAlertSet::TAlertSet()
+{
+    VerifyAlertProperties();
+}
+
+void TSlotManager::TAlertSet::SetAlertError(TError error, std::optional<ESlotManagerAlertType> hint) noexcept
+{
+    Alerts_[hint.value_or(DeduceAlertType(error))].Error = std::move(error);
+}
+
+void TSlotManager::TAlertSet::ClearAlertError(ESlotManagerAlertType alertType) noexcept
+{
+    Alerts_[alertType].Error = {};
+}
+
+void TSlotManager::TAlertSet::RearmAlert(ESlotManagerAlertType alertType) const noexcept
+{
+    Alerts_[alertType].Armed = true;
+}
+
+void TSlotManager::TAlertSet::DisarmAlert(ESlotManagerAlertType alertType) const noexcept
+{
+    Alerts_[alertType].Armed = false;
+}
+
+bool TSlotManager::TAlertSet::HasArmedAlert(ESlotManagerAlertType alertType) const noexcept
+{
+    return Alerts_[alertType].Armed && !Alerts_[alertType].Error.IsOK();
+}
+
+const TEnumIndexedArray<ESlotManagerAlertType, TSlotManager::TAlertSet::TAlert>&
+TSlotManager::TAlertSet::ListAlerts() const noexcept
+{
+    return Alerts_;
+}
+
+void TSlotManager::TAlertSet::Clear() noexcept
+{
+    for (auto& alert : Alerts_) {
+        alert.Error = {};
+    }
+}
+
+bool TSlotManager::TAlertSet::IsFixableByResurrect(ESlotManagerAlertType alertType) noexcept
+{
+    return FixableByResurrect.contains(alertType);
+}
+
+bool TSlotManager::TAlertSet::IsFixableByRequest(ESlotManagerAlertType alertType) noexcept
+{
+    return FixableByRequest.contains(alertType);
+}
+
+bool TSlotManager::TAlertSet::IsPersistent(ESlotManagerAlertType alertType) noexcept
+{
+    return Persistent.contains(alertType);
+}
+
+bool TSlotManager::TAlertSet::HasArmedFixableByResurrectAlert(bool inverseCondition) const noexcept
+{
+    return HasArmedAlertByProperty(inverseCondition
+        ? NotFixableByResurrect
+        : FixableByResurrect);
+}
+
+bool TSlotManager::TAlertSet::HasArmedFixableByRequestAlert(bool inverseCondition) const noexcept
+{
+    return HasArmedAlertByProperty(inverseCondition
+        ? NotFixableByRequest
+        : FixableByRequest);
+}
+
+bool TSlotManager::TAlertSet::HasArmedPersistentAlert(bool inverseCondition) const noexcept
+{
+    return HasArmedAlertByProperty(inverseCondition
+        ? Transient
+        : Persistent);
+}
+
+bool TSlotManager::TAlertSet::HasArmedAlertByProperty(
+    TSlotManager::TAlertSet::TAlertsWithProperty& alertsWithProperty) const noexcept
+{
+    for (auto alertType : alertsWithProperty) {
+        if (HasArmedAlert(alertType)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void TSlotManager::TAlertSet::VerifyAlertProperties()
+{
+    for (auto alertType : TEnumTraits<ESlotManagerAlertType>::GetDomainValues()) {
+        YT_VERIFY(FixableByResurrect.contains(alertType) ^ NotFixableByResurrect.contains(alertType));
+        YT_VERIFY(FixableByRequest.contains(alertType) ^ NotFixableByRequest.contains(alertType));
+        YT_VERIFY(Persistent.contains(alertType) ^ Transient.contains(alertType));
+    }
+}
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::FixableByResurrect = {
+    ESlotManagerAlertType::PortoFailure,
+    ESlotManagerAlertType::JobEnvironmentFailure,
+};
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::NotFixableByResurrect = {
+    ESlotManagerAlertType::NotClassified,
+    ESlotManagerAlertType::GpuCheckFailed,
+    ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
+    ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
+    ESlotManagerAlertType::JobProxyUnavailable,
+};
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::FixableByRequest = {
+    ESlotManagerAlertType::GpuCheckFailed,
+    ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
+    ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
+};
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::NotFixableByRequest = {
+    ESlotManagerAlertType::NotClassified,
+    ESlotManagerAlertType::PortoFailure,
+    ESlotManagerAlertType::JobEnvironmentFailure,
+    ESlotManagerAlertType::JobProxyUnavailable,
+};
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::Persistent = {
+    ESlotManagerAlertType::NotClassified,
+    ESlotManagerAlertType::PortoFailure,
+    ESlotManagerAlertType::JobEnvironmentFailure,
+    ESlotManagerAlertType::GpuCheckFailed,
+};
+
+TSlotManager::TAlertSet::TAlertsWithProperty
+TSlotManager::TAlertSet::Transient = {
+    ESlotManagerAlertType::TooManyConsecutiveGpuJobFailures,
+    ESlotManagerAlertType::TooManyConsecutiveJobAbortions,
+    ESlotManagerAlertType::JobProxyUnavailable,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

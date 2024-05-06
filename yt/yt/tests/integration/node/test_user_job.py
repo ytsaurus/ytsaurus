@@ -2570,8 +2570,15 @@ class TestHealExecNode(YTEnvSetup):
 
         wait(lambda: has_job_proxy_build_info_missing_alert())
 
-        with raises_yt_error("is not resettable"):
-            heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
+        # TODO(arkady-e1ppa): Make this part of the raises_yt_error
+        # functionality?
+        try:
+            with raises_yt_error("can only be fixed by a force reset"):
+                heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
+        except YtError as wrong_error:
+            print_debug("Attempt to reset alert \"job_proxy_unavailable\" raised a wrong exception")
+            print_debug("Expected to contain: \"can only be fixed by a force reset\"")
+            print_debug(f"Actual: {wrong_error}")
 
         heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
@@ -2581,7 +2588,7 @@ class TestHealExecNode(YTEnvSetup):
                 os.remove("{}/disabled".format(location["path"]))
 
     @authors("ignat")
-    def test_reset_fatal_alert(self):
+    def test_force_reset_persistent_alert(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_address = ls("//sys/cluster_nodes")[0]
@@ -2618,12 +2625,27 @@ class TestHealExecNode(YTEnvSetup):
 
         abort_job(job_id)
 
+        persistent_alerts = [
+            "porto_failure",
+            "job_environment_failure",
+        ]
+
+        def check_persistent_alerts():
+            alerts = get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address))
+
+            for persistent_alert in persistent_alerts:
+                if persistent_alert in alerts:
+                    print_debug(f"Found alert: {persistent_alert}")
+                    return True
+
+            return False
+
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
-        wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address)))
+        wait(check_persistent_alerts)
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
-        heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
+        heal_exec_node(node_address, alert_types_to_reset=persistent_alerts, force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
 
         def check_resurrect():
@@ -3431,6 +3453,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         def check_enable():
             node = ls("//sys/cluster_nodes")[0]
             alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            print_debug(alerts)
 
             return len(alerts) == 0
 
@@ -3535,7 +3558,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         def check_enable():
             node = ls("//sys/cluster_nodes")[0]
             alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
-
+            print_debug(alerts)
             return len(alerts) == 0
 
         wait(lambda: check_enable())

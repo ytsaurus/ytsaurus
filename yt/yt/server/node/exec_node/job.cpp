@@ -2146,11 +2146,11 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError("Failed to wait for job cleanup within timeout")
+        auto error = TError(EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
-        Bootstrap_->GetSlotManager()->Disable(error);
+        Bootstrap_->GetSlotManager()->OnWaitingForJobCleanupTimeout(std::move(error));
     }
 }
 

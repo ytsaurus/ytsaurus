@@ -43,19 +43,21 @@ private:
     {
         auto slotManager = Bootstrap_->GetSlotManager();
 
-        context->SetRequestInfo("Locations: %v, AlertTypesToReset: %v, ForceReset: %v, HasFatalAlert: %v",
+        context->SetRequestInfo(
+            "Locations: %v, AlertTypesToReset: %v, ForceReset: %v, HasArmedPersistentAlerts: %v",
             request->locations(),
             request->alert_types_to_reset(),
             request->force_reset(),
-            slotManager->HasFatalAlert());
+            slotManager->HasArmedPersistentAlerts());
 
         THashSet<TString> alertTypesToReset(
             request->alert_types_to_reset().begin(),
             request->alert_types_to_reset().end());
         for (const auto& alertTypeString : alertTypesToReset) {
             auto alertType = ParseEnum<ESlotManagerAlertType>(alertTypeString);
-            if (!TSlotManager::IsResettableAlertType(alertType) && !request->force_reset()) {
-                THROW_ERROR_EXCEPTION("Alert %Qlv is not resettable",
+            if (!TSlotManager::IsFixableByRequest(alertType) && !request->force_reset()) {
+                THROW_ERROR_EXCEPTION(
+                    "Alert %Qlv can only be fixed by a force reset",
                     alertType);
             }
         }
@@ -80,8 +82,8 @@ private:
         std::vector<TFuture<void>> repairFutures;
         repairFutures.reserve(locations.size());
 
-        if (slotManager->HasFatalAlert()) {
-            // In case of fatal alert every slot can be in inconsistent state and must be forcefully repaired.
+        if (slotManager->HasArmedPersistentAlerts()) {
+            // In case of persistent alert every slot can be in inconsistent state and must be forcefully repaired.
             for (auto& location : locations) {
                 repairFutures.push_back(location->Repair());
             }

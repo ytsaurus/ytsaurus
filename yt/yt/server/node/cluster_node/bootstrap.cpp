@@ -1011,7 +1011,7 @@ private:
 
             portoExecutor->SubscribeFailed(BIND([=, this] (const TError& error) {
                 YT_LOG_ERROR(error, "Porto executor failed");
-                ExecNodeBootstrap_->GetSlotManager()->Disable(error);
+                ExecNodeBootstrap_->GetSlotManager()->OnPortoExecutorFailed(error);
             }));
 
             auto self = GetSelfPortoInstance(portoExecutor);
