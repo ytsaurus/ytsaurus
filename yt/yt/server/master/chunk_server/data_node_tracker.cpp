@@ -444,7 +444,7 @@ public:
         }
 
         ReplicateChunkLocations(node, chunkLocationUuids);
-        MakeLocationsOnline(chunkLocationUuids);
+        MakeLocationsOnline(node);
 
         if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
@@ -493,10 +493,11 @@ public:
         node->ChunkLocations().shrink_to_fit();
     }
 
-    void MakeLocationsOnline(const std::vector<TChunkLocationUuid>& chunkLocationUuids) override
+    void MakeLocationsOnline(TNode* node) override
     {
-        for (auto locationUuid : chunkLocationUuids) {
-            auto* location = FindChunkLocationByUuid(locationUuid);
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
+
+        for (auto* location : node->RealChunkLocations()) {
             location->SetState(EChunkLocationState::Online);
         }
     }

@@ -61,6 +61,7 @@ public:
         NRpc::TAuthenticationIdentity identity,
         NTracing::TTraceContextPtr traceContext);
     ~TSequoiaContextGuard();
+
 private:
     NSecurityServer::TAuthenticatedUserGuard UserGuard_;
     NTracing::TTraceContextGuard TraceContextGuard_;

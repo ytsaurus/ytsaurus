@@ -2719,9 +2719,7 @@ public:
     void MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
     {
         NProto::TReqMaterializeExtraMountConfigKeys request;
-        for (const auto& key : MountConfigKeysFromNodes_) {
-            request.add_table_mount_config_keys(key);
-        }
+        ToProto(request.mutable_table_mount_config_keys(), MountConfigKeysFromNodes_);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, cellTag);

@@ -485,8 +485,10 @@ public:
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            controlInvoker->Invoke(BIND([this, _this = MakeWeak(this), cellTag, immediately] () {
-                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ immediately, /*outOfOrder*/ true));
+            controlInvoker->Invoke(BIND([this, this_ = MakeWeak(this), cellTag, immediately] {
+                if (auto strongThis = this_.Lock()) {
+                    YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ immediately, /*outOfOrder*/ true));
+                }
             }));
         }
     }
@@ -509,12 +511,16 @@ public:
 
     bool IsOnline() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         return OnlineCellCount_.load() == std::ssize(clusterNodeMasterConnector->GetMasterCellTags());
     }
 
     void SetLocationUuidsRequired(bool value) override
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         LocationUuidsRequired_ = value;
         YT_LOG_INFO("Location uuids in data node heartbeats are %v",
             value ? "enabled" : "disabled");
@@ -557,7 +563,6 @@ private:
 
         TAsyncReaderWriterLock DataNodeHeartbeatLock;
         int ScheduledDataNodeHeartbeatCount = 0;
-
     };
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PerCellTagDataLock_);
     THashMap<TCellTag, std::unique_ptr<TPerCellTagData>> PerCellTagData_;
@@ -769,8 +774,11 @@ private:
             if (clusterNodeMasterConnector->IsConnected()) {
                 delta->State = EMasterConnectorState::Registered;
 
-                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
-                    return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+                futures.emplace_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                    if (auto strongThis = this_.Lock()) {
+                        return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
+                    }
+                    return MakeFuture(false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }
         }
@@ -793,7 +801,7 @@ private:
         }
 
         YT_LOG_INFO(
-            "Received master cell directory change, attempted to report heartbeats to the new cells "
+            "Received master cell directory change, attempted to report heartbeats to new masters "
             "(NewCellTags: %v)",
             newSecondaryCellTags);
     }
@@ -851,12 +859,12 @@ private:
 
         auto delay = immediately ? TDuration::Zero() : IncrementalHeartbeatPeriod_ + RandomDuration(IncrementalHeartbeatPeriodSplay_);
         return TDelayedExecutor::MakeDelayed(delay, HeartbeatInvoker_)
-            .Apply(BIND([this, _this = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
+            .Apply(BIND([this, this_ = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
                 if (error.IsOK()) {
                     return ReportHeartbeat(cellTag);
                 }
                 return MakeFuture<bool>(error);
-            }));
+            }).AsyncVia(HeartbeatInvoker_));
     }
 
     void DoScheduleJobHeartbeat(bool immediately)
@@ -1036,12 +1044,12 @@ private:
             YT_LOG_WARNING(rspOrError, "Error reporting full data node heartbeat to master (CellTag: %v)",
                 cellTag);
 
-            if (IsRetriableError(rspOrError)
-                || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)
-                || rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly) ||
+                rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady))
+            {
                 return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
-                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
                     cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
@@ -1084,7 +1092,7 @@ private:
             if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
                 return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
             } else {
-                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
                     cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }

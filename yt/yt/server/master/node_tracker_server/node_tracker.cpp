@@ -858,7 +858,7 @@ public:
             auto shouldSetReliability = node->GetLocalCellAggregatedStateReliability() == ECellAggregatedStateReliability::DuringPropagation;
             auto receivedAllNecessaryHeartbeats = node->ReportedHeartbeats() == GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
             if (node->MustReportHeartbeatsToAllMasters() && shouldSetReliability && receivedAllNecessaryHeartbeats) {
-                YT_LOG_DEBUG("Node discovered the \"new\" cell (CellTag: %v, NodeId: %v, Address: %v)",
+                YT_LOG_DEBUG("Node discovered \"new\" master cell (CellTag: %v, NodeId: %v, Address: %v)",
                     cellTag,
                     node->GetId(),
                     node->GetDefaultAddress(),
@@ -1194,7 +1194,7 @@ private:
             dataNodeTracker->ValidateRegisterNode(address, request);
         }
 
-        TNodeObjectCreationOptions options {
+        TNodeObjectCreationOptions options{
             .NodeId = request->has_node_id() ? std::make_optional(FromProto<TNodeId>(request->node_id())) : std::nullopt,
             .NodeAddresses = std::move(nodeAddresses),
             .Addresses = addresses,
@@ -1294,7 +1294,7 @@ private:
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
 
-        TNodeObjectCreationOptions options {
+        TNodeObjectCreationOptions options{
             .NodeId = FromProto<TNodeId>(request->node_id()),
             .NodeAddresses = std::move(nodeAddresses),
             .Addresses = addresses,
@@ -1323,16 +1323,16 @@ private:
         }
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
-        if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
-            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        if (isDataNode) {
             dataNodeTracker->ReplicateChunkLocations(node, chunkLocationUuids);
         }
 
         SetNodeLocalState(node, CheckedEnumCast<ENodeState>(request->node_state()));
         if (node->GetLocalState() == ENodeState::Registered) {
-            if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
-                const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-                dataNodeTracker->MakeLocationsOnline(chunkLocationUuids);
+            if (isDataNode) {
+                dataNodeTracker->MakeLocationsOnline(node);
             }
 
             NodeRegistered_.Fire(node);
@@ -1470,7 +1470,7 @@ private:
         auto reliability = CheckedEnumCast<ECellAggregatedStateReliability>(request->cell_reliability());
         YT_LOG_ALERT_UNLESS(
             reliability == ECellAggregatedStateReliability::DynamicallyDiscovered,
-            "Received unexpected reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
+            "Received unexpected cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
             nodeId,
             reliability,
             cellTag);
@@ -2284,15 +2284,10 @@ private:
         TReqRegisterNode request;
         request.set_node_id(ToProto<ui32>(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-        for (const auto& tag : node->NodeTags()) {
-            request.add_tags(tag);
-        }
+        ToProto(request.mutable_tags(), node->NodeTags());
         request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
-
-        for (auto flavor : node->Flavors()) {
-            request.add_flavors(static_cast<int>(flavor));
-        }
+        ToProto(request.mutable_flavors(), node->Flavors());
 
         for (const auto* location : node->RealChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
@@ -2404,14 +2399,10 @@ private:
         TReqMaterializeNode request;
         request.set_node_id(ToProto<ui32>(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-        for (const auto& tag : node->NodeTags()) {
-            request.add_tags(tag);
-        }
+        ToProto(request.mutable_tags(), node->NodeTags());
         request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
-        for (auto flavor : node->Flavors()) {
-            request.add_flavors(static_cast<int>(flavor));
-        }
+        ToProto(request.mutable_flavors(), node->Flavors());
         for (const auto* location : node->RealChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }

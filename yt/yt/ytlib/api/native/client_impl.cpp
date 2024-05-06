@@ -258,20 +258,19 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     TCellTag cellTag)
 {
     auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
-    auto channel = GetMasterChannel(kind, effectiveCellTag);
-    if (channel) {
+    if (auto channel = FindMasterChannel(kind, effectiveCellTag)) {
         return channel;
     }
 
     //! NB: Since clients can be spawned at random moments there is no point in subscribing to master cell directory changes,
     // but it is still necessary to try to update channels.
     InitChannelsOrThrow(kind, effectiveCellTag);
-    channel = GetMasterChannel(kind, effectiveCellTag);
-    if (!channel) {
-        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            cellTag);
+    if (auto channel = FindMasterChannel(kind, effectiveCellTag)) {
+        return channel;
     }
-    return channel;
+
+    THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+        cellTag);
 }
 
 IChannelPtr TClient::GetCypressChannelOrThrow(
@@ -279,20 +278,19 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
     TCellTag cellTag)
 {
     auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
-    auto channel = GetCypressChannel(kind, effectiveCellTag);
-    if (channel) {
+    if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
         return channel;
     }
 
     //! NB: Since clients can be spawned at random moments there is no point in subscribing to master cell directory changes,
     // but it is still necessary to try to update channels.
     InitChannelsOrThrow(kind, effectiveCellTag);
-    channel = GetCypressChannel(kind, effectiveCellTag);
-    if (!channel) {
-        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            cellTag);
+    if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
+        return channel;
     }
-    return channel;
+
+    THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+        cellTag);
 }
 
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
@@ -329,11 +327,11 @@ void TClient::Terminate()
     SchedulerChannel_->Terminate(error);
 }
 
-IChannelPtr TClient::GetMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
+IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
 {
     auto guard = ReaderGuard(MasterChannelsLock_);
     const auto& channels = MasterChannels_[kind];
-    return channels.contains(cellTag) ?  GetOrCrash(channels, cellTag) : nullptr;
+    return channels.contains(cellTag) ? GetOrCrash(channels, cellTag) : nullptr;
 }
 
 TClient::TChannels TClient::GetMasterChannels(EMasterChannelKind kind) const
@@ -348,11 +346,11 @@ TClient::TChannels TClient::GetCypressChannels(EMasterChannelKind kind) const
     return CypressChannels_[kind];
 }
 
-IChannelPtr TClient::GetCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
+IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
 {
     auto guard = ReaderGuard(CypressChannelsLock_);
     const auto& channels = CypressChannels_[kind];
-    return channels.contains(cellTag) ?  GetOrCrash(channels, cellTag) : nullptr;
+    return channels.contains(cellTag) ? GetOrCrash(channels, cellTag) : nullptr;
 }
 
 void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)

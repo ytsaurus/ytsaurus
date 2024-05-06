@@ -91,8 +91,8 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 
 bool TNode::TCellNodeDescriptor::IsReliable() const
 {
-    return CellReliability == ECellAggregatedStateReliability::StaticallyKnown
-        || CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
+    return CellReliability == ECellAggregatedStateReliability::StaticallyKnown ||
+            CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
 }
 
 void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
@@ -208,9 +208,9 @@ void TNode::ComputeDefaultAddress()
 bool TNode::MustReportHeartbeatsToAllMasters() const
 {
     const auto& heartbeats = GetHeartbeatTypes();
-    return heartbeats.contains(ENodeHeartbeatType::Data)
-            || heartbeats.contains(ENodeHeartbeatType::Tablet)
-            || heartbeats.contains(ENodeHeartbeatType::Cellar);
+    return heartbeats.contains(ENodeHeartbeatType::Data) ||
+            heartbeats.contains(ENodeHeartbeatType::Tablet) ||
+            heartbeats.contains(ENodeHeartbeatType::Cellar);
 
 }
 
@@ -300,9 +300,10 @@ bool TNode::ReportedTabletNodeHeartbeat() const
 void TNode::ValidateRegistered()
 {
     auto state = GetLocalState();
-    auto cellDescriptorReliability = GetLocalCellAggregatedStateReliability();
-    if (state == ENodeState::Registered || state == ENodeState::Online
-        || cellDescriptorReliability == ECellAggregatedStateReliability::DuringPropagation) {
+    auto reliability = GetLocalCellAggregatedStateReliability();
+    if (state == ENodeState::Registered || state == ENodeState::Online ||
+        reliability == ECellAggregatedStateReliability::DuringPropagation)
+    {
         return;
     }
 
@@ -432,7 +433,8 @@ void TNode::InitializeStates(
                 ENodeState::Offline,
                 TCellNodeStatistics(),
                 /*registrationPending*/ false,
-                reliability};
+                reliability,
+            };
             EmplaceOrCrash(MulticellDescriptors_, cellTag, descriptor);
         }
     };
@@ -766,7 +768,8 @@ void TNode::Load(TLoadContext& context)
                 state,
                 TCellNodeStatistics(),
                 /*registrationPending*/ false,
-                ECellAggregatedStateReliability::StaticallyKnown};
+                ECellAggregatedStateReliability::StaticallyKnown,
+            };
             MulticellDescriptors_.emplace(cellTag, descriptor);
         }
     }
@@ -1026,35 +1029,33 @@ void TNode::ValidateReliabilityTransition(
             }
 
             YT_LOG_ALERT(
-                "Invalid reliability transition (OldReliability: %v, NewReliability: %v)",
+                "Invalid cell aggregated state reliability transition (OldReliability: %v, NewReliability: %v)",
                 oldReliability,
                 newReliability);
         };
 
     switch (newReliability) {
-        case ECellAggregatedStateReliability::Unknown: {
+        case ECellAggregatedStateReliability::Unknown:
             maybeLogAlertReliability({
                 ECellAggregatedStateReliability::StaticallyKnown,
-                ECellAggregatedStateReliability::DuringPropagation});
+                ECellAggregatedStateReliability::DuringPropagation,
+            });
             break;
-        }
-        case ECellAggregatedStateReliability::StaticallyKnown: {
+        case ECellAggregatedStateReliability::StaticallyKnown:
             maybeLogAlertReliability({ECellAggregatedStateReliability::Unknown});
             break;
-        }
-        case ECellAggregatedStateReliability::DuringPropagation: {
+        case ECellAggregatedStateReliability::DuringPropagation:
             maybeLogAlertReliability({
                 ECellAggregatedStateReliability::Unknown,
-                ECellAggregatedStateReliability::DynamicallyDiscovered});
+                ECellAggregatedStateReliability::DynamicallyDiscovered,
+            });
             break;
-        }
-        case ECellAggregatedStateReliability::DynamicallyDiscovered: {
+        case ECellAggregatedStateReliability::DynamicallyDiscovered:
             maybeLogAlertReliability({
                 ECellAggregatedStateReliability::Unknown,
-                ECellAggregatedStateReliability::DuringPropagation});
+                ECellAggregatedStateReliability::DuringPropagation,
+            });
             break;
-        }
-
         default:
             YT_ABORT();
     }
