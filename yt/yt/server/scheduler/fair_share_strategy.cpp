@@ -654,7 +654,7 @@ public:
         }
 
         for (const auto& [treeName, options] : runtimeParameters->SchedulingOptionsPerPoolTree) {
-            const auto& offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName());
+            const auto& offloadingSettings = GetTree(treeName)->GetOffloadingSettingsFor(options->Pool.GetSpecifiedPoolName(), user);
             if (!offloadingSettings.empty() && !spec->SchedulingTagFilter.IsEmpty()) {
                 YT_LOG_DEBUG("Ignoring offloading since operation has scheduling tag filter (SchedulingTagFilter: %v, OperationId: %v)",
                     spec->SchedulingTagFilter.GetFormula(),
