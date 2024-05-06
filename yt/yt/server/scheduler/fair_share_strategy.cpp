@@ -676,7 +676,8 @@ public:
                         } else {
                             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
                             treeParams->Weight = offloadingPoolSettings->Weight;
-                            treeParams->Pool = offloadingPoolSettings->Pool && !offloadingPoolSettings->Pool->empty()
+                            treeParams->Pool = offloadingPoolSettings->Pool
+                                && !offloadingPoolSettings->Pool->empty()  // COMPAT(renadeen): remove when this commit will be on hahn's master.
                                 ? tree->CreatePoolName(offloadingPoolSettings->Pool, user)
                                 : tree->CreatePoolName(options->Pool.GetSpecifiedPoolName(), user);
                             treeParams->Tentative = offloadingPoolSettings->Tentative;
