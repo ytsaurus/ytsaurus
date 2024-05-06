@@ -1262,6 +1262,10 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
             ops.append(op)
         return ops
 
+    def _wait_for_operation(self, op, state="running"):
+        op.wait_for_state(state)
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id)))
+
     def _check_operation_counts(
             self,
             expected_pool_total_count,
@@ -1295,12 +1299,12 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
 
         blocking_op = run_sleeping_vanilla(spec={"pool": "pool"})
-        blocking_op.wait_for_state("running")
+        self._wait_for_operation(blocking_op)
 
         ops = self._run_operations(4, "lightweight_pool")
 
         for op in ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
 
         with pytest.raises(YtError):
             run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
@@ -1318,7 +1322,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         ops = self._run_operations(3, "lightweight_pool")
 
         for op in ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
 
         for op in ops[:2]:
             update_op_parameters(op.id, parameters={"pool": "pool"})
@@ -1349,7 +1353,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         ops += self._run_operations(2, "pool")
 
         for op in ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
 
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
 
@@ -1385,7 +1389,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         ops += self._run_operations(2, "pool")
 
         for op in ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
 
         self._check_operation_counts(2, 2, 0, 3, 0, 3)
 
@@ -1403,10 +1407,10 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         pending_ops = self._run_operations(2, "pool")
 
         for op in running_ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
             wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
         for op in pending_ops:
-            op.wait_for_state("pending")
+            self._wait_for_operation(op, "pending")
             wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
 
         self._check_operation_counts(4, 2, 0, 0, 0, 0)
@@ -1415,14 +1419,14 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         wait(lambda: get(scheduler_orchid_operation_path(pending_ops[0].id) + "/lightweight"))
         self._check_operation_counts(3, 2, 0, 1, 0, 1)
-        pending_ops[0].wait_for_state("running")
+        self._wait_for_operation(pending_ops[0])
 
         set("//sys/pool_trees/default/root/pool/@mode", "fifo")
         set("//sys/pool_trees/default/root/pool/@enable_lightweight_operations", True)
 
         wait(lambda: get(scheduler_orchid_operation_path(pending_ops[1].id) + "/lightweight"))
         self._check_operation_counts(3, 0, 3, 1, 0, 1)
-        pending_ops[1].wait_for_state("running")
+        self._wait_for_operation(pending_ops[1])
 
     @authors("eshcherbin")
     def test_pending_operation_becomes_running_after_other_running_operation_becomes_lightweight(self):
@@ -1431,7 +1435,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
 
         blocking_op = run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
-        blocking_op.wait_for_state("running")
+        self._wait_for_operation(blocking_op)
 
         ops = []
         for _ in range(2):
@@ -1439,8 +1443,8 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
             ops.append(op)
             time.sleep(0.1)
 
-        ops[0].wait_for_state("running")
-        ops[1].wait_for_state("pending")
+        self._wait_for_operation(ops[0])
+        self._wait_for_operation(ops[1], "pending")
 
         set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
         wait(lambda: get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
@@ -1448,7 +1452,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/lightweight"))
         for op in ops:
             wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
-        ops[1].wait_for_state("running")
+        self._wait_for_operation(ops[1])
 
     @authors("eshcherbin")
     def test_operation_eligibility(self):
@@ -1461,7 +1465,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", data)
 
         blocking_op = run_sleeping_vanilla(spec={"pool": "pool"})
-        blocking_op.wait_for_state("running")
+        self._wait_for_operation(blocking_op)
 
         map_ops = []
         for i in range(2):
@@ -1474,15 +1478,15 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
             )
             map_ops.append(op)
 
-        map_ops[0].wait_for_state("running")
-        map_ops[1].wait_for_state("pending")
+        self._wait_for_operation(map_ops[0])
+        self._wait_for_operation(map_ops[1], "pending")
         for op in map_ops:
             wait(lambda: not get(scheduler_orchid_operation_path(op.id) + "/lightweight"))
         self._check_operation_counts(1, 1, 0, 2, 1, 0)
 
         vanilla_op = run_sleeping_vanilla(spec={"pool": "lightweight_pool"})
 
-        vanilla_op.wait_for_state("running")
+        self._wait_for_operation(vanilla_op)
         wait(lambda: get(scheduler_orchid_operation_path(vanilla_op.id) + "/lightweight"))
         self._check_operation_counts(1, 1, 0, 3, 1, 1)
 
@@ -1497,7 +1501,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
         blocking_ops = self._run_operations(2, "pool")
         for op in blocking_ops:
-            op.wait_for_state("running")
+            self._wait_for_operation(op)
 
         set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", False)
         wait(lambda: not get(scheduler_orchid_pool_path("lightweight_pool") + "/effective_lightweight_operations_enabled"))
@@ -1511,13 +1515,13 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
             spec={"job_count": 1, "pool": "lightweight_pool"},
         )
 
-        vanilla_op.wait_for_state("pending")
-        map_op.wait_for_state("pending")
+        self._wait_for_operation(vanilla_op, "pending")
+        self._wait_for_operation(map_op, "pending")
 
         set("//sys/pool_trees/default/root/lightweight_pool/@enable_lightweight_operations", True)
 
-        vanilla_op.wait_for_state("running")
-        map_op.wait_for_state("pending")
+        self._wait_for_operation(vanilla_op)
+        self._wait_for_operation(map_op, "pending")
 
 
 ##################################################################
