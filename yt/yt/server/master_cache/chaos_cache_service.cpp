@@ -26,7 +26,7 @@ using namespace NChaosClient;
 
 constexpr auto MinimalFetchOptions = TReplicationCardFetchOptions{
     .IncludeCoordinators = true,
-    .IncludeHistory = true
+    .IncludeHistory = true,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +85,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         auto key = TChaosCacheKey{
             .User = context->GetAuthenticationIdentity().User,
             .CardId = replicationCardId,
-            .FetchOptions = extendedFetchOptions
+            .FetchOptions = extendedFetchOptions,
         };
 
         YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
