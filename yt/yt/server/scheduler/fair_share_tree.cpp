@@ -716,11 +716,11 @@ public:
         return TPoolName(poolName, std::nullopt);
     }
 
-    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName) const override
+    const TOffloadingSettings& GetOffloadingSettingsFor(const TString& poolName, const TString& user) const override
     {
         const TSchedulerCompositeElement* pool = FindPool(poolName).Get();
         if (!pool) {
-            return EmptyOffloadingSettings;
+            pool = GetDefaultParentPoolForUser(user).Get();
         }
 
         while (!pool->IsRoot()) {
