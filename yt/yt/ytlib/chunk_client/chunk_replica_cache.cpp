@@ -26,19 +26,19 @@ class TChunkReplicaCache
     : public IChunkReplicaCache
 {
 public:
-    explicit TChunkReplicaCache(NApi::NNative::IConnectionPtr connection, const TProfiler& profiler)
+    TChunkReplicaCache(NApi::NNative::IConnectionPtr connection, const TProfiler& profiler)
         : Connection_(connection)
         , NodeDirectory_(connection->GetNodeDirectory())
         , Logger(connection->GetLogger())
-        , Hits_(profiler.Counter("/hits"))
-        , Misses_(profiler.Counter("/misses"))
-        , Discards_(profiler.Counter("/discards"))
-        , Updates_(profiler.Counter("/updates"))
-        , ChunkLocations_(profiler.Counter("/chunk_locations"))
-        , LocationCalls_(profiler.Counter("/location_calls"))
-        , ExpiredChunks_(profiler.Counter("/expired_chunks"))
-        , MasterErrorDiscards_(profiler.Counter("/master_error_discards"))
-        , CacheSize_(profiler.Gauge("/cache_size"))
+        , HitsCounter_(profiler.Counter("/hits"))
+        , MissesCounter_(profiler.Counter("/misses"))
+        , DiscardsCounter_(profiler.Counter("/discards"))
+        , UpdatesCounter_(profiler.Counter("/updates"))
+        , ChunkLocationsCounter_(profiler.Counter("/chunk_locations"))
+        , LocationCallsCounter_(profiler.Counter("/location_calls"))
+        , ExpiredChunksCounter_(profiler.Counter("/expired_chunks"))
+        , MasterErrorDiscardsCounter_(profiler.Counter("/master_error_discards"))
+        , CacheSizeGauge_(profiler.Gauge("/cache_size"))
         , ExpirationExecutor_(New<TPeriodicExecutor>(
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
@@ -75,13 +75,13 @@ public:
             }
 
             if (hit) {
-                Hits_.Increment();
+                HitsCounter_.Increment();
             } else {
-                Misses_.Increment();
+                MissesCounter_.Increment();
             }
         }
 
-        CacheSize_.Update(Entries_.size());
+        CacheSizeGauge_.Update(Entries_.size());
 
         return replicas;
     }
@@ -106,11 +106,11 @@ public:
                     auto entryGuard = Guard(entry.Lock);
                     entry.LastAccessTime = now;
                     futures[index] = entry.Future;
-                    Hits_.Increment();
+                    HitsCounter_.Increment();
                 }
             }
 
-            CacheSize_.Update(Entries_.size());
+            CacheSizeGauge_.Update(Entries_.size());
         }
 
         std::vector<TPromise<TAllyReplicasInfo>> promises(chunkIds.size());
@@ -130,7 +130,7 @@ public:
                     entry.Future = entry.Promise.ToFuture().ToUncancelable();
                     promises[index] = entry.Promise;
                 } else {
-                    Hits_.Increment();
+                    HitsCounter_.Increment();
                 }
 
                 auto& entry = *it->second;
@@ -138,17 +138,17 @@ public:
                 futures[index] = entry.Future;
             }
 
-            CacheSize_.Update(Entries_.size());
+            CacheSizeGauge_.Update(Entries_.size());
         }
 
-        Misses_.Increment(cellTagToStillMissingIndices.size());
+        MissesCounter_.Increment(cellTagToStillMissingIndices.size());
         if (!cellTagToStillMissingIndices.empty()) {
             auto connection = Connection_.Lock();
             if (!connection) {
                 return futures;
             }
 
-            ChunkLocations_.Increment(cellTagToStillMissingIndices.size());
+            ChunkLocationsCounter_.Increment(cellTagToStillMissingIndices.size());
             auto maxChunksPerLocate = MaxChunksPerLocate_.load();
             for (auto& [cellTag, stillMissingIndices] : cellTagToStillMissingIndices) {
                 try {
@@ -179,7 +179,7 @@ public:
 
                         currentReq.Reset();
 
-                        LocationCalls_.Increment();
+                        LocationCallsCounter_.Increment();
                     };
 
                     for (auto index : stillMissingIndices) {
@@ -218,12 +218,12 @@ public:
                             if (entry.Promise == promises[index]) {
                                 entryGuard.Release();
                                 Entries_.erase(it);
-                                MasterErrorDiscards_.Increment();
+                                MasterErrorDiscardsCounter_.Increment();
                             }
                         }
                     }
 
-                    CacheSize_.Update(Entries_.size());
+                    CacheSizeGauge_.Update(Entries_.size());
                 }
             }
         }
@@ -249,11 +249,11 @@ public:
                 Entries_.erase(it);
                 YT_LOG_DEBUG("Chunk replicas discarded (ChunkId: %v)",
                     chunkId);
-                Discards_.Increment();
+                DiscardsCounter_.Increment();
             }
         }
 
-        CacheSize_.Update(Entries_.size());
+        CacheSizeGauge_.Update(Entries_.size());
     }
 
     void UpdateReplicas(
@@ -274,7 +274,7 @@ public:
                 MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
                 replicas.Revision);
 
-            Updates_.Increment();
+            UpdatesCounter_.Increment();
         };
 
         auto tryUpdate = [&] (TEntry& entry) {
@@ -313,7 +313,7 @@ public:
                 tryUpdate(*it->second);
             }
 
-            CacheSize_.Update(Entries_.size());
+            CacheSizeGauge_.Update(Entries_.size());
         }
     }
 
@@ -343,15 +343,15 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
     const NLogging::TLogger Logger;
 
-    const TCounter Hits_;
-    const TCounter Misses_;
-    const TCounter Discards_;
-    const TCounter Updates_;
-    const TCounter ChunkLocations_;
-    const TCounter LocationCalls_;
-    const TCounter ExpiredChunks_;
-    const TCounter MasterErrorDiscards_;
-    const TGauge CacheSize_;
+    const TCounter HitsCounter_;
+    const TCounter MissesCounter_;
+    const TCounter DiscardsCounter_;
+    const TCounter UpdatesCounter_;
+    const TCounter ChunkLocationsCounter_;
+    const TCounter LocationCallsCounter_;
+    const TCounter ExpiredChunksCounter_;
+    const TCounter MasterErrorDiscardsCounter_;
+    const TGauge CacheSizeGauge_;
 
     const TPeriodicExecutorPtr ExpirationExecutor_;
 
@@ -421,7 +421,7 @@ private:
                     Entries_.erase(it);
                 }
 
-                CacheSize_.Update(Entries_.size());
+                CacheSizeGauge_.Update(Entries_.size());
             }
 
             auto error = TError(rspOrError);
@@ -452,7 +452,7 @@ private:
             }
         }
 
-        ExpiredChunks_.Increment(expiredChunkIds.size());
+        ExpiredChunksCounter_.Increment(expiredChunkIds.size());
 
         if (!expiredChunkIds.empty()) {
             auto mapGuard = WriterGuard(EntriesLock_);
@@ -461,7 +461,7 @@ private:
             }
         }
 
-        CacheSize_.Update(totalChunkCount);
+        CacheSizeGauge_.Update(totalChunkCount);
 
         YT_LOG_DEBUG("Finished expired chunk replica sweep (TotalChunkCount: %v, ExpiredChunkCount: %v)",
             totalChunkCount,
