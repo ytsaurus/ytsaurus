@@ -663,7 +663,7 @@ private:
         cellTagsToSyncWith.push_back(CellTagFromId(transactionId));
 
         // Syncing with native chunk cells to ensure chunk schema has been received.
-        for (auto chunk : request->chunks()) {
+        for (const auto& chunk : request->chunks()) {
             auto chunkId = FromProto<TChunkId>(chunk.id());
             cellTagsToSyncWith.push_back(CellTagFromId(chunkId));
         }

@@ -70,7 +70,7 @@ static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf /*format*/)
 {
-    builder->AppendFormat("[%v->%v]", edge.SourceCellId, edge.DestinationCellId);
+    builder->AppendFormat("%v->%v", edge.SourceCellId, edge.DestinationCellId);
 }
 
 TString ToString(const THiveEdge& edge)
@@ -310,7 +310,7 @@ public:
     void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) override
     {
         if (!FrozenEdges_.empty()) {
-            YT_LOG_DEBUG("Unfreezing Hive edges (Edges: %v)",
+            YT_LOG_INFO("Unfreezing Hive edges (Edges: %v)",
                 FrozenEdges_);
             FrozenEdges_.clear();
         }
@@ -320,7 +320,7 @@ public:
         }
 
         FrozenEdges_ = std::move(edgesToFreeze);
-        YT_LOG_DEBUG("Freezing Hive edges (Edges: %v)",
+        YT_LOG_INFO("Freezing Hive edges (Edges: %v)",
             edgesToFreeze);
     }
 
@@ -669,8 +669,8 @@ private:
             for (const auto& edge : FrozenEdges_) {
                 if (edge.DestinationCellId == SelfCellId_ && edge.SourceCellId == srcCellId) {
                     YT_LOG_DEBUG(
-                        "Simulating connection instability; "
-                        "not posting messages to another cell (SelfCellId: %v, SrcCellId: %v)",
+                        "Edge is frozen; "
+                        "not posting messages along it (SelfCellId: %v, SrcCellId: %v)",
                         SelfCellId_,
                         srcCellId);
                     return;

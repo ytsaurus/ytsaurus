@@ -1347,7 +1347,8 @@ private:
         for (const auto& edge : edges) {
             edgesToFreeze.emplace_back(THiveEdge{
                 .SourceCellId = GetCellId(edge[0]),
-                .DestinationCellId = GetCellId(edge[1])});
+                .DestinationCellId = GetCellId(edge[1]),
+            });
         }
         hiveManager->FreezeEdges(std::move(edgesToFreeze));
     }
