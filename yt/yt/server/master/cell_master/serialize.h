@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((NodeReplicationMutation)                                      (2561))  // cherepashka
     ((TraceIdInSequoia)                                             (2562))  // cherepashka
     ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
+    ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -247,6 +248,7 @@ DEFINE_ENUM(EMasterReign,
     ((RipAevum)                                                     (2612))  // babenko
     ((SecondaryIndexSchemaValidation)                               (2613))  // sabdenovch
     ((ErasureChunksCanBeNonVital)                                   (2614))  // achulkov2
+    ((MissingRackAttribute)                                         (2615))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
