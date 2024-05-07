@@ -1,4 +1,3 @@
-import io
 import tempfile
 
 from .conftest import authors
