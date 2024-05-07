@@ -11,7 +11,7 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
@@ -1218,6 +1218,8 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("max42", "galtsev")
     def test_data_balancing(self):
+        skip_if_old(self.Env, (24, 1), "Data balancing is broken in older versions")
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
