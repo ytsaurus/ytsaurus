@@ -393,6 +393,14 @@ public:
         }
     }
 
+    void InitUserJobSpec(
+        NControllerAgent::NProto::TUserJobSpec* proto,
+        TJobletPtr joblet) const override
+    {
+        TOperationControllerBase::InitUserJobSpec(proto, std::move(joblet));
+        proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", 0));
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
 
