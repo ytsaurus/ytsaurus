@@ -780,6 +780,7 @@ class DockerRespawner:
         self._image = image
         self._platform = target_platform
         self._docker = docker
+        self._python = python
         self._env = env
         if self._env is None:
             # By default, we forward only YT-specific variables.
@@ -867,7 +868,7 @@ class DockerRespawner:
             *docker_env_args,
             *docker_mount_args,
             self._image,
-            "python3", self._main_script_path,
+            self._python, self._main_script_path,
         ]
         command = [
             shlex.quote(c)
@@ -883,8 +884,6 @@ class DockerRespawner:
             stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
-            bufsize=1,
-            universal_newlines=True,
         )
         exit_code = process.wait()
         if exit_code:
@@ -909,8 +908,8 @@ def respawn_in_docker(
     Args:
         :param str image: docker image (same format as in the operation's spec)
         :param Optional[str] target_platform: target platform for the docker container
-        :param str docker: docker executable name/path
-        :param str python: python executable name/path
+        :param str docker: local docker executable name/path
+        :param str python: python executable name/path in docker
         :param Optional[dict] env: environment variables to pass to the docker container
         If not set it will use global variables with the YT_ prefix
         :param Optional[list[str]] mount: mount points for the docker container
@@ -925,8 +924,8 @@ def respawn_in_docker(
             client = wrapper.YtClient()
             client.run_map(
                 mapper,
-                source_table=//tmp/foo,
-                destination_table=//tmp/bar,
+                source_table="//tmp/foo",
+                destination_table="//tmp/bar",
             )
 
         if __name__ == "__main__":

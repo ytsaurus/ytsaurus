@@ -1,3 +1,5 @@
+import io
+
 from .conftest import authors
 
 from yt.wrapper.py_wrapper import DockerRespawner, respawn_in_docker
@@ -12,7 +14,7 @@ def test_docker_respawner(monkeypatch):
         image="some_image",
         target_platform="arm64",
         docker="docker_test",
-        python="python3",
+        python="/custom/docker/python/path",
         env=None,
         main_scipt_path="/home/user2/yt/main.py",
         cwd="/root",
@@ -39,7 +41,7 @@ def test_docker_respawner(monkeypatch):
         # a part of pythonpython outside homedir
         "-v", "/usr/lib/python4.2/site-packages:/usr/lib/python4.2/site-packages",
         "some_image",
-        "python3", "/home/user2/yt/main.py",
+        "/custom/docker/python/path", "/home/user2/yt/main.py",
     ]
 
 
@@ -153,7 +155,7 @@ def test_docker_respawner_escaping():
         "-v",
         "'/some path:/some path'",
         "'some image'",
-        "python3",
+        "'python\n3'",
         "/home/user2/yt/main.py",
     ]
 
