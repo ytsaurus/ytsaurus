@@ -347,4 +347,14 @@ LLVM_BC(
         greatest
 )
 
+LLVM_BC(
+    udf/dict_sum.c
+    NAME dict_sum
+    SYMBOLS
+        dict_sum_init
+        dict_sum_update
+        dict_sum_merge
+        dict_sum_finalize
+)
+
 END()
