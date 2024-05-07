@@ -31,6 +31,9 @@ public:
     //! Cpu quota period for cpu limits.
     TDuration CpuPeriod;
 
+    //! By default at OOM kill all tasks at once. Requires cgroup-v2.
+    bool MemoryOOMGroup;
+
     REGISTER_YSON_STRUCT(TCriExecutorConfig);
 
     static void Register(TRegistrar registrar);
