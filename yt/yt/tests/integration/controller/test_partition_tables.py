@@ -139,11 +139,13 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
     @authors("galtsev")
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
-    def test_multishard_ordered_dynamic_table(self, enable_dynamic_store_read):
+    @pytest.mark.parametrize("one_row_per_partition", [False, True])
+    def test_multishard_ordered_dynamic_table(self, enable_dynamic_store_read, one_row_per_partition):
         table = "//tmp/multishard_ordered_dynamic_table"
         chunk_count = 6
-        rows_per_chunk = 1000
+        rows_per_chunk = 10 if one_row_per_partition else 1000
         row_weight = 1000
+        row_count = chunk_count * rows_per_chunk
 
         data_weight = self._create_table(
             table,
@@ -159,19 +161,25 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         if enable_dynamic_store_read:
             insert_rows(table, [{"key_0": "dynamic store", "key_1": "", "value_0": "", "value_1": ""}])
 
-        partitions = partition_tables([table], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([table], data_weight_per_partition=1 if one_row_per_partition else data_weight // 3)
 
         self.check_partitions(table, partitions)
 
+        allowed_absolute_difference = 10 if enable_dynamic_store_read else 0
+        expected_chunk_count = row_count if one_row_per_partition else chunk_count
+
         self.check_aggregate_statistics(
             partitions,
-            chunk_count,
-            chunk_count * rows_per_chunk,
+            expected_chunk_count,
+            row_count,
             data_weight,
-            allowed_absolute_difference=10 if enable_dynamic_store_read else 0,
+            allowed_absolute_difference,
         )
 
-        assert len(partitions) >= 3
+        if one_row_per_partition:
+            assert len(partitions) == pytest.approx(row_count, abs=allowed_absolute_difference)
+        else:
+            assert len(partitions) >= 3
 
     @authors("galtsev")
     def test_unordered_one_table_with_columnar_statistics(self):
