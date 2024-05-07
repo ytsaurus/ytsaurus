@@ -173,13 +173,12 @@ TEST_F(TTypeV3Test, TestCreateDynamicTable)
         )
     );
 
-    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+    EXPECT_NO_THROW(
         createKvDynamicTable(
             ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
             SimpleLogicalType(ESimpleLogicalValueType::String)
-        ),
-        std::exception,
-        "Dynamic table cannot have key column of type");
+        )
+    );
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         createKvDynamicTable(

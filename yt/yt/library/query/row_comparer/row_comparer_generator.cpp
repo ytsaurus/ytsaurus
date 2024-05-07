@@ -34,11 +34,11 @@ using namespace llvm;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int CompareCompositeValues(ui32 lhsLength, const void* lhsData, ui32 rhsLength, const void* rhsData)
+static int CompareYsonValues(ui32 lhsLength, const void* lhsData, ui32 rhsLength, const void* rhsData)
 {
     NYson::TYsonStringBuf lhsBuf{TStringBuf(static_cast<const char*>(lhsData), lhsLength)};
     NYson::TYsonStringBuf rhsBuf{TStringBuf(static_cast<const char*>(rhsData), rhsLength)};
-    return NYT::NTableClient::CompareCompositeValues(lhsBuf, rhsBuf);
+    return NYT::NTableClient::CompareYsonValues(lhsBuf, rhsBuf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +46,7 @@ static int CompareCompositeValues(ui32 lhsLength, const void* lhsData, ui32 rhsL
 static void RegisterComparerRoutinesImpl(TRoutineRegistry* registry)
 {
     registry->RegisterRoutine("memcmp", ::memcmp);
-    registry->RegisterRoutine("compositecmp", CompareCompositeValues);
+    registry->RegisterRoutine("ysoncmp", CompareYsonValues);
 }
 
 static TRoutineRegistry* GetComparerRoutineRegistry()
@@ -84,8 +84,8 @@ private:
     void BuildCmp(Value* lhs, Value* rhs, EValueType type, int index);
     //! Create comparer for EValueType::String values.
     void BuildStringCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
-    //! Create comparer for EValueType::Composite values.
-    void BuildCompositeCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
+    //! Create comparer for EValueType::Composite and EValueType::Any values.
+    void BuildYsonCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index);
     void BuildIterationLimitCheck(Value* length, int index);
     void BuildSentinelTypeCheck(Value* type);
     void BuildMainLoop(
@@ -235,6 +235,7 @@ private:
             case EValueType::Double:
                 return TTypeBuilder<TDynamicValueData>::TDouble::Get(Builder_.Context_);
             case EValueType::String:
+            case EValueType::Any:
                 return TTypeBuilder<TDynamicValueData>::TStringType::Get(Builder_.Context_);
             default:
                 YT_ABORT();
@@ -455,18 +456,18 @@ void TComparerBuilder::BuildStringCmp(Value* lhsLength, Value* lhsData, Value* r
     BuildCmp(lhsLength, rhsLength, EValueType::Int64, index);
 }
 
-void TComparerBuilder::BuildCompositeCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index)
+void TComparerBuilder::BuildYsonCmp(Value* lhsLength, Value* lhsData, Value* rhsLength, Value* rhsData, int index)
 {
     auto* cmpResult = CreateCall(
-        Module_->GetRoutine("compositecmp"),
+        Module_->GetRoutine("ysoncmp"),
         {
             lhsLength,
             lhsData,
             rhsLength,
             rhsData
         });
-    auto* trueBB = CreateBB("compositecmp.is.not.zero");
-    auto* falseBB = CreateBB("compositecmp.is.zero");
+    auto* trueBB = CreateBB("ysoncmp.is.not.zero");
+    auto* falseBB = CreateBB("ysoncmp.is.zero");
     CreateCondBr(CreateICmpNE(cmpResult, getInt32(0)), trueBB, falseBB);
     SetInsertPoint(trueBB);
     CreateRet(CreateSelect(CreateICmpSGT(cmpResult, getInt32(0)), getInt32(index + 1), getInt32(-(index + 1))));
@@ -525,12 +526,12 @@ void TComparerBuilder::BuildMainLoop(
             auto* lhsData = lhsBuilder.GetStringData(index);
             auto* rhsData = rhsBuilder.GetStringData(index);
             BuildStringCmp(lhsLength, lhsData, rhsLength, rhsData, index);
-        } else if (type == EValueType::Composite) {
+        } else if (type == EValueType::Composite || type == EValueType::Any) {
             auto* lhsLength = lhsBuilder.GetStringLength(index);
             auto* rhsLength = rhsBuilder.GetStringLength(index);
             auto* lhsData = lhsBuilder.GetStringData(index);
             auto* rhsData = rhsBuilder.GetStringData(index);
-            BuildCompositeCmp(lhsLength, lhsData, rhsLength, rhsData, index);
+            BuildYsonCmp(lhsLength, lhsData, rhsLength, rhsData, index);
         } else {
             auto* lhs = lhsBuilder.GetData(index, type);
             auto* rhs = rhsBuilder.GetData(index, type);
