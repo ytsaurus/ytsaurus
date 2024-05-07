@@ -1064,11 +1064,8 @@ private:
 
         auto* host = FindHostByName(options.HostName);
         if (!IsObjectAlive(host)) {
-            CreateHostObject(node, options.HostName);
+            CreateHostObject(node, options.HostName, oldNodeRack);
             host = GetHostByName(options.HostName);
-            if (oldNodeRack) {
-                SetHostRack(host, oldNodeRack);
-            }
         }
 
         if (isNodeNew) {
@@ -1144,7 +1141,7 @@ private:
         ResetCellAggregatedStateReliabilities(node);
     }
 
-    void CreateHostObject(TNode* node, const TString& hostName)
+    void CreateHostObject(TNode* node, const TString& hostName, TRack* rack)
     {
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(Bootstrap_->IsPrimaryMaster());
@@ -1154,6 +1151,9 @@ private:
 
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("name", hostName);
+        if (rack) {
+            attributes->Set("rack", rack->GetName());
+        }
         ToProto(req->mutable_object_attributes(), *attributes);
 
         const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
