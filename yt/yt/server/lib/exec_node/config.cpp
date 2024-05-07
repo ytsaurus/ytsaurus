@@ -684,6 +684,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_user_job_memory_limit", &TThis::CheckUserJobMemoryLimit)
         .Default(true);
 
+    registrar.Parameter("check_user_job_oom_kill", &TThis::CheckUserJobOOMKill)
+        .Default(true);
+
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 
