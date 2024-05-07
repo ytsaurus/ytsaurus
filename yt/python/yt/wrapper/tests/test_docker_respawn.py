@@ -1,4 +1,5 @@
 import io
+import tempfile
 
 from .conftest import authors
 
@@ -167,15 +168,24 @@ def test_respawn_in_docker(monkeypatch):
     def foo():
         return "main func"
 
-    # Without env variables we try to respawn in docker
-    # in this case our function returns None.
-    assert foo() is None
+    # We proxy stdin to the subprocess call,
+    # so we have to mock it.
+    # The standard solution (io.BytesIO) doesn't suit here
+    # because BytesIO/StringIO doesn't have the fileno attribute,
+    # but subprocess.Popen works with file descriptors (not paths).
+    _, filename = tempfile.mkstemp()
+    with open(filename, "w") as mock_stdin:
+        monkeypatch.setattr("sys.stdin", mock_stdin)
 
-    # Script "was" restarted in a container.
-    monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", "1")
-    assert foo() == "main func"
+        # Without env variables we try to respawn in docker
+        # in this case our function returns None.
+        assert foo() is None
 
-    # Script "was" run on YT.
-    monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", None)
-    monkeypatch.setenv("YT_FORBID_REQUESTS_FROM_JOB", "1")
-    assert foo() == "main func"
+        # Script "was" restarted in a container.
+        monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", "1")
+        assert foo() == "main func"
+
+        # Script "was" run on YT.
+        monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", None)
+        monkeypatch.setenv("YT_FORBID_REQUESTS_FROM_JOB", "1")
+        assert foo() == "main func"
