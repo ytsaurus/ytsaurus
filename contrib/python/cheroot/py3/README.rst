@@ -29,6 +29,14 @@
 .. image:: https://img.shields.io/badge/StackOverflow-Cheroot-blue.svg
    :target: https://stackoverflow.com/questions/tagged/cheroot+or+cherrypy
 
+.. image:: https://img.shields.io/matrix/octomachinery:matrix.org?label=Discuss%20on%20Matrix%20at%20%23cherrypy%3Amatrix.org&logo=matrix&server_fqdn=matrix.org&style=flat
+   :target: https://matrix.to/#/%23cherrypy:matrix.org
+   :alt: Matrix Room — #cherrypy:matrix.org
+
+.. image:: https://img.shields.io/matrix/pyba:matrix.org?label=Discuss%20on%20Matrix%20at%20%23cherrypy-space%3Amatrix.org&logo=matrix&server_fqdn=matrix.org&style=flat
+   :target: https://matrix.to/#/%23cherrypy-space:matrix.org
+   :alt: Matrix Space — #cherrypy-space:matrix.org
+
 .. image:: https://img.shields.io/gitter/room/cherrypy/cherrypy.svg
    :target: https://gitter.im/cherrypy/cherrypy
 
