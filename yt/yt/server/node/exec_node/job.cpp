@@ -2969,6 +2969,11 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
                 }
             }
         }
+        if (auto processSignal = resultError.FindMatching(EProcessErrorCode::Signal)) {
+            if (processSignal->Attributes().Find<bool>("oom_killed").value_or(false)) {
+                return EAbortReason::ResourceOverdraft;
+            }
+        }
     }
 
     return std::nullopt;
