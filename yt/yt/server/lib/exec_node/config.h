@@ -602,6 +602,9 @@ public:
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
 
+    //! If set, abort user job at detecting OOM kill inside container.
+    bool CheckUserJobOOMKill;
+
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
 

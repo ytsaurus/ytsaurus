@@ -369,6 +369,8 @@ private:
 
         JobProxyConfigTemplate_->CoreWatcher = GetConfig()->ExecNode->CoreWatcher;
 
+        JobProxyConfigTemplate_->CheckUserJobOOMKill = GetConfig()->ExecNode->CheckUserJobOOMKill;
+
         JobProxyConfigTemplate_->TestPollJobShell = GetConfig()->ExecNode->TestPollJobShell;
 
         JobProxyConfigTemplate_->DoNotSetUserId = GetConfig()->ExecNode->DoNotSetUserId;
