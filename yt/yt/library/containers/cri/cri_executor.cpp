@@ -685,6 +685,10 @@ private:
             (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
 
+        if (spec.MemoryOOMGroup.value_or(Config_->MemoryOOMGroup)) {
+            (*unified)["memory.oom.group"] = "1";
+        }
+
         if (const auto& cpusetCpus = spec.CpusetCpus) {
             resources->set_cpuset_cpus(*cpusetCpus);
         }
