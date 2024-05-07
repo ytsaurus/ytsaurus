@@ -25,6 +25,7 @@ import inspect
 import itertools
 import os
 import shutil
+import shlex
 import tarfile
 import gzip
 import tempfile
@@ -781,16 +782,16 @@ class DockerRespawner:
         self._docker = docker
         self._env = env
         if self._env is None:
-            # by default, we forward only YT-specific variables
+            # By default, we forward only YT-specific variables.
             self._env = {
                 key: value
                 for key, value in os.environ.items()
-                if key.startswith('YT_')
+                if key.startswith("YT_")
             }
         self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
         self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
         self._homedir = homedir if homedir is not None else os.path.expanduser("~")
-        # we need to provide all python libraries to a container to ensure picking works
+        # We need to provide all python libraries to a container to ensure pickling works.
         self._python_lib_paths = (
             python_lib_paths
             if python_lib_paths is not None else
@@ -800,24 +801,27 @@ class DockerRespawner:
         self._need_sudo = need_sudo
 
     def _make_docker_env_args(self, env):
-        return list(itertools.chain(*[
-            ("-e", "{0}={1}".format(key, value))
-            for key, value in env.items()
-        ]))
+        return list(itertools.chain.from_iterable(
+            (
+                ("-e", "{0}={1}".format(key, value))
+                for key, value in env.items()
+            )
+        ))
 
     def _make_docker_mount_args(self, paths):
-        return list(itertools.chain(*[
-            ("-v", "{0}:{0}".format(path))
-            for path in paths
-        ]))
+        return list(itertools.chain.from_iterable(
+            (
+                ("-v", "{0}:{0}".format(path))
+                for path in paths
+            )
+        ))
 
     def _make_mount_paths(self):
-        # use user provided values
         if self._mount is not None:
             return self._mount
-        # if we mount the entire local file system in docker under an arbitrary name
+        # If we mount the entire local file system in docker under an arbitrary name
         # we will break the symlinks,
-        # so we have to find only the paths necessary for work and mount them along the same paths
+        # so we have to find only the paths necessary for work and mount them along the same paths.
         mount_paths = [
             path
             for path in [self._cwd, os.path.dirname(self._main_script_path), *self._python_lib_paths]
@@ -839,10 +843,10 @@ class DockerRespawner:
 
     def make_command(self):
         env = self._env.copy()
-        # ensure using the same image in all operations
+        # Ensure using the same image in all operations.
         env["YT_BASE_LAYER"] = env.get("YT_BASE_LAYER", self._image)
         # ATTENTION
-        # we use linux-specific separator for PYTHONPATH
+        # We use linux-specific separator for PYTHONPATH.
         pythonpath_env = ":".join(self._python_lib_paths)
 
         mount_paths = self._make_mount_paths()
@@ -865,14 +869,18 @@ class DockerRespawner:
             self._image,
             "python3", self._main_script_path,
         ]
+        command = [
+            shlex.quote(c)
+            for c in command
+        ]
         return command
 
     def run(self):
         command = self.make_command()
-        logger.info("Start respawn in docker")
-        logger.info("Command: " + " ".join(command))
+        logger.info("Respawn in docker (command: {0})".format(" ".join(command)))
         process = subprocess.Popen(
             command,
+            stdin=sys.stdin,
             stdout=sys.stdout,
             stderr=sys.stderr,
             bufsize=1,
