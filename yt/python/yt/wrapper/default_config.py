@@ -254,6 +254,9 @@ default_config = {
     "config_path": None,
     "config_format": "yson",
 
+    # TODO: @chiffa add description
+    "profile": None,
+
     # Path to document node on cluster with config patches. Some fields will be lazy changed with this one.
     "config_remote_patch_path": "//sys/client_config",
     # False means lazy config patching (at field access), True - patch at client start, None - do not patch at all
@@ -771,7 +774,9 @@ SHORTCUTS = {
     "ARGCOMPLETE_VERBOSE": "argcomplete_verbose",
 
     "USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
-    "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list"
+    "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
+
+    "PROFILE": "profile",
 }
 
 
@@ -877,7 +882,7 @@ def _update_from_file(config):
     # type: (yt.wrapper.mappings.VerifiedDict) -> None
 
     # These options should be processed before reading config file
-    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT"]:
+    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_PROFILE"]:
         if opt_name in os.environ:
             config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
     config_path = config["config_path"]
@@ -897,21 +902,25 @@ def _update_from_file(config):
         except IOError:
             config_path = None
 
-    if config_path and os.path.isfile(config_path):
-        load_func = None
-        format = config["config_format"]
-        if format == "yson":
-            load_func = yson.load
-        elif format == "json":
-            load_func = json.load
-        else:
-            raise common.YtError("Incorrect config_format '%s'" % format)
-        try:
-            with open(config_path, "rb") as f:
-                common.update_inplace(config, load_func(f))
-        except Exception:
-            print("Failed to parse YT config from " + config_path, file=sys.stderr)
-            raise
+    if not (config_path and os.path.isfile(config_path)):
+        return
+
+    load_func = None
+    format = config["config_format"]
+    if format == "yson":
+        load_func = yson.loads
+    elif format == "json":
+        load_func = json.loads
+    else:
+        raise common.YtError("Incorrect config_format '%s'" % format)
+
+    try:
+        with open(config_path, "rb") as f:
+            parsed_config = load_func(f)
+            common.update_inplace(config, parsed_config)
+    except Exception:
+        print("Failed to parse YT config from " + config_path, file=sys.stderr)
+        raise
 
 
 def get_config_from_env():
