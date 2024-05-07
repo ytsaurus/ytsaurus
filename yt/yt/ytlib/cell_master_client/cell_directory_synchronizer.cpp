@@ -108,7 +108,7 @@ private:
 
     void DoSync()
     {
-        // For testing purposes (cherepashka).
+        // TODO(cherepashka) remove after testing.
         TTraceContextGuard traceContextGuard(GetOrCreateTraceContext("MasterCellDirectory"));
         try {
             YT_LOG_DEBUG("Started synchronizing master cell directory");

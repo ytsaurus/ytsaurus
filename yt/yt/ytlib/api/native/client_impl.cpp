@@ -327,26 +327,26 @@ void TClient::Terminate()
     SchedulerChannel_->Terminate(error);
 }
 
-IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
+IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag)
 {
     auto guard = ReaderGuard(MasterChannelsLock_);
     const auto& channels = MasterChannels_[kind];
     return channels.contains(cellTag) ? GetOrCrash(channels, cellTag) : nullptr;
 }
 
-TClient::TChannels TClient::GetMasterChannels(EMasterChannelKind kind) const
+TClient::TChannels TClient::GetMasterChannels(EMasterChannelKind kind)
 {
     auto guard = ReaderGuard(MasterChannelsLock_);
     return MasterChannels_[kind];
 }
 
-TClient::TChannels TClient::GetCypressChannels(EMasterChannelKind kind) const
+TClient::TChannels TClient::GetCypressChannels(EMasterChannelKind kind)
 {
     auto guard = ReaderGuard(CypressChannelsLock_);
     return CypressChannels_[kind];
 }
 
-IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const
+IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag)
 {
     auto guard = ReaderGuard(CypressChannelsLock_);
     const auto& channels = CypressChannels_[kind];

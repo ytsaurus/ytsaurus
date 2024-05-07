@@ -1366,7 +1366,7 @@ private:
         }
 
         const auto& testingConfig = GetDynamicConfig()->Testing;
-        // TODO(cherepashka): temporary logic.
+        // TODO(cherepashka): remove this temporary logic after make sure dynamic master cell configs propagation works as expected.
         if (testingConfig->MasterCellDirectoryOverride) {
             GetMasterCellConnectionConfigs()->SecondaryMasters = testingConfig->MasterCellDirectoryOverride->SecondaryMasters;
         }
@@ -1426,10 +1426,9 @@ private:
         auto populateCellRoles = [&] (TCellTag cellTag) {
             auto roles = ComputeMasterCellRolesFromConfig(cellTag);
             THROW_ERROR_EXCEPTION_IF(!IsDiscoveredMasterCell(cellTag) && roles != EMasterCellRoles::None,
-                "Attempted to set master cell roles to master that is not discovered by all nodes "
-                "(CellTag: %v, Roles: %v)",
-                cellTag,
-                roles)
+                "Attempted to set master cell roles %v to master with cell tag %v that is not discovered by all nodes ",
+                roles,
+                cellTag)
 
             MasterCellRolesMap_[cellTag] = roles;
 

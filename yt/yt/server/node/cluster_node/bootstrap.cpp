@@ -1240,13 +1240,12 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND(
-            [this] (NYson::IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND([this] (NYson::IYsonConsumer* consumer) {
             auto secondaryMasterConnectionConfigs = IsConnected()
                 ? GetSecondaryMasterConnectionConfigs()
                 : TSecondaryMasterConnectionConfigs();
             BuildYsonFluently(consumer)
-                .Value(std::move(secondaryMasterConnectionConfigs));
+                .Value(secondaryMasterConnectionConfigs);
         }))->Via(GetControlInvoker());
     }
 

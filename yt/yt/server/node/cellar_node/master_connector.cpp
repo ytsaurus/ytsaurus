@@ -210,7 +210,9 @@ private:
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             newSecondaryCellTags.emplace_back(cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
-                futures.emplace_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                    VERIFY_THREAD_AFFINITY(ControlThread);
+
                     if (auto strongThis = this_.Lock()) {
                         return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
                     }
@@ -320,12 +322,10 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cellar node heartbeat to master (CellTag: %v)",
                 cellTag);
-            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly) ||
-                rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady))
-            {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
                 return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
-                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
+                YT_LOG_INFO(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
                     cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
