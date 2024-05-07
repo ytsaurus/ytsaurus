@@ -93,7 +93,7 @@ ru:
       type: redirect
 
     - from: /description/chyt/cliques/access.md
-      to: /user-guide/data-processing/spyt/access.md
+      to: /user-guide/data-processing/chyt/cliques/access.md
       type: redirect
 
     - from: /description/chyt/cliques/controller.md
