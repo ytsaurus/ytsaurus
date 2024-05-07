@@ -248,6 +248,9 @@ public:
     //! proper memory limits for asan builds.
     bool CheckUserJobMemoryLimit;
 
+    //! If set, abort user job at detecting OOM kill inside container.
+    bool CheckUserJobOOMKill;
+
     //! Compat option for urgent disable of job shell audit.
     bool EnableJobShellSeccopm;
 
