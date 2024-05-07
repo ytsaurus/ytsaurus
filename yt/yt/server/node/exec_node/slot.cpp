@@ -79,9 +79,6 @@ public:
     ~TUserSlot()
     {
         YT_LOG_FATAL_IF(IsEnabled_.load(), "UserSlot was not manually disabled before destruction");
-
-        Location_->ReleaseDiskSpace(SlotIndex_);
-        Location_->DecreaseSessionCount();
     }
 
     void ResetState() override
@@ -91,6 +88,8 @@ public:
         bool wasEnabled = IsEnabled_.exchange(false);
 
         YT_LOG_FATAL_UNLESS(wasEnabled, "Attempt to disable already disabled UserSlot");
+        Location_->ReleaseDiskSpace(SlotIndex_);
+        Location_->DecreaseSessionCount();
         SlotGuard_.reset();
     }
 
