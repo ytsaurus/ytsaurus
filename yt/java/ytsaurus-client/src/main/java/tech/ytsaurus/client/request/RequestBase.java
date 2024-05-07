@@ -24,7 +24,7 @@ public abstract class RequestBase<
     protected @Nullable
     Message additionalData;
 
-    RequestBase(Builder<?, ?> builder) {
+    protected RequestBase(Builder<?, ?> builder) {
         this.timeout = builder.timeout;
         this.requestId = builder.requestId;
         this.traceId = builder.traceId;
@@ -116,7 +116,7 @@ public abstract class RequestBase<
         /**
          * Construct empty builder.
          */
-        Builder() {
+        protected Builder() {
         }
 
         protected Builder(Builder<?, ?> other) {
