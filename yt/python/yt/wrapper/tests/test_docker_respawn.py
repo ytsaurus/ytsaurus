@@ -113,21 +113,67 @@ def test_docker_respawner_with_sudo():
 
 
 @authors("thenno")
+def test_docker_respawner_escaping():
+    respawner_withour_sudo = DockerRespawner(
+        image="some image",
+        target_platform="arm 64",
+        docker="docker test",
+        python="python\n3",
+        env={
+            "SOME STRANGE VARIABLE": "\nbla",
+        },
+        main_scipt_path="/home/user2/yt/main.py",
+        cwd="/bla",
+        homedir="/\t  bla",
+        python_lib_paths=["/some path"],
+    )
+    assert respawner_withour_sudo.make_command() == [
+        "'docker test'",
+        "run",
+        "--platform",
+        "'arm 64'",
+        "-it",
+        "--rm",
+        "-e",
+        "CWD=/bla",
+        "-e",
+        "'PYTHONPATH=/some path'",
+        "-e",
+        "YT_RESPAWNED_IN_CONTAINER=1",
+        "-e",
+        "'SOME STRANGE VARIABLE=\nbla'",
+        "-e",
+        "'YT_BASE_LAYER=some image'",
+        "-v",
+        "'/\t  bla:/\t  bla'",
+        "-v",
+        "/bla:/bla",
+        "-v",
+        "/home/user2/yt:/home/user2/yt",
+        "-v",
+        "'/some path:/some path'",
+        "'some image'",
+        "python3",
+        "/home/user2/yt/main.py",
+    ]
+
+
+@authors("thenno")
 def test_respawn_in_docker(monkeypatch):
     # `docker = echo` allows us to avoid running real docker
     @respawn_in_docker("some_image", docker="echo")
     def foo():
         return "main func"
 
-    # without env variables we try to respawn in docker
-    # in this case our function returns None
+    # Without env variables we try to respawn in docker
+    # in this case our function returns None.
     assert foo() is None
 
-    # script "was" restarted in a container
+    # Script "was" restarted in a container.
     monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", "1")
     assert foo() == "main func"
 
-    # script "was" run on YT
+    # Script "was" run on YT.
     monkeypatch.setenv("YT_RESPAWNED_IN_CONTAINER", None)
     monkeypatch.setenv("YT_FORBID_REQUESTS_FROM_JOB", "1")
     assert foo() == "main func"
