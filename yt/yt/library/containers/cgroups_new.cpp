@@ -213,6 +213,15 @@ TBlockIOStatistics TSelfCGroupsStatisticsFetcher::GetBlockIOStatistics() const
     return IsV2_ ? GetBlockIOStatisticsV2(CGroup_) : GetBlockIOStatisticsV1(CGroup_);
 }
 
+i64 TSelfCGroupsStatisticsFetcher::GetOOMKillCount() const
+{
+    auto statistics = ReadAndParseStatFile(
+        Format(IsV2_ ? "/sys/fs/cgroup/%v/memory.events" : "/sys/fs/cgroup/memory/%v/memory.oom_control", CGroup_));
+
+    // Count of tasks killed by OOM killer in this cgroup or its children.
+    return statistics["oom_kill"];
+}
+
 void TSelfCGroupsStatisticsFetcher::DetectSelfCGroup()
 {
     // NB: There are issues with cgroup namespaces in Kubernetes
