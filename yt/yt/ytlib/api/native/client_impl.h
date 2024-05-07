@@ -914,11 +914,11 @@ private:
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
     TChannels GetMasterChannels(EMasterChannelKind kind) const;
-    NRpc::IChannelPtr GetMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
+    NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
     TChannels GetCypressChannels(EMasterChannelKind kind) const;
-    NRpc::IChannelPtr GetCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
+    NRpc::IChannelPtr FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
 
-    //! NB: Could throw in case of non existing cell tag.
+    //! NB: Could throw in case of non-existing cell tag.
     void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
 
     const IClientPtr& GetOperationsArchiveClient();

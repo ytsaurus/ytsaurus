@@ -689,6 +689,10 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "exec_node_is_not_data_node": True,
+    }
+
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 6
     NUM_SCHEDULERS = 1

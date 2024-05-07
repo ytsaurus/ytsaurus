@@ -232,6 +232,7 @@ DEFINE_ENUM(EMasterReign,
     ((TraceIdInSequoia)                                             (2562))  // cherepashka
     ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
     ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
+    ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
     // 24.2 starts here.
 );
 

@@ -290,11 +290,9 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        {
-            auto guard = WriterGuard(MasterCellTagsLock_);
-            for (auto cellTag : newSecondaryMasterCellTags) {
-                InsertOrCrash(MasterCellTags_, cellTag);
-            }
+        auto guard = WriterGuard(MasterCellTagsLock_);
+        for (auto cellTag : newSecondaryMasterCellTags) {
+            InsertOrCrash(MasterCellTags_, cellTag);
         }
     }
 

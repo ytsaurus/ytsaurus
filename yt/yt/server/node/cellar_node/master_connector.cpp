@@ -86,8 +86,10 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetControlInvoker()->Invoke(
-            BIND([this, _this = MakeWeak(this), cellTag, immediately] () {
-                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, immediately));
+            BIND([this, this_ = MakeWeak(this), cellTag, immediately] {
+                if (auto strongThis = this_.Lock()) {
+                    YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, immediately));
+                }
             }));
     }
 
@@ -208,8 +210,11 @@ private:
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             newSecondaryCellTags.emplace_back(cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
-                futures.emplace_back(BIND([this, _this = MakeWeak(this), cellTag = cellTag] () {
-                    return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                futures.emplace_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                    if (auto strongThis = this_.Lock()) {
+                        return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                    }
+                    return MakeFuture(false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }
         }
@@ -232,7 +237,7 @@ private:
         }
 
         YT_LOG_INFO(
-            "Received master cell directory change, attempted to report heartbeats to the new cells "
+            "Received master cell directory change, attempted to report heartbeats to new masters "
             "(NewCellTags: %v)",
             newSecondaryCellTags);
     }
@@ -272,19 +277,18 @@ private:
 
         auto delay = immediately ? TDuration::Zero() : HeartbeatPeriod_ + RandomDuration(HeartbeatPeriodSplay_);
         return TDelayedExecutor::MakeDelayed(delay, HeartbeatInvoker_)
-            .Apply(BIND([this, _this = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
+            .Apply(BIND([this, this_ = MakeStrong(this), cellTag] (const TErrorOr<void>& error) {
                 if (error.IsOK()) {
                     return ReportHeartbeat(cellTag);
                 }
                 return MakeFuture<bool>(error);
-            }));
+            }).AsyncVia(HeartbeatInvoker_));
     }
 
     TFuture<bool> ReportHeartbeat(TCellTag cellTag)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&PerCellTagData_[cellTag].HeartbeatLock))
             .ValueOrThrow();
 
@@ -316,12 +320,12 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cellar node heartbeat to master (CellTag: %v)",
                 cellTag);
-            if (clusterNodeMasterConnector->IsConnected() && IsRetriableError(rspOrError)
-                || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)
-                || rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady)) {
+            if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly) ||
+                rspOrError.FindMatching(NCellServer::EErrorCode::MasterCellNotReady))
+            {
                 return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
             } else {
-                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to cell (CellTag: %v)",
+                YT_LOG_DEBUG(rspOrError, "Node will reset connection to masters, failed to report heartbeat to master cell (CellTag: %v)",
                     cellTag);
                 Bootstrap_->ResetAndRegisterAtMaster();
             }
