@@ -1928,22 +1928,20 @@ public:
     {
         YT_VERIFY(transaction);
 
+        auto nodeId = trunkNode->GetId();
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            for (auto* branchedNode : nestedTransaction->BranchedNodes()) {
-                if (branchedNode->GetTrunkNode() == trunkNode) {
-                    auto lockMode = branchedNode->GetLockMode();
-                    YT_VERIFY(lockMode != ELockMode::None);
+            auto branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
+            if (!branchedNode) {
+                continue;
+            }
+            auto lockMode = branchedNode->GetLockMode();
+            if (result < lockMode) {
+                result = lockMode;
 
-                    if (result < lockMode) {
-                        result = lockMode;
-
-                        if (result == ELockMode::Exclusive) {
-                            // As strong as it gets.
-                            return result;
-                        }
-                    }
-
+                if (result == ELockMode::Exclusive) {
+                    // As strong as it gets.
+                    return result;
                 }
             }
         }
@@ -2074,20 +2072,30 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
+            // NB: locks are released later and don't reference branches
+            // directly. So it's safe to consult them even after unbranching.
+            const auto& lockingState = trunkNode->LockingState();
+
             VisitTransactionTree(
                 newOriginatorTransaction
                     ? newOriginatorTransaction
                     : transaction->GetTopmostTransaction(),
                 [&] (TTransaction* t) {
-                    // Locks are released later, so be sure to skip the node we've already unbranched.
-                    if (t == transaction) {
-                        return;
-                    }
+                    // This check can be replaced by checking lock mode of the branch
+                    // instead (see YT_VERIFY below). But profiling showed that this
+                    // is significantly faster (in some scenarios, at least).
+                    if (lockingState.HasSnapshotLock(t)) {
+                        // NB: this won't find unbranched nodes.
+                        auto* branchedNode = FindNode(TVersionedNodeId(
+                            trunkNode->GetId(),
+                            t->GetId()));
 
-                    for (auto* branchedNode : t->BranchedNodes()) {
-                        auto* branchedNodeOriginator = branchedNode->GetOriginator();
-                        if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
-                            branchedNode->SetOriginator(newOriginator);
+                        if (branchedNode) {
+                            YT_VERIFY(branchedNode->GetLockMode() == ELockMode::Snapshot);
+                            auto* branchedNodeOriginator = branchedNode->GetOriginator();
+                            if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
+                                branchedNode->SetOriginator(newOriginator);
+                            }
                         }
                     }
                 });
@@ -2095,7 +2103,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <class F>
+    template <std::invocable<TTransaction*> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
