@@ -231,7 +231,7 @@ bool HasColumnsInMapping(TRange<int> schemalessIdMapping)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBernoulliSampler CreateSmapler(
+TBernoulliSampler CreateSampler(
     TChunkId chunkId,
     std::optional<double> samplingRate,
     std::optional<ui64> samplingSeed)
@@ -263,7 +263,7 @@ public:
         , DataSliceDescriptor_(chunkSpec, virtualRowIndex)
         , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
         , RowIndexId_(rowIndexId)
-        , Sampler_(CreateSmapler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
+        , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
         , Logger(TableClientLogger.WithTag("ChunkReaderId: %v, ChunkId: %v",
             TGuid::Create(),
