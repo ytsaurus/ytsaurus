@@ -258,7 +258,7 @@ auto ParDo(F func, const TFnAttributes& attributes)
         return TParDoTransform<TInputRow, TOutputRow>(rawParDo);
     } else {
         using TInputRow = typename std::decay_t<TFunctionArg<TDecayedF, 0>>;
-        if constexpr (std::is_invocable_v<TDecayedF, TInputRow>) {
+        if constexpr (std::invocable<TDecayedF, TInputRow>) {
             using TOutputRow = std::invoke_result_t<TDecayedF, TInputRow>;
             static_assert(std::is_convertible_v<F, TOutputRow(*)(const TInputRow&)>);
             auto rawParDo = NPrivate::TLambda1RawParDo::MakeIntrusive<TInputRow, TOutputRow>(func, attributes);

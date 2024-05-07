@@ -226,11 +226,7 @@ private:
 
     TResourceHolderInfo BuildResourceHolderInfo() const noexcept;
 
-    template <class TResourceUsageUpdater>
-        requires std::is_invocable_r_v<
-            NClusterNode::TJobResources,
-            TResourceUsageUpdater,
-            const NClusterNode::TJobResources&>
+    template <CInvocable<NClusterNode::TJobResources(const NClusterNode::TJobResources&)> TResourceUsageUpdater>
     //! Semantic requirement: TResourceUsageUpdater::operator() must return delta between
     //! cumulative resource usages before and after the call to this function.
     bool DoSetResourceUsage(

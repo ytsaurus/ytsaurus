@@ -1718,13 +1718,9 @@ TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() 
     };
 }
 
-template <class TResourceUsageUpdater>
-    requires std::is_invocable_r_v<
-        TJobResources,
-        TResourceUsageUpdater,
-        const TJobResources&>
+template <CInvocable<TJobResources(const TJobResources&)> TResourceUsageUpdater>
 bool TResourceHolder::DoSetResourceUsage(
-    const NClusterNode::TJobResources& newResourceUsage,
+    const TJobResources& newResourceUsage,
     TStringBuf argumentName,
     TResourceUsageUpdater resourceUsageUpdater)
 {

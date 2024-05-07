@@ -2098,7 +2098,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <std::invocable<TTransaction*> F>
+    template <CInvocable<void(TTransaction*)> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
