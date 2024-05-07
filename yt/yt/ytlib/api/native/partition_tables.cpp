@@ -60,7 +60,6 @@ TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
         Options_.MaxPartitionCount,
         Options_.AdjustDataWeightPerPartition);
 
-    ValidatePaths();
     InitializeChunkPool();
     CollectInput();
     BuildPartitions();
@@ -400,24 +399,6 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         if (!inputChunk->UpperLimit()->HasRowIndex()) {
             YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
             inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex + inputChunk->GetTotalRowCount());
-        }
-    }
-}
-
-void TMultiTablePartitioner::ValidatePaths() {
-    for (const auto& path : Paths_) {
-        for (const auto& range : path.GetRanges()) {
-            const auto& lowerLimit = range.LowerLimit();
-            const auto& upperLimit = range.UpperLimit();
-
-            if ((lowerLimit.HasRowIndex() && upperLimit.HasRowIndex() && lowerLimit.GetRowIndex() > upperLimit.GetRowIndex()) ||
-                (lowerLimit.HasLegacyKey() && upperLimit.HasLegacyKey() && lowerLimit.GetLegacyKey() > upperLimit.GetLegacyKey()))
-            {
-                THROW_ERROR_EXCEPTION("Lower limit should be less than or equal to upper limit")
-                    << TErrorAttribute("path", path)
-                    << TErrorAttribute("lower_limit", lowerLimit)
-                    << TErrorAttribute("upper_limit", upperLimit);
-            }
         }
     }
 }

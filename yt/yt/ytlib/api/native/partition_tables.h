@@ -62,7 +62,6 @@ private:
     void FixLimitsInOrderedDynamicStore(
         int tableIndex,
         const std::vector<NChunkClient::TInputChunkPtr>& inputChunks);
-    void ValidatePaths();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
