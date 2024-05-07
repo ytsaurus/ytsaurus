@@ -63,6 +63,9 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_statistics_flush_period", &TThis::UserStatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("disable_update_user_last_seen", &TThis::DisableUpdateUserLastSeen)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
