@@ -105,7 +105,7 @@ TErrorOr<TJobEnvironmentCpuStatistics> ExtractJobEnvironmentCpuStatistics(const 
             .ThrottledTime = ValueOrNullopt(statistics.ThrottledTime),
             .CfsThrottledTime = ValueOrNullopt(statistics.CfsThrottledTime),
             .ContextSwitchesDelta = ValueOrNullopt(statistics.ContextSwitchesDelta),
-            .PeakThreadCount = ValueOrNullopt(statistics.PeakThreadCount)
+            .PeakThreadCount = ValueOrNullopt(statistics.PeakThreadCount),
         };
     } catch (const std::exception& ex) {
         return TError("Extract job cpu statistics failed")
@@ -188,7 +188,7 @@ TErrorOr<TJobEnvironmentNetworkStatistics> ExtractJobEnvironmentNetworkStatistic
         .TxDrops = ValueOrNullopt(statistics.TxDrops),
         .RxBytes = ValueOrNullopt(statistics.RxBytes),
         .RxPackets = ValueOrNullopt(statistics.RxPackets),
-        .RxDrops = ValueOrNullopt(statistics.RxDrops)
+        .RxDrops = ValueOrNullopt(statistics.RxDrops),
     };
 }
 
