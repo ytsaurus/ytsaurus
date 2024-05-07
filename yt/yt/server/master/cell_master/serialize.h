@@ -231,6 +231,7 @@ DEFINE_ENUM(EMasterReign,
     ((NodeReplicationMutation)                                      (2561))  // cherepashka
     ((TraceIdInSequoia)                                             (2562))  // cherepashka
     ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
+    ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
     // 24.2 starts here.
 );
 
