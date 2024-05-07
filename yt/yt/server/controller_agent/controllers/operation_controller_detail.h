@@ -1006,7 +1006,7 @@ protected:
     std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
 
-    void InitUserJobSpec(
+    virtual void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* proto,
         TJobletPtr joblet) const;
 

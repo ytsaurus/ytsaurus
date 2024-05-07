@@ -630,6 +630,27 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
+    @authors("arkady-e1ppa")
+    def test_operation_incarnation_is_set(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
+            pytest.skip()
+
+        # NB(arkady-e1ppa): Die with code 42 if variable is not set.
+        command = '[[ -z "$YT_OPERATION_INCARNATION" ]] && exit 42 || exit 0'
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "test": {
+                        "job_count": 1,
+                        "command": command,
+                    },
+                },
+                "fail_on_job_restart": True,
+            }
+        )
+        op.wait_for_state("completed")
+        op.track()
+
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
