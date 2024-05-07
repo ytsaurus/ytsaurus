@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
     ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
+    ((FixLastSeenPersistance_23_2)                                  (2464))  // cherepashka
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -233,6 +234,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
     ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
     ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
+    ((FixLastSeenPersistance)                                       (2566))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
