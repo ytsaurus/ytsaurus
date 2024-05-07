@@ -43,8 +43,6 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
         return TError();
     }
 
-    // TODO(khkebnikov) map reason == "OOMKilled"
-
     // Common bash notation for signals: 128 + signal
     if (exitCode > 128) {
         int signalNumber = exitCode - 128;
@@ -53,7 +51,8 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
             "Process terminated by signal %v",
             signalNumber)
             << TErrorAttribute("signal", signalNumber)
-            << TErrorAttribute("reason", reason);
+            << TErrorAttribute("reason", reason)
+            << TErrorAttribute("oom_killed", reason == "OOMKilled");
     }
 
     // TODO(khkebnikov) check these
