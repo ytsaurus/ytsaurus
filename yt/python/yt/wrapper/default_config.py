@@ -878,6 +878,29 @@ def _update_from_env_patch(config):
             raise
 
 
+class ConfigParserV2:
+    VERSION = 2
+    _PROFILES_KEY = "profiles"
+
+    def __init__(self, config, profile):
+        self._config = config
+        self._profile = profile
+
+    def extract(self):
+        if self._PROFILES_KEY not in self._config:
+            raise ValueError("Missing {0} key in YT config".format(self._PROFILES_KEY))
+        profiles = self._config[self._PROFILES_KEY]
+        if not isinstance(profiles, dict):
+            raise ValueError("Profiles should be dict, not {0}".format(type(profiles)))
+        if self._profile not in profiles:
+            raise ValueError("Unknown profile {0}. Known profiles: {1}".format(
+                self._profile,
+                ",".join(profiles.keys())),
+            )
+        profile = profiles[self._profile]
+        return profile
+
+
 def _update_from_file(config):
     # type: (yt.wrapper.mappings.VerifiedDict) -> None
 
@@ -892,7 +915,7 @@ def _update_from_file(config):
 
         config_path = "/etc/ytclient.conf"
         if home:
-            home_config_path = os.path.join(os.path.expanduser("~"), ".yt/config")
+            home_config_path = os.path.join(home, ".yt/config")
             if os.path.isfile(home_config_path):
                 config_path = home_config_path
 
@@ -906,21 +929,30 @@ def _update_from_file(config):
         return
 
     load_func = None
-    format = config["config_format"]
-    if format == "yson":
+    config_format = config["config_format"]
+    if config_format == "yson":
         load_func = yson.loads
-    elif format == "json":
+    elif config_format == "json":
         load_func = json.loads
     else:
-        raise common.YtError("Incorrect config_format '%s'" % format)
+        raise common.YtError("Incorrect config_format '%s'" % config_format)
 
     try:
         with open(config_path, "rb") as f:
-            parsed_config = load_func(f)
-            common.update_inplace(config, parsed_config)
+            config_content = f.read()
+            parsed_config = load_func(config_content)
     except Exception:
         print("Failed to parse YT config from " + config_path, file=sys.stderr)
         raise
+
+    config_version = parsed_config.get("config_version")
+    if ConfigParserV2.VERSION == config_version:
+        parsed_config = ConfigParserV2(config=parsed_config, profile=config["profile"]).extract()
+    elif config_format is None:
+        # just fallback to the old format
+        # all keys are stored at the top level of the config
+        pass
+    common.update_inplace(config, parsed_config)
 
 
 def get_config_from_env():
