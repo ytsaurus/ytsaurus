@@ -256,7 +256,8 @@ default_config = {
     "config_path": None,
     "config_format": "yson",
 
-    # TODO: @chiffa add description
+    # The profile's name in the config.
+    # https://github.com/ytsaurus/ytsaurus/issues/90
     "profile": None,
 
     # Path to document node on cluster with config patches. Some fields will be lazy changed with this one.
