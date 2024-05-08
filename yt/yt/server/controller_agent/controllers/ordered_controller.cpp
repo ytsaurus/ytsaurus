@@ -491,6 +491,11 @@ protected:
         chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
         return chunkPoolOptions;
     }
+
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return OrderedTask_->GetVertexDescriptor();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);

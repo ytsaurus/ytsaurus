@@ -4284,6 +4284,11 @@ bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
     return false;
 }
 
+TDataFlowGraph::TVertexDescriptor TOperationControllerBase::GetOutputLivePreviewVertexDescriptor() const
+{
+    return TDataFlowGraph::SinkDescriptor;
+}
+
 ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
 {
     return ELegacyLivePreviewMode::NotSupported;
@@ -8786,7 +8791,9 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (IsLegacyOutputLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
-    AttachToLivePreview(table->LivePreviewTableName, chunk);
+    if (GetOutputLivePreviewVertexDescriptor() == TDataFlowGraph::SinkDescriptor) {
+        AttachToLivePreview(table->LivePreviewTableName, chunk);
+    }
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
@@ -10853,6 +10860,11 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         TLivePreviewChunkDescriptor{vertexDescriptor, index}).second);
 
     DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
+
+    if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
+        auto tableName = "output_" + ToString(index);
+        AttachToLivePreview(tableName, chunk);
+    }
 }
 
 const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottler() const
