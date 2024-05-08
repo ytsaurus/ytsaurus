@@ -285,7 +285,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
         InputClient,
         Logger);
 
-    if (auto error = Host_->GetUseChunkSliceStatisticsError(); !error.IsOK()) {
+    if (auto error = Host_->GetUseChunkSliceStatisticsError(); Spec_->UseChunkSliceStatistics && !error.IsOK()) {
         SetOperationAlert(EOperationAlertType::UseChunkSliceStatisticsDisabled, error);
         chunkSliceSizeFetcher = nullptr;
     }

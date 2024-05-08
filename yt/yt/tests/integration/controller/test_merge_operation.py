@@ -2376,12 +2376,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "data_size_per_job": 5000,
                 "force_transform": True,
                 "use_chunk_slice_statistics": True,
-                # NB: In sorted mode this behaviour is facilitated by TChunkSliceFetcher and not by the option above.
+                # NB: In sorted mode this behavior is facilitated by TChunkSliceFetcher and not by the option above.
                 "mode": merge_mode,
             }
         )
 
         op.track()
+
+        if merge_mode == "sorted":
+            assert "use_chunk_slice_statistics_disabled" in op.get_alerts()
+        else:
+            assert "use_chunk_slice_statistics_disabled" not in op.get_alerts()
 
         assert get("//tmp/d/@chunk_count") < 5
 
@@ -2415,7 +2420,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 "data_size_per_job": 400,
                 "force_transform": True,
                 "use_chunk_slice_statistics": True,
-                # NB: In sorted mode this behaviour is facilitated by TChunkSliceFetcher and not by the option above.
+                # NB: In sorted mode this behavior is facilitated by TChunkSliceFetcher and not by the option above.
                 "mode": merge_mode,
             }
         )
@@ -2459,6 +2464,15 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         op.track()
 
         assert get("//tmp/d/@chunk_count") == 1
+
+    @authors("achulkov2")
+    def test_plain_run_produces_no_alerts(self):
+        self._prepare_tables()
+
+        op = merge(mode="unordered", in_=[self.t1, self.t2], out="//tmp/t_out")
+        op.track()
+
+        assert not op.get_alerts()
 
 ##################################################################
 
