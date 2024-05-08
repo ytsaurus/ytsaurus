@@ -1,15 +1,22 @@
 import tempfile
 
+import pytest
+
 from .conftest import authors
 
-from yt.wrapper.py_wrapper import DockerRespawner, respawn_in_docker
+import yt.environment.arcadia_interop as arcadia_interop
+
+from yt.wrapper import respawn_in_docker
+from yt.wrapper.py_wrapper import DockerRespawner
 
 
 @authors("thenno")
 def test_docker_respawner(monkeypatch):
-    monkeypatch.setenv("SOME_KEY", "SOME_VALUE")  # should be skipped
+    if arcadia_interop.yatest_common is not None:
+        pytest.skip("There are other YT_* variables in the environment")
     monkeypatch.setenv("YT_SOME_KEY", "YT_SOME_VALUE")
-    monkeypatch.setenv("ANOTHER_KEY", "ANOTHER_VALUE")  # should be skipped
+    # Env var without YT_ prefix should be skipped.
+    monkeypatch.setenv("SOME_KEY", "SOME_VALUE")
     respawner = DockerRespawner(
         image="some_image",
         target_platform="arm64",
@@ -21,7 +28,8 @@ def test_docker_respawner(monkeypatch):
         homedir="/home/user",
         python_lib_paths=[
             "/usr/lib/python4.2/site-packages",
-            "/home/user/.venv/",  # in homedir -> not in mounts
+            # Should be skipped, because these directories are in homedir.
+            "/home/user/.venv/",
         ],
     )
     assert respawner.make_command() == [
@@ -35,10 +43,13 @@ def test_docker_respawner(monkeypatch):
         "-e", "YT_RESPAWNED_IN_CONTAINER=1",
         "-e", "YT_SOME_KEY=YT_SOME_VALUE",
         "-e", "YT_BASE_LAYER=some_image",
-        "-v", "/home/user:/home/user",  # user's homedir
-        "-v", "/home/user2/yt:/home/user2/yt",  # main script's dir
-        "-v", "/root:/root",  # current cwd
-        # a part of pythonpython outside homedir
+        # Specifying user's homedir.
+        "-v", "/home/user:/home/user",
+        # Specifying main script's dir.
+        "-v", "/home/user2/yt:/home/user2/yt",
+        # Specifying cwd.
+        "-v", "/root:/root",
+        # A part of PATHONPATH outside homedir.
         "-v", "/usr/lib/python4.2/site-packages:/usr/lib/python4.2/site-packages",
         "some_image",
         "/custom/docker/python/path", "/home/user2/yt/main.py",
@@ -57,7 +68,7 @@ def test_docker_respawner_user_overrides():
         cwd="/home/user/yt/lib",
         homedir="/root",
         python_lib_paths=[
-            # all paths should be skipped
+            # All paths should be skipped.
             "/usr/lib/python4.2/site-packages",
             "/root/python/site-packages",
             "/home/user/.venv/",
@@ -77,7 +88,7 @@ def test_docker_respawner_user_overrides():
         "-e", "PYTHONPATH=/usr/lib/python4.2/site-packages:/root/python/site-packages:/home/user/.venv/",
         "-e", "YT_RESPAWNED_IN_CONTAINER=1",
         "-e", "YT_BASE_LAYER=some_image",
-        # only paths from mount param
+        # There are only paths from mount param.
         "-v", "/custom/path:/custom/path",
         "-v", "/etc/custom/path2:/etc/custom/path2",
         "some_image",
@@ -162,7 +173,7 @@ def test_docker_respawner_escaping():
 
 @authors("thenno")
 def test_respawn_in_docker(monkeypatch):
-    # `docker = echo` allows us to avoid running real docker
+    # `docker = echo` allows us to avoid running real docker.
     @respawn_in_docker("some_image", docker="echo")
     def foo():
         return "main func"
