@@ -235,6 +235,7 @@ DEFINE_ENUM(EMasterReign,
     ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
     ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
     ((FixLastSeenPersistance)                                       (2566))  // cherepashka
+    ((AnyTypedKeysInSortedTables)                                   (2567))  // whatsername
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
