@@ -5,15 +5,15 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeArrayData, UnsafeMapData, UnsafeRow}
 import org.apache.spark.sql.catalyst.util.MapData
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Long, UInt64Type}
 import org.apache.spark.unsafe.types.UTF8String
-import SchemaConverter.{Unordered, decimalToBinary}
-import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
-import tech.ytsaurus.spyt.serializers.YsonRowConverter.{isNull, serializeValue}
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.core.rows.YTreeSerializer
+import tech.ytsaurus.spyt.serializers.SchemaConverter.{Unordered, decimalToBinary}
+import tech.ytsaurus.spyt.serializers.YsonRowConverter.{isNull, serializeValue}
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.yson.{YsonConsumer, YsonTags}
-import tech.ytsaurus.ysontree.{YTree, YTreeBinarySerializer, YTreeBooleanNode, YTreeEntityNodeImpl, YTreeNode, YTreeTextSerializer}
+import tech.ytsaurus.ysontree._
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.annotation.tailrec
@@ -265,7 +265,8 @@ object YsonRowConverter {
           case v: Long => consumer.onUnsignedInteger(v)
           case UInt64Long(v) => consumer.onUnsignedInteger(v)
         }
-        case TimestampType => consumer.onInteger(value.asInstanceOf[Long] / 1000000)
+        case _: DatetimeType => consumer.onInteger(value.asInstanceOf[Long])
+        case TimestampType => consumer.onInteger(value.asInstanceOf[Long])
       }
     }
   }

@@ -7,20 +7,22 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.internal.SQLConf._
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
+import org.apache.spark.sql.yson.{Datetime, UInt64Long, UInt64Type}
 import org.apache.spark.sql.{AnalysisException, DataFrameReader, Row, SaveMode}
-import org.apache.spark.status.api.v1
 import org.apache.spark.test.UtilsWrapper
 import org.mockito.scalatest.MockitoSugar
+import org.scalatest.PrivateMethodTester
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
+import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.spyt._
+import tech.ytsaurus.spyt.common.utils.DateTimeTypesConverter.{convertUTCtoLocal, getUtcHoursOffset}
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.table.OptimizeMode
-import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
-import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
-import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.YTree
 
@@ -31,7 +33,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Random
 
-class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
+class YtFileFormatTest extends AnyFlatSpec with Matchers with LocalSpark
   with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks with PrivateMethodTester {
   behavior of "YtFileFormat"
 
@@ -137,12 +139,12 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     val cols = Seq("date", "datetime").map(col)
     val res = spark.read.yt(tmpPath)
     res.collect() should contain theSameElementsAs Seq(
-      Row(Date.valueOf(LocalDate.ofEpochDay(1)), new Timestamp(1000)),
-      Row(Date.valueOf(LocalDate.ofEpochDay(9999)), new Timestamp(1611733954000L))
+      Row(Date.valueOf(LocalDate.ofEpochDay(1)), Datetime(1L)),
+      Row(Date.valueOf(LocalDate.ofEpochDay(9999)), Datetime(1611733954L))
     )
     res.select(cols.map(_.cast(StringType)): _*).collect() should contain theSameElementsAs Seq(
-      Row("1970-01-02", "1970-01-01 03:00:01"),
-      Row("1997-05-18", "2021-01-27 10:52:34")
+      Row("1970-01-02", "1970-01-01T00:00:01"),
+      Row("1997-05-18", "2021-01-27T07:52:34")
     )
   }
 
@@ -159,8 +161,8 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
 
     val res = spark.read.yt(tmpPath)
     res.collect() should contain theSameElementsAs Seq(
-      Row(1, 1),
-      Row(4, 5)
+      Row(convertUTCtoLocal("1970-01-01T00:00:00.000001Z", getUtcHoursOffset), 1),
+      Row(convertUTCtoLocal("1970-01-01T00:00:00.000004Z", getUtcHoursOffset), 5)
     )
   }
 
