@@ -123,9 +123,16 @@ RESOURCE(
     yt/java/ytsaurus-client-core/src/test/resources/good-rich-ypath.txt /good-rich-ypath.txt
 )
 
+
 IF (NOT OPENSOURCE)
     RESOURCE(
         yt/python/yt/wrapper/client_impl_yandex.py /modules/client_impl_yandex.py
+    )
+ELSE()
+    # Keep it sync with yt/python/yt/wrapper/tests/system_python/test_paths.txt
+    RESOURCE_FILES(
+        yt/python/yt/wrapper/tests/test_operations_pickling.py
+        yt/python/yt/wrapper/tests/test_tmpfs.py
     )
 ENDIF()
 
