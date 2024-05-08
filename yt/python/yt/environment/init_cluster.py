@@ -329,14 +329,14 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     batch_processor.set(
         "//sys/schemas/tablet_cell_bundle/@options",
-        [{
+        {
             "snapshot_replication_factor": 5,
             "snapshot_primary_medium": "default",
             "changelog_write_quorum": 3,
             "changelog_replication_factor": 5,
             "changelog_read_quorum": 3,
             "changelog_primary_medium": "ssd_journals"
-        }])
+        })
     batch_processor.set("//sys/schemas/tablet_cell_bundle/@enable_bundle_balancer", False)
 
     batch_processor.add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]})
