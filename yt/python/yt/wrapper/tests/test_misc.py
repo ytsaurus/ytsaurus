@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+import copy
+
 from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
@@ -14,7 +16,9 @@ from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
-from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config
+from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config, \
+    _get_config_path, _ConfigFSHelper, DEFAULT_GLOBAL_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH, _update_from_file, \
+    default_config
 from yt.wrapper.format import SkiffFormat
 
 import yt.environment.arcadia_interop as arcadia_interop
@@ -1731,3 +1735,196 @@ class TestClientConfigFromCluster(object):
         config["proxy"]["url"] = str(original_client.get("//sys/@cluster_name"))
         env_alias_client = yt.YtClient(config=config)
         assert env_alias_client.get(node_path) == "value"
+
+
+class TestFileConfig:
+    class _FSConfigAttributes:
+        def __init__(self, content, is_file, is_valid):
+            self.content = content
+            self.is_file = is_file
+            self.is_valid = is_valid
+
+    class _MockConfigFSHelper(_ConfigFSHelper):
+        def __init__(self, data, homedir):
+            self._data = data
+            self._homedir = homedir
+
+        def read(self, path):
+            if not path in self._data:
+                raise IOError()
+            return self._data[path].content
+
+        def is_file(self, path):
+            return self._data[path].is_file
+
+        def validate(self, path):
+            return self._data[path].is_valid
+
+        def get_home_dir(self):
+            return self._homedir
+
+    @authors("thenno")
+    @pytest.mark.parametrize(
+        "global_config,user_config,result",
+        [
+            (
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=True, is_file=True,
+                ),
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=True, is_file=True,
+                ),
+                "/home/user/.yt/config",
+            ),
+            (
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=True, is_file=True,
+                ),
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=True, is_file=False,
+                ),
+                DEFAULT_GLOBAL_CONFIG_PATH,
+            ),
+            (
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=True, is_file=True,
+                ),
+                _FSConfigAttributes(
+                    content=b"{}", is_valid=False, is_file=True,
+                ),
+                None,
+            ),
+        ]
+    )
+    def test_get_config_path(self, global_config, user_config, result):
+        homedir = "/home/user"
+        user_config_path = os.path.join(homedir, DEFAULT_USER_CONFIG_PATH)
+
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                DEFAULT_GLOBAL_CONFIG_PATH: global_config,
+                user_config_path: user_config,
+            },
+            homedir=homedir,
+        )
+        assert _get_config_path(fs_helper) == result
+
+    @authors("thenno")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", json.dumps),
+            ("yson", yson.dumps),
+        ]
+    )
+    def test_update_from_file_v1(self, config_format, dumper):
+        user_config = "/home/user/.yt/config"
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                user_config: self._FSConfigAttributes(
+                    content=dumper({"token": "bla"}), is_valid=True, is_file=True,
+                ),
+            },
+            homedir="/home/user",
+        )
+        yt_config = copy.deepcopy(default_config)
+        yt_config["config_format"] = config_format
+
+        _update_from_file(yt_config, fs_helper=fs_helper)
+        assert yt_config["token"] == "bla"
+        yt_config["token"] = default_config["token"]
+        yt_config["config_format"] = default_config["config_format"]
+        assert yt_config == default_config
+
+    @authors("thenno")
+    def test_unknown_version(self):
+        user_config = "/home/user/.yt/config"
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                user_config: self._FSConfigAttributes(
+                    content=yson.dumps({"config_version": "bla"}), is_valid=True, is_file=True,
+                ),
+            },
+            homedir="/home/user",
+        )
+        yt_config = copy.deepcopy(default_config)
+        yt_config["config_format"] = "yson"
+
+        with pytest.raises(ValueError, match="Unknown config version"):
+            _update_from_file(yt_config, fs_helper=fs_helper)
+
+    @authors("thenno")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", json.dumps),
+            ("yson", yson.dumps),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "config_content,error",
+        [
+            ({"config_version": 2}, "Missing profiles key in YT config"),
+            ({"config_version": 2, "profiles": []}, "Profiles should be dict, not"),
+            ({"config_version": 2, "profiles": {"bla": {}}}, r"Unknown profile.*Known profiles: bla"),
+        ]
+    )
+    def test_invalid_config_v2(self, config_format, dumper, config_content, error):
+        user_config = "/home/user/.yt/config"
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                user_config: self._FSConfigAttributes(
+                    content=dumper(config_content), is_valid=True, is_file=True,
+                ),
+            },
+            homedir="/home/user",
+        )
+        yt_config = copy.deepcopy(default_config)
+        yt_config["config_format"] = config_format
+        yt_config["profile"] = "profile_name"
+
+        with pytest.raises(ValueError, match=error):
+            _update_from_file(yt_config, fs_helper=fs_helper)
+
+    @authors("thenno")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", json.dumps),
+            ("yson", yson.dumps),
+        ]
+    )
+    def test_update_from_file_v2(self, config_format, dumper):
+        user_config = "/home/user/.yt/config"
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                user_config: self._FSConfigAttributes(
+                    content=dumper(
+                        {
+                            "config_version": 2,
+                            "profiles": {
+                                "profile1": {
+                                    "token": "token1",
+                                },
+                                "profile2": {
+                                    "token": "token2",
+                                },
+                            },
+                        },
+                    ),
+                    is_valid=True,
+                    is_file=True,
+                ),
+            },
+            homedir="/home/user",
+        )
+        yt_config = copy.deepcopy(default_config)
+        yt_config["config_format"] = config_format
+        yt_config["profile"] = "profile2"
+
+        _update_from_file(yt_config, fs_helper=fs_helper)
+        assert yt_config["token"] == "token2"
+        yt_config["token"] = default_config["token"]
+        yt_config["config_format"] = default_config["config_format"]
+        yt_config["profile"] = default_config["profile"]
+        assert yt_config == default_config
