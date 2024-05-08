@@ -1522,7 +1522,7 @@ class TestPythonOperations(object):
             pytest.skip()
 
         def foo(rec):
-            import fakemodule
+            import fakemodule  # noqa: F401
             yield rec
 
         table = TEST_DIR + "/table"
@@ -1545,7 +1545,6 @@ class TestPythonOperations(object):
 
         # We check only one operation since there is no reason for errors to be different across the operations.
         assert "ModuleNotFoundError" in exc_info.value.attributes["stderrs"][0]["stderr"]
-
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
