@@ -383,7 +383,7 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         auto& inputChunk = inputChunks[chunkIndex];
 
         // Rows in ordered dynamic stores go after rows in static stores of the ordered dynamic table.
-        i64 lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
+        auto& lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
 
         if (!inputChunk->LowerLimit()) {
             inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>();
@@ -396,7 +396,8 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         }
         if (!inputChunk->UpperLimit()->HasRowIndex()) {
             YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
-            inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex + inputChunk->GetTotalRowCount());
+            lowerRowIndex += inputChunk->GetTotalRowCount();
+            inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex);
         }
     }
 }
