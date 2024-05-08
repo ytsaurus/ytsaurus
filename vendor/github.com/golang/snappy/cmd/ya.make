@@ -1,1 +1,3 @@
-RECURSE(snappytool)
+RECURSE(
+    snappytool
+)
