@@ -2,6 +2,8 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-SRCS(loggers.go)
+SRCS(
+    loggers.go
+)
 
 END()

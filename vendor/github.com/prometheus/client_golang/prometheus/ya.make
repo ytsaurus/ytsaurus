@@ -37,7 +37,6 @@ GO_TEST_SRCS(
     desc_test.go
     gauge_test.go
     go_collector_latest_test.go
-    go_collector_metrics_go121_test.go
     go_collector_test.go
     histogram_test.go
     metric_test.go
