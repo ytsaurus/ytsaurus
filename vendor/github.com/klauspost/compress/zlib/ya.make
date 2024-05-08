@@ -12,14 +12,16 @@ SRCS(
 )
 
 GO_TEST_SRCS(
-    reader_test.go
-    writer_test.go
+    # reader_test.go
+    # writer_test.go
 )
 
-GO_XTEST_SRCS(example_test.go)
+GO_XTEST_SRCS(
+    # example_test.go
+)
 
 END()
 
 RECURSE(
-    #gotest
+    gotest
 )
