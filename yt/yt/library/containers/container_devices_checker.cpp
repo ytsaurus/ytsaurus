@@ -162,8 +162,8 @@ TError TContainerDevicesChecker::CreateTestContainer()
             createVolumeResult.FindMatching(EPortoErrorCode::VolumeAlreadyExists) ||
             createVolumeResult.FindMatching(EPortoErrorCode::VolumeAlreadyLinked))
         {
-            YT_VERIFY(createVolumeResult.Value() == mountPath);
-            YT_LOG_DEBUG("Test volume created (VolumePath: %v)", createVolumeResult.Value());
+            YT_VERIFY(!createVolumeResult.IsOK() || createVolumeResult.Value() == mountPath);
+            YT_LOG_DEBUG("Test volume created (VolumePath: %v)", mountPath);
         } else {
             YT_LOG_DEBUG(createVolumeResult, "Test volume creation finished with error");
             return {};
