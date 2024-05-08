@@ -890,6 +890,7 @@ protected:
     bool IsOutputLivePreviewSupported() const;
     bool IsLegacyIntermediateLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
+    virtual TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const;
 
     //! Accumulate information about legacy live preview depending on operation type and user intent.
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const;

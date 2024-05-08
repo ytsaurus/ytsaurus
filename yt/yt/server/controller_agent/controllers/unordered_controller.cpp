@@ -525,6 +525,11 @@ protected:
 
         jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
     }
+
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return UnorderedTask_->GetVertexDescriptor();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TUnorderedTask);

@@ -1,8 +1,8 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, exists, concatenate, create_user, make_ace, add_member,
-    read_table, write_table, map, map_reduce)
+    get, exists, concatenate, create_user, create_test_tables, make_ace, add_member,
+    read_table, write_table, map, map_reduce, reduce, sort)
 
 import yt.yson as yson
 
@@ -245,6 +245,75 @@ class TestNewLivePreview(YTEnvSetup):
                 )
                 == live_preview_created
             )
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("auto_merge", [False, True])
+    @pytest.mark.parametrize("operation", ["map", "ordered_map", "reduce", "map_reduce"])
+    def test_live_preview_before_auto_merge(self, auto_merge, operation):
+        row_count = 10
+        in_ = "//tmp/t_in"
+        out = "//tmp/t_out"
+        create_test_tables(row_count)
+
+        spec = {
+            "data_size_per_job": 1,
+            "pivot_keys": [[str(i)] for i in range(2, row_count, 3)],
+            "reducer": {
+                "format": "json",
+            },
+        }
+        if auto_merge:
+            spec["auto_merge"] = {"mode": "relaxed"}
+
+        if operation in ("map", "ordered_map"):
+            ordered = operation == "ordered_map"
+
+            op = map(
+                in_=in_,
+                out=out,
+                command=with_breakpoint("BREAKPOINT; cat"),
+                ordered=ordered,
+                spec=spec,
+                track=False,
+            )
+        elif operation == "reduce":
+            sort(in_=in_, out=in_, sort_by="x")
+
+            op = reduce(
+                in_=in_,
+                out=out,
+                command=with_breakpoint("BREAKPOINT; head -n1"),
+                reduce_by=["x"],
+                spec=spec,
+                track=False,
+            )
+        elif operation == "map_reduce":
+            op = map_reduce(
+                in_=in_,
+                out=out,
+                reducer_command=with_breakpoint("BREAKPOINT; head -n1"),
+                reduce_by=["x"],
+                sort_by=["x"],
+                spec=spec,
+                track=False,
+            )
+        else:
+            assert False, f"Unknown operation {operation}"
+
+        complete_jobs = 2
+        jobs = wait_breakpoint(job_count=complete_jobs)
+        for job_id in jobs[:complete_jobs]:
+            release_breakpoint(job_id=job_id)
+
+        operation_path = op.get_path()
+        controller_orchid = f"{operation_path}/controller_orchid"
+        wait(lambda: exists(controller_orchid))
+
+        live_preview_table = f"{controller_orchid}/live_previews/output_0"
+        wait(lambda: len(read_table(live_preview_table)) == complete_jobs)
+
+        release_breakpoint()
+        op.track()
 
 
 class TestNewLivePreviewMulticell(TestNewLivePreview):

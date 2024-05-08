@@ -737,6 +737,11 @@ protected:
         }
     }
 
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return SortedTask_->GetVertexDescriptor();
+    }
+
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
