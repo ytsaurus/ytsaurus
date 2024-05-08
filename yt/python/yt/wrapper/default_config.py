@@ -19,6 +19,8 @@ from datetime import timedelta
 # pydoc :: default_config :: begin
 
 DEFAULT_WRITE_CHUNK_SIZE = 128 * common.MB
+DEFAULT_GLOBAL_CONFIG_PATH = "/etc/ytclient.conf"
+DEFAULT_USER_CONFIG_PATH = ".yt/config"
 
 
 def retry_backoff_config(**kwargs):
@@ -782,7 +784,7 @@ SHORTCUTS = {
 
 def update_config_from_env(config):
     # type: (yt.wrapper.mappings.VerifiedDict) -> yt.wrapper.mappings.VerifiedDict
-    """Patch config from envs"""
+    """Patch config from envs and the config file."""
 
     _update_from_env_patch(config)
 
@@ -901,46 +903,75 @@ class ConfigParserV2:
         return profile
 
 
-def _update_from_file(config):
-    # type: (yt.wrapper.mappings.VerifiedDict) -> None
+class _ConfigFSHelper:
+    """
+    Helper class for _update_from_file that will be overridden in tests.
+    """
+    def is_file(self, path):
+        return os.path.isfile(path)
+
+    def validate(self, path):
+        try:
+            with open(path, "r"):
+                pass
+            return True
+        except IOError:
+            pass
+        return False
+
+    def get_home_dir(self):
+        return common.get_home_dir()
+
+    def read(self, path):
+        try:
+            with open(path, "rb") as f:
+                return f.read()
+        except Exception:
+            print("Failed to read YT config from " + path, file=sys.stderr)
+            raise
+
+
+def _get_config_path(fs_helper):
+    home = fs_helper.get_home_dir()
+    config_path = DEFAULT_GLOBAL_CONFIG_PATH
+    if home:
+        home_config_path = os.path.join(home, DEFAULT_USER_CONFIG_PATH)
+        if fs_helper.is_file(home_config_path):
+            config_path = home_config_path
+    if not fs_helper.validate(config_path):
+        config_path = None
+    return config_path
+
+
+def _update_from_file(config, fs_helper=None):
+    # type: (yt.wrapper.mappings.VerifiedDict, _ConfigFSHelper) -> None
+    if fs_helper is None:
+        fs_helper = _ConfigFSHelper()
 
     # These options should be processed before reading config file
     for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_PROFILE"]:
         if opt_name in os.environ:
             config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
+
     config_path = config["config_path"]
+    if config_path is None or not fs_helper.is_file(config_path):
+        config_path = _get_config_path(fs_helper)
 
-    if config_path is None:
-        home = common.get_home_dir()
-
-        config_path = "/etc/ytclient.conf"
-        if home:
-            home_config_path = os.path.join(home, ".yt/config")
-            if os.path.isfile(home_config_path):
-                config_path = home_config_path
-
-        try:
-            with open(config_path, "r"):
-                pass
-        except IOError:
-            config_path = None
-
-    if not (config_path and os.path.isfile(config_path)):
+    if not config_path:
         return
 
-    load_func = None
     config_format = config["config_format"]
-    if config_format == "yson":
-        load_func = yson.loads
-    elif config_format == "json":
-        load_func = json.loads
-    else:
+    config_formats = {
+        "yson": yson.loads,
+        "json": json.loads,
+    }
+    load_func = config_formats.get(config_format)
+    if load_func is None:
         raise common.YtError("Incorrect config_format '%s'" % config_format)
 
+    config_content = fs_helper.read(config_path)
     try:
-        with open(config_path, "rb") as f:
-            config_content = f.read()
-            parsed_config = load_func(config_content)
+        parsed_config = load_func(config_content)
     except Exception:
         print("Failed to parse YT config from " + config_path, file=sys.stderr)
         raise
@@ -948,10 +979,13 @@ def _update_from_file(config):
     config_version = parsed_config.get("config_version")
     if ConfigParserV2.VERSION == config_version:
         parsed_config = ConfigParserV2(config=parsed_config, profile=config["profile"]).extract()
-    elif config_format is None:
-        # just fallback to the old format
-        # all keys are stored at the top level of the config
+    elif config_version is None:
+        # Just a fallback to the old format.
+        # All keys are stored at the top level of the config.
         pass
+    else:
+        raise ValueError("Unknown config version {0}".format(config_version))
+
     common.update_inplace(config, parsed_config)
 
 
