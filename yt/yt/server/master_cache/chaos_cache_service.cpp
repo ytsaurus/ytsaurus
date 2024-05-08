@@ -81,16 +81,17 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
     const auto& requestHeader = context->GetRequestHeader();
     if (requestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
         const auto& cachingRequestHeaderExt = requestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
+        const auto& user = context->GetAuthenticationIdentity().User;
 
         auto key = TChaosCacheKey{
-            .User = context->GetAuthenticationIdentity().User,
             .CardId = replicationCardId,
             .FetchOptions = extendedFetchOptions,
         };
 
-        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
+        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v, User: %v)",
             requestId,
-            key);
+            key,
+            user);
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time());
@@ -100,7 +101,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
             key,
             expireAfterSuccessfulUpdateTime,
             expireAfterFailedUpdateTime,
-            refreshEra);
+            refreshEra,
+            user);
 
         replicationCardFuture = cookie.GetValue().Apply(BIND([] (const TErrorOr<TChaosCacheEntryPtr>& entry) -> TErrorOr<TReplicationCardPtr> {
             if (entry.IsOK()) {
