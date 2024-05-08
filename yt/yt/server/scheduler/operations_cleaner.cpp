@@ -842,6 +842,7 @@ private:
     TCounter ArchiveErrorCounter_ = Profiler.Counter("/archive_errors");
     TCounter RemoveOperationErrorCounter_ = Profiler.Counter("/remove_errors");
     TCounter ArchivedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/archived");
+    TCounter DroppedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/dropped");
     TEventTimer AnalyzeOperationsTimer_ = Profiler.Timer("/analyze_operations_time");
     TEventTimer OperationsRowsPreparationTimer_ = Profiler.Timer("/operations_rows_preparation_time");
 
@@ -1733,16 +1734,25 @@ private:
                 OperationAlertEventQueue_.emplace_front(std::move(eventsToSend.back()));
                 eventsToSend.pop_back();
             }
+
+            if (!eventsToSend.empty()) {
+                YT_LOG_WARNING("Some alerts have been dropped due to alert event queue overflow (DroppedEventCount: %v)",
+                    std::ssize(eventsToSend));
+            }
+            DroppedOperationAlertEventCounter_.Increment(std::ssize(eventsToSend));
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
     }
 
     void CheckAndTruncateAlertEvents()
     {
+        i64 droppedEventCount = 0;
         while (std::ssize(OperationAlertEventQueue_) > Config_->MaxEnqueuedOperationAlertEventCount) {
             OperationAlertEventQueue_.pop_front();
+            ++droppedEventCount;
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
+        DroppedOperationAlertEventCounter_.Increment(droppedEventCount);
     }
 
     void ProcessWaitingLockedOperations()
