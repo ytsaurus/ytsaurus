@@ -913,10 +913,10 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
-    TChannels GetMasterChannels(EMasterChannelKind kind) const;
-    NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
-    TChannels GetCypressChannels(EMasterChannelKind kind) const;
-    NRpc::IChannelPtr FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag) const;
+    TChannels GetMasterChannels(EMasterChannelKind kind);
+    NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
+    TChannels GetCypressChannels(EMasterChannelKind kind);
+    NRpc::IChannelPtr FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
 
     //! NB: Could throw in case of non-existing cell tag.
     void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);

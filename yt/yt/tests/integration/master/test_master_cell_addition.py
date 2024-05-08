@@ -737,7 +737,7 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         for node in ls("//sys/cluster_nodes"):
             assert lease_txs[node] == get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
 
-        with raises_yt_error("master that is not discovered by all nodes"):
+        with raises_yt_error("not discovered by all nodes"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
         # Make the new master cell "reliable" for other master cells.

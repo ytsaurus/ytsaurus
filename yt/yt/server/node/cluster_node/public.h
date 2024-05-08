@@ -1,10 +1,15 @@
 #pragma once
 
+#include <yt/yt/server/master/cell_server/public.h>
+
 #include <yt/yt/server/lib/misc/public.h>
+
+#include <yt/yt/client/hydra/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NClusterNode {
 
@@ -32,6 +37,10 @@ DECLARE_REFCOUNTED_CLASS(TNodeResourceManager)
 DECLARE_REFCOUNTED_CLASS(TMemoryLimit)
 
 using TMasterEpoch = int;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const THashSet<TErrorCode> HeartbeatRetriableErrors = {NHydra::EErrorCode::ReadOnly, NCellServer::EErrorCode::MasterCellNotReady};
 
 ////////////////////////////////////////////////////////////////////////////////
 
