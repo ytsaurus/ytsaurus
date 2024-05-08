@@ -255,10 +255,9 @@ default_config = {
     # Path to file with additional configuration.
     "config_path": None,
     "config_format": "yson",
-
     # The profile's name in the config.
     # https://github.com/ytsaurus/ytsaurus/issues/90
-    "profile": None,
+    "config_profile": None,
 
     # Path to document node on cluster with config patches. Some fields will be lazy changed with this one.
     "config_remote_patch_path": "//sys/client_config",
@@ -779,7 +778,7 @@ SHORTCUTS = {
     "USE_YAMR_DEFAULTS": "yamr_mode/use_yamr_defaults",
     "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list",
 
-    "PROFILE": "profile",
+    "CONFIG_PROFILE": "config_profile",
 }
 
 
@@ -950,7 +949,7 @@ def _update_from_file(config, fs_helper=None):
         fs_helper = _ConfigFSHelper()
 
     # These options should be processed before reading config file
-    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_PROFILE"]:
+    for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_CONFIG_PROFILE"]:
         if opt_name in os.environ:
             config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
 
@@ -979,13 +978,13 @@ def _update_from_file(config, fs_helper=None):
 
     config_version = parsed_config.get("config_version")
     if ConfigParserV2.VERSION == config_version:
-        parsed_config = ConfigParserV2(config=parsed_config, profile=config["profile"]).extract()
+        parsed_config = ConfigParserV2(config=parsed_config, profile=config["config_profile"]).extract()
     elif config_version is None:
         # Just a fallback to the old format.
         # All keys are stored at the top level of the config.
         pass
     else:
-        raise ValueError("Unknown config version {0}".format(config_version))
+        raise ValueError("Unknown config's version {0}".format(config_version))
 
     common.update_inplace(config, parsed_config)
 

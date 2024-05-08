@@ -1832,6 +1832,7 @@ class TestFileConfig:
 
         _update_from_file(yt_config, fs_helper=fs_helper)
         assert yt_config["token"] == "bla"
+
         yt_config["token"] = default_config["token"]
         yt_config["config_format"] = default_config["config_format"]
         assert yt_config == default_config
@@ -1850,7 +1851,7 @@ class TestFileConfig:
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = "yson"
 
-        with pytest.raises(ValueError, match="Unknown config version"):
+        with pytest.raises(ValueError, match="Unknown config's version"):
             _update_from_file(yt_config, fs_helper=fs_helper)
 
     @authors("thenno")
@@ -1881,7 +1882,7 @@ class TestFileConfig:
         )
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = config_format
-        yt_config["profile"] = "profile_name"
+        yt_config["config_profile"] = "profile_name"
 
         with pytest.raises(ValueError, match=error):
             _update_from_file(yt_config, fs_helper=fs_helper)
@@ -1920,11 +1921,42 @@ class TestFileConfig:
         )
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = config_format
-        yt_config["profile"] = "profile2"
+        yt_config["config_profile"] = "profile2"
 
         _update_from_file(yt_config, fs_helper=fs_helper)
         assert yt_config["token"] == "token2"
+
         yt_config["token"] = default_config["token"]
         yt_config["config_format"] = default_config["config_format"]
-        yt_config["profile"] = default_config["profile"]
+        yt_config["config_profile"] = default_config["config_profile"]
         assert yt_config == default_config
+
+    @authors("thenno")
+    def test_profile_from_env_v2(self, monkeypatch):
+        monkeypatch.setenv("YT_CONFIG_PROFILE", "profile1")
+
+        user_config = "/home/user/.yt/config"
+        fs_helper = self._MockConfigFSHelper(
+            data={
+                user_config: self._FSConfigAttributes(
+                    content=yson.dumps(
+                        {
+                            "config_version": 2,
+                            "profiles": {
+                                "profile1": {
+                                    "token": "token1",
+                                },
+                            },
+                        },
+                    ),
+                    is_valid=True,
+                    is_file=True,
+                ),
+            },
+            homedir="/home/user",
+        )
+        yt_config = copy.deepcopy(default_config)
+        yt_config["config_format"] = "yson"
+
+        _update_from_file(yt_config, fs_helper=fs_helper)
+        assert yt_config["token"] == "token1"
