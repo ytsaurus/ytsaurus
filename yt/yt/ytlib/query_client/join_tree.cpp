@@ -37,6 +37,28 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsColumnSubset(const TColumnSet& subset, const TColumnSet& set)
+{
+    for (const auto& column : subset) {
+        if (!set.contains(column)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TReferencingExpression
+{
+    TConstExpressionPtr Expression;
+    TColumnSet References;
+};
+
+using TReferencingExpressions = std::vector<TReferencingExpression>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TConstGroupClausePtr ResetCommonPrefixInGroupClause(const TConstGroupClausePtr& group)
 {
     if (!group || group->CommonPrefixWithPrimaryKey == 0) {
@@ -72,7 +94,7 @@ public:
         const TJoinTreeNodePtr Right;
         const TJoinClausePtr MutableJoin;
 
-        TColumnSet NeededColumns;
+        TColumnSet NeededColumns = {};
     };
 
     std::variant<TInner, TLeaf> Body;
@@ -82,7 +104,7 @@ public:
     TColumnSet AvailableColumns;
 
     TJoinTreeNode(TJoinTreeNodePtr left, TJoinTreeNodePtr right)
-        : Body(TInner{std::move(left), std::move(right), New<TJoinClause>(), {}})
+        : Body(TInner{std::move(left), std::move(right), New<TJoinClause>()})
         , MutableQuery(New<TQuery>())
     { }
 
@@ -138,6 +160,51 @@ public:
                 AvailableColumns.insert(rightAvailable.begin(), rightAvailable.end());
                 return &AvailableColumns;
             });
+    }
+
+    // This function pushes predicate fragments as far down as possible,
+    // each fragment to exactly one query, prioritising left children nodes.
+    // It makes use of the fact that columns with matching names from different
+    // tables could only have been naturally joined.
+    // If fragments that could be pushed down are found, but child node
+    // does not have a query associated with it, they are returned.
+    std::pair<TReferencingExpressions::iterator, TConstExpressionPtr> PushDownPredicate(
+        TReferencingExpressions& predicateFragments)
+    {
+        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+            YT_VERIFY(!innerNode->MutableJoin->IsLeft);
+
+            innerNode->Left->PushDownPredicate(predicateFragments);
+
+            auto [it, joinPredicate] = innerNode->Right->PushDownPredicate(predicateFragments);
+            innerNode->MutableJoin->Predicate = joinPredicate;
+            predicateFragments.erase(it, predicateFragments.end());
+        }
+
+        TConstExpressionPtr predicate;
+
+        auto it = std::remove_if(
+            predicateFragments.begin(),
+            predicateFragments.end(),
+            [&] (const TReferencingExpression& refExpr) {
+                if (IsColumnSubset(refExpr.References, AvailableColumns)) {
+                    predicate = predicate
+                        ? MakeAndExpression(predicate, refExpr.Expression)
+                        : refExpr.Expression;
+                    return true;
+                }
+                return false;
+            });
+
+
+        if (MutableQuery) {
+            MutableQuery->WhereClause = predicate;
+            predicateFragments.erase(it, predicateFragments.end());
+
+            return {predicateFragments.end(), nullptr};
+        }
+
+        return {it, predicate};
     }
 
     void AddJoinEquationsToChildrenProject()
@@ -346,7 +413,7 @@ public:
         , Root_(std::move(root))
     { }
 
-    void Prepare() const
+    void Prepare(std::vector<TConstExpressionPtr> predicateFragments) const
     {
         TTypeLookup typeLookup;
         PopulateTypeLookupFromSchema(OriginalQuery_->Schema, &typeLookup);
@@ -354,7 +421,20 @@ public:
             PopulateTypeLookupFromSchema(joinClause->Schema, &typeLookup);
         }
 
+        int fragmentCount = predicateFragments.size();
+        TReferencingExpressions splitPredicates;
+        splitPredicates.resize(fragmentCount);
+        for (int index = 0; index < fragmentCount; ++index) {
+            splitPredicates[index].Expression = std::move(predicateFragments[index]);
+            TReferenceHarvester(&splitPredicates[index].References)
+                .Visit(splitPredicates[index].Expression);
+        }
+
         Root_->PullUpAvailableColumns();
+
+        Root_->PushDownPredicate(splitPredicates);
+
+        YT_VERIFY(splitPredicates.empty());
 
         Root_->AddJoinEquationsToChildrenProject();
 
@@ -445,11 +525,13 @@ IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& p
         }
     }
 
-    root->MutableQuery->WhereClause = totalPredicate;
+    std::vector<TConstExpressionPtr> predicateFragments;
+    CollectOperands(&predicateFragments, totalPredicate);
+
     root->MutableQuery->GroupClause = ResetCommonPrefixInGroupClause(query->GroupClause);
 
     auto joinTree = New<TJoinTree>(query, std::move(root));
-    joinTree->Prepare();
+    joinTree->Prepare(std::move(predicateFragments));
 
     return joinTree;
 }
