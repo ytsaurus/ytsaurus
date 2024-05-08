@@ -28,9 +28,46 @@
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 #include <optional>
 
 namespace NYT::NTransactionServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBranchedNodeSet
+{
+private:
+    // NB: looks like flat_hash_map is a bit faster than THashMap in this case
+    // (5-10%).
+    using TMap = absl::flat_hash_map<NCypressServer::TCypressNode*, int>;
+
+public:
+    TBranchedNodeSet() noexcept = default;
+
+    [[nodiscard]] int Size() const noexcept;
+    [[nodiscard]] bool Empty() const noexcept;
+    void Clear();
+
+    using TIterator = typename std::vector<NCypressServer::TCypressNode*>::const_iterator;
+    TIterator begin() const noexcept;
+    TIterator end() const noexcept;
+
+    //! Returns any node. If set is empty behavior is undefined.
+    NCypressServer::TCypressNode* GetAnyNode();
+
+    void InsertOrCrash(NCypressServer::TCypressNode* node);
+
+    // NB: erasure of node obtained with |GetAnyNode()| is a bit faster.
+    void EraseOrCrash(NCypressServer::TCypressNode* node);
+
+    void Persist(const NCellMaster::TPersistenceContext& context);
+
+private:
+    std::vector<NCypressServer::TCypressNode*> Nodes_;
+    TMap NodeToIndex_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,19 +110,18 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NObjectServer::TObject*>, ImportedObjects);
 
-    // Cypress stuff
+    // Cypress stuff.
     using TLockedNodeSet = THashSet<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TLockedNodeSet, LockedNodes);
     using TLockSet = THashSet<NCypressServer::TLock*>;
     DEFINE_BYREF_RO_PROPERTY(TLockSet, Locks);
-    using TBranchedNodeList = std::vector<NCypressServer::TCypressNode*>;
-    DEFINE_BYREF_RW_PROPERTY(TBranchedNodeList, BranchedNodes);
+    DEFINE_BYREF_RW_PROPERTY(TBranchedNodeSet, BranchedNodes);
     using TStagedNodeList = std::vector<NCypressServer::TCypressNode*>;
     DEFINE_BYREF_RW_PROPERTY(TStagedNodeList, StagedNodes);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, LockedDynamicTables);
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, TablesWithBackupCheckpoints);
 
-    // Security Manager stuff
+    // Security Manager stuff.
     using TAccountResourcesMap = THashMap<NSecurityServer::TAccountPtr, NSecurityServer::TClusterResources>;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);

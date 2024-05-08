@@ -2001,8 +2001,7 @@ public:
             DestroyBranchedNode(transaction, node);
 
             auto& branchedNodes = transaction->BranchedNodes();
-            auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
-            branchedNodes.erase(it, branchedNodes.end());
+            branchedNodes.EraseOrCrash(node);
 
             unbranchedNodes.insert(node);
 
@@ -4043,7 +4042,7 @@ private:
         YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
-        transaction->BranchedNodes().push_back(branchedNode);
+        transaction->BranchedNodes().InsertOrCrash(branchedNode);
 
         // The branched node holds an implicit reference to its trunk.
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4105,12 +4104,9 @@ private:
     //! Returns originating node.
     TCypressNode* MergeParticularBranchedNode(TTransaction* transaction, TCypressNode* node)
     {
-        auto it = Find(transaction->BranchedNodes(), node);
-        YT_VERIFY(it != transaction->BranchedNodes().end());
+        transaction->BranchedNodes().EraseOrCrash(node);
 
         auto* originator = DoMergeNode(transaction, node);
-
-        transaction->BranchedNodes().erase(it);
 
         return originator;
     }
@@ -4120,32 +4116,29 @@ private:
         for (auto* node : transaction->BranchedNodes()) {
             DoMergeNode(transaction, node);
         }
-        transaction->BranchedNodes().clear();
+        transaction->BranchedNodes().Clear();
     }
 
     //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        if (transaction->BranchedNodes().size() != transaction->LockedNodes().size()) {
+        if (transaction->BranchedNodes().Size() != std::ssize(transaction->LockedNodes())) {
             YT_LOG_ALERT("Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
                 transaction->GetId(),
-                transaction->BranchedNodes().size(),
+                transaction->BranchedNodes().Size(),
                 transaction->LockedNodes().size());
         }
 
         auto& branchedNodes = transaction->BranchedNodes();
-        // The reverse order is for efficient removal.
-        while (!branchedNodes.empty()) {
-            auto* branchedNode = branchedNodes.back();
+        while (!branchedNodes.Empty()) {
+            auto* branchedNode = branchedNodes.GetAnyNode();
             RemoveOrUpdateNodesOnLockModeChange(
                 branchedNode->GetTrunkNode(),
                 transaction,
                 branchedNode->GetLockMode(),
                 ELockMode::None);
         }
-        YT_VERIFY(branchedNodes.empty());
     }
-
 
     TCypressNode* DoCloneNode(
         TCypressNode* sourceNode,
