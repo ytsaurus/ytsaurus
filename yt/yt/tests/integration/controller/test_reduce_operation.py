@@ -2399,6 +2399,66 @@ done
 
         assert read_table("//tmp/out") == [{"key": 5}]
 
+    @authors("whatsername")
+    def test_reduce_with_any_lists(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            return
+
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
+        )
+        create("table", "//tmp/out")
+
+        first_values = [
+            [123, ["vuvuzela", "a"], "b"],
+            ["boratorium"],
+            [["f"], None, "hoi-dag"],
+        ]
+        second_values = [
+            None,
+            [None],
+            [123, ["vuvuzela", "b"], "a"],
+        ]
+
+        def gen_data(values):
+            data = []
+            for v in values:
+                data.append({"key": v})
+            return data
+
+        write_table("//tmp/t1", gen_data(first_values))
+        write_table("//tmp/t2", gen_data(second_values))
+
+        reduce(
+            in_=["//tmp/t1", "//tmp/t2"],
+            out=["//tmp/out"],
+            command="cat",
+            reduce_by="key",
+            spec={"reducer": {"enable_input_table_index": False}},
+        )
+
+        values = []
+        for row in read_table("//tmp/out"):
+            values.append(row["key"])
+
+        expected_values = [
+            None,
+            [None],
+            [123, ["vuvuzela", "a"], "b"],
+            [123, ["vuvuzela", "b"], "a"],
+            ["boratorium"],
+            [["f"], None, "hoi-dag"],
+        ]
+        assert values == expected_values
+
     @authors("dakovalkov")
     def test_reduce_different_types_with_any(self):
         create(

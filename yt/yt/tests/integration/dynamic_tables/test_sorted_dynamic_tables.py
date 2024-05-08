@@ -20,7 +20,7 @@ import yt_error_codes
 
 from yt_helpers import profiler_factory
 
-from yt_type_helpers import make_schema, optional_type
+from yt_type_helpers import make_schema, optional_type, list_type, tuple_type
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, YtResponseError
@@ -481,6 +481,63 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         assert_items_equal(actual, rows)
+
+    @authors("whatsername")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_any_keys(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", optimize_for=optimize_for, schema=[
+            {"name": "key", "type": "any", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+        )
+        sync_mount_table("//tmp/t")
+
+        value1 = {"key": [1, 1], "value": "write"}
+        insert_rows("//tmp/t", [value1])
+        value2 = {"key": [1, []], "value": "insert"}
+        insert_rows("//tmp/t", [value2])
+
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            wrong_value = {"key": [3, {}], "value": "wrong"}
+            insert_rows("//tmp/t", [wrong_value])
+
+        assert_items_equal(read_table("//tmp/t"), [value2, value1])
+
+    @authors("whatsername")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_composite_keys(self, optimize_for):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t1", optimize_for=optimize_for, schema=[
+            {"name": "key", "type_v3": list_type("int64"), "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+        )
+        sync_mount_table("//tmp/t1")
+        create_dynamic_table("//tmp/t2", optimize_for=optimize_for, schema=[
+            {"name": "key", "type_v3": tuple_type(["string", "string"]), "sort_order": "descending"},
+            {"name": "value", "type": "string"}]
+        )
+        sync_mount_table("//tmp/t2")
+
+        value1 = {"key": [123, 456], "value": "write"}
+        insert_rows("//tmp/t1", [value1])
+        value2 = {"key": [123, 0], "value": "insert"}
+        insert_rows("//tmp/t1", [value2])
+
+        value3 = {"key": ["a", "456"], "value": "write"}
+        insert_rows("//tmp/t2", [value3])
+        value4 = {"key": ["a", "123"], "value": "insert"}
+        insert_rows("//tmp/t2", [value4])
+
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            wrong_value = {"key": [3, []], "value": "wrong"}
+            insert_rows("//tmp/t1", [wrong_value])
+
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            wrong_value = {"key": [3, "a"], "value": "wrong"}
+            insert_rows("//tmp/t2", [wrong_value])
+
+        assert_items_equal(read_table("//tmp/t1"), [value2, value1])
+        assert_items_equal(read_table("//tmp/t2"), [value4, value3])
 
     @authors("babenko", "savrus")
     def test_yt_13441_empty_store_set(self):

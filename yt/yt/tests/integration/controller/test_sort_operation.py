@@ -2101,6 +2101,52 @@ class TestSchedulerSortCommands(YTEnvSetup):
             spec=spec,
         )
 
+    @authors("whatsername")
+    def test_sort_key_complex_type_huge_any(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            return
+
+        max_sample_size = 64 * 1024
+
+        def expand_string(sample, size):
+            return (sample * (size // len(sample) + 1))[:size]
+
+        data = [
+            [["f"], None, expand_string("hoi-dag", max_sample_size)],
+            [123, [expand_string("vuvuzela", max_sample_size - 1), "b"], "a"],
+            [123, [expand_string("vuvuzela", max_sample_size - 1), "a"], "b"],
+            [None],
+            [expand_string("boratorium", max_sample_size + 10)],
+            None,
+        ]
+        expected_data = [
+            None,
+            [None],
+            [123, [expand_string("vuvuzela", max_sample_size - 1), "a"], "b"],
+            [123, [expand_string("vuvuzela", max_sample_size - 1), "b"], "a"],
+            [expand_string("boratorium", max_sample_size + 10)],
+            [["f"], None, expand_string("hoi-dag", max_sample_size)],
+        ]
+
+        def sort_func(*args, **kwargs):
+            simple_sort_1_phase(*args, **kwargs, spec={"merge_job_io": {"table_writer": {"max_key_weight": 250 * 1024}}})
+
+        create(
+            "table",
+            "//tmp/in",
+            attributes={
+                "schema": [{"name": "key", "type": "any"}],
+            },
+        )
+        write_table("//tmp/in", [{"key": d} for d in data], verbose=False)
+
+        create("table", "//tmp/out")
+        sort_func("//tmp/in", "//tmp/out", sort_by="key")
+
+        out_data = [r["key"] for r in read_table("//tmp/out", verbose=False)]
+        assert out_data == expected_data
+
     @authors("ermolovd")
     @pytest.mark.timeout(150)
     @pytest.mark.parametrize(
