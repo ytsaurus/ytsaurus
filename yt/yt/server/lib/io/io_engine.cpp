@@ -310,16 +310,18 @@ public:
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
-                futures.push_back(
-                    BIND(&TThreadPoolIOEngine::DoRead,
-                        MakeStrong(this),
-                        std::move(slice.Request),
-                        std::move(slice.OutputBuffer),
-                        TWallTimer(),
-                        category,
-                        sessionId)
+                auto future = BIND(
+                    &TThreadPoolIOEngine::DoRead,
+                    MakeStrong(this),
+                    std::move(slice.Request),
+                    std::move(slice.OutputBuffer),
+                    TWallTimer(),
+                    category,
+                    sessionId,
+                    Passed(CreateRequestCounterGuard(EIOEngineRequestType::Read)))
                     .AsyncVia(invoker)
-                    .Run());
+                    .Run();
+                futures.push_back(std::move(future));
             }
         }
 
@@ -343,11 +345,17 @@ public:
         YT_ASSERT(request.Handle);
         std::vector<TFuture<void>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
-            futures.push_back(
-                BIND(&TThreadPoolIOEngine::DoWrite, MakeStrong(this), std::move(slice), TWallTimer())
+            auto future = BIND(
+                &TThreadPoolIOEngine::DoWrite,
+                MakeStrong(this),
+                std::move(slice),
+                TWallTimer(),
+                Passed(CreateRequestCounterGuard(EIOEngineRequestType::Write)))
                 .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
-                .Run());
+                .Run();
+            futures.push_back(std::move(future));
         }
+
         return AllSucceeded(std::move(futures));
     }
 
@@ -438,9 +446,12 @@ private:
         TMutableRef buffer,
         TWallTimer timer,
         EWorkloadCategory category,
-        TSessionId sessionId)
+        TSessionId sessionId,
+        TRequestCounterGuard requestCounterGuard)
     {
         YT_VERIFY(std::ssize(buffer) == request.Size);
+
+        auto guard = std::move(requestCounterGuard);
 
         const auto readWaitTime = timer.GetElapsedTime();
         AddReadWaitTimeSample(readWaitTime);
@@ -513,8 +524,10 @@ private:
 
     void DoWrite(
         const TWriteRequest& request,
-        TWallTimer timer)
+        TWallTimer timer,
+        TRequestCounterGuard requestCounterGuard)
     {
+        auto guard = std::move(requestCounterGuard);
         auto writtenBytes = DoWriteImpl(request, timer);
 
         auto config = Config_.Acquire();

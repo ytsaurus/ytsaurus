@@ -1031,6 +1031,7 @@ std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
     bool throttled =
         readQueueSize > GetReadThrottlingLimit() ||
+        IOEngine_->IsReadRequestLimitExceeded() ||
         ReadMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledRead();
@@ -1049,6 +1050,7 @@ bool TChunkLocation::CheckWriteThrottling(
 {
     bool throttled =
         GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
+        IOEngine_->IsWriteRequestLimitExceeded() ||
         WriteMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledWrite();

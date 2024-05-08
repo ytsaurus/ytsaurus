@@ -253,6 +253,7 @@ struct TUringRequest
 
     EUringRequestType Type;
     std::optional<TRequestStatsGuard> RequestTimeGuard_;
+    TRequestCounterGuard RequestCounterGuard;
 
     virtual ~TUringRequest();
 
@@ -285,6 +286,8 @@ struct TUringRequestBase
 
     void SetPromise() override
     {
+        RequestCounterGuard.Release();
+
         if (!OptionalError.has_value()) {
             return;
         }
@@ -1673,15 +1676,21 @@ public:
         EWorkloadCategory category,
         TSessionId sessionId) override
     {
+        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
+
+        auto slices = requestSlicer.Slice(std::move(request));
+
         std::vector<TFuture<void>> futures;
         std::vector<TUringRequestPtr> uringRequests;
 
-        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
+        futures.reserve(slices.size());
+        uringRequests.reserve(slices.size());
 
-        for (auto& slice : requestSlicer.Slice(std::move(request))) {
+        for (auto& slice : slices) {
             auto uringRequest = std::make_unique<TWriteUringRequest>();
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->WriteRequest = std::move(slice);
+            uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Write);
 
             futures.push_back(uringRequest->Promise.ToFuture());
             uringRequests.push_back(std::move(uringRequest));
@@ -1748,6 +1757,7 @@ private:
         uringRequest->ReadSubrequests.reserve(combinedRequests.size());
         uringRequest->ReadSubrequestStates.reserve(combinedRequests.size());
         uringRequest->PendingReadSubrequestIndexes.reserve(combinedRequests.size());
+        uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Read);
 
         for (int index = 0; index < std::ssize(combinedRequests); ++index) {
             const auto& ioRequest = combinedRequests[index].ReadRequest;
@@ -1801,6 +1811,7 @@ private:
                 uringRequest->ReadSubrequests.reserve(1);
                 uringRequest->ReadSubrequestStates.reserve(1);
                 uringRequest->PendingReadSubrequestIndexes.reserve(1);
+                uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Read);
 
                 paddedBytes += GetPaddedSize(
                     slice.Request.Offset,

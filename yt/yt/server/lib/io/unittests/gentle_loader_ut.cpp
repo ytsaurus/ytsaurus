@@ -239,6 +239,16 @@ public:
         return EDirectIOPolicy::Never;
     }
 
+    bool IsReadRequestLimitExceeded() const override
+    {
+        return false;
+    }
+
+    bool IsWriteRequestLimitExceeded() const override
+    {
+        return false;
+    }
+
 private:
     const TIOEngineMockConfig Config_;
     const IThreadPoolPtr ThreadPool_;
