@@ -15,15 +15,15 @@ GO_TEST_SRCS(
 )
 
 IF (ARCH_X86_64)
-    SRCS(xxhash_amd64.s)
+    SRCS(
+        xxhash_amd64.s
+    )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM64)
-    SRCS(xxhash_arm64.s)
-ENDIF()
-
-IF (OS_DARWIN AND ARCH_ARM64)
-    SRCS(xxhash_arm64.s)
+IF (ARCH_ARM64)
+    SRCS(
+        xxhash_arm64.s
+    )
 ENDIF()
 
 END()
