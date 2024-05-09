@@ -38,6 +38,10 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString FakeBundleName = "fake-bundle";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterNodeProgram
     : public TProgram
     , public TProgramPdeathsigMixin
@@ -66,6 +70,10 @@ public:
             .AddLongOption("cell-id", "tablet cell id")
             .StoreResult(&CellId_)
             .RequiredArgument("CELL ID");
+        Opts_
+            .AddLongOption("tablet-cell-bundle", "cell's tablet cell bundle")
+            .StoreResult(&TabletCellBundle_)
+            .Optional();
         Opts_
             .AddLongOption("clock-cluster-tag", "tablet cell clock cluster tag")
             .StoreResult(&ClockClusterTag_)
@@ -212,6 +220,7 @@ protected:
                 : NObjectClient::MakeWellKnownId(
                     NObjectClient::EObjectType::TabletCell,
                     NObjectClient::TCellTag(1));
+            config->DryRun->TabletCellBundle = TabletCellBundle_;
             config->DryRun->ClockClusterTag = ClockClusterTag_
                 ? NApi::TClusterTag(*ClockClusterTag_)
                 : NObjectClient::InvalidCellTag;
@@ -288,6 +297,7 @@ private:
     TString SnapshotPath_;
     std::vector<TString> ChangelogFileNames_;
     TString CellId_;
+    TString TabletCellBundle_ = FakeBundleName;
     std::optional<ui16> ClockClusterTag_;
     TString SnapshotBuildDirectory_;
     NYson::TYsonString DryRunSnapshotMeta_;

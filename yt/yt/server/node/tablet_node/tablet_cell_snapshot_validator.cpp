@@ -34,13 +34,13 @@ using namespace NYson;
 
 static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, TCellTag(1));
 static const TString FakeAccount = "fake-account";
-static const TString FakeBundle = "fake-bundle";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupantPtr CreateFakeOccupant(
     IBootstrapBase* bootstrap,
     TCellId cellId,
+    TString tabletCellBundle,
     NApi::TClusterTag clockClusterTag)
 {
     const auto& cellarManager = bootstrap
@@ -60,7 +60,7 @@ ICellarOccupantPtr CreateFakeOccupant(
         ToProto(protoInfo.mutable_cell_id(), cellId);
         protoInfo.set_peer_id(0);
         protoInfo.set_options(ConvertToYsonString(*options).ToString());
-        protoInfo.set_cell_bundle(FakeBundle);
+        protoInfo.set_cell_bundle(tabletCellBundle);
 
         cellar->CreateOccupant(protoInfo);
     }
