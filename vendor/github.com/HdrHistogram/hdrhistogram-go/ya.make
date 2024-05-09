@@ -2,7 +2,9 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-DATA(arcadia/vendor/github.com/HdrHistogram/hdrhistogram-go/test)
+DATA(
+    arcadia/vendor/github.com/HdrHistogram/hdrhistogram-go/test
+)
 
 TEST_CWD(vendor/github.com/HdrHistogram/hdrhistogram-go)
 
@@ -33,4 +35,6 @@ GO_XTEST_SRCS(
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

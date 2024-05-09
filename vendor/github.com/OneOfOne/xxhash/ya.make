@@ -12,4 +12,6 @@ GO_XTEST_SRCS(xxhash_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)
