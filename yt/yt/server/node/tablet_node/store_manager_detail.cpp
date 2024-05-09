@@ -511,7 +511,7 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
 
     if (activeStore) {
         if (createNewStore && activeStore->GetRowCount() == 0 && reason != EStoreRotationReason::Discard) {
-            YT_LOG_ALERT_IF(!allowEmptyStore, "Empty dynamic store rotated (StoreId: %v, Reason: %v)",
+            YT_LOG_ALERT_UNLESS(allowEmptyStore, "Empty dynamic store rotated (StoreId: %v, Reason: %v)",
                 activeStore->GetId(),
                 reason);
         }
@@ -522,11 +522,13 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
 
         StructuredLogger_->OnStoreStateChanged(activeStore);
 
-        YT_LOG_INFO("Rotating store (StoreId: %v, DynamicMemoryUsage: %v, RowCount: %v, Reason: %v)",
+        YT_LOG_INFO("Rotating store (StoreId: %v, Reason: %v, DynamicMemoryUsage: %v, RowCount: %v, TimestampCount: %v, AllowEmptyStore: %v)",
             activeStore->GetId(),
+            reason,
             activeStore->GetDynamicMemoryUsage(),
             activeStore->GetRowCount(),
-            reason);
+            activeStore->GetTimestampCount(),
+            allowEmptyStore);
 
         if (activeStore->GetLockCount() > 0) {
             YT_LOG_INFO("Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
