@@ -97,6 +97,10 @@ DEFINE_ENUM(ESchedulingSegment,
     (LargeGpu)
 );
 
+DEFINE_ENUM(EExtraEnvironment,
+    (DiscoveryServerAddresses)
+);
+
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 DECLARE_REFCOUNTED_CLASS(TDelayConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)

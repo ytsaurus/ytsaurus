@@ -8,6 +8,8 @@ from yt_commands import (
     interrupt_job, dump_job_context)
 
 from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier
+
+from yt import yson
 from yt.yson import to_yson_type
 from yt.common import YtError, date_string_to_datetime
 
@@ -650,6 +652,24 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
         op.wait_for_state("completed")
         op.track()
+
+
+class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_DISCOVERY_SERVERS = 2
+
+    @authors("alex-shishkin")
+    def test_yt_discovery_addresses_in_env(self):
+        op = run_test_vanilla(
+            "echo $YT_DISCOVERY_ADDRESSES >&2",
+            task_patch={'extra_environment': ['discovery_server_addresses']},
+            track=True
+        )
+        job_id = op.list_jobs()[0]
+        addresses = yson.loads(op.read_stderr(job_id))
+        assert len(addresses) == 2
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

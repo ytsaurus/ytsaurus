@@ -296,6 +296,8 @@ message TUserJobSpec
 
     optional bool redirect_stdout_to_stderr = 72 [default = false];
 
+    repeated string extra_environment = 74;
+
     reserved 38, 48, 61, 62;
 }
 

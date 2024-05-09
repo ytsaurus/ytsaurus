@@ -244,6 +244,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    std::vector<TString> GetDiscoveryServerAddresses() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NApi::TClusterTag GetClusterTag() const override
     {
         YT_UNIMPLEMENTED();
