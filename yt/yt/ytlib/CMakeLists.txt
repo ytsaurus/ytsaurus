@@ -1507,6 +1507,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/caching_object_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/master_ypath_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_attribute_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/object_client/object_service_proxy.cpp

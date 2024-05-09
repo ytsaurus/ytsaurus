@@ -136,3 +136,23 @@ message TRspRemoveMaintenance
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqVectorizedRead
+{
+    // NB: template request should be passed via attachments.
+    required int32 template_request_part_count = 1;
+    repeated NYT.NProto.TGuid object_ids = 2;
+}
+
+message TRspVectorizedRead
+{
+    message TSubresponse
+    {
+        required int32 part_count = 1;
+        required NYT.NProto.TGuid object_id = 2;
+    };
+
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

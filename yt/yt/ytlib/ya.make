@@ -315,6 +315,7 @@ SRCS(
     object_client/caching_object_service.cpp
     object_client/config.cpp
     object_client/helpers.cpp
+    object_client/master_ypath_proxy.cpp
     object_client/object_attribute_cache.cpp
     object_client/object_service_cache.cpp
     object_client/object_service_proxy.cpp

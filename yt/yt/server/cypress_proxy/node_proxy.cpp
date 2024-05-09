@@ -21,6 +21,7 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
@@ -1035,51 +1036,39 @@ private:
             ++maxRetrievedDepth;
         }
 
+        // Form a template.
+        auto requestTemplate = TYPathProxy::Get();
+        if (attributeFilter) {
+            ToProto(requestTemplate->mutable_attributes(), attributeFilter);
+        }
+
         // Find all nodes that need to be requested from master cells.
-        THashMap<TCellTag, std::vector<TNodeId>> cellTagToNodeIds;
+        std::vector<TNodeId> nodesToFetchFromMaster;
         for (const auto& [nodeId, _] : nodeIdToChildren) {
             auto nodeType = TypeFromId(nodeId);
             if (IsScalarType(nodeType) || attributeFilter) {
-                cellTagToNodeIds[CellTagFromId(nodeId)].push_back(nodeId);
+                nodesToFetchFromMaster.push_back(nodeId);
             }
         }
 
-        // Send master requests.
-        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        asyncResults.reserve(cellTagToNodeIds.size());
-        for (const auto& [cellTag, nodeIds] : cellTagToNodeIds) {
-            auto proxy = CreateReadProxyToCell(cellTag);
-            // TODO(h0pless): Create a new type of request to make Get request amplification less drastic (see YT-20911).
-            auto batchReq = proxy.ExecuteBatch();
-
-            for (auto nodeId : nodeIds) {
-                auto masterRequest = TYPathProxy::Get(FromObjectId(nodeId));
-                // NB: When copying only the body of a given request gets copied, header stays intact.
-                // And path or id are stored in the header.
-                masterRequest->CopyFrom(*request);
-                masterRequest->Tag() = nodeId;
-                batchReq->AddRequest(masterRequest);
-            }
-            asyncResults.push_back(batchReq->Invoke());
-        }
-
-        auto results = WaitFor(AllSucceeded(asyncResults))
+        auto vectorizedBatcher = TMasterYPathProxy::CreateGetBatcher(
+            Bootstrap_->GetNativeRootClient(),
+            requestTemplate,
+            nodesToFetchFromMaster);
+        auto nodeIdToResponseOrError = WaitFor(vectorizedBatcher.Invoke())
             .ValueOrThrow();
 
         THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
-        nodeIdToMasterResponse.reserve(cellTagToNodeIds.size());
-        for (const auto& batchRsp : results) {
-            // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
-            // for the same path we can get an error "no such node".
-            // Retry is needed if a given path still exists.
-            // Since retry mechanism is not implemented yet, this will do for now.
-            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRsp), "Error getting requested information from master");
-
-            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
-                const auto& rsp = rspOrError.Value();
-                auto nodeId = std::any_cast<TNodeId>(rsp->Tag());
-                nodeIdToMasterResponse[nodeId] = rsp;
+        for (auto [nodeId, responseOrError] : nodeIdToResponseOrError) {
+            if (!responseOrError.IsOK()) {
+                // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
+                // for the same path we can get an error "no such node".
+                // Retry is needed if a given path still exists.
+                // Since retry mechanism is not implemented yet, this will do for now.
+                THROW_ERROR_EXCEPTION("Error getting requested information from master")
+                    << responseOrError;
             }
+            nodeIdToMasterResponse[nodeId] = responseOrError.Value();
         }
 
         // Build a DFS over this mess.

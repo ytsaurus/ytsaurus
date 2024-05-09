@@ -13,6 +13,8 @@
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_request.h>
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 
@@ -32,26 +34,31 @@
 
 #include <yt/yt/ytlib/cell_master_client/protobuf_helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/ytlib/election/config.h>
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/core/rpc/message.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NObjectServer {
 
-using namespace NSecurityServer;
-using namespace NMaintenanceTrackerServer;
-using namespace NNodeTrackerServer;
-using namespace NHydra;
-using namespace NObjectClient;
-using namespace NObjectClient::NProto;
-using namespace NYTree;
-using namespace NYson;
 using namespace NCellMaster;
 using namespace NCellMasterClient;
+using namespace NHydra;
+using namespace NMaintenanceTrackerServer;
+using namespace NNodeTrackerServer;
+using namespace NObjectClient;
+using namespace NObjectClient::NProto;
+using namespace NRpc;
+using namespace NSecurityServer;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,6 +84,7 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(CheckPermissionByAcl);
         DISPATCH_YPATH_SERVICE_METHOD(AddMaintenance);
         DISPATCH_YPATH_SERVICE_METHOD(RemoveMaintenance);
+        DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
         return TBase::DoInvoke(context);
     }
 
@@ -422,6 +430,85 @@ private:
         }
 
         context->Reply();
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, VectorizedRead)
+    {
+        DeclareNonMutating();
+
+        auto transactionId = NCypressClient::GetTransactionId(context);
+        auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
+
+        // Recover template request.
+        const auto& requestAttachments = context->RequestAttachments();
+        auto templateRequestPartCount = request->template_request_part_count();
+        TSharedRefArrayBuilder templateRequestBuilder(templateRequestPartCount);
+        for (int partIndex = 0; partIndex < templateRequestPartCount; ++partIndex) {
+            templateRequestBuilder.Add(requestAttachments[partIndex]);
+        }
+        auto templateRequest = templateRequestBuilder.Finish();
+
+        NRpc::NProto::TRequestHeader templateRequestHeader;
+        ParseRequestHeader(templateRequest, &templateRequestHeader);
+        auto templateMethod = templateRequestHeader.method();
+
+        context->SetRequestInfo("TemplateMethod: %v, ObjectIds: %v",
+            templateMethod,
+            objectIds);
+
+        ValidateVectorizedRead(templateMethod, objectIds);
+        // NB: no need to sync with TX coordinator here, since this request is designed to be used in conjunction with batch request
+        // and the latter handles all needed syncs.
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
+            : nullptr;
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto& attachments = context->Response().Attachments();
+        for (auto objectId : objectIds) {
+            // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
+            auto subcontext = CreateYPathContext(templateRequest, Logger);
+
+            auto* object = objectManager->FindObject(objectId);
+            if (object) {
+                auto proxy = objectManager->GetProxy(object, transaction);
+                proxy->Invoke(subcontext);
+            } else {
+                auto noSuchObjectError = TError(
+                    NYTree::EErrorCode::ResolveError,
+                    "No such object %v",
+                    objectId);
+                subcontext->Reply(noSuchObjectError);
+            }
+
+            const auto& subresponseMessage = subcontext->GetResponseMessage();
+            attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
+            auto* subresponse = response->add_subresponses();
+            subresponse->set_part_count(subresponseMessage.size());
+            ToProto(subresponse->mutable_object_id(), objectId);
+        }
+
+        context->Reply();
+    }
+
+    void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
+    {
+        static const int MaxVectorizedReadRequestSize = 100;
+        static const THashSet<std::string> MultiReadMethodWhitelist = {
+            "Get",
+        };
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            MultiReadMethodWhitelist.contains(templateMethod),
+            "Method %Qv is not supported as a template for \"VectorizedRead\"",
+            templateMethod);
+
+        if (objectIds.size() > MaxVectorizedReadRequestSize) {
+            THROW_ERROR_EXCEPTION("Request has more than %v objects",
+                MaxVectorizedReadRequestSize)
+                << TErrorAttribute("object_count", objectIds.size());
+        }
     }
 };
 
