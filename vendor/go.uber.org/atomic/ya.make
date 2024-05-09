@@ -56,8 +56,12 @@ GO_XTEST_SRCS(example_test.go)
 
 END()
 
-RECURSE(internal)
+RECURSE(
+    internal
+)
 
 IF (NOT OPENSOURCE)
-    RECURSE(gotest)
+    RECURSE(
+        gotest
+    )
 ENDIF()
