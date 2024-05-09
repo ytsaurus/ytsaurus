@@ -51,6 +51,7 @@
 
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/ytlib/discovery_client/request_session.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
@@ -354,6 +355,12 @@ public:
         ChunkReplicaCache_ = CreateChunkReplicaCache(
             this,
             Profiler_.WithPrefix("/chunk_replica_cache"));
+
+        if (config->DiscoveryConnection) {
+            DiscoveryServerAddressPool_ = New<TServerAddressPool>(
+                Logger,
+                config->DiscoveryConnection);
+        }
 
         SetupTvmIdSynchronization();
     }
@@ -704,6 +711,17 @@ public:
             options);
     }
 
+    std::vector<TString> GetDiscoveryServerAddresses() const override
+    {
+        if (!DiscoveryServerAddressPool_) {
+            THROW_ERROR_EXCEPTION("Missing discovery server address pool");
+        }
+        if (!DiscoveryServerAddressPool_->GetReadyEvent().IsSet()) {
+            THROW_ERROR_EXCEPTION("Discovery server address pool is not ready");
+        }
+        return DiscoveryServerAddressPool_->GetProbationAddresses();
+    }
+
     NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
         TDiscoveryClientConfigPtr clientConfig,
         IChannelFactoryPtr channelFactory) override
@@ -894,6 +912,8 @@ private:
 
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
+
+    TServerAddressPoolPtr DiscoveryServerAddressPool_;
 
     std::atomic<bool> Terminated_ = false;
 

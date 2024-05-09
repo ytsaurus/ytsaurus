@@ -136,6 +136,7 @@ struct IConnection
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
+    virtual std::vector<TString> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
         NDiscoveryClient::TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory) = 0;

@@ -1281,6 +1281,8 @@ public:
 
     bool FailOnJobRestart;
 
+    THashSet<EExtraEnvironment> ExtraEnvironment;
+
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 
     REGISTER_YSON_STRUCT(TUserJobSpec);

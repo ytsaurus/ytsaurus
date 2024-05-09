@@ -10126,6 +10126,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
+    if (jobSpecConfig->ExtraEnvironment.contains(EExtraEnvironment::DiscoveryServerAddresses)) {
+        auto addresses = ConvertToYsonString(Client->GetNativeConnection()->GetDiscoveryServerAddresses(), EYsonFormat::Text);
+        jobSpec->add_environment(Format("YT_DISCOVERY_ADDRESSES=%v", addresses));
+    }
+
     BuildFileSpecs(jobSpec, files, jobSpecConfig, Config->EnableBypassArtifactCache);
 
     if (jobSpecConfig->Monitoring->Enable) {
