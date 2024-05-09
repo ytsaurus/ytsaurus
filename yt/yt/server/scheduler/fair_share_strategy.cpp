@@ -1303,7 +1303,7 @@ public:
         return bestTree;
     }
 
-    TError OnOperationMaterialized(TOperationId operationId) override
+    TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1313,7 +1313,10 @@ public:
             auto tree = GetTree(treeId);
             tree->OnOperationMaterialized(operationId);
 
-            if (auto error = tree->CheckOperationNecessaryResourceDemand(operationId); !error.IsOK()) {
+            if (auto error = tree->CheckOperationNecessaryResourceDemand(operationId);
+                !error.IsOK() &&
+                !revivedFromSnapshot)
+            {
                 return error;
             }
 
