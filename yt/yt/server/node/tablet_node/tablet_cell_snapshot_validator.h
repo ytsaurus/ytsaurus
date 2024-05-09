@@ -13,6 +13,7 @@ namespace NYT::NTabletNode {
 NCellarAgent::ICellarOccupantPtr CreateFakeOccupant(
     NClusterNode::IBootstrapBase* bootstrap,
     TCellId cellId,
+    TString tabletCellBundle,
     NApi::TClusterTag clockClusterTag);
 
 ////////////////////////////////////////////////////////////////////////////////
