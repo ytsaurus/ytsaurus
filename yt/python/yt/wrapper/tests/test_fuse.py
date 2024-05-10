@@ -52,13 +52,13 @@ class TestCachedYtClient(object):
     def test_get_attributes_list(self, yt_env):
         client = cypress_fuse.CachedYtClient(config=yt.config.config)
 
-        real_attributes = yt.get("//home/@")
-        for attribute in list(real_attributes):
+        real_attributes = dict(yt.get("//home/@"))
+        for attribute in real_attributes:
             if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)
 
-        cached_attributes = client.get_attributes("//home", list(real_attributes))
-        ephemeral_attributes = ["access_time", "access_counter", "ephemeral_ref_counter", "weak_ref_counter"]
+        cached_attributes = dict(client.get_attributes("//home", list(real_attributes)))
+        ephemeral_attributes = ["access_time", "access_counter", "ephemeral_ref_counter", "weak_ref_counter", "estimated_creation_time"]
 
         for attribute in ephemeral_attributes:
             for attributes in [real_attributes, cached_attributes]:
