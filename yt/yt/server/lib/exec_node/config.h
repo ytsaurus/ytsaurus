@@ -675,6 +675,8 @@ public:
     //! Adds delay before starting a job.
     std::optional<TDuration> TestResourceAcquisitionDelay;
 
+    TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -793,9 +795,9 @@ class TJobProxyLogManagerConfig
 public:
     TString Directory;
     int ShardingKeyLength;
-    TDuration LogsDeadline;
+    TDuration LogsStoragePeriod;
 
-    std::optional<int> MaxParallelism;
+    std::optional<int> DirectoryTraversalConcurrency;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
@@ -803,6 +805,22 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobProxyLogManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration LogsStoragePeriod;
+    std::optional<int> DirectoryTraversalConcurrency;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

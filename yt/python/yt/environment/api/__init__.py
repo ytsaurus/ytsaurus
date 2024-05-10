@@ -48,7 +48,7 @@ class LocalYtConfig(object):
         "sharding_key_length": 1,
     })
     default_docker_image = "docker.io/library/python:2.7-slim"
-    job_proxy_log_manager_max_parallelism = attr.ib(None)
+    job_proxy_log_manager_directory_traversal_concurrency = attr.ib(None)
 
     """Feature flags"""
     enable_master_cache = attr.ib(False)

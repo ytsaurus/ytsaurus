@@ -780,6 +780,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
         .Default();
+
+    registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -823,18 +826,6 @@ void TJobProxyLoggingConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
         .Default();
-
-    // registrar.Postprocessor([] (TJobProxyLoggingConfig* config) {
-    //     if (config->Mode == EJobProxyLoggingMode::Simple) {
-    //         return;
-    //     }
-    //     if (!config->Directory.has_value()) {
-    //         THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"directory\" option to be set");
-    //     }
-    //     if (!config->ShardingKeyLength.has_value()) {
-    //         THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"sharding_key_length\" option to be set");
-    //     }
-    // });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -885,19 +876,27 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
 void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("directory", &TThis::Directory)
-        .Default();
+    registrar.Parameter("directory", &TThis::Directory);
 
     registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
-        .Default()
         .GreaterThan(0);
-    
-    registrar.Parameter("logs_deadline", &TThis::LogsDeadline)
-        .Default();
 
-    registrar.Parameter("max_parallelism", &TThis::MaxParallelism)
+    registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod);
+
+    registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
         .Default()
         .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobProxyLogManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("logs_storage_period", &TThis::LogsStoragePeriod)
+        .Default(TDuration::Days(7));
+
+    registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

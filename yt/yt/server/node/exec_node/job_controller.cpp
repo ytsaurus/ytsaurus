@@ -401,10 +401,16 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TJobControllerDynamicConfigPtr& /*oldConfig*/,
+        const TJobControllerDynamicConfigPtr& oldConfig,
         const TJobControllerDynamicConfigPtr& newConfig) override
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        if (newConfig->JobProxyLogManager) {
+            JobProxyLogManager_->OnDynamicConfigChanged(
+                oldConfig->JobProxyLogManager,
+                newConfig->JobProxyLogManager);
+        }
 
         DynamicConfig_.Store(newConfig);
 
@@ -1520,7 +1526,7 @@ private:
 
         auto operationId = job->GetOperationId();
 
-        JobProxyLogManager_->OnJobFinished(job->GetId());
+        JobProxyLogManager_->OnJobUnregistered(job->GetId());
 
         auto guard = WriterGuard(JobsLock_);
 

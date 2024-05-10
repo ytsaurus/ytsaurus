@@ -8,42 +8,35 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyLogManagerState
-    : public NYTree::TYsonStruct
-{
-public:
-    THashMap<TJobId, TInstant> JobIdToModificationTime;
-
-    REGISTER_YSON_STRUCT(TJobProxyLogManagerState);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerState);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TJobProxyLogManager
     : public TRefCounted
 {
 public:
     explicit TJobProxyLogManager(IBootstrap* bootstrap);
     void Start();
-    void OnJobFinished(TJobId jobId);
+    void OnJobUnregistered(TJobId jobId);
 
     TString GetShardingKey(TJobId jobId);
+
+    void OnDynamicConfigChanged(
+        TJobProxyLogManagerDynamicConfigPtr oldConfig,
+        TJobProxyLogManagerDynamicConfigPtr newConfig);
 
 private:
     IBootstrap* const Bootstrap_;
 
+    TJobProxyLogManagerConfigPtr Config_;
+
     TString Directory_;
     int ShardingKeyLength_;
-    TDuration LogsDeadline_;
+    TDuration LogsStoragePeriod_;
 
+    std::optional<int> DirectoryTraversalConcurrency_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
     void CreateShardingDirectories();
-    void RemoveOutdatedLogs();
+    void TraverseJobDirectoriesAndScheduleRemovals();
+    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, TString shardingDirPath);
     void RemoveJobLog(TJobId jobId);
 };
 

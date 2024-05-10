@@ -447,36 +447,3 @@ class TestJobProxyLogging(YTEnvSetup):
                 "job_proxy.log"
             )
             assert os.path.exists(log_path)
-
-
-class TestJobProxyLogManager(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-            "job_proxy": {
-                "job_proxy_logging": {
-                    "mode": "per_job_directory",
-                },
-            },
-        },
-        "job_resource_manager": {
-            "resource_limits": {
-                "user_slots": 5,
-                "cpu": 5,
-                "memory": 5 * 1024 ** 3,
-            }
-        },
-    }
-
-    def test_removing_logs(self):
-        pass
