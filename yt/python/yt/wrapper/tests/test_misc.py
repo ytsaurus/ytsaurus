@@ -1851,7 +1851,7 @@ class TestFileConfig:
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = "yson"
 
-        with pytest.raises(ValueError, match="Unknown config's version"):
+        with pytest.raises(yt.YtError, match="Unknown config's version"):
             _update_from_file(yt_config, fs_helper=fs_helper)
 
     @authors("thenno")
@@ -1884,7 +1884,7 @@ class TestFileConfig:
         yt_config["config_format"] = config_format
         yt_config["config_profile"] = "profile_name"
 
-        with pytest.raises(ValueError, match=error):
+        with pytest.raises(yt.YtError, match=error):
             _update_from_file(yt_config, fs_helper=fs_helper)
 
     @authors("thenno")

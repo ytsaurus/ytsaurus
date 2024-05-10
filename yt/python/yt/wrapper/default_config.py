@@ -890,12 +890,12 @@ class ConfigParserV2:
 
     def extract(self):
         if self._PROFILES_KEY not in self._config:
-            raise ValueError("Missing {0} key in YT config".format(self._PROFILES_KEY))
+            raise common.YtError("Missing {0} key in YT config".format(self._PROFILES_KEY))
         profiles = self._config[self._PROFILES_KEY]
         if not isinstance(profiles, dict):
-            raise ValueError("Profiles should be dict, not {0}".format(type(profiles)))
+            raise common.YtError("Profiles should be dict, not {0}".format(type(profiles)))
         if self._profile not in profiles:
-            raise ValueError("Unknown profile {0}. Known profiles: {1}".format(
+            raise common.YtError("Unknown profile {0}. Known profiles: {1}".format(
                 self._profile,
                 ",".join(profiles.keys())),
             )
@@ -984,7 +984,7 @@ def _update_from_file(config, fs_helper=None):
         # All keys are stored at the top level of the config.
         pass
     else:
-        raise ValueError("Unknown config's version {0}".format(config_version))
+        raise common.YtError("Unknown config's version {0}".format(config_version))
 
     common.update_inplace(config, parsed_config)
 
