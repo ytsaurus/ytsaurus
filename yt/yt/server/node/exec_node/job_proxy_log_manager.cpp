@@ -50,6 +50,7 @@ void TJobProxyLogManager::OnDynamicConfigChanged(
 {
     LogsStoragePeriod_ = newConfig->LogsStoragePeriod;
     DirectoryTraversalConcurrency_ = newConfig->DirectoryTraversalConcurrency;
+    AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
 }
 
 void TJobProxyLogManager::CreateShardingDirectories()
