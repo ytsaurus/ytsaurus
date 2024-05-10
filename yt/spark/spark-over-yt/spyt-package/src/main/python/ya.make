@@ -10,6 +10,7 @@ PY_SRCS(
     spyt/dependency_utils.py
     spyt/enabler.py
     spyt/extensions.py
+    spyt/spec.py
     spyt/standalone.py
     spyt/submit.py
     spyt/types.py

@@ -122,6 +122,12 @@ class SparkDiscovery(object):
     def spark_cluster_version(self):
         return self.discovery().join("version")
 
+    def set_cluster_version_if_none(self, v, client):
+        current = SparkDiscovery.getOption(self.spark_cluster_version(), client=client)
+        if current is None:
+            create("map_node", self.spark_cluster_version().join(v),
+                   recursive=True, ignore_existing=True, client=client)
+
     def conf(self):
         return self.discovery().join("conf")
 
@@ -281,6 +287,13 @@ def get_default_arg_parser(**kwargs):
     parser.add_argument("--discovery-dir", required=False)
     parser.add_argument("--proxy", required=False, default=default_proxy())
     return parser
+
+
+def add_parser_group(parser, enabler_arg, disabler_arg, dest_arg, default_value):
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument(enabler_arg, dest=dest_arg, action='store_true')
+    group.add_argument(disabler_arg, dest=dest_arg, action='store_false')
+    parser.set_defaults(**{dest_arg: default_value})
 
 
 def parse_args(parser=None, parser_arguments=None, raw_args=None):
