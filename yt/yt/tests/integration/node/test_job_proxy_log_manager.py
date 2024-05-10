@@ -27,7 +27,7 @@ class TestJobProxyLogManager(YTEnvSetup):
                 },
             },
             "job_proxy_log_manager": {
-                "logs_deadline": "1s",
+                "logs_storage_period": "1s",
             },
         },
         "job_resource_manager": {
