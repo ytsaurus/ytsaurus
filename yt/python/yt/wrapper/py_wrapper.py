@@ -292,6 +292,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         and sys.platform.startswith("linux")
     dynamic_libraries = set()
 
+    system_module_patterns = tuple([
+        re.compile(pattern)
+        for pattern in get_config(client)["pickling"]["system_module_patterns"]
+    ])
+
     def add_file_to_compress(file, module_name, name):
         relpath = module_relpath([module_name, name], file, client)
         if relpath is None:
@@ -315,9 +320,27 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
         files_to_compress[relpath] = file
 
+    def is_system_module(_module):
+        def is_system_module_path(_path):
+            return any(pattern.search(_path) for pattern in system_module_patterns)
+
+        if getattr(_module, "__file__", None):
+            # Regular module.
+            return is_system_module_path(_module.__file__)
+        elif hasattr(_module, "__path__") and hasattr(_module.__path__, "__iter__"):
+            # Looks like a namespaced module.
+            return any(is_system_module_path(path) for path in _module.__path__)
+        else:
+            # We didn't figure out what it is, so let's safely assume it is not a system package.
+            return False
+
     for name, module in list(sys.modules.items()):
         if module_filter is not None and not module_filter(module):
             continue
+
+        if get_config(client)["pickling"]["ignore_system_modules"] and is_system_module(module):
+            continue
+
         # NB: python3 tests could not properly pickle pkg_resources package.
         if "pkg_resources" in str(module):
             continue
