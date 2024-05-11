@@ -22,7 +22,7 @@ message TRspLock
     required NYT.NProto.TGuid lock_id = 1;
     required NYT.NProto.TGuid node_id = 2;
     optional NYT.NProto.TGuid external_transaction_id = 5;
-    required int32 external_cell_tag = 3;
+    required uint32 external_cell_tag = 3;
     optional uint64 revision = 4;
 }
 
@@ -51,7 +51,7 @@ message TReqCreate
 message TRspCreate
 {
     required NYT.NProto.TGuid node_id = 1;
-    required int32 cell_tag = 2;
+    required uint32 cell_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,7 +106,7 @@ message TRspBeginCopy
 
     required TSerializedTree serialized_tree = 1;
     repeated NYT.NProto.TGuid portal_child_ids = 2;
-    repeated int32 external_cell_tags = 3;
+    repeated uint32 external_cell_tags = 3;
     required NYT.NProto.TGuid node_id = 4;
     repeated string opaque_child_paths = 5;
     repeated TRegisteredSchema schemas = 6;

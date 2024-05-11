@@ -20,7 +20,7 @@ message TReqStartTransaction
     required string user = 5;
     optional string user_tag = 12;
 
-    repeated int32 replicate_to_cell_tags = 9;
+    repeated uint32 replicate_to_cell_tags = 9;
 
     optional bool is_cypress_transaction = 13;
 
@@ -91,7 +91,7 @@ message TReqStartCypressTransaction
     optional NYT.NProto.TGuid parent_id = 5;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 6;
 
-    repeated int32 replicate_to_cell_tags = 7;
+    repeated uint32 replicate_to_cell_tags = 7;
 
     required string user = 8;
     optional string user_tag = 9;
@@ -123,7 +123,7 @@ message TReqAbortCypressTransaction
 
 message TReqMarkCypressTransactionsReplicatedToCell
 {
-    required int32 destination_cell_tag = 1;
+    required uint32 destination_cell_tag = 1;
     repeated NYT.NProto.TGuid transaction_ids = 2;
 }
 

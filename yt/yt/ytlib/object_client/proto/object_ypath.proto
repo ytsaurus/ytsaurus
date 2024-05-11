@@ -37,7 +37,7 @@ message TMulticellSyncExt
         optional TMulticellSyncExt multicell_sync_ext = 112;
     }
 
-    repeated int32 cell_tags_to_sync_with = 1;
+    repeated uint32 cell_tags_to_sync_with = 1;
 
     // If |true|, the master responding to the query will make no attempt to
     // synchronize its state with the upstream servers.
@@ -76,7 +76,7 @@ message TRspGetBasicAttributes
     }
 
     required NYT.NProto.TGuid object_id = 1;
-    optional int32 external_cell_tag = 2;
+    optional uint32 external_cell_tag = 2;
     optional NYT.NProto.TGuid external_transaction_id = 5;
     optional TColumns omitted_inaccessible_columns = 3;
     optional TSecurityTags security_tags = 4;

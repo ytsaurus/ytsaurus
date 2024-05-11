@@ -18,7 +18,7 @@ message TReqStartTransaction
     optional NYT.NProto.TGuid parent_id = 5;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 6;
 
-    repeated int32 replicate_to_cell_tags = 7;
+    repeated uint32 replicate_to_cell_tags = 7;
 }
 
 message TRspStartTransaction

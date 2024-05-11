@@ -83,7 +83,7 @@ message TReqSetCellNodeDescriptors
         required TNodeDescriptor node_descriptor = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 
@@ -95,7 +95,7 @@ message TReqSetNodeStatistics
         required TNodeStatistics statistics = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 
@@ -103,7 +103,7 @@ message TReqSetNodeAggregatedStateReliability
 {
     required uint32 node_id = 1;
     required int32 cell_reliability = 2; // ECellAggregatedStateReliability
-    required int32 cell_tag = 3;
+    required uint32 cell_tag = 3;
 }
 
 // COMPAT(aleksandra-zh)
@@ -115,7 +115,7 @@ message TReqSetNodeStates
         required int32 state = 2; // ENodeState
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 
@@ -123,7 +123,7 @@ message TReqSetNodeState
 {
     required uint32 node_id = 1;
     required int32 state = 2; // ENodeState
-    required int32 cell_tag = 3;
+    required uint32 cell_tag = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

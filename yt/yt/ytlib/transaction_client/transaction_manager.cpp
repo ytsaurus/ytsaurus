@@ -776,7 +776,7 @@ private:
         if (options.ReplicateToMasterCellTags) {
             for (auto tag : *options.ReplicateToMasterCellTags) {
                 if (tag != CoordinatorMasterCellTag_) {
-                    request->add_replicate_to_cell_tags(ToProto<int>(tag));
+                    request->add_replicate_to_cell_tags(ToProto<ui32>(tag));
                 }
             }
         }

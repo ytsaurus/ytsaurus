@@ -43,7 +43,7 @@ message TRspGetCellDescriptors
 
 message TReqFindCellDescriptorsByCellTags
 {
-    repeated int32 cell_tags = 1;
+    repeated uint32 cell_tags = 1;
 }
 
 message TRspFindCellDescriptorsByCellTags

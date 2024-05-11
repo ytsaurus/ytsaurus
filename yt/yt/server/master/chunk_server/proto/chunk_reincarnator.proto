@@ -75,7 +75,7 @@ message TReqOnExportedChunkReincarnationCheckFinished
     }
 
     required int64 config_version = 1;
-    required int32 foreign_cell_tag = 2;
+    required uint32 foreign_cell_tag = 2;
     repeated TSubresponse subresponses = 3;
 }
 

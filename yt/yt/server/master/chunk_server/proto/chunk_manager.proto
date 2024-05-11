@@ -31,7 +31,7 @@ message TReqUpdateChunkRequisition
         required TChunkRequisition requisition = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TUpdate updates = 3;
     repeated TChunkRequisitionDictItem chunk_requisition_dict = 4;
 }

@@ -206,7 +206,7 @@ message TReqSetTabletCellStatistics
         required TTabletCellStatistics statistics = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 
@@ -252,7 +252,7 @@ message TReqSetTabletCellBundleResourceUsage
         required TTabletResources resource_usage = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 

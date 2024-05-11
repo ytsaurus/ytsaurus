@@ -797,7 +797,7 @@ private:
             // because some further replication results depend on these cell tags.
             NProto::TReqReplicateDynamicallyPropagatedMasterCellTags request;
             for (auto cellTag : GetDynamicallyPropagatedMastersCellTags()) {
-                request.add_dynamically_propagated_masters_cell_tags(ToProto<int>(cellTag));
+                request.add_dynamically_propagated_masters_cell_tags(ToProto<ui32>(cellTag));
             }
             PostToMaster(request, cellTag, true);
         }

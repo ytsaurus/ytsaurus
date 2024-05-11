@@ -213,7 +213,7 @@ private:
 
             auto req = proxy.FindCellDescriptorsByCellTags();
             for (auto cellTag : cellTags) {
-                req->add_cell_tags(ToProto<int>(cellTag));
+                req->add_cell_tags(ToProto<ui32>(cellTag));
             }
 
             auto rsp = WaitFor(req->Invoke())

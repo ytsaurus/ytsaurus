@@ -180,7 +180,7 @@ message TMergeChunksJobSpecExt
         optional TMergeChunksJobSpecExt merge_chunks_job_spec_ext = 208;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TMergeChunkInfo input_chunks = 2;
     required NYT.NProto.TGuid output_chunk_id = 3;
     required int32 medium_index = 4;
