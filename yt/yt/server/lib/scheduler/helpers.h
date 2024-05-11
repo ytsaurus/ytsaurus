@@ -16,7 +16,7 @@ namespace NYT::NScheduler {
 
 TAllocationId GenerateAllocationId(NObjectClient::TCellTag tag, NNodeTrackerClient::TNodeId nodeId);
 NNodeTrackerClient::TNodeId NodeIdFromAllocationId(TAllocationId allocationId);
-ui64 RandomPartFromAllocationId(TAllocationId allocationId);
+ui64 EntropyFromAllocationId(TAllocationId allocationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

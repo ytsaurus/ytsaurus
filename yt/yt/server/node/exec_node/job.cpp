@@ -2560,8 +2560,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 YT_VERIFY(artifact.Chunk);
 
                 YT_LOG_INFO(
-                    "Make bind for artifact (FileName: %v, Executable: %v"
-                    ", SandboxKind: %v, CompressedDataSize: %v)",
+                    "Make bind for artifact (FileName: %v, Executable: %v, "
+                    "SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
@@ -2580,14 +2580,14 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
-    auto calculateShardingKey = [&] (size_t shardingKeyLength) {
-        auto randomPart = RandomPartFromAllocationId(GetAllocationId());
-        auto randomPartHex = Format("%016lx", randomPart);
-        return randomPartHex.substr(0, shardingKeyLength);
+    auto calculateShardingKey = [&] (int shardingKeyLength) {
+        auto entropy = EntropyFromAllocationId(GetAllocationId());
+        auto entropyHex = Format("%016lx", entropy);
+        return entropyHex.substr(0, shardingKeyLength);
     };
 
     auto tryReplaceSlotIndex = [&] (TString& str) {
-        size_t index = str.find(SlotIndexPattern);
+        auto index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
             str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }

@@ -37,7 +37,7 @@ TNodeId NodeIdFromAllocationId(TAllocationId allocationId)
     return TNodeId(allocationId.Underlying().Parts32[0]);
 }
 
-ui64 RandomPartFromAllocationId(TAllocationId allocationId)
+ui64 EntropyFromAllocationId(TAllocationId allocationId)
 {
     return allocationId.Underlying().Parts64[1];
 }
