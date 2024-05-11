@@ -181,22 +181,22 @@ private:
     {
         auto service = New<TCompositeMapService>()
             // COMPAT(gritukan): Drop it in favour of job_data_statistics.
-            ->AddChild("statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
-                        .Value(this_->JobDataStatistics_ + this_->TeleportDataStatistics_);
+                        .Value(JobDataStatistics_ + TeleportDataStatistics_);
                 }
             })))
-            ->AddChild("job_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("job_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
-                        .Value(this_->JobDataStatistics_);
+                        .Value(JobDataStatistics_);
                 }
             })))
-            ->AddChild("teleport_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("teleport_data_statistics", IYPathService::FromProducer(BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
-                        .Value(this_->TeleportDataStatistics_);
+                        .Value(TeleportDataStatistics_);
                 }
             })));
 
@@ -330,10 +330,10 @@ public:
         vertexMapService->SetOpaque(false);
         auto service = New<TCompositeMapService>()
             ->AddChild("vertices", std::move(vertexMapService))
-            ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+            ->AddChild("topological_ordering", IYPathService::FromProducer(BIND([this, weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
-                        .List(this_->GetTopologicalOrdering());
+                        .List(GetTopologicalOrdering());
                 }
             })));
         service->SetOpaque(false);

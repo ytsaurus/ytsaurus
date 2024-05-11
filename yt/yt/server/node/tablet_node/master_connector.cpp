@@ -141,10 +141,10 @@ private:
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             InsertOrCrash(newSecondaryCellTags, cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
-                futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 
-                    if (auto strongThis = this_.Lock()) {
+                    if (auto this_ = weakThis.Lock()) {
                         return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
                     }
                     return MakeFuture(false);

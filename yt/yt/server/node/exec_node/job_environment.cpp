@@ -563,7 +563,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return BIND([this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
             std::vector<TShellCommandOutput> outputs;
             outputs.reserve(commands.size());
 
@@ -576,7 +576,8 @@ public:
                     command->Args,
                     user,
                     devices);
-                auto launcher = this_->CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
+
+                auto launcher = CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
                 if (devices) {
                     launcher->SetDevices(*devices);
                 }
@@ -699,13 +700,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)] (const TError& error) {
-            // We use weak ptr to avoid cyclic references between container manager and job environment.
-            auto this_ = weakThis_.Lock();
-            if (this_) {
-                this_->Disable(error);
-            }
-        });
+        // We use weak ptr to avoid cyclic references between container manager and job environment.
+        auto portoFatalErrorHandler = BIND(&TPortoJobEnvironment::Disable, MakeWeak(this));
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
         SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);

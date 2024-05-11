@@ -485,8 +485,8 @@ public:
         const auto& controlInvoker = Bootstrap_->GetControlInvoker();
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
-            controlInvoker->Invoke(BIND([this, this_ = MakeWeak(this), cellTag, immediately] {
-                if (auto strongThis = this_.Lock()) {
+            controlInvoker->Invoke(BIND([this, weakThis = MakeWeak(this), cellTag, immediately] {
+                if (auto this_ = weakThis.Lock()) {
                     YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, /*immediately*/ immediately, /*outOfOrder*/ true));
                 }
             }));
@@ -774,13 +774,10 @@ private:
             if (clusterNodeMasterConnector->IsConnected()) {
                 delta->State = EMasterConnectorState::Registered;
 
-                futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                futures.push_back(BIND([this, this_ = MakeStrong(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 
-                    if (auto strongThis = this_.Lock()) {
-                        return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
-                    }
-                    return MakeFuture(false);
+                    return DoScheduleHeartbeat(cellTag, /*immediately*/ false, /*outOfOrder*/ false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }
         }

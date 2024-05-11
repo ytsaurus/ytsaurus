@@ -1387,8 +1387,8 @@ private:
 
     static std::vector<TError> GetAlerts(const TWeakPtr<TMulticellManager>& weakThis)
     {
-        if (auto strongThis = weakThis.Lock()) {
-            return strongThis->DoGetAlerts();
+        if (auto this_ = weakThis.Lock()) {
+            return this_->DoGetAlerts();
         } else {
             return {};
         }

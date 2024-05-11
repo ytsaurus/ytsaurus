@@ -392,8 +392,8 @@ private:
             }
 
             return CheckClusterState()
-                .Apply(BIND([=, this, weakThis_ = MakeWeak(this)] {
-                    if (auto this_ = weakThis_.Lock()) {
+                .Apply(BIND([=, this, weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
                         return CheckReplicaState();
                     } else {
                         return VoidFuture;

@@ -86,10 +86,8 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetControlInvoker()->Invoke(
-            BIND([this, this_ = MakeWeak(this), cellTag, immediately] {
-                if (auto strongThis = this_.Lock()) {
-                    YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, immediately));
-                }
+            BIND([this, this_ = MakeStrong(this), cellTag, immediately] {
+                YT_UNUSED_FUTURE(DoScheduleHeartbeat(cellTag, immediately));
             }));
     }
 
@@ -210,13 +208,14 @@ private:
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             newSecondaryCellTags.emplace_back(cellTag);
             if (clusterNodeMasterConnector->IsConnected()) {
-                futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+                futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 
-                    if (auto strongThis = this_.Lock()) {
+                    if (auto this_ = weakThis.Lock()) {
                         return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
+                    } else {
+                        return MakeFuture(false);
                     }
-                    return MakeFuture(false);
                 }).AsyncVia(HeartbeatInvoker_).Run());
             }
         }

@@ -923,10 +923,12 @@ private:
             LoadLayers();
 
             if (HealthChecker_) {
-                HealthChecker_->SubscribeFailed(BIND([=, this, this_ = MakeWeak(this)] (const TError& result) {
-                    Disable(
-                        result,
-                        /*persistentDisable*/ !result.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+                HealthChecker_->SubscribeFailed(BIND([=, this, weakThis = MakeWeak(this)] (const TError& result) {
+                    if (auto this_ = weakThis.Lock()) {
+                        Disable(
+                            result,
+                            /*persistentDisable*/ !result.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+                    }
                 }).Via(LocationQueue_->GetInvoker()));
                 HealthChecker_->Start();
             }
@@ -2259,7 +2261,7 @@ private:
                 }
 
                 if (!location) {
-                    location = this_->PickLocation();
+                    location = PickLocation();
                 }
 
                 // Import layer in context of container, i.e. account memory allocations to container, e.g.
@@ -2755,11 +2757,11 @@ public:
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
         return AllSucceeded(std::move(overlayDataFutures))
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "overlay", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-                return this_->CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
+                return CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
             .As<IVolumePtr>();
@@ -2950,13 +2952,13 @@ private:
 
             auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
             auto volumeFuture = downloadFuture.Apply(
-                BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
+                BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
                     auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                     TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
                     // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                    return this_->CreateSquashFSVolume(
+                    return CreateSquashFSVolume(
                         tag,
                         std::move(tagSet),
                         std::move(volumeCreateTimeGuard),

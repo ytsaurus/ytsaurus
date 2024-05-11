@@ -662,15 +662,11 @@ private:
         }
 
         job->GetCleanupFinishedEvent()
-            .Subscribe(BIND_NO_PROPAGATE([=, this_ = MakeWeak(this), job_ = MakeWeak(job)] (const TError& result) {
+            .Subscribe(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), weakJob = MakeWeak(job)] (const TError& result) {
                 YT_LOG_FATAL_IF(!result.IsOK(), result, "Cleanup finish failed");
-
-                auto strongThis = this_.Lock();
-                if (!strongThis) {
-                    return;
+                if (auto strongJob = weakJob.Lock()) {
+                    OnJobCleanupFinished(strongJob);
                 }
-
-                strongThis->OnJobCleanupFinished(job_);
             })
                 .Via(Bootstrap_->GetJobInvoker()));
 
@@ -1483,14 +1479,8 @@ private:
         }
     }
 
-    void OnJobCleanupFinished(const TWeakPtr<TJob>& weakJob)
+    void OnJobCleanupFinished(const TJobPtr& job)
     {
-        auto job = weakJob.Lock();
-
-        if (!job) {
-            return;
-        }
-
         YT_VERIFY(job->GetPhase() == EJobPhase::Finished);
         if (JobsWaitingForCleanup_.erase(job)) {
             YT_LOG_DEBUG(

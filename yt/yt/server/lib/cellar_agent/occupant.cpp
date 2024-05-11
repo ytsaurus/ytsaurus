@@ -882,7 +882,7 @@ private:
         return PrerequisiteTransactionId_;
     }
 
-    static TFuture<void> OnLeaderLeaseCheckThunk(TWeakPtr<TCellarOccupant> weakThis)
+    static TFuture<void> OnLeaderLeaseCheckThunk(const TWeakPtr<TCellarOccupant>& weakThis)
     {
         auto this_ = weakThis.Lock();
         return this_ ? this_->OnLeaderLeaseCheck() : VoidFuture;

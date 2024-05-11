@@ -261,12 +261,12 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
             // This is a heavy part of preparation, offload it to compression invoker.
             // TODO(babenko): get rid of MakeWeak
-            BIND([weakThis = MakeWeak(this)] {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
+            BIND([this, weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     return std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>();
                 }
-                return strongThis->PrepareNodeDirectory();
+                return PrepareNodeDirectory();
             })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
@@ -1971,32 +1971,34 @@ void TJob::RunWithWorkspaceBuilder()
         Invoker_,
         std::move(context));
 
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
-        UpdateArtifactStatistics(compressedDataSize, cacheHit);
-    })
-        .Via(Invoker_));
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(
+        BIND_NO_PROPAGATE(&TJob::UpdateArtifactStatistics, MakeWeak(this)));
 
     // TODO(pogorelov): Refactor it. Phase should be changed in callback, not in signal handler.
     // We intentionally subscribe here without Via(Invoker_) to prevent data race.
-    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (EJobPhase phase) {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        SetJobPhase(phase);
-    }));
+    workspaceBuilder->SubscribeUpdateBuilderPhase(
+        BIND_NO_PROPAGATE(&TJob::SetJobPhase, MakeWeak(this)));
 
     // TODO(pogorelov): Do not pass TJobWorkspaceBuilderPtr, define structure.
-    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
-        PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
-        PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+    workspaceBuilder->SubscribeUpdateTimers(
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return;
+            }
 
-        StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
-        FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
-    })
-        .Via(Invoker_));
+            PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
+            PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+
+            StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
+            FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
+        })
+            .Via(Invoker_));
 
     auto workspaceFuture = workspaceBuilder->Run();
-    workspaceFuture.Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
-        .Via(Invoker_));
+    workspaceFuture.Subscribe(
+        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+            .Via(Invoker_));
     WorkspaceBuildingFuture_ = workspaceFuture.AsVoid();
 }
 

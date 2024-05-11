@@ -150,9 +150,9 @@ private:
             volumeProperties["inode_limit"] = ToString(*properties.InodeLimit);
         }
 
-        auto onVolumeCreated = BIND([this_ = MakeStrong(this)] (const TString& volumePath) {
-            auto guard = Guard(this_->SpinLock_);
-            YT_VERIFY(this_->ManagedVolumes_.insert(volumePath).second);
+        auto onVolumeCreated = BIND([this, this_ = MakeStrong(this)] (const TString& volumePath) {
+            auto guard = Guard(SpinLock_);
+            YT_VERIFY(ManagedVolumes_.insert(volumePath).second);
         });
 
         return Executor_->CreateVolume(path, volumeProperties)

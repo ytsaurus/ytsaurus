@@ -1195,16 +1195,16 @@ private:
     TClusterClientCachePtr CreateClusterClientCache() const
     {
         return New<TClusterClientCache>(
-            BIND([weakThis_ = MakeWeak(this)] (TString clusterName) -> TErrorOr<NApi::IClientPtr> {
-                auto tracker = weakThis_.Lock();
-                if (!tracker) {
+            BIND([this, weakThis = MakeWeak(this)] (const TString& clusterName) -> TErrorOr<NApi::IClientPtr> {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     return TError("Replicated table tracker was destroyed");
                 }
 
                 YT_LOG_DEBUG("Creating client for (Cluster: %v)",
                     clusterName);
 
-                if (auto client = tracker->Host_->CreateClusterClient(clusterName)) {
+                if (auto client = Host_->CreateClusterClient(clusterName)) {
                     return client;
                 }
 

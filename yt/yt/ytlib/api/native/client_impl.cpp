@@ -402,10 +402,10 @@ TFuture<T> TClient::Execute(
         promise,
         callback = std::move(callback),
         this,
-        this_ = MakeWeak(this)
+        weakThis = MakeWeak(this)
     ] () mutable {
-        auto client = this_.Lock();
-        if (!client) {
+        auto this_ = weakThis.Lock();
+        if (!this_) {
             return;
         }
 

@@ -47,9 +47,9 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker(),
-        BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
-            auto strongThis = weakThis.Lock();
-            return strongThis ? strongThis->SendHeartbeat() : TError("Controller agent connector is destroyed");
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
+            auto this_ = weakThis.Lock();
+            return this_ ? SendHeartbeat() : TError("Controller agent connector is destroyed");
         }),
         GetConfig()->HeartbeatExecutor))
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(

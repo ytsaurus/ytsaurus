@@ -441,23 +441,25 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
         std::vector<TTestAllocationGuard> testHeap;
 
         std::function<void()> incrementer = [
+                this,
+                this_ = MakeStrong(this),
                 operationId = ToString(OperationId),
-                Logger = Logger,
-                this_ = MakeStrong(this)
-            ] () mutable {
-            auto size = this_->TestingAllocationSize_.fetch_add(allocationPartSize);
-            YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
-                size + allocationPartSize);
-        };
+                Logger = Logger
+            ] {
+                auto size = TestingAllocationSize_.fetch_add(allocationPartSize);
+                YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
+                    size + allocationPartSize);
+            };
 
         std::function<void()> decrementer = [
+            this,
+            this_ = MakeStrong(this),
             OperationId = ToString(OperationId),
-            Logger = Logger,
-            this_ = MakeStrong(this)] () mutable {
-            auto size = this_->TestingAllocationSize_.fetch_sub(allocationPartSize);
-            YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
-                size - allocationPartSize);
-        };
+            Logger = Logger] {
+                auto size = TestingAllocationSize_.fetch_sub(allocationPartSize);
+                YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
+                    size - allocationPartSize);
+            };
 
         while (TestingAllocationSize_ > 0) {
             testHeap.emplace_back(
@@ -930,12 +932,12 @@ void TOperationControllerBase::InitializeOrchid()
         return IYPathService::FromProducer(BIND(
             [
                 =,
-                fluentMethod = std::move(fluentMethod),
                 this,
-                weakThis = MakeWeak(this)
+                weakThis = MakeWeak(this),
+                fluentMethod = std::move(fluentMethod)
             ] (IYsonConsumer* consumer) {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
                 }
 
@@ -1858,9 +1860,9 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
-        BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
-                return this_->GetAliveIntermediateChunks();
+                return GetAliveIntermediateChunks();
             } else {
                 return THashSet<TChunkId>();
             }
@@ -10371,9 +10373,9 @@ void TOperationControllerBase::UpdateExecNodes()
 
     const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
-        BIND([=, this, this_ = MakeWeak(this)] {
-            auto strongThis = this_.Lock();
-            if (!strongThis) {
+        BIND([=, this, weakThis = MakeWeak(this)] {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
                 return;
             }
 

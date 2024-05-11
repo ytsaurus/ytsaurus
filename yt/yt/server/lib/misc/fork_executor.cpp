@@ -57,9 +57,9 @@ TFuture<void> TForkExecutor::Fork()
         YT_LOG_INFO("Going to fork");
 
         TDelayedExecutor::Submit(
-            BIND([this, this_ = MakeWeak(this)] {
-                auto executor = this_.Lock();
-                if (!executor) {
+            BIND([this, weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     return;
                 }
 
