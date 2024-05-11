@@ -23,9 +23,13 @@ class JavaPersistenceApi {
     private static final String COLUMN_PRECISION = "precision";
     private static final String COLUMN_SCALE = "scale";
     private static final String COLUMN_DEFINITION = "columnDefinition";
+    private static final String EMBEDDABLE = "Embeddable";
+    private static final String EMBEDDED = "Embedded";
     private static final Set<String> ENTITY_ANNOTATIONS = getAnnotationsFor(ENTITY);
     private static final Set<String> TRANSIENT_ANNOTATIONS = getAnnotationsFor(TRANSIENT);
     private static final Set<String> COLUMN_ANNOTATIONS = getAnnotationsFor(COLUMN);
+    private static final Set<String> EMBEDDABLE_ANNOTATIONS = getAnnotationsFor(EMBEDDABLE);
+    private static final Set<String> EMBEDDED_ANNOTATIONS = getAnnotationsFor(EMBEDDED);
 
     private JavaPersistenceApi() {
     }
@@ -42,6 +46,13 @@ class JavaPersistenceApi {
         return COLUMN_ANNOTATIONS;
     }
 
+    static Set<String> embeddableAnnotations() {
+        return EMBEDDABLE_ANNOTATIONS;
+    }
+
+    static Set<String> embeddedAnnotations() {
+        return EMBEDDED_ANNOTATIONS;
+    }
     static boolean isColumnAnnotationPresent(@Nullable Annotation annotation) {
         return annotation != null &&
                 anyMatchWithAnnotation(annotation, JavaPersistenceApi.columnAnnotations());

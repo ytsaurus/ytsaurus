@@ -6,9 +6,11 @@ import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -41,22 +43,49 @@ public class EntityTableSchemaCreator {
 
     public static <T> TableSchema create(Class<T> annotatedClass, @Nullable TableSchema tableSchema) {
         if (!anyOfAnnotationsPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())) {
-            throw new IllegalArgumentException("Class must be annotated with @Entity");
+            throw new IllegalArgumentException(String.format("Class %s must be annotated with @Entity", annotatedClass.getName()));
         }
 
         TableSchema.Builder tableSchemaBuilder = TableSchema.builder();
         StructType tableSchemaAsStructType = tableSchema != null ?
                 TiTypeUtil.tableSchemaToStructTiType(tableSchema).asStruct() : null;
-        for (Field field : getAllDeclaredFields(annotatedClass)) {
+        var fieldsChain = new LinkedHashMap<Class<?>, String>();
+        try {
+            processFieldsRecursively(annotatedClass, tableSchemaBuilder, tableSchemaAsStructType, fieldsChain);
+        } catch (InfiniteLoopException e) {
+            var loopChain = fieldsChain.entrySet().stream()
+                .map(it -> String.format("%s.%s", it.getKey().getName(), it.getValue()))
+                .collect(Collectors.joining("->"));
+            throw new IllegalArgumentException(String.format("Entity %s contains a loop in fields hierarchy: %s",
+                annotatedClass.getName(), loopChain));
+        }
+        return tableSchemaBuilder.build();
+    }
+
+    private static <T> void processFieldsRecursively(Class<T> clazz,
+                                                     TableSchema.Builder tableSchemaBuilder,
+                                                     StructType tableSchemaAsStructType,
+                                                     Map<Class<?>, String> fieldsChain) {
+        if (fieldsChain.containsKey(clazz)) {
+            throw new InfiniteLoopException();
+        }
+        for (Field field : getAllDeclaredFields(clazz)) {
             if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
                 continue;
+            }
+            if (anyOfAnnotationsPresent(field.getType(), JavaPersistenceApi.embeddableAnnotations())) {
+                fieldsChain.put(clazz, field.getName());
+                processFieldsRecursively(field.getType(), tableSchemaBuilder, tableSchemaAsStructType, fieldsChain);
+                fieldsChain.remove(clazz);
+                continue;
+            } else if (anyOfAnnotationsPresent(field, JavaPersistenceApi.embeddedAnnotations())) {
+                throw new IllegalArgumentException(String.format("%s.%s field is annotated with @Embedded, but %s " +
+                    "in not annotated with @Embeddable", clazz.getName(), field.getName(), field.getType().getName()));
             }
             tableSchemaBuilder.add(
                     getFieldColumnSchema(field, tableSchemaAsStructType)
             );
         }
-
-        return tableSchemaBuilder.build();
     }
 
     private static ColumnSchema getFieldColumnSchema(Field field, @Nullable StructType structTypeInSchema) {
@@ -180,11 +209,11 @@ public class EntityTableSchemaCreator {
             );
         }
         return getEntityTiType(
-                clazz,
-                Optional.ofNullable(tiTypeInSchema)
-                        .filter(TiType::isStruct)
-                        .map(TiType::asStruct)
-                        .orElse(null)
+            clazz,
+            Optional.ofNullable(tiTypeInSchema)
+                    .filter(TiType::isStruct)
+                    .map(TiType::asStruct)
+                    .orElse(null)
         );
     }
 
@@ -307,6 +336,10 @@ public class EntityTableSchemaCreator {
     }
 
     public static class MismatchEntityAndTableSchemaDecimalException extends RuntimeException {
+
+    }
+
+    private static class InfiniteLoopException extends RuntimeException {
 
     }
 }
