@@ -172,9 +172,7 @@ public:
     void Run();
     void LoadSnapshotOrThrow(
         const TString& fileName,
-        bool dump,
-        bool EnableTotalWriteCountReport,
-        const TString& dumpConfigString);
+        bool dump);
 
     void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames);
 
@@ -277,21 +275,13 @@ protected:
     void DoRun();
     void DoLoadSnapshot(
         const TString& fileName,
-        bool dump,
-        bool enableTotalWriteCountReport,
-        const NHydra::TSerializationDumperConfigPtr& dumpConfig);
+        bool dump);
 
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
 
     void DoBuildSnapshot();
 
     void DoFinishDryRun();
-
-    void ValidateLoadSnapshotParameters(
-        bool dump,
-        bool enableTotalWriteCountReport,
-        const TString& dumpConfigString,
-        NHydra::TSerializationDumperConfigPtr* dumpConfig);
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);
 };

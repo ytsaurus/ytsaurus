@@ -129,11 +129,6 @@ class TCompositeAutomaton
 {
 public:
     void SetSerializationDumpEnabled(bool value);
-    void SetEnableTotalWriteCountReport(bool enableTotalWriteCountReport);
-    void SetLowerWriteCountDumpLimit(i64 lowerLimit);
-    void SetUpperWriteCountDumpLimit(i64 upperLimit);
-
-    void SetSnapshotValidationOptions(const TSnapshotValidationOptions& options) override;
 
     TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) override;
     void LoadSnapshot(const TSnapshotLoadContext& context) override;

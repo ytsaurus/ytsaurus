@@ -46,10 +46,6 @@ public:
             .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("dump-config", "config for snapshot dumping, which contains 'lower_limit' and 'upper_limit'")
-            .StoreResult(&DumpSnapshotConfig_)
-            .RequiredArgument("CONFIG_YSON");
-        Opts_
             .AddLongOption("export-snapshot", "export master snapshot\nexpects path to snapshot")
             .StoreMappedResult(&SnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
@@ -73,10 +69,6 @@ public:
                                              "By default snapshot will be saved in the working directory")
             .StoreResult(&SnapshotBuildDirectory_)
             .OptionalArgument("DIRECTORY");
-        Opts_
-            .AddLongOption("report-total-write-count")
-            .SetFlag(&EnableTotalWriteCountReport_)
-            .NoArgument();
         Opts_
             .AddLongOption("skip-tvm-service-env-validation", "don't validate tvm service files")
             .SetFlag(&SkipTvmServiceEnvValidation_)
@@ -189,7 +181,7 @@ protected:
             bootstrap->Run();
         } else {
             if (loadSnapshot) {
-                bootstrap->LoadSnapshotOrThrow(SnapshotPath_, dumpSnapshot, EnableTotalWriteCountReport_, DumpSnapshotConfig_);
+                bootstrap->LoadSnapshotOrThrow(SnapshotPath_, dumpSnapshot);
             }
             if (exportSnapshot) {
                 // TODO (h0pless): maybe rename this to ExportState
@@ -211,11 +203,9 @@ protected:
 
 private:
     TString SnapshotPath_;
-    TString DumpSnapshotConfig_;
     TString ExportSnapshotConfig_;
     std::vector<TString> ChangelogFileNames_;
     TString SnapshotBuildDirectory_;
-    bool EnableTotalWriteCountReport_ = false;
     bool SkipTvmServiceEnvValidation_ = false;
     bool SleepAfterInitialize_ = false;
 };

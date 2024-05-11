@@ -301,7 +301,7 @@ private:
             DryRunOccupant_->GetSnapshotLocalIOInvoker());
 
         const auto& automaton = DryRunOccupant_->GetAutomaton();
-        automaton->SetSnapshotValidationOptions({dumpSnapshot, false, nullptr});
+        automaton->SetSerializationDumpEnabled(dumpSnapshot);
 
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
         auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);

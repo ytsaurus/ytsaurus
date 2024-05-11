@@ -66,9 +66,6 @@ struct IAutomaton
     //! Checks that persistent state invariants are held. This method is called during
     //! snapshot validation and after some mutations in tests.
     virtual void CheckInvariants() = 0;
-
-    //! Sets parameters needed for snapshot validation.
-    virtual void SetSnapshotValidationOptions(const TSnapshotValidationOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAutomaton)

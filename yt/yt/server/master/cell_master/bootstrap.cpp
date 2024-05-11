@@ -613,14 +613,9 @@ void TBootstrap::Run()
 
 void TBootstrap::LoadSnapshotOrThrow(
     const TString& fileName,
-    bool dump,
-    bool enableTotalWriteCountReport,
-    const TString& dumpConfigString)
+    bool dump)
 {
-    TSerializationDumperConfigPtr dumpConfig;
-    ValidateLoadSnapshotParameters(dump, enableTotalWriteCountReport, dumpConfigString, &dumpConfig);
-
-    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump, enableTotalWriteCountReport, dumpConfig)
+    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -1185,9 +1180,7 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoLoadSnapshot(
     const TString& fileName,
-    bool dump,
-    bool enableTotalWriteCountReport,
-    const TSerializationDumperConfigPtr& dumpConfig)
+    bool dump)
 {
     auto snapshotId = TryFromString<int>(NFS::GetFileNameWithoutExtension(fileName));
     if (snapshotId.Empty()) {
@@ -1203,7 +1196,7 @@ void TBootstrap::DoLoadSnapshot(
     dryRunHydraManager->Initialize();
 
     const auto& automaton = HydraFacade_->GetAutomaton();
-    automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
+    automaton->SetSerializationDumpEnabled(dump);
 
     dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), *snapshotId);
 }
@@ -1254,24 +1247,6 @@ void TBootstrap::DoFinishDryRun()
     const auto& hydraManager = HydraFacade_->GetHydraManager();
     auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
     dryRunHydraManager->DryRunShutdown();
-}
-
-void TBootstrap::ValidateLoadSnapshotParameters(
-    bool dump,
-    bool enableTotalWriteCountReport,
-    const TString& dumpConfigString,
-    TSerializationDumperConfigPtr* dumpConfig)
-{
-    if (dump && enableTotalWriteCountReport) {
-        THROW_ERROR_EXCEPTION("'EnableTotalWriteCountReport' can be specified only for snapshot validation");
-    }
-
-    if (dumpConfigString) {
-        if (!dump) {
-            THROW_ERROR_EXCEPTION("'DumpConfig' can be specified only for snapshot dumping");
-        }
-        *dumpConfig = ConvertTo<TSerializationDumperConfigPtr>(NYson::TYsonString(dumpConfigString));
-    }
 }
 
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
