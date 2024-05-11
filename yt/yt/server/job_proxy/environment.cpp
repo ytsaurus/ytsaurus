@@ -89,7 +89,7 @@ void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsu
             .OptionalItem("system", statistics.SystemUsageTime)
             .OptionalItem("wait", statistics.WaitTime)
             .OptionalItem("throttled", statistics.ThrottledTime)
-            .OptionalItem("cfs_throttled_time", statistics.CfsThrottledTime)
+            .OptionalItem("cfs_throttled", statistics.CfsThrottledTime)
             .OptionalItem("context_switches", statistics.ContextSwitchesDelta)
             .OptionalItem("peak_thread_count", statistics.PeakThreadCount)
         .EndMap();
