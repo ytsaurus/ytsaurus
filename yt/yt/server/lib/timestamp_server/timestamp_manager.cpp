@@ -86,14 +86,14 @@ public:
 
         RegisterLoader(
             "TimestampManager",
-            BIND(&TImpl::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TimestampManager",
-            BIND(&TImpl::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::Save, Unretained(this)));
 
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::HydraCommitTimestamp, Unretained(this)));
     }
 
     IServicePtr GetRpcService()

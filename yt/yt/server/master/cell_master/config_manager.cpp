@@ -36,11 +36,11 @@ public:
 
         RegisterLoader(
             "ConfigManager",
-            BIND(&TConfigManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TConfigManager::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ConfigManager",
-            BIND(&TConfigManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TConfigManager::Save, Unretained(this)));
     }
 
     void Initialize() override

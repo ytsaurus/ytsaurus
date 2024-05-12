@@ -53,19 +53,19 @@ public:
     {
         RegisterLoader(
             "GraftingManager.Keys",
-            BIND(&TGraftingManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TGraftingManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "GraftingManager.Values",
-            BIND(&TGraftingManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TGraftingManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "GraftingManager.Keys",
-            BIND(&TGraftingManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TGraftingManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "GraftingManager.Values",
-            BIND(&TGraftingManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TGraftingManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TGraftingManager::HydraCreateScion, Unretained(this)));
     }

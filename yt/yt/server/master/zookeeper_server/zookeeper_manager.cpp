@@ -27,19 +27,19 @@ public:
     {
         RegisterLoader(
             "MasterZookeeperManager.Keys",
-            BIND(&TZookeeperManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TZookeeperManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "MasterZookeeperManager.Values",
-            BIND(&TZookeeperManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TZookeeperManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "MasterZookeeperManager.Keys",
-            BIND(&TZookeeperManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TZookeeperManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "MasterZookeeperManager.Values",
-            BIND(&TZookeeperManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TZookeeperManager::SaveValues, Unretained(this)));
     }
 
     void Initialize() override

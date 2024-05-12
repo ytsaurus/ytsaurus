@@ -42,14 +42,14 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ResponseKeeperManager",
-            BIND(&TResponseKeeperManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TResponseKeeperManager::Save, Unretained(this)));
         RegisterLoader(
             "ResponseKeeperManager",
-            BIND(&TResponseKeeperManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TResponseKeeperManager::Load, Unretained(this)));
         // COMPAT(babenko)
         RegisterLoader(
             "TResponseKeeperManager",
-            BIND(&TResponseKeeperManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TResponseKeeperManager::Load, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TResponseKeeperManager::HydraEvictKeptResponses, Unretained(this)));
 

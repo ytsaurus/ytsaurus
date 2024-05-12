@@ -210,42 +210,42 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TTabletManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TTabletManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadValues, Unretained(this)));
         RegisterLoader(
             "TabletManager.Async",
-            BIND(&TTabletManager::LoadAsync, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TTabletManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TTabletManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveValues, Unretained(this)));
         RegisterSaver(
             EAsyncSerializationPriority::Default,
             "TabletManager.Async",
-            BIND(&TTabletManager::SaveAsync, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnmountTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraRemountTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemountTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraSetTabletState, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraTrimRows, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraLockTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUnlockTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraRotateStore, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraSplitPartition, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraMergePartitions, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletState, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraTrimRows, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraLockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnlockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRotateStore, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSplitPartition, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMergePartitions, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAlterTableReplica, Unretained(this)));
@@ -255,7 +255,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletCellDecommissioned, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletCellSuspended, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReplicateTabletContent, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
     }
 
     void Initialize() override

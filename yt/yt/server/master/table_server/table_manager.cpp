@@ -128,19 +128,19 @@ public:
     {
         RegisterLoader(
             "TableManager.Keys",
-            BIND(&TTableManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TableManager.Values",
-            BIND(&TTableManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TableManager.Keys",
-            BIND(&TTableManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TableManager.Values",
-            BIND(&TTableManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::SaveValues, Unretained(this)));
 
         // COMPAT(shakurov, gritukan)
         RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});

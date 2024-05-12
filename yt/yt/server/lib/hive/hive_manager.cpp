@@ -179,19 +179,19 @@ public:
 
         RegisterLoader(
             "HiveManager.Keys",
-            BIND(&THiveManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&THiveManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "HiveManager.Values",
-            BIND(&THiveManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&THiveManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "HiveManager.Keys",
-            BIND(&THiveManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&THiveManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "HiveManager.Values",
-            BIND(&THiveManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&THiveManager::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
 

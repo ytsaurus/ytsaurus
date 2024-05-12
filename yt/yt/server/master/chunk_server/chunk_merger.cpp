@@ -645,11 +645,11 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
 
     RegisterLoader(
         "ChunkMerger",
-        BIND(&TChunkMerger::Load, Unretained(this)));
+        BIND_NO_PROPAGATE(&TChunkMerger::Load, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "ChunkMerger",
-        BIND(&TChunkMerger::Save, Unretained(this)));
+        BIND_NO_PROPAGATE(&TChunkMerger::Save, Unretained(this)));
 
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraCreateChunks, Unretained(this)));

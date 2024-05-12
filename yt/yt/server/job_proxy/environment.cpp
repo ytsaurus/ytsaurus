@@ -513,7 +513,7 @@ public:
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, ResourceUsageUpdatePeriod))
         , SlotContainerName_(*Self_->GetParentName())
     {
-        PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
+        PortoExecutor_->SubscribeFailed(BIND_NO_PROPAGATE(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
 
     TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetCpuStatistics() const override

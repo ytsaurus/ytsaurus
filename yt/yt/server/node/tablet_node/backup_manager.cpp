@@ -186,11 +186,11 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "BackupManager",
-            BIND(&TBackupManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::Save, Unretained(this)));
 
         RegisterLoader(
             "BackupManager",
-            BIND(&TBackupManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TBackupManager::Load, Unretained(this)));
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         Config_ = configManager->GetConfig()->TabletNode->BackupManager;

@@ -61,12 +61,12 @@ public:
 
         RegisterLoader(
             "CoordinatorManager.Values",
-            BIND(&TCoordinatorManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCoordinatorManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CoordinatorManager.Values",
-            BIND(&TCoordinatorManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCoordinatorManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqSuspend, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCoordinatorManager::HydraReqResume, Unretained(this)));

@@ -3,13 +3,10 @@
 #include "allocation.h"
 #include "bootstrap.h"
 #include "job_controller.h"
-#include "master_connector.h"
 #include "private.h"
+#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
-
-#include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 

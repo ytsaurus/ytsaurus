@@ -409,19 +409,19 @@ public:
 
         RegisterLoader(
             "ChunkManager.Keys",
-            BIND(&TChunkManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "ChunkManager.Values",
-            BIND(&TChunkManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "ChunkManager.Keys",
-            BIND(&TChunkManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ChunkManager.Values",
-            BIND(&TChunkManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkManager::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::DomesticMedium, primaryCellTag, 0xffffffffffffffff);

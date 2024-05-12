@@ -11,7 +11,7 @@ namespace NYT::NTabletNode {
 template <class TRequest>
 void TTabletAutomatonPart::RegisterForwardedMethod(TCallback<void(TRequest*)> callback)
 {
-    RegisterMethod(BIND(&TTabletAutomatonPart::ForwardedMethodImpl<TRequest>, Unretained(this), callback));
+    RegisterMethod(BIND_NO_PROPAGATE(&TTabletAutomatonPart::ForwardedMethodImpl<TRequest>, Unretained(this), callback));
 }
 
 template <class TRequest>

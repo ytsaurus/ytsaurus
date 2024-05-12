@@ -125,23 +125,23 @@ public:
 
         RegisterLoader(
             "TransactionManager.Keys",
-            BIND(&TTransactionManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionManager.Values",
-            BIND(&TTransactionManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::LoadValues, Unretained(this)));
         // COMPAT(gritukan)
         RegisterLoader(
             "TransactionManager.Async",
-            BIND(&TTransactionManager::LoadAsync, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
-            BIND(&TTransactionManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
-            BIND(&TTransactionManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::SaveValues, Unretained(this)));
 
         // COMPAT(babenko)
         RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraRegisterTransactionActions, Unretained(this)), {"NYT.NTabletNode.NProto.TReqRegisterTransactionActions"});

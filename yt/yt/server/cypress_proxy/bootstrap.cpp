@@ -208,7 +208,7 @@ private:
         }
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         {
             TCypressRegistrarOptions options{
@@ -263,7 +263,7 @@ private:
     {
         if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
             NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-                BIND([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+                BIND_NO_PROPAGATE([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
                     if (clusterName == *groundClusterName) {
                         auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
                         auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});

@@ -276,19 +276,19 @@ public:
     {
         RegisterLoader(
             "LeaseManager.Keys",
-            BIND(&TLeaseManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TLeaseManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "LeaseManager.Values",
-            BIND(&TLeaseManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TLeaseManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "LeaseManager.Keys",
-            BIND(&TLeaseManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TLeaseManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "LeaseManager.Values",
-            BIND(&TLeaseManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TLeaseManager::SaveValues, Unretained(this)));
 
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRegisterLease, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TLeaseManager::HydraRevokeLease, Unretained(this)));
