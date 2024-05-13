@@ -19,6 +19,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 
@@ -134,6 +136,7 @@ void TBootstrap::DoRun()
         std::move(connectionOptions));
 
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+    NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 

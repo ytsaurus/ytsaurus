@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -147,6 +149,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetMasterCellDirectorySynchronizer()->Start();
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);

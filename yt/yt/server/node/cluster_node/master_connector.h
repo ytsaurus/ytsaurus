@@ -58,12 +58,19 @@ struct IMasterConnector
      */
     virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) = 0;
 
-    //! Returns |True| iff node is currently connected to master.
+    //! Returns |True| iff node is currently connected to master, but not all processes related with registration are finished.
     /*!
     *  \note
     *  Thread affinity: any
     */
     virtual bool IsConnected() const = 0;
+
+    //! Returns |True| iff node is currently connected to master and all processes related with registration are finished.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual bool IsRegisteredAtPrimaryMaster() const = 0;
 
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.

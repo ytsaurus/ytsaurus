@@ -140,7 +140,7 @@ private:
         newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             InsertOrCrash(newSecondaryCellTags, cellTag);
-            if (clusterNodeMasterConnector->IsConnected()) {
+            if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
                 futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 

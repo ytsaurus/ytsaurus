@@ -1511,7 +1511,7 @@ private:
             ClusterNodeProfiler.WithPrefix("/caching_object_service"),
             NativeAuthenticator_);
         EmplaceOrCrash(CachingObjectServices_, CellTagFromId(cellId), cachingObjectService);
-        if (MasterConnector_->IsConnected()) {
+        if (MasterConnector_->IsRegisteredAtPrimaryMaster()) {
             RpcServer_->RegisterService(std::move(cachingObjectService));
         }
     }

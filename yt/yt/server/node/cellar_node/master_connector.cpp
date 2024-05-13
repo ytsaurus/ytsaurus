@@ -207,7 +207,7 @@ private:
         newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             newSecondaryCellTags.emplace_back(cellTag);
-            if (clusterNodeMasterConnector->IsConnected()) {
+            if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
                 futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -268,11 +268,6 @@ private:
     TFuture<bool> DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        if (!clusterNodeMasterConnector->IsConnected()) {
-            return MakeFuture(false);
-        }
 
         ++PerCellTagData_[cellTag].ScheduledHeartbeatCount;
 
