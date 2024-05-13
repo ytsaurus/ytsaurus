@@ -9,7 +9,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, raises_yt_error, read_table, wait, init_drivers, wait_drivers,
+    authors, map_reduce, raises_yt_error, read_table, wait, init_drivers, wait_drivers,
     exists, get, set, ls, create, remove,
     create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction,
@@ -115,16 +115,16 @@ class TestMasterCellAdditionBase(YTEnvSetup):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
     @classmethod
-    def _enable_last_cell(cls, downtime_nodes=True):
+    def _enable_last_cell(cls, downtime=True):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
         optional_services = [
             SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
-            NODES_SERVICE if downtime_nodes and cls.NUM_NODES != 0 else None,
-            CHAOS_NODES_SERVICE if downtime_nodes and cls.NUM_CHAOS_NODES != 0 else None,
+            NODES_SERVICE if cls.NUM_NODES != 0 else None,
+            CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
         ]
-        services = [service for service in optional_services if service is not None]
+        services = [service for service in optional_services if downtime and service is not None]
 
         with Restarter(cls.Env, services):
             for cell_id in cls.CELL_IDS:
@@ -146,13 +146,13 @@ class TestMasterCellAdditionBase(YTEnvSetup):
             master_exit_read_only_sync()
             cls.Env.synchronize()
 
-            if downtime_nodes:
+            if downtime:
                 cls.Env.rewrite_node_configs()
                 cls.Env.rewrite_chaos_node_configs()
+                cls.Env.rewrite_scheduler_configs()
+                cls.Env.rewrite_controller_agent_configs()
                 # COMPAT(cherepashka)
                 set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
-            cls.Env.rewrite_scheduler_configs()
-            cls.Env.rewrite_controller_agent_configs()
 
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
@@ -358,7 +358,7 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
         set("//sys/hosts/{}/@rack".format(host), "r")
         set("//sys/racks/r/@data_center", "d")
 
-        decommission_node(host, "check clster node hierarchy")
+        decommission_node(host, "check cluster node hierarchy")
         set("//sys/racks/r/@foo", "oof")
         set("//sys/data_centers/d/@bar", "rab")
 
@@ -456,6 +456,31 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
         for node in nodes:
             assert get(f"//sys/cluster_nodes/{node}/@multicell_states") == multicell_states
         assert_true_for_all_cells(self.Env, lambda driver: _check_nodes_state(nodes, driver=driver))
+
+    def check_basic_avialibility(self):
+        def _check_basic_map_reduce():
+            data = [{"foo": i} for i in range(3)]
+            create("table", "//tmp/in")
+            write_table("//tmp/in", data)
+            assert read_table("//tmp/in") == data
+            create("table", "//tmp/out")
+
+            map_reduce(
+                mapper_command="cat",
+                reducer_command="cat",
+                in_="//tmp/in",
+                out="//tmp/out",
+                sort_by=["foo"]
+            )
+
+            remove("//tmp/in")
+            remove("//tmp/out")
+
+        _check_basic_map_reduce()
+
+        yield
+
+        _check_basic_map_reduce()
 
 
 class TestMasterCellAdditionWithNodesDowntime(TestMasterCellAdditionBaseChecks):
@@ -752,6 +777,52 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
 
+        data = [{"foo": i} for i in range(3)]
+        create("table", "//tmp/in", attributes={"external_cell_tag": 11})
+        write_table("//tmp/in", data)
+        assert read_table("//tmp/in") == data
+        create("table", "//tmp/out", attributes={"external_cell_tag": 13})
+
+        map_reduce(
+            mapper_command="cat",
+            reducer_command="cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            sort_by=["foo"]
+        )
+
         # Just in case. Nodes still should not reregister.
         for node in ls("//sys/cluster_nodes"):
             assert lease_txs[node] == get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
+
+
+class TestMasterCellDynamicPropagationDuringRegistration(TestMasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager" : {
+            "cell_descriptors" : {
+                "13": {"roles": []},
+            }
+        }
+    }
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 1
+
+    @authors("cherepashka")
+    def test_registration_after_synchronization(self):
+        self.Env.kill_nodes()
+        self._enable_last_cell(downtime=False)
+        # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
+        # and attempt of starting cellar/data/tablet heartbeats concurrently with registration.
+        # This shouldn't crash node.
+        self.Env.start_nodes()

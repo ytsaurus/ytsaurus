@@ -209,11 +209,11 @@ private:
         newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
             newSecondaryCellTags.emplace_back(cellTag);
-            if (clusterNodeMasterConnector->IsConnected()) {
-                futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {
+            if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
+                futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
 
-                    if (auto strongThis = this_.Lock()) {
+                    if (auto strongThis = weakThis.Lock()) {
                         return DoScheduleHeartbeat(cellTag, /*immediately*/ false);
                     }
                     return MakeFuture(false);
@@ -269,11 +269,6 @@ private:
     TFuture<bool> DoScheduleHeartbeat(TCellTag cellTag, bool immediately)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-
-        const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
-        if (!clusterNodeMasterConnector->IsConnected()) {
-            return MakeFuture(false);
-        }
 
         ++PerCellTagData_[cellTag].ScheduledHeartbeatCount;
 

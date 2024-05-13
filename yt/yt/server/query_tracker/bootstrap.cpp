@@ -12,6 +12,8 @@
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -128,6 +130,7 @@ void TBootstrap::DoRun()
         std::move(connectionOptions));
 
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+    NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
     SetupClusterConnectionDynamicConfigUpdate(
         NativeConnection_,

@@ -21,6 +21,8 @@
 
 #include <yt/yt/ytlib/auth/native_authenticator.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
@@ -147,6 +149,7 @@ private:
             std::move(connectionOptions));
 
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+        NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 

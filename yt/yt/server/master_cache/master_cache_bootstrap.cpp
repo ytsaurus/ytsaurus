@@ -8,6 +8,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -26,9 +28,15 @@ namespace NYT::NMasterCache {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NCellMasterClient;
+using namespace NElection;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const auto static& Logger = MasterCacheLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,28 +56,14 @@ public:
             MasterCacheLogger,
             MasterCacheProfiler.WithPrefix("/object_service_cache"));
 
-        auto initCachingObjectService = [&] (const auto& masterConfig) {
-            return CreateCachingObjectService(
-                GetConfig()->CachingObjectService,
-                MasterCacheQueue_->GetInvoker(),
-                CreateMasterChannelForCache(GetConnection(), masterConfig->CellId),
-                ObjectServiceCache_,
-                masterConfig->CellId,
-                MasterCacheLogger,
-                MasterCacheProfiler.WithPrefix("/caching_object_service"),
-                GetNativeAuthenticator());
-        };
-
-        auto connectionStaticConfig = ConvertTo<NNative::TConnectionStaticConfigPtr>(GetConfig()->ClusterConnection);
-
-        CachingObjectServices_.push_back(initCachingObjectService(connectionStaticConfig->PrimaryMaster));
-
-        for (const auto& masterConfig : connectionStaticConfig->SecondaryMasters) {
-            CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
-        }
-
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            GetRpcServer()->RegisterService(cachingObjectService);
+        const auto& connection = GetConnection();
+        {
+            // NB: initialize happens after master cell directory synchronization starts.
+            auto guard = Guard(Lock_);
+            AddCachingObjectService(connection->GetPrimaryMasterCellId());
+            for (const auto& cellId : connection->GetMasterCellDirectory()->GetSecondaryMasterCellIds()) {
+                AddCachingObjectService(cellId);
+            }
         }
 
         SetBuildAttributes(
@@ -82,6 +76,7 @@ public:
 
         const auto& dynamicConfigManager = GetDynamicConfigManger();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterCacheBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TMasterCacheBootstrap::OnMasterCellDirectoryChanged, Unretained(this)));
     }
 
     void Run() override
@@ -90,16 +85,68 @@ public:
 private:
     TActionQueuePtr MasterCacheQueue_;
     TObjectServiceCachePtr ObjectServiceCache_;
-    std::vector<ICachingObjectServicePtr> CachingObjectServices_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
 
     void OnDynamicConfigChanged(
         const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            cachingObjectService->Reconfigure(newConfig->CachingObjectService);
+        {
+            auto guard = Guard(Lock_);
+            for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
+                cachingObjectService->Reconfigure(newConfig->CachingObjectService);
+            }
         }
+    }
+
+    void AddCachingObjectService(TCellId masterCellId)
+    {
+        VERIFY_SPINLOCK_AFFINITY(Lock_);
+
+        auto cachingObjectService = CreateCachingObjectService(
+            GetConfig()->CachingObjectService,
+            MasterCacheQueue_->GetInvoker(),
+            CreateMasterChannelForCache(GetConnection(), masterCellId),
+            ObjectServiceCache_,
+            masterCellId,
+            Logger,
+            MasterCacheProfiler.WithPrefix("/caching_object_service"),
+            GetNativeAuthenticator());
+
+        EmplaceOrCrash(CachingObjectServices_, CellTagFromId(masterCellId), cachingObjectService);
+        GetRpcServer()->RegisterService(std::move(cachingObjectService));
+    }
+
+    void OnMasterCellDirectoryChanged(
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
+        const THashSet<TCellTag>& removedSecondaryCellTags)
+    {
+        YT_LOG_ALERT_UNLESS(
+            removedSecondaryCellTags.empty(),
+            "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
+            removedSecondaryCellTags);
+
+        {
+            auto guard = Guard(Lock_);
+            for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
+                AddCachingObjectService(masterConfig->CellId);
+            }
+        }
+
+        auto makeFormattableCellTagsView = [] (const auto& secondaryMasterConfigs) {
+            return MakeFormattableView(secondaryMasterConfigs, [] (auto* builder, const auto& pair) {
+                builder->AppendFormat("%v", pair.first);
+            });
+        };
+
+        YT_LOG_INFO("Received new master cell cluster configuration "
+            "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
+            makeFormattableCellTagsView(newSecondaryMasterConfigs),
+            makeFormattableCellTagsView(changedSecondaryMasterConfigs),
+            removedSecondaryCellTags);
     }
 };
 

@@ -766,7 +766,7 @@ private:
             YT_VERIFY(config->Addresses);
             InitPerCellData(cellTag, *config->Addresses);
             auto* delta = GetChunksDelta(cellTag);
-            if (clusterNodeMasterConnector->IsConnected()) {
+            if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
                 delta->State = EMasterConnectorState::Registered;
 
                 futures.push_back(BIND([this, this_ = MakeWeak(this), cellTag = cellTag] {

@@ -20,6 +20,8 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
@@ -153,6 +155,7 @@ void TBootstrap::DoRun()
     Connection_ = NNative::CreateConnection(
         Config_->ClusterConnection,
         connectionOptions);
+    Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 

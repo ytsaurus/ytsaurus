@@ -19,6 +19,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
@@ -272,6 +274,7 @@ private:
                 }));
         }
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+        NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();

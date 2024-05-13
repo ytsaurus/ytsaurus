@@ -257,6 +257,13 @@ public:
         return GetNodeId() != InvalidNodeId;
     }
 
+    bool IsRegisteredAtPrimaryMaster() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return  RegisteredAtPrimary_.load();
+    }
+
     NNodeTrackerClient::TNodeId GetNodeId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -310,6 +317,8 @@ private:
     TCancelableContextPtr MasterConnectionContext_;
 
     IInvokerPtr MasterConnectionInvoker_;
+
+    std::atomic<bool> RegisteredAtPrimary_;
 
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
     TAtomicObject<TString> LocalHostName_;
@@ -443,6 +452,7 @@ private:
         Epoch_++;
 
         MasterDisconnected_.Fire();
+        RegisteredAtPrimary_.store(false);
     }
 
     void RegisterAtMaster()
@@ -464,9 +474,11 @@ private:
         }
 
         MasterConnected_.Fire(GetNodeId());
+        RegisteredAtPrimary_.store(true);
 
-        YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
-            GetNodeId());
+        YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
+            GetNodeId(),
+            GetMasterCellTags());
 
         StartHeartbeats();
     }
