@@ -849,6 +849,7 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     , UselessPrescheduleAllocationCount(profiler.Counter("/useless_preschedule_job_count"))
     , PrescheduleAllocationTime(profiler.Timer("/preschedule_job_time"))
     , TotalControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/total"))
+    , ControllerScheduleAllocationTime(profiler.TimeGaugeSummary("/controller_schedule_job_time", ESummaryPolicy::Max | ESummaryPolicy::Avg))
     , ExecControllerScheduleAllocationTime(profiler.Timer("/controller_schedule_job_time/exec"))
     , StrategyScheduleAllocationTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
@@ -1804,6 +1805,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         auto scheduleAllocationDuration = timer.GetElapsedTime();
         StageState_->TotalScheduleAllocationDuration += scheduleAllocationDuration;
         StageState_->ExecScheduleAllocationDuration += scheduleAllocationResult->Duration;
+        StageState_->ScheduleAllocationDurations.push_back(scheduleAllocationDuration);
     }
 
     if (!scheduleAllocationResult->StartDescriptor) {
@@ -2364,6 +2366,10 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
     profilingCounters->ScheduleAllocationFailureCount.Increment(StageState_->ScheduleAllocationFailureCount);
     profilingCounters->ControllerScheduleAllocationCount.Increment(SchedulingStatistics().ControllerScheduleAllocationCount);
     profilingCounters->ControllerScheduleAllocationTimedOutCount.Increment(SchedulingStatistics().ControllerScheduleAllocationTimedOutCount);
+
+    for (auto scheduleAllocationDuration : StageState_->ScheduleAllocationDurations) {
+        profilingCounters->ControllerScheduleAllocationTime.Update(scheduleAllocationDuration);
+    }
 
     for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
         profilingCounters->ControllerScheduleAllocationFail[reason].Increment(StageState_->FailedScheduleAllocation[reason]);
