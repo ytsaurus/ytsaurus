@@ -11,8 +11,10 @@ RESULT_DATA = [{"result": i + 1} for i in range(VALUES_COUNT)]
 
 
 def run_check(secrets, yt_client, logger, options, states):
-    chyt_stage_client = YtClient(proxy=options["chyt_cluster_name"], token=secrets["yt_token"])
+    chyt_cluster_address = options.get("chyt_cluster_address", options["chyt_cluster_name"])
+    chyt_stage_client = YtClient(proxy=chyt_cluster_address, token=secrets["yt_token"])
     stage = options["cluster_name_to_query_tracker_stage"].get(options["cluster_name"], "production")
+    soft_timeout = options["soft_query_timeout"]
 
     return run_check_impl(
         yt_client,
@@ -20,6 +22,7 @@ def run_check(secrets, yt_client, logger, options, states):
         logger,
         stage,
         states,
+        soft_timeout,
         "chyt",
         "select x + 1 as result from `{table}`",
         Data(SCHEMA, SOURCE_DATA, RESULT_DATA),
