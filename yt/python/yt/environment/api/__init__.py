@@ -47,7 +47,7 @@ class LocalYtConfig(object):
         "mode": "simple",
         "sharding_key_length": 1,
     })
-    default_docker_image = "docker.io/library/python:2.7-slim"
+    default_docker_image = "docker.io/library/python:3.12-slim"
 
     """Feature flags"""
     enable_master_cache = attr.ib(False)
