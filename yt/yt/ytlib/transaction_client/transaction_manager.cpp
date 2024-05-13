@@ -377,7 +377,7 @@ public:
         return Timeout_.value_or(Owner_->Config_->DefaultTransactionTimeout);
     }
 
-    std::vector<TTransactionId> GetPrerequisiteTransactionIds() const
+    const std::vector<TTransactionId>& GetPrerequisiteTransactionIds() const
     {
         return PrerequisiteTransactionIds_;
     }
@@ -1661,7 +1661,7 @@ TCellTagList TTransaction::GetReplicatedToCellTags() const
     return Impl_->GetReplicatedToCellTags();
 }
 
-std::vector<TTransactionId> TTransaction::GetPrerequisiteTransactionIds() const
+const std::vector<TTransactionId>& TTransaction::GetPrerequisiteTransactionIds() const
 {
     return Impl_->GetPrerequisiteTransactionIds();
 }

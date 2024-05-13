@@ -83,7 +83,7 @@ public:
     TDuration GetTimeout() const;
 
     //! Returns the transaction prerequisite transaction ids.
-    std::vector<TTransactionId> GetPrerequisiteTransactionIds() const;
+    const std::vector<TTransactionId>& GetPrerequisiteTransactionIds() const;
 
     //! Returns the tags of the cells this transaction is replicated to.
     //! Only supported for master transactions that are created locally, not attached.

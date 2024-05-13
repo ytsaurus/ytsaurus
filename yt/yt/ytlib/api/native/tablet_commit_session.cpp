@@ -243,7 +243,7 @@ private:
 
         if (batchIndex == 0) {
             auto prerequisiteTransactions = transaction->GetPrerequisiteTransactionIds();
-            for (const auto& transactionId : Options_.PrerequisiteTransactionIds) {
+            for (auto transactionId : Options_.PrerequisiteTransactionIds) {
                 prerequisiteTransactions.push_back(transactionId);
             }
             ToProto(req->mutable_prerequisite_transaction_ids(), prerequisiteTransactions);
