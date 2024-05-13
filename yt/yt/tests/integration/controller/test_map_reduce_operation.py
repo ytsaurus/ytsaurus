@@ -220,7 +220,7 @@ def read_table():
 
 for key, rows in groupby(read_table(), lambda row: row["word"]):
     count = sum(int(row["count"]) for row in rows)
-    print "word=%s\\tcount=%s" % (key, count)
+    print("word=%s\\tcount=%s" % (key, count))
 """
 
         tx = start_transaction(timeout=60000)
@@ -245,7 +245,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             map(
                 in_="//tmp/t_in",
                 out="//tmp/t_map_out",
-                command="python mapper.py",
+                command="python3 mapper.py",
                 file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
                 spec={"mapper": {"format": "dsv"}},
                 tx=tx,
@@ -257,7 +257,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_reduce_in",
                 out="//tmp/t_out",
                 reduce_by="word",
-                command="python reducer.py",
+                command="python3 reducer.py",
                 file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={"reducer": {"format": "dsv"}},
                 tx=tx,
@@ -267,11 +267,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -288,9 +288,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 1,
@@ -304,10 +304,10 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
                 reduce_combiner_command="cat >/dev/null",
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -324,9 +324,9 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 reducer_command="cat",
                 spec={
@@ -344,11 +344,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 2,
@@ -366,11 +366,11 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 sort_by="word",
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
-                reduce_combiner_command="python reducer.py",
+                reduce_combiner_command="python3 reducer.py",
                 reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
                 spec={
                     "partition_count": 7,
@@ -484,8 +484,8 @@ for l in sys.stdin:
   d = dict([(a[0], int(a[1])) for a in pairs])
   x = d['x']
   y = d['y']
-  print l
-print "x={0}\ty={1}".format(x, y)
+  print(l)
+print("x={0}\ty={1}".format(x, y))
 """
 
         create("file", "//tmp/reducer.py")
@@ -499,7 +499,7 @@ print "x={0}\ty={1}".format(x, y)
             reduce_by="x",
             sort_by=sort_by,
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             spec={"partition_count": 2, "reducer": {"format": "dsv"}},
         )
 
@@ -1620,7 +1620,7 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_command="cat",
             reduce_combiner_command="cat",
             sort_by=[{"name": "a", "sort_order": sort_order}],
@@ -1680,7 +1680,7 @@ for l in sys.stdin:
             in_="//tmp/input",
             out=["//tmp/mapper_output", "//tmp/reducer_output"],
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_command="cat",
             reduce_by=["a"],
             spec={
@@ -1765,7 +1765,7 @@ for l in sys.stdin:
             in_=["//tmp/in"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": "ascending"}],
             spec={
                 "partition_count": 1,
@@ -1872,7 +1872,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec=spec,
         )
@@ -1976,7 +1976,7 @@ for l in sys.stdin:
             in_=input_paths,
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[
                 {"name": "a", "sort_order": sort_order},
                 {"name": "b", "sort_order": sort_order},
@@ -2061,10 +2061,10 @@ for l in sys.stdin:
     a, b = row["a"], row["b"]
     if a % 2 == 0:
         out_row = {"a": a // 2, "struct": row}
-        os.write(1, json.dumps(out_row) + "\\n")
+        os.write(1, json.dumps(out_row).encode() + b"\\n")
     else:
         out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
-        os.write(4, json.dumps(out_row) + "\\n")
+        os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2077,9 +2077,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "mapper": {
@@ -2099,9 +2099,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 1,
@@ -2122,9 +2122,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 2,
@@ -2148,9 +2148,9 @@ for l in sys.stdin:
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 mapper_file=["//tmp/mapper.py"],
-                mapper_command="python mapper.py",
+                mapper_command="python3 mapper.py",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=[{"name": "a", "sort_order": sort_order}],
                 spec={
                     "partition_count": 7,
@@ -2233,10 +2233,10 @@ for l in sys.stdin:
     a, b = row["a"], row["b"]
     if a % 2 == 0:
         out_row = {"a": a // 2, "struct": row}
-        os.write(1, json.dumps(out_row) + "\\n")
+        os.write(1, json.dumps(out_row).encode() + b"\\n")
     else:
         out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
-        os.write(4, json.dumps(out_row) + "\\n")
+        os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2255,7 +2255,7 @@ for l in sys.stdin:
     else:
         assert table_index == 1
         row["struct1"]["a1"] += 100
-    os.write(table_index * 3 + 1, json.dumps(row))
+    os.write(table_index * 3 + 1, json.dumps(row).encode())
 """
         create("file", "//tmp/reduce_combiner.py")
         write_file("//tmp/reduce_combiner.py", reduce_combiner)
@@ -2267,11 +2267,11 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reduce_combiner_file=["//tmp/reduce_combiner.py"],
-            reduce_combiner_command="cat" if cat_combiner else "python reduce_combiner.py",
+            reduce_combiner_command="cat" if cat_combiner else "python3 reduce_combiner.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["a"],
             spec={
                 "mapper": {
@@ -2349,9 +2349,9 @@ for l in sys.stdin:
     row = json.loads(l)
     a, b = row["a"], row["b"]
     out_row = {"a": a, "struct": {"a": a**2, "b": str(a) * 3}}
-    os.write(1, json.dumps(out_row) + "\\n")
+    os.write(1, json.dumps(out_row).encode() + b"\\n")
     out_row = {"a": a, "struct": {"a": a**3, "b": str(a) * 5}}
-    os.write(4, json.dumps(out_row) + "\\n")
+    os.write(4, json.dumps(out_row).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
@@ -2363,9 +2363,9 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "mapper": {
@@ -2440,7 +2440,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=[{"name": "a", "sort_order": sort_order}],
             spec={
                 "reducer": {"format": "json"},
@@ -2526,7 +2526,7 @@ for l in sys.stdin:
         }},
     }}
     out_row_1.update(key)
-    os.write(1, json.dumps(out_row_1) + "\\n")
+    os.write(1, json.dumps(out_row_1).encode() + b"\\n")
     out_row_2 = {{
         "struct1": {{
             "a1": a,
@@ -2534,7 +2534,7 @@ for l in sys.stdin:
         }},
     }}
     out_row_2.update(key)
-    os.write(4, json.dumps(out_row_2) + "\\n")
+    os.write(4, json.dumps(out_row_2).encode() + b"\\n")
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper.format(row_count=row_count).encode())
@@ -2578,9 +2578,9 @@ for l in sys.stdin:
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "mapper": {
@@ -2729,7 +2729,7 @@ for l in sys.stdin:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "reducer": {"format": "json"},
@@ -2777,7 +2777,7 @@ for l in sys.stdin:
                 out="//tmp/t2",
                 mapper_command="cat",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=sort_by,
                 spec={
                     "mapper": {
@@ -2853,7 +2853,7 @@ for l in sys.stdin:
                 in_=inputs,
                 out="//tmp/out",
                 reducer_file=["//tmp/reducer.py"],
-                reducer_command="python reducer.py",
+                reducer_command="python3 reducer.py",
                 sort_by=sort_by,
                 spec={
                     "reducer": {"format": "json"},
@@ -3198,7 +3198,7 @@ while True:
             in_=["//tmp/t_in1", "//tmp/t_in2"],
             out=["//tmp/t_out1", "//tmp/t_out2"],
             reduce_by="key",
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "reducer": {
@@ -3558,9 +3558,9 @@ for key, count in counts.items():
             in_="//tmp/t_in",
             out="//tmp/t_out",
             reduce_by="word",
-            mapper_command="python mapper.py",
+            mapper_command="python3 mapper.py",
             mapper_file=["//tmp/mapper.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "partition_count": 2,
@@ -3777,7 +3777,7 @@ for line in sys.stdin:
             out="//tmp/t_out",
             reduce_by=["x"],
             sort_by=sort_by,
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             reducer_file=["//tmp/reducer.py"],
             spec={
                 "sort_job_io": {
