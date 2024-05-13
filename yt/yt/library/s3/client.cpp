@@ -325,7 +325,7 @@ private:
                 error <<= TErrorAttribute(node.Name(), node.Value<TString>());
             }
         } catch (const std::exception&) {
-            error <<= TErrorAttribute("ResponseBody", responseBody.ToStringBuf());
+            error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
             auto headers = response->GetHeaders();
             for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
                 if (auto* value = headers->Find(header)) {

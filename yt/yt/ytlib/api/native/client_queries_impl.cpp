@@ -199,9 +199,9 @@ void ThrowAccessDeniedException(
         "Access denied to query %v due to missing %Qv permission",
         queryId,
         permission)
-        << TErrorAttribute("User", user)
-        << TErrorAttribute("Access control object", accessControlObject)
-        << TErrorAttribute("Query author", queryAuthor);
+        << TErrorAttribute("user", user)
+        << TErrorAttribute("access_control_object", accessControlObject)
+        << TErrorAttribute("query_author", queryAuthor);
 }
 
 //! Lookup a query in active_queries and finished_queries tables by query id.
