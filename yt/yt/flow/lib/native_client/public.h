@@ -9,6 +9,7 @@ namespace NYT::NFlow {
 inline const TString InputMessagesTableName = "input_messages";
 inline const TString OutputMessagesTableName = "output_messages";
 inline const TString PartitionDataTableName = "partition_data";
+inline const TString InternalMessagesTableName = "internal_messages";
 
 ////////////////////////////////////////////////////////////////////////////////
 
