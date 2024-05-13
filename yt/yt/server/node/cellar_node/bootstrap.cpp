@@ -3,6 +3,7 @@
 #include "bundle_dynamic_config_manager.h"
 #include "master_connector.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -11,8 +12,6 @@
 
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
-
-#include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>

@@ -1,10 +1,8 @@
 #include "table_schema_cache.h"
 
-#include "private.h"
+#include "config.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
-
-#include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/client/table_client/schema.h>
 

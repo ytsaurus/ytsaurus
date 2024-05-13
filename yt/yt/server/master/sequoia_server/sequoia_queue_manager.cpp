@@ -80,11 +80,11 @@ public:
     {
         RegisterLoader(
             "SequoiaQueueManager",
-            BIND(&TSequoiaQueueManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSequoiaQueueManager::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SequoiaQueueManager",
-            BIND(&TSequoiaQueueManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSequoiaQueueManager::Save, Unretained(this)));
     }
 
     void EnqueueRow(

@@ -6,13 +6,10 @@
 #include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
 #include "migrated_replication_card_remover.h"
-#include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
 #include "replication_card_observer.h"
-#include "slot_manager.h"
-
-#include <yt/yt/server/node/chaos_node/transaction_manager.h>
+#include "transaction_manager.h"
 
 #include <yt/server/node/chaos_node/chaos_manager.pb.h>
 
@@ -20,12 +17,11 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/mailbox.h>
+#include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
-
-#include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
@@ -111,19 +107,19 @@ public:
 
         RegisterLoader(
             "ChaosManager.Keys",
-            BIND(&TChaosManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChaosManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "ChaosManager.Values",
-            BIND(&TChaosManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChaosManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "ChaosManager.Keys",
-            BIND(&TChaosManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChaosManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ChaosManager.Values",
-            BIND(&TChaosManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChaosManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraGenerateReplicationCardId, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCreateReplicationCard, Unretained(this)));

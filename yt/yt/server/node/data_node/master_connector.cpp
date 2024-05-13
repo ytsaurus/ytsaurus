@@ -9,9 +9,10 @@
 #include "config.h"
 #include "job_controller.h"
 #include "location.h"
-#include "network_statistics.h"
 #include "session_manager.h"
 #include "io_throughput_meter.h"
+#include "medium_directory_manager.h"
+#include "medium_updater.h"
 
 #include <yt/yt/server/master/cell_server/public.h>
 
@@ -20,13 +21,10 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
-#include <yt/yt/server/node/data_node/journal_dispatcher.h>
-#include <yt/yt/server/node/data_node/chunk_meta_manager.h>
-#include <yt/yt/server/node/data_node/medium_directory_manager.h>
-#include <yt/yt/server/node/data_node/medium_updater.h>
-
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
+
+#include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -36,10 +34,7 @@
 
 #include <yt/yt/ytlib/data_node_tracker_client/data_node_tracker_service_proxy.h>
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
-
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
-
-#include <yt/yt/server/lib/chunk_server/job_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 

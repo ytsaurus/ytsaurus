@@ -5,15 +5,8 @@
 #include "gpu_manager.h"
 #include "job_info.h"
 #include "public.h"
-#include "volume_manager.h"
-
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
-
-#include <yt/yt/library/containers/public.h>
-
-#include <yt/yt/library/containers/cri/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/job_report.h>
@@ -34,6 +27,9 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
+
+#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/containers/cri/public.h>
 
 #include <yt/yt/core/logging/log.h>
 

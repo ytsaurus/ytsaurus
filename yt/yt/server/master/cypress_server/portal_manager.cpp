@@ -63,19 +63,19 @@ public:
     {
         RegisterLoader(
             "PortalManager.Keys",
-            BIND(&TPortalManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TPortalManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "PortalManager.Values",
-            BIND(&TPortalManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TPortalManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "PortalManager.Keys",
-            BIND(&TPortalManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TPortalManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "PortalManager.Values",
-            BIND(&TPortalManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TPortalManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraCreatePortalExit, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TPortalManager::HydraRemovePortalEntrance, Unretained(this)));

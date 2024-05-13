@@ -43,12 +43,12 @@ public:
 
         RegisterLoader(
             "AlertManager",
-            BIND(&TAlertManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TAlertManager::Load, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "AlertManager",
-            BIND(&TAlertManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TAlertManager::Save, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TAlertManager::HydraSetCellAlerts, Unretained(this)));
     }

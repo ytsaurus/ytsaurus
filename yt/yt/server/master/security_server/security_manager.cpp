@@ -465,19 +465,19 @@ public:
     {
         RegisterLoader(
             "SecurityManager.Keys",
-            BIND(&TSecurityManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "SecurityManager.Values",
-            BIND(&TSecurityManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "SecurityManager.Keys",
-            BIND(&TSecurityManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SecurityManager.Values",
-            BIND(&TSecurityManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::SaveValues, Unretained(this)));
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
 

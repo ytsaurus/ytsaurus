@@ -116,48 +116,48 @@ public:
         YT_VERIFY(TimestampProvider_);
 
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitSimpleTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseOne"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseTwo"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortDistributedTransactionPhaseTwo"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorFinishDistributedTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantPrepareTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantCommitTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantAbortTransaction"});
 
         RegisterLoader(
             "TransactionSupervisor.Keys",
-            BIND(&TTransactionSupervisor::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionSupervisor.Values",
-            BIND(&TTransactionSupervisor::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
-            BIND(&TTransactionSupervisor::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
-            BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
     }

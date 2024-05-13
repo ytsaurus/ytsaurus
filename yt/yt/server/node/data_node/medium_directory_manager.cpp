@@ -1,6 +1,6 @@
 #include "medium_directory_manager.h"
 
-#include <yt/yt/server/node/data_node/bootstrap.h>
+#include "bootstrap.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>

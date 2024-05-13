@@ -233,12 +233,12 @@ public:
 
         RegisterLoader(
             "ChunkAutotomizer",
-            BIND(&TChunkAutotomizer::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkAutotomizer::Load, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ChunkAutotomizer",
-            BIND(&TChunkAutotomizer::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkAutotomizer::Save, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraAutotomizeChunk, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChunkAutotomizer::HydraUpdateChunkAutotomizerTransactions, Unretained(this)));

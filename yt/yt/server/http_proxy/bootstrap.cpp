@@ -155,10 +155,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", role}});
     };
     setGlobalRoleTag(Coordinator_->GetSelf()->Role);
-    Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));
+    Coordinator_->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(setGlobalRoleTag));
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
 
     if (Config_->ExposeConfigInOrchid) {
         SetNodeByYPath(

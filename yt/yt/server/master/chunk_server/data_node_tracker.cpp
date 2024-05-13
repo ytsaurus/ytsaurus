@@ -94,19 +94,19 @@ public:
 
         RegisterLoader(
             "DataNodeTracker.Keys",
-            BIND(&TDataNodeTracker::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::LoadKeys, Unretained(this)));
         RegisterLoader(
             "DataNodeTracker.Values",
-            BIND(&TDataNodeTracker::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "DataNodeTracker.Keys",
-            BIND(&TDataNodeTracker::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "DataNodeTracker.Values",
-            BIND(&TDataNodeTracker::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::SaveValues, Unretained(this)));
     }
 
     void Initialize() override

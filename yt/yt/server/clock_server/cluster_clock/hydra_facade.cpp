@@ -88,11 +88,11 @@ public:
             /*authenticator*/ nullptr,
             hydraManagerOptions);
 
-        HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartLeading(BIND_NO_PROPAGATE(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopLeading(BIND_NO_PROPAGATE(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-        HydraManager_->SubscribeStartFollowing(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
-        HydraManager_->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TImpl::OnStartEpoch, MakeWeak(this)));
+        HydraManager_->SubscribeStopFollowing(BIND_NO_PROPAGATE(&TImpl::OnStopEpoch, MakeWeak(this)));
 
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);

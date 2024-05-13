@@ -51,19 +51,19 @@ public:
     {
         RegisterLoader(
             "SchedulerPoolManager.Keys",
-            BIND(&TSchedulerPoolManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSchedulerPoolManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "SchedulerPoolManager.Values",
-            BIND(&TSchedulerPoolManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSchedulerPoolManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "SchedulerPoolManager.Keys",
-            BIND(&TSchedulerPoolManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSchedulerPoolManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SchedulerPoolManager.Values",
-            BIND(&TSchedulerPoolManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSchedulerPoolManager::SaveValues, Unretained(this)));
     }
 
     void Initialize() override;

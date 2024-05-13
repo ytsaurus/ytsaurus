@@ -101,12 +101,12 @@ public:
 
         RegisterLoader(
             "MulticellManager.Values",
-            BIND(&TMulticellManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TMulticellManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "MulticellManager.Values",
-            BIND(&TMulticellManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TMulticellManager::SaveValues, Unretained(this)));
     }
 
     void Initialize() override

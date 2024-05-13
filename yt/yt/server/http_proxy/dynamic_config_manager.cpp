@@ -28,7 +28,7 @@ public:
             bootstrap->GetControlInvoker())
     {
         const auto& coordinator = bootstrap->GetCoordinator();
-        coordinator->SubscribeOnSelfRoleChanged(BIND(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
+        coordinator->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(&TDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
 
         BaseTags_.push_back(coordinator->GetSelf()->Endpoint);
         ProxyRole_.Store(coordinator->GetSelf()->Role);

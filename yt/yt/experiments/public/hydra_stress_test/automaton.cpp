@@ -24,16 +24,16 @@ TAutomatonPart::TAutomatonPart(
         automatonInvoker)
     , LinearizabilityChecker_(linearizabilityChecker)
 {
-    RegisterMethod(BIND(&TAutomatonPart::HydraCas, Unretained(this)));
-    RegisterMethod(BIND(&TAutomatonPart::HydraSequencePart, Unretained(this)));
-    RegisterMethod(BIND(&TAutomatonPart::HydraSequence, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TAutomatonPart::HydraCas, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TAutomatonPart::HydraSequencePart, Unretained(this)));
+    RegisterMethod(BIND_NO_PROPAGATE(&TAutomatonPart::HydraSequence, Unretained(this)));
     RegisterLoader(
         "Part",
-        BIND(&TAutomatonPart::Load, Unretained(this)));
+        BIND_NO_PROPAGATE(&TAutomatonPart::Load, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "Part",
-        BIND(&TAutomatonPart::Save, Unretained(this)));
+        BIND_NO_PROPAGATE(&TAutomatonPart::Save, Unretained(this)));
 }
 
 TValue TAutomatonPart::GetCasValue() const

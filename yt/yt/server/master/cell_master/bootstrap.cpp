@@ -842,7 +842,7 @@ void TBootstrap::DoInitialize()
     AlertManager_ = CreateAlertManager(this);
 
     ConfigManager_ = CreateConfigManager(this);
-    ConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+    ConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
 
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
@@ -1095,7 +1095,7 @@ void TBootstrap::DoRun()
 {
     if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
         ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-            BIND([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
+            BIND_NO_PROPAGATE([=, this] (const TString& clusterName, const INodePtr& /*configNode*/) {
                 if (clusterName == *groundClusterName) {
                     auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
                     auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});

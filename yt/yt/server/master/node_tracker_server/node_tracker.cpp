@@ -149,19 +149,19 @@ public:
 
         RegisterLoader(
             "NodeTracker.Keys",
-            BIND(&TNodeTracker::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::LoadKeys, Unretained(this)));
         RegisterLoader(
             "NodeTracker.Values",
-            BIND(&TNodeTracker::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "NodeTracker.Keys",
-            BIND(&TNodeTracker::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
-            BIND(&TNodeTracker::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::SaveValues, Unretained(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
         NodeTrackerProfiler

@@ -1183,19 +1183,19 @@ public:
 
         RegisterLoader(
             "CypressManager.Keys",
-            BIND(&TCypressManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "CypressManager.Values",
-            BIND(&TCypressManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "CypressManager.Keys",
-            BIND(&TCypressManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CypressManager.Values",
-            BIND(&TCypressManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraTouchNodes, Unretained(this)));

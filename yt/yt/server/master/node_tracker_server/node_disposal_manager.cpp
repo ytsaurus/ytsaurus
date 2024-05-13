@@ -54,11 +54,11 @@ public:
     {
         RegisterLoader(
             "NodeDisposalManager",
-            BIND(&TNodeDisposalManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeDisposalManager::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "NodeDisposalManager",
-            BIND(&TNodeDisposalManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeDisposalManager::Save, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraStartNodeDisposal, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeDisposalManager::HydraFinishNodeDisposal, Unretained(this)));

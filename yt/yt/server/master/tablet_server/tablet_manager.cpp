@@ -194,19 +194,19 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);

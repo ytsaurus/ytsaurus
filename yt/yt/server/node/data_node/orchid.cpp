@@ -2,12 +2,10 @@
 
 #include "ally_replica_manager.h"
 #include "job_controller.h"
-#include "location_manager.h"
 #include "session_manager.h"
+#include "ytree_integration.h"
 
 #include <yt/yt/core/ytree/virtual.h>
-
-#include <yt/yt/server/node/data_node/ytree_integration.h>
 
 namespace NYT::NDataNode {
 
