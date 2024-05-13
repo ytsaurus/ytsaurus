@@ -1287,7 +1287,7 @@ public:
         MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
 
         {
-            auto error = Strategy_->OnOperationMaterialized(operation->GetId());
+            auto error = Strategy_->OnOperationMaterialized(operation->GetId(), operation->GetRevivedFromSnapshot());
             if (!error.IsOK()) {
                 OnOperationFailed(operation, error);
                 return;

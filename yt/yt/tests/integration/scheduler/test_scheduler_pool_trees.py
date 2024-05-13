@@ -1838,6 +1838,26 @@ class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 100,
+        }
+    }
+
     @authors("omgronny")
     def test_forbid_operations_with_zero_resource_demand(self):
         create_pool_tree(
@@ -1859,6 +1879,29 @@ class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
                 },
                 track=True,
             )
+
+    @authors("omgronny")
+    def test_do_not_forbid_operations_with_zero_resource_demand_during_revive(self):
+        update_pool_tree_config_option("default", "necessary_resources_for_operation", ["gpu"])
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool_trees": ["default"],
+            },
+            job_count=1,
+            task_patch={
+                "gpu_limit": 1,
+            },
+        )
+
+        wait(lambda: op.get_job_count("running") == 1)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: op.get_job_count("running") == 1)
 
 
 ##################################################################

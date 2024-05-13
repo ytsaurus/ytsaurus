@@ -259,7 +259,7 @@ struct ISchedulerStrategy
         bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
-    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
