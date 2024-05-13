@@ -1960,10 +1960,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto reason = static_cast<EStoreRotationReason>(request->reason());
-        TStoreId expectedActiveStoreId;
-        if (request->has_expected_active_store_id()) {
-            FromProto(&expectedActiveStoreId, request->expected_active_store_id());
-        }
+        auto expectedActiveStoreId = FromProto<TStoreId>(request->expected_active_store_id());
         auto allowEmptyStore = request->allow_empty_store();
 
         auto* tablet = FindTablet(tabletId);
