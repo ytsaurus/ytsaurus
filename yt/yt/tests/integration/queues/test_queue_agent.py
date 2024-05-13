@@ -3078,11 +3078,11 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period = 5
+        export_period_seconds = 5
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": export_period * 1000,
+                "export_period": export_period_seconds * 1000,
             }
         })
 
@@ -3090,7 +3090,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         # is performed until queue is exported.
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
-        self._sleep_until_next_export_instant(period=export_period, offset=0.5)
+        self._sleep_until_next_export_instant(period=export_period_seconds, offset=0.5)
         assert len(ls(export_dir)) == 0
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
@@ -3127,11 +3127,11 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period = 5
+        export_period_seconds = 5
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": export_period * 1000,
+                "export_period": export_period_seconds * 1000,
             }
         })
 
@@ -3140,7 +3140,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._wait_for_component_passes()
         queue_agent_orchid.get_queue_orchid("primary://tmp/q").wait_fresh_pass()
         queue_agent_orchid.get_consumer_orchid("primary://tmp/c").wait_fresh_pass()
-        self._sleep_until_next_export_instant(period=export_period, offset=0.5)
+        self._sleep_until_next_export_instant(period=export_period_seconds, offset=0.5)
         assert len(ls(export_dir)) == 0
 
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "second"}])
