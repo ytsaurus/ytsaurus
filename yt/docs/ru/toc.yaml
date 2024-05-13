@@ -365,6 +365,8 @@ items:
                 href: api/cli/install.md
               - name: Примеры
                 href: api/cli/examples.md
+              - name: CLI commands
+                href: api/cli/commands.md
           - name: Python API
             items:
               - name: Введение
