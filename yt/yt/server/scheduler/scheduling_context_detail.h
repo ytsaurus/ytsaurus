@@ -77,8 +77,8 @@ public:
     virtual void StoreScheduleAllocationExecDurationEstimate(TDuration duration) override;
     virtual TDuration ExtractScheduleAllocationExecDurationEstimate() override;
 
-    ENodeSchedulingResult GetNodeSchedulingResult() const override;
-    void SetNodeSchedulingResult(ENodeSchedulingResult result) override;
+    ESchedulingStopReason GetSchedulingStopReason() const override;
+    void SetSchedulingStopReason(ESchedulingStopReason result) override;
 
 private:
     const int NodeShardId_;
@@ -112,7 +112,7 @@ private:
 
     std::optional<TDuration> ScheduleAllocationExecDurationEstimate_;
 
-    ENodeSchedulingResult NodeSchedulingResult_ = ENodeSchedulingResult::FullyScheduled;
+    ESchedulingStopReason SchedulingStopReason_ = ESchedulingStopReason::FullyScheduled;
 
     // NB(omgronny): Don't collect unsatisfied resources info if unsatisfiedResources is nullptr
     bool CanSatisfyResourceRequest(

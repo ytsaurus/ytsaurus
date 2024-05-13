@@ -194,10 +194,11 @@ TNodeShard::TNodeShard(
     HeartbeatRegisteredControllerAgentsBytes_ = SchedulerProfiler
         .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 
-    for (auto reason : TEnumTraitsImpl<ENodeSchedulingResult>::GetDomainValues()) {
-        UnscheduledResourcesCounterByResult_[reason].Init(SchedulerProfiler
-            .WithPrefix("/unscheduled_node_resources")
-            .WithTag("reason", FormatEnum(reason)),
+    for (auto reason : TEnumTraitsImpl<ESchedulingStopReason>::GetDomainValues()) {
+        UnscheduledResourcesCounterByStopReason_[reason].Init(
+            SchedulerProfiler
+                .WithPrefix("/unscheduled_node_resources")
+                .WithTag("reason", FormatEnum(reason)),
             EMetricType::Counter);
     }
 }
@@ -656,10 +657,10 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     ToProto(response->mutable_min_spare_resources(), GetMinSpareResources());
 
     if (isThrottlingActive) {
-        schedulingContext->SetNodeSchedulingResult(ENodeSchedulingResult::Throttling);
+        schedulingContext->SetSchedulingStopReason(ESchedulingStopReason::Throttling);
     }
 
-    UpdateUnscheduledNodeCounters(schedulingContext);
+    UpdateUnscheduledNodeCounters(schedulingContext, node);
 
     auto now = TInstant::Now();
     auto shouldSendRegisteredControllerAgents = ShouldSendRegisteredControllerAgents(request);
@@ -2260,18 +2261,27 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext)
+void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext, const TExecNodePtr& node)
 {
-    auto nodeSchedulingResult = schedulingContext->GetNodeSchedulingResult();
-    if (nodeSchedulingResult == ENodeSchedulingResult::FullyScheduled) {
+    auto now = TInstant::Now();
+
+    auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+
+    auto finally = Finally([&] {
+        node->LastHeartbeatUnscheduledResources() = nodeFreeResources;
+        node->LastHeartbeatTime() = now;
+    });
+
+    auto schedulingStopReason = schedulingContext->GetSchedulingStopReason();
+    if (schedulingStopReason == ESchedulingStopReason::FullyScheduled) {
         return;
     }
 
-    auto minSpareResources = GetMinSpareResources();
-    auto nodeFreeResources = schedulingContext->GetNodeFreeResourcesWithoutDiscount();
+    if (Dominates(node->LastHeartbeatUnscheduledResources(), GetMinSpareResources())) {
+        auto secondsSinceLastHeartbeat = (now - node->LastHeartbeatTime()).SecondsFloat();
+        auto unscheduledResourceTime = node->LastHeartbeatUnscheduledResources() * secondsSinceLastHeartbeat;
 
-    if (Dominates(nodeFreeResources, minSpareResources)) {
-        UnscheduledResourcesCounterByResult_[nodeSchedulingResult].Update(nodeFreeResources);
+        UnscheduledResourcesCounterByStopReason_[schedulingStopReason].Update(unscheduledResourceTime);
     }
 }
 

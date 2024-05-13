@@ -1493,7 +1493,7 @@ const TDynamicAttributes& TScheduleAllocationsContext::DynamicAttributesOf(const
 bool TScheduleAllocationsContext::CheckScheduleAllocationTimeoutExpired() const
 {
     if (SchedulingContext_->GetNow() >= SchedulingDeadline_) {
-        SchedulingContext_->SetNodeSchedulingResult(ENodeSchedulingResult::Timeout);
+        SchedulingContext_->SetSchedulingStopReason(ESchedulingStopReason::Timeout);
         return true;
     }
     return false;
