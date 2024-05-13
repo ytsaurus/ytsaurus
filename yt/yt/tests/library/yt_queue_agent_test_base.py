@@ -407,14 +407,14 @@ class TestQueueAgentBase(YTEnvSetup):
                 "treat_as_queue_consumer": True,
             }
             attributes.update(kwargs)
-            create("table", path, attributes=attributes)
+            create("table", path, attributes=attributes, driver=driver)
             if mount:
-                sync_mount_table(path)
+                sync_mount_table(path, driver=driver)
         else:
             create("queue_consumer", path, driver=driver, attributes=kwargs)
             if not mount:
-                wait_for_tablet_state(path, "mounted")
-                sync_unmount_table(path)
+                wait_for_tablet_state(path, "mounted", driver=driver)
+                sync_unmount_table(path, driver=driver)
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
         self._create_consumer(consumer_path, **kwargs)
