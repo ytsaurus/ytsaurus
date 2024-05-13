@@ -1,9 +1,11 @@
 PY3_LIBRARY()
 
+INCLUDE(spark_distrib.inc)
+
 PEERDIR(
     yt/python/yt/wrapper
     yt/spark/spark-over-yt/spyt-package/src/main/python
-    contrib/python/ytsaurus-pyspark
+    contrib/python/pyspark/${SPARK_VERSION}
     contrib/python/pyarrow
     contrib/python/PyYAML
 )

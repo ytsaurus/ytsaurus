@@ -22,6 +22,12 @@ object Config {
     .stringConf
     .createWithDefault("//home/spark/spyt/releases")
 
+  val SPARK_DISTRIBUTIVES_PATH = ConfigBuilder("spark.ytsaurus.distributives.path")
+    .doc("Root path for Spark distributives")
+    .version("3.2.2")
+    .stringConf
+    .createWithDefault("//home/spark/distrib")
+
   val LAUNCH_CONF_FILE = ConfigBuilder("spark.ytsaurus.config.launch.file")
     .doc("SPYT release configuration file name")
     .version("3.2.2")

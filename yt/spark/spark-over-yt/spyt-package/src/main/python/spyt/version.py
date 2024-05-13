@@ -2,4 +2,4 @@
 
 __version__ = "1.78.0"
 __scala_version__ = "1.78.0"
-__spark_version__ = "1.78.0"
+__spark_version__ = "3.2.2"

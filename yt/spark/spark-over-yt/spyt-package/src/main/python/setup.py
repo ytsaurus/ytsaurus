@@ -33,7 +33,7 @@ setuptools.setup(
         'spyt.conf',
     ],
     install_requires=[
-        'ytsaurus-pyspark=={}'.format(__spark_version__),
+        'pyspark=={}'.format(__spark_version__),
         'pyarrow',
         'pyyaml'
     ],

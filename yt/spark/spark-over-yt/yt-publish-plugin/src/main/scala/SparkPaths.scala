@@ -3,7 +3,6 @@ package spyt
 object SparkPaths {
   val sparkYtBasePath = "//home/spark"
 
-  val sparkYtSparkForkPath = s"$sparkYtBasePath/spark"
   val sparkYtConfPath = s"$sparkYtBasePath/conf"
   val sparkYtDeltaLayerPath = s"$sparkYtBasePath/delta"
   val spytPath = s"$sparkYtBasePath/spyt"

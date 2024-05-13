@@ -96,7 +96,7 @@ def launch_gateway(memory="512m",
 def _submit_classpath(spark_home=None):
     spark_home = spark_home or get_spark_home()
     spyt_home = get_spyt_home()
-    jars_cp = [os.path.join(home, "jars/*") for home in [spark_home, spyt_home]]
+    jars_cp = [os.path.join(home, "jars/*") for home in [spyt_home, spark_home]]
     return [os.path.join(spyt_home, "conf")] + jars_cp
 
 
@@ -148,15 +148,7 @@ class SparkSubmissionClient(object):
         return instance
 
     def __init__(self, gateway, proxy, discovery_path, user, token):
-        # COMPAT(atokarew): Backward compatibility for CI/CD, remove after 1.77.0 release
-        n_constr_args = gateway.jvm.java.lang.Class.forName('tech.ytsaurus.spyt.submit.SubmissionClient')\
-            .getConstructors()[0].getParameterCount()
-        if n_constr_args == 5:
-            self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(
-                proxy, discovery_path, "1.76.1", user, token)
-        else:
-            # COMPAT END
-            self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(proxy, discovery_path, user, token)
+        self._jclient = gateway.jvm.tech.ytsaurus.spyt.submit.SubmissionClient(proxy, discovery_path, user, token)
         self.gateway = gateway
 
     def new_launcher(self):

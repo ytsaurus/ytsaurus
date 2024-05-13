@@ -14,7 +14,6 @@ object SpytRelease {
     minorReleaseVersions,
     setReleaseSpytVersion,
   ) ++ setCustomVersions ++ Seq(
-    setYtProxies,
     ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
     ReleaseStep(releaseStepTask(spytPublish)),
     ReleaseStep(releaseStepTask(spytPublishLibraries)),
@@ -24,31 +23,18 @@ object SpytRelease {
     logSpytVersion
   )
 
-  lazy val sparkForkReleaseProcess: Seq[ReleaseStep] = testProcess ++ Seq(
-    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
-    minorReleaseVersions,
-    setReleaseSpytVersion,
-    sparkForkReleaseVersions,
-    setSparkForkReleaseVersion,
-  ) ++ setCustomVersions ++ Seq(
-    setYtProxies,
-    ReleaseStep(releaseStepTask(spytUpdatePythonVersion))
-  ) ++ sparkMvnDeployProcess ++ Seq(
-    ReleaseStep(releaseStepTask(spytPublishSparkFork)),
-    ReleaseStep(releaseStepTask(spytPublish)),
-    ReleaseStep(releaseStepTask(spytPublishLibraries)),
-    dumpVersions,
-    setNextSpytVersion,
-    ReleaseStep(releaseStepTask(spytUpdatePythonVersion)),
-    logSparkForkVersion,
-    logSpytVersion
-  )
-
-  private lazy val testProcess: Seq[ReleaseStep] = Seq(
-    checkSnapshotDependencies,
-    runClean,
-    runTest
-  )
+  private lazy val testProcess: Seq[ReleaseStep] = {
+    val skipTests = Option(System.getProperty("skipTests")).forall(_.toBoolean)
+    if (skipTests) {
+      Nil
+    } else {
+      Seq(
+        checkSnapshotDependencies,
+        runClean,
+        runTest
+      )
+    }
+  }
 
   private def releaseMinorVersions(versions: SettingKey[Versions],
                                    st: State,
@@ -66,11 +52,6 @@ object SpytRelease {
     st.log.info(s"Next version: $nextV")
 
     st.put(versions.key, (releaseV, nextV))
-  }
-
-  lazy val setYtProxies: ReleaseStep = { st: State =>
-    System.setProperty("proxies", Seq("hume", "hahn", "arnold", "vanga").mkString(","))
-    st
   }
 
   private def getReleaseVersion(vs: Versions): String = vs._1
@@ -101,40 +82,12 @@ object SpytRelease {
   private lazy val minorReleaseVersions: ReleaseStep = { st: State =>
     releaseMinorVersions(spytVersions, st, spytVersion)
   }
-  private lazy val sparkForkReleaseVersions: ReleaseStep = { st: State =>
-    val extracted = Project.extract(st)
 
-    val currentSpytVersion = extracted.get(spytVersion)
+  private lazy val setCustomVersions: Seq[ReleaseStep] = Seq(setCustomSpytVersions)
 
-    st.log.info(s"Release version: $currentSpytVersion")
-
-    st.put(sparkVersions.key, (currentSpytVersion, ""))
-  }
-  private lazy val setCustomVersions: Seq[ReleaseStep] = Seq(
-    setCustomSpytVersions,
-    setCustomSparkForkVersions
-  )
   private lazy val setCustomSpytVersions: ReleaseStep = {
     customSpytVersion.map { v =>
       setVersionForced(Seq(spytVersion -> v, spytPythonVersion -> v), spytVersionFile)
     }.getOrElse(ReleaseStep(identity))
   }
-  private lazy val setCustomSparkForkVersions: ReleaseStep = {
-    customSparkForkVersion.map { v =>
-      setVersionForced(Seq(spytSparkVersion -> v, spytSparkPythonVersion -> v), spytSparkVersionFile)
-    }.getOrElse(ReleaseStep(identity))
-  }
-  private lazy val setSparkForkReleaseVersion: ReleaseStep = {
-    setVersion(
-      sparkVersions,
-      Seq(spytSparkVersion -> getReleaseVersion, spytSparkPythonVersion -> getReleasePythonVersion),
-      spytSparkVersionFile
-    )
-  }
-  private lazy val sparkMvnDeployProcess: Seq[ReleaseStep] = Seq(
-    setSparkForkSnapshotVersionMvn,
-    ReleaseStep(releaseStepTask(deploySparkFork)),
-    unsetSparkForkSnapshotVersionMvn
-  )
-
 }

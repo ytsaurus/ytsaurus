@@ -12,7 +12,7 @@ from yt.wrapper.common import update_inplace, update  # noqa: E402
 from yt.wrapper.http_helpers import get_token, get_user_name  # noqa: E402
 from yt.wrapper.spec_builders import VanillaSpecBuilder  # noqa: E402
 
-from .conf import ytserver_proxy_attributes  # noqa: E402
+from .conf import ytserver_proxy_attributes, get_spark_distributive  # noqa: E402
 from .utils import SparkDiscovery, call_get_proxy_address_url, parse_memory  # noqa: E402
 from .enabler import SpytEnablers  # noqa: E402
 from .version import __version__  # noqa: E402
@@ -122,6 +122,7 @@ class LivyConfig(NamedTuple):
 
 class CommonSpecParams(NamedTuple):
     spark_home: str
+    spark_distributive_tgz: str
     java_home: str
     extra_java_opts: List[str]
     environment: dict
@@ -135,19 +136,23 @@ def spark_conf_to_opts(config: dict):
     return ["-D{}={}".format(key, value) for key, value in config.items()]
 
 
-def setup_spyt_env(spark_home: str, additional_parameters: List[str]):
-    cmd = ["./setup-spyt-env.sh", "--spark-home", spark_home] + additional_parameters
-    return " ".join(cmd)
+def setup_spyt_env(spark_home: str, spark_distributive: str, additional_parameters: List[str]):
+    cmd = ["./setup-spyt-env.sh", "--spark-home", spark_home, "--spark-distributive", spark_distributive]
+    return " ".join(cmd + additional_parameters)
 
 
-def _launcher_command(component: str, spark_home: str, java_home: str, additional_parameters: List[str] = None,
+def _launcher_command(component: str, common_params: CommonSpecParams, additional_parameters: List[str] = None,
                       xmx: str = "512m", extra_java_opts: List[str] = None, launcher_opts: str = ""):
     additional_parameters = additional_parameters or []
     extra_java_opts = extra_java_opts or []
-    setup_spyt_env_cmd = setup_spyt_env(spark_home, additional_parameters)
+    setup_spyt_env_cmd = setup_spyt_env(common_params.spark_home,
+                                        common_params.spark_distributive_tgz,
+                                        additional_parameters)
 
-    java_bin = os.path.join(java_home, 'bin', 'java')
-    classpath = f'{spark_home}/spyt-package/conf/:{spark_home}/spyt-package/jars/*:{spark_home}/spark/jars/*'
+    java_bin = os.path.join(common_params.java_home, 'bin', 'java')
+    classpath = (f'{common_params.spark_home}/spyt-package/conf/:'
+                 f'{common_params.spark_home}/spyt-package/jars/*:'
+                 f'{common_params.spark_home}/spark/jars/*')
     extra_java_opts_str = " ".join(extra_java_opts)
     run_launcher = "{} -Xmx{} -cp {} {}".format(java_bin, xmx, classpath, extra_java_opts_str)
 
@@ -167,9 +172,8 @@ def build_livy_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams
     if config.spark_master_address is not None:
         livy_launcher_opts.append(f"--master-address {config.spark_master_address}")
     extra_java_opts = common_params.extra_java_opts + spark_conf_to_opts(common_params.spark_conf)
-    livy_command = _launcher_command("Livy", common_params.spark_home, common_params.java_home,
-                                     additional_parameters=["--enable-livy"], extra_java_opts=extra_java_opts,
-                                     launcher_opts=" ".join(livy_launcher_opts))
+    livy_command = _launcher_command("Livy", common_params, additional_parameters=["--enable-livy"],
+                                     extra_java_opts=extra_java_opts, launcher_opts=" ".join(livy_launcher_opts))
 
     livy_environment = {
         "LIVY_HOME": "$HOME/{}/livy".format(common_params.spark_home),
@@ -207,8 +211,8 @@ def build_hs_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams, 
 
     history_launcher_opts = "--log-path {} --memory {}".format(event_log_path, config.history_server_memory_limit)
     extra_java_opts = common_params.extra_java_opts + spark_conf_to_opts(spark_conf_hs)
-    history_command = _launcher_command("HistoryServer", common_params.spark_home, common_params.java_home,
-                                        extra_java_opts=extra_java_opts, launcher_opts=history_launcher_opts)
+    history_command = _launcher_command("HistoryServer", common_params, extra_java_opts=extra_java_opts,
+                                        launcher_opts=history_launcher_opts)
 
     shs_file_paths = copy.copy(common_params.task_spec["file_paths"])
     if common_params.config.enablers.enable_profiling:
@@ -226,8 +230,7 @@ def build_hs_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams, 
 
 def build_master_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams, config: MasterConfig):
     extra_java_opts = common_params.extra_java_opts + spark_conf_to_opts(common_params.spark_conf)
-    master_command = _launcher_command("Master", common_params.spark_home, common_params.java_home,
-                                       extra_java_opts=extra_java_opts)
+    master_command = _launcher_command("Master", common_params, extra_java_opts=extra_java_opts)
     master_environment = {
         "SPARK_MASTER_PORT": str(config.master_port),
     }
@@ -276,8 +279,8 @@ def build_worker_spec(builder: VanillaSpecBuilder, job_type: str, ytserver_proxy
             config.res.timeout, config.worker_log_transfer, config.worker_log_json_mode,
             config.worker_log_update_interval, config.worker_log_table_ttl)
     extra_java_opts = common_params.extra_java_opts + spark_conf_to_opts(spark_conf_worker)
-    worker_command = _launcher_command("Worker", common_params.spark_home, common_params.java_home, xmx="2g",
-                                       extra_java_opts=extra_java_opts, launcher_opts=worker_launcher_opts)
+    worker_command = _launcher_command("Worker", common_params, xmx="2g", extra_java_opts=extra_java_opts,
+                                       launcher_opts=worker_launcher_opts)
 
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(common_params.config.enablers.enable_byop),
@@ -346,6 +349,7 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
         job_types = ['master', 'history', 'worker']
 
     spark_home = "./tmpfs" if common_config.enable_tmpfs else "."
+    spark_distributive_tgz, spark_distributive_path = get_spark_distributive(client)
 
     extra_java_opts = ["-Dlog4j.loglevel={}".format(common_config.cluster_log_level)]
     if common_config.enablers.enable_preference_ipv6:
@@ -405,9 +409,12 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
         environment["SPARK_YT_TCP_PROXY_RANGE_START"] = str(common_config.tcp_proxy_range_start)
         environment["SPARK_YT_TCP_PROXY_RANGE_SIZE"] = str(common_config.tcp_proxy_range_size)
 
+    file_paths = copy.copy(config["file_paths"])
+    file_paths.append(spark_distributive_path)
+
     common_task_spec = {
         "restart_completed_jobs": True,
-        "file_paths": config["file_paths"],
+        "file_paths": file_paths,
         "layer_paths": config["layer_paths"],
         "environment": environment,
         "memory_reserve_factor": 1.0,
@@ -425,8 +432,8 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
         secure_vault["SPARK_TVM_SECRET"] = common_config.tvm_secret
 
     common_params = CommonSpecParams(
-        spark_home, environment["JAVA_HOME"], extra_java_opts, environment, spark_conf_common, common_task_spec,
-        spark_discovery, common_config
+        spark_home, spark_distributive_tgz, environment["JAVA_HOME"], extra_java_opts,
+        environment, spark_conf_common, common_task_spec, spark_discovery, common_config
     )
     builder = VanillaSpecBuilder()
     if "master" in job_types:

@@ -9,6 +9,11 @@ while [[ $# -gt 0 ]]; do
       shift
       shift
       ;;
+    --spark-distributive)
+      spark_distr="$2"
+      shift
+      shift
+      ;;
     --enable-livy)
       enable_livy=1
       shift
@@ -25,10 +30,16 @@ if [[ -z $spark_home ]]; then
   exit 1
 fi
 
+if [[ -z $spark_distr ]]; then
+  echo "Parameter --spark-distributive should be set"
+  exit 1
+fi
+
 spyt_home=$(realpath "$spark_home/spyt-package")
 
 mkdir -p $spark_home
-tar --warning=no-unknown-keyword -xf spark.tgz -C $spark_home
+tar --warning=no-unknown-keyword -xf "$spark_distr" -C "$spark_home"
+mv "$spark_home/${spark_distr:0:-4}" "$spark_home/spark"
 
 if [ -f spyt-package.zip ]; then
   unzip -o spyt-package.zip -d "$spark_home"

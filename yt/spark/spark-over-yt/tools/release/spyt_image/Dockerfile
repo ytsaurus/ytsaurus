@@ -1,7 +1,11 @@
-ARG SPARK_VERSION
-FROM ytsaurus/spark:${SPARK_VERSION}
+FROM ubuntu:focal
 
 USER root
+
+ARG BUILD_OUTPUT_PATH
+ARG PUBLISH_SCRIPTS_PATH
+
+RUN mkdir /data
 
 RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa
@@ -21,9 +25,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   python3.7-distutils
 
 RUN python3.7 -m pip install ytsaurus-client==0.13.7
-
-ARG BUILD_OUTPUT_PATH
-ARG PUBLISH_SCRIPTS_PATH
 
 COPY ${BUILD_OUTPUT_PATH}/version.json /data/
 COPY ${BUILD_OUTPUT_PATH}/conf /data/conf

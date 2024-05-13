@@ -11,12 +11,10 @@ Usage: $script_name [-h|--help]
                     [--build-output build_output]
                     [--publish-scripts publish_scripts]
                     [--spyt-version spyt_version]
-                    [--spark-version spark_version]
 
   --build-output: Path to built spyt components (default: $build_output)
   --publish-scripts: Path to spyt publish scripts (default: $publish_scripts)
   --spyt-version: Spyt version
-  --spark-version: Spark fork version
 
 EOF
     exit 0
@@ -38,10 +36,6 @@ while [[ $# -gt 0 ]]; do
         spyt_version="$2"
         shift 2
         ;;
-        --spark-version)
-        spark_version="$2"
-        shift 2
-        ;;
         -h|--help)
         print_usage
         shift
@@ -53,7 +47,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$spark_version" || -z "$spyt_version" ]]; then
+if [[ -z "$spyt_version" ]]; then
   echo "No version specified"
   exit 1
 fi
@@ -66,7 +60,6 @@ cp -rL $publish_scripts/* scripts/
 docker build \
     -t ytsaurus/spyt:"$spyt_version" \
     --build-arg BUILD_OUTPUT_PATH=data \
-    --build-arg SPARK_VERSION=$spark_version \
     --build-arg PUBLISH_SCRIPTS_PATH=scripts \
     .
 
