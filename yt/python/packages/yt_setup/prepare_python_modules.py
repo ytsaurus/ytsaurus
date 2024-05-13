@@ -5,6 +5,7 @@ import argparse
 import logging
 import glob
 import os
+import re
 
 from .os_helpers import (
     apply_multiple,
@@ -77,6 +78,25 @@ def fix_type_info_package(type_info_path):
                 raise
 
 
+def patch_os_files(patcheable_files, to_os=True):
+    for file_name in patcheable_files:
+        if file_name.endswith(".py"):
+            with open(file_name) as fin:
+                data = fin.read()
+
+            if to_os:
+                data = re.sub(r"(\n *# *__IF_NOT_OS: *\n *)([^#])", r"\1# \2", data)
+                data = re.sub(r"(\n *# *__IF_OS: *\n *)#+ *", r"\1", data)
+            else:
+                data = re.sub(r"(\n *# *__IF_NOT_OS: *\n *)#+ *", r"\1", data)
+                data = re.sub(r"(\n *# *__IF_OS: *\n *)([^#])", r"\1# \2", data)
+
+            with open(file_name, "w") as fout:
+                fout.write(data)
+        else:
+            raise RuntimeError("Wrong filename extension: {}".format(file_name))
+
+
 def prepare_python_modules(
         source_root,
         output_path,
@@ -85,7 +105,8 @@ def prepare_python_modules(
         prepare_binary_symlinks=False,
         prepare_bindings=True,
         prepare_bindings_libraries=True,
-        should_fix_type_info_package=True):
+        should_fix_type_info_package=True,
+        should_patch_os_files=False):
     """Prepares python libraries"""
 
     python_root = os.path.join(source_root, "yt/python")
@@ -106,6 +127,9 @@ def prepare_python_modules(
 
     if should_fix_type_info_package:
         fix_type_info_package(os.path.join(output_path, "yt", "type_info"))
+
+    if should_patch_os_files:
+        patch_os_files([os.path.join(output_path, "yt/wrapper/client.py")], to_os=True)
 
     # Prepare contribs
     for package_name in YT_PYTHON_PACKAGE_LIST:
@@ -200,6 +224,7 @@ def main():
     parser.add_argument("--output-path", required=True)
     parser.add_argument("--build-root")
     parser.add_argument("--fix-type-info-package", action="store_true", default=False)
+    parser.add_argument("--patch-os-files", action="store_true", default=False)
     parser.add_argument("--use-modules-from-contrib", action="store_true", default=False)
     parser.add_argument("--prepare-bindings-libraries", action="store_true", default=False)
     args = parser.parse_args()
@@ -213,6 +238,7 @@ def main():
         build_root=args.build_root,
         use_modules_from_contrib=args.use_modules_from_contrib,
         should_fix_type_info_package=args.fix_type_info_package,
+        should_patch_os_files=args.patch_os_files,
         prepare_bindings_libraries=args.prepare_bindings_libraries)
 
 
