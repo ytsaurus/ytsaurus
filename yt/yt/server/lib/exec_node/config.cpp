@@ -683,6 +683,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 
+    registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
+        .Default(false);
+
     registrar.Parameter("user_job_monitoring", &TThis::UserJobMonitoring)
         .DefaultNew();
 
