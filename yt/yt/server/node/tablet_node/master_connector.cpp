@@ -135,11 +135,11 @@ private:
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         std::vector<TFuture<bool>> futures;
-        THashSet<TCellTag> newSecondaryCellTags;
+        THashSet<TCellTag> newSecondaryMasterCellTags;
         futures.reserve(newSecondaryMasterConfigs.size());
-        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
         for (const auto& [cellTag, _] : newSecondaryMasterConfigs) {
-            InsertOrCrash(newSecondaryCellTags, cellTag);
+            InsertOrCrash(newSecondaryMasterCellTags, cellTag);
             if (clusterNodeMasterConnector->IsRegisteredAtPrimaryMaster()) {
                 futures.push_back(BIND([this, weakThis = MakeWeak(this), cellTag = cellTag] {
                     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -158,7 +158,7 @@ private:
             resultsOrError,
             "Failed to report tablet node heartbeat to new masters "
             "(NewCellTags: %v)",
-            newSecondaryCellTags);
+            newSecondaryMasterCellTags);
 
         if (resultsOrError.IsOK()) {
             auto results = resultsOrError.Value();
@@ -166,13 +166,13 @@ private:
                 AllOf(results, [] (auto result) { return result; }),
                 "Some of tablet heartbeats failed, node will re-register at primary master "
                 "(NewCellTags: %v)",
-                newSecondaryCellTags);
+                newSecondaryMasterCellTags);
         }
 
         YT_LOG_INFO(
             "Received master cell directory change, successfully reported heartbeats to new masters "
             "(NewCellTags: %v)",
-            newSecondaryCellTags);
+            newSecondaryMasterCellTags);
     }
 
     void OnDynamicConfigChanged(

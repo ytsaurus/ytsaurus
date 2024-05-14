@@ -1,7 +1,7 @@
 #include "client_impl.h"
 
-#include <yt/yt/ytlib/api/native/tablet_helpers.h>
-#include <yt/yt/ytlib/api/native/transaction.h>
+#include "tablet_helpers.h"
+#include "transaction.h"
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>

@@ -758,11 +758,11 @@ private:
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         std::vector<TFuture<bool>> futures;
-        THashSet<TCellTag> newSecondaryCellTags;
+        THashSet<TCellTag> newSecondaryMasterCellTags;
         futures.reserve(newSecondaryMasterConfigs.size());
-        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
+        newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
         for (const auto& [cellTag, config] : newSecondaryMasterConfigs) {
-            InsertOrCrash(newSecondaryCellTags, cellTag);
+            InsertOrCrash(newSecondaryMasterCellTags, cellTag);
             YT_VERIFY(config->Addresses);
             InitPerCellData(cellTag, *config->Addresses);
             auto* delta = GetChunksDelta(cellTag);
@@ -786,7 +786,7 @@ private:
             resultsOrError,
             "Failed to report full data node heartbeat to new masters "
             "(NewCellTags: %v)",
-            newSecondaryCellTags);
+            newSecondaryMasterCellTags);
 
         if (resultsOrError.IsOK()) {
             auto results = resultsOrError.Value();
@@ -794,13 +794,13 @@ private:
                 AllOf(results, [] (auto result) { return result; }),
                 "Some of data heartbeats failed, node will re-register at primary master "
                 "(NewCellTags: %v)",
-                newSecondaryCellTags);
+                newSecondaryMasterCellTags);
         }
 
         YT_LOG_INFO(
             "Received master cell directory change, attempted to report heartbeats to new masters "
             "(NewCellTags: %v)",
-            newSecondaryCellTags);
+            newSecondaryMasterCellTags);
     }
 
     void OnDynamicConfigChanged(

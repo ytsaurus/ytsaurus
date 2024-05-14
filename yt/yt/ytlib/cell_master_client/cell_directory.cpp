@@ -172,10 +172,10 @@ public:
         THashMap<TCellTag, std::vector<TString>> cellAddresses;
         cellAddresses.reserve(protoDirectory.items_size());
 
-        TSecondaryMasterConnectionConfigs cellTagToSecondaryMaster;
-        TCellTagList secondaryCellTags;
-        cellTagToSecondaryMaster.reserve(protoDirectory.items_size());
-        secondaryCellTags.reserve(protoDirectory.items_size());
+        TSecondaryMasterConnectionConfigs newSecondaryMasterConnectionConfigs;
+        TCellTagList newSecondaryMasterCellTags;
+        newSecondaryMasterConnectionConfigs.reserve(protoDirectory.items_size());
+        newSecondaryMasterCellTags.reserve(protoDirectory.items_size());
 
         auto primaryCellFound = false;
 
@@ -200,8 +200,8 @@ public:
                 YT_VERIFY(cellId == PrimaryMasterCellId_);
                 primaryCellFound = true;
             } else {
-                EmplaceOrCrash(cellTagToSecondaryMaster, cellTag, std::move(masterConnectionConfig));
-                secondaryCellTags.push_back(cellTag);
+                EmplaceOrCrash(newSecondaryMasterConnectionConfigs, cellTag, std::move(masterConnectionConfig));
+                newSecondaryMasterCellTags.push_back(cellTag);
             }
         }
 
@@ -212,16 +212,16 @@ public:
         auto oldSecondaryMasterCellTags = GetSecondaryMasterCellTags();
         auto oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
-        if (ClusterMasterCompositionChanged(cellTagToSecondaryMaster)) {
+        if (ClusterMasterCompositionChanged(newSecondaryMasterConnectionConfigs)) {
             YT_LOG_INFO("Cluster membership configuration has changed, starting reconfiguration "
                 "(SecondaryMasterCellTags: %v, ReceivedSecondaryMasterCellTags: %v)",
                 oldSecondaryMasterCellTags,
-                secondaryCellTags);
-            ReconfigureMasterCellDirectory(oldSecondaryMasterConnectionConfigs, cellTagToSecondaryMaster, secondaryCellTags);
+                newSecondaryMasterCellTags);
+            ReconfigureMasterCellDirectory(oldSecondaryMasterConnectionConfigs, newSecondaryMasterConnectionConfigs, newSecondaryMasterCellTags);
         }
 
         if (oldSecondaryMasterCellTags.empty() &&
-            !secondaryCellTags.empty()) {
+            !newSecondaryMasterCellTags.empty()) {
             const auto primaryMasterCellRoles = cellTagToRoles[PrimaryMasterCellTag_];
             cellTagToRoles.clear();
             cellTagToRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
@@ -314,15 +314,15 @@ private:
     TCellIdList SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
 
-    bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& secondaryMasterConnectionConfigs)
+    bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
     {
         const auto& oldSecondaryMasterConnectionConfigs = GetSecondaryMasterConnectionConfigs();
 
-        if (secondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
+        if (newSecondaryMasterConnectionConfigs.size() != oldSecondaryMasterConnectionConfigs.size()) {
             return true;
         }
 
-        for (const auto& [cellTag, secondaryMasterConnectionConfig] : secondaryMasterConnectionConfigs) {
+        for (const auto& [cellTag, secondaryMasterConnectionConfig] : newSecondaryMasterConnectionConfigs) {
             if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
                 return true;
             }
@@ -341,44 +341,44 @@ private:
         const TCellTagList& secondaryMasterCellTags)
     {
         TCellIdList secondaryMasterCellIds;
-        THashSet<TCellTag> newSecondaryCellTags;
-        THashSet<TCellTag> changedSecondaryCellTags;
+        THashSet<TCellTag> newSecondaryMasterCellTags;
+        THashSet<TCellTag> changedSecondaryMasterCellTags;
         TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
         TSecondaryMasterConnectionConfigs changedSecondaryMasterConfigs;
         secondaryMasterCellIds.reserve(newSecondaryMasterConnectionConfigs.size());
-        newSecondaryCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
-        changedSecondaryCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
+        newSecondaryMasterCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
+        changedSecondaryMasterCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
         newSecondaryMasterConfigs.reserve(newSecondaryMasterConnectionConfigs.size());
         changedSecondaryMasterConfigs.reserve(newSecondaryMasterConnectionConfigs.size());
 
         for (const auto& [cellTag, secondaryMaster] : newSecondaryMasterConnectionConfigs) {
             if (!oldSecondaryMasterConnectionConfigs.contains(cellTag)) {
                 EmplaceOrCrash(newSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(newSecondaryCellTags, cellTag);
+                InsertOrCrash(newSecondaryMasterCellTags, cellTag);
             } else if (secondaryMaster->Addresses != GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses) {
                 YT_LOG_INFO("Master cell will be reconfigured (CellTag: %v, NewCellAddresses: %v, OldCellAddresses: %v)",
                     cellTag,
                     secondaryMaster->Addresses,
                     GetOrCrash(oldSecondaryMasterConnectionConfigs, cellTag)->Addresses);
                 EmplaceOrCrash(changedSecondaryMasterConfigs, cellTag, secondaryMaster);
-                InsertOrCrash(changedSecondaryCellTags, cellTag);
+                InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
             }
             secondaryMasterCellIds.push_back(secondaryMaster->CellId);
         }
 
         Sort(secondaryMasterCellIds);
 
-        THashSet<TCellTag> removedSecondaryCellTags;
-        removedSecondaryCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
+        THashSet<TCellTag> removedSecondaryMasterCellTags;
+        removedSecondaryMasterCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
         for (const auto& [cellTag, _] : oldSecondaryMasterConnectionConfigs) {
             if (!newSecondaryMasterConnectionConfigs.contains(cellTag)) {
-                InsertOrCrash(removedSecondaryCellTags, cellTag);
+                InsertOrCrash(removedSecondaryMasterCellTags, cellTag);
             }
         }
         YT_LOG_ALERT_UNLESS(
-            removedSecondaryCellTags.empty(),
+            removedSecondaryMasterCellTags.empty(),
             "Some master cells were removed in new configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryCellTags);
+            removedSecondaryMasterCellTags);
 
         {
             auto guard = WriterGuard(SpinLock_);
@@ -398,14 +398,14 @@ private:
 
         YT_LOG_DEBUG("Finished reconfiguration of cell cluster membership "
             "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-            newSecondaryCellTags,
-            changedSecondaryCellTags,
-            removedSecondaryCellTags);
+            newSecondaryMasterCellTags,
+            changedSecondaryMasterCellTags,
+            removedSecondaryMasterCellTags);
 
         CellDirectoryChanged_.Fire(
             newSecondaryMasterConfigs,
             changedSecondaryMasterConfigs,
-            removedSecondaryCellTags);
+            removedSecondaryMasterCellTags);
     }
 
     IChannelPtr GetCellChannelOrThrow(TCellTag cellTag, EMasterChannelKind kind) const

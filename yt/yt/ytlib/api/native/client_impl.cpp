@@ -79,6 +79,7 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NHiveClient;
 using namespace NScheduler;
+using namespace NSecurityClient;
 using namespace NHydra;
 
 using NNodeTrackerClient::CreateNodeChannelFactory;
@@ -325,7 +326,7 @@ void TClient::Terminate()
     SchedulerChannel_->Terminate(error);
 }
 
-IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag)
+IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag)
 {
     auto guard = ReaderGuard(MasterChannelsLock_);
     const auto& channels = MasterChannels_[kind];
@@ -344,7 +345,7 @@ TClient::TChannels TClient::GetCypressChannels(EMasterChannelKind kind)
     return CypressChannels_[kind];
 }
 
-IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag)
+IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, TCellTag cellTag)
 {
     auto guard = ReaderGuard(CypressChannelsLock_);
     const auto& channels = CypressChannels_[kind];
@@ -376,7 +377,7 @@ const IClientPtr& TClient::GetOperationsArchiveClient()
         }
     }
 
-    auto options = TClientOptions::FromUser(NSecurityClient::OperationsClientUserName);
+    auto options = TClientOptions::FromUser(OperationsClientUserName);
     auto client = Connection_->CreateNativeClient(options);
 
     {
@@ -635,11 +636,11 @@ NApi::IClientPtr TClient::CreateRootClient()
 
 void TClient::ValidateSuperuserPermissions()
 {
-    if (Options_.User == NSecurityClient::RootUserName) {
+    if (Options_.User == RootUserName) {
         return;
     }
 
-    auto pathToGroupYsonList = NSecurityClient::GetUserPath(*Options_.User) + "/@member_of_closure";
+    auto pathToGroupYsonList = GetUserPath(*Options_.User) + "/@member_of_closure";
 
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
@@ -652,13 +653,13 @@ void TClient::ValidateSuperuserPermissions()
         Options_.User,
         groups);
 
-    if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
+    if (!groups.contains(SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
     }
 }
 
 void TClient::ValidatePermissionsWithAcn(
-    NSecurityClient::EAccessControlObject accessControlObjectName,
+    EAccessControlObject accessControlObjectName,
     EPermission permission)
 {
     TErrorOr<TCheckPermissionResponse> response;
@@ -677,7 +678,7 @@ void TClient::ValidatePermissionsWithAcn(
         response = TError(ex);
     }
 
-    if (!(response.IsOK() && response.Value().Action == NSecurityClient::ESecurityAction::Allow)) {
+    if (!(response.IsOK() && response.Value().Action == ESecurityAction::Allow)) {
         ValidateSuperuserPermissions();
         YT_LOG_WARNING("There is no access control object with the necessary permissions (Name: %v, Path: %v, Permission: %v)",
             Options_.User,

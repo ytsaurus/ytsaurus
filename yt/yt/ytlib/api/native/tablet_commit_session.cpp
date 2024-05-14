@@ -3,9 +3,8 @@
 #include "cell_commit_session.h"
 #include "client.h"
 #include "config.h"
+#include "connection.h"
 #include "tablet_request_batcher.h"
-
-#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 

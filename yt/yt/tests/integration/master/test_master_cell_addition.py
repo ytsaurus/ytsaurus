@@ -163,7 +163,7 @@ class TestMasterCellAdditionBase(YTEnvSetup):
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
 
-    def _execute_checks_with_cell_addition(self, downtime_nodes=True):
+    def _execute_checks_with_cell_addition(self, downtime=True):
         checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
 
         print_debug("Checkers: ", checker_names)
@@ -173,7 +173,7 @@ class TestMasterCellAdditionBase(YTEnvSetup):
         for s in checker_state_list:
             next(s)
 
-        type(self)._enable_last_cell(downtime_nodes)
+        type(self)._enable_last_cell(downtime)
 
         for s in checker_state_list:
             with pytest.raises(StopIteration):
@@ -525,7 +525,7 @@ class TestMasterCellAdditionWithoutNodesDowntime(TestMasterCellAdditionBaseCheck
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(120)
     def test_add_new_cell(self):
-        self._execute_checks_with_cell_addition(downtime_nodes=False)
+        self._execute_checks_with_cell_addition(downtime=False)
 
 
 class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBase):
@@ -692,7 +692,7 @@ class TestMasterCellAdditionChaosMultiClusterWithoutNodesDowntime(TestMasterCell
             "full_sync_period": 200,
         })
 
-        self._execute_checks_with_cell_addition(downtime_nodes=False)
+        self._execute_checks_with_cell_addition(downtime=False)
 
 
 class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):

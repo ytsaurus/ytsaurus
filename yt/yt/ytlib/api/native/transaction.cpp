@@ -8,6 +8,7 @@
 #include "secondary_index_modification.h"
 #include "sync_replica_cache.h"
 #include "tablet_commit_session.h"
+#include "tablet_helpers.h"
 
 #include <yt/yt/client/api/dynamic_table_transaction_mixin.h>
 #include <yt/yt/client/api/queue_transaction_mixin.h>
@@ -28,8 +29,6 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
-
-#include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/proto/coordinator_service.pb.h>
