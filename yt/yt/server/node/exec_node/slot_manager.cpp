@@ -828,7 +828,7 @@ void TSlotManager::OnJobEnvironmentDisabled(TError error)
 
     YT_VERIFY(error.FindMatching(EErrorCode::JobEnvironmentDisabled));
 
-    YT_LOG_WARNING(error, "Job environment disabled. Disabling slot manager.");
+    YT_LOG_WARNING(error, "Job environment disabled; disabling slot manager");
 
     Disable(std::move(error));
 }
@@ -1238,8 +1238,12 @@ TSlotManager::TSlotGuard::~TSlotGuard()
 
 namespace {
 
-ESlotManagerAlertType DeduceAlertType(const TError& error) noexcept
+ESlotManagerAlertType DeduceAlertType(const TError& error, std::optional<ESlotManagerAlertType> hint) noexcept
 {
+    if (hint) {
+        return *hint;
+    }
+
     if (error.FindMatching(EErrorCode::JobEnvironmentDisabled)) {
         return ESlotManagerAlertType::JobEnvironmentFailure;
     }
@@ -1252,7 +1256,7 @@ ESlotManagerAlertType DeduceAlertType(const TError& error) noexcept
         return ESlotManagerAlertType::PortoFailure;
     }
 
-    YT_LOG_WARNING("Encountered unexpected error. Falling back to NotClassified alert. (Error %v)", error);
+    YT_LOG_WARNING("Unexpected alert error, mark alert as unclassified (Error %v)", error);
 
     return ESlotManagerAlertType::NotClassified;
 }
@@ -1268,7 +1272,7 @@ TSlotManager::TAlertSet::TAlertSet()
 
 void TSlotManager::TAlertSet::SetAlertError(TError error, std::optional<ESlotManagerAlertType> hint) noexcept
 {
-    Alerts_[hint.value_or(DeduceAlertType(error))].Error = std::move(error);
+    Alerts_[DeduceAlertType(error, hint)].Error = std::move(error);
 }
 
 void TSlotManager::TAlertSet::ClearAlertError(ESlotManagerAlertType alertType) noexcept
