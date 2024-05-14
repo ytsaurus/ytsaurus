@@ -1532,19 +1532,19 @@ private:
     void OnMasterCellDirectoryChanged(
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
-        const THashSet<TCellTag>& removedSecondaryCellTags)
+        const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         YT_LOG_ALERT_UNLESS(
-            removedSecondaryCellTags.empty(),
+            removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryCellTags);
+            removedSecondaryMasterCellTags);
 
-        THashSet<TCellTag> newSecondaryCellTags;
-        THashSet<TCellTag> changedSecondaryCellTags;
-        newSecondaryCellTags.reserve(newSecondaryMasterConfigs.size());
-        changedSecondaryCellTags.reserve(changedSecondaryMasterConfigs.size());
+        THashSet<TCellTag> newSecondaryMasterCellTags;
+        THashSet<TCellTag> changedSecondaryMasterCellTags;
+        newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
+        changedSecondaryMasterCellTags.reserve(changedSecondaryMasterConfigs.size());
 
         auto addMasterCell = [&] (const auto& masterConfig) {
             InitCachingObjectService(masterConfig->CellId);
@@ -1562,17 +1562,17 @@ private:
 
         for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
             addMasterCell(masterConfig);
-            InsertOrCrash(newSecondaryCellTags, cellTag);
+            InsertOrCrash(newSecondaryMasterCellTags, cellTag);
         }
 
         for (const auto& [cellTag, masterConfig] : changedSecondaryMasterConfigs) {
             reconfigureMasterCell(masterConfig);
-            InsertOrCrash(changedSecondaryCellTags, cellTag);
+            InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
         }
 
         // For consistency it is important to start reporting heartbeats before update of SecondaryMasterConnectionConfigs_, which is viewable.
         // But before it is needed to update cell tags set in case if cellar/data/tablet heartbeat report fails and node re-registers at master.
-        MasterConnector_->AddMasterCellTags(newSecondaryCellTags);
+        MasterConnector_->AddMasterCellTags(newSecondaryMasterCellTags);
         ReadyToReportHeartbeatsToNewMasters_.Fire(newSecondaryMasterConfigs);
 
         {
@@ -1589,9 +1589,9 @@ private:
 
         YT_LOG_INFO("Received new master cell cluster configuration "
             "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
-            newSecondaryCellTags,
-            changedSecondaryCellTags,
-            removedSecondaryCellTags);
+            newSecondaryMasterCellTags,
+            changedSecondaryMasterCellTags,
+            removedSecondaryMasterCellTags);
     }
 
     TSecondaryMasterConnectionConfigs GetSecondaryMasterConnectionConfigs() const

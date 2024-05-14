@@ -122,12 +122,12 @@ private:
     void OnMasterCellDirectoryChanged(
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
-        const THashSet<TCellTag>& removedSecondaryCellTags)
+        const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
         YT_LOG_ALERT_UNLESS(
-            removedSecondaryCellTags.empty(),
+            removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
-            removedSecondaryCellTags);
+            removedSecondaryMasterCellTags);
 
         {
             auto guard = Guard(Lock_);
@@ -146,7 +146,7 @@ private:
             "(NewCellTags: %v, ChangedCellTags: %v, RemovedCellTags: %v)",
             makeFormattableCellTagsView(newSecondaryMasterConfigs),
             makeFormattableCellTagsView(changedSecondaryMasterConfigs),
-            removedSecondaryCellTags);
+            removedSecondaryMasterCellTags);
     }
 };
 

@@ -19,7 +19,7 @@ using TSecondaryMasterConnectionConfigs = THashMap<NObjectClient::TCellTag, NApi
 using TCellReconfigurationSignature = void(
     const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
     const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
-    const THashSet<NObjectClient::TCellTag>& removedSecondaryCellTags);
+    const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
 
 ///////////////////////////////////////////////////////////////////////////////
 
