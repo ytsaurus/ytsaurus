@@ -3,7 +3,6 @@ PY3TEST()
 TEST_SRCS(
     conftest.py
     test_check_runner.py
-    test_configuration.py
     test_controller_agent_alerts.py
     test_controller_agent_count.py
     test_controller_agent_uptime.py
@@ -40,11 +39,6 @@ PEERDIR(
     yt/python/yt/environment
 )
 
-DATA(
-    arcadia/yt/odin/checks/config
-    arcadia/yt/odin/checks/data
-)
-
 DEPENDS(
     yt/odin/checks/bin/controller_agent_alerts
     yt/odin/checks/bin/controller_agent_count
@@ -66,7 +60,6 @@ DEPENDS(
     yt/odin/checks/bin/tablet_cell_snapshots
     yt/odin/checks/bin/tablet_cells
     yt/odin/checks/bin/unaware_nodes
-    yt/odin/checks/config
     yt/odin/bin/yt_odin
     yt/yt/packages/tests_package
 )
