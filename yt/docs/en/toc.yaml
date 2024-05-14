@@ -213,7 +213,7 @@ items:
            href: user-guide/data-processing/layers/layer-paths.md
          - name: Switching between tables
            when: audience == "public"
-           href: user-guide/data-processing/table-switch.md
+           href: user-guide/data-processing/operations/table-switch.md
          - name: CHYT
            when: audience == "public"
            items:

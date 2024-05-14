@@ -1,1 +1,1 @@
-{% include [Переключение таблиц](../../../_includes/user-guide/data-processing/table-switch.md) %}
+{% include [Переключение таблиц](../../../_includes/user-guide/data-processing/operations/table-switch.md) %}

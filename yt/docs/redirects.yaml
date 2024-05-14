@@ -7,6 +7,10 @@ common:
       to: /user-guide/data-processing/layers/$1
       type: redirect
 
+    - from: /user-guide/data-processing/table-switch.md
+      to: /user-guide/data-processing/operations/table-switch.md
+      type: redirect
+
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/c/description.md
@@ -751,3 +755,4 @@ ru:
     - from: /problems/woodpeckers.md
       to: /user-guide/problems/woodpeckers.md
       type: redirect
+
