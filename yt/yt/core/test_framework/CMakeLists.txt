@@ -34,6 +34,8 @@ target_link_libraries(yt-core-test_framework PUBLIC
 
 target_sources(yt-core-test_framework PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/test_memory_tracker.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/test_framework/test_server_host.cpp
 )
 
 
