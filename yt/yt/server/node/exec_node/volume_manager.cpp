@@ -1565,6 +1565,45 @@ DEFINE_REFCOUNTED_TYPE(TLayer)
 
 /////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsLayerCacheCounters
+{
+public:
+    TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler)
+        : Profiler_(std::move(profiler))
+    { }
+
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    {
+        auto key = CreateKey(tagSet, name);
+
+        auto guard = Guard(Lock_);
+        auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
+        if (inserted) {
+            it->second = Profiler_.WithTags(tagSet).Counter(name);
+        }
+
+        return it->second;
+    }
+
+private:
+    using TKey = NProfiling::TTagList;
+
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    {
+        auto key = tagSet.Tags();
+        key.push_back({"name", name});
+        return key;
+    }
+
+private:
+    const NProfiling::TProfiler Profiler_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashMap<TKey, NProfiling::TCounter> Counters_;
+};
+
+/////////////////////////////////////////////////////////////////////////////
+
 using TAbsorbLayerCallback = TCallback<TFuture<TLayerPtr>(
     const TArtifactKey& artifactKey,
     const TArtifactDownloadOptions& downloadOptions,
@@ -1598,6 +1637,9 @@ public:
         , UpdateFailedCounter_(ExecNodeProfiler
             .WithTag("cache_name", CacheName_)
             .Gauge("/layer_cache/update_failed"))
+        , TmpfsLayerCacheCounters(ExecNodeProfiler
+            .WithTag("cache_name", CacheName_)
+            .WithGlobal())
     {  }
 
     TLayerPtr FindLayer(const TArtifactKey& artifactKey)
@@ -1608,8 +1650,21 @@ public:
             auto layer = it->second;
             guard.Release();
 
+            // The following counter can help find layers that do not benefit from residing in tmpfs layer cache.
+            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                "/layer_cache/tmpfs_layer_hits");
+
+            cacheHitsCypressPathCounter.Increment();
             HitCounter_.Increment();
             return layer;
+        } else {
+            // The following counter can help find layers that could benefit from residing in tmpfs layer cache.
+            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                "/layer_cache/tmpfs_layer_misses");
+
+            cacheMissesCypressPathCounter.Increment();
         }
         return nullptr;
     }
@@ -1760,6 +1815,8 @@ private:
 
     TCounter HitCounter_;
     TGauge UpdateFailedCounter_;
+
+    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters;
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {

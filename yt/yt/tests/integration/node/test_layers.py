@@ -835,10 +835,14 @@ class TestTmpfsLayerCache(YTEnvSetup):
         assert b"static-bin" in op.read_stderr(job_id)
 
         job = get_job(op.id, job_id)
+
         regular_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "regular"})
         nirvana_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "nirvana"})
-
         assert regular_cache_hits > 0 or nirvana_cache_hits > 0
+
+        regular_tmpfs_layer_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "regular", "cypress_path": "//tmp/layer1"})
+        nirvanta_tmpfs_layer_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "nirvana", "cypress_path": "//tmp/layer1"})
+        assert regular_tmpfs_layer_hits > 0 or nirvanta_tmpfs_layer_hits > 0
 
         remove("//tmp/cached_layers/layer1")
         for node in ls("//sys/cluster_nodes"):
