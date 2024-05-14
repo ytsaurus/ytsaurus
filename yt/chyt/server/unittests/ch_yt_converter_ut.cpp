@@ -18,6 +18,7 @@
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
 #include <DataTypes/DataTypesNumber.h>
@@ -451,6 +452,81 @@ TEST_F(TTestCHYTConversion, TestNamedTupleInt8Double)
         {"my_precious_int8", SimpleLogicalType(ESimpleLogicalValueType::Int8)},
         {"their_ugly_float64", SimpleLogicalType(ESimpleLogicalValueType::Double)},
     });
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityString)
+{
+    auto dataType = std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeString>());
+
+    auto column = MakeColumn(dataType, {
+        DB::Field("a"),
+        DB::Field("abcd"),
+        DB::Field("a"),
+        DB::Field("b"),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "a",
+        "abcd",
+        "a",
+        "b",
+    };
+
+    auto expectedLogicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityNullable)
+{
+    auto dataType = std::make_shared<DB::DataTypeLowCardinality>(
+            std::make_shared<DB::DataTypeNullable>(
+                std::make_shared<DB::DataTypeString>()));
+
+    auto column = MakeColumn(dataType, {
+        DB::Field("a"),
+        DB::Field("abcd"),
+        DB::Field(),
+        DB::Field("b"),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "a",
+        "abcd",
+        "#",
+        "b",
+    };
+
+    auto expectedLogicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityComposite)
+{
+    auto dataType = std::make_shared<DB::DataTypeArray>(
+            std::make_shared<DB::DataTypeLowCardinality>(
+                std::make_shared<DB::DataTypeString>()));
+
+    auto column = MakeColumn(dataType, {
+        DB::Array{DB::Field("a"), DB::Field("b")},
+        DB::Array{DB::Field("abcd")},
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "[a;b]",
+        "[abcd]",
+    };
+
+    auto expectedLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
 
     Converter_.emplace(dataType, Settings_);
 

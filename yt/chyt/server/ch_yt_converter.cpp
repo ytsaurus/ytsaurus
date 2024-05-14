@@ -17,6 +17,7 @@
 
 #include <Columns/ColumnArray.h>
 #include <Columns/ColumnDecimal.h>
+#include <Columns/ColumnLowCardinality.h>
 #include <Columns/ColumnNothing.h>
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnString.h>
@@ -29,11 +30,12 @@
 #include <DataTypes/DataTypeCustom.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypeIPv4andIPv6.h>
+#include <DataTypes/DataTypeLowCardinality.h>
 #include <DataTypes/DataTypeNothing.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
-#include <DataTypes/DataTypeEnum.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypeTuple.h>
@@ -659,6 +661,65 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLowCardinalityConverter
+    : public IConverter
+{
+public:
+    explicit TLowCardinalityConverter(IConverterPtr underlyingConverter)
+        : UnderlyingConverter_(std::move(underlyingConverter))
+    { }
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        LowCardinalityColumn_ = DB::checkAndGetColumn<DB::ColumnLowCardinality>(column);
+        YT_VERIFY(LowCardinalityColumn_);
+
+        FullColumn_ = nullptr;
+
+        UnderlyingConverter_->InitColumn(LowCardinalityColumn_->getDictionary().getNestedColumn().get());
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        YT_VERIFY(!FullColumn_);
+
+        std::vector<TUnversionedValue> dictionaryValues(LowCardinalityColumn_->getDictionary().size());
+        UnderlyingConverter_->FillValueRange(TMutableRange(dictionaryValues));
+
+        for (size_t index = 0; index < values.size(); ++index) {
+            values[index] = dictionaryValues[LowCardinalityColumn_->getIndexAt(index)];
+        }
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        // NB: It's possible to make this code more efficient and without full column materialization.
+        // However, it would require a new virtual method `SetCurrentValueIndex`, to move the current position,
+        // and this would complicate the interface.
+        // Since ExtractNextValueYson is only used for composite types, the profit is likely to be negligible,
+        // so we just fall back to the full column for now.
+        if (!FullColumn_) {
+            FullColumn_ = LowCardinalityColumn_->convertToFullColumn();
+            UnderlyingConverter_->InitColumn(FullColumn_.get());
+        }
+        UnderlyingConverter_->ExtractNextValueYson(writer);
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        // TODO(dakovalkov): Wrap it within a 'tagged' type and support more efficient reading for such columns.
+        return UnderlyingConverter_->GetLogicalType();
+    }
+
+private:
+    const DB::ColumnLowCardinality* LowCardinalityColumn_;
+    const IConverterPtr UnderlyingConverter_;
+
+    DB::ColumnPtr FullColumn_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -685,8 +746,8 @@ public:
         // We save current column to be able to prolong its lifetime until next call of
         // ConvertColumnToUnversionedValues. This allows us to form string-like unversioned values
         // pointing directly to the input column.
-        // TODO(dakovalkov): support const and low-cardinality columns without conversion to full column.
-        CurrentColumn_ = column->convertToFullIfNeeded();
+        // TODO(dakovalkov): support const columns without conversion to full column.
+        CurrentColumn_ = column->convertToFullColumnIfConst();
 
         RootConverter_->InitColumn(CurrentColumn_.get());
 
@@ -876,6 +937,14 @@ private:
         }
     }
 
+    IConverterPtr CreateLowCardinalityConverter(const DB::DataTypePtr& dataType)
+    {
+        auto dataTypeLowCardinality = dynamic_pointer_cast<const DB::DataTypeLowCardinality>(dataType);
+        YT_VERIFY(dataTypeLowCardinality);
+        auto underlyingConverter = CreateConverter(dataTypeLowCardinality->getDictionaryType());
+        return std::make_unique<TLowCardinalityConverter>(std::move(underlyingConverter));
+    }
+
     IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
     {
         switch (dataType->getTypeId()) {
@@ -911,6 +980,8 @@ private:
             case DB::TypeIndex::IPv4:
             case DB::TypeIndex::IPv6:
                 return CreateIPAddressConverter(dataType);
+            case DB::TypeIndex::LowCardinality:
+                return CreateLowCardinalityConverter(dataType);
             default:
                 THROW_ERROR_EXCEPTION(
                     "Conversion of ClickHouse type %v to YT type system is not supported",
