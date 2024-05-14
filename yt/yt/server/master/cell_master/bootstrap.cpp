@@ -177,6 +177,7 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/server.h>
+#include <yt/yt/core/rpc/null_channel.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/tree_builder.h>
@@ -787,7 +788,9 @@ void TBootstrap::DoInitialize()
 
     const auto& networks = Config_->Networks;
 
-    NodeChannelFactory_ = CreateNodeChannelFactory(ChannelFactory_, networks);
+    NodeChannelFactory_ = CreateNodeChannelFactory(
+        !Config_->DisableNodeConnections ? ChannelFactory_ : GetNullChannelFactory(),
+        networks);
 
     CellDirectory_ = CreateCellDirectory(
         Config_->CellDirectory,

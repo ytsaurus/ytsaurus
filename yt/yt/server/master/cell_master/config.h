@@ -317,6 +317,8 @@ public:
 
     bool ExposeTestingFacilities;
 
+    bool DisableNodeConnections;
+
     REGISTER_YSON_STRUCT(TCellMasterConfig);
 
     static void Register(TRegistrar registrar);
