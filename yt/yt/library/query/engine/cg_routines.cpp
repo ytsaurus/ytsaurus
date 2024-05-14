@@ -149,8 +149,6 @@ using TUnversionedRowsConsumer = bool (*)(void** closure, TExpressionContext*, c
 
 bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TPIValue* values)
 {
-    CHECK_STACK();
-
     auto* statistics = context->Statistics;
 
     if (statistics->RowsWritten >= context->OutputRowLimit) {
@@ -1631,8 +1629,6 @@ void AllocatePermanentRow(
     int valueCount,
     TValue** row)
 {
-    CHECK_STACK();
-
     // TODO(dtorilov): Use AllocateUnversioned.
     auto* offset = expressionContext->AllocateAligned(valueCount * sizeof(TPIValue), EAddressSpace::WebAssembly);
     *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);

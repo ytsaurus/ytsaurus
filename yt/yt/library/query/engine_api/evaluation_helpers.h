@@ -212,8 +212,6 @@ struct TWriteOpClosure
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
-#define CHECK_STACK() (void) 0;
-
 struct TExecutionContext
 {
     ISchemafulUnversionedReaderPtr Reader;
@@ -236,13 +234,6 @@ struct TExecutionContext
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
-
-    TExecutionContext()
-    {
-        auto context = this;
-        Y_UNUSED(context);
-        CHECK_STACK();
-    }
 };
 
 class TTopCollector
