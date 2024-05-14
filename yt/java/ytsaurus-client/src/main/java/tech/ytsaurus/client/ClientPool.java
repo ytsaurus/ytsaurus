@@ -327,10 +327,10 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         super(
                 "discovery-server",
                 Objects.requireNonNull(discoveryBuilder.options).getChannelPoolSize(),
-                new SelfCheckingClientFactoryImpl(
-                        Objects.requireNonNull(discoveryBuilder.clientFactory),
-                        discoveryBuilder.options
-                ),
+                (hostPort, name, statusFuture) -> {
+                    RpcClient client = Objects.requireNonNull(discoveryBuilder.clientFactory).create(hostPort, name);
+                    return new ErrorHandlingClient(client, statusFuture);
+                },
                 Objects.requireNonNull(discoveryBuilder.eventLoop),
                 Objects.requireNonNull(discoveryBuilder.random)
         );
