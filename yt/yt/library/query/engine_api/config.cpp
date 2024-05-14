@@ -40,4 +40,17 @@ void TColumnEvaluatorCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TExpressionEvaluatorCacheConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cg_cache", &TThis::CGCache)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->CGCache->Capacity = 512;
+        config->CGCache->ShardCount = 1;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

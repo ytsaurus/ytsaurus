@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 namespace NYT::NTableClient {
@@ -17,6 +19,11 @@ void ValidateFullSyncIndexSchema(
     const TTableSchema& indexTableSchema);
 
 const TColumnSchema& FindUnfoldingColumnAndValidate(
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema);
+
+void ValidateColumnsAreInIndexLockGroup(
+    const NQueryClient::TColumnSet& columns,
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema);
 

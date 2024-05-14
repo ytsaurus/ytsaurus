@@ -236,6 +236,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
     ((FixLastSeenPersistance)                                       (2566))  // cherepashka
     ((AnyTypedKeysInSortedTables)                                   (2567))  // whatsername
+    ((SecondaryIndexPredicate_24_1)                                 (2568))  // sabdenovch
     // 24.2 starts here.
 );
 

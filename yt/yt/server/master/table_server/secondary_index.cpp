@@ -30,6 +30,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, IndexTable_);
     Save(context, Kind_);
     Save(context, ExternalCellTag_);
+    Save(context, Predicate_);
 }
 
 void TSecondaryIndex::Load(TLoadContext& context)
@@ -43,6 +44,11 @@ void TSecondaryIndex::Load(TLoadContext& context)
     // COMPAT(sabdenovch)
     if (context.GetVersion() >= EMasterReign::SecondaryIndexReplication) {
         Load(context, ExternalCellTag_);
+    }
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate_24_1)
+    {
+        Load(context, Predicate_);
     }
 }
 

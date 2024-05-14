@@ -39,6 +39,7 @@ target_sources(library-query-engine_api PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluation_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/expression_context.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/expression_evaluator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/new_range_inferrer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp

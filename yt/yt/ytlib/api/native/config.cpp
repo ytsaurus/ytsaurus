@@ -229,6 +229,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("column_evaluator_cache", &TThis::ColumnEvaluatorCache)
         .DefaultNew();
 
+    registrar.Parameter("expression_evaluator_cache", &TThis::ExpressionEvaluatorCache)
+        .DefaultNew();
+
     registrar.Parameter("write_rows_timeout", &TThis::WriteRowsTimeout)
         // COMPAT(babenko)
         .Alias("write_timeout")

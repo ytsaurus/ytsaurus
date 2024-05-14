@@ -236,6 +236,7 @@ public:
 
     NQueryClient::TExecutorConfigPtr QueryEvaluator;
     NQueryClient::TColumnEvaluatorCacheConfigPtr ColumnEvaluatorCache;
+    NQueryClient::TExpressionEvaluatorCacheConfigPtr ExpressionEvaluatorCache;
     TDuration DefaultSelectRowsTimeout;
     NCompression::ECodec SelectRowsResponseCodec;
     i64 DefaultInputRowLimit;

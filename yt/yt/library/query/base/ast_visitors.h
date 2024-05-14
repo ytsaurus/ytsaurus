@@ -41,23 +41,57 @@ struct TAbstractAstVisitor
         }
         YT_ABORT();
     }
+};
 
-    std::vector<TResult> Visit(const std::vector<TNode>& tuple)
+template <class TDerived, class TNode>
+struct TAbstractAstVisitor<void, TDerived, TNode>
+{
+    TDerived* Derived()
     {
-        int size = tuple.size();
-        std::vector<TResult> newTuple(size);
-        for (int index = 0; index < size; ++index) {
-            newTuple[index] = Visit(tuple[index]);
-        }
-        return newTuple;
+        return static_cast<TDerived*>(this);
     }
 
-    std::optional<std::vector<TResult>> Visit(const std::optional<std::vector<TNode>>& nullableTuple)
+    void Visit(TNode node)
     {
-        if (!nullableTuple) {
-            return std::nullopt;
-        } else {
-            return Visit(*nullableTuple);
+        auto* expr = Derived()->GetExpression(node);
+
+        if (auto* literalExpr = expr->template As<TLiteralExpression>()) {
+            return Derived()->OnLiteral(literalExpr);
+        } else if (auto* referenceExpr = expr->template As<TReferenceExpression>()) {
+            return Derived()->OnReference(referenceExpr);
+        } else if (auto* aliasExpr = expr->template As<TAliasExpression>()) {
+            return Derived()->OnAlias(aliasExpr);
+        } else if (auto* unaryOp = expr->template As<TUnaryOpExpression>()) {
+            return Derived()->OnUnary(unaryOp);
+        } else if (auto* binaryOp = expr->template As<TBinaryOpExpression>()) {
+            return Derived()->OnBinary(binaryOp);
+        } else if (auto* functionExpr = expr->template As<TFunctionExpression>()) {
+            return Derived()->OnFunction(functionExpr);
+        } else if (auto* inExpr = expr->template As<TInExpression>()) {
+            return Derived()->OnIn(inExpr);
+        } else if (auto* betweenExpr = expr->template As<TBetweenExpression>()) {
+            return Derived()->OnBetween(betweenExpr);
+        } else if (auto* transformExpr = expr->template As<TTransformExpression>()) {
+            return Derived()->OnTransform(transformExpr);
+        } else if (auto* caseExpr = expr->template As<TCaseExpression>()) {
+            return Derived()->OnCase(caseExpr);
+        } else if (auto* likeExpr = expr->template As<TLikeExpression>()) {
+            return Derived()->OnLike(likeExpr);
+        }
+        YT_ABORT();
+    }
+
+    void Visit(const std::vector<TNode>& tuple)
+    {
+        for (const auto& element : tuple) {
+            Visit(element);
+        }
+    }
+
+    void Visit(const std::optional<std::vector<TNode>>& nullableTuple)
+    {
+        if (nullableTuple) {
+            Visit(*nullableTuple);
         }
     }
 };
@@ -69,6 +103,86 @@ struct TBaseAstVisitor
     TExpressionPtr GetExpression(TExpressionPtr expr)
     {
         return expr;
+    }
+};
+
+template <class TDerived>
+struct TAstVisitor
+    : public TBaseAstVisitor<void, TDerived>
+{
+    using TBase = TBaseAstVisitor<void, TDerived>;
+    using TBase::Visit;
+
+    void OnLiteral(const TLiteralExpressionPtr /*literalExpr*/)
+    { }
+
+    void OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
+    { }
+
+    void OnAlias(const TAliasExpressionPtr /*referenceExpr*/)
+    { }
+
+    void OnUnary(const TUnaryOpExpressionPtr unaryExpr)
+    {
+        Visit(unaryExpr->Operand);
+    }
+
+    void OnBinary(const TBinaryOpExpressionPtr binaryExpr)
+    {
+        Visit(binaryExpr->Lhs);
+        Visit(binaryExpr->Rhs);
+    }
+
+    void OnFunction(const TFunctionExpressionPtr functionExpr)
+    {
+        Visit(functionExpr->Arguments);
+    }
+
+    void OnIn(const TInExpressionPtr inExpr)
+    {
+        Visit(inExpr->Expr);
+    }
+
+    void OnBetween(const TBetweenExpressionPtr betweenExpr)
+    {
+        Visit(betweenExpr->Expr);
+    }
+
+    void OnTransform(const TTransformExpressionPtr transformExpr)
+    {
+        Visit(transformExpr->Expr);
+        Visit(transformExpr->DefaultExpr);
+    }
+
+    void OnCase(const TCaseExpressionPtr caseExpr)
+    {
+        Visit(caseExpr->OptionalOperand);
+        for (const auto& whenThenExpression : caseExpr->WhenThenExpressions) {
+            Visit(whenThenExpression.first);
+            Visit(whenThenExpression.second);
+        }
+        Visit(caseExpr->DefaultExpression);
+    }
+
+    void OnLike(const TLikeExpressionPtr likeExpr)
+    {
+        Visit(likeExpr->Text);
+        Visit(likeExpr->Pattern);
+        Visit(likeExpr->EscapeCharacter);
+    }
+
+    void Visit(const std::vector<TExpressionPtr>& tuple)
+    {
+        for (auto expr : tuple) {
+            Visit(expr);
+        }
+    }
+
+    void Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple)
+    {
+        if (nullableTuple) {
+            return Visit(*nullableTuple);
+        }
     }
 };
 
@@ -229,6 +343,25 @@ struct TRewriter
                 std::move(newEscape));
         }
     }
+
+    std::vector<TExpressionPtr> Visit(const std::vector<TExpressionPtr>& tuple)
+    {
+        int size = tuple.size();
+        std::vector<TExpressionPtr> newTuple(size);
+        for (int index = 0; index < size; ++index) {
+            newTuple[index] = Visit(tuple[index]);
+        }
+        return newTuple;
+    }
+
+    std::optional<std::vector<TExpressionPtr>> Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple)
+    {
+        if (!nullableTuple) {
+            return std::nullopt;
+        } else {
+            return Visit(*nullableTuple);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -285,6 +418,20 @@ struct TTableReferenceReplacer
         const std::optional<TString>& newAlias);
 
     TExpressionPtr OnReference(TReferenceExpressionPtr reference);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReferenceHarvester
+    : public TAstVisitor<TReferenceHarvester>
+{
+public:
+    explicit TReferenceHarvester(TColumnSet* storage);
+
+    void OnReference(const TReferenceExpression* referenceExpr);
+
+private:
+    TColumnSet* Storage_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

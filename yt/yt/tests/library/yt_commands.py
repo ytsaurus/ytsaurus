@@ -2212,7 +2212,7 @@ def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
-def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
+def create_secondary_index(table_path, index_table_path, kind=None, predicate=None, **kwargs):
     kwargs["type"] = "secondary_index"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -2220,6 +2220,8 @@ def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
     kwargs["attributes"]["index_table_path"] = index_table_path
     if kind is not None:
         kwargs["attributes"]["kind"] = kind
+    if predicate is not None:
+        kwargs["attributes"]["predicate"] = predicate
     return execute_command("create", kwargs, parse_yson=True)
 
 

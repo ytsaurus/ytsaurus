@@ -88,12 +88,14 @@ DECLARE_REFCOUNTED_STRUCT(IEvaluator)
 
 DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
 
-DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
-
 DECLARE_REFCOUNTED_STRUCT(IColumnEvaluatorCache)
-
+DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheDynamicConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IExpressionEvaluatorCache)
+DECLARE_REFCOUNTED_CLASS(TExpressionEvaluator)
+DECLARE_REFCOUNTED_CLASS(TExpressionEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
 using TConstExternalCGInfoPtr = TIntrusivePtr<const TExternalCGInfo>;
@@ -145,6 +147,8 @@ using TKeyRange = std::pair<TLegacyOwningKey, TLegacyOwningKey>;
 using TMutableRowRange = std::pair<TMutableRow, TMutableRow>;
 using TRowRanges = std::vector<TRowRange>;
 using TMutableRowRanges = std::vector<TMutableRowRange>;
+
+using TColumnSet = THashSet<TString>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

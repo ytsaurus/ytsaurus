@@ -399,9 +399,13 @@ private:
 
             tableInfo->Indices.reserve(rsp->indices_size());
             for (const auto& protoIndexInfo : rsp->indices()) {
-                TIndexInfo indexInfo;
-                indexInfo.TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id());
-                indexInfo.Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind());
+                TIndexInfo indexInfo{
+                    .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
+                    .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
+                    .Predicate = protoIndexInfo.has_predicate()
+                        ? std::make_optional(FromProto<TString>(protoIndexInfo.predicate()))
+                        : std::nullopt,
+                };
                 tableInfo->Indices.push_back(indexInfo);
             }
 

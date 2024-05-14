@@ -96,4 +96,15 @@ TExpressionPtr TTableReferenceReplacer::OnReference(TReferenceExpressionPtr refe
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReferenceHarvester::TReferenceHarvester(TColumnSet* storage)
+    : Storage_(storage)
+{ }
+
+void TReferenceHarvester::OnReference(const TReferenceExpression* referenceExpr)
+{
+    Storage_->insert(referenceExpr->Reference.ColumnName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // NYT::NQueryClient::NAst

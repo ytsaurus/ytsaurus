@@ -1543,6 +1543,9 @@ private:
                     auto* protoIndexInfo = response->add_indices();
                     ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
                     protoIndexInfo->set_index_kind(ToProto<i32>(indexInfo.Kind));
+                    if (const auto& predicate = indexInfo.Predicate) {
+                        ToProto(protoIndexInfo->mutable_predicate(), *predicate);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",

@@ -383,6 +383,7 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PoolConfigPresets, pool_config_presets) \
+    XX(Predicate, predicate) \
     XX(PreloadState, preload_state) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \

@@ -154,7 +154,8 @@ public:
         NObjectClient::TObjectId hintId,
         ESecondaryIndexKind type,
         TTableNode* table,
-        TTableNode* secondaryIndex) = 0;
+        TTableNode* secondaryIndex,
+        std::optional<TString> predicate) = 0;
 
     //! Table collocation management.
     virtual TTableCollocation* CreateTableCollocation(
