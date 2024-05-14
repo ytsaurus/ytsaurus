@@ -6205,9 +6205,13 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6294,9 +6298,13 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/b/d\"",
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/d/2\"",
         "yson={b={c=4u};d=[1u;2]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u}d=[1u;2u}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"/@d/1\"",
     };
 
@@ -6383,9 +6391,13 @@ TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6472,9 +6484,13 @@ TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6562,9 +6578,13 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -8790,6 +8810,7 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple("any=<attribute=attribute>", "Unexpected \"finish\""),
         std::tuple("any={", "Unexpected \"finish\""),
         std::tuple("any=}", "Error occurred while parsing YSON"),
+        /* Balancing curly bracket to fix text editor navigation { */
         std::tuple("any={a=}", "Unexpected \"}\""),
         std::tuple("any={<attribute=attribute>}", "Unexpected \"<\""),
         std::tuple("any=[<attribute=attribute>]", "Unexpected \"]\""),
