@@ -412,6 +412,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic && !table->SecondaryIndices().empty()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IndexTo)
         .SetPresent(isDynamic && table->GetIndexTo()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CustomRuntimeData)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetOpaque(true)
+        .SetPresent(static_cast<bool>(table->CustomRuntimeData())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1075,6 +1080,16 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::CustomRuntimeData:
+            if (!table->CustomRuntimeData()) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->CustomRuntimeData());
+
+            return true;
+
         default:
             break;
     }
@@ -1300,6 +1315,15 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetQueueAgentStage(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::CustomRuntimeData: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->CustomRuntimeData() = {};
+
+            Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, {});
+
             return true;
         }
 
@@ -1673,6 +1697,15 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto* hunkStorageNode = node->As<THunkStorageNode>();
             lockedTable->SetHunkStorageNode(hunkStorageNode);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::CustomRuntimeData: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->CustomRuntimeData() = value;
+
+            Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, value);
 
             return true;
         }

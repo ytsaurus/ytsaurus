@@ -559,6 +559,7 @@
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
+    XX(CustomRuntimeData, custom_runtime_data) \
     XX(UserTags, user_tags) \
     XX(AssociatedNodes, associated_nodes) \
     XX(Value, value) \

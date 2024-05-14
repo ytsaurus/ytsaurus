@@ -255,6 +255,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErasureChunksCanBeNonVital)                                   (2614))  // achulkov2
     ((MissingRackAttribute)                                         (2615))  // danilalexeev
     ((SecondaryIndexPredicate)                                      (2616))  // sabdenovch
+    ((AddTableNodeCustomRuntimeData)                                (2617))  // gryzlov-ad
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -3302,6 +3302,49 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         wait(lambda: not bool(_get_errors()))
 
+    @authors("gryzlov-ad")
+    def test_custom_runtime_data(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        assert not exists("//tmp/t/@custom_runtime_data")
+
+        def get_tablet_custom_runtime_data():
+            return get(f"//sys/tablets/{tablet_id}/orchid/custom_runtime_data", default=None)
+
+        def set_custom_runtime_data(table, value):
+            set(f"{table}/@custom_runtime_data", value)
+            assert get(f"{table}/@custom_runtime_data") == value
+
+        def check_custom_runtime_data_delivery(value):
+            set_custom_runtime_data("//tmp/t", value)
+            wait(lambda: get_tablet_custom_runtime_data() == value)
+
+        check_custom_runtime_data_delivery(yson.YsonEntity())
+        check_custom_runtime_data_delivery({"hello" : "world"})
+
+        latest_data = {"goodbye": "world"}
+        check_custom_runtime_data_delivery(latest_data)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        assert get_tablet_custom_runtime_data() == latest_data
+
+        with self.CellsDisabled(clusters=["primary"], tablet_bundles=["default"]):
+            pass
+
+        assert get_tablet_custom_runtime_data() == latest_data
+
+        remove("//tmp/t/@custom_runtime_data")
+        wait(lambda: get_tablet_custom_runtime_data() is None)
+
+        create("table", "//tmp/t_static")
+        set_custom_runtime_data("//tmp/t_static", {"salut": "le monde"})
+
+
 ##################################################################
 
 

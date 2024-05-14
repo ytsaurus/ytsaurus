@@ -104,6 +104,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/string_helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -256,6 +257,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletCellSuspended, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReplicateTabletContent, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
     }
 
     void Initialize() override
@@ -1101,6 +1103,9 @@ private:
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMoveTarget = request->has_movement_source_cell_id();
+        auto userData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
+            ? TYsonString(request->replicatable_content().custom_runtime_data())
+            : TYsonString();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1157,6 +1162,8 @@ private:
             retainedTimestamp,
             cumulativeDataWeight);
         tabletHolder->RawSettings() = rawSettings;
+
+        tabletHolder->CustomRuntimeData() = std::move(userData);
 
         InitializeTablet(tabletHolder.get());
 
@@ -3633,6 +3640,31 @@ private:
         PostTabletCellSuspensionToggledMessage(/*suspended*/ false);
     }
 
+    void HydraSetCustomRuntimeData(TReqSetCustomRuntimeData* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        if (request->has_custom_runtime_data()) {
+            static constexpr int CustomRuntimeDataTruncateLimit = 100;
+            YT_LOG_INFO("Set custom runtime data for tablet (%v, CustomRuntimeData: %v)",
+                tablet->GetLoggingTag(),
+                TruncateString(
+                    ConvertToYsonString(request->custom_runtime_data(), EYsonFormat::Text).ToString(),
+                    CustomRuntimeDataTruncateLimit));
+
+            tablet->CustomRuntimeData() = TYsonString(request->custom_runtime_data());
+        } else {
+            YT_LOG_INFO("Set empty custom runtime data for tablet (%v)",
+                tablet->GetLoggingTag());
+
+            tablet->CustomRuntimeData() = TYsonString();
+        }
+    }
+
     void SetTabletCellSuspend(bool suspend)
     {
         YT_VERIFY(HasHydraContext());
@@ -4312,6 +4344,7 @@ private:
                     .Item("provided_config").Value(tablet->RawSettings().Provided.MountConfigNode)
                     .Item("provided_extra_config").Value(tablet->RawSettings().Provided.ExtraMountConfig)
                 .EndMap()
+                .OptionalItem("custom_runtime_data", tablet->CustomRuntimeData())
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())

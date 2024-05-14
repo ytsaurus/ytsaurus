@@ -199,7 +199,7 @@ struct TRawTableSettings
     } Provided;
 
     TTableConfigPatchPtr GlobalPatch;
-    // NB: Use tree map to ensure deteriministic order and allow efficient
+    // NB: Use tree map to ensure deterministic order and allow efficient
     // set difference and set intersection.
     std::map<TString, TTableConfigExperimentPtr> Experiments;
 

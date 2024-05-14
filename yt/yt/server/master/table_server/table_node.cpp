@@ -349,6 +349,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
     Save(context, ReplicationCollocation_);
+    Save(context, CustomRuntimeData_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
@@ -364,6 +365,11 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
     Load(context, ReplicationCollocation_);
+
+    // COMPAT(gryzlov-ad)
+    if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
+        Load(context, CustomRuntimeData_);
+    }
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.
     if (Load<bool>(context)) {

@@ -120,6 +120,10 @@ public:
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts);
 
+    void SetCustomRuntimeData(
+        NTableServer::TTableNode* table,
+        NYson::TYsonString data);
+
     void CloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         TTabletOwnerBase* clonedNode,

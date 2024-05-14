@@ -1507,6 +1507,29 @@ public:
         UpdateTabletState(table);
     }
 
+    void SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
+    {
+        if (table->IsExternal()) {
+            return;
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        for (auto* tablet : table->Tablets()) {
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            TReqSetCustomRuntimeData req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            if (data) {
+                req.set_custom_runtime_data(data.ToString());
+            }
+            hiveManager->PostMessage(mailbox, req);
+        }
+    }
+
     void DestroyTabletOwner(TTabletOwnerBase* table)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3915,6 +3938,10 @@ private:
             reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
             if (!table->IsPhysicallySorted()) {
                 reqReplicatable.set_trimmed_row_count(tablet->GetTrimmedRowCount());
+            }
+
+            if (const auto& customRuntimeData = table->CustomRuntimeData()) {
+                reqReplicatable.set_custom_runtime_data(customRuntimeData.ToString());
             }
 
             req.set_mount_revision(tablet->Servant().GetMountRevision());
@@ -7645,6 +7672,11 @@ void TTabletManager::Reshard(
         newTabletCount,
         pivotKeys,
         trimmedRowCounts);
+}
+
+void TTabletManager::SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
+{
+    Impl_->SetCustomRuntimeData(table, std::move(data));
 }
 
 void TTabletManager::ValidateCloneTabletOwner(
