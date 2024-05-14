@@ -1,3 +1,5 @@
+import enum
+
 from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
                     _is_py_type_optional, _get_py_time_types)
@@ -198,10 +200,16 @@ def _get_args(py_type):
 
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
-    for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
-        if py_type is type_ or _get_origin(py_type) is type_:
-            origin = type_
-            break
+    print(_get_origin(py_type))
+    print(py_type)
+    print("===")
+    if py_type is enum.IntEnum or _get_origin(py_type) is enum.IntEnum:
+        origin = int
+    else:
+        for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
+            if py_type is type_ or _get_origin(py_type) is type_:
+                origin = type_
+                break
     annotation = None
     for metadata in getattr(py_type, "__metadata__", []):
         if isinstance(metadata, Annotation):
@@ -503,6 +511,7 @@ def _create_py_schema(py_type, ti_type=None, field_name=None, schema_runtime_con
     effective_field_name = field_name if field_name is not None else "<unknown>"
     is_ti_type_optional = False
     primitive_origin, annotation = _get_primitive_type_origin_and_annotation(py_type)
+    print(primitive_origin, annotation)
 
     if ti_type is not None and ti_type.name == "Optional":
         is_ti_type_optional = True

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from yt.common import YtError
 from yt.testlib import authors
 

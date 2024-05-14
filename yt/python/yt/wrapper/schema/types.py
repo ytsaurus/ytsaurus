@@ -1,3 +1,5 @@
+import enum
+
 from .helpers import check_schema_module_available, is_schema_module_available
 
 from ..errors import YtError
@@ -182,10 +184,22 @@ def _get_py_time_types():
     return _get_py_time_types._info
 
 
+try:
+    from enum import StrEnum
+except ImportError:
+    # TODO: chiffa@ add comment
+    class StrEnum:
+        pass
+
+
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     check_schema_module_available()
     if py_type is int:
         return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
+    elif py_type is enum.IntEnum:
+        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
+    elif py_type is StrEnum:
+        return ti_type in (ti.Utf8, ti.String)
     elif py_type is str:
         return ti_type in (ti.Utf8, ti.String)
     elif py_type is bytes:
