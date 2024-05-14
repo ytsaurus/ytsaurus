@@ -27,7 +27,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TDnsOverRpcServiceProxy::GetDescriptor(),
-            DnsLogger)
+            DnsLogger())
         , Resolver_(std::move(resolver))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Resolve)

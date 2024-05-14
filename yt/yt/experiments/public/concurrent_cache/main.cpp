@@ -29,7 +29,7 @@ struct TRandomCharGenerator
     }
 };
 
-static const auto& Logger = LockFreePtrLogger;
+constexpr auto& Logger = LockFreeLogger;
 static bool EnableLogging = false;
 
 struct TElement final
