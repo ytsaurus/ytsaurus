@@ -3,6 +3,8 @@
 // XXX(max42): this is a workaround for some weird linkage error.
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -118,6 +120,8 @@ void ValidateIndexSchema(
         }
     }
 
+    const TColumnSchema* firstTableValueColumnInIndex = nullptr;
+
     for (const auto& indexColumn : indexTableSchema.Columns()) {
         THROW_ERROR_EXCEPTION_IF(indexColumn.Aggregate(),
             "Index table cannot have aggregate columns, found aggregate column %Qv with function %Qv",
@@ -135,6 +139,17 @@ void ValidateIndexSchema(
             THROW_ERROR_EXCEPTION_IF(tableColumn->Aggregate(),
                 "Cannot create index on an aggregate column %Qv",
                 indexColumn.Name());
+
+            if (!tableColumn->SortOrder()) {
+                if (!firstTableValueColumnInIndex) {
+                    firstTableValueColumnInIndex = tableColumn;
+                } else {
+                    THROW_ERROR_EXCEPTION_IF(firstTableValueColumnInIndex->Lock() != tableColumn->Lock(),
+                        "All indexed table columns must have same lock group, found %v and %v",
+                        firstTableValueColumnInIndex->Lock(),
+                        tableColumn->Lock());
+                }
+            }
         } else {
             if (!indexColumn.SortOrder()) {
                 THROW_ERROR_EXCEPTION_IF(indexColumn.Name() != EmptyValueColumnName,
@@ -198,6 +213,38 @@ const TColumnSchema& FindUnfoldingColumnAndValidate(const TTableSchema& tableSch
         "No candidate for unfolded column found in the index table schema");
 
     return *unfoldedColumn;
+}
+
+void ValidateColumnsAreInIndexLockGroup(
+    const NQueryClient::TColumnSet& columns,
+    const TTableSchema& tableSchema,
+    const TTableSchema& indexTableSchema)
+{
+    const TColumnSchema* firstTableValueColumnInIndex = nullptr;
+
+    for (const auto& indexColumn : indexTableSchema.Columns()) {
+        const auto* tableColumn = tableSchema.FindColumn(indexColumn.Name());
+        if (!tableColumn || tableColumn->SortOrder()) {
+            continue;
+        }
+
+        firstTableValueColumnInIndex = tableColumn;
+        break;
+    }
+
+    THROW_ERROR_EXCEPTION_IF(!firstTableValueColumnInIndex,
+        "Expected at least one table value column in index");
+
+    for (const auto& column : columns) {
+        const auto& tableColumn = tableSchema.GetColumn(column);
+
+        THROW_ERROR_EXCEPTION_IF(tableColumn.Lock() != firstTableValueColumnInIndex->Lock(),
+            "Columns %Qv and %Qv belong to different lock groups: %v and %v",
+            tableColumn.Name(),
+            firstTableValueColumnInIndex->Name(),
+            tableColumn.Lock(),
+            firstTableValueColumnInIndex->Lock());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

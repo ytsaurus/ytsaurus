@@ -1217,6 +1217,7 @@ private:
                 Modifications_,
                 tableInfo,
                 std::move(indexTableInfos),
+                Connection_->GetExpressionEvaluatorCache(),
                 Logger);
 
             auto lookupKeys = secondaryIndexModifier.GetLookupKeys();

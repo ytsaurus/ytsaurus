@@ -11,6 +11,7 @@
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
 
+#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -41,6 +42,8 @@
 
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
+#include <yt/yt/library/query/base/query_preparer.h>
+
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -66,6 +69,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NProto;
 using namespace NSecurityServer;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
@@ -758,7 +762,8 @@ public:
         TObjectId hintId,
         ESecondaryIndexKind kind,
         TTableNode* table,
-        TTableNode* indexTable) override
+        TTableNode* indexTable,
+        std::optional<TString> predicate) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -814,19 +819,36 @@ public:
                     THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
             }
 
+            const auto& tableSchema = table->GetSchema()->AsTableSchema();
+            const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
+
             switch(kind) {
                 case ESecondaryIndexKind::FullSync:
                     ValidateFullSyncIndexSchema(
-                        *table->GetSchema()->AsTableSchema(),
-                        *indexTable->GetSchema()->AsTableSchema());
+                        *tableSchema,
+                        *indexTableSchema);
                     break;
+
                 case ESecondaryIndexKind::Unfolding:
                     FindUnfoldingColumnAndValidate(
-                        *table->GetSchema()->AsTableSchema(),
-                        *indexTable->GetSchema()->AsTableSchema());
+                        *tableSchema,
+                        *indexTableSchema);
                     break;
+
                 default:
                     YT_ABORT();
+            }
+
+            if (predicate) {
+                auto expr = PrepareExpression(*predicate, *tableSchema);
+                THROW_ERROR_EXCEPTION_IF(expr->GetWireType() != EValueType::Boolean,
+                    "Expected boolean expression as predicate, got %v",
+                    *expr->LogicalType);
+
+                TColumnSet predicateColumns;
+                TReferenceHarvester(&predicateColumns).Visit(expr);
+
+                ValidateColumnsAreInIndexLockGroup(predicateColumns, *tableSchema, *indexTableSchema);
             }
         };
 
@@ -854,6 +876,7 @@ public:
         secondaryIndex->SetExternalCellTag(table->IsNative()
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
+        secondaryIndex->Predicate() = std::move(predicate);
 
         indexTable->SetIndexTo(secondaryIndex);
         InsertOrCrash(table->MutableSecondaryIndices(), secondaryIndex);

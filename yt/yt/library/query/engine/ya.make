@@ -11,6 +11,7 @@ SRCS(
     cg_ir_builder.cpp
     cg_routines.cpp
     GLOBAL column_evaluator.cpp
+    GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
     GLOBAL evaluator.cpp
     folding_profiler.cpp

@@ -349,6 +349,7 @@ target_link_libraries(library-query-engine.global PUBLIC
 target_sources(library-query-engine.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/append_function_implementation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/column_evaluator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/expression_evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/evaluator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/builtin_function_profiler.cpp

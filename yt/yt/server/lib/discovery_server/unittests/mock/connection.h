@@ -60,6 +60,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NQueryClient::IExpressionEvaluatorCachePtr& GetExpressionEvaluatorCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NChunkClient::IBlockCachePtr& GetBlockCache() override
     {
         YT_UNIMPLEMENTED();

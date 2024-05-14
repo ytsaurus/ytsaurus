@@ -6,5 +6,5 @@ RECURSE(
     row_comparer
     row_comparer_api
     proto
-    unittests   
+    unittests
 )

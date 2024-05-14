@@ -39,6 +39,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
@@ -180,6 +181,10 @@ public:
         , ColumnEvaluatorCache_(BIND([this] {
             auto config = Config_.Acquire();
             return CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
+        }))
+        , ExpressionEvaluatorCache_(BIND([this] {
+            auto config = Config_.Acquire();
+            return CreateExpressionEvaluatorCache(config->ExpressionEvaluatorCache);
         }))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
@@ -624,6 +629,11 @@ public:
         return ColumnEvaluatorCache_.Value();
     }
 
+    const IExpressionEvaluatorCachePtr& GetExpressionEvaluatorCache() override
+    {
+        return ExpressionEvaluatorCache_.Value();
+    }
+
     const NCellMasterClient::ICellDirectoryPtr& GetMasterCellDirectory() override
     {
         return MasterCellDirectory_;
@@ -863,6 +873,7 @@ private:
 
     const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;
+    const TLazyIntrusivePtr<IExpressionEvaluatorCache> ExpressionEvaluatorCache_;
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::ICellDirectoryPtr MasterCellDirectory_;

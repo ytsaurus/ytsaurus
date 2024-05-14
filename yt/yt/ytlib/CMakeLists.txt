@@ -1112,6 +1112,7 @@ target_link_libraries(yt-yt-ytlib PUBLIC
   library-tvm-service
   yt-library-xor_filter
   yt-library-formats
+  library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-web_assembly-api
@@ -2122,6 +2123,7 @@ target_link_libraries(yt-yt-ytlib.global PUBLIC
   library-tvm-service
   yt-library-xor_filter
   yt-library-formats
+  library-query-engine
   library-query-engine_api
   library-query-row_comparer_api
   library-web_assembly-api

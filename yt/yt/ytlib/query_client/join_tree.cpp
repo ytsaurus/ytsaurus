@@ -13,27 +13,7 @@ using namespace NLogging;
 using namespace NObjectClient;
 using namespace NTableClient;
 
-using TColumnSet = THashSet<TString>;
 using TTypeLookup = THashMap<TString, TLogicalTypePtr>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TReferenceHarvester
-    : public TVisitor<TReferenceHarvester>
-{
-public:
-    explicit TReferenceHarvester(TColumnSet* storage)
-        : Storage_(storage)
-    { }
-
-    void OnReference(const TReferenceExpression* referenceExpr)
-    {
-        Storage_->insert(referenceExpr->ColumnName);
-    }
-
-private:
-    TColumnSet* Storage_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
