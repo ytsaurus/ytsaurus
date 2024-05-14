@@ -6892,8 +6892,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
                     "Schema of an output table %v has changed between schema fetch and lock acquisition",
                     table->GetPath())
-                        << TErrorAttribute("expected_schema_id", table->SchemaId)
-                        << TErrorAttribute("received_schema_id", receivedSchemaId);
+                    << TErrorAttribute("expected_schema_id", table->SchemaId)
+                    << TErrorAttribute("received_schema_id", receivedSchemaId);
             }
         }
 

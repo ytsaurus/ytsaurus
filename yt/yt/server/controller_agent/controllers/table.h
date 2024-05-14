@@ -105,7 +105,7 @@ struct TOutputTable
 
     // Revision of schema that was fetched during GetOutputTablesSchema.
     // Used later to determine which schema to send to master during BeginUploadOutputTables.
-    ui64 OriginalTableSchemaRevision = 0;
+    NHydra::TRevision OriginalTableSchemaRevision = 0;
 
     // Upload transaction id for the native and external cell.
     NTransactionClient::TTransactionId UploadTransactionId;
