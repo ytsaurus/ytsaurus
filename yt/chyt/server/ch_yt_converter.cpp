@@ -41,6 +41,7 @@
 #include <DataTypes/DataTypeTuple.h>
 #include <DataTypes/IDataType.h>
 #include <Functions/FunctionHelpers.h>
+#include <Functions/FunctionsConversion.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -720,6 +721,56 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUnsupportedTypesToStringConverter
+    : public IConverter
+{
+public:
+    explicit TUnsupportedTypesToStringConverter(DB::DataTypePtr dataType)
+        : DataType_(std::move(dataType))
+        , UnderlyingConverter_(
+            std::make_unique<TSimpleValueConverter<DB::TypeIndex::String>>(
+                std::make_shared<DB::DataTypeString>(),
+                ESimpleLogicalValueType::String))
+    { }
+
+    void InitColumn(const DB::IColumn* column) override
+    {
+        DB::ColumnsWithTypeAndName args{
+            DB::ColumnWithTypeAndName(column->getPtr(), DataType_, ""),
+        };
+
+        StringColumn_ = DB::ConvertImplGenericToString<DB::ColumnString>::execute(
+            args,
+            std::make_shared<DB::DataTypeString>(),
+            column->size());
+
+        UnderlyingConverter_->InitColumn(StringColumn_.get());
+    }
+
+    void FillValueRange(TMutableRange<TUnversionedValue> values) override
+    {
+        UnderlyingConverter_->FillValueRange(values);
+    }
+
+    void ExtractNextValueYson(TCheckedInDebugYsonTokenWriter* writer) override
+    {
+        UnderlyingConverter_->ExtractNextValueYson(writer);
+    }
+
+    TLogicalTypePtr GetLogicalType() const override
+    {
+        return UnderlyingConverter_->GetLogicalType();
+    }
+
+private:
+    const DB::DataTypePtr DataType_;
+    const IConverterPtr UnderlyingConverter_;
+
+    DB::ColumnPtr StringColumn_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -945,6 +996,11 @@ private:
         return std::make_unique<TLowCardinalityConverter>(std::move(underlyingConverter));
     }
 
+    IConverterPtr CreateUnsupportedTypesToStringConverter(const DB::DataTypePtr& dataType)
+    {
+        return std::make_unique<TUnsupportedTypesToStringConverter>(dataType);
+    }
+
     IConverterPtr CreateConverter(const DB::DataTypePtr& dataType)
     {
         switch (dataType->getTypeId()) {
@@ -983,9 +1039,13 @@ private:
             case DB::TypeIndex::LowCardinality:
                 return CreateLowCardinalityConverter(dataType);
             default:
-                THROW_ERROR_EXCEPTION(
-                    "Conversion of ClickHouse type %v to YT type system is not supported",
-                    DataType_->getName());
+                if (Settings_->ConvertUnsupportedTypesToString) {
+                    return CreateUnsupportedTypesToStringConverter(dataType);
+                } else {
+                    THROW_ERROR_EXCEPTION(
+                        "Conversion of ClickHouse type %v to YT type system is not supported",
+                        DataType_->getName());
+                }
         }
     }
 };
