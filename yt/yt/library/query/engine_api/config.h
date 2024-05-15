@@ -55,4 +55,19 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TExpressionEvaluatorCacheConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TSlruCacheConfigPtr CGCache;
+
+    REGISTER_YSON_STRUCT(TExpressionEvaluatorCacheConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TExpressionEvaluatorCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

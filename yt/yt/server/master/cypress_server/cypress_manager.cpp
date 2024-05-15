@@ -1178,19 +1178,19 @@ public:
 
         RegisterLoader(
             "CypressManager.Keys",
-            BIND(&TCypressManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "CypressManager.Values",
-            BIND(&TCypressManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "CypressManager.Keys",
-            BIND(&TCypressManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CypressManager.Values",
-            BIND(&TCypressManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TCypressManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUpdateAccessStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraTouchNodes, Unretained(this)));
@@ -1923,22 +1923,20 @@ public:
     {
         YT_VERIFY(transaction);
 
+        auto nodeId = trunkNode->GetId();
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            for (auto* branchedNode : nestedTransaction->BranchedNodes()) {
-                if (branchedNode->GetTrunkNode() == trunkNode) {
-                    auto lockMode = branchedNode->GetLockMode();
-                    YT_VERIFY(lockMode != ELockMode::None);
+            auto branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
+            if (!branchedNode) {
+                continue;
+            }
+            auto lockMode = branchedNode->GetLockMode();
+            if (result < lockMode) {
+                result = lockMode;
 
-                    if (result < lockMode) {
-                        result = lockMode;
-
-                        if (result == ELockMode::Exclusive) {
-                            // As strong as it gets.
-                            return result;
-                        }
-                    }
-
+                if (result == ELockMode::Exclusive) {
+                    // As strong as it gets.
+                    return result;
                 }
             }
         }
@@ -2003,8 +2001,7 @@ public:
             DestroyBranchedNode(transaction, node);
 
             auto& branchedNodes = transaction->BranchedNodes();
-            auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
-            branchedNodes.erase(it, branchedNodes.end());
+            branchedNodes.EraseOrCrash(node);
 
             unbranchedNodes.insert(node);
 
@@ -2037,7 +2034,7 @@ public:
 
                 auto strongestLockModeBelow = GetStrongestLockModeOfNestedTransactions(trunkNode, aboveNodeTransaction);
 
-                auto updateNode = [&] () {
+                auto updateNode = [&] {
                     aboveNode->SetLockMode(strongestLockModeBelow == ELockMode::Snapshot
                         ? strongestLockModeBelow = ELockMode::None
                         : strongestLockModeBelow);
@@ -2069,20 +2066,30 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
+            // NB: locks are released later and don't reference branches
+            // directly. So it's safe to consult them even after unbranching.
+            const auto& lockingState = trunkNode->LockingState();
+
             VisitTransactionTree(
                 newOriginatorTransaction
                     ? newOriginatorTransaction
                     : transaction->GetTopmostTransaction(),
                 [&] (TTransaction* t) {
-                    // Locks are released later, so be sure to skip the node we've already unbranched.
-                    if (t == transaction) {
-                        return;
-                    }
+                    // This check can be replaced by checking lock mode of the branch
+                    // instead (see YT_VERIFY below). But profiling showed that this
+                    // is significantly faster (in some scenarios, at least).
+                    if (lockingState.HasSnapshotLock(t)) {
+                        // NB: this won't find unbranched nodes.
+                        auto* branchedNode = FindNode(TVersionedNodeId(
+                            trunkNode->GetId(),
+                            t->GetId()));
 
-                    for (auto* branchedNode : t->BranchedNodes()) {
-                        auto* branchedNodeOriginator = branchedNode->GetOriginator();
-                        if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
-                            branchedNode->SetOriginator(newOriginator);
+                        if (branchedNode) {
+                            YT_VERIFY(branchedNode->GetLockMode() == ELockMode::Snapshot);
+                            auto* branchedNodeOriginator = branchedNode->GetOriginator();
+                            if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
+                                branchedNode->SetOriginator(newOriginator);
+                            }
                         }
                     }
                 });
@@ -2090,7 +2097,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <class F>
+    template <CInvocable<void(TTransaction*)> F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
@@ -3048,8 +3055,6 @@ private:
         node->SetModified(EModificationType::Content);
         node->SetModified(EModificationType::Attributes);
 
-        node->RememberAevum();
-
         if (node->IsExternal()) {
             YT_LOG_DEBUG("External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",
                 node->GetId(),
@@ -3190,7 +3195,7 @@ private:
         const TLockRequest& request,
         bool recursive)
     {
-        auto doCheck = [&](TCypressNode* trunkNode) {
+        auto doCheck = [&] (TCypressNode* trunkNode) {
             return DoCheckLock(trunkNode, transaction, request);
         };
 
@@ -4037,7 +4042,7 @@ private:
         YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
-        transaction->BranchedNodes().push_back(branchedNode);
+        transaction->BranchedNodes().InsertOrCrash(branchedNode);
 
         // The branched node holds an implicit reference to its trunk.
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4099,12 +4104,9 @@ private:
     //! Returns originating node.
     TCypressNode* MergeParticularBranchedNode(TTransaction* transaction, TCypressNode* node)
     {
-        auto it = Find(transaction->BranchedNodes(), node);
-        YT_VERIFY(it != transaction->BranchedNodes().end());
+        transaction->BranchedNodes().EraseOrCrash(node);
 
         auto* originator = DoMergeNode(transaction, node);
-
-        transaction->BranchedNodes().erase(it);
 
         return originator;
     }
@@ -4114,32 +4116,29 @@ private:
         for (auto* node : transaction->BranchedNodes()) {
             DoMergeNode(transaction, node);
         }
-        transaction->BranchedNodes().clear();
+        transaction->BranchedNodes().Clear();
     }
 
     //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        if (transaction->BranchedNodes().size() != transaction->LockedNodes().size()) {
+        if (transaction->BranchedNodes().Size() != std::ssize(transaction->LockedNodes())) {
             YT_LOG_ALERT("Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
                 transaction->GetId(),
-                transaction->BranchedNodes().size(),
+                transaction->BranchedNodes().Size(),
                 transaction->LockedNodes().size());
         }
 
         auto& branchedNodes = transaction->BranchedNodes();
-        // The reverse order is for efficient removal.
-        while (!branchedNodes.empty()) {
-            auto* branchedNode = branchedNodes.back();
+        while (!branchedNodes.Empty()) {
+            auto* branchedNode = branchedNodes.GetAnyNode();
             RemoveOrUpdateNodesOnLockModeChange(
                 branchedNode->GetTrunkNode(),
                 transaction,
                 branchedNode->GetLockMode(),
                 ELockMode::None);
         }
-        YT_VERIFY(branchedNodes.empty());
     }
-
 
     TCypressNode* DoCloneNode(
         TCypressNode* sourceNode,

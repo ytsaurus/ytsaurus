@@ -6,6 +6,7 @@ SRCS(
     attribute_path.cpp
     helpers.cpp
     merge_attributes.cpp
+    proto_visitor.cpp
     scalar_attribute.cpp
     unwrapping_consumer.cpp
     ytree.cpp

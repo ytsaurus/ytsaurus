@@ -315,6 +315,7 @@ SRCS(
     object_client/caching_object_service.cpp
     object_client/config.cpp
     object_client/helpers.cpp
+    object_client/master_ypath_proxy.cpp
     object_client/object_attribute_cache.cpp
     object_client/object_service_cache.cpp
     object_client/object_service_proxy.cpp
@@ -378,7 +379,6 @@ SRCS(
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
     sequoia_client/write_set.cpp
-    sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
 
@@ -449,6 +449,7 @@ SRCS(
     table_client/schemaless_buffered_table_writer.cpp
     table_client/schemaless_chunk_reader.cpp
     table_client/schemaless_chunk_writer.cpp
+    table_client/schemaless_dynamic_table_writer.cpp
     table_client/schemaless_multi_chunk_reader.cpp
     table_client/skynet_column_evaluator.cpp
     table_client/slice_boundary_key.cpp
@@ -624,6 +625,7 @@ PEERDIR(
     yt/yt/library/xor_filter
     yt/yt/client
     yt/yt/library/formats
+    yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/row_comparer_api
     yt/yt/library/web_assembly/api

@@ -2,7 +2,7 @@ from .acl_commands import AclBuilder
 from .batch_helpers import batch_apply
 from .batch_response import apply_function_to_result
 from .config import get_config
-from .common import (flatten, imap, round_up_to, iteritems, GB, MB,
+from .common import (flatten, round_up_to, GB, MB,
                      get_value, unlist, get_started_by,
                      parse_bool, is_prefix, require, YtError, update,
                      underscore_case_to_camel_case)
@@ -29,13 +29,6 @@ from .format import CppUninitializedFormat
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six import PY3, text_type
-    from yt.packages.six.moves import zip as izip
-except ImportError:
-    from six import PY3, text_type
-    from six.moves import zip as izip
-
 import functools
 import os
 import shutil
@@ -43,10 +36,7 @@ from copy import deepcopy
 
 
 def _convert_to_bytes(value):
-    if not PY3:  # Fast path
-        return str(value)
-
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value.encode("ascii")
     else:
         return value
@@ -139,10 +129,10 @@ class Finalizer(object):
                     os.remove(file_path)
 
         if state == "completed":
-            for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
+            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
                 self.check_for_merge(table)
         if get_config(self.client)["yamr_mode"]["delete_empty_tables"]:
-            for table in imap(lambda table: TablePath(table, client=self.client), self.output_tables):
+            for table in map(lambda table: TablePath(table, client=self.client), self.output_tables):
                 if is_empty(table, client=self.client):
                     remove_with_empty_dirs(table, client=self.client)
 
@@ -525,7 +515,7 @@ class UserJobSpecBuilder(object):
         # Used to not copy user command.
         result = type(self)()
 
-        for attr_name, attr_value in iteritems(self.__dict__):
+        for attr_name, attr_value in self.__dict__.items():
             if attr_name == "_spec":
                 continue
             setattr(result, attr_name, deepcopy(attr_value, memo=memodict))
@@ -640,7 +630,7 @@ class UserJobSpecBuilder(object):
         if environment:
             if "environment" not in spec:
                 spec["environment"] = {}
-            for key, value in iteritems(environment):
+            for key, value in environment.items():
                 spec["environment"][key] = value
 
         if title:
@@ -648,7 +638,7 @@ class UserJobSpecBuilder(object):
 
         file_paths = []
         file_paths += flatten(local_files)
-        file_paths += list(imap(lambda path: FilePath(path, client=client), files))
+        file_paths += list(map(lambda path: FilePath(path, client=client), files))
         if file_paths:
             spec["file_paths"] = file_paths
         if "local_files" in spec:
@@ -1044,7 +1034,7 @@ class SpecBuilder(object):
     def _set_tables(self, spec, input_tables, output_tables, single_output_table=False):
         if input_tables is not None:
             self._input_table_paths = input_tables
-            spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
+            spec["input_table_paths"] = list(map(lambda table: table.to_yson_type(), self._input_table_paths))
 
         if output_tables is not None:
             output_tables_param = "output_table_path" if single_output_table else "output_table_paths"
@@ -1053,7 +1043,7 @@ class SpecBuilder(object):
                 if single_output_table:
                     spec[output_tables_param] = self._output_table_paths[0].to_yson_type()
                 else:
-                    spec[output_tables_param] = list(imap(lambda table: table.to_yson_type(), self._output_table_paths))
+                    spec[output_tables_param] = list(map(lambda table: table.to_yson_type(), self._output_table_paths))
 
     def _prepare_tables(self, spec, single_output_table=False, replace_unexisting_by_empty=True, create_on_cluster=False, client=None):
         require("input_table_paths" in spec,
@@ -2055,10 +2045,10 @@ class SortSpecBuilder(SpecBuilder):
             client=client)
 
         exists_results = batch_apply(exists, self._input_table_paths, client=client)
-        for table, exists_result in izip(self._input_table_paths, exists_results):
+        for table, exists_result in zip(self._input_table_paths, exists_results):
             require(exists_result, lambda: YtError("Table %s should exist" % table))
 
-        spec["input_table_paths"] = list(imap(lambda table: table.to_yson_type(), self._input_table_paths))
+        spec["input_table_paths"] = list(map(lambda table: table.to_yson_type(), self._input_table_paths))
         if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not self._input_table_paths:
             return spec
 
@@ -2190,7 +2180,7 @@ class EraseSpecBuilder(SpecBuilder):
         require("table_path" in spec, lambda: YtError("You should specify table_path"))
 
         table_path = _prepare_source_tables(spec["table_path"], client=client)
-        spec["table_path"] = unlist(list(imap(lambda table: table.to_yson_type(), table_path)))
+        spec["table_path"] = unlist(list(map(lambda table: table.to_yson_type(), table_path)))
 
         self._input_table_paths = [spec["table_path"]]
         self._prepare_spec(spec, client=client)
@@ -2205,7 +2195,7 @@ class VanillaSpecBuilder(SpecBuilder):
 
     @spec_option("The description of multiple tasks", nested_spec_builder=TaskSpecBuilder)
     def tasks(self, tasks):
-        for name, task in iteritems(tasks):
+        for name, task in tasks.items():
             self.task(name, task)
         return self
 

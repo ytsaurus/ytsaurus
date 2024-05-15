@@ -1,16 +1,13 @@
-try:
-    from yt.packages.six import Iterator
-except ImportError:
-    from six import Iterator
-
+from collections.abc import Iterable
 from itertools import chain
+
 try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
 
 
-class StringIterIO(Iterator):
+class StringIterIO(Iterable):
     """Read-only IO stream wraps strings iterator."""
 
     def __init__(self, strings_iter, add_eoln=False):

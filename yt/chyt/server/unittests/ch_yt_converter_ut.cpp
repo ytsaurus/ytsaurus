@@ -18,6 +18,8 @@
 #include <DataTypes/DataTypeArray.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeLowCardinality.h>
+#include <DataTypes/DataTypeMap.h>
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypesDecimal.h>
 #include <DataTypes/DataTypesNumber.h>
@@ -456,6 +458,127 @@ TEST_F(TTestCHYTConversion, TestNamedTupleInt8Double)
 
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityString)
+{
+    auto dataType = std::make_shared<DB::DataTypeLowCardinality>(std::make_shared<DB::DataTypeString>());
+
+    auto column = MakeColumn(dataType, {
+        DB::Field("a"),
+        DB::Field("abcd"),
+        DB::Field("a"),
+        DB::Field("b"),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "a",
+        "abcd",
+        "a",
+        "b",
+    };
+
+    auto expectedLogicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityNullable)
+{
+    auto dataType = std::make_shared<DB::DataTypeLowCardinality>(
+            std::make_shared<DB::DataTypeNullable>(
+                std::make_shared<DB::DataTypeString>()));
+
+    auto column = MakeColumn(dataType, {
+        DB::Field("a"),
+        DB::Field("abcd"),
+        DB::Field(),
+        DB::Field("b"),
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "a",
+        "abcd",
+        "#",
+        "b",
+    };
+
+    auto expectedLogicalType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestLowCadrinalityComposite)
+{
+    auto dataType = std::make_shared<DB::DataTypeArray>(
+            std::make_shared<DB::DataTypeLowCardinality>(
+                std::make_shared<DB::DataTypeString>()));
+
+    auto column = MakeColumn(dataType, {
+        DB::Array{DB::Field("a"), DB::Field("b")},
+        DB::Array{DB::Field("abcd")},
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "[a;b]",
+        "[abcd]",
+    };
+
+    auto expectedLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
+TEST_F(TTestCHYTConversion, TestUnsupportedTypesToString)
+{
+    auto dataTypeMap = std::make_shared<DB::DataTypeMap>(
+        std::make_shared<DB::DataTypeString>(),
+        std::make_shared<DB::DataTypeInt64>());
+
+    auto columnMap = MakeColumn(dataTypeMap, {
+        DB::Map{DB::Tuple{"abcd", 1}, DB::Tuple{"b", 2}},
+    });
+
+    std::vector<TStringBuf> expectedMapValueYsons = {
+        R"("{'abcd':1,'b':2}")",
+    };
+
+    auto expectedMapLogicalType = SimpleLogicalType(ESimpleLogicalValueType::String);
+
+    EXPECT_THROW(Converter_.emplace(dataTypeMap, Settings_), std::exception);
+
+    auto dataTypeArrayMap = std::make_shared<DB::DataTypeArray>(dataTypeMap);
+
+    auto columnArrayMap = MakeColumn(dataTypeArrayMap, {
+        DB::Array{
+            DB::Map{},
+            DB::Map{DB::Tuple{"a", 1}},
+        },
+    });
+
+    std::vector<TStringBuf> expectedArrayMapValueYsons = {
+        R"(["{}"; "{'a':1}"])",
+    };
+
+    auto expectedArrayMapLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    EXPECT_THROW(Converter_.emplace(dataTypeArrayMap, Settings_), std::exception);
+
+    auto settings = New<TCompositeSettings>();
+    settings->ConvertUnsupportedTypesToString = true;
+
+    Converter_.emplace(dataTypeMap, settings);
+    ExpectConversion(columnMap, expectedMapLogicalType, expectedMapValueYsons);
+
+    Converter_.emplace(dataTypeArrayMap, settings);
+    ExpectYsonConversion(columnArrayMap, expectedArrayMapLogicalType, expectedArrayMapValueYsons);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

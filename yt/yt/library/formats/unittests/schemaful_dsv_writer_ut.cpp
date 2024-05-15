@@ -39,7 +39,8 @@ protected:
 
     TStringStream OutputStream_;
 
-    TSchemalessWriterForSchemafulDsvTest() {
+    TSchemalessWriterForSchemafulDsvTest()
+    {
         NameTable_ = New<TNameTable>();
         KeyAId_ = NameTable_->RegisterName("column_a");
         KeyBId_ = NameTable_->RegisterName("column_b");
@@ -52,7 +53,8 @@ protected:
         Config_ = New<TSchemafulDsvFormatConfig>();
     }
 
-    void CreateStandardWriter() {
+    void CreateStandardWriter()
+    {
         auto controlAttributesConfig = New<TControlAttributesConfig>();
         controlAttributesConfig->EnableTableIndex = Config_->EnableTableIndex;
         Writer_ = CreateSchemalessWriterForSchemafulDsv(

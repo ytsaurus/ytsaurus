@@ -112,7 +112,7 @@ public:
                 options.ExecutionBackend);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
-            auto finalizer = Finally([&] () {
+            auto finalizer = Finally([&] {
                 fragmentParams.Clear();
             });
 

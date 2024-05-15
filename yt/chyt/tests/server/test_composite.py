@@ -4,7 +4,7 @@ from helpers import get_schema_from_description
 
 from yt_commands import (write_table, authors, create, get, raises_yt_error, read_table, concatenate)
 
-from yt_type_helpers import (decimal_type, optional_type, make_schema, normalize_schema_v3)
+from yt_type_helpers import (decimal_type, optional_type, list_type, tuple_type, make_schema, normalize_schema_v3)
 
 from decimal_helpers import encode_decimal
 
@@ -198,3 +198,72 @@ class TestComposite(ClickHouseTestBase):
 
         with Clique(1) as clique:
             assert clique.make_query('select a from "//tmp/t2"') == [{"a": yson.YsonEntity()}] * 2
+
+    @authors("dakovalkov")
+    def test_low_cardinality(self):
+        with Clique(1) as clique:
+            clique.make_query("""
+                create table "//tmp/t0" engine YtTable() as
+                select
+                    toLowCardinality(str) as lc_str,
+                    toLowCardinality(nullable_str) as lc_nullable_str,
+                    toLowCardinality(int) as lc_int,
+                    toLowCardinality(nullable_int) as lc_nullable_int
+                from system.one
+                array join ['a', 'bc', 'a', 'cde'] as str,
+                    [Null, 'ab', 'b', 'ab'] as nullable_str,
+                    [1, 2, 3, 1] as int,
+                    [0, 1, 1, Null] as nullable_int
+            """, settings={"allow_suspicious_low_cardinality_types": 1})
+
+            assert normalize_schema_v3(get("//tmp/t0/@schema")) == make_schema(
+                [
+                    {
+                        "name": "lc_str",
+                        "type_v3": "string",
+                    },
+                    {
+                        "name": "lc_nullable_str",
+                        "type_v3": optional_type("string"),
+                    },
+                    {
+                        "name": "lc_int",
+                        "type_v3": "uint8",
+                    },
+                    {
+                        "name": "lc_nullable_int",
+                        "type_v3": optional_type("uint8"),
+                    },
+                ],
+                strict=True,
+                unique_keys=False,
+            )
+            assert read_table("//tmp/t0") == [
+                {"lc_str": "a", "lc_nullable_str": None, "lc_int": 1, "lc_nullable_int": 0},
+                {"lc_str": "bc", "lc_nullable_str": "ab", "lc_int": 2, "lc_nullable_int": 1},
+                {"lc_str": "a", "lc_nullable_str": "b", "lc_int": 3, "lc_nullable_int": 1},
+                {"lc_str": "cde", "lc_nullable_str": "ab", "lc_int": 1, "lc_nullable_int": None},
+            ]
+
+            clique.make_query("""
+                create table "//tmp/t1" engine YtTable() as
+                select
+                    CAST(['abc', 'bcd'], 'Array(LowCardinality(String))') as lc_arr,
+                    CAST(tuple(1, 'abcd'), 'Tuple(LowCardinality(UInt8), LowCardinality(String))') as lc_tup
+            """, settings={"allow_suspicious_low_cardinality_types": 1})
+
+            assert normalize_schema_v3(get("//tmp/t1/@schema")) == make_schema(
+                [
+                    {
+                        "name": "lc_arr",
+                        "type_v3": list_type("string"),
+                    },
+                    {
+                        "name": "lc_tup",
+                        "type_v3": tuple_type(["uint8", "string"]),
+                    },
+                ],
+                strict=True,
+                unique_keys=False,
+            )
+            assert read_table("//tmp/t1") == [{"lc_arr": ["abc", "bcd"], "lc_tup": [1, "abcd"]}]

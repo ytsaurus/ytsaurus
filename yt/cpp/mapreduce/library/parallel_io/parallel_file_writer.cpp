@@ -148,7 +148,7 @@ private:
     const std::shared_ptr<IThreadPool> ThreadPool_;
     const TParallelFileWriterOptions Options_;
     const TRichYPath Path_;
-    const TString TmpPathPrefix_;
+    const TString TemporaryDirectory_;
 
     ITransactionPtr Transaction_;
     IResourceLimiterPtr RamLimiter_;
@@ -174,12 +174,13 @@ TParallelFileWriter::TParallelFileWriter(
     : ThreadPool_(threadPool)
     , Options_(options)
     , Path_(path)
-    , TmpPathPrefix_(Options_.TmpDirectory_
+    , TemporaryDirectory_(Options_.TmpDirectory_
         ? *Options_.TmpDirectory_ + "/" + CreateGuidAsString()
-        : Path_.Path_)
+        : Path_.Path_ + "__ParallelFileWriter__/" + CreateGuidAsString())
     , Transaction_(client->StartTransaction())
     , RamLimiter_(options.RamLimiter_)
 {
+    Transaction_->Create(TemporaryDirectory_, NYT::NT_MAP, NYT::TCreateOptions().Recursive(true));
     static constexpr size_t DefaultRamLimit = 2_GB;
 
     if (RamLimiter_ == nullptr) {
@@ -234,6 +235,7 @@ void TParallelFileWriter::DoWriteTask(
             // fail-fast after unlocking
             return;
         }
+        Transaction_->Create(filePath.Path_, NT_FILE, TCreateOptions().Attributes(Options_.FileAttributes_));
         IFileWriterPtr writer = Transaction_->CreateFileWriter(filePath, TFileWriterOptions().WriterOptions(Options_.WriterOptions_.GetOrElse({})));
         // DO NOT take additional softLimiter lock here for difference betweeh heuristic and exact buffer size!
         // It's deadlockable scheme!
@@ -255,7 +257,7 @@ void TParallelFileWriter::DoWriteTask(
 
 TRichYPath TParallelFileWriter::CreateFilePath(const std::pair<size_t, size_t>& taskId)
 {
-    TString filePathStr = TmpPathPrefix_ + "__ParallelFileWriter__" + ToString(taskId.first) + "_" + ToString(taskId.second);
+    TString filePathStr = TemporaryDirectory_ + "/" + "__ParallelFileWriter__" + ToString(taskId.first) + "_" + ToString(taskId.second);
     auto filePath = Path_;
     filePath.Path(filePathStr).Append(false);
     return filePath;
@@ -357,7 +359,7 @@ void TParallelFileWriter::DoFinish(bool commit)
             std::rethrow_exception(Exception_);
         }
     }
-    auto createOptions = TCreateOptions();
+    auto createOptions = TCreateOptions().Attributes(Options_.FileAttributes_);
     auto concatenateOptions = TConcatenateOptions();
     if (Path_.Append_.GetOrElse(false)) {
         createOptions.IgnoreExisting(true);
@@ -379,9 +381,7 @@ void TParallelFileWriter::DoFinish(bool commit)
     }
 
     Transaction_->Concatenate(tempPaths, Path_.Path_, concatenateOptions);
-    for (const auto& path : tempPaths) {
-        Transaction_->Remove(path);
-    }
+    Transaction_->Remove(TemporaryDirectory_, NYT::TRemoveOptions().Recursive(true).Force(true));
     Transaction_->Commit();
 }
 

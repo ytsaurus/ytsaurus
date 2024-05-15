@@ -5,7 +5,7 @@ import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonType}
 import org.slf4j.LoggerFactory
 import tech.ytsaurus.client.TableWriter
 import tech.ytsaurus.client.rows.{WireProtocolWriteable, WireRowSerializer}
@@ -38,6 +38,7 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
 
   private def getColumnType(i: Int): ColumnValueType = {
     def isComposite(t: TiType): Boolean = t.isList || t.isDict || t.isStruct || t.isTuple || t.isVariant
+
     if (typeV3Format) {
       val column = tableSchema.getColumnSchema(i)
       val t = column.getTypeV3
@@ -109,7 +110,8 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
               case DoubleType => writeable.onDouble(row.getDouble(i))
               case UInt64Type => writeable.onInteger(row.getLong(i))
               case DateType => writeable.onInteger(row.getLong(i))
-              case TimestampType => writeable.onInteger(row.getLong(i) / 1000000)
+              case _: DatetimeType => writeable.onInteger(row.getLong(i))
+              case TimestampType => writeable.onInteger(row.getLong(i))
             }
         }
       }

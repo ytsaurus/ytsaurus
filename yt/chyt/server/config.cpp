@@ -14,6 +14,9 @@ void TCompositeSettings::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_yson_format", &TThis::DefaultYsonFormat)
         .Default(EExtendedYsonFormat::Binary);
+
+    registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

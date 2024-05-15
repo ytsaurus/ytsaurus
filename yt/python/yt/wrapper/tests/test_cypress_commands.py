@@ -8,12 +8,7 @@ from .helpers import TEST_DIR, set_config_option, inject_http_error
 import yt.json_wrapper as json
 import yt.yson as yson
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
-from yt.common import datetime_to_string, YtResponseError
+from yt.common import datetime_to_string, YtResponseError, utcnow
 import yt.wrapper.cli_impl as cli_impl
 import yt.wrapper as yt
 from yt.wrapper.schema import TableSchema, ColumnSchema
@@ -94,10 +89,7 @@ class TestCypressCommands(object):
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
 
         yt.set_attribute(TEST_DIR + "/some_node", "attribut_na_russkom", u"Привет")
-        if PY3:
-            assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет"
-        else:
-            assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет".encode("utf-8")
+        assert yt.get(TEST_DIR + "/some_node/@attribut_na_russkom") == u"Привет"
 
         yt.set(TEST_DIR, b'{"other_node": {}}', format="json", force=True)
         assert yt.get(TEST_DIR) == {"other_node": {}}
@@ -495,12 +487,12 @@ class TestCypressCommands(object):
             with pytest.raises(RuntimeError):
                 t.commit()
 
-        tx_id = yt.start_transaction(deadline=datetime.datetime.utcnow() + datetime.timedelta(seconds=5))
+        tx_id = yt.start_transaction(deadline=utcnow() + datetime.timedelta(seconds=5))
         assert yt.exists("#" + tx_id)
         time.sleep(6)
         assert not yt.exists("#" + tx_id)
 
-        tx_id = yt.start_transaction(deadline=datetime_to_string(datetime.datetime.utcnow() + datetime.timedelta(seconds=5)))
+        tx_id = yt.start_transaction(deadline=datetime_to_string(utcnow() + datetime.timedelta(seconds=5)))
         assert yt.exists("#" + tx_id)
         time.sleep(6)
         assert not yt.exists("#" + tx_id)
@@ -711,10 +703,7 @@ class TestCypressCommands(object):
     @authors("ignat")
     def test_create_with_utf8(self):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
-        if PY3:
-            assert u"капуста" == yt.get(TEST_DIR + "/table/@attr")
-        else:
-            assert u"капуста".encode("utf-8") == yt.get(TEST_DIR + "/table/@attr")
+        assert u"капуста" == yt.get(TEST_DIR + "/table/@attr")
 
     @authors("ignat")
     def test_non_utf8_node(self):
@@ -743,11 +732,7 @@ class TestCypressCommands(object):
             assert list(yt.search(TEST_DIR)) == search_result_bytes
 
         with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
-            if PY3:
-                assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
-            else:
-                with pytest.raises(yt.YtError):
-                    yt.get(TEST_DIR + "/some_node")
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
 
         with set_config_option("structured_data_format", yt.JsonFormat(encoding=None)):
             assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value_bytes
@@ -773,14 +758,8 @@ class TestCypressCommands(object):
         ]
 
         # Map Node case.
-        if PY3:
-            yt.set(TEST_DIR + "/some_node", value, force=True)
-            assert yt.get(TEST_DIR + "/some_node") == value
-        else:
-            yt.set(TEST_DIR + "/some_node", value, force=True)
-            with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
-                yt.set(TEST_DIR + "/some_node", value, force=True)
-            assert yt.get(TEST_DIR + "/some_node") == value_bytes
+        yt.set(TEST_DIR + "/some_node", value, force=True)
+        assert yt.get(TEST_DIR + "/some_node") == value
 
         # JSON applies encode_utf8 decoding on the server side.
         assert yt.get(TEST_DIR + "/some_node", format="json") == b'{"\xc3\x82\xc2\xa9":"\xc3\x82\xc2\xa9"}'

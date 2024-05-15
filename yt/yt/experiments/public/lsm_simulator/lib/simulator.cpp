@@ -59,15 +59,18 @@ public:
         return Spec_->DeletionWindowSize;
     }
 
-    int GetRowCount() {
+    int GetRowCount()
+    {
         return ssize(Rows_);
     }
 
-    void AddRow(TRow row) {
+    void AddRow(TRow row)
+    {
         Rows_.push_back(row);
     }
 
-    i64 DeleteRow() {
+    i64 DeleteRow()
+    {
         auto deleteIndex = RandomNumber<ui32>(ssize(Rows_));
         std::swap(Rows_[deleteIndex], Rows_.back());
         auto key = Rows_.back().Key;

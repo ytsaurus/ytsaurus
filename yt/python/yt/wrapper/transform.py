@@ -9,10 +9,7 @@ from .ypath import TablePath
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six.moves import xrange, map as imap, builtins
-except ImportError:
-    from six.moves import xrange, map as imap, builtins
+import builtins
 
 from copy import deepcopy
 from random import Random
@@ -42,9 +39,9 @@ def _get_compression_ratio(table, erasure_codec, compression_codec, optimize_for
 
         random_gen = Random()
         random_gen.seed(chunk_count)
-        chunk_indices = random_gen.sample(xrange(chunk_count), min(chunk_count, probe_chunk_count))
+        chunk_indices = random_gen.sample(range(chunk_count), min(chunk_count, probe_chunk_count))
         input = TablePath(table,
-                          ranges=builtins.list(imap(exact_chunk_index_limit, chunk_indices)),
+                          ranges=builtins.list(map(exact_chunk_index_limit, chunk_indices)),
                           client=client)
 
         run_merge(input, tmp, mode="ordered", spec=spec, client=client)

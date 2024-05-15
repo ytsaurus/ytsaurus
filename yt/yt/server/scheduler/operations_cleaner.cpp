@@ -229,7 +229,7 @@ std::vector<TString> GetPools(const INodePtr& schedulingOptionsNode)
 template <class T>
 static T FilterYsonAndLoadStruct(const TYsonString& source)
 {
-    auto getPaths = [] () {
+    auto getPaths = [] {
         std::vector<TString> result;
         for (const auto& [name, _] : T::Fields) {
             result.push_back("/" + name);
@@ -251,25 +251,25 @@ static T FilterYsonAndLoadStruct(const TYsonString& source)
     return result;
 }
 
-struct TAnnotationsAndScheduligOptions
+struct TAnnotationsAndSchedulingOptions
 {
     INodePtr Annotations;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAnnotationsAndScheduligOptions::*>> Fields = {
-            {"annotations", &TAnnotationsAndScheduligOptions::Annotations},
-            {"scheduling_options_per_pool_tree", &TAnnotationsAndScheduligOptions::SchedulingOptionsPerPoolTree},
+    static const inline std::vector<std::pair<TString, INodePtr TAnnotationsAndSchedulingOptions::*>> Fields = {
+        {"annotations", &TAnnotationsAndSchedulingOptions::Annotations},
+        {"scheduling_options_per_pool_tree", &TAnnotationsAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
 };
 
-struct TAclAndScheduligOptions
+struct TAclAndSchedulingOptions
 {
     INodePtr Acl;
     INodePtr SchedulingOptionsPerPoolTree;
 
-    static const inline std::vector<std::pair<TString, INodePtr TAclAndScheduligOptions::*>> Fields = {
-            {"acl", &TAclAndScheduligOptions::Acl},
-            {"scheduling_options_per_pool_tree", &TAclAndScheduligOptions::SchedulingOptionsPerPoolTree},
+    static const inline std::vector<std::pair<TString, INodePtr TAclAndSchedulingOptions::*>> Fields = {
+        {"acl", &TAclAndSchedulingOptions::Acl},
+        {"scheduling_options_per_pool_tree", &TAclAndSchedulingOptions::SchedulingOptionsPerPoolTree},
     };
 };
 
@@ -283,12 +283,12 @@ struct TFilteredSpecAttributes
     INodePtr TablePath;
 
     static const inline std::vector<std::pair<TString, INodePtr TFilteredSpecAttributes::*>> Fields = {
-            {"pool", &TFilteredSpecAttributes::Pool},
-            {"title", &TFilteredSpecAttributes::Title},
-            {"input_table_paths", &TFilteredSpecAttributes::InputTablePaths},
-            {"output_table_paths", &TFilteredSpecAttributes::OutputTablePaths},
-            {"output_table_path", &TFilteredSpecAttributes::OutputTablePath},
-            {"table_path", &TFilteredSpecAttributes::TablePath}
+        {"pool", &TFilteredSpecAttributes::Pool},
+        {"title", &TFilteredSpecAttributes::Title},
+        {"input_table_paths", &TFilteredSpecAttributes::InputTablePaths},
+        {"output_table_paths", &TFilteredSpecAttributes::OutputTablePaths},
+        {"output_table_path", &TFilteredSpecAttributes::OutputTablePath},
+        {"table_path", &TFilteredSpecAttributes::TablePath}
     };
 };
 
@@ -305,7 +305,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     };
 
-    auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAnnotationsAndScheduligOptions>(request.RuntimeParameters);
+    auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAnnotationsAndSchedulingOptions>(request.RuntimeParameters);
     auto filteredSpec = FilterYsonAndLoadStruct<TFilteredSpecAttributes>(request.Spec);
 
     std::vector<TString> parts;
@@ -464,7 +464,7 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     TYsonString acl;
 
     if (request.RuntimeParameters) {
-        auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAclAndScheduligOptions>(request.RuntimeParameters);
+        auto filteredRuntimeParameters = FilterYsonAndLoadStruct<TAclAndSchedulingOptions>(request.RuntimeParameters);
         pools = ConvertToYsonString(GetPools(filteredRuntimeParameters.SchedulingOptionsPerPoolTree));
         poolTreeToPool = ConvertToYsonString(GetPoolTreeToPool(filteredRuntimeParameters.SchedulingOptionsPerPoolTree));
         if (filteredRuntimeParameters.Acl) {
@@ -842,6 +842,7 @@ private:
     TCounter ArchiveErrorCounter_ = Profiler.Counter("/archive_errors");
     TCounter RemoveOperationErrorCounter_ = Profiler.Counter("/remove_errors");
     TCounter ArchivedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/archived");
+    TCounter DroppedOperationAlertEventCounter_ = Profiler.Counter("/alert_events/dropped");
     TEventTimer AnalyzeOperationsTimer_ = Profiler.Timer("/analyze_operations_time");
     TEventTimer OperationsRowsPreparationTimer_ = Profiler.Timer("/operations_rows_preparation_time");
 
@@ -1733,16 +1734,25 @@ private:
                 OperationAlertEventQueue_.emplace_front(std::move(eventsToSend.back()));
                 eventsToSend.pop_back();
             }
+
+            if (!eventsToSend.empty()) {
+                YT_LOG_WARNING("Some alerts have been dropped due to alert event queue overflow (DroppedEventCount: %v)",
+                    std::ssize(eventsToSend));
+            }
+            DroppedOperationAlertEventCounter_.Increment(std::ssize(eventsToSend));
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
     }
 
     void CheckAndTruncateAlertEvents()
     {
+        i64 droppedEventCount = 0;
         while (std::ssize(OperationAlertEventQueue_) > Config_->MaxEnqueuedOperationAlertEventCount) {
             OperationAlertEventQueue_.pop_front();
+            ++droppedEventCount;
         }
         EnqueuedAlertEvents_.store(std::ssize(OperationAlertEventQueue_));
+        DroppedOperationAlertEventCounter_.Increment(droppedEventCount);
     }
 
     void ProcessWaitingLockedOperations()

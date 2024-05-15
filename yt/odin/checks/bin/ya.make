@@ -43,7 +43,7 @@ RECURSE(
     tablet_cell_snapshots
     chaos_cells
     unaware_nodes
-    wrapper_files_count
+    wrapper_node_count
 )
 
 IF (NOT OPENSOURCE)

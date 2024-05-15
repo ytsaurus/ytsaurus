@@ -11,6 +11,8 @@
 
 #include <yt/yt/client/table_client/config.h>
 
+#include <yt/yt/core/misc/range_formatters.h>
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -225,7 +227,18 @@ public:
         NChunkClient::TBlockFetcherPtr blockFetcher)
         : BlockHolders_(std::move(blockHolders))
         , BlockFetcher_(std::move(blockFetcher))
-    { }
+    {
+        BlockCountStatistics_.resize(BlockHolders_.size(), 0);
+        BlockSizeStatistics_.resize(BlockHolders_.size(), 0);
+    }
+
+    ~TAsyncBlockWindowManager()
+    {
+        YT_LOG_DEBUG(
+            "Reader block statistics (Counts: %v, Sizes: %v)",
+            BlockCountStatistics_,
+            BlockSizeStatistics_);
+    }
 
     void ClearUsedBlocks() override
     { }
@@ -250,6 +263,10 @@ public:
                 if (auto blockId = blockHolder.SkipToBlock(rowIndex)) {
                     ++readerStatistics->SetBlockCallCount;
                     YT_VERIFY(index < loadedBlocks.size());
+
+                    ++BlockCountStatistics_[&blockHolder - BlockHolders_.data()];
+                    BlockSizeStatistics_[&blockHolder - BlockHolders_.data()] += loadedBlocks[index].Data.Size();
+
                     blockHolder.SwitchBlock(std::move(loadedBlocks[index++].Data));
                 }
             }
@@ -324,6 +341,9 @@ private:
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
     TFuture<void> ReadyEvent_ = VoidFuture;
+
+    std::vector<ui32> BlockCountStatistics_;
+    std::vector<ui64> BlockSizeStatistics_;
 };
 
 TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(

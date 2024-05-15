@@ -2,27 +2,15 @@
 
 #include "bootstrap.h"
 #include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
-#include <yt/yt/server/node/exec_node/helpers.h>
-
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
-
 #include <yt/yt/server/lib/exec_node/config.h>
-
-#include <yt/yt/core/concurrency/periodic_executor.h>
-
-#include <yt/yt/core/misc/finally.h>
-
-#include <yt/yt/core/misc/proc.h>
-
-#include <yt/yt/library/gpu/config.h>
-
-#include <yt/yt/library/process/subprocess.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -30,6 +18,15 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+
+#include <yt/yt/library/gpu/config.h>
+
+#include <yt/yt/library/process/subprocess.h>
+
+#include <yt/yt/core/misc/finally.h>
+#include <yt/yt/core/misc/proc.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <util/string/strip.h>
 
@@ -132,6 +129,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
 {
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
     if (!StaticConfig_->Enable) {
         return;
     }
@@ -174,7 +173,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         if (shouldInitializeLayers) {
             FetchDriverLayerExecutor_->Start();
         } else {
-            OnFetchDriverLayerInfo();
+            Bootstrap_->GetJobInvoker()->Invoke(BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)));
         }
     } else {
         YT_LOG_INFO("No GPU driver layer directory specified");
@@ -205,6 +204,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     } else {
         TestGpuInfoUpdateExecutor_->Start();
     }
+
+    RdmaDeviceInfoUpdateExecutor_->Start();
 
     Bootstrap_->SubscribePopulateAlerts(
         BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));

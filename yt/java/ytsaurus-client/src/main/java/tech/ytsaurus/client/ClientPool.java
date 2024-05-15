@@ -31,6 +31,7 @@ import javax.annotation.Nullable;
 import io.netty.channel.EventLoopGroup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.discovery.Discoverer;
 import tech.ytsaurus.client.misc.SerializedExecutorService;
 import tech.ytsaurus.client.rpc.DataCenterMetricsHolder;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -319,12 +320,43 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         updateClients(rpcBuilder.initialProxyList);
     }
 
+    /**
+     * Service is used for fetching relevant addresses of discovery servers.
+     */
+    private ClientPoolService(DiscoveryClientPoolBuilder discoveryBuilder) {
+        super(
+                "discovery-server",
+                Objects.requireNonNull(discoveryBuilder.options).getChannelPoolSize(),
+                (hostPort, name, statusFuture) -> {
+                    RpcClient client = Objects.requireNonNull(discoveryBuilder.clientFactory).create(hostPort, name);
+                    return new ErrorHandlingClient(client, statusFuture);
+                },
+                Objects.requireNonNull(discoveryBuilder.eventLoop),
+                Objects.requireNonNull(discoveryBuilder.random)
+        );
+
+        Discoverer discoverer = Objects.requireNonNull(discoveryBuilder.discoverer);
+
+        proxyGetter = () -> {
+            List<HostPort> servers = discoverer.listDiscoveryServers().stream()
+                    .map(HostPort::parse).collect(Collectors.toList());
+            return CompletableFuture.completedFuture(servers);
+        };
+
+        executorService = discoveryBuilder.eventLoop;
+        updatePeriodMs = discoveryBuilder.options.getProxyUpdateTimeout().toMillis();
+    }
+
     static HttpBuilder httpBuilder() {
         return new HttpBuilder();
     }
 
     static RpcBuilder rpcBuilder() {
         return new RpcBuilder();
+    }
+
+    static DiscoveryClientPoolBuilder discoveryClientPoolBuilder() {
+        return new DiscoveryClientPoolBuilder();
     }
 
     void start() {
@@ -523,6 +555,48 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
         RpcBuilder setInitialProxyList(List<HostPort> initialProxyList) {
             this.initialProxyList = initialProxyList;
+            return this;
+        }
+
+        ClientPoolService build() {
+            return new ClientPoolService(this);
+        }
+    }
+
+    static class DiscoveryClientPoolBuilder {
+        @Nullable
+        RpcOptions options;
+        @Nullable
+        RpcClientFactory clientFactory;
+        @Nullable
+        EventLoopGroup eventLoop;
+        @Nullable
+        Random random;
+        @Nullable
+        Discoverer discoverer;
+
+        DiscoveryClientPoolBuilder setOptions(RpcOptions options) {
+            this.options = options;
+            return this;
+        }
+
+        DiscoveryClientPoolBuilder setClientFactory(RpcClientFactory clientFactory) {
+            this.clientFactory = clientFactory;
+            return this;
+        }
+
+        DiscoveryClientPoolBuilder setEventLoop(EventLoopGroup eventLoop) {
+            this.eventLoop = eventLoop;
+            return this;
+        }
+
+        DiscoveryClientPoolBuilder setRandom(Random random) {
+            this.random = random;
+            return this;
+        }
+
+        DiscoveryClientPoolBuilder setDiscoverer(Discoverer discoverer) {
+            this.discoverer = discoverer;
             return this;
         }
 

@@ -8,6 +8,8 @@ object DeployMessages {
 
   case class RegisterDriverToAppId(driverId: String, appId: String) extends DeployMessage
 
+  case class UnregisterDriverToAppId(driverId: String) extends DeployMessage
+
   case object RequestDriverStatuses extends DeployMessage
 
   case class RequestApplicationStatus(appId: String) extends DeployMessage

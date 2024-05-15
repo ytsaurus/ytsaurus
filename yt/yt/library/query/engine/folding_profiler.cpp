@@ -50,6 +50,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (FinalMode)
     (MergeMode)
     (TotalsMode)
+    (QueryIsOrdered)
 );
 
 //! Computes a strong structural hash used to cache query fragments.
@@ -1252,7 +1253,7 @@ void TQueryProfiler::Profile(
     Fold(ExecutionBackend_);
     size_t dummySlot = (*slotCount)++;
 
-    size_t finalSlot = dummySlot;
+    size_t aggregatedSlot = dummySlot;
     size_t intermediateSlot = dummySlot;
     size_t totalsSlot = dummySlot;
 
@@ -1262,6 +1263,8 @@ void TQueryProfiler::Profile(
     Fold(finalMode);
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
+    Fold(EFoldingObjectType::QueryIsOrdered);
+    Fold(query->IsOrdered());
 
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(EFoldingObjectType::GroupOp);
@@ -1361,8 +1364,8 @@ void TQueryProfiler::Profile(
             ComparerManager_);
 
         intermediateSlot = fragmentSlots.Intermediate;
-        finalSlot = fragmentSlots.Final;
-        size_t deltaFinalSlot = fragmentSlots.DeltaFinal;
+        aggregatedSlot = fragmentSlots.Aggregated;
+        size_t deltaSlot = fragmentSlots.Delta;
         totalsSlot = fragmentSlots.Totals;
 
         Fold(EFoldingObjectType::TotalsMode);
@@ -1386,11 +1389,11 @@ void TQueryProfiler::Profile(
         // COMPAT(lukyan)
         if (finalMode || query->UseDisjointGroupBy) {
             // Boundary segments are also final
-            deltaFinalSlot = MakeCodegenMergeOp(
+            deltaSlot = MakeCodegenMergeOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                deltaFinalSlot);
+                deltaSlot);
 
             intermediateSlot = dummySlot;
         } else if (mergeMode) {
@@ -1399,9 +1402,9 @@ void TQueryProfiler::Profile(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                deltaFinalSlot);
+                deltaSlot);
 
-            deltaFinalSlot = dummySlot;
+            deltaSlot = dummySlot;
         }
 
         size_t keySize = groupClause->GroupItems.size();
@@ -1411,10 +1414,10 @@ void TQueryProfiler::Profile(
                 Fold(EFoldingObjectType::HavingOp);
 
                 // Finalizes row to evaluate predicate and filters source values.
-                deltaFinalSlot = MakeCodegenFilterFinalizedOp(
+                deltaSlot = MakeCodegenFilterFinalizedOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
+                    deltaSlot,
                     havingFragmentsInfos,
                     havingPredicateId,
                     keySize,
@@ -1424,10 +1427,10 @@ void TQueryProfiler::Profile(
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
                 size_t totalsSlotNew;
-                std::tie(totalsSlotNew, deltaFinalSlot) = MakeCodegenDuplicateOp(
+                std::tie(totalsSlotNew, deltaSlot) = MakeCodegenDuplicateOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot);
+                    deltaSlot);
 
                 if (mergeMode) {
                     totalsSlot = MakeCodegenMergeOp(
@@ -1440,32 +1443,32 @@ void TQueryProfiler::Profile(
                 }
             }
 
-            deltaFinalSlot = MakeCodegenFinalizeOp(
+            deltaSlot = MakeCodegenFinalizeOp(
                 codegenSource,
                 slotCount,
-                deltaFinalSlot,
+                deltaSlot,
                 keySize,
                 codegenAggregates,
                 stateTypes);
 
             if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
                 Fold(EFoldingObjectType::HavingOp);
-                deltaFinalSlot = MakeCodegenFilterOp(
+                deltaSlot = MakeCodegenFilterOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
+                    deltaSlot,
                     havingFragmentsInfos,
                     havingPredicateId);
             }
 
             if (mergeMode) {
-                finalSlot = MakeCodegenMergeOp(
+                aggregatedSlot = MakeCodegenMergeOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
-                    finalSlot);
+                    deltaSlot,
+                    aggregatedSlot);
             } else {
-                finalSlot = deltaFinalSlot;
+                aggregatedSlot = deltaSlot;
             }
         }
 
@@ -1495,16 +1498,16 @@ void TQueryProfiler::Profile(
         }
     } else {
         intermediateSlot = inputSlot;
-        finalSlot = MakeCodegenMergeOp(
+        aggregatedSlot = MakeCodegenMergeOp(
             codegenSource,
             slotCount,
             intermediateSlot,
-            finalSlot);
+            aggregatedSlot);
         intermediateSlot = dummySlot;
     }
 
     intermediateSlot = MakeCodegenOnceOp(codegenSource, slotCount, intermediateSlot);
-    finalSlot = MakeCodegenOnceOp(codegenSource, slotCount, finalSlot);
+    aggregatedSlot = MakeCodegenOnceOp(codegenSource, slotCount, aggregatedSlot);
     totalsSlot = MakeCodegenOnceOp(codegenSource, slotCount, totalsSlot);
 
     if (auto orderClause = query->OrderClause.Get()) {
@@ -1531,10 +1534,10 @@ void TQueryProfiler::Profile(
             Fold(static_cast<ui8>(type));
         }
 
-        finalSlot = MakeCodegenOrderOp(
+        aggregatedSlot = MakeCodegenOrderOp(
             codegenSource,
             slotCount,
-            finalSlot,
+            aggregatedSlot,
             orderFragmentsInfos,
             std::move(orderExprIds),
             std::move(orderColumnTypes),
@@ -1558,7 +1561,7 @@ void TQueryProfiler::Profile(
         projectExprFragments.DumpArgs(projectExprIds);
 
         // FIXME(lukyan): Do not generate ProjectOp two times.
-        finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, projectFragmentsInfos, projectExprIds);
+        aggregatedSlot = MakeCodegenProjectOp(codegenSource, slotCount, aggregatedSlot, projectFragmentsInfos, projectExprIds);
         totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, std::move(projectExprIds));
 
         MakeCodegenFragmentBodies(codegenSource, projectFragmentsInfos);
@@ -1575,7 +1578,7 @@ void TQueryProfiler::Profile(
         int offsetId = Variables_->AddOpaque<size_t>(query->Offset);
         int limitId = Variables_->AddOpaque<size_t>(query->Limit);
 
-        finalSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, finalSlot, offsetId, limitId);
+        aggregatedSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, aggregatedSlot, offsetId, limitId);
     }
 
     size_t resultRowSize = schema->GetColumnCount();
@@ -1583,12 +1586,12 @@ void TQueryProfiler::Profile(
     if (!finalMode) {
         auto schemaTypes = GetTypesFromSchema(*schema);
 
-        finalSlot = MakeCodegenAddStreamOp(
+        aggregatedSlot = MakeCodegenAddStreamOp(
             codegenSource,
             slotCount,
-            finalSlot,
+            aggregatedSlot,
             resultRowSize,
-            EStreamTag::Final,
+            EStreamTag::Aggregated,
             schemaTypes);
 
         totalsSlot = MakeCodegenAddStreamOp(
@@ -1610,7 +1613,7 @@ void TQueryProfiler::Profile(
         ++resultRowSize;
     }
 
-    size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
+    size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, aggregatedSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
     //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
@@ -2017,7 +2020,7 @@ TCGExpressionGenerator Profile(
             =,
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
             exprId = std::move(exprId)
-        ] () {
+        ] {
             return CodegenStandaloneExpression(fragmentInfos, exprId, executionBackend);
         };
 }

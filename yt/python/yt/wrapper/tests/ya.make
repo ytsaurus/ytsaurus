@@ -1,4 +1,4 @@
-PY23_TEST()
+PY3TEST()
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 
@@ -123,9 +123,16 @@ RESOURCE(
     yt/java/ytsaurus-client-core/src/test/resources/good-rich-ypath.txt /good-rich-ypath.txt
 )
 
+
 IF (NOT OPENSOURCE)
     RESOURCE(
         yt/python/yt/wrapper/client_impl_yandex.py /modules/client_impl_yandex.py
+    )
+ELSE()
+    # Keep it sync with yt/python/yt/wrapper/tests/system_python/test_paths.txt
+    RESOURCE_FILES(
+        yt/python/yt/wrapper/tests/test_operations_pickling.py
+        yt/python/yt/wrapper/tests/test_tmpfs.py
     )
 ENDIF()
 
@@ -141,6 +148,7 @@ TEST_SRCS(
     test_client.py
     test_command_params.py
     test_cypress_commands.py
+    test_docker_respawn.py
     test_driver.py
     test_download_core_dump.py
     test_dynamic_table_commands.py
@@ -150,6 +158,7 @@ TEST_SRCS(
     test_ipython.py
     test_job_commands.py
     test_job_tool.py
+    test_jupyter.py
     test_misc.py
     test_module.py
     test_operations.py

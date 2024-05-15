@@ -28,8 +28,7 @@ static const auto& Logger = CellBalancerLogger;
 TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGetClusterState* response)
 {
     THashMap<TNode::TCellSlot*, TTamedCellId> fullSlots;
-    auto fillSlot = [&](TNode::TCellSlot* slot, const NCellBalancerClient::NProto::TSlot* protoSlot)
-    {
+    auto fillSlot = [&] (TNode::TCellSlot* slot, const NCellBalancerClient::NProto::TSlot* protoSlot) {
         if (protoSlot->has_cell_id()) {
             YT_VERIFY(protoSlot->has_is_warmed_up() && protoSlot->has_peer_id() && protoSlot->has_peer_state());
             fullSlots[slot] = FromProto<TTamedCellId>(protoSlot->cell_id());
@@ -43,8 +42,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
 
     };
 
-    auto createNode = [&](NCellBalancerClient::NProto::TCellarNode* protoNode)
-    {
+    auto createNode = [&] (NCellBalancerClient::NProto::TCellarNode* protoNode) {
         auto nodeId = FromProto<TNodeId>(protoNode->node_id());
         NodeMap_[nodeId] = TPoolAllocator::New<TNode>(NullObjectId);
         auto node = NodeMap_[nodeId].get();
@@ -72,7 +70,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         return node;
     };
 
-    auto fillPeer = [&](
+    auto fillPeer = [&] (
         TCellBase::TPeer* peer,
         NCellBalancerClient::NProto::TPeer* protoPeer,
         TCellBase* cell,
@@ -92,8 +90,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         }
     };
 
-    auto createCell = [&](NCellBalancerClient::NProto::TCell* protoCell, TArea* area, TCellBundle* cellBundle)
-    {
+    auto createCell = [&] (NCellBalancerClient::NProto::TCell* protoCell, TArea* area, TCellBundle* cellBundle) {
         auto cellId = FromProto<TTamedCellId>(protoCell->cell_id());
         std::unique_ptr<TCellBase> cellHolder;
         switch (cellBundle->GetCellarType()) {
@@ -121,8 +118,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         return cell;
     };
 
-    auto createArea = [&](NCellBalancerClient::NProto::TArea* protoArea, TCellBundle* cellBundle)
-    {
+    auto createArea = [&] (NCellBalancerClient::NProto::TArea* protoArea, TCellBundle* cellBundle) {
         auto areaId = FromProto<TObjectId>(protoArea->area_id());
         auto area = AreaMap_.Insert(areaId, TPoolAllocator::New<TArea>(areaId));
         area->RefObject();
@@ -139,8 +135,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         return area;
     };
 
-    auto createCellBundle = [&](NCellBalancerClient::NProto::TCellBundle* protoCellBundle)
-    {
+    auto createCellBundle = [&] (NCellBalancerClient::NProto::TCellBundle* protoCellBundle) {
         auto bundleId = FromProto<TCellBundleId>(protoCellBundle->bundle_id());
         auto cellBundle = CellBundleMap_.Insert(bundleId, TPoolAllocator::New<TCellBundle>(bundleId));
         cellBundle->RefObject();

@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +140,10 @@ struct TMatchingTreeCookie
     int TreeSetTopologyVersion = InvalidTreeSetTopologyVersion;
     int TreeIndex = InvalidTreeIndex;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+NLogging::TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

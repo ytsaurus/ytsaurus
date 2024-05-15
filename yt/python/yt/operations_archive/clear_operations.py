@@ -2,7 +2,7 @@ from .queues import (Timer, ThreadSafeCounter, NonBlockingQueue,
                      queue_worker, run_workers, run_queue_workers,
                      run_batching_queue_workers, wait_for_queue)
 
-from yt.common import date_string_to_timestamp_mcs, datetime_to_string, update
+from yt.common import date_string_to_timestamp_mcs, datetime_to_string, update, utcnow
 from yt.wrapper.config import get_config, set_option
 from yt.wrapper.http_helpers import _get_session
 
@@ -555,7 +555,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
                      max_operations_per_user, robots, archive, archive_jobs, thread_count,
                      stderr_thread_count, push_metrics, remove_threshold, client):
 
-    now = datetime.utcnow()
+    now = utcnow()
     end_time_limit = now + execution_timeout
     archiving_time_limit = now + execution_timeout * 7 / 8
 
@@ -681,10 +681,10 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
 
     metrics["approved_to_archive_count"] = len(operations_to_archive)
 
-    now_before_clean = datetime.utcnow()
+    now_before_clean = utcnow()
 
     if archive:
-        operation_archiving_time_limit = datetime.utcnow() + (archiving_time_limit - datetime.utcnow()) / 2
+        operation_archiving_time_limit = utcnow() + (archiving_time_limit - utcnow()) / 2
 
         logger.info("Archiving %d operations", len(operations_to_archive))
         version = client.get("{}/@".format(OPERATIONS_ARCHIVE_PATH)).get("version", 0)
@@ -733,7 +733,7 @@ def clear_operations(soft_limit, hard_limit, grace_timeout, archive_timeout, exe
         run_batching_queue_workers(remove_queue, OperationCleaner, thread_count, args=(client_factory,), batch_size=8, failed_items=failed_to_remove)
         failed_to_remove.extend(wait_for_queue(remove_queue, "remove_operations", end_time_limit))
 
-    now_after_clean = datetime.utcnow()
+    now_after_clean = utcnow()
 
     total_time = (now_after_clean - now).total_seconds()
 

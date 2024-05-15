@@ -46,6 +46,9 @@ static const TYPath GlobalCellRegistryPath("//sys/global_cell_registry");
 static const TYPath BundleAttributeClockClusterTag("options/clock_cluster_tag");
 static const TYPath BundleAttributeMetadataCellIds("metadata_cell_ids");
 
+static const TYPath BundleAttributeMuteTabletCellSnapshotCheck("mute_tablet_cell_snapshots_check");
+static const TYPath BundleAttributeMuteTabletCellsCheck("mute_tablet_cells_check");
+
 static const TString SensorTagInstanceSize = "instance_size";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,6 +450,10 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
+        if (!Config_->EnableChaosBundleManagement) {
+            return;
+        }
+
         YT_LOG_DEBUG("Chaos bundles scan started");
 
         TForeignClientProvider clientProvider(Bootstrap_);
@@ -514,7 +521,7 @@ private:
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
 
-        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.InitializedNodeTagFilters);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.ChangedNodeTagFilters);
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
 
         for (const auto& alert : mutations.AlertsToFire) {
@@ -538,11 +545,23 @@ private:
         ChangedResourceLimitCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
 
         ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
-        InitializedNodeTagFilterCounter_.Increment(mutations.InitializedNodeTagFilters.size());
+        InitializedNodeTagFilterCounter_.Increment(mutations.ChangedNodeTagFilters.size());
         InitializedBundleTargetConfigCounter_.Increment(mutations.InitializedBundleTargetConfig.size());
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
+
+        SetInstanceAttributes(
+            transaction,
+            TabletCellBundlesPath,
+            BundleAttributeMuteTabletCellSnapshotCheck,
+            mutations.ChangedMuteTabletCellSnapshotsCheck);
+
+        SetInstanceAttributes(
+            transaction,
+            TabletCellBundlesPath,
+            BundleAttributeMuteTabletCellsCheck,
+            mutations.ChangedMuteTabletCellsCheck);
     }
 
     void Mutate(
@@ -554,6 +573,11 @@ private:
 
         for (const auto& [cellTag, cellInfo] : mutations.CellTagsToRegister) {
             auto path = Format("%v/cell_tags/%v", GlobalCellRegistryPath, cellTag);
+            CypressSetSingleNode(transaction, path, cellInfo);
+        }
+
+        for (const auto& [cellTag, cellInfo] : mutations.AdditionalCellTagsToRegister) {
+            auto path = Format("%v/additional_cell_tags/%v", GlobalCellRegistryPath, cellTag);
             CypressSetSingleNode(transaction, path, cellInfo);
         }
 

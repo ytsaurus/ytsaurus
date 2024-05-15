@@ -1,10 +1,10 @@
 package tech.ytsaurus.spyt.serializers
 
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.{UInt64Type, YsonBinary, YsonType}
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonBinary, YsonType}
 import org.apache.spark.sql.{DataFrame, Row}
 import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue, WireProtocolWriter}
-import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.ColumnValueType
 import tech.ytsaurus.spyt.serialization.YsonEncoder
 import tech.ytsaurus.spyt.serializers.SchemaConverter.Unordered
 
@@ -41,7 +41,8 @@ class GenericRowSerializer(schema: StructType) {
             case DoubleType => boxValue(i, row.getDouble(i))
             case UInt64Type => boxValue(i, row.getLong(i))
             case DateType => boxValue(i, row.getLong(i))
-            case TimestampType => boxValue(i, row.getLong(i) / 1000000)
+            case _: DatetimeType => boxValue(i, row.getLong(i))
+            case TimestampType => boxValue(i, row.getLong(i))
           }
       }
     }

@@ -22,19 +22,6 @@ object SpytSnapshot {
     dumpVersions
   )
 
-  lazy val sparkForkSnapshotProcess: Seq[ReleaseStep] = Seq(
-    ReleaseStep(releaseStepTask(prepareBuildDirectory)),
-    sparkForkSnapshotVersions,
-    setSparkForkSnapshotVersion,
-    spytSnapshotVersions,
-    setSpytSnapshotVersion,
-    ReleaseStep(releaseStepTask(spytUpdatePythonVersion))
-  ) ++ sparkInstallProcess ++ Seq(
-    ReleaseStep(releaseStepTask(spytPublishSparkFork)),
-    ReleaseStep(releaseStepTask(spytPublish)),
-    dumpVersions
-  )
-
   case class SnapshotVersion(main: String,
                              ticket: Int,
                              hash: Int,
@@ -169,24 +156,6 @@ object SpytSnapshot {
     ), spytVersionFile)
   }
 
-  private lazy val sparkForkSnapshotVersions: ReleaseStep = { st: State =>
-    snapshotVersions(sparkVersions, st, spytSparkVersion, "ytsaurus-pyspark")
-  }
-  private lazy val setSparkForkSnapshotVersion: ReleaseStep = {
-    setVersion(sparkVersions, Seq(
-      spytSparkVersion -> { v: Versions => v._1 },
-      spytSparkPythonVersion -> { v: Versions => v._2 }
-    ), spytSparkVersionFile)
-  }
-  private lazy val sparkInstallProcess: Seq[ReleaseStep] = Seq(
-    setSparkForkSnapshotVersionMvn,
-    ReleaseStep(releaseStepTask(deploySparkFork)),
-    unsetSparkForkSnapshotVersionMvn
-  ).filter(_ => sparkInstallEnabled)
-
-  private def sparkInstallEnabled: Boolean = {
-    Option(System.getProperty("installSpark")).forall(_.toBoolean)
-  }
 
   private def snapshotVersions(versions: SettingKey[Versions],
                                st: State,

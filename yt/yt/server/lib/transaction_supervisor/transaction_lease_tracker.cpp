@@ -250,7 +250,7 @@ void TTransactionLeaseTracker::PingTransaction(
 TFuture<TInstant> TTransactionLeaseTracker::GetLastPingTime(TTransactionId transactionId)
 {
     return
-        BIND([=, this, this_ = MakeStrong(this)] () {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(TrackerThread);
 
             ValidateActive();

@@ -63,7 +63,7 @@ To build python docs in HTML format perform following steps:
 
   1. Install `sphinx` library
 ```
-pip install sphinx
+pip install sphinx sphinx-argparse
 ```
 
   2. Create directory for documentation files

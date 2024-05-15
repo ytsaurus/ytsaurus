@@ -2,11 +2,6 @@ from yt.testlib import authors
 
 from yt.wrapper.thread_pool import ThreadPool
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import pytest
 import threading
 import time
@@ -99,8 +94,8 @@ def test_imap_unordered():
     assert set(result) == {0, 10, 6}
 
     pool = ThreadPool(30)
-    result = pool.imap_unordered(lambda item: -item, xrange(10 ** 5))
-    assert set(result) == set(-item for item in xrange(10 ** 5))
+    result = pool.imap_unordered(lambda item: -item, range(10 ** 5))
+    assert set(result) == set(-item for item in range(10 ** 5))
 
 
 @authors("ostyakov")
@@ -125,5 +120,5 @@ def test_imap():
     assert list(result) == [0, 10, 6]
 
     pool = ThreadPool(30)
-    result = pool.imap(lambda item: -item, xrange(10 ** 5))
-    assert list(result) == [-item for item in xrange(10 ** 5)]
+    result = pool.imap(lambda item: -item, range(10 ** 5))
+    assert list(result) == [-item for item in range(10 ** 5)]

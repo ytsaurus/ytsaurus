@@ -177,7 +177,7 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
         THashSet<TString> result;
         ExtractFilterAttributeReferences(
             nodeFilter,
-            [&result](TString attribute) {
+            [&result] (TString attribute) {
                 result.insert(std::move(attribute));
             });
         EXPECT_EQ(result, THashSet<TString>());
@@ -189,7 +189,7 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
         THashSet<TString> result;
         ExtractFilterAttributeReferences(
             Format("[/spec/weight] %v 152", opString),
-            [&result](TString attribute) {
+            [&result] (TString attribute) {
                 result.insert(std::move(attribute));
             });
         EXPECT_EQ(result, THashSet<TString>{"/spec/weight"});
@@ -202,7 +202,7 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
             "[/labels/position] = 153 OR is_substr(\"disabled\", [/status/state/raw])"
             "OR list_contains([/spec/supported_modes], \"CMP\") AND NOT ([/status/disabled] = %true"
             "OR is_substr(\"disabled\", [/status/state/raw]))",
-            [&result](TString attribute) {
+            [&result] (TString attribute) {
                 result.insert(std::move(attribute));
             });
         EXPECT_EQ(
@@ -215,7 +215,7 @@ TEST(TFilterIntrospectionTest, ExtractAllReferences)
         std::vector<TString> result;
         ExtractFilterAttributeReferences(
             "[/labels/position] > 153 OR is_substr(\"disabled\", [/status/state/raw]) or [/labels/position] < 152",
-            [&result](TString attribute) {
+            [&result] (TString attribute) {
                 result.push_back(std::move(attribute));
             });
         EXPECT_EQ(result, std::vector<TString>({"/labels/position", "/status/state/raw", "/labels/position"}));

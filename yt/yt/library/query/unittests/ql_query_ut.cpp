@@ -123,7 +123,7 @@ protected:
         int syntaxVersion = 1)
     {
         EXPECT_THROW_THAT(
-            BIND([&] () {
+            BIND([&] {
                 PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues, syntaxVersion);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -193,6 +193,53 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
         ContainsRegex("Type mismatch in expression"));
+}
+
+TEST_F(TQueryPrepareTest, KeywordAlias)
+{
+    const auto Keywords = {
+        "select",
+        "from",
+        "where",
+        "having",
+        "offset",
+        "limit",
+        "join",
+        "array",
+        "using",
+        "asc",
+        "desc",
+        "left",
+        "as",
+        "on",
+        "and",
+        "or",
+        "is",
+        "not",
+        "null",
+        "between",
+        "in",
+        "transform",
+        "like",
+        "ilike",
+        "rlike",
+        "regexp",
+        "escape",
+        "false",
+        "true",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "inf"
+    };
+
+    for (const auto* keyword : Keywords) {
+        ExpectPrepareThrowsWithDiagnostics(
+            Format("k as %v from [//t]", keyword),
+            HasSubstr("unexpected keyword"));
+    }
 }
 
 TEST_F(TQueryPrepareTest, AnyInNull)
@@ -864,6 +911,45 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         )";
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        TCGVariables variables;
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    EXPECT_NE(id1, id2);
+}
+
+TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
+{
+    TDataSplit dataSplit;
+
+    SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xeeeeeeee));
+
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64),
+    });
+
+    dataSplit.TableSchema = schema;
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(dataSplit)));
+
+    llvm::FoldingSetNodeID id1;
+    {
+        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
+
+        TCGVariables variables;
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    llvm::FoldingSetNodeID id2;
+    {
+        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
         ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
@@ -1840,7 +1926,7 @@ protected:
             };
         };
 
-        auto prepareAndExecute = [&] () {
+        auto prepareAndExecute = [&] {
             IUnversionedRowsetWriterPtr writer;
             TFuture<IUnversionedRowsetPtr> asyncResultRowset;
 
@@ -6119,9 +6205,13 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6208,9 +6298,13 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/b/d\"",
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/d/2\"",
         "yson={b={c=4u};d=[1u;2]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u}d=[1u;2u}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4u};d=[1u;2u}};ypath=\"/@d/1\"",
     };
 
@@ -6297,9 +6391,13 @@ TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6386,9 +6484,13 @@ TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -6476,9 +6578,13 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4}d=[1;2}};ypath=\"/d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/d1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"//d/1\"",
+        /* Balancing curly bracket to fix text editor navigation { */
         "yson={b={c=4};d=[1;2}};ypath=\"/@d/1\"",
     };
 
@@ -8704,6 +8810,7 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple("any=<attribute=attribute>", "Unexpected \"finish\""),
         std::tuple("any={", "Unexpected \"finish\""),
         std::tuple("any=}", "Error occurred while parsing YSON"),
+        /* Balancing curly bracket to fix text editor navigation { */
         std::tuple("any={a=}", "Unexpected \"}\""),
         std::tuple("any={<attribute=attribute>}", "Unexpected \"<\""),
         std::tuple("any=[<attribute=attribute>]", "Unexpected \"]\""),
@@ -9338,6 +9445,7 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
 
     SUCCEED();
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

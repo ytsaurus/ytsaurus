@@ -5,14 +5,11 @@ from yt.wrapper.common import update_inplace
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six.moves import reload_module
-except ImportError:
-    from six.moves import reload_module
 
 import yt.wrapper as yt
 import yt.subprocess_wrapper as subprocess
 
+import importlib
 import os
 import time
 import pytest
@@ -49,8 +46,8 @@ def test_heavy_proxies():
         provider._discover_heavy_proxies = lambda: []
         assert provider() == "light_proxy"
     finally:
-        reload_module(yt.http_driver)
-        reload_module(yt.config)
+        importlib.reload(yt.http_driver)
+        importlib.reload(yt.config)
         update_inplace(yt.config.config, config)
 
 

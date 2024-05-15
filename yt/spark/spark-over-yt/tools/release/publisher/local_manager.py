@@ -36,7 +36,6 @@ def load_version_file(file_path: str) -> PackedVersion:
 class ReleaseLevel(Enum):
     EMPTY = -1
     SPYT = 1
-    SPARK_FORK = 2
 
     def __lt__(self, other):
         if isinstance(other, ReleaseLevel):
@@ -47,13 +46,11 @@ class ReleaseLevel(Enum):
 
 class Versions(NamedTuple):
     spyt_version: PackedVersion
-    spark_version: PackedVersion
 
 
 def load_versions(sources_path: str) -> Versions:
     spyt_version = load_version_file(join(sources_path, 'version.json'))
-    spark_version = load_version_file(join(sources_path, 'spark_version.json'))
-    return Versions(spyt_version, spark_version)
+    return Versions(spyt_version)
 
 
 def check_existence(sources_path: str, files: List[str]) -> bool:
@@ -67,16 +64,10 @@ def check_spyt_files(sources_path: str) -> bool:
         'setup-spyt-env.sh'])
 
 
-def check_spark_files(sources_path: str) -> bool:
-    return check_existence(sources_path, ['spark.tgz'])
-
-
 def get_release_level(sources_path: str) -> ReleaseLevel:
     if not check_spyt_files(sources_path):
         return ReleaseLevel.EMPTY
-    if not check_spark_files(sources_path):
-        return ReleaseLevel.SPYT
-    return ReleaseLevel.SPARK_FORK
+    return ReleaseLevel.SPYT
 
 
 def approve(text: str) -> bool:

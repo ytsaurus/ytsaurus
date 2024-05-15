@@ -4,7 +4,7 @@ from . import config
 from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
-                     get_disk_size, is_arcadia_python, get_arg_spec)
+                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job)
 from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -18,19 +18,14 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-try:
-    from yt.packages.six import PY3, iteritems, text_type, binary_type
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import PY3, iteritems, text_type, binary_type
-    from six.moves import map as imap
-
 import re
 import copy
 import string
 import inspect
+import itertools
 import os
 import shutil
+import shlex
 import tarfile
 import gzip
 import tempfile
@@ -48,6 +43,8 @@ TMPFS_SIZE_ADDEND = 1024 * 1024
 OPERATION_REQUIRED_MODULES = ["yt.wrapper.py_runner_helpers"]
 
 SINGLE_INDEPENDENT_BINARY_CASE = None
+
+YT_RESPOWNED_IN_CONTAINER_KEY = "YT_RESPAWNED_IN_CONTAINER"
 
 
 class TarInfo(tarfile.TarInfo):
@@ -162,12 +159,8 @@ def module_relpath(module_names, module_file, client):
     """
     search_extensions = get_config(client)["pickling"]["search_extensions"]
     if search_extensions is None:
-        if PY3:
-            import importlib.machinery
-            suffixes = importlib.machinery.all_suffixes()
-        else:
-            import imp
-            suffixes = [suf for suf, _, _ in imp.get_suffixes()]
+        import importlib.machinery
+        suffixes = importlib.machinery.all_suffixes()
     else:
         suffixes = ["." + ext for ext in search_extensions]
 
@@ -303,6 +296,11 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
         and sys.platform.startswith("linux")
     dynamic_libraries = set()
 
+    system_module_patterns = tuple([
+        re.compile(pattern)
+        for pattern in get_config(client)["pickling"]["system_module_patterns"]
+    ])
+
     def add_file_to_compress(file, module_name, name):
         relpath = module_relpath([module_name, name], file, client)
         if relpath is None:
@@ -326,11 +324,29 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
         files_to_compress[relpath] = file
 
-    for name, module in list(iteritems(sys.modules)):
+    def is_system_module(_module):
+        def is_system_module_path(_path):
+            return any(pattern.search(_path) for pattern in system_module_patterns)
+
+        if getattr(_module, "__file__", None):
+            # Regular module.
+            return is_system_module_path(_module.__file__)
+        elif hasattr(_module, "__path__") and hasattr(_module.__path__, "__iter__"):
+            # Looks like a namespaced module.
+            return any(is_system_module_path(path) for path in _module.__path__)
+        else:
+            # We didn't figure out what it is, so let's safely assume it is not a system package.
+            return False
+
+    for name, module in list(sys.modules.items()):
         if module_filter is not None and not module_filter(module):
             continue
+
+        if get_config(client)["pickling"]["ignore_system_modules"] and is_system_module(module):
+            continue
+
         # NB: python3 tests could not properly pickle pkg_resources package.
-        if PY3 and "pkg_resources" in str(module):
+        if "pkg_resources" in str(module):
             continue
 
         if hasattr(module, "__file__"):
@@ -383,7 +399,7 @@ def create_modules_archive_default(tempfiles_manager, custom_python_used, client
 
     additional_files = get_value(get_config(client)["pickling"]["additional_files_to_archive"], [])
     additional_files = [(relpath, filepath) for filepath, relpath in additional_files]
-    all_files = list(iteritems(files_to_compress)) + additional_files
+    all_files = list(files_to_compress.items()) + additional_files
 
     files_sorted = sorted(all_files, key=lambda item: os.path.getmtime(item[1]))
     file_chunks = split_files_into_chunks(files_sorted, get_config(client)["pickling"]["modules_chunk_size"])
@@ -439,7 +455,7 @@ def simplify(function_name):
         if sym not in string.ascii_letters and sym not in string.digits:
             return "_"
         return sym
-    return "".join(imap(fix, function_name[:30]))
+    return "".join(map(fix, function_name[:30]))
 
 
 def get_function_name(function):
@@ -505,26 +521,30 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 
     pickler_name = get_config(client)["pickling"]["framework"]
     pickler = Pickler(pickler_name)
-    if pickler_name == "dill" and get_config(client)["pickling"]["load_additional_dill_types"]:
-        pickler.load_types()
+    dump_kwargs = {}
+    if pickler_name == "dill":
+        if get_config(client)["pickling"]["load_additional_dill_types"]:
+            pickler.load_types()
+        if is_running_interactively():
+            dump_kwargs["byref"] = False
 
     with open(function_filename, "wb") as fout:
         params.attributes = function.attributes if hasattr(function, "attributes") else {}
         params.python_version = get_python_version()
         params.is_local_mode = is_local_mode
 
-        pickler.dump((function, params), fout)
+        pickler.dump((function, params), fout, **dump_kwargs)
 
     config_filename = create_temp_file(prefix="config_dump")
     with open(config_filename, "wb") as fout:
         Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
 
-    return list(imap(file_argument_builder, [function_filename, config_filename]))
+    return list(map(file_argument_builder, [function_filename, config_filename]))
 
 
 def build_modules_arguments(modules_info, create_temp_file, file_argument_builder, client):
     # COMPAT: previous version of create_modules_archive returns string.
-    if isinstance(modules_info, (text_type, binary_type)):
+    if isinstance(modules_info, (str, bytes)):
         modules_info = [{"filename": modules_info, "hash": calc_md5_from_file(modules_info), "tmpfs": False}]
 
     tmpfs_size = sum([info["size"] for info in modules_info if info["tmpfs"]])
@@ -767,3 +787,190 @@ def with_formats(func, input_format=None, output_format=None):
     if output_format is not None:
         _set_attribute(func, "output_format", output_format)
     return func
+
+
+class DockerRespawner:
+    def __init__(
+            self,
+            image,
+            target_platform,
+            docker,
+            python,
+            env=None,
+            main_scipt_path=None,
+            cwd=None,
+            homedir=None,
+            python_lib_paths=None,
+            mount=None,
+            need_sudo=False,
+    ):
+        self._image = image
+        self._platform = target_platform
+        self._docker = docker
+        self._python = python
+        self._env = env
+        if self._env is None:
+            # By default, we forward only YT-specific variables.
+            self._env = {
+                key: value
+                for key, value in os.environ.items()
+                if key.startswith("YT_")
+            }
+        self._main_script_path = main_scipt_path if main_scipt_path is not None else os.path.abspath(sys.argv[0])
+        self._cwd = cwd if cwd is not None else os.path.abspath(os.getcwd())
+        self._homedir = homedir if homedir is not None else os.path.expanduser("~")
+        # We need to provide all python libraries to a container to ensure pickling works.
+        self._python_lib_paths = (
+            python_lib_paths
+            if python_lib_paths is not None else
+            [os.path.abspath(path) for path in sys.path]
+        )
+        self._mount = mount
+        self._need_sudo = need_sudo
+
+    def _make_docker_env_args(self, env):
+        return list(itertools.chain.from_iterable(
+            (
+                ("-e", "{0}={1}".format(key, value))
+                for key, value in env.items()
+            )
+        ))
+
+    def _make_docker_mount_args(self, paths):
+        return list(itertools.chain.from_iterable(
+            (
+                ("-v", "{0}:{0}".format(path))
+                for path in paths
+            )
+        ))
+
+    def _make_mount_paths(self):
+        if self._mount is not None:
+            return self._mount
+        # If we mount the entire local file system in docker under an arbitrary name
+        # we will break the symlinks,
+        # so we have to find only the paths necessary for work and mount them along the same paths.
+        mount_paths = [
+            path
+            for path in [self._cwd, os.path.dirname(self._main_script_path), *self._python_lib_paths]
+            if path is not None and os.path.commonpath([path, self._homedir]) != self._homedir
+        ] + [self._homedir]
+        mount_paths = list(set(mount_paths))
+        mount_paths.sort()
+        return mount_paths
+
+    def _make_docker_platform(self):
+        if self._platform is not None:
+            return "--platform", self._platform
+        return tuple()
+
+    def _make_sudo(self):
+        if self._need_sudo:
+            return ("sudo",)
+        return tuple()
+
+    def make_command(self):
+        env = self._env.copy()
+        # Ensure using the same image in all operations.
+        env["YT_BASE_LAYER"] = env.get("YT_BASE_LAYER", self._image)
+        # ATTENTION
+        # We use linux-specific separator for PYTHONPATH.
+        pythonpath_env = ":".join(self._python_lib_paths)
+
+        mount_paths = self._make_mount_paths()
+        docker_env_args = self._make_docker_env_args(
+            {
+                "CWD": self._cwd,
+                "PYTHONPATH": pythonpath_env,
+                YT_RESPOWNED_IN_CONTAINER_KEY: "1",
+                **env,
+            }
+        )
+        docker_mount_args = self._make_docker_mount_args(mount_paths)
+        command = [
+            *self._make_sudo(),
+            self._docker, "run",
+            *self._make_docker_platform(),
+            "-it", "--rm",
+            *docker_env_args,
+            *docker_mount_args,
+            self._image,
+            self._python, self._main_script_path,
+        ]
+        command = [
+            shlex.quote(c)
+            for c in command
+        ]
+        return command
+
+    def run(self):
+        command = self.make_command()
+        logger.info("Respawn in docker (command: {0})".format(" ".join(command)))
+        process = subprocess.Popen(
+            command,
+            stdin=sys.stdin,
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+        )
+        exit_code = process.wait()
+        if exit_code:
+            sys.exit(exit_code)
+
+
+def respawn_in_docker(
+        image,
+        target_platform=None,
+        docker="docker",
+        python="python3",
+        env=None,
+        mount=None,
+        need_sudo=False,
+):
+    """
+    Decorator for function main to prevent problems with pickle.
+    The wrapped function will be executed inside the Docker container in order to provide
+    the most similar execution environment as on the YTSaurus cluster.
+    All operation invocations like yt.run_map automatically assume the specified docker image.
+
+    Args:
+        :param str image: docker image (same format as in the operation's spec)
+        :param Optional[str] target_platform: target platform for the docker container
+        :param str docker: local docker executable name/path
+        :param str python: python executable name/path in docker
+        :param Optional[dict] env: environment variables to pass to the docker container
+        If not set it will use global variables with the YT_ prefix
+        :param Optional[list[str]] mount: mount points for the docker container
+        If not set it will use homedir, cwd and python lib paths
+        :param bool need_sudo: whether sudo privileges are needed to run docker
+    Example:
+        from yt import wrapper
+        from .lib import mapper
+
+        @respawn_in_docker("python3.10")
+        def main():
+            client = wrapper.YtClient()
+            client.run_map(
+                mapper,
+                source_table="//tmp/foo",
+                destination_table="//tmp/bar",
+            )
+
+        if __name__ == "__main__":
+            main()
+    """
+    def inner(func):
+        def wrapped(*args, **kwargs):
+            if os.environ.get(YT_RESPOWNED_IN_CONTAINER_KEY) == "1" or is_inside_job():
+                return func(*args, **kwargs)
+            respawner = DockerRespawner(
+                image=image,
+                target_platform=target_platform,
+                docker=docker,
+                env=env,
+                mount=mount,
+                need_sudo=need_sudo,
+                python=python,
+            )
+            respawner.run()
+        return wrapped
+    return inner

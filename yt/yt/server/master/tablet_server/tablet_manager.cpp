@@ -194,19 +194,19 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
@@ -236,6 +236,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDeallocateServant, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraMaterializeExtraMountConfigKeys, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
         tabletNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
@@ -1506,6 +1507,29 @@ public:
         UpdateTabletState(table);
     }
 
+    void SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
+    {
+        if (table->IsExternal()) {
+            return;
+        }
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        for (auto* tablet : table->Tablets()) {
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+
+            auto* mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+            TReqSetCustomRuntimeData req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            if (data) {
+                req.set_custom_runtime_data(data.ToString());
+            }
+            hiveManager->PostMessage(mailbox, req);
+        }
+    }
+
     void DestroyTabletOwner(TTabletOwnerBase* table)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2715,6 +2739,15 @@ public:
         }
     }
 
+    void MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
+    {
+        NProto::TReqMaterializeExtraMountConfigKeys request;
+        ToProto(request.mutable_table_mount_config_keys(), MountConfigKeysFromNodes_);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, cellTag);
+    }
+
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
@@ -2810,7 +2843,7 @@ private:
     bool FillMountConfigKeys_ = false;
 
     //! Hash parts of the avenue ids generated in current mutation.
-    THashSet<ui32> GeneratedAvenueIdHashes_;
+    THashSet<ui32> GeneratedAvenueIdEntropies_;
 
     // COMPAT(ifsmirnov)
     bool RecomputeAggregateTabletStatistics_ = false;
@@ -3302,7 +3335,7 @@ private:
                         throw;
                     }
 
-                    GeneratedAvenueIdHashes_.clear();
+                    GeneratedAvenueIdEntropies_.clear();
 
                     // TODO(ifsmirnov): YT-20959 - send updated settings to sibling
                     // and unban remount.
@@ -3741,7 +3774,7 @@ private:
                 IsDynamicStoreReadEnabled(typedTable, GetDynamicConfig()));
         }
 
-        GeneratedAvenueIdHashes_.clear();
+        GeneratedAvenueIdEntropies_.clear();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         TTabletResources resourceUsageDelta;
@@ -3825,7 +3858,7 @@ private:
 
     TAvenueEndpointId GenerateAvenueEndpointId(TTabletBase* tablet)
     {
-        ui32 hash = HashFromId(tablet->GetId());
+        ui32 entropy = EntropyFromId(tablet->GetId());
 
         // Try to keep as many lower bits as possible.
         {
@@ -3833,17 +3866,17 @@ private:
             ui32 upperBitMask = 0;
             ui32 saltOffset = 32;
 
-            while (GeneratedAvenueIdHashes_.contains(hash)) {
+            while (GeneratedAvenueIdEntropies_.contains(entropy)) {
                 if (salt == upperBitMask) {
                     --saltOffset;
                     upperBitMask ^= 1u << saltOffset;
                 }
                 ++salt;
-                hash = (hash & ~upperBitMask) ^ (salt << saltOffset);
+                entropy = (entropy & ~upperBitMask) ^ (salt << saltOffset);
             }
         }
 
-        GeneratedAvenueIdHashes_.insert(hash);
+        GeneratedAvenueIdEntropies_.insert(entropy);
 
         auto* mutationContext = GetCurrentMutationContext();
 
@@ -3851,7 +3884,7 @@ private:
             EObjectType::AliceAvenueEndpoint,
             CellTagFromId(tablet->GetId()),
             mutationContext->GetVersion(),
-            hash);
+            entropy);
 
         mutationContext->CombineStateHash(result);
 
@@ -3905,6 +3938,10 @@ private:
             reqReplicatable.set_retained_timestamp(tablet->GetRetainedTimestamp());
             if (!table->IsPhysicallySorted()) {
                 reqReplicatable.set_trimmed_row_count(tablet->GetTrimmedRowCount());
+            }
+
+            if (const auto& customRuntimeData = table->CustomRuntimeData()) {
+                reqReplicatable.set_custom_runtime_data(customRuntimeData.ToString());
             }
 
             req.set_mount_revision(tablet->Servant().GetMountRevision());
@@ -5838,6 +5875,14 @@ private:
         }
     }
 
+    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* request)
+    {
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
+    }
+
     void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -7629,6 +7674,11 @@ void TTabletManager::Reshard(
         trimmedRowCounts);
 }
 
+void TTabletManager::SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
+{
+    Impl_->SetCustomRuntimeData(table, std::move(data));
+}
+
 void TTabletManager::ValidateCloneTabletOwner(
     TTabletOwnerBase* sourceNode,
     ENodeCloneMode mode,
@@ -7744,6 +7794,11 @@ TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
 void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
 {
     Impl_->UpdateExtraMountConfigKeys(std::move(keys));
+}
+
+void TTabletManager::MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
+{
+    Impl_->MaterizlizeExtraMountConfigKeys(cellTag);
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(

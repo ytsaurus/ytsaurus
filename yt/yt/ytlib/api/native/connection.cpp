@@ -39,6 +39,7 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>
+#include <yt/yt/library/query/engine_api/expression_evaluator.h>
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
@@ -51,6 +52,7 @@
 
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/ytlib/discovery_client/request_session.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
@@ -179,6 +181,10 @@ public:
         , ColumnEvaluatorCache_(BIND([this] {
             auto config = Config_.Acquire();
             return CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
+        }))
+        , ExpressionEvaluatorCache_(BIND([this] {
+            auto config = Config_.Acquire();
+            return CreateExpressionEvaluatorCache(config->ExpressionEvaluatorCache);
         }))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
@@ -351,7 +357,15 @@ public:
             MakeStrong(this),
             NodeDirectory_);
 
-        ChunkReplicaCache_ = CreateChunkReplicaCache(this);
+        ChunkReplicaCache_ = CreateChunkReplicaCache(
+            this,
+            Profiler_.WithPrefix("/chunk_replica_cache"));
+
+        if (config->DiscoveryConnection) {
+            DiscoveryServerAddressPool_ = New<TServerAddressPool>(
+                Logger,
+                config->DiscoveryConnection);
+        }
 
         SetupTvmIdSynchronization();
     }
@@ -615,6 +629,11 @@ public:
         return ColumnEvaluatorCache_.Value();
     }
 
+    const IExpressionEvaluatorCachePtr& GetExpressionEvaluatorCache() override
+    {
+        return ExpressionEvaluatorCache_.Value();
+    }
+
     const NCellMasterClient::ICellDirectoryPtr& GetMasterCellDirectory() override
     {
         return MasterCellDirectory_;
@@ -700,6 +719,17 @@ public:
             this,
             cellId,
             options);
+    }
+
+    std::vector<TString> GetDiscoveryServerAddresses() const override
+    {
+        if (!DiscoveryServerAddressPool_) {
+            THROW_ERROR_EXCEPTION("Missing discovery server address pool");
+        }
+        if (!DiscoveryServerAddressPool_->GetReadyEvent().IsSet()) {
+            THROW_ERROR_EXCEPTION("Discovery server address pool is not ready");
+        }
+        return DiscoveryServerAddressPool_->GetProbationAddresses();
     }
 
     NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
@@ -812,6 +842,7 @@ public:
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
+        ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
 
         Config_.Store(dynamicConfig);
     }
@@ -842,6 +873,7 @@ private:
 
     const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;
+    const TLazyIntrusivePtr<IExpressionEvaluatorCache> ExpressionEvaluatorCache_;
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::ICellDirectoryPtr MasterCellDirectory_;
@@ -891,6 +923,8 @@ private:
 
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
     IChaosCellChannelFactoryPtr ChaosCellChannelFactory_;
+
+    TServerAddressPoolPtr DiscoveryServerAddressPool_;
 
     std::atomic<bool> Terminated_ = false;
 

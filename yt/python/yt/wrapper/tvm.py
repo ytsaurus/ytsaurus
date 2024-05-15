@@ -47,7 +47,7 @@ class UserTicketFixedAuth(AuthBase):
 
     def _validate_user_ticket(self, user_ticket):
         if user_ticket:
-            parts = user_ticket.split(":", 3)
+            parts = user_ticket.split(":", 2)
             if len(parts) == 3 and parts[1] == "user":
                 return True
         return False

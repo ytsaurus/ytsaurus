@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
     ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
+    ((FixLastSeenPersistance_23_2)                                  (2464))  // cherepashka
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
@@ -227,6 +228,15 @@ DEFINE_ENUM(EMasterReign,
     ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
     ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
     ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
+    ((SecondaryIndexSchemaValidation_24_1)                          (2560))  // sabdenovch
+    ((NodeReplicationMutation)                                      (2561))  // cherepashka
+    ((TraceIdInSequoia)                                             (2562))  // cherepashka
+    ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
+    ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
+    ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
+    ((FixLastSeenPersistance)                                       (2566))  // cherepashka
+    ((AnyTypedKeysInSortedTables)                                   (2567))  // whatsername
+    ((SecondaryIndexPredicate_24_1)                                 (2568))  // sabdenovch
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -240,6 +250,12 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveEnableSharedWriteLocksFlagLeftovers)                    (2609))  // ponasenko-rs
     ((AccountProfilingIncumbency)                                   (2610))  // h0pless
     ((RemoveParameterizedBalancingMetricSetting)                    (2611))  // alexelexa
+    ((RipAevum)                                                     (2612))  // babenko
+    ((SecondaryIndexSchemaValidation)                               (2613))  // sabdenovch
+    ((ErasureChunksCanBeNonVital)                                   (2614))  // achulkov2
+    ((MissingRackAttribute)                                         (2615))  // danilalexeev
+    ((SecondaryIndexPredicate)                                      (2616))  // sabdenovch
+    ((AddTableNodeCustomRuntimeData)                                (2617))  // gryzlov-ad
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

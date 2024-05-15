@@ -25,13 +25,6 @@ except ImportError:
 import yt.packages.fuse as fuse
 import yt.packages.requests as requests
 
-try:
-    from yt.packages.six import itervalues, iteritems, iterkeys, PY3
-    from yt.packages.six.moves import map as imap, zip as izip
-except ImportError:
-    from six import itervalues, iteritems, iterkeys, PY3
-    from six.moves import map as imap, zip as izip
-
 import stat
 import errno
 import time
@@ -65,7 +58,7 @@ class Statistics(object):
 
     def report(self):
         self._logger.debug("Statistics:")
-        for name in iterkeys(self._timings):
+        for name in self._timings.keys():
             duration = self._timings[name]
             calls = self._calls[name]
             self._logger.debug("{0}: {1}, {2}".format(name, duration, calls))
@@ -98,7 +91,7 @@ def log_calls(logger, message_format, statistics):
         positional_names = function.__code__.co_varnames
 
         def log_call(*args, **kwargs):
-            kwargs.update(izip(positional_names, args))
+            kwargs.update(zip(positional_names, args))
             kwargs["__name__"] = function.__name__
             logger.debug(message_format, kwargs)
 
@@ -218,7 +211,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
                 self._cache[path] = CachedYtClient.CacheEntry(exists=False, error=error)
             raise
         cache_entry.attributes.update(
-            (a, (True, v)) for a, v in iteritems(all_attributes)
+            (a, (True, v)) for a, v in all_attributes.items()
         )
 
         requested_attributes = {}
@@ -248,7 +241,7 @@ class CachedYtClient(yt.wrapper.client.Yt):
         children = super(CachedYtClient, self).list(
             path, attributes=attributes
         )
-        cache_entry.children = set(imap(str, children))
+        cache_entry.children = set(map(str, children))
 
         for child in children:
             child_path = path + "/" + child
@@ -565,7 +558,7 @@ class Cypress(fuse.Operations):
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
     def getattr(self, path, fi):
         ypath = self._to_ypath(path)
-        for opened_file in itervalues(self._opened_files):
+        for opened_file in self._opened_files.values():
             if opened_file.ypath == ypath:
                 attributes = opened_file.attributes
                 break
@@ -585,10 +578,7 @@ class Cypress(fuse.Operations):
         children = self._client.list(ypath, attributes=self._system_attributes)
         # Still having encoding problems,
         # try listing //statbox/home/zahaaar at Plato.
-        if PY3:
-            return [str(child) for child in children]
-        else:
-            return [str(child).decode("utf-8") for child in children]
+        return [str(child) for child in children]
 
     @handle_yt_errors(_logger)
     @log_calls(_logger, "%(__name__)s(%(path)r)", _statistics)
@@ -722,7 +712,7 @@ class Cypress(fuse.Operations):
     def truncate(self, path, length, fh=None):
         self._validate_write_access()
         ypath = self._to_ypath(path)
-        for file_fh, opened_file in iteritems(self._opened_files):
+        for file_fh, opened_file in self._opened_files.items():
             if opened_file.ypath == ypath:
                 fh = file_fh
                 break

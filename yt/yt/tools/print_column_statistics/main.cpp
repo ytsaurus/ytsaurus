@@ -155,11 +155,11 @@ int main(int argc, char** argv)
         }
 
         if (isErasure) {
-            std::sort(columnInfos.begin(), columnInfos.end(), [](const TColumnInfo& lhs, const TColumnInfo& rhs) {
+            std::sort(columnInfos.begin(), columnInfos.end(), [] (const TColumnInfo& lhs, const TColumnInfo& rhs) {
                 return lhs.UncompressedRatio < rhs.UncompressedRatio;
             });
         } else {
-            std::sort(columnInfos.begin(), columnInfos.end(), [](const TColumnInfo& lhs, const TColumnInfo& rhs) {
+            std::sort(columnInfos.begin(), columnInfos.end(), [] (const TColumnInfo& lhs, const TColumnInfo& rhs) {
                 return lhs.CompressedRatio < rhs.CompressedRatio;
             });
         }

@@ -27,16 +27,25 @@ Exiting.
         sys.exit(1)
 
 
-try:
-    try:
-        from .client_impl_yandex import YtClient
-    except ImportError:
-        from .client_impl import YtClient
+# DO NOT EDIT SPECIAL "# __IF_OS:" MARKERS
 
+try:
+    pass
+    # __IF_NOT_OS:
+    from .client_impl_yandex import YtClient
+except ImportError:
+    pass
+    # __IF_NOT_OS:
+    from .client_impl import YtClient
+
+# __IF_OS:
+# from .client_impl import YtClient
+
+
+try:
     for name in client_api.all_names:
         if not are_signatures_equal(getattr(YtClient, name), create_class_method(getattr(client_api, name))):
             report_and_exit("Difference in signature for {}".format(name))
-
 except AttributeError as e:
     report_and_exit(str(e))
 

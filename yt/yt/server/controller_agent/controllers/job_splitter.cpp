@@ -187,7 +187,7 @@ public:
             summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()).SecondsFloat();
         double expectedExecDuration = execDuration / processedRowCount * unreadRowCount;
 
-        auto getMedianCompletionDuration = [&] () {
+        auto getMedianCompletionDuration = [&] {
             auto medianCompletionTime = JobTimeTracker_.GetMedianCompletionTime();
             if (!IsResidual() && medianCompletionTime) {
                 return medianCompletionTime.SecondsFloat() - GetInstant().SecondsFloat();

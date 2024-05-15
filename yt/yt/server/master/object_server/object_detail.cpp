@@ -465,7 +465,6 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
     bool hasAcd = acd;
     bool hasOwner = acd && acd->GetOwner();
     bool isForeign = Object_->IsForeign();
-    bool isSequoia = Object_->IsSequoia();
 
     descriptors->push_back(EInternedAttributeKey::Id);
     descriptors->push_back(EInternedAttributeKey::Type);
@@ -506,8 +505,6 @@ void TObjectProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetMandatory(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EstimatedCreationTime)
         .SetOpaque(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Aevum)
-        .SetPresent(isSequoia));
 }
 
 const THashSet<TInternedAttributeKey>& TObjectProxyBase::GetBuiltinAttributeKeys()
@@ -672,16 +669,6 @@ bool TObjectProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
                     .Item("min").Value(minTime)
                     .Item("max").Value(maxTime)
                 .EndMap();
-            return true;
-        }
-
-        case EInternedAttributeKey::Aevum: {
-            if (!Object_->IsSequoia()) {
-                break;
-            }
-
-            BuildYsonFluently(consumer)
-                .Value(Object_->GetAevum());
             return true;
         }
 

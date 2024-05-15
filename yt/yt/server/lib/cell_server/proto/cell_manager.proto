@@ -18,7 +18,7 @@ message TReqSetCellStatus
         required TCellStatus status = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 

@@ -86,7 +86,7 @@ private:
 
     TBucket* GetBucket(TReplicationCardId replicationCardId)
     {
-        return &Buckets_[HashFromId(replicationCardId) % ConcurrentHashBucketCount];
+        return &Buckets_[GetShardIndex<ConcurrentHashBucketCount>(replicationCardId)];
     }
 };
 

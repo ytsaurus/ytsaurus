@@ -1,25 +1,34 @@
 package registryutil
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/OneOfOne/xxhash"
 )
 
+var keyBufferPool = sync.Pool{New: func() any {
+	return bytes.NewBuffer(make([]byte, 0, 512))
+}}
+
 // BuildRegistryKey creates registry name based on given prefix and tags
 func BuildRegistryKey(prefix string, tags map[string]string) string {
-	var builder strings.Builder
+	buffer := keyBufferPool.Get().(*bytes.Buffer)
+	defer func() {
+		buffer.Reset()
+		keyBufferPool.Put(buffer)
+	}()
 
-	builder.WriteString(strconv.Quote(prefix))
-	builder.WriteRune('{')
-	builder.WriteString(StringifyTags(tags))
-	builder.WriteByte('}')
-
-	return builder.String()
+	buffer.Write(strconv.AppendQuote(buffer.Bytes(), prefix))
+	buffer.WriteString("{")
+	StringifyTags(tags, buffer)
+	buffer.WriteString("}")
+	return buffer.String()
 }
 
 // BuildFQName returns name parts joined by given separator.
@@ -64,22 +73,21 @@ func MergeTags(leftTags map[string]string, rightTags map[string]string) map[stri
 
 // StringifyTags returns string representation of given tags map.
 // It is guaranteed that equal sets of tags will produce equal strings.
-func StringifyTags(tags map[string]string) string {
+func StringifyTags(tags map[string]string, buffer *bytes.Buffer) {
 	keys := make([]string, 0, len(tags))
 	for key := range tags {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
 
-	var builder strings.Builder
 	for i, key := range keys {
 		if i > 0 {
-			builder.WriteByte(',')
+			buffer.WriteByte(',')
 		}
-		builder.WriteString(key + "=" + tags[key])
+		buffer.WriteString(key)
+		buffer.WriteString("=")
+		buffer.WriteString(tags[key])
 	}
-
-	return builder.String()
 }
 
 // VectorHash computes hash of metrics vector element

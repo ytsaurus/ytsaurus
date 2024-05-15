@@ -780,7 +780,7 @@ func TestHTTPAPIJSONFormat(t *testing.T) {
 	})
 }
 
-func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
+func TestHTTPAPISetArrayInt64ValueUsingJSONFormat(t *testing.T) {
 	t.Parallel()
 
 	_, c := helpers.PrepareAPI(t)
@@ -795,7 +795,7 @@ func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
 			Params: map[string]any{
 				"alias": alias,
 				"key":   "test_option",
-				"value": 1,
+				"value": []int{1, 2},
 			},
 		},
 		"json",
@@ -813,7 +813,7 @@ func TestHTTPAPISetInt64ValueUsingJSONFormat(t *testing.T) {
 	var resultWithOption map[string]any
 	err := yson.Unmarshal(r.Body, &resultWithOption)
 	require.NoError(t, err)
-	require.Equal(t, int64(1), resultWithOption["result"])
+	require.Equal(t, []any{int64(1), int64(2)}, resultWithOption["result"])
 }
 
 func checkAttrFromGetBriefInfoCommand(

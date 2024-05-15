@@ -461,6 +461,41 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         row = lookup_rows("//tmp/t", [{"key": 1}])
         assert_items_equal(row, [])
 
+    @authors("hitsedesen")
+    def test_aggreagte_dict_sum(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "any", "aggregate": "dict_sum"},
+        ]
+        create_dynamic_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        insert_rows(
+            "//tmp/t", [{"key": 1}, {"key": 2, "value": {"a": 11, "b": {"c": {"d": 7}}, "e": {"f": {"g": 13}}, "h": 5}}]
+        )
+        value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        assert value == [
+            {"key": 1, "value": yson.YsonEntity()},
+            {"key": 2, "value": {"a": 11, "b": {"c": {"d": 7}}, "e": {"f": {"g": 13}}, "h": 5}},
+        ]
+        insert_rows(
+            "//tmp/t",
+            [{"key": 1, "value": {"a": 3}}, {"key": 2, "value": {"a": 3, "b": {"c": {"d": 17}}}}],
+            aggregate=True,
+        )
+        value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        assert value == [
+            {"key": 1, "value": {"a": 3}},
+            {"key": 2, "value": {"a": 14, "b": {"c": {"d": 24}}, "e": {"f": {"g": 13}}, "h": 5}},
+        ]
+        insert_rows("//tmp/t", [{"key": 2, "value": {"a": -14, "b": {"c": {"d": -24}}}}], aggregate=True)
+        value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        assert value == [{"key": 1, "value": {"a": 3}}, {"key": 2, "value": {"e": {"f": {"g": 13}}, "h": 5}}]
+        insert_rows("//tmp/t", [{"key": 2, "value": {"h": 25, "q": 1}}])
+        value = lookup_rows("//tmp/t", [{"key": 1}, {"key": 2}])
+        assert value == [{"key": 1, "value": {"a": 3}}, {"key": 2, "value": {"h": 25, "q": 1}}]
+
     @authors("aleksandra-zh")
     def test_aggregate_stored_replica_set(self):
         sync_create_cells(1)

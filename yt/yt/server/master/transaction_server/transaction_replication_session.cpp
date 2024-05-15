@@ -413,7 +413,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
     // NB: we always have to wait all current prepared transactions to observe
     // side effects of Sequoia transactions.
     return syncSession->Sync(cellTags, std::move(additionalFutures))
-        .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] () {
+        .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] {
             if (!asyncResult) {
                 return VoidFuture;
             }
@@ -641,7 +641,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     if (ReplicationRequestCellTags_.empty()) {
         auto asyncResult = DoInvokeReplicationRequests();
         YT_VERIFY(asyncResult.NonMirrored.empty());
-        return asyncResult.Mirrored.Apply(BIND([this, this_ = MakeStrong(this)] () {
+        return asyncResult.Mirrored.Apply(BIND([this, this_ = MakeStrong(this)] {
             return Mutation_->Commit();
         }));
     }

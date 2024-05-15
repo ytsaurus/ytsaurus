@@ -101,6 +101,10 @@ public:
     void ShrinkHashTables();
     void Reset();
 
+    struct TLoadScratchData;
+    TLoadScratchData* GetLoadScratchData() const;
+    void ResetLoadScratchData();
+
 protected:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -109,6 +113,8 @@ private:
     // TODO(kvk1920): TStrongObjectPtr<TDomesticMedium> EffectiveMedium.
     TReplicaSet::iterator RandomReplicaIter_;
     std::array<TDestroyedReplicaSet::const_iterator, ChunkShardCount> DestroyedReplicasIterators_;
+
+    std::unique_ptr<TLoadScratchData> LoadScratchData_;
 
     bool DoRemoveReplica(TChunkPtrWithReplicaIndex replica);
     bool DoAddReplica(TChunkPtrWithReplicaInfo replica);
@@ -140,6 +146,14 @@ private:
     const TDestroyedReplicaSet* Replicas_;
     TDestroyedReplicaSet::const_iterator Start_;
     TDestroyedReplicaSet::const_iterator Current_;
+};
+
+struct TChunkLocation::TLoadScratchData
+{
+    explicit TLoadScratchData(size_t replicaCount);
+
+    std::atomic<int> CurrentReplicaIndex;
+    std::vector<TChunkPtrWithReplicaInfo> Replicas;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -183,53 +183,71 @@ public:
         LocalJanitor_->Initialize();
     }
 
-    const TMasterAutomatonPtr& GetAutomaton() const override
+    const TMasterAutomatonPtr& GetAutomaton() override
     {
         return Automaton_;
     }
 
-    const IElectionManagerPtr& GetElectionManager() const override
+    const IElectionManagerPtr& GetElectionManager() override
     {
         return ElectionManager_;
     }
 
-    const IHydraManagerPtr& GetHydraManager() const override
+    const IHydraManagerPtr& GetHydraManager() override
     {
         return HydraManager_;
     }
 
-    const IPersistentResponseKeeperPtr& GetResponseKeeper() const override
+    const IPersistentResponseKeeperPtr& GetResponseKeeper() override
     {
         return ResponseKeeper_;
     }
 
-    const ILocalHydraJanitorPtr& GetLocalJanitor() const override
+    const ILocalHydraJanitorPtr& GetLocalJanitor() override
     {
         return LocalJanitor_;
     }
 
-    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const override
+    IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) override
     {
         return AutomatonQueue_->GetInvoker(queue);
     }
 
-    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const override
+    IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) override
     {
         return EpochInvokers_[queue];
     }
 
-    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) const override
+    IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue) override
     {
         return GuardedInvokers_[queue];
     }
 
 
-    IInvokerPtr GetTransactionTrackerInvoker() const override
+    IInvokerPtr GetTransactionTrackerInvoker() override
     {
         return TransactionTrackerQueue_->GetInvoker();
     }
 
-    const NObjectServer::TEpochContextPtr& GetEpochContext() const override
+    IThreadPoolPtr GetSnapshotSaveBackgroundThreadPool() override
+    {
+        // NB: We must be lazy here since this call is made in a forked child and all parent threads vanish upon fork.
+        if (!SnapshotSaveBackgroundThreadPool_ && Config_->HydraManager->SnapshotBackgroundThreadCount > 0) {
+            SnapshotSaveBackgroundThreadPool_ = CreateThreadPool(Config_->HydraManager->SnapshotBackgroundThreadCount, "SnapSaveBack");
+        }
+        return SnapshotSaveBackgroundThreadPool_;
+    }
+
+    IThreadPoolPtr GetSnapshotLoadBackgroundThreadPool() override
+    {
+        // This is just for symmetry with GetSnapshotSaveBackgroundThreadPool.
+        if (!SnapshotLoadBackgroundThreadPool_ && Config_->HydraManager->SnapshotBackgroundThreadCount > 0) {
+            SnapshotLoadBackgroundThreadPool_ = CreateThreadPool(Config_->HydraManager->SnapshotBackgroundThreadCount, "SnapLoadBack");
+        }
+        return SnapshotLoadBackgroundThreadPool_;
+    }
+
+    const NObjectServer::TEpochContextPtr& GetEpochContext() override
     {
         return EpochContext_;
     }
@@ -254,14 +272,14 @@ public:
         YT_LOG_TRACE("Automaton thread unblocked");
     }
 
-    bool IsAutomatonLocked() const override
+    bool IsAutomatonLocked() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return AutomatonBlocked_;
     }
 
-    void VerifyPersistentStateRead() const override
+    void VerifyPersistentStateRead() override
     {
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         if (IsAutomatonLocked()) {
@@ -274,7 +292,7 @@ public:
 #endif
     }
 
-    void RequireLeader() const override
+    void RequireLeader() override
     {
         if (!HydraManager_->IsLeader()) {
             if (HasMutationContext()) {
@@ -293,7 +311,7 @@ public:
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
     }
 
-    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) const override
+    IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) override
     {
         VerifyPersistentStateRead();
 
@@ -366,6 +384,9 @@ private:
     IHydraManagerPtr HydraManager_;
 
     TActionQueuePtr TransactionTrackerQueue_;
+
+    IThreadPoolPtr SnapshotSaveBackgroundThreadPool_;
+    IThreadPoolPtr SnapshotLoadBackgroundThreadPool_;
 
     IPersistentResponseKeeperPtr ResponseKeeper_;
 

@@ -101,7 +101,7 @@ TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return BIND([this, this_ = MakeStrong(this)] () {
+    return BIND([this, this_ = MakeStrong(this)] {
         return GuardedAction<Method>();
     }).AsyncVia(Invoker_);
 }
@@ -533,12 +533,12 @@ private:
 
             auto checker = New<TJobGpuChecker>(std::move(settings), Logger);
 
-            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+            checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
                 GpuCheckStartTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));
 
-            checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+            checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
                 GpuCheckFinishTime_ = TInstant::Now();
                 UpdateTimers_.Fire(MakeStrong(this));
             }));

@@ -3440,8 +3440,207 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(1, std::ssize(mutations.InitializedNodeTagFilters));
-    EXPECT_EQ(mutations.InitializedNodeTagFilters["bigd"], "default-zone/bigd");
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(mutations.ChangedNodeTagFilters["bigd"], "default-zone/bigd");
+}
+
+TEST_P(TNodeTagsFilterManager, TestDrillsMode)
+{
+    const int SlotCount = 10;
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
+    auto dataCenters = GetDataCenters(input);
+
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = bundleInfo->NodeTagFilter;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
+
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
+
+    int dataCenterIndex = 0;
+    for (const TString& dataCenter : dataCenters) {
+        bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
+        GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = setNodeTagFilter, .SlotCount = SlotCount, .DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
+    }
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * GetActiveDataCenterCount());
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->BundleNodeReleasements));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+
+    bundleInfo->TargetConfig->EnableDrillsMode = true;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_has_drills_mode_enabled");
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->DrillsMode->TurningOn);
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+
+    EXPECT_TRUE(mutations.ChangedMuteTabletCellsCheck["bigd"]);
+    EXPECT_TRUE(mutations.ChangedMuteTabletCellSnapshotsCheck["bigd"]);
+
+    bundleInfo->MuteTabletCellsCheck = true;
+    bundleInfo->MuteTabletCellSnapshotsCheck = true;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_NE(bundleNodeTagFilter, mutations.ChangedNodeTagFilters.at("bigd"));
+
+    bundleInfo->NodeTagFilter = mutations.ChangedNodeTagFilters.at("bigd");
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
+
+    bundleInfo->TargetConfig->EnableDrillsMode = false;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->DrillsMode->TurningOff);
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(bundleNodeTagFilter, mutations.ChangedNodeTagFilters.at("bigd"));
+    bundleInfo->NodeTagFilter = mutations.ChangedNodeTagFilters.at("bigd");
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(input.BundleStates["bigd"]->DrillsMode->TurningOff);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(input.BundleStates["bigd"]->DrillsMode->TurningOff);
+
+    input.BundleStates["bigd"]->DrillsMode->TurningOff->CreationTime -= TDuration::Hours(2);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    bundleInfo->MuteTabletCellsCheck = false;
+    bundleInfo->MuteTabletCellSnapshotsCheck = false;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedMuteTabletCellSnapshotsCheck));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeTagFilters));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOff);
+    EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
+}
+
+TEST_P(TNodeTagsFilterManager, TestDrillsModeOffToOn)
+{
+    const int SlotCount = 10;
+    auto input = GenerateInputContext(2 * GetDataCenterCount(), SlotCount);
+    auto dataCenters = GetDataCenters(input);
+
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = bundleInfo->NodeTagFilter;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
+
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
+
+    int dataCenterIndex = 0;
+    for (const TString& dataCenter : dataCenters) {
+        bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
+        GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = setNodeTagFilter, .SlotCount = SlotCount, .DC = dataCenter});
+        GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
+    }
+
+    GenerateTabletCellsForBundle(input, "bigd", SlotCount * GetActiveDataCenterCount());
+
+    bundleInfo->TargetConfig->EnableDrillsMode = true;
+    bundleInfo->MuteTabletCellsCheck = true;
+    bundleInfo->MuteTabletCellSnapshotsCheck = true;
+    auto mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+
+    EXPECT_NE(bundleNodeTagFilter, mutations.ChangedNodeTagFilters.at("bigd"));
+    bundleInfo->NodeTagFilter = mutations.ChangedNodeTagFilters.at("bigd");
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
+
+    bundleInfo->TargetConfig->EnableDrillsMode = false;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->DrillsMode->TurningOff);
+    ApplyChangedStates(&input, mutations);
+
+    bundleInfo->TargetConfig->EnableDrillsMode = true;
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    ApplyChangedStates(&input, mutations);
+    EXPECT_FALSE(input.BundleStates["bigd"]->DrillsMode->TurningOff);
+    EXPECT_TRUE(input.BundleStates["bigd"]->DrillsMode->TurningOn);
 }
 
 TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
@@ -4870,7 +5069,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     // Add new node to bundle
     TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
-    input.Bundles["bigd"]->ForbiddenDataCenters = { offlineDC };
+    input.Bundles["bigd"]->TargetConfig->ForbiddenDataCenters = { offlineDC };
 
     for (const auto& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};

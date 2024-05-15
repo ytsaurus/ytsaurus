@@ -55,7 +55,6 @@ DECLARE_REFCOUNTED_STRUCT(ILocalHydraJanitor)
 DECLARE_REFCOUNTED_CLASS(TSerializationDumperConfig)
 
 struct TDistributedHydraManagerOptions;
-struct TSnapshotValidationOptions;
 
 class THydraContext;
 

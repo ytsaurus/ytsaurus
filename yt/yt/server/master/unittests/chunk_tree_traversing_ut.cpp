@@ -322,7 +322,7 @@ private:
         TLegacyOwningKey lowerKeyLimit = MinKey(),
         TLegacyOwningKey upperKeyLimit = MaxKey())
     {
-        auto updateTabletIndex = [&] () {
+        auto updateTabletIndex = [&] {
             if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
                 ++*TabletIndex_;
                 // Is actually used only for trimmed chunks in ordered tables.
@@ -1821,7 +1821,7 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
 
     rowsPerTablet.resize(getRangeWithOverflow(tabletCount), 5);
 
-    auto generateLimits = [&] () {
+    auto generateLimits = [&] {
         int tabletIndexRange = getRangeWithOverflow(tabletCount);
 
         int leftTabletIndex = gen() % tabletIndexRange;

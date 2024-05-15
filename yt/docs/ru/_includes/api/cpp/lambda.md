@@ -1,6 +1,6 @@
 # Лямбда-выражения
 
-В некоторых YT-операциях вычисления настолько просты, что заводить для каждой из них класс с использованием [C++ API](../../../api/cpp/description.md) кажется излишним. В этом случае можно воспользоваться для описания операций [лямбда-выражениями](https://ru.wikipedia.org/wiki/Лямбда-выражение).
+В некоторых {{product-name}}-операциях вычисления настолько просты, что заводить для каждой из них класс с использованием [C++ API](../../../api/cpp/description.md) кажется излишним. В этом случае можно воспользоваться для описания операций [лямбда-выражениями](https://ru.wikipedia.org/wiki/Лямбда-выражение).
 
 {% note warning %}
 
@@ -10,21 +10,21 @@
 
 {% note warning %}
 
-Это работает только из программ, статически собранных из Arcadia под Linux. Т. е. для платформы, идентичной внутреннему устройству YT, настройками вроде `JobBinaryLocalPath` пользоваться нельзя.
+Это работает только из программ, статически собранных под Linux. Настройками вроде `JobBinaryLocalPath` пользоваться нельзя.
 
 {% endnote %}
 
-{% if audience == 'internal' %}
+## Использование библиотеки yt_lambda
 
-## Использование библиотеки yt-lambda
+{% if audience == 'internal' %}Подключите `PEERDIR(yt/cpp/mapreduce/library/lambda)` в ya.make{% else %}Подключите библиотеку [yt_lambda](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cpp/mapreduce/library/lambda/yt_lambda.h){% endif %} и включите в программу заголовок:
 
-Подключите `PEERDIR(yt/cpp/mapreduce/library/lambda)` в ya.make, включите в программу заголовок `#include yt/cpp/mapreduce/library/lambda/yt_lambda.h`.
+```
+#include yt/cpp/mapreduce/library/lambda/yt_lambda.h
+```
 
-[Инициализируйте YT](../../../api/cpp/description.md#init) и получите `client`. Передавайте `client` или [транзакцию](../../../api/cpp/description.md#transactions) первым параметром в описанные в данном документе функции.
+[Инициализируйте {{product-name}}](../../../api/cpp/description.md#init) и получите `client`. Передавайте `client` или [транзакцию](../../../api/cpp/description.md#transactions) первым параметром в описанные в данном документе функции.
 
 Функции этой библиотеки хорошо сочетаются с использованием записей в формате [protobuf](../../../api/cpp/protobuf.md).
-
-{% endif %}
 
 ## Общий взгляд на операции
 

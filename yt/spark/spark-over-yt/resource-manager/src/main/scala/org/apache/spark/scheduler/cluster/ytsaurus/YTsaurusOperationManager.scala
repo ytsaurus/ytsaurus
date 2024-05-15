@@ -10,7 +10,7 @@ import org.apache.spark.launcher.SparkLauncher
 import org.apache.spark.resource.ResourceProfile
 import org.apache.spark.rpc.RpcEndpointAddress
 import org.apache.spark.scheduler.cluster.CoarseGrainedSchedulerBackend
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{Utils, VersionUtils}
 import tech.ytsaurus.client.YTsaurusClient
 import tech.ytsaurus.client.operations.{Spec, VanillaSpec}
 import tech.ytsaurus.client.request.{CompleteOperation, GetOperation, UpdateOperationParameters, VanillaOperation}
@@ -24,17 +24,19 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 private[spark] class YTsaurusOperationManager(
-                                               ytClient: YTsaurusClient,
-                                               user: String,
-                                               token: String,
-                                               portoLayers: YTreeNode,
-                                               filePaths: YTreeNode,
-                                               environment: YTreeMapNode,
-                                               home: String,
-                                               sparkClassPath: String,
-                                               javaCommand: String,
-                                               ytsaurusJavaOptions: Seq[String]
-) extends Logging {
+    ytClient: YTsaurusClient,
+    user: String,
+    token: String,
+    portoLayers: YTreeNode,
+    filePaths: YTreeNode,
+    pythonPaths: YTreeMapNode,
+    environment: YTreeMapNode,
+    home: String,
+    prepareEnvCommand: String,
+    sparkClassPath: String,
+    javaCommand: String,
+    ytsaurusJavaOptions: Seq[String])
+  extends Logging {
   import YTsaurusOperationManager._
 
   def startDriver(conf: SparkConf, appArgs: ApplicationArguments): YTsaurusOperation = {
@@ -105,7 +107,7 @@ private[spark] class YTsaurusOperationManager(
 
   private def createSpec(conf: SparkConf, taskName: String, opParams: OperationParameters): VanillaSpec = {
 
-    val poolParameters = conf.getOption("spark.ytsaurus.pool")
+    val poolParameters = conf.get(YTSAURUS_POOL)
       .map(pool => Map("pool" -> YTree.stringNode(pool))).getOrElse(Map.empty)
 
     val opSpecBuilder: VanillaSpec.BuilderBase[_] = VanillaSpec.builder()
@@ -153,7 +155,7 @@ private[spark] class YTsaurusOperationManager(
     }
 
     val driverCommand = (Seq(
-      prepareEnvCommand, home,
+      prepareEnvCommand,
       "&&",
       javaCommand,
       s"-Xmx${driverMemoryMiB}m",
@@ -196,7 +198,7 @@ private[spark] class YTsaurusOperationManager(
     resourceProfile: ResourceProfile,
     numExecutors: Int): OperationParameters = {
 
-    val isPythonApp = conf.get(IS_PYTHON_APP)
+    val isPythonApp = conf.get(YTSAURUS_IS_PYTHON)
 
     val driverUrl = RpcEndpointAddress(
       conf.get(DRIVER_HOST_ADDRESS),
@@ -217,8 +219,22 @@ private[spark] class YTsaurusOperationManager(
 
     val executorOpts = conf.get(EXECUTOR_JAVA_OPTIONS).getOrElse("")
 
+    val execEnvironmentBuilder = environment.toMapBuilder
+
+    if (isPythonApp && conf.get(YTSAURUS_PYTHON_VERSION).isDefined) {
+      val pythonVersion = conf.get(YTSAURUS_PYTHON_VERSION).get
+      val pythonPathOpt = pythonPaths.get(pythonVersion)
+      if (pythonPathOpt.isEmpty) {
+        throw new SparkException(
+          s"Python version $pythonVersion is not supported. Please check the path specified in " +
+            s"$GLOBAL_CONFIG_PATH for supported versions"
+        )
+      }
+      execEnvironmentBuilder.key("PYSPARK_EXECUTOR_PYTHON").value(pythonPathOpt.get())
+    }
+
     val executorCommand = (Seq(
-      prepareEnvCommand, home,
+      prepareEnvCommand,
       "&&",
       javaCommand,
       "-cp", sparkClassPath,
@@ -244,7 +260,7 @@ private[spark] class YTsaurusOperationManager(
       .key("memory_limit").value(memoryLimit)
       .key("layer_paths").value(portoLayers)
       .key("file_paths").value(filePaths)
-      .key("environment").value(environment)
+      .key("environment").value(execEnvironmentBuilder.endMap().build())
       .endMap()
 
     val attemptId = s" [${sys.env.getOrElse("YT_TASK_JOB_INDEX", "0")}]"
@@ -276,10 +292,27 @@ private[spark] object YTsaurusOperationManager extends Logging {
 
       val portoLayers = releaseConfig.getListO("layer_paths").orElse(YTree.listBuilder().buildList())
       val filePaths = releaseConfig.getListO("file_paths").orElse(YTree.listBuilder().buildList())
+      val pythonPaths = globalConfig.getMapO("python_cluster_paths").orElse(YTree.mapBuilder().buildMap())
 
       applicationFiles(conf).foreach { fileName =>
         filePaths.add(YTree.stringNode(fileName))
       }
+
+      val sv = org.apache.spark.SPARK_VERSION_SHORT
+      val (svMajor, svMinor, svPatch) = VersionUtils.majorMinorPatchVersion(sv).get
+      val distrRootPath = Seq(conf.get(SPARK_DISTRIBUTIVES_PATH), svMajor, svMinor, svPatch).mkString("/")
+      val distrTgzOpt = Some(distrRootPath).filter(path => ytClient.existsNode(path).join()).flatMap { path =>
+        val distrRootContents = ytClient.listNode(path).join().asList()
+        distrRootContents.asScala.find(_.stringValue().endsWith(".tgz"))
+      }
+
+      distrTgzOpt match {
+        case Some(sparkTgz) => filePaths.add(YTree.stringNode(s"$distrRootPath/${sparkTgz.stringValue()}"))
+        case _ => throw new SparkException(s"Spark $sv tgz distributive doesn't exist " +
+          s"at path $distrRootPath on cluster $ytProxy")
+      }
+
+      val sparkTgz = distrTgzOpt.get.stringValue()
 
       enrichSparkConf(conf, releaseConfig)
       enrichSparkConf(conf, globalConfig)
@@ -288,7 +321,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
       val home = "."
       val sparkHome = s"$home/spark"
       val spytHome = s"$home/spyt-package"
-      val sparkClassPath = s"$home/*:$spytHome/conf/:$sparkHome/jars/*:$spytHome/jars/*"
+      val sparkClassPath = s"$home/*:$spytHome/conf/:$spytHome/jars/*:$sparkHome/jars/*"
       environment.put("SPARK_HOME", YTree.stringNode(sparkHome))
       val ytsaurusJavaOptions = ArrayBuffer[String]()
       if (conf.getBoolean("spark.hadoop.yt.preferenceIpv6.enabled", false)) {
@@ -296,14 +329,18 @@ private[spark] object YTsaurusOperationManager extends Logging {
       }
       ytsaurusJavaOptions += s"$$(cat $spytHome/conf/java-opts)"
 
+      val prepareEnvCommand = s"./setup-spyt-env.sh --spark-home $home --spark-distributive $sparkTgz"
+
       new YTsaurusOperationManager(
         ytClient,
         user,
         token,
         portoLayers,
         filePaths,
+        pythonPaths,
         environment,
         home,
+        prepareEnvCommand,
         sparkClassPath,
         javaCommand,
         ytsaurusJavaOptions
@@ -381,8 +418,6 @@ private[spark] object YTsaurusOperationManager extends Logging {
       }
     }
   }
-
-  private val prepareEnvCommand = "./setup-spyt-env.sh --spark-home"
 
   val MEMORY_OVERHEAD_FACTOR = 0.1
   val NON_JVM_MEMORY_OVERHEAD_FACTOR = 0.4

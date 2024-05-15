@@ -988,7 +988,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("job_spec_slice_throttler", &TThis::JobSpecSliceThrottler)
-        .DefaultCtor([] () { return NConcurrency::TThroughputThrottlerConfig::Create(500'000); });
+        .DefaultCtor([] { return NConcurrency::TThroughputThrottlerConfig::Create(500'000); });
 
     registrar.Parameter("static_orchid_cache_update_period", &TThis::StaticOrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(1));

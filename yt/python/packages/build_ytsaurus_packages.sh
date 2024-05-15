@@ -80,6 +80,7 @@ python3 -m yt_setup.prepare_python_modules \
     --source-root ${ytsaurus_source_path} \
     --build-root ${ytsaurus_build_path} \
     --output-path ${ytsaurus_python} \
+    --patch-os-files \
     $prepare_bindings_libraries_option
 
 cd ${ytsaurus_python}

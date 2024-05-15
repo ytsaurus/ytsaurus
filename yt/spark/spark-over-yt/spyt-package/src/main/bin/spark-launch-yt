@@ -6,19 +6,15 @@ require_yt_client()
 from yt.wrapper import YtClient  # noqa: E402
 from yt.wrapper.cli_helpers import ParseStructuredArgument  # noqa: E402
 from yt.wrapper.http_helpers import get_user_name  # noqa: E402
-from spyt.standalone import start_spark_cluster, SparkDefaultArguments, SpytEnablers  # noqa: E402
-from spyt import utils as spark_utils  # noqa: E402
-
-
-def add_group(parser, enabler_arg, disabler_arg, dest_arg, default_value):
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument(enabler_arg, dest=dest_arg, action='store_true')
-    group.add_argument(disabler_arg, dest=dest_arg, action='store_false')
-    parser.set_defaults(**{dest_arg: default_value})
+from spyt.enabler import SpytEnablers  # noqa: E402
+from spyt.spec import SparkDefaultArguments  # noqa: E402
+from spyt.standalone import start_spark_cluster  # noqa: E402
+from spyt.utils import add_parser_group, default_token, default_tvm_id, default_tvm_secret, get_default_arg_parser, \
+    parse_args  # noqa: E402
 
 
 def main(raw_args=None):
-    parser = spark_utils.get_default_arg_parser(description="Spark Launch")
+    parser = get_default_arg_parser(description="Spark Launch")
 
     parser.add_argument("--worker-cores", required=True, type=int)
     parser.add_argument("--worker-memory", required=True)
@@ -69,35 +65,37 @@ def main(raw_args=None):
     parser.set_defaults(enable_multi_operation_mode=False)
 
     default_enablers = SpytEnablers()
-    add_group(parser, '--enable-byop', '--disable-byop', 'enable_byop', default_enablers.enable_byop)
-    add_group(parser, '--enable-solomon-agent', '--disable-solomon-agent', 'enable_solomon_agent',
-              default_enablers.enable_solomon_agent)
-    add_group(parser, '--enable-profiling', '--disable-profiling', 'enable_profiling',
-              default_enablers.enable_profiling)
-    add_group(parser, '--enable-mtn', '--disable-mtn', 'enable_mtn', default_enablers.enable_mtn)
-    add_group(parser, '--prefer-ipv6', '--prefer-ipv4', 'enable_preference_ipv6',
-              default_enablers.enable_preference_ipv6)
+    add_parser_group(parser, '--enable-byop', '--disable-byop', 'enable_byop', default_enablers.enable_byop)
+    add_parser_group(parser, '--enable-solomon-agent', '--disable-solomon-agent', 'enable_solomon_agent',
+                     default_enablers.enable_solomon_agent)
+    add_parser_group(parser, '--enable-profiling', '--disable-profiling', 'enable_profiling',
+                     default_enablers.enable_profiling)
+    add_parser_group(parser, '--enable-mtn', '--disable-mtn', 'enable_mtn', default_enablers.enable_mtn)
+    add_parser_group(parser, '--prefer-ipv6', '--prefer-ipv4', 'enable_preference_ipv6',
+                     default_enablers.enable_preference_ipv6)
 
-    add_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs', True)
-    add_group(parser, '--enable-stderr-table', '--disable-stderr-table', 'enable_stderr_table', False)
+    add_parser_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs', True)
+    add_parser_group(parser, '--enable-stderr-table', '--disable-stderr-table', 'enable_stderr_table', False)
 
-    add_group(parser, '--enable-tcp-proxy', '--disable-tcp-proxy', 'enable_tcp_proxy',
-              default_enablers.enable_tcp_proxy)
+    add_parser_group(parser, '--enable-tcp-proxy', '--disable-tcp-proxy', 'enable_tcp_proxy',
+                     default_enablers.enable_tcp_proxy)
     parser.add_argument('--tcp-proxy-range-start', required=False, default=30000, type=int)
     parser.add_argument('--tcp-proxy-range-size', required=False, default=100, type=int)
 
-    add_group(parser, '--enable-history-server', '--disable-history-server', 'enable_history_server', True)
+    add_parser_group(parser, '--enable-history-server', '--disable-history-server', 'enable_history_server', True)
 
-    add_group(parser, '--enable-advanced-event-log', '--disable-advanced-event-log', 'advanced_event_log', True)
+    add_parser_group(parser, '--enable-advanced-event-log', '--disable-advanced-event-log', 'advanced_event_log', True)
 
-    add_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy', True)
+    add_parser_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy', True)
     parser.add_argument("--rpc-job-proxy-thread-pool-size", required=False, default=4, type=int)
 
-    add_group(parser, '--enable-worker-log-transfer', '--disable-worker-log-transfer', 'worker_log_transfer', False)
-    add_group(parser, '--enable-worker-log-json-mode', '--disable-worker-log-json-mode', 'worker_log_json_mode', False)
+    add_parser_group(parser, '--enable-worker-log-transfer', '--disable-worker-log-transfer', 'worker_log_transfer',
+                     False)
+    add_parser_group(parser, '--enable-worker-log-json-mode', '--disable-worker-log-json-mode', 'worker_log_json_mode',
+                     False)
 
-    add_group(parser, '--enable-dedicated-driver-operation-mode', '--disable-dedicated-driver-operation-mode',
-              'dedicated_operation_mode', False)
+    add_parser_group(parser, '--enable-dedicated-driver-operation-mode', '--disable-dedicated-driver-operation-mode',
+                     'dedicated_operation_mode', False)
 
     subgroup = parser.add_argument_group(
         '(experimental) run driver in dedicated operation')
@@ -136,9 +134,9 @@ def main(raw_args=None):
     subgroup.add_argument('--livy-max-sessions', required=False,
                           default=SparkDefaultArguments.LIVY_MAX_SESSIONS, type=int)
 
-    args, unknown_args = spark_utils.parse_args(parser, raw_args=raw_args)
+    args, unknown_args = parse_args(parser, raw_args=raw_args)
 
-    yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
+    yt_client = YtClient(proxy=args.proxy, token=default_token())
 
     if args.autoscaler_period and not args.enable_multi_operation_mode:
         print("Autoscaler could be enabled only with multi-operation mode")
@@ -168,8 +166,8 @@ def main(raw_args=None):
                         history_server_memory_overhead=args.history_server_memory_overhead,
                         history_server_cpu_limit=args.history_server_cpu_limit,
                         network_project=args.network_project,
-                        tvm_id=spark_utils.default_tvm_id(),
-                        tvm_secret=spark_utils.default_tvm_secret(),
+                        tvm_id=default_tvm_id(),
+                        tvm_secret=default_tvm_secret(),
                         abort_existing=args.abort_existing,
                         advanced_event_log=args.advanced_event_log,
                         worker_log_transfer=args.worker_log_transfer,

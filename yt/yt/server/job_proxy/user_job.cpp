@@ -1063,10 +1063,11 @@ private:
     void PrepareInputTablePipe()
     {
         YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v)",
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
             InputPipePath_,
             DefaultArtifactPermissions,
-            JobIOConfig_->PipeCapacity);
+            JobIOConfig_->PipeCapacity,
+            JobIOConfig_->UseDeliveryFencedPipeWriter);
 
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
@@ -1076,7 +1077,7 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter();
+        auto asyncOutput = pipe->CreateAsyncWriter(JobIOConfig_->UseDeliveryFencedPipeWriter);
 
         TablePipeWriters_.push_back(asyncOutput);
 
@@ -1084,7 +1085,7 @@ private:
         //! as it only ever flushes once the socket is closed.
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(
             asyncOutput,
-            /*enableContextSaving*/ !JobIOConfig_->PipeCapacity.has_value());
+            /*enableContextSaving*/ !(JobIOConfig_->PipeCapacity.has_value() || JobIOConfig_->UseDeliveryFencedPipeWriter));
         InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
@@ -1716,14 +1717,21 @@ private:
             return;
         }
 
-        if (blockIOStats) {
+        auto validBlockStats = [] (const std::optional<TJobEnvironmentBlockIOStatistics>& blockStats) {
+            return
+                blockStats &&
+                blockStats->IOOps.has_value() &&
+                blockStats->IOReadOps.has_value();
+        };
+
+        if (validBlockStats(blockIOStats)) {
             if (UserJobSpec_.has_iops_threshold() &&
-                blockIOStats->IOOps > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
+                blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
                 YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                    blockIOStats->IOReadOps,
-                    blockIOStats->IOOps,
+                    blockIOStats->IOReadOps.value(),
+                    blockIOStats->IOOps.value(),
                     UserJobSpec_.iops_threshold());
                 Woodpecker_ = true;
 

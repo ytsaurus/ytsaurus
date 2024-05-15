@@ -304,7 +304,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
     auto isReady = ChunkWriter_->WriteBlock(Config_->WorkloadDescriptor, block);
     ++WrittenBlockIndex_;
 
-    auto finally = Finally([&] (){
+    auto finally = Finally([&] {
         SizeSemaphore_->Release(block.Size());
     });
 

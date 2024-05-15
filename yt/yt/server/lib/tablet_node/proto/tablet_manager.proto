@@ -116,6 +116,7 @@ message TReplicatableTabletContent
     optional uint64 retained_timestamp = 5;
     optional int64 cumulative_data_weight = 6;
     required TTableSettings table_settings = 7;
+    optional bytes custom_runtime_data = 8; // YSON-serialized
 }
 
 message TReqMountTablet
@@ -339,6 +340,7 @@ message TReqRotateStore
     required uint64 mount_revision = 2;
     optional int32 reason = 3; // EStoreRotationReason
     optional NYT.NProto.TGuid expected_active_store_id = 4;
+    optional bool allow_empty_store = 5;
 }
 
 message TReqSplitPartition
@@ -511,6 +513,12 @@ message TReqSwitchServant
 message TReqAbortSmoothMovement
 {
     required NYT.NProto.TGuid tablet_id = 1;
+}
+
+message TReqSetCustomRuntimeData
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    optional bytes custom_runtime_data = 2; // YSON-serialized
 }
 
 ////////////////////////////////////////////////////////////////////////////////

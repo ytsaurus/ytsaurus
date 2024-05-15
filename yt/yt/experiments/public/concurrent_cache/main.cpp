@@ -29,7 +29,7 @@ struct TRandomCharGenerator
     }
 };
 
-static const auto& Logger = LockFreePtrLogger;
+constexpr auto& Logger = LockFreeLogger;
 static bool EnableLogging = false;
 
 struct TElement final
@@ -82,7 +82,7 @@ int main(int argc, char** argv)
         std::vector<TFuture<void>> asyncResults;
 
         for (size_t threadId = 0; threadId < threadCount; ++threadId) {
-            asyncResults.push_back(BIND([&, threadId] () {
+            asyncResults.push_back(BIND([&, threadId] {
 
                 THazardPtrReclaimOnContextSwitchGuard flushGuard;
                 TRandomCharGenerator randomChar(threadId);

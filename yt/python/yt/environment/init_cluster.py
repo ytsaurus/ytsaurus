@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from .init_queue_agent_state import create_tables as create_queue_agent_state_tables
+from .init_queue_agent_state import create_tables_latest_version as create_queue_agent_state_tables
 
 from yt.wrapper.constants import UI_ADDRESS_PATTERN
 
@@ -329,14 +329,14 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
 
     batch_processor.set(
         "//sys/schemas/tablet_cell_bundle/@options",
-        [{
+        {
             "snapshot_replication_factor": 5,
             "snapshot_primary_medium": "default",
             "changelog_write_quorum": 3,
             "changelog_replication_factor": 5,
             "changelog_read_quorum": 3,
             "changelog_primary_medium": "ssd_journals"
-        }])
+        })
     batch_processor.set("//sys/schemas/tablet_cell_bundle/@enable_bundle_balancer", False)
 
     batch_processor.add_acl("//tmp", {"action": "allow", "subjects": [everyone_group], "permissions": ["write", "remove", "read"]})
@@ -467,8 +467,7 @@ def _initialize_world_for_local_cluster(client, environment, yt_config):
         yt_env_init_operations_archive.create_tables_latest_version(client)
 
     if yt_config.wait_tablet_cell_initialization or yt_config.queue_agent_count > 0:
-        client.create("map_node", "//sys/queue_agents", ignore_existing=True)
-        create_queue_agent_state_tables(client, create_registration_table=True, tablet_cell_bundle="default")
+        create_queue_agent_state_tables(client, override_tablet_cell_bundle="default")
 
     logger.info("World initialization for local cluster completed")
 

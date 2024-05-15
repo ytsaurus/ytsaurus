@@ -418,7 +418,7 @@ std::optional<TUnversionedValue> FoldConstants(
         auto lhs = static_cast<TUnversionedValue>(lhsLiteral->Value);
         auto rhs = static_cast<TUnversionedValue>(rhsLiteral->Value);
 
-        auto checkType = [&] () {
+        auto checkType = [&] {
             if (lhs.Type != rhs.Type) {
                 if (IsArithmeticType(lhs.Type) && IsArithmeticType(rhs.Type)) {
                     auto targetType = std::max(lhs.Type, rhs.Type);
@@ -430,7 +430,7 @@ std::optional<TUnversionedValue> FoldConstants(
             }
         };
 
-        auto checkTypeIfNotNull = [&] () {
+        auto checkTypeIfNotNull = [&] {
             if (lhs.Type != EValueType::Null && rhs.Type != EValueType::Null) {
                 checkType();
             }

@@ -35,11 +35,15 @@ private:
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* attributes) override
     {
+        const auto* secondaryIndex = GetThisImpl();
+
         attributes->push_back(EInternedAttributeKey::TableId);
         attributes->push_back(EInternedAttributeKey::TablePath);
         attributes->push_back(EInternedAttributeKey::IndexTableId);
         attributes->push_back(EInternedAttributeKey::IndexTablePath);
         attributes->push_back(EInternedAttributeKey::Kind);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Predicate)
+            .SetPresent(secondaryIndex->Predicate().has_value()));
 
         TBase::ListSystemAttributes(attributes);
     }
@@ -75,6 +79,14 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(secondaryIndex->GetKind());
                 return true;
+
+            case EInternedAttributeKey::Predicate:
+                if (secondaryIndex->Predicate()) {
+                    BuildYsonFluently(consumer)
+                        .Value(*secondaryIndex->Predicate());
+                    return true;
+                }
+                return false;
 
             default:
                 break;

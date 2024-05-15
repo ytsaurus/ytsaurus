@@ -934,7 +934,8 @@ public:
         return false;
     }
 
-    TGuid GenerateId() {
+    TGuid GenerateId()
+    {
         auto part0 = Rng();
         auto part1 = Rng();
         auto part2 = Rng();

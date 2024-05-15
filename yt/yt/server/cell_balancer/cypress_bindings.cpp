@@ -89,6 +89,12 @@ void TBundleConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("init_chaos_bundles", &TThis::InitChaosBundles)
         .Default(false);
+    registrar.Parameter("additional_chaos_cell_count", &TThis::AdditionalChaosCellCount)
+        .Default(0);
+    registrar.Parameter("enable_drills_mode", &TThis::EnableDrillsMode)
+        .Default(false);
+    registrar.Parameter("forbidden_data_centers", &TThis::ForbiddenDataCenters)
+        .Optional();
 }
 
 void TTabletCellStatus::Register(TRegistrar registrar)
@@ -135,6 +141,8 @@ void TGlobalCellRegistry::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("cell_tags", &TThis::CellTags)
         .Default();
+    registrar.Parameter("additional_cell_tags", &TThis::AdditionalCellTags)
+        .Default();
 }
 
 void TCellTagInfo::Register(TRegistrar registrar)
@@ -171,8 +179,6 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Optional();
     RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
         .Optional();
-    RegisterAttribute(registrar, "forbidden_data_centers", &TThis::ForbiddenDataCenters)
-        .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
     RegisterAttribute(registrar, "enable_instance_allocation", &TThis::EnableInstanceAllocation)
@@ -206,6 +212,11 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "abc", &TThis::Abc)
         .DefaultNew();
+
+    RegisterAttribute(registrar, "mute_tablet_cells_check", &TThis::MuteTabletCellsCheck)
+        .Default(false);
+    RegisterAttribute(registrar, "mute_tablet_cell_snapshots_check", &TThis::MuteTabletCellSnapshotsCheck)
+        .Default(false);
 }
 
 void TBundleArea::Register(TRegistrar registrar)
@@ -330,6 +341,14 @@ void TDeallocationRequest::Register(TRegistrar registrar)
         .DefaultNew();
 }
 
+void TDrillsModeState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("turning_on", &TThis::TurningOn)
+        .Default();
+    registrar.Parameter("turning_off", &TThis::TurningOff)
+        .Default();
+}
+
 void TBundleControllerState::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "node_allocations", &TThis::NodeAllocations)
@@ -350,6 +369,8 @@ void TBundleControllerState::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "spare_node_releasements", &TThis::SpareNodeReleasements)
         .Default();
+    RegisterAttribute(registrar, "drills_mode", &TThis::DrillsMode)
+        .DefaultNew();
 }
 
 void TAllocationRequestState::Register(TRegistrar registrar)
@@ -383,6 +404,12 @@ void TRemovingTabletCellState::Register(TRegistrar registrar)
 }
 
 void TNodeTagFilterOperationState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("creation_time", &TThis::CreationTime)
+        .Default();
+}
+
+void TDrillsModeOperationState::Register(TRegistrar registrar)
 {
     registrar.Parameter("creation_time", &TThis::CreationTime)
         .Default();

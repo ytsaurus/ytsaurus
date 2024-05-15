@@ -139,7 +139,7 @@ private:
         if (missing) {
             YT_LOG_DEBUG("Chunk being scraped is missing; scraper terminated (ChunkId: %v)", chunkId);
             auto asyncError = Scraper_->Stop()
-                .Apply(BIND([=] () {
+                .Apply(BIND([=] {
                     THROW_ERROR_EXCEPTION("Chunk scraper failed: chunk %v is missing", chunkId);
                 }));
 

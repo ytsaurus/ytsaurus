@@ -37,11 +37,13 @@ from .operations_tracker import OperationsTracker, OperationsTrackerPool  # noqa
 from .py_wrapper import (  # noqa
     aggregator, raw, raw_io, reduce_aggregator,
     enable_python_job_processing_for_standalone_binary, initialize_python_job_processing,
-    with_context, with_skiff_schemas)
+    with_context, with_skiff_schemas, respawn_in_docker)
 from .schema import yt_dataclass, OutputRow  # noqa
 from .string_iter_io import StringIterIO  # noqa
 from .user_statistics import write_statistics  # noqa
 from .yamr_mode import set_yamr_mode  # noqa
+from .dynamic_table_commands import ASYNC_LAST_COMMITTED_TIMESTAMP, SYNC_LAST_COMMITTED_TIMESTAMP  # noqa
+# COMPAT(ignat)
 from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP, SYNC_LAST_COMMITED_TIMESTAMP  # noqa
 from .skiff import convert_to_skiff_schema  # noqa
 from .http_helpers import get_retriable_errors  # noqa

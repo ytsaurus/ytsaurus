@@ -5,12 +5,12 @@ import yt.logger as logger
 
 try:
     import yt.packages.distro as distro
-    from yt.packages.six.moves.urllib.parse import urlparse
 except ImportError:
     import distro
-    from six.moves.urllib.parse import urlparse
 
 import platform
+
+from urllib.parse import urlparse
 
 
 class BaseLayerDetector:

@@ -1,1 +1,3 @@
-RECURSE(prometheus)
+RECURSE(
+    prometheus
+)

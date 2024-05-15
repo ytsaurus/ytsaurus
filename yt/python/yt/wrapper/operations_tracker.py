@@ -10,13 +10,6 @@ from .transaction import Transaction, get_current_transaction_id
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six import PY3
-    from yt.packages.six.moves import xrange, zip
-except ImportError:
-    from six import PY3
-    from six.moves import xrange, zip
-
 from collections import namedtuple
 from time import sleep
 from collections import deque, defaultdict
@@ -88,7 +81,7 @@ class _OperationsTrackingThread(Thread):
         cluster_to_states = defaultdict(list)
         with self._thread_lock:
             actual_batch_size = min(self.batch_size, len(self._operations_to_track))
-            for i in xrange(actual_batch_size):
+            for i in range(actual_batch_size):
                 operation = self._operations_to_track.popleft()
                 self.processing_operations_count += 1
                 if get_backend_type(operation.client) == "native" or operation.client is None:
@@ -152,7 +145,7 @@ class _OperationsTrackingThread(Thread):
 
     def stop(self):
         self.finished = True
-        if not PY3 or not sys.is_finalizing():
+        if not sys.is_finalizing():
             self.join()
 
 

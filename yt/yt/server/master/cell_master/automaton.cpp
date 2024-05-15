@@ -55,25 +55,19 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output,
     NLogging::TLogger logger)
 {
-    auto backgroundThreadPool = Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount > 0
-        ? CreateThreadPool(Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount, "SnapshotBack")
-        : nullptr;
     return std::make_unique<TSaveContext>(
         output,
         std::move(logger),
-        std::move(backgroundThreadPool));
+        Bootstrap_->GetHydraFacade()->GetSnapshotSaveBackgroundThreadPool());
 }
 
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
-    auto backgroundThreadPool = Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount > 0
-        ? CreateThreadPool(Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount, "SnapshotBack")
-        : nullptr;
     auto context = std::make_unique<TLoadContext>(
         Bootstrap_,
         input,
-        std::move(backgroundThreadPool));
+        Bootstrap_->GetHydraFacade()->GetSnapshotLoadBackgroundThreadPool());
     TCompositeAutomaton::SetupLoadContext(context.get());
     context->SetLeaseManager(Bootstrap_->GetLeaseManager());
     return context;

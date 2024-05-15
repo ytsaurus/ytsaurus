@@ -51,11 +51,11 @@ void GetQueryInfo(
         .Item("joins").BeginList()
             .DoFor(groupedJoins, [&] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
                 fluent.Item().BeginList().
-                    DoFor(joinGroup, [&](auto fluent, const TConstJoinClausePtr& joinClause) {
+                    DoFor(joinGroup, [&] (auto fluent, const TConstJoinClausePtr& joinClause) {
                         fluent.Item()
                         .BeginMap()
                             .Item("lookup_type")
-                            .Do([&](auto fluent) {
+                            .Do([&] (auto fluent) {
                                 auto foreignKeyPrefix = joinClause->ForeignKeyPrefix;
                                 const auto& foreignEquations = joinClause->ForeignEquations;
                                 if (foreignKeyPrefix > 0) {

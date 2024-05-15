@@ -1,4 +1,4 @@
-YT_UNITTEST()
+UNITTEST_WITH_CUSTOM_ENTRY_POINT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
@@ -12,8 +12,8 @@ SRCS(
     alter_table.cpp
     batch_request.cpp
     canonize_path.cpp
-    cypress_client.cpp
     custom_client_config.cpp
+    cypress_client.cpp
     error.cpp
     file_io.cpp
     format_attribute.cpp
@@ -22,9 +22,9 @@ SRCS(
     protobuf_table_io.cpp
     raw_io.cpp
     retry_config_provider.cpp
+    schema.cpp
     security_client.cpp
     shutdown.cpp
-    schema.cpp
     skiff_row_table_io.cpp
     table_io.cpp
     tablet_client.cpp
@@ -38,13 +38,12 @@ IF (NOT OPENSOURCE)
 ENDIF()
 
 PEERDIR(
-    library/cpp/testing/unittest
     yt/cpp/mapreduce/client
     yt/cpp/mapreduce/common
     yt/cpp/mapreduce/interface
     yt/cpp/mapreduce/tests/native/proto_lib
     yt/cpp/mapreduce/tests/yt_unittest_lib
-    yt/cpp/mapreduce/tests/yt_unittest_main
+    yt/cpp/mapreduce/tests/gtest_main
     yt/cpp/mapreduce/util
 )
 

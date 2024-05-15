@@ -11,6 +11,7 @@ SRCS(
     cg_ir_builder.cpp
     cg_routines.cpp
     GLOBAL column_evaluator.cpp
+    GLOBAL expression_evaluator.cpp
     GLOBAL coordinator.cpp
     GLOBAL evaluator.cpp
     folding_profiler.cpp
@@ -345,6 +346,16 @@ LLVM_BC(
     NAME greatest
     SYMBOLS
         greatest
+)
+
+LLVM_BC(
+    udf/dict_sum.c
+    NAME dict_sum
+    SYMBOLS
+        dict_sum_init
+        dict_sum_update
+        dict_sum_merge
+        dict_sum_finalize
 )
 
 END()

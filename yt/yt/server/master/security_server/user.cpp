@@ -336,6 +336,7 @@ void TUser::Save(TSaveContext& context) const
     Save(context, PasswordRevision_);
     Save(context, *ObjectServiceRequestLimits_);
     Save(context, Tags_);
+    Save(context, LastSeenTime_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
@@ -354,6 +355,13 @@ void TUser::Load(TLoadContext& context)
     // COMPAT(vovamelnikov)
     if (context.GetVersion() >= EMasterReign::AttributeBasedAccessControl) {
         Load(context, Tags_);
+    }
+
+    //COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::FixLastSeenPersistance_23_2 && context.GetVersion() < EMasterReign::SecondaryIndex ||
+        context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
+    {
+        Load(context, LastSeenTime_);
     }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);

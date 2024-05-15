@@ -644,8 +644,9 @@ THashSet<TString> GetDataCentersToPopulate(
     const TSchedulerInputState& input)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
-    const auto perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+    const auto perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
 
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
@@ -672,7 +673,7 @@ THashSet<TString> GetDataCentersToPopulate(
             input);
 
         int assignedTabletCellCount = GetAssignedTabletCellCount(dataCenter, perDataCenterAliveNodes, input);
-        bool perBundleForbidden = bundleInfo->ForbiddenDataCenters.count(dataCenter) != 0;
+        bool perBundleForbidden = targetConfig->ForbiddenDataCenters.count(dataCenter) != 0;
 
         dataCentersOrder.push_back({
             .Unfeasible = availableNodeCount < requiredPerDataCenterNodeCount,
@@ -742,6 +743,7 @@ void SetNodeTagFilter(
     TSchedulerMutations* mutations)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& bundleState = mutations->ChangedStates[bundleName];
 
     auto perDataCenterAliveNodes = GetAliveNodes(
@@ -753,6 +755,19 @@ void SetNodeTagFilter(
 
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
+
+    if (targetConfig->EnableDrillsMode || GetDrillsNodeTagFilter(bundleInfo, bundleName) == nodeTagFilter) {
+        YT_LOG_WARNING("Bundle has drills mode enabled. To disable drills mode set bundle attribute @bundle_controller_target_config/enable_drills_mode=%false (Bundle: %v)",
+            bundleName);
+
+        mutations->AlertsToFire.push_back({
+            .Id = "bundle_has_drills_mode_enabled",
+            .BundleName = bundleName,
+            .Description = Format("Bundle %Qv has drills mode enabled",
+                bundleName),
+        });
+        return;
+    }
 
     if (nodeTagFilter.empty()) {
         YT_LOG_WARNING("Bundle does not have node_tag_filter attribute (Bundle: %v)",
@@ -774,12 +789,12 @@ void SetNodeTagFilter(
         perDataCenterSpareNodes,
         input);
 
-    if (!bundleInfo->ForbiddenDataCenters.empty()) {
+    if (!targetConfig->ForbiddenDataCenters.empty()) {
         mutations->AlertsToFire.push_back({
             .Id = "bundle_has_forbidden_dc",
             .BundleName = bundleName,
             .Description = Format("Data centers %Qv are forbidden for bundle %Qv",
-                bundleInfo->ForbiddenDataCenters,
+                targetConfig->ForbiddenDataCenters,
                 bundleName)});
     }
 
@@ -805,7 +820,7 @@ void SetNodeTagFilter(
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
-        int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+        int perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
         auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
         auto getSpareSlotCount = [perNodeSlotCount, bundleName] (auto& sparesByBundle) ->int {
@@ -821,8 +836,8 @@ void SetNodeTagFilter(
             requiredDataCenterSlotCount = 0;
         }
 
-        int readyBundleNodes = GetReadyNodeCount(bundleInfo, aliveNodes, input);
-        int actualSlotCount = perNodeSlotCount * readyBundleNodes;
+        int readyBundleNodeCount = GetReadyNodeCount(bundleInfo, aliveNodes, input);
+        int actualSlotCount = perNodeSlotCount * readyBundleNodeCount;
         int usedSpareSlotCount = getSpareSlotCount(spareNodes.UsedByBundle);
 
         int releasingSlotCount = usedSpareSlotCount + actualSlotCount - requiredDataCenterSlotCount;

@@ -24,13 +24,6 @@ from yt.yson import to_yson_type, dumps
 import yt.yson as yson
 import yt.json_wrapper as json
 
-try:
-    from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
-    from yt.packages.six.moves import xrange, filter as ifilter
-except ImportError:
-    from six import iterkeys, itervalues, iteritems, PY3, Iterator, b
-    from six.moves import xrange, filter as ifilter
-
 import yt.wrapper as yt
 
 try:
@@ -39,12 +32,9 @@ except ImportError:
     yatest_common = None
 
 from flaky import flaky
-
+from collections.abc import Iterable
 from copy import deepcopy
-try:
-    import collections.abc as collections_abc
-except ImportError:
-    import collections as collections_abc
+
 import gc
 import inspect
 import itertools
@@ -76,7 +66,7 @@ def test_docs_exist():
     functions = inspect.getmembers(
         yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith("_"))
 
-    functions_without_doc = list(ifilter(lambda pair: not inspect.getdoc(pair[1]), functions))
+    functions_without_doc = list(filter(lambda pair: not inspect.getdoc(pair[1]), functions))
     assert not functions_without_doc
 
     classes = inspect.getmembers(yt, lambda o: inspect.isclass(o))
@@ -88,8 +78,6 @@ def test_docs_exist():
             cl,
             lambda o: inspect.ismethod(o) and not o.__name__.startswith("_"))
         ignore_methods = set()
-        if issubclass(cl, collections_abc.Iterator) and not PY3:
-            ignore_methods.add("next")
 
         methods_without_doc = [method for name, method in public_methods
                                if name not in ignore_methods and not inspect.getdoc(method)]
@@ -295,7 +283,7 @@ class TestMutations(object):
         result = run_command()
         if post_action is not None:
             post_action()
-        for _ in xrange(5):
+        for _ in range(5):
             yt.config.COMMAND_PARAMS["retry"] = True
             assert result == run_command()
             yt.config.COMMAND_PARAMS["retry"] = False
@@ -444,7 +432,7 @@ class TestRetries(object):
             rsp.close()
 
             rsp = yt.read_table(table, raw=False)
-            assert [("x", 1), ("y", 3)] == sorted([list(iteritems(x))[0] for x in rsp])
+            assert [("x", 1), ("y", 3)] == sorted([list(x.items())[0] for x in rsp])
 
             response_parameters = {}
             rsp = yt.read_table(table, response_parameters=response_parameters, format=yt.JsonFormat(), raw=True)
@@ -470,7 +458,7 @@ class TestRetries(object):
             assert [{"x": 1}] == list(yt.read_table(table + "[#0]", format=yt.JsonFormat()))
 
             table_path = yt.TablePath(table, exact_key=[2])
-            for i in xrange(10):
+            for i in range(10):
                 assert [{"x": 2}] == list(yt.read_table(table_path))
 
             assert [{"x": 1}, {"x": 3}, {"x": 2}, {"x": 1}, {"x": 2}] == \
@@ -633,7 +621,7 @@ class TestRetries(object):
         yt.config["proxy"]["request_timeout"] = 1000
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
 
-        data = [{"x": "y"} for _ in xrange(100)]
+        data = [{"x": "y"} for _ in range(100)]
         try:
             yt.write_table("<schema=[{name=x;type=string}]>" + table, data)
             yt.write_table("<schema=[{name=x;type=string}]>" + table, data)
@@ -819,16 +807,13 @@ def test_frozen_dict():
     assert fdict.get("c", 100) == 100
 
     s = 0
-    for k, v in iteritems(fdict):
+    for k, v in fdict.items():
         s += v
         assert k in ["a", "b"]
     assert s == 3
 
     assert sorted(fdict.values()) == [1, 2]
     assert sorted(fdict.keys()) == ["a", "b"]
-    if not PY3:
-        assert sorted(itervalues(fdict)) == [1, 2]
-        assert sorted(iterkeys(fdict)) == ["a", "b"]
 
     assert fdict == {"a": 1, "b": 2}
     assert fdict.as_dict() == {"a": 1, "b": 2}
@@ -858,10 +843,10 @@ def test_frozen_dict():
 class TestResponseStream(object):
     @authors("asaitgalin")
     def test_chunk_iterator(self):
-        random_line = lambda: b("".join(random.choice(string.ascii_lowercase) for _ in xrange(100))) # noqa
-        s = b"\n".join(random_line() for _ in xrange(3))
+        random_line = lambda: bytes("".join(random.choice(string.ascii_lowercase) for _ in range(100)), "utf-8")  # noqa
+        s = b"\n".join(random_line() for _ in range(3))
 
-        class StringIterator(Iterator):
+        class StringIterator(Iterable):
             def __init__(self, string, chunk_size=10):
                 self.string = string
                 self.pos = 0
@@ -1095,10 +1080,9 @@ class TestStream(object):
 
     @authors("se4min")
     def test_no_resplit(self):
-        lines = ["".join(random.choice(string.digits) for _ in xrange(random.randrange(1, 10))) + "\n"
-                 for _ in xrange(100)]
-        if PY3:
-            lines = [line.encode("ascii") for line in lines]
+        lines = ["".join(random.choice(string.digits) for _ in range(random.randrange(1, 10))) + "\n"
+                 for _ in range(100)]
+        lines = [line.encode("ascii") for line in lines]
         make_stream = lambda: _ChunkStream(lines, chunk_size=5, allow_resplit=False) # noqa
         assert [line + b"\n" for chunk in make_stream() for line in chunk.split(b"\n") if line] == lines
         for pieces in make_stream().split_chunks(2):

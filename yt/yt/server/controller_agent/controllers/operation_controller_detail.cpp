@@ -441,23 +441,25 @@ std::vector<TTestAllocationGuard> TOperationControllerBase::TestHeap() const
         std::vector<TTestAllocationGuard> testHeap;
 
         std::function<void()> incrementer = [
+                this,
+                this_ = MakeStrong(this),
                 operationId = ToString(OperationId),
-                Logger = Logger,
-                this_ = MakeStrong(this)
-            ] () mutable {
-            auto size = this_->TestingAllocationSize_.fetch_add(allocationPartSize);
-            YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
-                size + allocationPartSize);
-        };
+                Logger = Logger
+            ] {
+                auto size = TestingAllocationSize_.fetch_add(allocationPartSize);
+                YT_LOG_DEBUG("Testing allocation size was incremented (Size: %v)",
+                    size + allocationPartSize);
+            };
 
         std::function<void()> decrementer = [
+            this,
+            this_ = MakeStrong(this),
             OperationId = ToString(OperationId),
-            Logger = Logger,
-            this_ = MakeStrong(this)] () mutable {
-            auto size = this_->TestingAllocationSize_.fetch_sub(allocationPartSize);
-            YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
-                size - allocationPartSize);
-        };
+            Logger = Logger] {
+                auto size = TestingAllocationSize_.fetch_sub(allocationPartSize);
+                YT_LOG_DEBUG("Testing allocation size was decremented (Size: %v)",
+                    size - allocationPartSize);
+            };
 
         while (TestingAllocationSize_ > 0) {
             testHeap.emplace_back(
@@ -667,10 +669,10 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
 
     if (CleanStart) {
-        if (Spec_->FailOnJobRestart) {
+        if (HasJobUniquenessRequirements()) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Cannot use clean restart when spec option \"fail_on_job_restart\" is set")
+                "Cannot use clean restart when option \"fail_on_job_restart\" is set in operation spec or user job spec")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::RevivalWithCleanStart);
         }
 
@@ -717,7 +719,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
     YT_LOG_INFO("Initializing operation for clean start (Title: %v)",
         Spec_->Title);
 
-    auto initializeAction = BIND([this_ = MakeStrong(this), this] () {
+    auto initializeAction = BIND([this_ = MakeStrong(this), this] {
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();
@@ -930,12 +932,12 @@ void TOperationControllerBase::InitializeOrchid()
         return IYPathService::FromProducer(BIND(
             [
                 =,
-                fluentMethod = std::move(fluentMethod),
                 this,
-                weakThis = MakeWeak(this)
+                weakThis = MakeWeak(this),
+                fluentMethod = std::move(fluentMethod)
             ] (IYsonConsumer* consumer) {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
                 }
 
@@ -1428,10 +1430,10 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     if (!Config->EnableJobRevival) {
-        if (Spec_->FailOnJobRestart && !JobletMap.empty()) {
+        if (HasJobUniquenessRequirements() && !JobletMap.empty()) {
             OnJobUniquenessViolated(TError(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" spec option is set")
+                "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
                 << TErrorAttribute("reason", EFailOnJobRestartReason::JobRevivalDisabled));
             return result;
         }
@@ -1858,9 +1860,9 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
-        BIND_NO_PROPAGATE([weakThis = MakeWeak(this)] {
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] {
             if (auto this_ = weakThis.Lock()) {
-                return this_->GetAliveIntermediateChunks();
+                return GetAliveIntermediateChunks();
             } else {
                 return THashSet<TChunkId>();
             }
@@ -3451,9 +3453,9 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart) {
+    if (IsJobUniquenessRequired(joblet)) {
         OnJobUniquenessViolated(TError(NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job failed; failing operation since \"fail_on_job_restart\" spec option is set")
+            "Job failed; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobFailed)
             << error);
@@ -3597,14 +3599,14 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
     }
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
-    if (Spec_->FailOnJobRestart &&
+    if (IsJobUniquenessRequired(joblet) &&
         wasScheduled &&
         joblet->IsStarted() &&
         abortReason != EAbortReason::GetSpecFailed)
     {
         OnJobUniquenessViolated(TError(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
-            "Job aborted; failing operation since \"fail_on_job_restart\" spec option is set")
+            "Job aborted; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
             << TErrorAttribute("job_id", joblet->JobId)
             << TErrorAttribute("reason", EFailOnJobRestartReason::JobAborted)
             << TErrorAttribute("job_abort_reason", abortReason));
@@ -4282,6 +4284,11 @@ bool TOperationControllerBase::IsLegacyIntermediateLivePreviewSupported() const
 bool TOperationControllerBase::IsIntermediateLivePreviewSupported() const
 {
     return false;
+}
+
+TDataFlowGraph::TVertexDescriptor TOperationControllerBase::GetOutputLivePreviewVertexDescriptor() const
+{
+    return TDataFlowGraph::SinkDescriptor;
 }
 
 ELegacyLivePreviewMode TOperationControllerBase::GetLegacyOutputLivePreviewMode() const
@@ -5395,6 +5402,17 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
     YT_LOG_DEBUG("Operation timed out");
 
     GracefullyFailOperation(GetTimeLimitError());
+}
+
+bool TOperationControllerBase::HasJobUniquenessRequirements() const
+{
+    return NControllers::HasJobUniquenessRequirements(Spec_, GetUserJobSpecs());
+}
+
+bool TOperationControllerBase::IsJobUniquenessRequired(const TJobletPtr& joblet) const
+{
+    const auto& userJobSpec = joblet->Task->GetUserJobSpec();
+    return Spec_->FailOnJobRestart || (userJobSpec && userJobSpec->FailOnJobRestart);
 }
 
 void TOperationControllerBase::OnJobUniquenessViolated(TError error)
@@ -6874,8 +6892,8 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
                     "Schema of an output table %v has changed between schema fetch and lock acquisition",
                     table->GetPath())
-                        << TErrorAttribute("expected_schema_id", table->SchemaId)
-                        << TErrorAttribute("received_schema_id", receivedSchemaId);
+                    << TErrorAttribute("expected_schema_id", table->SchemaId)
+                    << TErrorAttribute("received_schema_id", receivedSchemaId);
             }
         }
 
@@ -8775,7 +8793,9 @@ void TOperationControllerBase::RegisterTeleportChunk(
     if (IsLegacyOutputLivePreviewSupported()) {
         AttachToLivePreview(chunk->GetChunkId(), table->LivePreviewTableId);
     }
-    AttachToLivePreview(table->LivePreviewTableName, chunk);
+    if (GetOutputLivePreviewVertexDescriptor() == TDataFlowGraph::SinkDescriptor) {
+        AttachToLivePreview(table->LivePreviewTableName, chunk);
+    }
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
 
@@ -10108,6 +10128,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->add_environment(Format("YT_OPERATION_ID=%v", OperationId));
 
+    if (jobSpecConfig->ExtraEnvironment.contains(EExtraEnvironment::DiscoveryServerAddresses)) {
+        auto addresses = ConvertToYsonString(Client->GetNativeConnection()->GetDiscoveryServerAddresses(), EYsonFormat::Text);
+        jobSpec->add_environment(Format("YT_DISCOVERY_ADDRESSES=%v", addresses));
+    }
+
     BuildFileSpecs(jobSpec, files, jobSpecConfig, Config->EnableBypassArtifactCache);
 
     if (jobSpecConfig->Monitoring->Enable) {
@@ -10348,9 +10373,9 @@ void TOperationControllerBase::UpdateExecNodes()
 
     const auto& controllerInvoker = GetCancelableInvoker();
     controllerInvoker->Invoke(
-        BIND([=, this, this_ = MakeWeak(this)] {
-            auto strongThis = this_.Lock();
-            if (!strongThis) {
+        BIND([=, this, weakThis = MakeWeak(this)] {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
                 return;
             }
 
@@ -10694,7 +10719,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
 
 void TOperationControllerBase::ValidateRevivalAllowed() const
 {
-    if (Spec_->FailOnJobRestart) {
+    if (HasJobUniquenessRequirements()) {
         THROW_ERROR_EXCEPTION(
             NScheduler::EErrorCode::OperationFailedOnJobRestart,
             "Cannot revive operation when spec option \"fail_on_job_restart\" is set")
@@ -10842,6 +10867,11 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
         TLivePreviewChunkDescriptor{vertexDescriptor, index}).second);
 
     DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
+
+    if (vertexDescriptor == GetOutputLivePreviewVertexDescriptor()) {
+        auto tableName = "output_" + ToString(index);
+        AttachToLivePreview(tableName, chunk);
+    }
 }
 
 const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottler() const

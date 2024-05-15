@@ -3,13 +3,10 @@
 #include "allocation.h"
 #include "bootstrap.h"
 #include "job_controller.h"
-#include "master_connector.h"
 #include "private.h"
+#include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
-#include <yt/yt/server/node/cluster_node/master_connector.h>
-
-#include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -52,9 +49,9 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , DynamicConfig_(New<TSchedulerConnectorDynamicConfig>())
     , HeartbeatExecutor_(New<TRetryingPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND([weakThis = MakeWeak(this)] {
-            auto strongThis = weakThis.Lock();
-            return strongThis ? strongThis->SendHeartbeat() : TError("Scheduler connector is destroyed");
+        BIND([this, weakThis = MakeWeak(this)] {
+            auto this_ = weakThis.Lock();
+            return this_ ? SendHeartbeat() : TError("Scheduler connector is destroyed");
         }),
         DynamicConfig_.Acquire()->HeartbeatExecutor))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
@@ -103,13 +100,13 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
-    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
-    bool hasWaitingResourceHolders = jobResourceManager->GetWaitingResourceHolderCount();
+    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includePending*/ true);
+    bool hasPendingResourceHolders = jobResourceManager->GetPendingResourceHolderCount() > 0;
 
     auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
 
     if (!Dominates(MinSpareResources_, ToJobResources(ToNodeResources(freeResources))) &&
-        !hasWaitingResourceHolders)
+        !hasPendingResourceHolders)
     {
         scheduleOutOfBandHeartbeat();
     }

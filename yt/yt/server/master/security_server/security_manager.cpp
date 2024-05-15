@@ -465,19 +465,19 @@ public:
     {
         RegisterLoader(
             "SecurityManager.Keys",
-            BIND(&TSecurityManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "SecurityManager.Values",
-            BIND(&TSecurityManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "SecurityManager.Keys",
-            BIND(&TSecurityManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "SecurityManager.Values",
-            BIND(&TSecurityManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TSecurityManager::SaveValues, Unretained(this)));
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
 
@@ -590,14 +590,14 @@ public:
             buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
             buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
 
-            auto profileDetailed = [&] (double usage, double commitedUsage, TString name)  {
+            auto profileDetailed = [&] (i64 usage, i64 committedUsage, TString name)  {
                 {
-                    TWithTagGuard guard(&buffer, "status", "commited");
-                    buffer.AddGauge(name, commitedUsage);
+                    TWithTagGuard guard(&buffer, "status", "committed");
+                    buffer.AddGauge(name, committedUsage);
                 }
                 {
-                    TWithTagGuard guard(&buffer, "status", "uncommited");
-                    buffer.AddGauge(name, std::max(0., double(usage - commitedUsage)));
+                    TWithTagGuard guard(&buffer, "status", "uncommitted");
+                    buffer.AddGauge(name, std::max(static_cast<i64>(0), usage - committedUsage));
                 }
             };
 
@@ -617,7 +617,7 @@ public:
             auto diskSpace = statistics.ResourceUsage.GetPatchedDiskSpace(
                 chunkManager,
                 additionalMediumIndexes);
-            auto commitedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
+            auto committedDiskSpace = statistics.CommittedResourceUsage.GetPatchedDiskSpace(
                 chunkManager,
                 additionalMediumIndexes);
 
@@ -628,10 +628,10 @@ public:
                 TWithTagGuard guard(&buffer, "medium", medium->GetName());
                 buffer.AddGauge("/disk_space_in_gb", double(space) / 1_GB);
                 auto committedIt = std::find_if(
-                    commitedDiskSpace.begin(),
-                    commitedDiskSpace.end(),
+                    committedDiskSpace.begin(),
+                    committedDiskSpace.end(),
                     [index = medium->GetIndex()] (const auto& pair) {return pair.first->GetIndex() == index;});
-                if (committedIt != commitedDiskSpace.end()) {
+                if (committedIt != committedDiskSpace.end()) {
                     profileDetailed(space / double(1_GB), committedIt->second / double(1_GB), "/detailed_disk_space_in_gb");
                 }
             }
@@ -1580,7 +1580,9 @@ public:
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
         if (user) {
-            user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
+            if (!GetDynamicConfig()->DisableUpdateUserLastSeen) {
+                user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
+            }
 
             YT_LOG_DEBUG("User created (User: %v)", name);
             LogStructuredEventFluently(Logger, ELogLevel::Info)
@@ -4330,7 +4332,7 @@ private:
 
             // Update last seen time.
             auto lastSeenTime = FromProto<TInstant>(update.last_seen_time());
-            if (lastSeenTime > user->GetLastSeenTime()) {
+            if (lastSeenTime > user->GetLastSeenTime() && !GetDynamicConfig()->DisableUpdateUserLastSeen) {
                 user->SetLastSeenTime(lastSeenTime);
             }
         }

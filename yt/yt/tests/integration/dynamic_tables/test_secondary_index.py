@@ -4,13 +4,15 @@ from yt.common import wait
 
 from yt_commands import (
     create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
-    authors, set, get, exists, remove, copy, get_driver,
+    authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
     select_rows, insert_rows, delete_rows,
     sorted_dicts, raises_yt_error,
 )
 
 from yt.test_helpers import assert_items_equal
+
+import pytest
 
 ##################################################################
 
@@ -31,7 +33,29 @@ PRIMARY_SCHEMA_WITH_EXTRA_KEY = [
     {"name": "valueB", "type": "boolean"},
 ]
 
+PRIMARY_SCHEMA_WITH_AGGREGATE = [
+    {"name": "key", "type": "int64", "sort_order": "ascending"},
+    {"name": "value", "type": "int64"},
+    {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
+]
+
+PRIMARY_SCHEMA_WITH_EXPRESSION = [
+    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(keyA)"},
+    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyB", "type": "string", "sort_order": "ascending"},
+    {"name": "valueA", "type": "int64"},
+    {"name": "valueB", "type": "boolean"},
+]
+
 INDEX_ON_VALUE_SCHEMA = [
+    {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+    {"name": "keyB", "type": "string", "sort_order": "ascending"},
+    {"name": "valueB", "type": "boolean"},
+]
+
+INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION = [
+    {"name": "__hash__", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(valueA)"},
     {"name": "valueA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyA", "type": "int64", "sort_order": "ascending"},
     {"name": "keyB", "type": "string", "sort_order": "ascending"},
@@ -71,8 +95,14 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     def _create_table(self, table_path, table_schema, external_cell_tag=11):
         return create_dynamic_table(table_path, table_schema, external_cell_tag=external_cell_tag)
 
-    def _create_secondary_index(self, table_path="//tmp/table", index_table_path="//tmp/index_table", kind="full_sync"):
-        index_id = create_secondary_index(table_path, index_table_path, kind)
+    def _create_secondary_index(
+        self,
+        table_path="//tmp/table",
+        index_table_path="//tmp/index_table",
+        kind="full_sync",
+        predicate=None,
+    ):
+        index_id = create_secondary_index(table_path, index_table_path, kind, predicate)
         return index_id, None
 
     def _create_basic_tables(
@@ -83,10 +113,11 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
         mount=False,
+        predicate=None,
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind)
+        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, predicate)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -126,15 +157,13 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
                 "schema": table_schema,
                 "dynamic": True,
                 "external_cell_tag": external_cell_tag,
-            },
-        )
+            })
 
         replica_id = create_table_replica(
             table_path,
             self.REPLICA_CLUSTER_NAME,
             table_path + "_replica",
-            attributes={"mode": "sync"}
-        )
+            attributes={"mode": "sync"})
 
         create(
             "table",
@@ -144,16 +173,21 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
                 "schema": table_schema,
                 "dynamic": True,
                 "upstream_replica_id": replica_id,
-            },
-        )
+            })
 
         sync_enable_table_replica(replica_id)
 
         return table_id
 
-    def _create_secondary_index(self, table_path="//tmp/table", index_table_path="//tmp/index_table", kind="full_sync"):
+    def _create_secondary_index(
+        self,
+        table_path="//tmp/table",
+        index_table_path="//tmp/index_table",
+        kind="full_sync",
+        predicate=None
+    ):
         collocation_id = create_table_collocation(table_paths=[table_path, index_table_path])
-        index_id = create_secondary_index(table_path, index_table_path, kind)
+        index_id = create_secondary_index(table_path, index_table_path, kind, predicate)
         return index_id, collocation_id
 
     def _create_basic_tables(
@@ -164,10 +198,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         index_schema=INDEX_ON_VALUE_SCHEMA,
         kind="full_sync",
         mount=False,
+        predicate=None,
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind)
+        index_id, collocation_id = self._create_secondary_index(table_path, index_table_path, kind, predicate)
 
         if mount:
             self._mount(table_path, index_table_path)
@@ -240,6 +275,72 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         self._mount("//tmp/table")
         with raises_yt_error("Cannot create index on a mounted table"):
             self._create_secondary_index()
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("schema_pair", (
+        ([{"name": "not_sorted", "type": "int64"}], INDEX_ON_VALUE_SCHEMA),
+        (PRIMARY_SCHEMA, [{"name": "not_sorted", "type": "int64"}]),
+        (PRIMARY_SCHEMA_WITH_EXTRA_KEY, INDEX_ON_VALUE_SCHEMA),
+        (PRIMARY_SCHEMA, INDEX_ON_VALUE_SCHEMA + [{"name": "valueMissingFromPrimary", "type": "string"}]),
+        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
+            {"name": "aggregate_value", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": EMPTY_COLUMN_NAME, "type": "int64"},
+        ]),
+        (PRIMARY_SCHEMA_WITH_AGGREGATE, [
+            {"name": "value", "type": "int64", "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "aggregate_value", "type": "int64", "aggregate": "sum"},
+        ]),
+        ([
+            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+            {"name": "keyB", "type": "string", "sort_order": "ascending"},
+            {"name": "valueA", "type": "int64", "lock": "A"},
+            {"name": "valueB", "type": "boolean", "lock": "B"},
+        ], INDEX_ON_VALUE_SCHEMA)
+    ))
+    def test_secondary_index_illegal_schema_combinations(self, schema_pair):
+        self._create_table("//tmp/table", schema_pair[0])
+        self._create_table("//tmp/index", schema_pair[1])
+
+        with raises_yt_error():
+            create_secondary_index("//tmp/table", "//tmp/index", "full_sync")
+
+    @authors("sabdenovch")
+    def test_secondary_index_predicate_and_locks(self):
+        self._create_table(
+            "//tmp/table",
+            PRIMARY_SCHEMA + [{"name": "predicatedValue", "type": "int64", "lock": "someLock"}])
+        self._create_table("//tmp/index", INDEX_ON_VALUE_SCHEMA)
+
+        with raises_yt_error():
+            create_secondary_index("//tmp/table", "//tmp/index", "full_sync", predicate="predicatedValue >= 0")
+
+    @authors("sabdenovch")
+    def test_secondary_index_alter_extra_key_order(self):
+        self._create_basic_tables()
+
+        with raises_yt_error():
+            alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+
+        alter_table("//tmp/index_table", schema=[
+            {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+            {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+            {"name": "keyB", "type": "string", "sort_order": "ascending"},
+            {"name": "keyC", "type": "int64", "sort_order": "ascending"},
+            {"name": "valueB", "type": "boolean"},
+        ])
+        alter_table("//tmp/table", schema=PRIMARY_SCHEMA_WITH_EXTRA_KEY)
+
+    @authors("sabdenovch")
+    def test_secondary_index_alter_extra_value_order(self):
+        self._create_basic_tables()
+
+        with raises_yt_error():
+            alter_table("//tmp/table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
+
+        alter_table("//tmp/table", schema=PRIMARY_SCHEMA + [{"name": "extraValue", "type": "int64"}])
+        alter_table("//tmp/index_table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
 
 
 ##################################################################
@@ -525,7 +626,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"key": 0, "value": [1, 1, 1]},
             {"key": 1, "value": [None]},
         ])
-
         self._expect_from_index([
             {"value": None, "key": 1, EMPTY_COLUMN_NAME: None},
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
@@ -536,7 +636,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"key": 1, "value": [4, 5, 6]},
             {"key": 2, "value": [7, 8, 9]},
         ])
-
         self._expect_from_index([
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
             {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
@@ -550,7 +649,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         ])
 
         self._delete_rows([{"key": 1}])
-
         self._expect_from_index([
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
             {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
@@ -564,7 +662,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"key": 2, "value": [4, 5, 6]},
             {"key": 4, "value": [7, 8, 9]},
         ])
-
         self._expect_from_index([
             {"value": 1, "key": 0, EMPTY_COLUMN_NAME: None},
             {"value": 2, "key": 0, EMPTY_COLUMN_NAME: None},
@@ -575,6 +672,58 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"value": 7, "key": 4, EMPTY_COLUMN_NAME: None},
             {"value": 8, "key": 4, EMPTY_COLUMN_NAME: None},
             {"value": 9, "key": 4, EMPTY_COLUMN_NAME: None},
+        ])
+
+    @authors("sabdenovch")
+    @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
+    @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
+    def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
+        self._create_basic_tables(table_schema=table_schema, index_schema=index_table_schema, mount=True)
+        index_row = {"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}
+        if index_table_schema == INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION:
+            index_row["__hash__"] = 3509085207357874260
+        self._insert_rows([{"keyA": 1, "keyB": "alpha", "valueA": 3, "valueB": True}])
+        self._expect_from_index([index_row])
+
+    @authors("sabdenovch")
+    def test_secondary_index_predicate(self):
+        self._create_basic_tables(
+            mount=True,
+            table_schema=[
+                {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+                {"name": "keyB", "type": "string", "sort_order": "ascending"},
+                {"name": "valueA", "type": "int64", "lock": "alpha"},
+                {"name": "valueB", "type": "boolean", "lock": "alpha"},
+            ],
+            index_schema=[
+                {"name": "valueA", "type": "int64", "sort_order": "ascending"},
+                {"name": "keyA", "type": "int64", "sort_order": "ascending"},
+                {"name": "keyB", "type": "string", "sort_order": "ascending"},
+                {"name": EMPTY_COLUMN_NAME, "type": "int64"}
+            ],
+            predicate="not valueB")
+
+        self._insert_rows([
+            {"keyA": 0, "keyB": "bca", "valueA": 3, "valueB": False},
+            {"keyA": 1, "keyB": "aba", "valueA": 1, "valueB": False},
+            {"keyA": 1, "keyB": "bac", "valueA": 3, "valueB": True},
+            {"keyA": 2, "keyB": "cab", "valueA": 2, "valueB": True},
+            {"keyA": 3, "keyB": "cbc", "valueA": 4, "valueB": False},
+        ])
+        self._expect_from_index([
+            {"keyA": 0, "keyB": "bca", "valueA": 3, EMPTY_COLUMN_NAME: None},
+            {"keyA": 1, "keyB": "aba", "valueA": 1, EMPTY_COLUMN_NAME: None},
+            {"keyA": 3, "keyB": "cbc", "valueA": 4, EMPTY_COLUMN_NAME: None},
+        ])
+
+        self._insert_rows([
+            {"keyA": 0, "keyB": "bca", "valueA": 2},
+            {"keyA": 1, "keyB": "aba", "valueB": True},
+            {"keyA": 3, "keyB": "cbc", "valueB": False},
+        ], update=True)
+        self._expect_from_index([
+            {"keyA": 0, "keyB": "bca", "valueA": 2, EMPTY_COLUMN_NAME: None},
+            {"keyA": 3, "keyB": "cbc", "valueA": 4, EMPTY_COLUMN_NAME: None},
         ])
 
 

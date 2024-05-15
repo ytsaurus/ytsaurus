@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/tools/tools.h>
 
+#include <yt/yt/core/actions/new_with_offloaded_dtor.h>
+
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/logging/log_manager.h>
@@ -77,9 +79,6 @@ public:
     ~TUserSlot()
     {
         YT_LOG_FATAL_IF(IsEnabled_.load(), "UserSlot was not manually disabled before destruction");
-
-        Location_->ReleaseDiskSpace(SlotIndex_);
-        Location_->DecreaseSessionCount();
     }
 
     void ResetState() override
@@ -89,6 +88,8 @@ public:
         bool wasEnabled = IsEnabled_.exchange(false);
 
         YT_LOG_FATAL_UNLESS(wasEnabled, "Attempt to disable already disabled UserSlot");
+        Location_->ReleaseDiskSpace(SlotIndex_);
+        Location_->DecreaseSessionCount();
         SlotGuard_.reset();
     }
 
@@ -538,7 +539,8 @@ IUserSlotPtr CreateSlot(
     NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
-    auto slot = New<TUserSlot>(
+    auto slot = NewWithOffloadedDtor<TUserSlot>(
+        bootstrap->GetJobInvoker(),
         slotManager,
         std::move(location),
         std::move(environment),

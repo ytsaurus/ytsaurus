@@ -14,13 +14,6 @@ except (ImportError, OSError, EnvironmentError):
     fuse_file_info = None
     FuseOSError = None
 
-try:
-    from yt.packages.six import iterkeys, PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import iterkeys, PY3
-    from six.moves import xrange
-
 import yt.wrapper as yt
 
 import pytest
@@ -59,13 +52,13 @@ class TestCachedYtClient(object):
     def test_get_attributes_list(self, yt_env):
         client = cypress_fuse.CachedYtClient(config=yt.config.config)
 
-        real_attributes = yt.get("//home/@")
-        for attribute in list(real_attributes):
+        real_attributes = dict(yt.get("//home/@"))
+        for attribute in real_attributes:
             if isinstance(real_attributes[attribute], yt.yson.YsonEntity):
                 real_attributes[attribute] = yt.get("//home/@" + attribute)
 
-        cached_attributes = client.get_attributes("//home", list(real_attributes))
-        ephemeral_attributes = ["access_time", "access_counter", "ephemeral_ref_counter", "weak_ref_counter"]
+        cached_attributes = dict(client.get_attributes("//home", list(real_attributes)))
+        ephemeral_attributes = ["access_time", "access_counter", "ephemeral_ref_counter", "weak_ref_counter", "estimated_creation_time"]
 
         for attribute in ephemeral_attributes:
             for attributes in [real_attributes, cached_attributes]:
@@ -74,7 +67,7 @@ class TestCachedYtClient(object):
 
         sample_names = random.sample(list(real_attributes), len(real_attributes) // 2)
         cached_attributes = client.get_attributes("//home", sample_names)
-        assert sorted(iterkeys(cached_attributes)) == sorted(sample_names)
+        assert sorted(cached_attributes.keys()) == sorted(sample_names)
 
         for name in sample_names:
             assert real_attributes[name] == cached_attributes[name]
@@ -127,12 +120,11 @@ class TestCypress(object):
 
         filepath = TEST_DIR + "/file"
         content = ""
-        for i in xrange(100):
+        for i in range(100):
             data = {"a": i, "b": 2 * i, "c": 3 * i}
             content += json.dumps(data, separators=(",", ":"), sort_keys=True)
             content += "\n"
-        if PY3:
-            content = content.encode("utf-8")
+        content = content.encode("utf-8")
         yt.write_table(filepath, content, format=yt.JsonFormat(), raw=True)
 
         fi = fuse_file_info()

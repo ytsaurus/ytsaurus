@@ -26,7 +26,8 @@ import yt.wrapper
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.todo",
-    "sphinx.ext.viewcode"
+    "sphinx.ext.viewcode",
+    "sphinxarg.ext"  # sphinx-argparse
 ]
 
 # Add any paths that contain templates here, relative to this directory.

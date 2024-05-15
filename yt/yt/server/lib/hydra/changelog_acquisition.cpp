@@ -195,7 +195,7 @@ private:
         NewChangelogPromise_.TrySet(TError("Not enough successful replies: %v out of %v",
             SuccessCount_,
             EpochContext_->CellManager->GetTotalPeerCount())
-            << TErrorAttribute("LocalChangelogAcquisitionSuccess", LocalSucceeded_));
+            << TErrorAttribute("local_changelog_acquisition_succeeded", LocalSucceeded_));
     }
 };
 

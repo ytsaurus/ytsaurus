@@ -28,6 +28,7 @@ using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
 
 using NNodeTrackerClient::TNodeId;
 using NNodeTrackerClient::ENodeState;
+using NNodeTrackerClient::ECellAggregatedStateReliability;
 using NNodeTrackerClient::ENodeFlavor;
 using NNodeTrackerClient::InvalidNodeId;
 using NNodeTrackerClient::THostId;
@@ -53,9 +54,9 @@ DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(IExecNodeTracker)
 
 DECLARE_ENTITY_TYPE(TNode, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
-DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TNode)
 

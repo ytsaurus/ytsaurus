@@ -6,7 +6,7 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 
 message TReqRegisterSecondaryMasterAtPrimary
 {
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
 }
 
 message TRspRegisterSecondaryMasterAtPrimary
@@ -16,11 +16,18 @@ message TRspRegisterSecondaryMasterAtPrimary
 
 message TReqRegisterSecondaryMasterAtSecondary
 {
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
 }
 
 message TReqStartSecondaryMasterRegistration
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReplicateDynamicallyPropagatedMasterCellTags
+{
+    repeated uint32 dynamically_propagated_masters_cell_tags = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +40,7 @@ message TCellStatistics
 
 message TReqSetCellStatistics
 {
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     required TCellStatistics statistics = 2;
 }
 

@@ -1,6 +1,63 @@
-from pyspark.sql.types import UserDefinedType, BinaryType, IntegralType
+import datetime
+
 from pyspark import SparkContext
 from pyspark.sql.column import _to_java_column, Column
+from pyspark.sql.types import UserDefinedType, BinaryType, IntegralType, LongType
+
+
+class DatetimeType(UserDefinedType):
+    def needConversion(self):
+        return True
+
+    def serialize(self, obj):
+        dt = obj.value
+        if dt is not None:
+            if dt.tzinfo is None or dt.tzinfo.utcoffset(dt) is None:
+                tz_utc = datetime.timezone.utc
+                dt = dt.replace(tzinfo=tz_utc)
+            return int(dt.timestamp())
+        return None
+
+    def deserialize(self, ts):
+        if ts is not None:
+            return Datetime(datetime.datetime.fromtimestamp(ts).replace(microsecond=0))
+
+    @classmethod
+    def typeName(cls):
+        return "datetime"
+
+    def simpleString(self):
+        return 'datetime'
+
+    @classmethod
+    def sqlType(cls):
+        return LongType()
+
+    @classmethod
+    def module(cls):
+        return 'spyt.types'
+
+    @classmethod
+    def scalaUDT(cls):
+        return 'org.apache.spark.sql.yson.DatetimeType'
+
+
+class Datetime:
+
+    __UDT__ = DatetimeType()
+
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return "Datetime(%s)" % self.value
+
+    def __str__(self):
+        return "(%s)" % self.value
+
+    def __eq__(self, other):
+        return isinstance(other, self.__class__) and \
+            other.value == self.value
 
 
 class YsonType(UserDefinedType):

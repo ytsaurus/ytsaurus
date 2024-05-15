@@ -47,11 +47,11 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "EpochHistoryManager",
-            BIND(&TEpochHistoryManager::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TEpochHistoryManager::Save, Unretained(this)));
 
         RegisterLoader(
             "EpochHistoryManager",
-            BIND(&TEpochHistoryManager::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TEpochHistoryManager::Load, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TEpochHistoryManager::HydraStoreMutationTime, Unretained(this)));
 

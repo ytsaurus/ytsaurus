@@ -303,7 +303,7 @@ public:
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
-        ErrorManager_ = New<TErrorManager>(this);
+        ErrorManager_ = CreateErrorManager(this);
         CompressionDictionaryManager_ = CreateCompressionDictionaryManager(
             GetConfig()->TabletNode->CompressionDictionaryCache,
             this);
@@ -440,7 +440,7 @@ public:
         return TableDynamicConfigManager_;
     }
 
-    const TErrorManagerPtr& GetErrorManager() const override
+    const IErrorManagerPtr& GetErrorManager() const override
     {
         return ErrorManager_;
     }
@@ -596,7 +596,7 @@ private:
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
-    TErrorManagerPtr ErrorManager_;
+    IErrorManagerPtr ErrorManager_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
 

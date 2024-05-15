@@ -36,14 +36,14 @@ inline typename std::enable_if<boost::multiprecision::detail::is_backend<Backend
    number<Backend, et_on> t(b);
    if (a < t)
       return a;
-   return std::move(t);
+   return t;
 }
 template <class tag, class A1, class A2, class A3, class A4, class Backend>
 inline typename std::enable_if<boost::multiprecision::detail::is_backend<Backend>::value, const number<Backend, et_on> >::type(min)(const detail::expression<tag, A1, A2, A3, A4>& a, const number<Backend, et_on>& b)
 {
    number<Backend, et_on> t(a);
    if (t < b)
-      return std::move(t);
+      return t;
    return b;
 }
 template <class tag, class A1, class A2, class A3, class A4, class tagb, class A1b, class A2b, class A3b, class A4b>
@@ -51,16 +51,16 @@ inline typename detail::expression<tag, A1, A2, A3, A4>::result_type(min)(const 
 {
    typename detail::expression<tag, A1, A2, A3, A4>::result_type t1(a), t2(b);
    if (t1 < t2)
-      return std::move(t1);
-   return std::move(t2);
+      return t1;
+   return t2;
 }
 template <class tag, class A1, class A2, class A3, class A4>
 inline typename detail::expression<tag, A1, A2, A3, A4>::result_type(min)(const detail::expression<tag, A1, A2, A3, A4>& a, const detail::expression<tag, A1, A2, A3, A4>& b)
 {
    typename detail::expression<tag, A1, A2, A3, A4>::result_type t1(a), t2(b);
    if (t1 < t2)
-      return std::move(t1);
-   return std::move(t2);
+      return t1;
+   return t2;
 }
 
 template <class Backend>
@@ -74,14 +74,14 @@ inline typename std::enable_if<boost::multiprecision::detail::is_backend<Backend
    number<Backend, et_on> t(b);
    if (a > t)
       return a;
-   return std::move(t);
+   return t;
 }
 template <class tag, class A1, class A2, class A3, class A4, class Backend>
 inline typename std::enable_if<boost::multiprecision::detail::is_backend<Backend>::value, const number<Backend, et_on> >::type(max)(const detail::expression<tag, A1, A2, A3, A4>& a, const number<Backend, et_on>& b)
 {
    number<Backend, et_on> t(a);
    if (t > b)
-      return std::move(t);
+      return t;
    return b;
 }
 template <class tag, class A1, class A2, class A3, class A4, class tagb, class A1b, class A2b, class A3b, class A4b>
@@ -89,16 +89,16 @@ inline typename detail::expression<tag, A1, A2, A3, A4>::result_type(max)(const 
 {
    typename detail::expression<tag, A1, A2, A3, A4>::result_type t1(a), t2(b);
    if (t1 > t2)
-      return std::move(t1);
-   return std::move(t2);
+      return t1;
+   return t2;
 }
 template <class tag, class A1, class A2, class A3, class A4>
 inline typename detail::expression<tag, A1, A2, A3, A4>::result_type(max)(const detail::expression<tag, A1, A2, A3, A4>& a, const detail::expression<tag, A1, A2, A3, A4>& b)
 {
    typename detail::expression<tag, A1, A2, A3, A4>::result_type t1(a), t2(b);
    if (t1 > t2)
-      return std::move(t1);
-   return std::move(t2);
+      return t1;
+   return t2;
 }
 
 }} // namespace boost::multiprecision

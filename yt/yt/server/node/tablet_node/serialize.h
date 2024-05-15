@@ -63,6 +63,7 @@ DEFINE_ENUM(ETabletReign,
     ((HiveManagerLamportTimestamp)                 (100909)) // danilalexeev
     // 24.2 starts here.
     ((Start_24_2)                                  (101000)) // ponasenko-rs
+    ((AddTabletCustomRuntimeData)                  (101001)) // gryzlov-ad
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

@@ -14,7 +14,7 @@ using namespace NYT;
 using namespace NConcurrency;
 using namespace NProfiling;
 
-YT_THREAD_LOCAL(TContMachineContext) CallerContext;
+YT_DEFINE_THREAD_LOCAL(TContMachineContext, CallerContext);
 
 struct TMyFiber
     : public ITrampoLine
@@ -32,14 +32,14 @@ struct TMyFiber
     {
         while (true) {
             ++SwitchCount;
-            Context_.SwitchTo(&GetTlsRef(CallerContext));
+            Context_.SwitchTo(&CallerContext());
         }
     }
 
     void SwitchInto()
     {
         ++SwitchCount;
-        GetTlsRef(CallerContext).SwitchTo(&Context_);
+        CallerContext().SwitchTo(&Context_);
     }
 
     size_t SwitchCount = 0;
@@ -53,7 +53,7 @@ struct TBaseClass
 {
     virtual void Foo() = 0;
 
-    virtual ~TBaseClass() {}
+    virtual ~TBaseClass() = default;
 };
 
 struct TDerivedClass

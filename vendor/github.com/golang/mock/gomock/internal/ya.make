@@ -1,1 +1,3 @@
-RECURSE(mock_gomock)
+RECURSE(
+    mock_gomock
+)

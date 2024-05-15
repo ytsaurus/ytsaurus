@@ -8,6 +8,8 @@ from yt_commands import (
     interrupt_job, dump_job_context)
 
 from yt_helpers import skip_if_no_descending, profiler_factory, read_structured_log, write_log_barrier
+
+from yt import yson
 from yt.yson import to_yson_type
 from yt.common import YtError, date_string_to_datetime
 
@@ -222,6 +224,45 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                         },
                     },
                     "fail_on_job_restart": True,
+                }
+            )
+
+    @authors("eshcherbin")
+    def test_fail_on_job_restart_in_specific_task(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "command": events_on_fs().execute_once("exit 1"),
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "command": "echo nothing >/dev/null",
+                        "fail_on_job_restart": True,
+                    },
+                },
+                "max_failed_job_count": 2,
+            }
+        )
+        op.wait_for_state("completed")
+
+        with pytest.raises(YtError):
+            op = vanilla(
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": events_on_fs().execute_once("exit 1"),
+                            "fail_on_job_restart": True,
+                        },
+                        "task_b": {
+                            "job_count": 1,
+                            "command": "echo nothing >/dev/null",
+                        },
+                    },
+                    "max_failed_job_count": 2,
                 }
             )
 
@@ -590,6 +631,45 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     },
                 }
             )
+
+    @authors("arkady-e1ppa")
+    def test_operation_incarnation_is_set(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
+            pytest.skip()
+
+        # NB(arkady-e1ppa): Die with code 42 if variable is not set.
+        command = '[[ -z "$YT_OPERATION_INCARNATION" ]] && exit 42 || exit 0'
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "test": {
+                        "job_count": 1,
+                        "command": command,
+                    },
+                },
+                "fail_on_job_restart": True,
+            }
+        )
+        op.wait_for_state("completed")
+        op.track()
+
+
+class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    NUM_DISCOVERY_SERVERS = 2
+
+    @authors("alex-shishkin")
+    def test_yt_discovery_addresses_in_env(self):
+        op = run_test_vanilla(
+            "echo $YT_DISCOVERY_ADDRESSES >&2",
+            task_patch={'extra_environment': ['discovery_server_addresses']},
+            track=True
+        )
+        job_id = op.list_jobs()[0]
+        addresses = yson.loads(op.read_stderr(job_id))
+        assert len(addresses) == 2
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

@@ -157,12 +157,14 @@ public:
 const NYPath::TYPath Api::Table_ = "//tmp/t";
 
 __attribute__((destructor))
-void foo() {
+void foo()
+{
     puts("__dtor");
 }
 
 
-int main() {
+int main()
+{
     const auto* configPath = std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH");
     TIFStream configStream(configPath);
     auto config = NYTree::ConvertToNode(&configStream)->AsMap();

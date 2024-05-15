@@ -317,12 +317,12 @@ $ echo '{a=0;b={c=[]}}' | yt insert-rows --table '//tmp/test' --format yson
 $ echo '{a=1;b={c=[1;2;3]}}' | yt insert-rows --table '//tmp/test' --format yson
 $ echo '{a=2;b={c=[4]}}' | yt insert-rows --table '//tmp/test' --format yson
 
-$ yt select-rows 't.b.c from `//tmp/test` as t' --syntax-version 2 --format json 
+$ yt select-rows 't.b.c from `//tmp/test` as t' --syntax-version 2 --format json
 {"t.b.c":[]}
 {"t.b.c":[1,2,3]}
 {"t.b.c":[4]}
 
-$ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format json 
+$ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format json
 {"t.b.c[0]":null}
 {"t.b.c[0]":1}
 {"t.b.c[0]":4}
@@ -344,15 +344,17 @@ $ yt select-rows 't.b.c[0] from `//tmp/test` as t' --syntax-version 2 --format j
     Функции принимают два аргумента: `(yson, path)`, где:
     - `yson` — значение типа `any`, содержащее YSON;
     - `path` — строка, содержащая путь до нужного поля в формате [YPATH](../../../user-guide/storage/ypath.md).
-    
+
     Версия с префиксом `try_` в случае отсутствия поля нужного типа по заданному пути возвращает `NULL`. Версия без `try_` возвращает ошибку при отсутствии поля.
-    
+
     Пример: для строки таблицы `{column=<attr=4>{key3=2;k={k2=<b=7>3;k3=10};lst=<a=[1;{a=3};{b=7u}]>[0;1;<a={b=4}>2]}}` `try_get_uint64(column, "/lst/@a/2/b")` вернёт значение `7u`.
-2. `list_contains(list, value) :: any -> (string | int64 | uint64| boolean) -> boolean`
+2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
     Ищет `value` в YSON-списке `list`, имеющем тип `any`. Значение `value` скалярного типа. Список не обязан быть гомогенным (т. е. может содержать значения разных типов), сравнение выполняется с учётом типа.
-3. `any_to_yson_string(yson) :: any -> string`
+3.  `list_has_intersection(list, list) :: any -> any -> boolean`
+    Принимает на вход два YSON-списка и возвращает `true`, если они имеют хотя бы один общий элемент. Списки обязаны быть гомогенными.
+4. `any_to_yson_string(yson) :: any -> string`
     Преобразует значение типа `any` в строку, содержащую его binary-[YSON](../../../user-guide/storage/yson.md) представление.
-4. `yson_length(yson) :: any -> int64`
+5. `yson_length(yson) :: any -> int64`
     Вычисляет количество элементов в списке или словаре.
 
 ##### Формирование YSON

@@ -14,7 +14,7 @@ namespace {
 
 void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerSchema)
 {
-    auto throwIncompatibleKeyColumns = [&] () {
+    auto throwIncompatibleKeyColumns = [&] {
         THROW_ERROR_EXCEPTION(
             "Reader key column stable names %v are incompatible with chunk key column stable names %v",
             readerSchema.GetKeyColumnStableNames(),

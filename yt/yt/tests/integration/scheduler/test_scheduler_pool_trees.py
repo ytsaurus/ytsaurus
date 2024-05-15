@@ -8,11 +8,11 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, update_nodes_dynamic_config, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
-    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, write_table, write_file,
+    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, create_network_project, create_user, write_table, write_file,
     map, map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters,
     create_test_tables,
-    extract_statistic_v2, update_pool_tree_config, update_pool_tree_config_option, raises_yt_error)
+    extract_statistic_v2, update_pool_tree_config, update_pool_tree_config_option, update_user_to_default_pool_map, raises_yt_error)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
@@ -1838,6 +1838,26 @@ class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8,
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 100,
+        }
+    }
+
     @authors("omgronny")
     def test_forbid_operations_with_zero_resource_demand(self):
         create_pool_tree(
@@ -1859,6 +1879,29 @@ class TestForbidOperationsWithZeroResourceDemand(YTEnvSetup):
                 },
                 track=True,
             )
+
+    @authors("omgronny")
+    def test_do_not_forbid_operations_with_zero_resource_demand_during_revive(self):
+        update_pool_tree_config_option("default", "necessary_resources_for_operation", ["gpu"])
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool_trees": ["default"],
+            },
+            job_count=1,
+            task_patch={
+                "gpu_limit": 1,
+            },
+        )
+
+        wait(lambda: op.get_job_count("running") == 1)
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: op.get_job_count("running") == 1)
 
 
 ##################################################################
@@ -1972,6 +2015,19 @@ class TestMultiTreeOperations(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics_v2")
         check_count(statistics, "default", 2)
         check_count(statistics, "other", 1)
+
+
+##################################################################
+
+
+class TestOffloadingPools(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    def teardown_method(self, method):
+        update_user_to_default_pool_map({})
+        super(TestOffloadingPools, self).teardown_method(method)
 
     @authors("renadeen")
     def test_offloading_pool_simple(self):
@@ -2105,6 +2161,35 @@ class TestMultiTreeOperations(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    def test_offloading_of_default_ephemeral_pools_wiht_custom_parent(self):
+        create_user("u")
+        create_pool(
+            "default_parent_for_ephemeral",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {
+                        "pool": "offload_pool",
+                    }
+                }
+            })
+        update_pool_tree_config("default", {"use_user_default_parent_pool_map": True})
+        update_user_to_default_pool_map({"u": "default_parent_for_ephemeral"})
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("offload_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), authenticated_user="u")
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/u"))
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "offload_pool")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
     def test_offloading_disabled_for_operations_with_scheduling_tag_filter(self):
         create_pool("primary_pool", pool_tree="default")
         set("//sys/pools/primary_pool/@offloading_settings", {
@@ -2126,6 +2211,72 @@ class TestMultiTreeOperations(YTEnvSetup):
 
         for job in op.get_running_jobs().values():
             assert job["address"] != offload_node
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
+    def test_offloading_without_pool_to_simple_existing_pool(self):
+        create_pool(
+            "some_pool",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "some_pool"})
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "some_pool")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
+    def test_offloading_without_pool_to_username_pool(self):
+        create_pool(
+            "root",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "root")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("renadeen")
+    def test_offloading_with_empty_pool_hotfix(self):
+        create_pool(
+            "some_pool",
+            pool_tree="default",
+            attributes={
+                "offloading_settings": {
+                    "offload_tree": {"pool": ""}
+                }
+            })
+
+        create_custom_pool_tree_with_one_node("offload_tree")
+        create_pool("some_pool", pool_tree="offload_tree")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "some_pool"})
+
+        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
+        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "some_pool")
 
         release_breakpoint()
         op.track()

@@ -25,11 +25,20 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ESlotManagerAlertType,
-    ((GenericPersistentError)           (0))
-    ((GpuCheckFailed)                   (1))
-    ((TooManyConsecutiveJobAbortions)   (2))
-    ((JobProxyUnavailable)              (3))
-    ((TooManyConsecutiveGpuJobFailures) (4))
+    // If you see this alert then either the
+    // world is broken or, which is more likely
+    // someone added a new error code which is
+    // not properly parsed in SlotManager::Disable.
+    ((NotClassified)                                  (0))
+    // Can be fixed by resurrect.
+    ((PortoFailure)                                   (1))
+    ((JobEnvironmentFailure)                          (2))
+    // Can be fixed by rpc request.
+    ((GpuCheckFailed)                                 (3))
+    ((TooManyConsecutiveGpuJobFailures)               (4))
+    ((TooManyConsecutiveJobAbortions)                 (5))
+    // Will be fixed when JobProxy becomes avaliable.
+    ((JobProxyUnavailable)                            (6))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,8 +117,23 @@ public:
     i64 GetMajorPageFaultCount() const;
 
     bool IsInitialized() const;
-    bool IsEnabled() const;
-    bool HasFatalAlert() const;
+    bool IsJobSchedulingDisabled() const;
+    bool HasArmedPersistentAlerts() const;
+
+    // Some of these alerts methods are never called.
+    // Their purpose is to describe which alerts
+    // have which properties.
+
+    //! Such alert will not prevent resurrection.
+    static bool IsFixableByResurrect(ESlotManagerAlertType alertType);
+
+    //! Such alert can be fixed by rpc request without force_reset option.
+    static bool IsFixableByRequest(ESlotManagerAlertType alertType);
+
+    //! Such alert will be gone on its own (e.g. timer or temporary condition).
+    static bool IsTransient(ESlotManagerAlertType alertType);
+    //! Opposite of Transient
+    static bool IsPersistent(ESlotManagerAlertType alertType);
 
     void ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes);
 
@@ -125,13 +149,25 @@ public:
      *  \note
      *  Thread affinity: any
      */
-    bool Disable(const TError& error);
+    void OnGpuCheckCommandFailed(const TError& error);
 
     /*!
      *  \note
      *  Thread affinity: any
      */
-    void OnGpuCheckCommandFailed(const TError& error);
+    void OnPortoExecutorFailed(const TError& error);
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    void OnWaitingForJobCleanupTimeout(TError error);
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    void OnJobEnvironmentDisabled(TError error);
 
     /*!
      *  \note
@@ -158,8 +194,6 @@ public:
     bool ShouldSetUserId() const;
 
     bool IsJobEnvironmentResurrectionEnabled();
-
-    static bool IsResettableAlertType(ESlotManagerAlertType alertType);
 
     void OnContainerDevicesCheckFinished(const TError& error);
 
@@ -200,7 +234,65 @@ private:
     double IdlePolicyRequestedCpu_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, AlertsLock_);
-    TEnumIndexedArray<ESlotManagerAlertType, TError> Alerts_;
+
+    /*
+     * Affinity: AlertsLock_
+     */
+    class TAlertSet
+    {
+    private:
+        struct TAlert
+        {
+            TError Error;
+            mutable bool Armed = true;
+        };
+
+    public:
+        TAlertSet();
+
+        void SetAlertError(TError error, std::optional<ESlotManagerAlertType> hint = {}) noexcept;
+        void ClearAlertError(ESlotManagerAlertType alertType) noexcept;
+
+        void RearmAlert(ESlotManagerAlertType alertType) const noexcept;
+        void DisarmAlert(ESlotManagerAlertType alertType) const noexcept;
+
+        bool HasArmedAlert(ESlotManagerAlertType alertType) const noexcept;
+
+        const TEnumIndexedArray<ESlotManagerAlertType, TAlert>& ListAlerts() const noexcept;
+
+        void Clear() noexcept;
+
+        static bool IsFixableByResurrect(ESlotManagerAlertType alertType) noexcept;
+        static bool IsFixableByRequest(ESlotManagerAlertType alertType) noexcept;
+        static bool IsPersistent(ESlotManagerAlertType alertType) noexcept;
+
+        bool HasArmedFixableByResurrectAlert(bool inverseCondition) const noexcept;
+        bool HasArmedFixableByRequestAlert(bool inverseCondition) const noexcept;
+        bool HasArmedPersistentAlert(bool inverseCondition) const noexcept;
+
+    private:
+        TEnumIndexedArray<ESlotManagerAlertType, TAlert> Alerts_;
+
+        using TAlertsWithProperty = const THashSet<ESlotManagerAlertType>;
+
+        // NB(arkady-e1ppa): This is excessive amount of
+        // information but it forces user to explicitly
+        // state every property of a newly added alert.
+        static TAlertsWithProperty FixableByResurrect;
+        static TAlertsWithProperty NotFixableByResurrect;
+
+        static TAlertsWithProperty FixableByRequest;
+        static TAlertsWithProperty NotFixableByRequest;
+
+        static TAlertsWithProperty Persistent;
+        static TAlertsWithProperty Transient;
+
+        static void VerifyAlertProperties();
+
+        bool HasArmedAlertByProperty(TAlertsWithProperty& alertsWithProperty) const noexcept;
+    };
+
+    TAlertSet Alerts_;
 
     //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart or alert reset.
@@ -234,12 +326,18 @@ private:
     TSlotManagerInfo DoGetStateSnapshot() const;
     auto GetStateSnapshot() const;
 
-    bool HasNonFatalAlerts() const;
-    bool HasGpuAlerts() const;
-    bool HasSlotDisablingAlert() const;
+    bool Disable(TError error);
+
+    bool IsEnabled() const;
+    bool GuardedHasArmedAlerts() const;
+
+    bool GuardedHasArmedPersistentAlerts() const;
+    bool GuardedHasArmedTransientAlerts() const;
+
+    bool FixableByResurrect() const;
+    bool CanResurrect() const;
 
     void SetDisableState();
-    bool CanResurrect() const;
 
     double GetIdleCpuFraction() const;
 

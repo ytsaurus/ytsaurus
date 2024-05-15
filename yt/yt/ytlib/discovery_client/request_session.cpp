@@ -98,7 +98,7 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
             config->Addresses);
 
         YT_UNUSED_FUTURE(EndpointsUpdateExecutor_->Stop());
-        ResolvedAddressesFuture_ = VoidFuture;
+        ResolvedAddressesPromise_ = MakePromise<void>(TError());
 
         SetAddresses(*config->Addresses);
     } else if (config->Endpoints && (!Config_ || config->Endpoints != Config_->Endpoints)) {
@@ -113,8 +113,8 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
 
         EndpointsUpdateExecutor_->SetPeriod(config->Endpoints->UpdatePeriod);
         EndpointsUpdateExecutor_->Start();
-        ResolvedAddressesFuture_ = EndpointsUpdateExecutor_->GetExecutedEvent();
         EndpointsUpdateExecutor_->ScheduleOutOfBand();
+        ResolvedAddressesPromise_ = NewPromise<void>();
     }
 
     Config_ = config;
@@ -164,8 +164,13 @@ void TServerAddressPool::OnEndpointsResolved(
         return;
     }
 
-    auto guard = Guard(Lock_);
-    SetAddresses(allAddresses);
+    TPromise<void> resolvedAddressesPromise;
+    {
+        auto guard = Guard(Lock_);
+        SetAddresses(allAddresses);
+        resolvedAddressesPromise = ResolvedAddressesPromise_;
+    }
+    resolvedAddressesPromise.TrySet();
 }
 
 void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
@@ -195,7 +200,7 @@ void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
 TFuture<void> TServerAddressPool::GetReadyEvent() const
 {
     auto guard = Guard(Lock_);
-    return ResolvedAddressesFuture_;
+    return ResolvedAddressesPromise_.ToFuture().ToUncancelable();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

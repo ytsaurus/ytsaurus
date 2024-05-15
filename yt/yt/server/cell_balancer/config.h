@@ -76,6 +76,7 @@ public:
     TDuration HulkRequestTimeout;
     TDuration CellRemovalTimeout;
     TDuration NodeAssignmentTimeout;
+    TDuration MuteTabletCellsCheckGracePeriod;
 
     NYPath::TYPath RootPath;
 

@@ -10,11 +10,11 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::IYPathServicePtr CreateNodeProxy(
+ISequoiaServicePtr CreateNodeProxy(
     IBootstrap* bootstrap,
     NSequoiaClient::ISequoiaTransactionPtr transaction,
     NObjectClient::TObjectId id,
-    NYPath::TYPath resolvedPath);
+    NSequoiaClient::TAbsoluteYPath resolvedPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

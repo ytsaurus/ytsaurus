@@ -394,7 +394,8 @@ private:
             .HasCumulativeDataWeightColumn = true,
         };
 
-        auto result = NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger);
+        auto result = WaitFor(NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger))
+            .ValueOrThrow();
 
         for (const auto& [tabletIndex, partitionInfo] : result) {
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];

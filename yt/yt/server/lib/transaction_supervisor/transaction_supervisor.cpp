@@ -116,48 +116,48 @@ public:
         YT_VERIFY(TimestampProvider_);
 
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitSimpleTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseOne"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorCommitDistributedTransactionPhaseTwo"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortDistributedTransactionPhaseTwo"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorAbortTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqCoordinatorFinishDistributedTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantPrepareTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantCommitTransaction"});
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)),
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)),
             /*aliases*/ {"NYT.NHiveServer.NProto.TReqParticipantAbortTransaction"});
 
         RegisterLoader(
             "TransactionSupervisor.Keys",
-            BIND(&TTransactionSupervisor::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionSupervisor.Values",
-            BIND(&TTransactionSupervisor::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
-            BIND(&TTransactionSupervisor::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
-            BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionSupervisor::SaveValues, Unretained(this)));
 
         OrchidService_ = CreateOrchidService();
     }
@@ -231,27 +231,122 @@ public:
     {
         // TODO(aleksandra-zh): implement.
         if (Config_->EnableWaitUntilPreparedTransactionsFinished) {
-            if (PreparedSequoiaTxCount_.load() > 0) {
-                // Just use some delay for tests.
-                return TDelayedExecutor::MakeDelayed(TDuration::MilliSeconds(250));
+            auto guard = LockSequoiaTxRegistry();
+
+            if (SequoiaTxRegistry_.empty()) {
+                return VoidFuture;
             }
+
+            if (!std::holds_alternative<TSequoiaTxBarrier>(SequoiaTimeline_.back())) {
+                SequoiaTimeline_.push_back(TSequoiaTxBarrier{});
+            }
+
+            YT_LOG_DEBUG(
+                "Waiting for prepared Sequoia tx (TransactionIds: %v)",
+                MakeShrunkFormattableView(
+                    SequoiaTxRegistry_,
+                    [] (TStringBuilderBase* builder, const auto& pair) {
+                        builder->AppendFormat("%v", pair.first);
+                    },
+                    /*limit*/ 5));
+
+            return std::get<TSequoiaTxBarrier>(SequoiaTimeline_.back()).Promise.ToFuture();
         }
 
         return VoidFuture;
     }
 
-    void SetPreparedSequoiaTxCount(int count) override
+    void ClearSequoiaTxRegistry() override
     {
-        PreparedSequoiaTxCount_.store(count);
+        auto guard = LockSequoiaTxRegistry();
+        SequoiaTxRegistry_.clear();
+        SequoiaTimeline_.clear();
     }
 
-    void ChangePreparedSequoiaTxCount(int delta) override
+    void RegisterPreparedSequoiaTx(TTransactionId id) override
     {
-        PreparedSequoiaTxCount_.fetch_add(delta);
+        auto guard = LockSequoiaTxRegistry();
+        if (SequoiaTimeline_.empty() ||
+            !std::holds_alternative<TPreparedSequoiaTxCount>(SequoiaTimeline_.back()))
+        {
+            SequoiaTimeline_.emplace_back(std::in_place_type_t<TPreparedSequoiaTxCount>{});
+        }
+        ++std::get<TPreparedSequoiaTxCount>(SequoiaTimeline_.back()).Count;
+        EmplaceOrCrash(SequoiaTxRegistry_, id, std::prev(SequoiaTimeline_.end()));
+
+        YT_LOG_DEBUG("Sequoia tx registered (TransactionId: %v)", id);
+    }
+
+    void UnregisterPreparedSequoiaTx(TTransactionId id) override
+    {
+        auto guard = LockSequoiaTxRegistry();
+        auto it = SequoiaTxRegistry_.find(id);
+
+        // NB: if tx prepare is failed on some of participants coordinator may
+        // send abort to all participants (including itself). In case of late
+        // prepare coordinator will receive only abort without prepare.
+        if (it == SequoiaTxRegistry_.end()) {
+            return;
+        }
+        --std::get<TPreparedSequoiaTxCount>(*it->second).Count;
+        SequoiaTxRegistry_.erase(it);
+
+        std::vector<TPromise<void>> readyBarriers;
+
+        while (!SequoiaTimeline_.empty()) {
+            if (auto* count = std::get_if<TPreparedSequoiaTxCount>(&SequoiaTimeline_.front());
+                count && count->Count > 0)
+            {
+                break;
+            }
+
+            if (auto* barrier = std::get_if<TSequoiaTxBarrier>(&SequoiaTimeline_.front())) {
+                // For some reasons promises cannot be set here: it leads to
+                // execution of large amount of code which can try to acquire
+                // SequoiaTxRegistryLock_ which is already acquired.
+                readyBarriers.push_back(std::move(barrier->Promise));
+            }
+
+            SequoiaTimeline_.pop_front();
+        }
+
+        // Maybe it's better to set promises right here instead of using delayed
+        // executor but I don't want to bother about that since it's a temporary
+        // hack.
+        TDelayedExecutor::Submit(BIND([readyBarriers = std::move(readyBarriers)] {
+            for (auto& promise : readyBarriers) {
+                promise.Set();
+            }
+        }), TDuration::Zero());
+
+        YT_LOG_DEBUG("Sequoia tx unregistered (TransactionId: %v)", id);
     }
 
 private:
-    std::atomic<int> PreparedSequoiaTxCount_ = 0;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SequoiaTxRegistryLock_);
+
+    struct TPreparedSequoiaTxCount
+    {
+        int Count = 0;
+    };
+
+    struct TSequoiaTxBarrier
+    {
+        TPromise<void> Promise = NewPromise<void>();
+    };
+
+    using TTimelineEntry = std::variant<TPreparedSequoiaTxCount, TSequoiaTxBarrier>;
+    using TTimeline = std::deque<TTimelineEntry>;
+    TTimeline SequoiaTimeline_;
+    THashMap<TTransactionId, typename TTimeline::iterator> SequoiaTxRegistry_;
+
+    [[nodiscard]] TGuard<NThreading::TSpinLock> LockSequoiaTxRegistry()
+    {
+        YT_VERIFY(Config_->EnableWaitUntilPreparedTransactionsFinished);
+        auto guard = Guard(SequoiaTxRegistryLock_);
+        YT_VERIFY(SequoiaTxRegistry_.empty() == SequoiaTimeline_.empty());
+        return guard;
+    }
 
     const TTransactionSupervisorConfigPtr Config_;
     const IInvokerPtr TrackerInvoker_;
@@ -837,7 +932,7 @@ private:
                 auto mutationId = context->GetMutationId();
                 auto identity = GetCurrentAuthenticationIdentity();
                 asyncResponseMessage = readyEvent.Apply(
-                    BIND([=, owner = std::move(owner), prerequisiteTransactionIds = std::move(prerequisiteTransactionIds)] () {
+                    BIND([=, owner = std::move(owner), prerequisiteTransactionIds = std::move(prerequisiteTransactionIds)] {
                     return owner->CoordinatorCommitTransaction(
                         transactionId,
                         participantCellIds,

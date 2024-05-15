@@ -43,6 +43,8 @@ void TDiscoveryV1Config::Register(TRegistrar registrar)
 
 void TDiscoveryV2Config::Register(TRegistrar registrar)
 {
+    registrar.Parameter("discovery_readiness_timeout", &TThis::DiscoveryReadinessTimeout)
+        .Default(TDuration::Seconds(1));
     registrar.Preprocessor([] (TThis* config) {
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;

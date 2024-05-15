@@ -6,7 +6,7 @@
 
 #include <yt/cpp/mapreduce/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/string/builder.h>
 
@@ -60,7 +60,7 @@ void WaitOperationHasBriefProgress(const IOperationPtr& operation)
 TString GetOperationState(const IClientPtr& client, const TOperationId& operationId)
 {
     const auto& state = client->GetOperation(operationId).State;
-    UNIT_ASSERT(state.Defined());
+    EXPECT_TRUE(state.Defined());
     return *state;
 }
 

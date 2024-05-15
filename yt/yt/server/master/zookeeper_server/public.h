@@ -18,7 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(IZookeeperManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TZookeeperShard, TZookeeperShardId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TZookeeperShard, TZookeeperShardId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_MASTER_OBJECT_TYPE(TZookeeperShard)
 
 ////////////////////////////////////////////////////////////////////////////////

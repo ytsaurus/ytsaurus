@@ -5,13 +5,6 @@ from yt.common import YtError
 
 import yt.wrapper.http_helpers as http
 
-try:
-    from yt.packages.six.moves import xrange
-    from yt.packages.six.moves.urllib.parse import urlparse
-except ImportError:
-    from six.moves import xrange
-    from six.moves.urllib.parse import urlparse
-
 import yt.type_info as type_info
 import yt.wrapper as yt
 
@@ -20,6 +13,7 @@ import time
 import tempfile
 import requests_mock
 from copy import deepcopy
+from urllib.parse import urlparse
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -95,7 +89,7 @@ class TestClient(object):
             assert client.get_type(temp_table) == "table"
             assert client.is_empty(temp_table)
 
-            client.write_table(temp_table, [{"a": i} for i in xrange(10)])
+            client.write_table(temp_table, [{"a": i} for i in range(10)])
             client.run_sort(temp_table, sort_by=["x"])
             assert client.is_sorted(temp_table)
 

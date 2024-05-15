@@ -894,6 +894,7 @@ protected:
     bool IsOutputLivePreviewSupported() const;
     bool IsLegacyIntermediateLivePreviewSupported() const;
     virtual bool IsIntermediateLivePreviewSupported() const;
+    virtual TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const;
 
     //! Accumulate information about legacy live preview depending on operation type and user intent.
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const;
@@ -911,6 +912,8 @@ protected:
 
     virtual void OnOperationTimeLimitExceeded();
 
+    bool HasJobUniquenessRequirements() const;
+    bool IsJobUniquenessRequired(const TJobletPtr& joblet) const;
     virtual void OnJobUniquenessViolated(TError error);
 
     void GracefullyFailOperation(TError error);
@@ -1008,7 +1011,7 @@ protected:
     std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
 
-    void InitUserJobSpec(
+    virtual void InitUserJobSpec(
         NControllerAgent::NProto::TUserJobSpec* proto,
         TJobletPtr joblet) const;
 

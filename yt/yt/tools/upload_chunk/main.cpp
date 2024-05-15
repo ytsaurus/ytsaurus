@@ -60,7 +60,7 @@ void UploadChunk(const TString& chunkId, const TString& chunkPath, const TString
     int blockIndex = 0;
     i64 blockSizes = 0;
 
-    auto flushBlocks = [&] () {
+    auto flushBlocks = [&] {
         auto putBlocksReq = proxy.PutBlocks();
 
         ToProto(putBlocksReq->mutable_session_id(), sessionId);

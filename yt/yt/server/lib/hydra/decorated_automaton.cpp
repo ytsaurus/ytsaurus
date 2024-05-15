@@ -232,7 +232,7 @@ public:
             return;
         }
 
-        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] () {
+        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] {
             auto state = owner->GetState();
             if (state != EPeerState::Leading && state != EPeerState::Following) {
                 return;
@@ -1219,7 +1219,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
         }
 
         if (auto sanitizedLocalHost = NHydra::SanitizeLocalHostName(hosts, localHost)) {
-            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost)",
+            YT_LOG_INFO("Local host name sanitized (Hosts: %v, LocalHost: %v, SanitizedLocalHost: %v)",
                 hosts,
                 localHost,
                 *sanitizedLocalHost);

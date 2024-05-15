@@ -2223,13 +2223,13 @@ def remove_maintenance(**kwargs):
 
 
 def add_maintenance_request_parsers(add_parser):
-    parser = add_parser("add_maintenance", add_maintenance)
+    parser = add_parser("add-maintenance", add_maintenance)
     parser.add_argument("--component", type=str)
     parser.add_argument("--address", type=str)
     parser.add_argument("--type", type=str)
     parser.add_argument("--comment", type=str)
 
-    parser = add_parser("remove_maintenance", remove_maintenance)
+    parser = add_parser("remove-maintenance", remove_maintenance)
     parser.add_argument("-c", "--component", type=str)
     parser.add_argument("-a", "--address", type=str)
     parser.add_argument("--id", default=None)
@@ -2565,7 +2565,7 @@ def add_run_command_with_lock_parser(add_parser):
     parser.set_defaults(func=run_command_with_lock_handler)
 
 
-def main_func():
+def _prepare_config_parser():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
                                                "by default YT_PROXY from environment")
@@ -2581,6 +2581,11 @@ def main_func():
                                help="turn on pinging ancestor transactions")
     config_parser.add_argument("--trace", action="store_true",
                                help="trace execution of request using jaeger")
+    return config_parser
+
+
+def _prepare_parser():
+    config_parser = _prepare_config_parser()
 
     parser = ArgumentParser(parents=[config_parser],
                             formatter_class=RawDescriptionHelpFormatter,
@@ -2741,9 +2746,18 @@ def main_func():
     if HAS_IDM_CLI_HELPERS:
         add_idm_parser(subparsers)
 
+    add_maintenance_request_parsers(add_parser)
+
     add_admin_parser(subparsers)
 
     add_dirtable_parser(subparsers)
+
+    return parser
+
+
+def main_func():
+    config_parser = _prepare_config_parser()
+    parser = _prepare_parser()
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, append_space=False)

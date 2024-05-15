@@ -82,7 +82,7 @@ void TCompositeAutomaton::RegisterMethod(
     TCallback<void(TRequest*)> callback,
     const std::vector<TString>& aliases)
 {
-    auto mutationHandler = BIND([=, this] (TMutationContext* context) {
+    auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
         auto request = ObjectPool<TRequest>().Allocate();
         auto* descriptor = GetMethodDescriptor(TRequest::default_instance().GetTypeName());
         DeserializeRequestAndProfile(

@@ -11,13 +11,6 @@ import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
-try:
-    from yt.packages.six import b
-    from yt.packages.six.moves import xrange, map as imap, zip as izip
-except ImportError:
-    from six import b
-    from six.moves import xrange, map as imap, zip as izip
-
 import yt.wrapper as yt
 
 import pytest
@@ -35,7 +28,7 @@ from functools import reduce
 class TestYamrMode(object):
     def get_temp_records(self):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
-        return list(imap(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns)))))
+        return list(map(dumps_row, starmap(Record, map(flatten, reduce(zip, columns)))))
 
     @authors("ignat")
     def test_get_smart_format(self):
@@ -178,7 +171,7 @@ class TestYamrMode(object):
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
         output_tables = []
-        for i in xrange(10):
+        for i in range(10):
             output_tables.append(TEST_DIR + "/temp%d" % i)
         append_table = TEST_DIR + "/temp_special"
         yt.write_table(table, [b"1\t1\t1\n"])
@@ -214,7 +207,7 @@ class TestYamrMode(object):
         yt.write_table(table, [b"0\ta\tA\n", b"1\tb\tB\n", b"2\tc\tC\n"])
         yt.run_map("PYTHONPATH=. {} my_op.py".format(get_python()),
                    table, other_table,
-                   local_files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
+                   local_files=list(map(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert yt.row_count(other_table) == 2 * yt.row_count(table)
 
         test_run_operations_dir = os.path.join(get_tests_sandbox(), "test_run_operations")
@@ -225,7 +218,7 @@ class TestYamrMode(object):
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin", table, other_table, local_files=cpp_bin)
         assert sorted(yt.read_table(other_table)) == \
-            [b("key{0}\tsubkey\tvalue=value\n".format(i)) for i in xrange(5)]
+            [bytes("key{0}\tsubkey\tvalue=value\n".format(i), "utf-8") for i in range(5)]
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
@@ -277,7 +270,7 @@ class TestYamrMode(object):
         yt.write_table(table, [b"1\t2\t3\n"])
         yt.run_map("PYTHONPATH=. {} my_op.py".format(get_python()),
                    [table, other_table], another_table,
-                   local_files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
+                   local_files=list(map(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert not yt.exists(other_table)
 
     @authors("ignat")

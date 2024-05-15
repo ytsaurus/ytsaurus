@@ -308,7 +308,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
         nodeListFutures.push_back(
-            BIND([nodeShard] () {
+            BIND([nodeShard] {
                 return BuildYsonStringFluently<EYsonType::MapFragment>()
                     .Do(BIND(&TSimulatorNodeShard::BuildNodesYson, nodeShard))
                     .Finish();
@@ -322,7 +322,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
 
     StrategyHost_.LogEventFluently(StrategyHost_.GetEventLogger(), ELogEventType::NodesInfo, event.Time)
         .Item("nodes")
-        .DoMapFor(nodeLists, [](TFluentMap fluent, const auto& nodeList) {
+        .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
             fluent.Items(nodeList);
         });
 

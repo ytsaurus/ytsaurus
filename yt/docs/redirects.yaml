@@ -3,6 +3,14 @@ common:
       to: /api/cpp/
       type: redirect
 
+    - from: /user-guide/data-processing/porto/([^/]+\.md)
+      to: /user-guide/data-processing/layers/$1
+      type: redirect
+
+    - from: /user-guide/data-processing/table-switch.md
+      to: /user-guide/data-processing/operations/table-switch.md
+      type: redirect
+
 ru:
     - from: /api/c\+\+/c\+\+_api.md
       to: /api/c/description.md
@@ -89,7 +97,7 @@ ru:
       type: redirect
 
     - from: /description/chyt/cliques/access.md
-      to: /user-guide/data-processing/spyt/access.md
+      to: /user-guide/data-processing/chyt/cliques/access.md
       type: redirect
 
     - from: /description/chyt/cliques/controller.md
@@ -381,19 +389,19 @@ ru:
       type: redirect
 
     - from: /description/mr/porto/layer_paths.md
-      to: /user-guide/data-processing/porto/layer-paths.md
+      to: /user-guide/data-processing/layers/layer-paths.md
       type: redirect
 
     - from: /description/mr/porto/layers_in_yt_operation.md
-      to: /user-guide/data-processing/porto/layers-in-yt-operation.md
+      to: /user-guide/data-processing/layers/layers-in-yt-operation.md
       type: redirect
 
     - from: /description/mr/porto/layers_sandbox_tasks.md
-      to: /user-guide/data-processing/porto/layers-sandbox-tasks.md
+      to: /user-guide/data-processing/layers/layers-sandbox-tasks.md
       type: redirect
 
     - from: /description/mr/porto/recommendation.md
-      to: /user-guide/data-processing/porto/recommendation.md
+      to: /user-guide/data-processing/layers/recommendation.md
       type: redirect
 
     - from: /description/mr/reduce.md
@@ -747,3 +755,4 @@ ru:
     - from: /problems/woodpeckers.md
       to: /user-guide/problems/woodpeckers.md
       type: redirect
+

@@ -49,7 +49,7 @@ public:
         return AllSet(asyncResults);
     }
 
-    TFuture<TString> GetDelegationToken(TDelegationTokenRequest request) override
+    TFuture<TDelegationTokenResponse> GetDelegationToken(TDelegationTokenRequest request) override
     {
         return Underlying_->GetDelegationToken(std::move(request));
     }

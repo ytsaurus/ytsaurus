@@ -491,6 +491,11 @@ protected:
         chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
         return chunkPoolOptions;
     }
+
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return OrderedTask_->GetVertexDescriptor();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
@@ -611,7 +616,7 @@ private:
 
         ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
-        auto inferFromInput = [&] () {
+        auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
                 table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
             } else {

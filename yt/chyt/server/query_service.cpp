@@ -62,8 +62,10 @@ public:
         , Host_(host)
         , User_(user)
         , QueryId_(queryId)
-        , CompositeSettings_(Host_->GetConfig()->QuerySettings->Composite)
-    { }
+        , CompositeSettings_(New<TCompositeSettings>())
+    {
+        CompositeSettings_->ConvertUnsupportedTypesToString = true;
+    }
 
     TErrorOr<TRowset> Execute()
     {

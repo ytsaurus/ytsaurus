@@ -394,8 +394,8 @@ public:
     {
         TDriverModuleBase::Initialize(
             "driver_lib",
-            [](){TDriver::InitType();},
-            [&](){initialize("Python bindings for YT driver");},
+            [] {TDriver::InitType();},
+            [&] {initialize("Python bindings for YT driver");},
             std::bind(&TDriverModule::moduleDictionary, this),
             &TDriverModule::add_keyword_method);
 
@@ -424,9 +424,23 @@ static PyObject* init_module()
 }
 
 #if PY_MAJOR_VERSION < 3
-extern "C" EXPORT_SYMBOL void initdriver_lib() { Y_UNUSED(init_module()); }
-extern "C" EXPORT_SYMBOL void initdriver_lib_d() { initdriver_lib(); }
+extern "C" EXPORT_SYMBOL void initdriver_lib()
+{
+    Y_UNUSED(init_module());
+}
+
+extern "C" EXPORT_SYMBOL void initdriver_lib_d()
+{
+    initdriver_lib();
+}
 #else
-extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib() { return init_module(); }
-extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib_d() { return PyInit_driver_lib(); }
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib()
+{
+    return init_module();
+}
+
+extern "C" EXPORT_SYMBOL PyObject* PyInit_driver_lib_d()
+{
+    return PyInit_driver_lib();
+}
 #endif

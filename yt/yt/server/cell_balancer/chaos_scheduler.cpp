@@ -281,10 +281,90 @@ void RegisterChaosCells(
     mutations->ChangedChaosCellTagLast = lastCellTag;
 }
 
+void RegisterAdditionalChaos(
+    const TString& bundleName,
+    TChaosSchedulerInputState& input,
+    TChaosSchedulerMutations* mutations)
+{
+    const auto& registry = input.GlobalRegistry;
+    auto lastCellTag = mutations->ChangedChaosCellTagLast.value_or(registry->CellTagLast);
+    auto bundleInfo = GetOrCrash(input.TabletCellBundles, bundleName);
+
+    auto registeredChaosCells = [&] {
+        auto it = input.AdditionalCellTagsByBundle.find(bundleName);
+        if (it == input.AdditionalCellTagsByBundle.end()) {
+            return 0;
+        }
+
+        return static_cast<int>(it->second.size());
+    }();
+
+    auto cellsToRegister = std::max(bundleInfo->TargetConfig->AdditionalChaosCellCount - registeredChaosCells / 2, 0);
+
+    if (cellsToRegister == 0) {
+        return;
+    }
+
+    if (lastCellTag + 1 < registry->CellTagRangeBegin) {
+        YT_LOG_WARNING("Cannot register additional chaos cells for bundle: inconsistent global registry "
+            "(ChaosCellBundle: %v, CellTagRangeBegin: %v, CellTagRangeEnd: %v, LastCellTag: %v)",
+            bundleName,
+            registry->CellTagRangeBegin,
+            registry->CellTagRangeEnd,
+            lastCellTag);
+
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = "global_cell_registry_is_inconsistent",
+            .BundleName = bundleName,
+            .Description = Format("Cannot register new chaos cells for bundle: inconsistent global registry"),
+        });
+        return;
+    }
+
+    if (lastCellTag + cellsToRegister > registry->CellTagRangeEnd) {
+        YT_LOG_WARNING("Cannot register new chaos cells for bundle: "
+            "chaos cell tag range is exhausted (ChaosCellBundle: %v)",
+            bundleName);
+
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = "chaos_cell_tag_range_is_exhausted",
+            .BundleName = bundleName,
+            .Description = "Cannot register new chaos cells for bundle: chaos cell tag range is exhausted",
+        });
+        return;
+    }
+
+    for (const auto& areaName : {DefaultAreaName, BetaAreaName}) {
+        for (int index = 0; index < cellsToRegister; ++index) {
+            auto nextCellTag = TCellTag(++lastCellTag);
+            auto cellTagInfo = New<TCellTagInfo>();
+            cellTagInfo->Area = areaName;
+            cellTagInfo->CellBundle = bundleName;
+            cellTagInfo->CellId = MakeChaosCellId(nextCellTag);
+
+            YT_LOG_INFO("Registering additional chaos cell to global registry "
+                "(ChaosCellBundle: %v, Area: %v, CellTag: %v, CellId: %v)",
+                bundleName,
+                cellTagInfo->Area,
+                nextCellTag,
+                cellTagInfo->CellId);
+
+            mutations->AdditionalCellTagsToRegister[nextCellTag] = std::move(cellTagInfo);
+        }
+    }
+
+    YT_LOG_INFO("Updating last cell tag (CurrentLastCellTag: %v, NewLastCellTag: %v)",
+        mutations->ChangedChaosCellTagLast,
+        lastCellTag);
+
+    mutations->ChangedChaosCellTagLast = lastCellTag;
+}
+
 void CreateChaosCells(
     const TString& bundleName,
     const TString& clusterName,
     TChaosSchedulerInputState& input,
+    const std::vector<TCellTagInfoPtr>& cellsByBundle,
     TChaosSchedulerMutations* mutations)
 {
     const auto& clusterBundles = GetOrCrash(input.ForeignChaosCellBundles, clusterName);
@@ -293,8 +373,6 @@ void CreateChaosCells(
     if (!chaosBundleInfo->Areas.contains(BetaAreaName)) {
         return;
     }
-
-    const auto& cellsByBundle = input.CellTagsByBundle[bundleName];
 
     for (const auto& cellInfo : cellsByBundle) {
         if (chaosBundleInfo->ChaosCellIds.contains(cellInfo->CellId)) {
@@ -367,7 +445,8 @@ void ProcessChaosCellBundles(const TString& bundleName, TChaosSchedulerInputStat
             CreateChaosCellBundle(bundleName, clusterName, input, mutations);
         } else {
             CreateBetaArea(bundleName, clusterName, input, mutations);
-            CreateChaosCells(bundleName, clusterName, input, mutations);
+            CreateChaosCells(bundleName, clusterName, input, input.CellTagsByBundle[bundleName], mutations);
+            CreateChaosCells(bundleName, clusterName, input, input.AdditionalCellTagsByBundle[bundleName], mutations);
             SetMetadataCellIds(bundleName, clusterName, input, mutations);
         }
     }
@@ -375,11 +454,11 @@ void ProcessChaosCellBundles(const TString& bundleName, TChaosSchedulerInputStat
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TCellTagsByBundle MakeIndexByBundle(const TGlobalCellRegistryPtr& registry)
+TCellTagsByBundle MakeIndexByBundle(const auto& cellTags)
 {
     TCellTagsByBundle result;
 
-    for (const auto& [_, cellInfo] : registry->CellTags) {
+    for (const auto& [_, cellInfo] : cellTags) {
         result[cellInfo->CellBundle].push_back(cellInfo);
     }
 
@@ -394,7 +473,8 @@ void ScheduleChaosBundles(TChaosSchedulerInputState& input, TChaosSchedulerMutat
         return;
     }
 
-    input.CellTagsByBundle = MakeIndexByBundle(input.GlobalRegistry);
+    input.CellTagsByBundle = MakeIndexByBundle(input.GlobalRegistry->CellTags);
+    input.AdditionalCellTagsByBundle = MakeIndexByBundle(input.GlobalRegistry->AdditionalCellTags);
 
     for (const auto& [bundleName, bundleInfo] : input.TabletCellBundles) {
         if (!bundleInfo->EnableBundleController || !bundleInfo->TargetConfig) {
@@ -406,6 +486,7 @@ void ScheduleChaosBundles(TChaosSchedulerInputState& input, TChaosSchedulerMutat
         }
 
         RegisterChaosCells(bundleName, input, mutations);
+        RegisterAdditionalChaos(bundleName, input, mutations);
         ProcessTabletCellBundles(bundleName, input, mutations);
         ProcessChaosCellBundles(bundleName, input, mutations);
     }

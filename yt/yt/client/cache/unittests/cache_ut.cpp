@@ -55,7 +55,7 @@ TEST(TClientsCacheTest, MultiThreads)
     TVector<size_t> collisions(threads.capacity());
 
     for (size_t i = 0 ; i < threads.capacity(); ++i) {
-        threads.emplace_back([=, &clients, &collisions] () {
+        threads.emplace_back([=, &clients, &collisions] {
             try {
                 for (size_t j = 0; j < 1000; ++j) {
                     auto client = cache->GetClient(Format("localhost:6000%v", i));

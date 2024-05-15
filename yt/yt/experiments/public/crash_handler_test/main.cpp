@@ -15,11 +15,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_THREAD_LOCAL(int) ThreadIndex;
+YT_DEFINE_THREAD_LOCAL(int, ThreadIndex) ;
 
 void CustomCrashSignalHandler()
 {
-    Cerr << Format("I am %v and I crashed\n", ThreadIndex);
+    Cerr << Format("I am %v and I crashed\n", ThreadIndex());
     Sleep(TDuration::Seconds(1));
 }
 
@@ -50,7 +50,7 @@ void Main()
 
     for (int index = 0; index < ThreadCount; ++index) {
         threadPool->GetInvoker()->Invoke(BIND([&, index] {
-            ThreadIndex = index;
+            ThreadIndex() = index;
             Cerr << Format("Thread %v is ready\n", index);
             readyPromises[index].Set();
             crashFuture.Get();

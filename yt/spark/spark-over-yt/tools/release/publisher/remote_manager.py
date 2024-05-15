@@ -9,7 +9,6 @@ logger = configure_logger("Remote manager")
 
 
 class PublishConfig(NamedTuple):
-    skip_spark_fork: bool = False
     specific_global_file: Optional[str] = None
     ignore_existing: bool = False
     snapshot_ttl: int = 14 * 24 * 60 * 60 * 1000
@@ -62,11 +61,16 @@ class Client:
         full_target_path = self.resolve_from_root(target_path)
         return self.yt_client.exists(full_target_path)
 
-    def write_file(self, local_file_path: str, target_path: str, executable: bool = False) -> NoReturn:
+    def write_file(self, object, target_path: str, executable: bool = False) -> NoReturn:
         full_target_path = self.resolve_from_root(target_path)
-        logger.debug(f"Writing {'executable' if executable else ''} file {local_file_path} to {full_target_path}")
-        with open(local_file_path, 'rb') as file:
-            self.yt_client.write_file(full_target_path, file)
+        if type(object) == str:
+            local_file_path = object
+            logger.debug(f"Writing {'executable' if executable else ''} file {local_file_path} to {full_target_path}")
+            with open(local_file_path, 'rb') as file:
+                self.yt_client.write_file(full_target_path, file)
+        else:
+            logger.debug(f"Writing {'executable' if executable else ''} object to {full_target_path}")
+            self.yt_client.write_file(full_target_path, object)
         if executable:
             self.yt_client.set(full_target_path + "/@executable", True)
 
@@ -98,9 +102,9 @@ def conf_remote_dir(versions: Optional[Versions] = None):
     return f"conf/{versions.spyt_version.get_version_directory()}"
 
 
-def spark_remote_dir(versions: Versions):
-    return f"spark/{versions.spark_version.get_version_directory()}"
-
-
 def spyt_remote_dir(versions: Versions):
     return f"spyt/{versions.spyt_version.get_version_directory()}"
+
+
+def spark_distrib_remote_dir(maj: int, min: int, patch: int):
+    return f"distrib/{maj}/{min}/{patch}"

@@ -174,11 +174,11 @@ public:
         Api_->SetTimeout(Config_->ApiTimeout.Seconds());
         Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
 
-        Profiler_.AddFuncGauge("/volume_surplus", MakeStrong(this), [this] () {
+        Profiler_.AddFuncGauge("/volume_surplus", MakeStrong(this), [this] {
             return VolumeSurplus_;
         });
 
-        Profiler_.AddFuncGauge("/layer_surplus", MakeStrong(this), [this] () {
+        Profiler_.AddFuncGauge("/layer_surplus", MakeStrong(this), [this] {
             return LayerSurplus_;
         });
 

@@ -1,12 +1,5 @@
 from .common import get_stream_size_or_none, YtError, chunk_iter_stream
 
-try:
-    from yt.packages.six import text_type, binary_type, next, PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import text_type, binary_type, next, PY3
-    from six.moves import xrange
-
 import os
 import types
 
@@ -50,7 +43,7 @@ def _split_chunks_by_max_size(stream, max_size):
             yield [chunk]
         else:
             pieces = [chunk[start_index:start_index + max_size]
-                      for start_index in xrange(0, len(chunk), max_size)]
+                      for start_index in range(0, len(chunk), max_size)]
             yield pieces
 
 
@@ -58,7 +51,7 @@ def _resplit_chunks(chunks, chunk_size):
     group = []
     length = 0
     for chunk in chunks:
-        assert isinstance(chunk, (text_type, binary_type))
+        assert isinstance(chunk, (str, bytes))
         need_len = chunk_size - length
         if need_len >= len(chunk):
             head = chunk
@@ -83,7 +76,7 @@ def _merge_items_into_chunks(items, chunk_size):
     length = 0
     chunk_items = []
     for item in items:
-        assert isinstance(item, (text_type, binary_type))
+        assert isinstance(item, (str, bytes))
         chunk_items.append(item)
         length += len(chunk_items[-1])
         if length >= chunk_size:
@@ -114,7 +107,7 @@ class Stream(object):
             self._isatty = isatty
 
     def _check_item_type(self, item):
-        if not isinstance(item, binary_type):
+        if not isinstance(item, bytes):
             raise TypeError("Stream expected to contain binary data but contains: '{}'.".format(
                 type(item)
             ))
@@ -164,12 +157,9 @@ class RawStream(Stream):
         if hasattr(input, "read"):
             # read files by chunks, not by lines
             input = chunk_iter_stream(input, chunk_size)
-        if isinstance(input, (text_type, binary_type)):
-            if isinstance(input, text_type):
-                if not PY3:
-                    input = input.encode("utf-8")
-                else:
-                    raise YtError("Only binary strings are supported as string input")
+        if isinstance(input, (str, bytes)):
+            if isinstance(input, str):
+                raise YtError("Only binary strings are supported as string input")
 
             self.size = len(input)
             input = [input]

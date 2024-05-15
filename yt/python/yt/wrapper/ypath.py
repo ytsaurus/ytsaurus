@@ -6,45 +6,33 @@ from .format import _ENCODING_SENTINEL
 
 import yt.yson as yson
 
-try:
-    from yt.packages.six import binary_type, text_type, PY3
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import binary_type, text_type, PY3
-    from six.moves import map as imap
-
 from copy import deepcopy
 import string
 
 
 class TokensByPath(object):
     def __init__(self, path):
-        if isinstance(path, binary_type):
+        if isinstance(path, bytes):
             self.slash = b"/"
             self.double_slash = b"//"
             self.sharp = b"#"
-            self.raw_path = binary_type(path)
-            self.string_type = binary_type
+            self.raw_path = bytes(path)
+            self.string_type = bytes
         else:
             self.slash = "/"
             self.double_slash = "//"
             self.sharp = "#"
-            self.raw_path = text_type(path)
-            self.string_type = text_type
+            self.raw_path = str(path)
+            self.string_type = str
 
     def to_path_type(self, text):
-        return text if self.string_type == text_type else text.encode("latin1")
+        return text if self.string_type == str else text.encode("latin1")
 
 
 def _process_prefix(path, prefix):
     tokens = TokensByPath(path)
     if prefix is not None:
         prefix = TokensByPath(prefix).raw_path
-    if not PY3 and prefix is not None and isinstance(prefix, text_type):
-        try:
-            prefix = prefix.encode("ascii")
-        except UnicodeDecodeError:
-            pass
     if prefix is not None and type(tokens.raw_path) != type(prefix):
         raise YtError("Type mismatch of ypath %r and prefix %r" % (tokens.raw_path, prefix))
 
@@ -155,13 +143,10 @@ def ypath_split(path):
 def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
     """Escapes string to use it as key in ypath."""
     def escape_char(ch):
-        if PY3 and isinstance(ch, int):
-            ch = binary_type([ch])
+        if isinstance(ch, int):
+            ch = bytes([ch])
 
-        if isinstance(ch, text_type) and not PY3:
-            ch = ch.encode("ascii")
-
-        assert isinstance(ch, binary_type)
+        assert isinstance(ch, bytes)
 
         if ch in [b"\\", b"/", b"@", b"&", b"[", b"{", b"*"]:
             return b"\\" + ch
@@ -170,15 +155,15 @@ def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
             return b"\\x" + string.hexdigits[num // 16].encode("ascii") + string.hexdigits[num % 16].encode("ascii")
         return ch
 
-    if isinstance(literal, binary_type):
-        return b"".join(imap(escape_char, literal))
+    if isinstance(literal, bytes):
+        return b"".join(map(escape_char, literal))
     else:
         # NB: we suppose that cypress always has utf-8 representation for unicode strings.
         if encoding is _ENCODING_SENTINEL:
-            encoding = "utf-8" if PY3 else None
+            encoding = "utf-8"
         if encoding is not None:
             literal = literal.encode(encoding)
-        return "".join(imap(lambda ch: escape_char(ch).decode("ascii"), literal))
+        return "".join(map(lambda ch: escape_char(ch).decode("ascii"), literal))
 
 
 class YPath(object):
@@ -367,7 +352,7 @@ class TablePath(YPathSupportingAppend):
         .. seealso:: `usage example <https://ytsaurus.tech/docs/en/user-guide/storage/ypath#known_attributes>`_
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously.
         """
-        if PY3 and isinstance(name, binary_type):
+        if isinstance(name, bytes):
             raise YtError("TablePath does not support binary strings")
 
         super(TablePath, self).__init__(name, simplify=simplify, attributes=attributes, append=append, client=client)

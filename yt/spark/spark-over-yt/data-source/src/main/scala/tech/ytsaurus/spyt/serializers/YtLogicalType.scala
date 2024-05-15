@@ -1,9 +1,9 @@
 package tech.ytsaurus.spyt.serializers
 
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.{UInt64Type, YsonType}
-import SchemaConverter.MetadataFields
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonType}
 import tech.ytsaurus.core.tables.ColumnValueType
+import tech.ytsaurus.spyt.serializers.SchemaConverter.MetadataFields
 import tech.ytsaurus.typeinfo.StructType.Member
 import tech.ytsaurus.typeinfo.{TiType, TypeName}
 
@@ -108,8 +108,8 @@ object YtLogicalType {
 
   // Unsupported types are listed here: yt/yt/client/arrow/arrow_row_stream_encoder.cpp
   case object Date extends AtomicYtLogicalType("date", 0x1008, ColumnValueType.UINT64, TiType.date(), DateType, arrowSupported = false)
-  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.UINT64, TiType.datetime(), TimestampType, arrowSupported = false)
-  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.UINT64, TiType.timestamp(), LongType, arrowSupported = false)
+  case object Datetime extends AtomicYtLogicalType("datetime", 0x1009, ColumnValueType.UINT64, TiType.datetime(), new DatetimeType(), arrowSupported = false)
+  case object Timestamp extends AtomicYtLogicalType("timestamp", 0x100a, ColumnValueType.UINT64, TiType.timestamp(), TimestampType, arrowSupported = false)
   case object Interval extends AtomicYtLogicalType("interval", 0x100b, ColumnValueType.INT64, TiType.interval(), LongType, arrowSupported = false)
 
   case object Void extends AtomicYtLogicalType("void", 0x100c, ColumnValueType.NULL, TiType.voidType(), NullType) //?

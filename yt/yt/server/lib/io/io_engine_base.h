@@ -28,6 +28,13 @@ constexpr auto MaxIovCountPerRequest = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EIOEngineRequestType,
+    (Read)
+    (Write)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIOEngineConfigBase
     : public NYTree::TYsonStruct
 {
@@ -51,6 +58,9 @@ public:
     std::optional<TDuration> SicknessExpirationTimeout;
 
     EDirectIOPolicy UseDirectIOForReads;
+
+    i64 WriteRequestLimit;
+    i64 ReadRequestLimit;
 
     REGISTER_YSON_STRUCT(TIOEngineConfigBase);
 
@@ -142,6 +152,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRequestCounterGuard;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TIOEngineBase
     : public IIOEngine
 {
@@ -168,7 +182,13 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads() const override;
 
+    bool IsReadRequestLimitExceeded() const override;
+
+    bool IsWriteRequestLimitExceeded() const override;
+
 protected:
+    friend class TRequestCounterGuard;
+
     using TConfig = TIOEngineConfigBase;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
@@ -195,6 +215,8 @@ protected:
     void AddReadWaitTimeSample(TDuration duration);
     void Reconfigure(const NYTree::INodePtr& node) override;
 
+    TRequestCounterGuard CreateRequestCounterGuard(EIOEngineRequestType requestType);
+
 private:
     const TConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TConfig> Config_;
@@ -218,11 +240,37 @@ private:
 
     std::atomic<bool> EnableFallocateConvertUnwritten_ = true;
 
+    std::atomic<i64> InFlightWriteRequestCount_ = 0;
+    std::atomic<i64> InFlightReadRequestCount_ = 0;
 
     void InitProfilerSensors();
     void SetSickFlag(const TError& error);
     void ResetSickFlag();
     virtual void DoReconfigure(const NYTree::INodePtr& node) = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRequestCounterGuard
+    : private TNonCopyable
+{
+public:
+    TRequestCounterGuard();
+    TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType);
+    TRequestCounterGuard(const TRequestCounterGuard& other) = delete;
+    TRequestCounterGuard(TRequestCounterGuard&& other);
+    ~TRequestCounterGuard();
+
+    TRequestCounterGuard& operator=(const TRequestCounterGuard& other) = delete;
+    TRequestCounterGuard& operator=(TRequestCounterGuard&& other);
+
+    void Release();
+
+private:
+    TIntrusivePtr<TIOEngineBase> Engine_;
+    EIOEngineRequestType RequestType_;
+
+    void MoveFrom(TRequestCounterGuard&& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

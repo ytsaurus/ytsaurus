@@ -3,18 +3,16 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
+#include "helpers.h"
 #include "private.h"
+#include "sequoia_service_detail.h"
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
-
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
-
-#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NCypressProxy {
 
@@ -23,7 +21,8 @@ using namespace NConcurrency;
 using namespace NCypressClient::NProto;
 using namespace NObjectClient;
 using namespace NRpc;
-using namespace NYTree;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -155,16 +154,10 @@ private:
     bool PredictSequoiaForSubrequest(const TSubrequest& subrequest)
     {
         // If this is a rootstock creation request - don't bother master with it.
-        auto context = CreateYPathContext(subrequest.RequestMessage);
-        if (context->GetMethod() == "Create") {
-            auto options = THandlerInvocationOptions();
-            auto typedContext = DeserializeAsTypedOrThrow<TReqCreate, TRspCreate>(context, options);
-
-            if (FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock) {
-                return true;
-            }
+        auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
+        if (IsCreateRootstockRequest(context)) {
+            return true;
         }
-
         // TODO(h0pless): Do something more smart when resolve cache will be implemented.
         return false;
     }
@@ -265,20 +258,20 @@ private:
     void InvokeSequoiaRequests()
     {
         auto& response = RpcContext_->Response();
+        auto client = Owner_->Bootstrap_->GetSequoiaClient();
 
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             if (subrequest.PredictedSequoia || subrequest.ForcedSequoia) {
                 const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
-                auto rspFuture = ExecuteVerb(sequoiaService, subrequest.RequestMessage, CypressProxyLogger);
+                auto rspFuture = ExecuteVerb(
+                    sequoiaService,
+                    subrequest.RequestMessage,
+                    client,
+                    CypressProxyLogger);
                 auto rsp = WaitFor(rspFuture)
                     .ValueOrThrow();
-                TSharedRefArrayBuilder messageBuilder(rsp.size());
-                for (const auto& part : rsp) {
-                    messageBuilder.Add(part);
-                }
-                auto message = messageBuilder.Finish();
-                if (CheckSubresponseError(message, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
+                if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
                     Subrequests_[index].ForcedNonSequoia = true;
                     continue;
                 }
@@ -302,7 +295,7 @@ private:
     bool CheckSubresponseError(const TSharedRefArray& message, TErrorCode errorCode)
     {
         try {
-            auto subresponse = New<TYPathResponse>();
+            auto subresponse = New<NYTree::TYPathResponse>();
             subresponse->Deserialize(message);
         } catch (const std::exception& ex) {
             auto error = TError(ex);

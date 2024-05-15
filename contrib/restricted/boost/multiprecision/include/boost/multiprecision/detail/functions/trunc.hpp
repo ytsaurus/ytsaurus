@@ -23,12 +23,16 @@ namespace impl {
 template <typename T>
 inline T trunc BOOST_PREVENT_MACRO_SUBSTITUTION (const T arg)
 {
-    using std::floor;
+    if (arg > 0)
+    {
+       using std::floor;
+
+       return floor(arg);
+    }
+
     using std::ceil;
 
-    return (arg > 0) ? floor(arg) : ceil(arg);
-}
-
+    return ceil(arg);}
 } // namespace impl
 
 #ifdef BOOST_MP_MATH_AVAILABLE

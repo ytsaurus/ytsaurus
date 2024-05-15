@@ -11,11 +11,6 @@ import yt.logger_config as logger_config
 import yt.yson as yson
 
 try:
-    from yt.packages.six import binary_type
-except ImportError:
-    from six import binary_type
-
-try:
     from cStringIO import StringIO as BytesIO
 except ImportError:  # Python 3
     from io import BytesIO
@@ -228,6 +223,8 @@ def create_driver_for_cell(driver, cell_id):
         del config["master_cache"]
     if "timestamp_provider" in config:
         del config["timestamp_provider"]
+    if "cypress_proxy" in config:
+        del config["cypress_proxy"]
 
     del config["secondary_masters"]
 
@@ -239,7 +236,7 @@ def convert_to_stream(data):
         return data
     elif hasattr(data, "read"):
         return data
-    elif isinstance(data, binary_type):
+    elif isinstance(data, bytes):
         return BytesIO(data)
     elif isinstance(data, list):
         return StringIterIO(iter(data))

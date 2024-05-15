@@ -7,11 +7,6 @@ from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
-try:
-    from yt.packages.six import binary_type
-except ImportError:
-    from six import binary_type
-
 import os
 import sys
 import traceback
@@ -55,7 +50,7 @@ def write_silently(strings, force_use_text_stdout=False):
 
 
 def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
-    if isinstance(string_or_bytes, binary_type):
+    if isinstance(string_or_bytes, bytes):
         get_binary_std_stream(output_stream).write(string_or_bytes)
     else:
         output_stream.write(string_or_bytes)

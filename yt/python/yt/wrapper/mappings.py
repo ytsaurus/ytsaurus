@@ -1,17 +1,6 @@
 from .common import get_value
 
-try:
-    from yt.packages.six import iteritems
-    from yt.packages.six.moves import map as imap
-except ImportError:
-    from six import iteritems
-    from six.moves import map as imap
-
-# Python3 compatibility
-try:
-    from collections.abc import Mapping, MutableMapping
-except ImportError:
-    from collections import Mapping, MutableMapping
+from collections.abc import Mapping, MutableMapping
 
 
 class VerifiedDict(MutableMapping):
@@ -79,12 +68,12 @@ class FrozenDict(Mapping):
 
     def __hash__(self):
         if self._hash is None:
-            self._hash = hash(tuple(sorted(iteritems(self._store))))
+            self._hash = hash(tuple(sorted(self._store.items())))
         return self._hash
 
     def __repr__(self):
         cls = self.__class__.__name__
-        items = ", ".join(imap(repr, iteritems(self._store)))
+        items = ", ".join(map(repr, self._store.items()))
         return "{0}({1})".format(cls, items)
 
     def pop(self, key, default=None):

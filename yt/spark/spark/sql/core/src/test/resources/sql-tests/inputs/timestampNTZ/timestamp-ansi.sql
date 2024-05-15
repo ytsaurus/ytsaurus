@@ -1,2 +1,0 @@
---SET spark.sql.ansi.enabled = true
---IMPORT timestamp.sql

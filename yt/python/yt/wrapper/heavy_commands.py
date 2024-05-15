@@ -18,11 +18,6 @@ import yt.logger as logger
 
 from yt.common import join_exceptions, YT_NULL_TRANSACTION_ID as null_transaction_id
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
 import sys
 import time
 
@@ -58,7 +53,7 @@ class _FileProgressReporter(_ProgressReporter):
             length = 2 ** 63
         result = []
         step = 2 * MB
-        for start in xrange(0, length, step):
+        for start in range(0, length, step):
             result.append(self._file.read(min((step, length - start))))
             if not result[-1]:
                 self._monitor.finish()

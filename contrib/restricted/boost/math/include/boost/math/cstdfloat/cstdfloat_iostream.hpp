@@ -32,6 +32,54 @@
   #include <boost/math/tools/nothrow.hpp>
   #include <boost/math/tools/throw_exception.hpp>
 
+namespace boost {
+   namespace math {
+      namespace detail {
+         //
+         // What follows is the input streaming code: this is not "proper" iostream code at all
+         // but that's hard to write.
+         // For now just pull in all the characters that could possibly form the number
+         // and let libquadmath's string parser make use of it.  This fixes most use cases
+         // including CSV type formats such as those used by the Random lib.
+         //
+         inline std::string read_string_while(std::istream& is, std::string const& permitted_chars)
+         {
+            std::ios_base::iostate     state = std::ios_base::goodbit;
+            const std::istream::sentry sentry_check(is);
+            std::string                result;
+
+            if (sentry_check)
+            {
+               int c = is.rdbuf()->sgetc();
+
+               for (;; c = is.rdbuf()->snextc())
+                  if (std::istream::traits_type::eq_int_type(std::istream::traits_type::eof(), c))
+                  { // end of file:
+                     state |= std::ios_base::eofbit;
+                     break;
+                  }
+                  else if (permitted_chars.find_first_of(std::istream::traits_type::to_char_type(c)) == std::string::npos)
+                  {
+                     // Invalid numeric character, stop reading:
+                     //is.rdbuf()->sputbackc(static_cast<char>(c));
+                     break;
+                  }
+                  else
+                  {
+                     result.append(1, std::istream::traits_type::to_char_type(c));
+                  }
+            }
+
+            if (!result.size())
+               state |= std::ios_base::failbit;
+            is.setstate(state);
+            return result;
+         }
+
+      }
+   }
+}
+
 #if defined(__GNUC__) && !defined(BOOST_MATH_TEST_IO_AS_INTEL_QUAD)
 
   // Forward declarations of quadruple-precision string functions.
@@ -97,12 +145,12 @@
 
         char* my_buffer2 = nullptr;
 
-#ifndef BOOST_NO_EXCEPTIONS
+#ifndef BOOST_MATH_NO_EXCEPTIONS
         try
         {
 #endif
           my_buffer2 = new char[v + 3];
-#ifndef BOOST_NO_EXCEPTIONS
+#ifndef BOOST_MATH_NO_EXCEPTIONS
         }
         catch(const std::bad_alloc&)
         {
@@ -135,9 +183,7 @@
     template<typename char_type, class traits_type>
     inline std::basic_istream<char_type, traits_type>& operator>>(std::basic_istream<char_type, traits_type>& is, boost::math::cstdfloat::detail::float_internal128_t& x)
     {
-      std::string str;
-
-      static_cast<void>(is >> str);
+      std::string str = boost::math::detail::read_string_while(is, "+-eE.0123456789infINFnanNANinfinityINFINITY");
 
       char* p_end;
 
@@ -749,9 +795,7 @@
     template<typename char_type, class traits_type>
     inline std::basic_istream<char_type, traits_type>& operator>>(std::basic_istream<char_type, traits_type>& is, boost::math::cstdfloat::detail::float_internal128_t& x)
     {
-      std::string str;
-
-      static_cast<void>(is >> str);
+      std::string str = boost::math::detail::read_string_while(is, "+-eE.0123456789infINFnanNANinfinityINFINITY");
 
       const bool conversion_is_ok = boost::math::cstdfloat::detail::convert_from_string(x, str.c_str());
 

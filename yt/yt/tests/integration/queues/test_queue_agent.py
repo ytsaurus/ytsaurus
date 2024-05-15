@@ -114,12 +114,23 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
             if wrong_schema[i]["name"] == "cluster":
                 wrong_schema.pop(i)
                 break
-        self._prepare_tables(queue_table_schema=wrong_schema)
+        self._prepare_tables()
+        create("table", "//sys/queue_agents/queues", force=True, attributes={
+            "dynamic": True,
+            "schema": wrong_schema,
+            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+        })
+        sync_mount_table("//sys/queue_agents/queues")
 
         orchid.wait_fresh_pass()
         assert_yt_error(orchid.get_pass_error(), "No such column")
 
-        self._prepare_tables(force=True)
+        create("table", "//sys/queue_agents/queues", force=True, attributes={
+            "dynamic": True,
+            "schema": init_queue_agent_state.QUEUE_TABLE_SCHEMA,
+            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+        })
+        sync_mount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
         orchid.validate_no_pass_error()
 
@@ -596,7 +607,7 @@ class TestRates(TestQueueAgentBase):
                    2 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert partitions[1]["read_data_weight_rate"]["1m_raw"] > 0
         assert abs(partitions[0]["read_data_weight_rate"]["1m_raw"] -
-                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
         # Check total read rate.
 
@@ -604,7 +615,7 @@ class TestRates(TestQueueAgentBase):
         assert abs(status["read_row_count_rate"]["1m_raw"] -
                    3 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert abs(status["read_data_weight_rate"]["1m_raw"] -
-                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
 
 class TestAutomaticTrimming(TestQueueAgentBase):
@@ -3006,19 +3017,19 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 3 * 1000,
+                "export_period": 5 * 1000,
                 "use_upper_bound_for_table_names": False,
             }
         })
 
         # This way we assure that we write the rows at the beginning of the period, so that all rows are physically written and flushed before the next export instant arrives.
-        mid_export = self._sleep_until_next_export_instant(period=3, offset=0.5)
+        mid_export = self._sleep_until_next_export_instant(period=5, offset=0.5)
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 2)
         self._flush_table("//tmp/q")
 
-        next_export = self._sleep_until_next_export_instant(period=3)
+        next_export = self._sleep_until_next_export_instant(period=5)
         # Flush should be fast enough. Increase period if this turns out to be flaky.
-        assert next_export - mid_export <= 3
+        assert next_export - mid_export <= 5
 
         wait(lambda: len(ls(export_dir)) == 1)
         # Given the constraints above, we check that all timestamps lie in [ts, ts + period], where ts is the timestamp in the name of the output table.

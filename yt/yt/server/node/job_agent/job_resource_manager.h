@@ -46,14 +46,14 @@ public:
     virtual double GetCpuToVCpuFactor() const = 0;
 
     //! Returns resource usage of running jobs.
-    virtual NClusterNode::TJobResources GetResourceUsage(bool includeWaiting = false) const = 0;
+    virtual NClusterNode::TJobResources GetResourceUsage(bool includePending = false) const = 0;
 
     //! Compares new usage with resource limits. Detects resource overdraft.
     virtual bool CheckMemoryOverdraft(const NClusterNode::TJobResources& delta) = 0;
 
     virtual TResourceAcquiringContext GetResourceAcquiringContext() = 0;
 
-    virtual int GetWaitingResourceHolderCount() = 0;
+    virtual int GetPendingResourceHolderCount() = 0;
 
     virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumer) = 0;
 
@@ -71,7 +71,7 @@ public:
 
     DECLARE_INTERFACE_SIGNAL(
         void(i64 mapped),
-        ReservedMemoryOvercommited);
+        ReservedMemoryOvercommitted);
 
 protected:
     friend TResourceHolder;
@@ -96,12 +96,30 @@ DEFINE_REFCOUNTED_TYPE(TJobResourceManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EResourcesState,
-    ((Waiting)   (0))
+    ((Pending)   (0))
     ((Acquired)  (1))
     ((Released)  (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TResourceOwner
+    : public TRefCounted
+{
+public:
+    TResourceOwner(
+        TGuid holderId,
+        TJobResourceManager* jobResourceManager,
+        EResourcesConsumerType resourceConsumerType,
+        const NClusterNode::TJobResources& jobResources);
+
+    void ReleaseResources();
+
+protected:
+    TResourceHolderPtr ResourceHolder_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceOwner)
 
 class TResourceHolder
     : public TRefCounted
@@ -109,33 +127,36 @@ class TResourceHolder
 public:
     const EResourcesConsumerType ResourcesConsumerType;
 
-    TResourceHolder(
+    static TResourceHolderPtr CreateResourceHolder(
+        TGuid id,
         TJobResourceManager* jobResourceManager,
         EResourcesConsumerType resourceConsumerType,
-        NLogging::TLogger logger,
         const NClusterNode::TJobResources& jobResources);
 
     TResourceHolder(
+        TGuid id,
         TJobResourceManager* jobResourceManager,
         EResourcesConsumerType resourceConsumerType,
-        NLogging::TLogger logger,
-        TResourceHolderPtr owner);
+        const NClusterNode::TJobResources& jobResources);
 
     TResourceHolder(const TResourceHolder&) = delete;
     TResourceHolder(TResourceHolder&&) = delete;
     ~TResourceHolder();
 
-    //! TransferResourcesTo, ReleaseResources, TryAcquireResourcesFor for the holder should not be called concurrently.
-    void TransferResourcesTo(TResourceHolder& other);
-    void ReleaseResources();
+    TGuid GetId() const noexcept;
 
     const std::vector<int>& GetPorts() const noexcept;
+    const NClusterNode::ISlotPtr& GetUserSlot() const noexcept;
+    const std::vector<NClusterNode::ISlotPtr>& GetGpuSlots() const noexcept;
 
     //! Returns true unless overcommit occurred.
     bool SetBaseResourceUsage(NClusterNode::TJobResources newResourceUsage);
     bool UpdateAdditionalResourceUsage(NClusterNode::TJobResources additionalResourceUsageDelta);
 
-    void ReleaseCumulativeResources();
+    IMemoryUsageTrackerPtr GetAdditionalMemoryUsageTracker(EMemoryCategory memoryCategory);
+
+    void ReleaseNonSlotResources();
+    void ReleaseBaseResources();
 
     NClusterNode::TJobResources GetResourceUsage() const noexcept;
 
@@ -143,25 +164,31 @@ public:
 
     const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
 
-    const NLogging::TLogger& GetLogger() const noexcept;
-
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
 
-    virtual TGuid GetIdAsGuid() const noexcept = 0;
-
-protected:
-    NLogging::TLogger Logger;
-
-    NClusterNode::ISlotPtr UserSlot_;
-
-    std::vector<NClusterNode::ISlotPtr> GpuSlots_;
+    NClusterNode::TJobResources GetFreeResources() const noexcept;
 
     void UpdateResourceDemand(
         const NClusterNode::TJobResources& jobResources,
         const NClusterNode::TJobResourceAttributes& resourceAttributes,
         int portCount);
 
+    const NLogging::TLogger& GetLogger() const noexcept;
+
+    TResourceOwnerPtr GetOwner() const noexcept;
+    void ResetOwner(const TResourceOwnerPtr& owner);
+
 private:
+    const TGuid Id_;
+
+    const NLogging::TLogger Logger;
+
+    TWeakPtr<TResourceOwner> Owner_;
+
+    NClusterNode::ISlotPtr UserSlot_;
+
+    std::vector<NClusterNode::ISlotPtr> GpuSlots_;
+
     friend TJobResourceManager::TResourceAcquiringContext;
     friend TJobResourceManager::TImpl;
 
@@ -177,18 +204,15 @@ private:
 
     std::vector<int> Ports_;
 
-    EResourcesState State_ = EResourcesState::Waiting;
-
-    TResourceHolderPtr Owner_;
-
-    bool Registered_ = false;
+    EResourcesState State_ = EResourcesState::Pending;
 
     void Register();
     void Unregister();
 
     class TAcquiredResources;
     void SetAcquiredResources(TAcquiredResources&& acquiredResources);
-    virtual void OnResourcesAcquired() noexcept = 0;
+
+    void ReleaseAdditionalResources();
 
     NClusterNode::TJobResources CumulativeResourceUsage() const noexcept;
 
@@ -202,11 +226,7 @@ private:
 
     TResourceHolderInfo BuildResourceHolderInfo() const noexcept;
 
-    template <class TResourceUsageUpdater>
-        requires std::is_invocable_r_v<
-            NClusterNode::TJobResources,
-            TResourceUsageUpdater,
-            const NClusterNode::TJobResources&>
+    template <CInvocable<NClusterNode::TJobResources(const NClusterNode::TJobResources&)> TResourceUsageUpdater>
     //! Semantic requirement: TResourceUsageUpdater::operator() must return delta between
     //! cumulative resource usages before and after the call to this function.
     bool DoSetResourceUsage(

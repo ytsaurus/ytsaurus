@@ -5,6 +5,7 @@ import shutil
 from tempfile import TemporaryDirectory, gettempdir
 from typing import Optional
 import zipfile
+import tarfile
 
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
@@ -16,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 extracted_spyt_dir: Optional[TemporaryDirectory] = None
 extracted_spark_dir: Optional[TemporaryDirectory] = None
+
+spark_distrib_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spark/"
 
 
 def _make_executables(directory):
@@ -31,6 +34,7 @@ def _extract_resources(resource_key_prefix: str, remove_prefix: str, destination
     logger.debug(f"Finding resource files with prefix {resource_key_prefix}")
     resource_paths = resource.resfs_files(resource_key_prefix)
     logger.debug(f"Found {len(resource_paths)} files. Extracting...")
+    extracted_files = []
     for resource_path in resource_paths:
         assert resource_path.startswith(remove_prefix)
         relative_resource_path = resource_path[len(remove_prefix):]
@@ -38,16 +42,24 @@ def _extract_resources(resource_key_prefix: str, remove_prefix: str, destination
         os.makedirs(os.path.dirname(destination_path), exist_ok=True)
         with open(destination_path, 'bw') as out:
             out.write(resource.resfs_read(resource_path))
+        extracted_files.append(destination_path)
+    return extracted_files
+
+
+def _spark_tar_members(tar_file, ):
+    for member in tar_file.getmembers():
+        slash_pos = member.path.find('/')
+        if slash_pos > 0:
+            member.path = member.path[slash_pos + 1:]
+            yield member
 
 
 def _extract_spark():
     temp_dir = TemporaryDirectory(prefix="spark_yamake_", ignore_cleanup_errors=True)
     logger.info(f"Created Spark temp dir {temp_dir}")
-    pyspark_dir = "contrib/python/ytsaurus-pyspark/pyspark/"
-    pyspark_subdirs = [f"{pyspark_dir}{subdir}" for subdir in ["bin", "conf", "jars"]]
-    for pyspark_subdir in pyspark_subdirs:
-        _extract_resources(pyspark_subdir, pyspark_dir, temp_dir.name)
-    _make_executables(os.path.join(temp_dir.name, "bin"))
+    files = _extract_resources(spark_distrib_dir, spark_distrib_dir, temp_dir.name)
+    with tarfile.open(files[0], 'r:gz') as tar_file:
+        tar_file.extractall(temp_dir.name, members=_spark_tar_members(tar_file), filter='tar')
     logger.info("Spark files extracted successfully")
     return temp_dir
 
@@ -57,8 +69,8 @@ def _extract_spyt():
     logger.info(f"Created Spyt temp dir {temp_dir}")
     spyt_original_dir = "yt/spark/spark-over-yt/spyt-package/src/main/spyt_cluster/"
     build_dir = temp_dir.name
-    _extract_resources(spyt_original_dir, spyt_original_dir, build_dir)
-    with zipfile.ZipFile(build_dir + "/spyt-package.zip", 'r') as zip_ref:
+    files = _extract_resources(spyt_original_dir, spyt_original_dir, build_dir)
+    with zipfile.ZipFile(files[0], 'r') as zip_ref:
         zip_ref.extractall(build_dir)
     package_dir = build_dir + "/spyt-package"
     for file_name in os.listdir(package_dir):

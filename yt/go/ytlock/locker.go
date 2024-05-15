@@ -2,6 +2,7 @@ package ytlock
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"go.ytsaurus.tech/library/go/core/xerrors"
@@ -14,6 +15,9 @@ var backOff = time.Second * 10
 // when an acquired lock is lost.
 var ErrLockLost = xerrors.NewSentinel("lock lost")
 
+// ErrUnretryable is a wrapping error that is not retried if returned from user job.
+var ErrUnretryable = xerrors.NewSentinel("unretryable error")
+
 // Job is function cancellable via ctx.
 type Job func(ctx context.Context) error
 
@@ -24,7 +28,7 @@ type Notify func(error, time.Duration)
 
 // RunLocked infinitely (with constant back-off) reacquires the lock and reruns the job.
 //
-// Stops when the job finishes with no error or when the context is closed.
+// Stops when the job finishes with no error or when the context is closed or when the job returns ErrUnretryable.
 //
 // Calls notify on each failed attempt.
 // In case of lost lock notify will have an error that wraps ErrLockLost.
@@ -40,6 +44,10 @@ func RunLocked(ctx context.Context, lock *Lock, job Job, notify Notify) error {
 				notify(ErrLockLost.Wrap(err), backOff)
 			} else {
 				notify(err, backOff)
+			}
+
+			if errors.Is(err, ErrUnretryable) {
+				return err
 			}
 
 			if err := sleepWithContext(ctx, backOff); err != nil {

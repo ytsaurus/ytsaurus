@@ -873,6 +873,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, IdGenerator_);
     Save(context, CompressionDictionaryInfos_);
     Save(context, SmoothMovementData_);
+    Save(context, CustomRuntimeData_);
 
     HunkLockManager_->Save(context);
 }
@@ -1054,6 +1055,11 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
         Load(context, SmoothMovementData_);
+    }
+
+    // COMPAT(gryzlov-ad)
+    if (context.GetVersion() >= ETabletReign::AddTabletCustomRuntimeData) {
+        Load(context, CustomRuntimeData_);
     }
 
     // COMPAT(aleksandra-zh)
@@ -1980,6 +1986,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
 
     snapshot->TabletCellBundle = Context_->GetTabletCellBundleName();
 
+    snapshot->CustomRuntimeData = CustomRuntimeData_;
+
     return snapshot;
 }
 
@@ -2452,6 +2460,9 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     replicatableContent->set_trimmed_row_count(GetTrimmedRowCount());
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
+    if (CustomRuntimeData_) {
+        replicatableContent->set_custom_runtime_data(CustomRuntimeData_.ToString());
+    }
 
     request->set_last_commit_timestamp(GetLastCommitTimestamp());
     request->set_last_write_timestamp(GetLastWriteTimestamp());
@@ -2501,6 +2512,10 @@ void TTablet::LoadReplicatedContent(const NProto::TReqReplicateTabletContent* re
     SetTrimmedRowCount(replicatableContent.trimmed_row_count());
     RetainedTimestamp_ = replicatableContent.retained_timestamp();
     CumulativeDataWeight_ = replicatableContent.cumulative_data_weight();
+
+    CustomRuntimeData_ = replicatableContent.has_custom_runtime_data()
+        ? TYsonString(replicatableContent.custom_runtime_data())
+        : TYsonString();
 
     RuntimeData_->LastCommitTimestamp = request->last_commit_timestamp();
     RuntimeData_->LastWriteTimestamp = request->last_write_timestamp();

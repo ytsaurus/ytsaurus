@@ -25,6 +25,9 @@ NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
 
 TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix);
 
+//! Unescapes special characters.
+TString ToStringLiteral(TStringBuf key);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsRetriableSequoiaError(const TError& error);

@@ -103,7 +103,7 @@ TEST_F(TOrderedDynamicStoreTest, Write)
 
 TEST_F(TOrderedDynamicStoreTest, SerializeEmpty)
 {
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(0, Store_->GetRowCount());
         EXPECT_EQ(0, Store_->GetValueCount());
     };
@@ -122,7 +122,7 @@ TEST_F(TOrderedDynamicStoreTest, SerializeNonempty)
     WriteRow(BuildRow("a=1;b=3.14"));
     WriteRow(BuildRow("c=test"));
 
-    auto check = [&] () {
+    auto check = [&] {
         EXPECT_EQ(2, Store_->GetRowCount());
         EXPECT_EQ(6, Store_->GetValueCount());
     };

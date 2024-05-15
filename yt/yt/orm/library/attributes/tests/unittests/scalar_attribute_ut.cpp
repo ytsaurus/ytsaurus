@@ -39,6 +39,24 @@ TEST(TClearAttributesTest, EmptyPath)
     EXPECT_EQ(0u, message.ByteSizeLong());
 }
 
+TEST(TClearAttributesTest, Asterisk)
+{
+    NProto::TMessage message;
+    message.set_int64_field(1);
+    ClearProtobufFieldByPath(message, "/*", false);
+    // Empty message has zero byte size.
+    EXPECT_EQ(0u, message.ByteSizeLong());
+
+    // This is legal. Imagine all fields in a message have the same shape. Not in our case though.
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(message, "/*/nested_message", false),
+        TErrorException);
+    // This is not a missing entry, this is supplying a string key to a repeated field.
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(message, "/*/nested_message", true),
+        TErrorException);
+}
+
 TEST(TClearAttributesTest, SimpleField)
 {
     NProto::TMessage message;
@@ -53,16 +71,50 @@ TEST(TClearAttributesTest, SimpleField)
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/nested_message", false));
     EXPECT_FALSE(message.nested_message().has_nested_message());
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/nested_message", true));
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/int64_field", false),
-        "\"/int64_field\" is missing");
-    EXPECT_THROW_WITH_SUBSTRING(
+        TErrorException);
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/nested_message/nested_message/int32_field", false),
-        "\"/nested_message/nested_message\" is missing");
+        TErrorException);
 
     EXPECT_FALSE(message.has_int64_field());
     EXPECT_FALSE(message.nested_message().has_nested_message());
     EXPECT_EQ(2, message.nested_message().int32_field());
+}
+
+TEST(TClearAttributesTest, MapField)
+{
+    NProto::TMessage message;
+    {
+        auto& map = *message.mutable_string_to_int32_map();
+        map["a"] = 1;
+        map["b"] = 2;
+    }
+
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map", false));
+    EXPECT_FALSE(message.string_to_int32_map().contains("a"));
+    EXPECT_FALSE(message.string_to_int32_map().contains("b"));
+
+    // It's OK to clean an empty map again.
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map", false));
+}
+
+TEST(TClearAttributesTest, MapFieldAsterisk)
+{
+    NProto::TMessage message;
+    {
+        auto& map = *message.mutable_string_to_int32_map();
+        map["a"] = 1;
+        map["b"] = 2;
+    }
+
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map/*", false));
+    EXPECT_FALSE(message.string_to_int32_map().contains("a"));
+    EXPECT_FALSE(message.string_to_int32_map().contains("b"));
+
+    // The message is there, it's OK to clean it again.
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map/*", false));
 }
 
 TEST(TClearAttributesTest, MapFieldItem)
@@ -76,15 +128,41 @@ TEST(TClearAttributesTest, MapFieldItem)
 
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map/a", false));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/string_to_int32_map/a", true));
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/string_to_int32_map/a", false),
-        "\"/string_to_int32_map/a\" is missing");
-    EXPECT_THROW_WITH_SUBSTRING(
+        TErrorException);
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/string_to_int32_map/c", false),
-        "\"/string_to_int32_map/c\" is missing");
+        TErrorException);
 
     EXPECT_FALSE(message.string_to_int32_map().contains("a"));
     EXPECT_EQ(2, message.string_to_int32_map().at("b"));
+}
+
+TEST(TClearAttributesTest, MapItemNestedAsterisk)
+{
+    NProto::TMessage message;
+    {
+        auto& map = *message.mutable_nested_message()->mutable_nested_message_map();
+        map["a"].mutable_nested_message()->set_int32_field(1);
+        map["b"].mutable_nested_message()->set_int32_field(2);
+    }
+
+    EXPECT_NO_THROW(
+        ClearProtobufFieldByPath(
+            message,
+            "/nested_message/nested_message_map/*/nested_message/int32_field",
+            false));
+    EXPECT_FALSE(message.nested_message().nested_message_map().at("a").nested_message().has_int32_field());
+    EXPECT_FALSE(message.nested_message().nested_message_map().at("b").nested_message().has_int32_field());
+
+    // We expect these paths to be present in every entry now.
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(
+            message,
+            "/nested_message/nested_message_map/*/nested_message/int32_field",
+            false),
+        TErrorException);
 }
 
 TEST(TClearAttributesTest, MapItemNestedField)
@@ -97,17 +175,52 @@ TEST(TClearAttributesTest, MapItemNestedField)
     }
 
     EXPECT_NO_THROW(
-        ClearProtobufFieldByPath(message, "/nested_message/nested_message_map/a/nested_message/int32_field", false));
+        ClearProtobufFieldByPath(
+            message,
+            "/nested_message/nested_message_map/a/nested_message/int32_field",
+            false));
     EXPECT_FALSE(message.nested_message().nested_message_map().at("a").nested_message().has_int32_field());
     EXPECT_EQ(0, message.nested_message().nested_message_map().at("a").nested_message().int32_field());
 
-    EXPECT_THROW_WITH_SUBSTRING(
-        ClearProtobufFieldByPath(message, "/nested_message/nested_message_map/c/nested_message/int32_field", false),
-        "\"/nested_message/nested_message_map/c\" is missing");
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(
+            message,
+            "/nested_message/nested_message_map/c/nested_message/int32_field",
+            false),
+        TErrorException);
     EXPECT_NO_THROW(
-        ClearProtobufFieldByPath(message, "/nested_message/nested_message_map/c/nested_message/int32_field", true));
+        ClearProtobufFieldByPath(
+            message,
+            "/nested_message/nested_message_map/c/nested_message/int32_field",
+            true));
 
     EXPECT_EQ(2, message.nested_message().nested_message_map().at("b").nested_message().int32_field());
+}
+
+TEST(TClearAttributesTest, ListField)
+{
+    NProto::TMessage message;
+    message.add_repeated_int32_field(1);
+    message.add_repeated_int32_field(2);
+
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_int32_field", false));
+    ASSERT_EQ(0, message.repeated_int32_field().size());
+
+    // Repeated fields may be empty.
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_int32_field", false));
+}
+
+TEST(TClearAttributesTest, ListFieldAsterisk)
+{
+    NProto::TMessage message;
+    message.add_repeated_int32_field(1);
+    message.add_repeated_int32_field(2);
+
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_int32_field/*", false));
+    ASSERT_EQ(0, message.repeated_int32_field().size());
+
+    // Repeated fields may be empty.
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_int32_field/*", false));
 }
 
 TEST(TClearAttributesTest, ListItem)
@@ -121,9 +234,15 @@ TEST(TClearAttributesTest, ListItem)
     message.add_repeated_nested_message()->set_int32_field(4);
 
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_int32_field/0", false));
-    EXPECT_THROW_WITH_SUBSTRING(ClearProtobufFieldByPath(message, "/repeated_int32_field/1", false), "range [-1, 1)");
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(message, "/repeated_int32_field/1", false),
+        TErrorException);
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_nested_message/1", false));
-    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_nested_message/0/repeated_int32_field/0", false));
+    EXPECT_NO_THROW(
+        ClearProtobufFieldByPath(
+            message,
+            "/repeated_nested_message/0/repeated_int32_field/0",
+            false));
 
     ASSERT_EQ(1, message.repeated_int32_field().size());
     EXPECT_EQ(2, message.repeated_int32_field().at(0));
@@ -140,13 +259,32 @@ TEST(TClearAttributesTest, ListItemNestedField)
 
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_nested_message/1/int32_field", false));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_nested_message/1/int32_field", true));
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/repeated_nested_message/2/int32_field", false),
-        "is missing");
+        TErrorException);
 
     ASSERT_EQ(2, message.repeated_nested_message().size());
     EXPECT_EQ(1, message.repeated_nested_message().at(0).int32_field());
     EXPECT_FALSE(message.repeated_nested_message().at(1).has_int32_field());
+}
+
+TEST(TClearAttributesTest, ListItemNestedFieldAsterisk)
+{
+    NProto::TMessage message;
+    message.add_repeated_nested_message()->set_int32_field(1);
+    message.add_repeated_nested_message()->set_int32_field(2);
+
+    EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/repeated_nested_message/*/int32_field", false));
+    ASSERT_EQ(2, message.repeated_nested_message().size());
+    EXPECT_FALSE(message.repeated_nested_message().at(0).has_int32_field());
+    EXPECT_FALSE(message.repeated_nested_message().at(1).has_int32_field());
+
+    // But now we expect to have this field in every message.
+    EXPECT_THROW(
+        ClearProtobufFieldByPath(message, "/repeated_nested_message/*/int32_field", false),
+        TErrorException);
+    EXPECT_NO_THROW(
+        ClearProtobufFieldByPath(message, "/repeated_nested_message/*/int32_field", true));
 }
 
 TEST(TClearAttributesTest, UnknownYsonField)
@@ -179,9 +317,9 @@ TEST(TClearAttributesTest, UnknownYsonField)
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/unknown_int1", true));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_string", true));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/unknown_string", true));
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/unknown_string", false),
-        "\"/unknown_string\" is missing");
+        TErrorException);
 
     EXPECT_EQ(1, message.int64_field());
     EXPECT_EQ(4, message.nested_message().int32_field());
@@ -226,12 +364,12 @@ TEST(TClearAttributesTest, UnknownYsonNestedField)
 
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map/key1", false));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map/key3/0", false));
-    EXPECT_THROW_WITH_SUBSTRING(
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/nested_message/unknown_map/key1", false),
-        "\"/nested_message/unknown_map/key1\" is missing");
-    EXPECT_THROW_WITH_SUBSTRING(
+        TErrorException);
+    EXPECT_THROW(
         ClearProtobufFieldByPath(message, "/nested_message/unknown_map1/key1", false),
-        "\"/nested_message/unknown_map1\" is missing");
+        TErrorException);
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map/key1", true));
     EXPECT_NO_THROW(ClearProtobufFieldByPath(message, "/nested_message/unknown_map1/key1", true));
 
@@ -735,7 +873,7 @@ TEST_F(TScalarAttributesEqualitySuite, Simple)
     Message1.set_bool_field(false);
 
     // Yson nodes comparison does not consider not set field and default field values equal.
-    EXPECT_EQ(AreEqual("/bool_field"), true);
+    EXPECT_FALSE(AreEqual("/bool_field"));
 
     Message1.set_int32_field(15);
     Message2.set_int32_field(16);
@@ -751,6 +889,7 @@ TEST_F(TScalarAttributesEqualitySuite, Map)
     auto getMap = [] (NProto::TMessage& message) -> auto& {
         return *message.mutable_string_to_int32_map();
     };
+    EXPECT_TRUE(AreEqual("/string_to_int32_map"));
     getMap(Message1)["a"] = 42;
     EXPECT_FALSE(AreEqual("/string_to_int32_map"));
 

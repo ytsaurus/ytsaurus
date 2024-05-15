@@ -302,6 +302,12 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
 {
     static const auto DefaultSensors = ConvertTo<THashMap<TString, TUserJobSensorPtr>>(BuildYsonStringFluently()
         .BeginMap()
+            .Item("cpu/burst").BeginMap()
+                .Item("path").Value("/user_job/cpu/burst")
+                .Item("type").Value("counter")
+                .Item("source").Value("statistics")
+                .Item("profiling_name").Value("/user_job/cpu/burst")
+            .EndMap()
             .Item("cpu/user").BeginMap()
                 .Item("path").Value("/user_job/cpu/user")
                 .Item("type").Value("counter")
@@ -325,6 +331,12 @@ const THashMap<TString, TUserJobSensorPtr>& TUserJobMonitoringDynamicConfig::Get
                 .Item("type").Value("counter")
                 .Item("source").Value("statistics")
                 .Item("profiling_name").Value("/user_job/cpu/throttled")
+            .EndMap()
+            .Item("cpu/cfs_throttled").BeginMap()
+                .Item("path").Value("/user_job/cpu/cfs_throttled")
+                .Item("type").Value("counter")
+                .Item("source").Value("statistics")
+                .Item("profiling_name").Value("/user_job/cpu/cfs_throttled")
             .EndMap()
             .Item("cpu/context_switches").BeginMap()
                 .Item("path").Value("/user_job/cpu/context_switches")
@@ -770,6 +782,42 @@ void TNbdConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProxyLoggingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mode", &TThis::Mode)
+        .Default();
+
+    registrar.Parameter("directory", &TThis::Directory)
+        .Default();
+
+    registrar.Parameter("log_manager_template", &TThis::LogManagerTemplate)
+        .DefaultNew();
+
+    registrar.Parameter("sharding_key_length", &TThis::ShardingKeyLength)
+        .Default()
+        .GreaterThan(0);
+
+    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
+        .Default();
+
+    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
+        .Default();
+
+    registrar.Postprocessor([] (TJobProxyLoggingConfig* config) {
+        if (config->Mode == EJobProxyLoggingMode::Simple) {
+            return;
+        }
+        if (!config->Directory.has_value()) {
+            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"directory\" option to be set");
+        }
+        if (!config->ShardingKeyLength.has_value()) {
+            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"sharding_key_length\" option to be set");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobProxyConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_proxy_logging", &TThis::JobProxyLogging)
@@ -786,12 +834,6 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
-
-    registrar.Parameter("job_proxy_stderr_path", &TThis::JobProxyStderrPath)
-        .Default();
-
-    registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
-        .Default();
 
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));

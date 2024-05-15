@@ -772,7 +772,7 @@ private:
                 fluent
                     .Item().BeginMap()
                     .Item("state").Value(slot.PeerState)
-                    .DoIf(slot.Cell, [&](TFluentMap fluent) {
+                    .DoIf(slot.Cell, [&] (TFluentMap fluent) {
                         fluent
                             .Item("cell_id").Value(slot.Cell->GetId())
                             .Item("peer_id").Value(slot.PeerId)

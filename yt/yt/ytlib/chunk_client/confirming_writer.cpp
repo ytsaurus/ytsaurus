@@ -223,7 +223,7 @@ private:
 
     void OpenSession()
     {
-        auto finally = Finally([&] () {
+        auto finally = Finally([&] {
             Initialized_ = true;
         });
 

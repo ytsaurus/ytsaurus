@@ -115,7 +115,11 @@ items:
          - name: Sorted tables
            href: user-guide/dynamic-tables/sorted-dynamic-tables.md
          - name: Ordered tables
-           href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+           items:
+             - name: Overview
+               href: user-guide/dynamic-tables/ordered-dynamic-tables.md
+             - name: Queue API
+               href: user-guide/dynamic-tables/queues.md
          - name: Replicated tables
            href: user-guide/dynamic-tables/replicated-dynamic-tables.md
          - name: Multi-versioning and transactions of dynamic tables
@@ -204,12 +208,12 @@ items:
          - name: Recommendations
            when: audience == "public"
            href: user-guide/data-processing/operations/recommendations.md
-         - name: Porto layers
+         - name: Root file system images
            when: audience == "public"
-           href: user-guide/data-processing/porto/layer-paths.md
+           href: user-guide/data-processing/layers/layer-paths.md
          - name: Switching between tables
            when: audience == "public"
-           href: user-guide/data-processing/table-switch.md
+           href: user-guide/data-processing/operations/table-switch.md
          - name: CHYT
            when: audience == "public"
            items:
@@ -284,6 +288,8 @@ items:
                  href: user-guide/data-processing/spyt/logs.md
                - name: Troubleshooting
                  href: user-guide/data-processing/spyt/problems.md
+             - name: Structured Streaming
+               href: user-guide/data-processing/spyt/structured-streaming.md
              - name: Spark SQL
                href: user-guide/data-processing/spyt/spark-sql.md
              - name: API
@@ -341,112 +347,50 @@ items:
    - name: API and reference
      when: audience == "public"
      items:
-       - name: API
+       - name: Working from the command line
          items:
-           - name: Working from the command line
-             items:
-               - name: Overview
-                 href: api/cli/cli.md
-               - name: Installation
-                 href: api/cli/install.md
-               - name: Examples
-                 href: api/cli/examples.md
-           - name: Python API
-             items:
-               - name: Overview
-                 href: api/python/start.md
-               - name: User guide
-                 href: api/python/userdoc.md
-               - name: Reference
-                 href: https://pydoc.ytsaurus.tech
-               - name: Data classes
-                 href: api/python/dataclass.md
-               - name: Python API with examples
-                 href: api/python/examples.md
-           - name: C++
-             items:
-               - name: Description
-                 href: api/cpp/description.md
-               - name: Protobuf representation of tables
-                 href: api/cpp/protobuf.md
-               # - name: Лямбда-выражения
-               #   href: api/cpp/lambda.md
-               # - name: Примеры использования
-               #   href: api/cpp/examples.md
-              # - name: Reference
-              #   href: api/cpp/reference.md
-           - name: Go API
-             href: api/go/reference.md
-           - name: Java API
-             href: api/java/examples.md
-           - name: JavaScript Wrapper
-             href: api/js-wrapper.md
-           - name: Commands
-             href: api/commands.md
-           - name: Query parameters
-             href: api/query-parameters.md
-           - name: Error codes
-             href: api/error-codes.md
-  # - name: Руководство администратора
-  #   when: audience == "public"
-  #   items:
-  #     - name: Установка {{product-name}}
-  #       items:
-  #         - name: Предварительные требования
-  #           href: admin-guide/set-req.md
-  #         - name: Подготовка окружения
-  #           href: admin-guide/set-environment.md
-  #         - name: Установка
-  #           href: admin-guide/set-install.md
-  #         - name: Проверка корректности установки
-  #           href: admin-guide/set-check.md
-  #         - name: Решение проблем с установкой
-  #           href: admin-guide/set-problems.md
-  #     - name: Описание папки sys
-  #       href: admin-guide/sys-folder.md
-  #     - name: Базовые задачи администратора
-  #       items:
-  #         - name: Добавление узла
-  #           href: admin-guide/add-node.md
-  #         - name: Удаление узла
-  #           href: admin-guide/del-node.md
-  #         - name: Замена диска
-  #           href: admin-guide/change-disk.md
-  #         - name: Расширение мастеров
-  #           href: admin-guide/ext-masters.md
-  #         - name: Обновление версии компонент
-  #           href: admin-guide/new-ver.md
-  #         - name: Поднятие сервисов dyn_tables, chyt, spyt
-  #           href: admin-guide/services.md
-  #         - name: Забанить пользователя
-  #           href: admin-guide/block-user.md
-  #         - name: Создание и удаление пользователей
-  #           href: admin-guide/create-del-users.md
-  #         - name: Создание и удаление аккаунтов, пулов, бандлов
-  #           href: admin-guide/acc-pull-bundle.md
-  #         - name: Управление квотами аккаунта, пула, бандла
-  #           href: admin-guide/quotas.md
-  #         - name: Версия компонента и другие настройки
-  #           href: admin-guide/ver-settings.md
-  #     - name: Мониторинг
-  #       href: admin-guide/monitoring.md
-  #     - name: Конфигурация узла, мастера, прокси
-  #       items:
-  #         - name: Настройка памяти, CPU, дисков, сети
-  #           href: admin-guide/set-memory.md
-  #     - name: Бекап настроек
-  #       href: admin-guide/back-up.md
-  #     - name: Скрипты и инструменты
-  #       href: admin-guide/scripts.md
-  #     - name: Гайд по безопасности
-  #       href: admin-guide/safety-guide.md
-  #     - name: Гайд по производительности
-  #       href: admin-guide/performance-guide.md
-#   - name: Recommendations
-#     items:
-#       - name: Quota monitoring
-#         when: audience == "public"
-#         href: user-guide/best-practice/quota-monitoring.md
+           - name: Overview
+             href: api/cli/cli.md
+           - name: Installation
+             href: api/cli/install.md
+           - name: Examples
+             href: api/cli/examples.md
+           - name: CLI commands
+             href: api/cli/commands.md
+       - name: Python API
+         items:
+           - name: Overview
+             href: api/python/start.md
+           - name: User guide
+             href: api/python/userdoc.md
+           - name: Reference
+             href: https://pydoc.ytsaurus.tech
+           - name: Data classes
+             href: api/python/dataclass.md
+           - name: Python API with examples
+             href: api/python/examples.md
+       - name: C++
+         items:
+           - name: Description
+             href: api/cpp/description.md
+           - name: Protobuf representation of tables
+             href: api/cpp/protobuf.md
+           - name: Lambda expressions
+             href: api/cpp/lambda.md
+           - name: Usage examples
+             href: api/cpp/examples.md
+       - name: Go API
+         href: api/go/reference.md
+       - name: Java API
+         href: api/java/examples.md
+       - name: JavaScript Wrapper
+         href: api/js-wrapper.md
+       - name: Commands
+         href: api/commands.md
+       - name: Query parameters
+         href: api/query-parameters.md
+       - name: Error codes
+         href: api/error-codes.md
    - name: Admin guide
      when: audience == "public"
      items:

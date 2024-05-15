@@ -1,5 +1,6 @@
 #include "private.h"
 #include "bootstrap.h"
+#include "sequoia_service_detail.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -10,6 +11,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -29,48 +31,37 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NTransactionClient;
-using namespace NYTree;
 
 using TYPath = NYPath::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRootstockProxy
-    : public TYPathServiceBase
+    : public TSequoiaServiceBase
 {
 public:
     TRootstockProxy(
         IBootstrap* bootstrap,
-        TYPath path,
+        TAbsoluteYPath path,
         ISequoiaTransactionPtr transaction)
         : Bootstrap_(bootstrap)
         , Path_(std::move(path))
         , Transaction_(std::move(transaction))
     { }
 
-    TResolveResult Resolve(
-        const TYPath& path,
-        const IYPathServiceContextPtr& /*context*/) override
-    {
-        // NB: For rootstock resolve cannot be performed on Сypress proxy, but the transaction has to be started there.
-        // We assume path is correct, if this is not the case - prepare in 2PC will fail and the error will be propagated
-        // to the user.
-        return TResolveResultHere{path};
-    }
+private:
+    IBootstrap* const Bootstrap_;
+    const TAbsoluteYPath Path_;
+    const ISequoiaTransactionPtr Transaction_;
 
-    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
         // NB: Only Create method is supported for rootstocks on Сypress proxy,
         // because technically rootstock is a Сypress object.
         DISPATCH_YPATH_SERVICE_METHOD(Create);
 
-        return TYPathServiceBase::DoInvoke(context);
+        return false;
     }
-
-private:
-    IBootstrap* const Bootstrap_;
-    const TYPath Path_;
-    const ISequoiaTransactionPtr Transaction_;
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Create)
     {
@@ -117,7 +108,7 @@ private:
 
         const auto& connection = Bootstrap_->GetNativeConnection();
         const auto& rootstockCellTag = connection->GetPrimaryMasterCellTag();
-        auto attributes = FromProto(request->node_attributes());
+        auto attributes = NYTree::FromProto(request->node_attributes());
         auto scionCellTag = Transaction_->GetRandomSequoiaNodeHostCellTag();
 
         auto rootstockId = Transaction_->GenerateObjectId(type, rootstockCellTag, /*sequoia*/ false);
@@ -125,17 +116,17 @@ private:
         attributes->Set("scion_id", scionId);
 
         Transaction_->WriteRow(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(Path_)},
+            .Key = {.Path = Path_.ToMangledSequoiaPath()},
             .NodeId = scionId,
         });
         Transaction_->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = scionId},
-            .Path = Path_,
+            .Path = Path_.ToString(),
         });
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         rootstockAction.mutable_request()->CopyFrom(*request);
-        rootstockAction.set_path(Path_);
+        rootstockAction.set_path(Path_.ToString());
 
         auto* createRootstockRequest = rootstockAction.mutable_request();
         ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
@@ -169,13 +160,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathServicePtr CreateRootstockProxy(
+ISequoiaServicePtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr transaction,
-    TYPath resolvedPath)
+    TAbsoluteYPath resolvedPath)
 {
-    auto proxy = New<TRootstockProxy>(bootstrap, std::move(resolvedPath), std::move(transaction));
-    return proxy;
+    return New<TRootstockProxy>(
+        bootstrap,
+        std::move(resolvedPath),
+        std::move(transaction));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

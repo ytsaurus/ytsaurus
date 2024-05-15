@@ -29,7 +29,6 @@ IF (NOT OPENSOURCE)
         docs
         docs/yandex-specific
         docs/ytsaurus
-        hermes
         idm-integration
         internal
         jaeger

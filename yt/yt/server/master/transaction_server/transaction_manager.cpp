@@ -179,19 +179,19 @@ public:
 
         RegisterLoader(
             "TransactionManager.Keys",
-            BIND(&TTransactionManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionManager.Values",
-            BIND(&TTransactionManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionManager.Keys",
-            BIND(&TTransactionManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionManager.Values",
-            BIND(&TTransactionManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTransactionManager::SaveValues, Unretained(this)));
     }
 
     void Initialize() override
@@ -469,7 +469,6 @@ public:
 
         auto transactionHolder = TPoolAllocator::New<TTransaction>(transactionId, upload);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
-        transaction->RememberAevum();
 
         // Every active transaction has a fake reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
@@ -710,7 +709,9 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
-        MaybeChangePreparedSequoiaTxCount(transaction, -1);
+        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+            Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
+        }
 
         if (auto* parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
@@ -851,7 +852,9 @@ public:
         TransactionAborted_.Fire(transaction);
 
         RunAbortTransactionActions(transaction, options);
-        MaybeChangePreparedSequoiaTxCount(transaction, -1);
+        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+            Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
+        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1248,17 +1251,6 @@ public:
         PrepareTransactionCommit(transaction, options);
     }
 
-    void MaybeChangePreparedSequoiaTxCount(TTransaction* transaction, int delta)
-    {
-        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
-        if (!transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
-            return;
-        }
-        if (transaction->GetIsSequoiaTransaction()) {
-            Bootstrap_->GetTransactionSupervisor()->ChangePreparedSequoiaTxCount(delta);
-        }
-    }
-
     void PrepareTransactionCommit(
         TTransaction* transaction,
         const TTransactionPrepareOptions& options)
@@ -1298,8 +1290,10 @@ public:
 
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
+        if (IsSequoiaTxBarrierEnabled() && transaction->GetIsSequoiaTransaction()) {
+            Bootstrap_->GetTransactionSupervisor()->RegisterPreparedSequoiaTx(transaction->GetId());
+        }
         RunPrepareTransactionActions(transaction, options);
-        MaybeChangePreparedSequoiaTxCount(transaction, +1);
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -2745,20 +2739,22 @@ private:
             }
         }
 
-        const auto& transactionSupervisorConfig = Bootstrap_->GetConfig()->TransactionSupervisor;
-        if (transactionSupervisorConfig->EnableWaitUntilPreparedTransactionsFinished) {
-            int preparedSequoiaTxCount = 0;
+        if (IsSequoiaTxBarrierEnabled()) {
+            const auto& txSupervisor = Bootstrap_->GetTransactionSupervisor();
+            txSupervisor->ClearSequoiaTxRegistry();
             for (auto [id, transaction] : TransactionMap_) {
                 if (transaction->GetIsSequoiaTransaction() &&
                     transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared)
                 {
-                    ++preparedSequoiaTxCount;
+                    txSupervisor->RegisterPreparedSequoiaTx(id);
                 }
             }
-            Bootstrap_
-                ->GetTransactionSupervisor()
-                ->SetPreparedSequoiaTxCount(preparedSequoiaTxCount);
         }
+    }
+
+    bool IsSequoiaTxBarrierEnabled() const noexcept
+    {
+        return Bootstrap_->GetConfig()->TransactionSupervisor->EnableWaitUntilPreparedTransactionsFinished;
     }
 
     void Clear() override
@@ -3101,7 +3097,7 @@ private:
     {
         if (transaction->GetIsSequoiaTransaction()) {
             auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
-            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity());
+            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity(), transaction->GetTraceContext());
         } else {
             return TSequoiaContextGuard(Bootstrap_->GetSecurityManager());
         }

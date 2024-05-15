@@ -11,7 +11,9 @@ from yt_commands import (
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
+
+import yt_error_codes
 
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
@@ -1218,6 +1220,8 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("max42", "galtsev")
     def test_data_balancing(self):
+        skip_if_old(self.Env, (24, 1), "Data balancing is broken in older versions")
+
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
@@ -3335,6 +3339,55 @@ done
         )
 
         assert read_table("//tmp/t_out") == []
+
+    @authors("whatsername")
+    def test_map_reduce_any(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
+
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"schema": [{"name": "key", "type": "any"}]},
+        )
+        create("table", "//tmp/t_out")
+
+        values = [
+            [3, 3],
+            [1, 1],
+        ]
+
+        def gen_data(values):
+            data = []
+            for v in values:
+                data.append({"key": v})
+            return data
+
+        write_table("//tmp/t_in", gen_data(values))
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="key",
+            sort_by="key",
+            reducer_command="cat",
+        )
+        assert read_table("//tmp/t_out") == gen_data([values[1], values[0]])
+
+        wrong_values = [
+            [2, {}],
+        ]
+        write_table("//tmp/t_in", gen_data(wrong_values))
+
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reduce_by="key",
+                sort_by="key",
+                reducer_command="cat",
+            )
 
 
 ##################################################################

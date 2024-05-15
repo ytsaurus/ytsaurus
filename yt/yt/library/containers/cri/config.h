@@ -31,6 +31,9 @@ public:
     //! Cpu quota period for cpu limits.
     TDuration CpuPeriod;
 
+    //! Retry requests on generic error with these message prefixes.
+    std::vector<TString> RetryErrorPrefixes;
+
     REGISTER_YSON_STRUCT(TCriExecutorConfig);
 
     static void Register(TRegistrar registrar);

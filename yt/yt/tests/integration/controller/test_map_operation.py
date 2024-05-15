@@ -23,8 +23,6 @@ from yt.common import YtError
 
 from flaky import flaky
 
-from time import sleep
-
 import pytest
 import random
 import string
@@ -1419,8 +1417,6 @@ print(json.dumps(input))
         jobs = wait_breakpoint()
         op.interrupt_job(jobs[0])
 
-        sleep(5)
-
         release_breakpoint()
         op.track()
 
@@ -1528,6 +1524,93 @@ print(json.dumps(input))
             op,
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - added_rows,
+            job_type=job_type))
+
+    @authors("arkady-e1ppa")
+    @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.parametrize("fmt", ["json", "dsv"])
+    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
+        if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
+            pytest.xfail("Is not supported for older versions of server components")
+
+        # Test explanation:
+        # Each job reads one row and writes it twice
+        # first time with a marker, which indicates
+        # that a job has started and read something
+        # and then job dumps whatever is left in the pipe.
+        # This way, total row count indicates, how many
+        # lines each job has received.
+        # We have a very small table which ensures job count
+        # up to 2 (including the one after interruption)
+        # Since the row count is 3, then we either see
+        # each job read at least one row (thus writing >= 2 rows)
+        # or the test fails.
+        create("table", "//tmp/in_1")
+        write_table(
+            "//tmp/in_1",
+            [{"key": "%08d" % i, "value": "(t_1)"} for i in range(3)],
+            table_writer={"block_size": 1024, "desired_chunk_size": 1024},
+            output_format=fmt,
+        )
+
+        output = "//tmp/output"
+        job_type = "map"
+        if ordered:
+            output = "<sorted_by=[key]>" + output
+            job_type = "ordered_map"
+        create("table", output)
+
+        # Read line -> find pattern (???) in line and replace it with (job)
+        # -> print modified line -> prinit initial line -> wait at BREAKPOINT
+        # -> print whatever is left in pipe.
+        map_cmd = """read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"; BREAKPOINT ; cat """
+
+        op = map(
+            ordered=ordered,
+            track=False,
+            in_="//tmp/in_1",
+            out=output,
+            command=with_breakpoint(map_cmd),
+            spec={
+                "mapper": {"format": fmt},
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "use_delivery_fenced_pipe_writer": True,
+                },
+                "enable_job_splitting": False,
+            },
+        )
+
+        jobs = wait_breakpoint()
+        op.interrupt_job(jobs[0])
+
+        release_breakpoint()
+        op.track()
+
+        result = read_table("//tmp/output")
+        print_debug(result)
+        for row in result:
+            print_debug("key:", row["key"], "value:", row["value"])
+
+        assert len(result) == 5
+        if not ordered:
+            result = sorted_dicts(result)
+        row_index = 0
+        job_indexes = []
+        for row in result:
+            assert row["key"] == "%08d" % row_index
+            if row["value"] == "(job)":
+                job_indexes.append(int(row["key"]))
+            else:
+                row_index += 1
+
+        assert job_indexes[1] > 0
+
+        wait(lambda: assert_statistics(
+            op,
+            key="data.input.row_count",
+            assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
 
     @authors("galtsev")

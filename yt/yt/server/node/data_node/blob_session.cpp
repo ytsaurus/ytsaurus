@@ -707,7 +707,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     SetRpcAttachedBlocks(req, blocks);
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
-    return throttler->Throttle(requestSize).Apply(BIND([=] () {
+    return throttler->Throttle(requestSize).Apply(BIND([=] {
         return req->Invoke();
     }));
 }

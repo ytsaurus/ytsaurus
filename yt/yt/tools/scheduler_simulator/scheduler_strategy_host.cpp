@@ -147,20 +147,6 @@ TMemoryDistribution TSchedulerStrategyHost::GetExecNodeMemoryDistribution(
     return distribution;
 }
 
-TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDescriptors(
-    const TSchedulingTagFilter& filter) const
-{
-    auto result = New<TRefCountedExecNodeDescriptorMap>();
-
-    for (const auto& execNode : *ExecNodes_) {
-        if (execNode->CanSchedule(filter)) {
-            EmplaceOrCrash(*result, execNode->GetId(), execNode->BuildExecDescriptor());
-        }
-    }
-
-    return result;
-}
-
 void TSchedulerStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.

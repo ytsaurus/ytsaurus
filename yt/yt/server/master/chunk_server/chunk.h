@@ -527,7 +527,7 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
-static_assert(sizeof(TChunk) == 296, "sizeof(TChunk) != 296");
+static_assert(sizeof(TChunk) == 288, "sizeof(TChunk) != 288");
 
 ////////////////////////////////////////////////////////////////////////////////
 

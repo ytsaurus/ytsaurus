@@ -120,6 +120,10 @@ public:
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts);
 
+    void SetCustomRuntimeData(
+        NTableServer::TTableNode* table,
+        NYson::TYsonString data);
+
     void CloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         TTabletOwnerBase* clonedNode,
@@ -175,6 +179,7 @@ public:
     NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const;
 
     void UpdateExtraMountConfigKeys(std::vector<TString> keys);
+    void MaterizlizeExtraMountConfigKeys(NObjectClient::TCellTag cellTag) const;
 
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
     TTabletBase* GetTabletOrThrow(TTabletId id);

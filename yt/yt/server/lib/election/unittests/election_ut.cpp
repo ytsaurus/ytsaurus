@@ -535,7 +535,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANDLE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                TDelayedExecutor::Submit(BIND([=] () {
+                TDelayedExecutor::Submit(BIND([=] {
                     response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());

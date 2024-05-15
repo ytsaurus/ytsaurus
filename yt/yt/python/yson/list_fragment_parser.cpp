@@ -14,7 +14,7 @@ public:
     explicit TImpl(IInputStream* stream, int nestingLevelLimit)
         : InputStream_(TStreamReader(stream))
         , Consumer_(BIND(
-            [&] () {
+            [&] {
                 CheckItem();
             }))
         , Parser_(

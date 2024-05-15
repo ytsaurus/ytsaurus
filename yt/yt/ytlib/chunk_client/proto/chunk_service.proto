@@ -125,7 +125,7 @@ message TRspAllocateWriteTargets
 message TChunkExportData
 {
     required NYT.NProto.TGuid id = 1;
-    required int32 destination_cell_tag = 2;
+    required uint32 destination_cell_tag = 2;
 }
 
 message TChunkImportData

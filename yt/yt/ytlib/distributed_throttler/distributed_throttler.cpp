@@ -676,7 +676,7 @@ private:
                 }
                 auto totalLimit = *optionalTotalLimit;
 
-                auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&, &throttlerId = throttlerId](double value) {
+                auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&, &throttlerId = throttlerId] (double value) {
                     double total = 0;
                     for (const auto& [memberId, usageRate] : throttlerIdToUsageRates[throttlerId]) {
                         total += Min(value, usageRate);

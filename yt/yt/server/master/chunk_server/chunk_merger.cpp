@@ -499,7 +499,7 @@ private:
         const auto targetSatisfiedCriteriaCount = 7;
 
         auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
-        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto tagedData) {
+        auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto formattedArguments) {
             if (condition) {
                 ++satisfiedCriteriaCount;
             } else {
@@ -508,7 +508,7 @@ private:
                     "Cannot add chunk to merge job due to limit violation ",
                     "(ViolatedCriterion: %v, %v, DesiredParentChunkListId: %v, ParentChunkListId: %v)",
                     criterionName,
-                    tagedData,
+                    formattedArguments,
                     ParentChunkListId_,
                     parent->GetId());
             }
@@ -517,44 +517,54 @@ private:
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,
             statistics.MaxRowCountViolatedCriteria,
-            "RowCountCriteria",
+            "RowCount",
             Format("CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v",
-                CurrentRowCount_, chunk->GetRowCount(), mergerCriteria.MaxRowCount));
+                CurrentRowCount_,
+                chunk->GetRowCount(),
+                mergerCriteria.MaxRowCount));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentDataWeight_ + chunk->GetDataWeight() < mergerCriteria.MaxDataWeight,
             statistics.MaxDataWeightViolatedCriteria,
-            "DataWeightCriteria",
+            "DataWeight",
             Format("CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v",
-                CurrentDataWeight_, chunk->GetDataWeight(), mergerCriteria.MaxDataWeight));
+                CurrentDataWeight_,
+                chunk->GetDataWeight(),
+                mergerCriteria.MaxDataWeight));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < mergerCriteria.MaxCompressedDataSize,
             statistics.MaxCompressedDataSizeViolatedCriteria,
-            "CompressedDataSizeCriteria",
+            "CompressedDataSize",
             Format("CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v",
-                CurrentCompressedDataSize_, chunk->GetCompressedDataSize(), mergerCriteria.MaxCompressedDataSize));
+                CurrentCompressedDataSize_,
+                chunk->GetCompressedDataSize(),
+                mergerCriteria.MaxCompressedDataSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < mergerCriteria.MaxUncompressedDataSize,
             statistics.MaxUncompressedDataSizeViolatedCriteria,
-            "UncompressedDataSizeCriteria",
+            "UncompressedDataSize",
             Format("CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v",
-                CurrentUncompressedDataSize_, chunk->GetUncompressedDataSize(), mergerCriteria.MaxUncompressedDataSize));
+                CurrentUncompressedDataSize_,
+                chunk->GetUncompressedDataSize(),
+                mergerCriteria.MaxUncompressedDataSize));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             std::ssize(ChunkIds_) < mergerCriteria.MaxChunkCount,
             statistics.MaxChunkCountViolatedCriteria,
-            "ChunkCountCriteria",
+            "ChunkCount",
             Format("CurrentChunkCount: %v, MaxChunkCount: %v",
-                std::ssize(ChunkIds_), mergerCriteria.MaxChunkCount));
+                std::ssize(ChunkIds_),
+                mergerCriteria.MaxChunkCount));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             chunk->GetDataWeight() < mergerCriteria.MaxInputChunkDataWeight,
             statistics.MaxInputChunkDataWeightViolatedCriteria,
-            "InputChunkDataWeightCriteria",
+            "InputChunkDataWeight",
             Format("ChunkDataWeight: %v, MaxInputChunkDataWeight: %v",
-                chunk->GetDataWeight(), mergerCriteria.MaxInputChunkDataWeight));
+                chunk->GetDataWeight(),
+                mergerCriteria.MaxInputChunkDataWeight));
 
         if (ParentChunkListId_ == NullObjectId || ParentChunkListId_ == parent->GetId()) {
             ++satisfiedCriteriaCount;
@@ -635,11 +645,11 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
 
     RegisterLoader(
         "ChunkMerger",
-        BIND(&TChunkMerger::Load, Unretained(this)));
+        BIND_NO_PROPAGATE(&TChunkMerger::Load, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "ChunkMerger",
-        BIND(&TChunkMerger::Save, Unretained(this)));
+        BIND_NO_PROPAGATE(&TChunkMerger::Save, Unretained(this)));
 
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraStartMergeTransaction, Unretained(this)));
     RegisterMethod(BIND_NO_PROPAGATE(&TChunkMerger::HydraCreateChunks, Unretained(this)));
@@ -1740,7 +1750,7 @@ void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
     for (const auto& subrequest : request->subrequests()) {
         auto jobId = FromProto<TJobId>(subrequest.job_id());
 
-        auto eraseFromQueue = [&] () {
+        auto eraseFromQueue = [&] {
             if (!IsLeader()) {
                 return;
             }
@@ -1941,7 +1951,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             }
         } else {
             YT_LOG_DEBUG(
-                "Cannot replace chunks after merge: input chunk sequence is no longer there " \
+                "Cannot replace chunks after merge: input chunk sequence is no longer there "
                 "(NodeId: %v, InputChunkIds: %v, ChunkId: %v, AccountId: %v)",
                 nodeId,
                 chunkIds,

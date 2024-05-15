@@ -317,6 +317,9 @@ public:
             .Counter("/metering/guarantees/record_count");
         GuaranteesMeteringUsageQuantityCounter_ = SchedulerProfiler
             .Counter("/metering/guarantees/usage_quantity");
+
+        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
+        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
     }
 
     const NApi::NNative::IClientPtr& GetClient() const
@@ -1284,7 +1287,7 @@ public:
         MaybeDelay(operation->Spec()->TestingOperationOptions->DelayInsideMaterializeScheduler);
 
         {
-            auto error = Strategy_->OnOperationMaterialized(operation->GetId());
+            auto error = Strategy_->OnOperationMaterialized(operation->GetId(), operation->GetRevivedFromSnapshot());
             if (!error.IsOK()) {
                 OnOperationFailed(operation, error);
                 return;
@@ -2061,8 +2064,8 @@ private:
 
         Strategy_->OnMasterConnected();
 
-        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
-        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
+        TotalResourceLimitsProfiler_.Start();
+        TotalResourceUsageProfiler_.Start();
 
         SchedulerProfiler.AddFuncGauge("/jobs/registered_job_count", MakeStrong(this), [this] {
             return NodeManager_->GetActiveAllocationCount();
@@ -2088,8 +2091,8 @@ private:
 
     void DoCleanup()
     {
-        TotalResourceLimitsProfiler_.Reset();
-        TotalResourceUsageProfiler_.Reset();
+        TotalResourceLimitsProfiler_.Stop();
+        TotalResourceUsageProfiler_.Stop();
 
         {
             auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
@@ -2521,25 +2524,6 @@ private:
                 OnOperationFailed(operation, error);
             }
         }
-    }
-
-    TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        auto descriptors = GetCachedExecNodeDescriptors();
-
-        if (filter.IsEmpty()) {
-            return descriptors;
-        }
-
-        auto result = New<TRefCountedExecNodeDescriptorMap>();
-        for (const auto& [nodeId, descriptor] : *descriptors) {
-            if (filter.CanSchedule(descriptor->Tags)) {
-                EmplaceOrCrash(*result, descriptor->Id, descriptor);
-            }
-        }
-        return result;
     }
 
     TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const

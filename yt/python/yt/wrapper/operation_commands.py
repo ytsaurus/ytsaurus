@@ -1,4 +1,4 @@
-from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
+from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated, utcnow
 from .config import get_config
 from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveError
 from .constants import LOCAL_MODE_URL_PATTERN
@@ -14,17 +14,11 @@ import yt.logger as logger
 from yt.common import format_error, to_native_str, flatten, join_exceptions
 
 try:
-    from yt.packages.six import iteritems, itervalues, iterkeys
-    from yt.packages.six.moves import builtins, map as imap
-except ImportError:
-    from six import iteritems, itervalues, iterkeys
-    from six.moves import builtins, map as imap
-
-try:
     from yt.packages.decorator import decorator
 except ImportError:
     from decorator import decorator
 
+import builtins
 import logging
 from datetime import datetime, timedelta
 from time import sleep, time
@@ -308,7 +302,7 @@ def get_operation_state(operation, client=None):
 def get_operation_progress(operation, with_build_time=False, client=None):
     def calculate_total(counter):
         if isinstance(counter, dict):
-            return sum(imap(calculate_total, itervalues(counter)))
+            return sum(map(calculate_total, counter.values()))
         return counter
 
     build_time = None
@@ -353,7 +347,7 @@ def order_progress(progress):
             result.append((key, progress[key]))
 
     # Other keys.
-    for key, value in iteritems(progress):
+    for key, value in progress.items():
         if key in keys:
             continue
         if key in filter_out:
@@ -375,7 +369,7 @@ class PrintOperationInfo(object):
 
         creation_time_str = get_operation_attributes(operation, fields=["start_time"], client=client)["start_time"]
         creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
-        self.operation_start_time = creation_time + (datetime.now() - datetime.utcnow())
+        self.operation_start_time = creation_time + (datetime.now() - utcnow())
 
         self.client = client
         self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])
@@ -404,9 +398,9 @@ class PrintOperationInfo(object):
                 attribute_names = {"alerts": "Alerts"}
                 result = get_operation_attributes(
                     self.operation,
-                    fields=builtins.list(iterkeys(attribute_names)),
+                    fields=builtins.list(attribute_names.keys()),
                     client=self.client)
-                for attribute, readable_name in iteritems(attribute_names):
+                for attribute, readable_name in attribute_names.items():
                     attribute_value = result.get(attribute)
                     if attribute_value:
                         self.log("%s: %s", readable_name, str(attribute_value))

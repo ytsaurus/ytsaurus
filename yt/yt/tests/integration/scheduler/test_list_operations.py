@@ -221,7 +221,7 @@ class _TestListOperationsBase(ListOperationsSetup):
     #  6. sort       - pending    - user5 -  pool_no_running - False       - []            - []              - {}
     # Moreover, |self.op3| is expected to have title "op3 title".
 
-    @authors("halin-george", "levysotsky")
+    @authors("omgronny")
     def test_invalid_arguments(self):
         # Should fail when limit is invalid.
         with pytest.raises(YtError):
@@ -250,7 +250,7 @@ class _TestListOperationsBase(ListOperationsSetup):
                 cursor_time=self.before_all_operations,
             )
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_time_filter(self, read_from):
         self._test_time_ranges(read_from)
         self._test_with_cursor(read_from)
@@ -393,7 +393,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_filters(self, read_from):
         self._test_type_filter(read_from)
         self._test_state_filter(read_from)
@@ -655,7 +655,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert res["state_counts"] == {"completed": 2}
         assert res["type_counts"] == {"reduce": 1}
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_with_limit(self, read_from):
         res = list_operations(
             include_archive=self.include_archive,
@@ -687,7 +687,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         ]
         assert not res["incomplete"]
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_attribute_filter(self, read_from):
         attributes = [
             "id",
@@ -718,7 +718,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         ]
         assert all(sorted(op.keys()) == sorted(attributes) for op in res["operations"])
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_access_filter(self, read_from):
         access = {"subject": "user3", "permissions": ["read", "manage"]}
         res = list_operations(
@@ -983,7 +983,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
         self.op6.before_start_time = before_start_time
         wait(lambda: get(self.op6.get_path() + "/@state") == "pending")
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_no_filters(self, read_from):
         res = list_operations(include_archive=self.include_archive)
         assert res["pool_counts"] == {
@@ -1018,7 +1018,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
             self.op1.id,
         ]
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_has_failed_jobs_with_pending(self, read_from):
         res = list_operations(
             include_archive=self.include_archive,
@@ -1061,7 +1061,7 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
         }
     }
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_time_range_missing(self):
         with pytest.raises(YtError):
             list_operations(include_archive=True, to_time=self.op5.after_start_time)
@@ -1156,7 +1156,7 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
         super(TestListOperationsArchiveHacks, self).setup_method(method)
         clean_operations()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_list_operation_sorting(self):
         clear_start_time("//sys/operations_archive/ordered_by_start_time")
         clear_start_time("//sys/operations_archive/ordered_by_id")

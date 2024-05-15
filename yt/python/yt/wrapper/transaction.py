@@ -9,12 +9,7 @@ from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id
 
 import yt.logger as logger
 
-try:
-    from yt.packages.six import PY3
-    from yt.packages.six.moves._thread import interrupt_main
-except ImportError:
-    from six import PY3
-    from six.moves._thread import interrupt_main
+from _thread import interrupt_main
 
 from copy import deepcopy
 from time import sleep
@@ -455,7 +450,7 @@ _transaction_aborter = None
 
 def add_transaction_to_abort(transaction):
     global _transaction_aborter
-    if PY3 and sys.is_finalizing():
+    if sys.is_finalizing():
         return
     if _transaction_aborter is None:
         _transaction_aborter = _TransactionAborter()

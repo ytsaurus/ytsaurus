@@ -7,11 +7,6 @@ from .helpers import set_config_option, dumps_yt_config, get_test_file_path, get
 
 import yt.wrapper as yt
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 import yt.subprocess_wrapper as subprocess
 
 from flaky import flaky
@@ -123,8 +118,6 @@ class TestPingFailedModes(object):
 
     @authors("ignat")
     def test_interrupt_main(self):
-        if not PY3:
-            pytest.skip()
         env = {
             "YT_CONFIG_PATCHES": dumps_yt_config(),
             "PYTHONPATH": os.environ["PYTHONPATH"],
@@ -148,8 +141,6 @@ class TestPingFailedModes(object):
     @flaky(max_runs=3)
     def test_send_signal(self):
         # YT-16628: logging cannot properly handle signals that can lead to deadlock.
-        if not PY3:
-            pytest.skip()
         with set_config_option("ping_failed_mode", "send_signal"):
             with pytest.raises(yt.YtTransactionPingError):
                 reproduce_transaction_loss(expects_exception=True, must_interrupt_sleep=True)

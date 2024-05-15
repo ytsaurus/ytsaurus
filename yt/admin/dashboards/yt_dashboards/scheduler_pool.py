@@ -90,9 +90,10 @@ def _build_quotas_usage(d, os_documentation):
 **Demand**: amount of resources needed to run all waiting and running jobs in the pool.<EOLN>
 **Usage**: model resource consumption of the pool from scheduler's point of view. Represents the number of resources that are reserved for operations in the pool. Actual resource consumption may differ.<EOLN>
 **Strong guarantee**: amount of resources that is guaranteed for operations in the pool at any moment.<EOLN>
+**Running operation count**: number of operations in the pool which are running, i.e. are considered for job scheduling. Also displays the number of "lightweight" running operations, which are not accounted in the running operation count limit.<EOLN>
 **Total operation count**: total number of operations in the pool, includes "Running operation count". The difference between "Total operation count" and "Running operation count" is the size of the queue of operations that are waiting to be started.
 """
-    height = 5
+    height = 6
 
     if not os_documentation:
         DESCRIPTION += RESOURCE_REQUEST_DESCRIPTION

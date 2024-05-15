@@ -4,14 +4,8 @@ from .helpers import TEST_DIR, get_tests_sandbox, yatest_common
 from yt.common import makedirp
 import yt.wrapper as yt
 
-try:
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six.moves import xrange
-
-import pytest
-
 import os
+import pytest
 import random
 import string
 import subprocess
@@ -35,7 +29,7 @@ class TestDownloadCoreDump(object):
         for path in [table, other_table, core_dump_table]:
             yt.create("table", path, force=True)
 
-        yt.write_table(table, [{"a": i ** 2, "b": 2 ** i} for i in xrange(7)], format="yson")
+        yt.write_table(table, [{"a": i ** 2, "b": 2 ** i} for i in range(7)], format="yson")
 
         test_core_dumps_dir = os.path.join(get_tests_sandbox(), "test_core_dumps")
         makedirp(test_core_dumps_dir)
@@ -95,7 +89,7 @@ class TestDownloadCoreDump(object):
         for path in [table, other_table, core_dump_table]:
             yt.create("table", path, force=True)
 
-        yt.write_table(table, input_stream=[{"a": i ** 2, "b": 2 ** i} for i in xrange(7)], format="yson")
+        yt.write_table(table, input_stream=[{"a": i ** 2, "b": 2 ** i} for i in range(7)], format="yson")
 
         op = yt.run_map("cat", table, other_table, format="yson", spec={"core_table_path": core_dump_table})
 

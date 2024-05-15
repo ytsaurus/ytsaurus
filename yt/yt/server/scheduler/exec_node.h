@@ -119,6 +119,9 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TMatchingTreeCookie, MatchingTreeCookie);
 
+    DEFINE_BYREF_RW_PROPERTY(TJobResources, LastHeartbeatUnscheduledResources);
+    DEFINE_BYREF_RW_PROPERTY(TInstant, LastHeartbeatTime);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

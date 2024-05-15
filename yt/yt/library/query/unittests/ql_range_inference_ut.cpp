@@ -1684,7 +1684,7 @@ TEST_P(TInferRangesTest, Stress)
             bool rowInRanges = foundIt != inferredRanges.end() && foundIt->first <= row;
 
             EXPECT_FALSE(resultValue.Data.Boolean && !rowInRanges) <<
-                Format("Expression: %v, InferedRanges: %v, RandomRow: %v",
+                Format("Expression: %v, InferredRanges: %v, RandomRow: %v",
                     expressionString,
                     inferredRanges,
                     row);
@@ -1712,4 +1712,3 @@ INSTANTIATE_TEST_SUITE_P(
 
 } // namespace
 } // namespace NYT::NQueryClient
-

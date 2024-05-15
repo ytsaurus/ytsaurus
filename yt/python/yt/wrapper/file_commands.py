@@ -19,11 +19,6 @@ from yt.common import to_native_str
 from yt.yson.parser import YsonParser
 from yt.yson import to_yson_type
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 import os
 import hashlib
 
@@ -56,17 +51,14 @@ class LocalFile(object):
             return
 
         # Hacky way to split string into file path and file path attributes.
-        if PY3:
-            if hasattr(os, 'fspath'):
-                path = os.fspath(path)
-            path_bytes = path.encode("utf-8")
-        else:
-            path_bytes = path
+        if hasattr(os, 'fspath'):
+            path = os.fspath(path)
+        path_bytes = path.encode("utf-8")
 
         stream = BytesIO(path_bytes)
         parser = YsonParser(
             stream,
-            encoding="utf-8" if PY3 else None,
+            encoding="utf-8",
             always_create_attributes=True)
 
         path_attributes = {}

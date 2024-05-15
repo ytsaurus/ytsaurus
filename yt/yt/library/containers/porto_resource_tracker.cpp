@@ -113,6 +113,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
     auto userTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUserUsage);
     auto waitTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuWait);
     auto throttledNs = GetFieldOrError(resourceUsage, EStatField::CpuThrottled);
+    auto cfsThrottledNs = GetFieldOrError(resourceUsage, EStatField::CpuCfsThrottled);
     auto limitTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuLimit);
     auto guaranteeTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuGuarantee);
 
@@ -123,6 +124,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
         .SystemUsageTime = ExtractDuration(systemTimeNs),
         .WaitTime = ExtractDuration(waitTimeNs),
         .ThrottledTime = ExtractDuration(throttledNs),
+        .CfsThrottledTime = ExtractDuration(cfsThrottledNs),
         .ThreadCount = GetFieldOrError(resourceUsage, EStatField::ThreadCount),
         .ContextSwitches = GetFieldOrError(resourceUsage, EStatField::ContextSwitches),
         .ContextSwitchesDelta = GetFieldOrError(resourceUsage, EStatField::ContextSwitchesDelta),
@@ -324,6 +326,7 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::CpuSystemUsage ||
         statistic == EStatField::CpuWait ||
         statistic == EStatField::CpuThrottled ||
+        statistic == EStatField::CpuCfsThrottled ||
 
         statistic == EStatField::ContextSwitches ||
 
@@ -484,6 +487,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
             writer->AddGauge("/cpu/throttled", throttledPercent);
         }
 
+        if (totalStatistics.CpuStatistics.CfsThrottledTime.IsOK()) {
+            i64 cfsThrottledTimeUs = totalStatistics.CpuStatistics.CfsThrottledTime.Value().MicroSeconds();
+            double cfsThrottledPercent = std::max<double>(0.0, 100. * cfsThrottledTimeUs / timeDeltaUsec);
+            writer->AddGauge("/cpu/cfs_throttled", cfsThrottledPercent);
+        }
+
         if (totalStatistics.CpuStatistics.TotalUsageTime.IsOK()) {
             i64 totalUsageTimeUs = totalStatistics.CpuStatistics.TotalUsageTime.Value().MicroSeconds();
             double totalUsagePercent = std::max<double>(0.0, 100. * totalUsageTimeUs / timeDeltaUsec);
@@ -508,6 +517,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
 
         writer->AddGauge("/cpu_to_vcpu_factor", factor);
 
+        if (totalStatistics.CpuStatistics.BurstUsageTime.IsOK()) {
+            i64 burstUsageTimeUs = totalStatistics.CpuStatistics.BurstUsageTime.Value().MicroSeconds();
+            double burstUsagePercent = std::max<double>(0.0, 100. * burstUsageTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/burst", burstUsagePercent);
+        }
+
         if (totalStatistics.CpuStatistics.UserUsageTime.IsOK()) {
             i64 userUsageTimeUs = totalStatistics.CpuStatistics.UserUsageTime.Value().MicroSeconds();
             double userUsagePercent = std::max<double>(0.0, 100. * userUsageTimeUs * factor / timeDeltaUsec);
@@ -530,6 +545,12 @@ void TPortoResourceProfiler::WriteCpuMetrics(
             i64 throttledTimeUs = totalStatistics.CpuStatistics.ThrottledTime.Value().MicroSeconds();
             double throttledPercent = std::max<double>(0.0, 100. * throttledTimeUs * factor / timeDeltaUsec);
             writer->AddGauge("/vcpu/throttled", throttledPercent);
+        }
+
+        if (totalStatistics.CpuStatistics.CfsThrottledTime.IsOK()) {
+            i64 cfsThrottledTimeUs = totalStatistics.CpuStatistics.CfsThrottledTime.Value().MicroSeconds();
+            double cfsThrottledPercent = std::max<double>(0.0, 100. * cfsThrottledTimeUs * factor / timeDeltaUsec);
+            writer->AddGauge("/vcpu/cfs_throttled", cfsThrottledPercent);
         }
 
         if (totalStatistics.CpuStatistics.TotalUsageTime.IsOK()) {

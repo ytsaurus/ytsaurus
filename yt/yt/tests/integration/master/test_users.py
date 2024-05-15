@@ -17,7 +17,7 @@ from yt_helpers import profiler_factory
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
-from yt.yson import YsonBoolean
+from yt.yson import YsonBoolean, YsonEntity
 
 import pytest
 import builtins
@@ -606,8 +606,10 @@ class TestUsers(YTEnvSetup):
         with raises_yt_error("User provided invalid password"):
             set_user_password("u", "admin2", "123456", authenticated_user="u")
         with raises_yt_error("Password change can be performed either"):
-            set_user_password("u", "admin2", "admin", authenticated_user="v")
-        set_user_password("u", "admin2", "admin", authenticated_user="u")
+            set_user_password("u", "admin2", authenticated_user="v")
+        set("//sys/users/u/@acl", [make_ace("allow", "v", "administer")])
+        set_user_password("u", "admin2", authenticated_user="v")
+        set_user_password("u", "admin3", "admin2", authenticated_user="u")
 
         enc3 = get("//sys/users/u/@hashed_password")
         assert enc3 != enc2
@@ -633,7 +635,7 @@ class TestUsers(YTEnvSetup):
         rev4 = get("//sys/users/u/@password_revision")
         assert rev4 > rev3
 
-    @authors("gritukan")
+    @authors("gritukan", "aleksandr.gaev")
     def test_tokens(self):
         if self.DRIVER_BACKEND == "rpc":
             return
@@ -643,12 +645,14 @@ class TestUsers(YTEnvSetup):
         set_user_password("u", "u")
         set_user_password("v", "v")
 
-        _, t1_hash = issue_token("u")
+        t1_token, t1_hash = issue_token("u")
+        assert t1_token[:5] == "ytct-" and t1_token[9] == "-"
         assert get(f"//sys/cypress_tokens/{t1_hash}/@user") == "u"
         assert_items_equal(list_user_tokens("u"), [t1_hash])
         assert list_user_tokens("v") == []
 
-        _, t2_hash = issue_token("u", "u", authenticated_user="u")
+        t2_token, t2_hash = issue_token("u", "u", authenticated_user="u")
+        assert t2_token[:5] == "ytct-" and t2_token[9] == "-"
         assert_items_equal(list_user_tokens("u"), [t1_hash, t2_hash])
 
         with raises_yt_error("User provided invalid password"):
@@ -671,6 +675,50 @@ class TestUsers(YTEnvSetup):
 
         revoke_token("u", t2_hash, "u", authenticated_user="u")
         assert list_user_tokens("u") == []
+
+    @authors("aleksandr.gaev")
+    def test_tokens_with_metadata(self):
+        if self.DRIVER_BACKEND == "rpc":
+            return
+
+        create_user("u")
+        create_user("v")
+        set_user_password("u", "u")
+        set_user_password("v", "v")
+
+        assert list_user_tokens("v", with_metadata=True) == {}
+
+        token, token_hash = issue_token("u")
+        result = list_user_tokens("u", with_metadata=True)
+        ct = get(f"//sys/cypress_tokens/{token_hash}/@creation_time")
+        assert token_hash in result
+        assert result[token_hash]["description"] == ""
+        assert len(result[token_hash]["token_prefix"]) == len("ytct-abcd-") and result[token_hash]["token_prefix"][:5] == "ytct-" and result[token_hash]["token_prefix"][9] == "-"
+        assert token[:10] == result[token_hash]["token_prefix"]
+        assert result[token_hash]["creation_time"] == ct
+        assert result[token_hash]["effective_expiration"] == {"time": YsonEntity(), "timeout": YsonEntity()}
+        revoke_token("u", token_hash)
+
+        token, token_hash = issue_token("u", description="")
+        result = list_user_tokens("u", with_metadata=True)
+        ct = get(f"//sys/cypress_tokens/{token_hash}/@creation_time")
+        assert token_hash in result
+        assert result[token_hash]["description"] == ""
+        assert len(result[token_hash]["token_prefix"]) == len("ytct-abcd-") and result[token_hash]["token_prefix"][:5] == "ytct-" and result[token_hash]["token_prefix"][9] == "-"
+        assert token[:10] == result[token_hash]["token_prefix"]
+        assert result[token_hash]["creation_time"] == ct
+        assert result[token_hash]["effective_expiration"] == {"time": YsonEntity(), "timeout": YsonEntity()}
+        revoke_token("u", token_hash)
+
+        token, token_hash = issue_token("u", description="desc")
+        result = list_user_tokens("u", with_metadata=True)
+        ct = get(f"//sys/cypress_tokens/{token_hash}/@creation_time")
+        assert token_hash in result
+        assert result[token_hash]["description"] == "desc"
+        assert len(result[token_hash]["token_prefix"]) == len("ytct-abcd-") and result[token_hash]["token_prefix"][:5] == "ytct-" and result[token_hash]["token_prefix"][9] == "-"
+        assert token[:10] == result[token_hash]["token_prefix"]
+        assert result[token_hash]["creation_time"] == ct
+        assert result[token_hash]["effective_expiration"] == {"time": YsonEntity(), "timeout": YsonEntity()}
 
     @authors("shakurov")
     def test_user_request_profiling(self):

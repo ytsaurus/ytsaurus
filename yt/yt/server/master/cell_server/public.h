@@ -64,9 +64,9 @@ DECLARE_REFCOUNTED_CLASS(TDynamicCellManagerConfig)
 
 struct ICellBalancer;
 
-DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TCellBundle)
 
@@ -83,6 +83,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeTabletSlotsDisabled)      (1403))
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
+    ((MasterCellNotReady)           (1406))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

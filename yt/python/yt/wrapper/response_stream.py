@@ -1,13 +1,10 @@
 from . import common
 
-try:
-    from yt.packages.six import Iterator
-except ImportError:
-    from six import Iterator
+from collections.abc import Iterable
 
 
-class ResponseStream(Iterator):
-    """Iterator over response."""
+class ResponseStream(Iterable):
+    """Iterable over response."""
     def __init__(self, get_response, iter_content, close, process_error, get_response_parameters):
         self._buffer = b""
         self._buffer_length = 0
@@ -140,7 +137,7 @@ class ResponseStream(Iterator):
         return self._is_closed
 
 
-class EmptyResponseStream(Iterator):
+class EmptyResponseStream(Iterable):
     def read(self, length=None):
         return b""
 

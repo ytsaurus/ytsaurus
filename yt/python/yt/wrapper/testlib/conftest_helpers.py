@@ -25,6 +25,20 @@ import socket
 import sys
 from copy import deepcopy
 
+try:
+    import pytest_jupyter  # noqa
+
+    pytest_plugins = [
+        "pytest_jupyter",
+        "pytest_jupyter.jupyter_server",
+        "pytest_jupyter.jupyter_client",
+    ]
+except ImportError:
+    @pytest.fixture()
+    def jp_start_kernel():
+        # Just to prevent error in test_jupyter.py
+        pass
+
 
 def pytest_ignore_collect(path, config):
     path = str(path)

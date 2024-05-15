@@ -61,6 +61,11 @@ void TIOEngineConfigBase::Register(TRegistrar registrar)
 
     registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
         .Default(EDirectIOPolicy::Never);
+
+    registrar.Parameter("write_request_limit", &TThis::WriteRequestLimit)
+        .Default(std::numeric_limits<i64>::max());
+    registrar.Parameter("read_request_limit", &TThis::ReadRequestLimit)
+        .Default(std::numeric_limits<i64>::max());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -85,7 +90,7 @@ TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& na
 {
     TInflightCounter counter;
     counter.State_ = New<TState>();
-    profiler.AddFuncGauge(name, counter.State_, [state = counter.State_.Get()](){
+    profiler.AddFuncGauge(name, counter.State_, [state = counter.State_.Get()] {
         return state->Counter.load(std::memory_order::relaxed);
     });
     return counter;
@@ -105,28 +110,25 @@ void TIOEngineSensors::RegisterReadBytes(i64 count)
     TotalReadBytesCounter.fetch_add(count, std::memory_order::relaxed);
 }
 
-void TIOEngineSensors::UpdateKernelStatistics()
+YT_PREVENT_TLS_CACHING void TIOEngineSensors::UpdateKernelStatistics()
 {
     constexpr auto UpdatePeriod = TDuration::Seconds(1);
 
-    YT_THREAD_LOCAL(std::optional<TInstant>) LastUpdateInstant;
-    YT_THREAD_LOCAL(TTaskDiskStatistics) LastStatistics;
-
-    auto& lastStatistics = GetTlsRef(LastStatistics);
-    auto& lastUpdateInstant = GetTlsRef(LastUpdateInstant);
+    thread_local std::optional<TInstant> LastUpdateInstant;
+    thread_local TTaskDiskStatistics LastStatistics;
 
     auto now = TInstant::Now();
-    if (!lastUpdateInstant || (now - *lastUpdateInstant) > UpdatePeriod) {
-        if (lastUpdateInstant) {
+    if (!LastUpdateInstant || (now - *LastUpdateInstant) > UpdatePeriod) {
+        if (LastUpdateInstant) {
             auto current = GetSelfThreadTaskDiskStatistics();
 
-            KernelReadBytesCounter.Increment(current.ReadBytes - lastStatistics.ReadBytes);
-            KernelWrittenBytesCounter.Increment(current.WriteBytes - lastStatistics.WriteBytes);
+            KernelReadBytesCounter.Increment(current.ReadBytes - LastStatistics.ReadBytes);
+            KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStatistics.WriteBytes);
 
-            lastStatistics = current;
+            LastStatistics = current;
         }
 
-        lastUpdateInstant = now;
+        LastUpdateInstant = now;
     }
 }
 
@@ -150,6 +152,76 @@ TRequestStatsGuard::~TRequestStatsGuard()
 TDuration TRequestStatsGuard::GetElapsedTime() const
 {
     return Timer_.GetElapsedTime();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRequestCounterGuard::TRequestCounterGuard()
+{
+    Engine_ = nullptr;
+}
+
+TRequestCounterGuard::TRequestCounterGuard(TIntrusivePtr<TIOEngineBase> engine, EIOEngineRequestType requestType)
+    : Engine_(std::move(engine))
+    , RequestType_(requestType)
+{
+    YT_VERIFY(Engine_);
+
+    switch (RequestType_) {
+        case EIOEngineRequestType::Read:
+            Engine_->InFlightReadRequestCount_.fetch_add(1);
+            break;
+        case EIOEngineRequestType::Write:
+            Engine_->InFlightWriteRequestCount_.fetch_add(1);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+TRequestCounterGuard::TRequestCounterGuard(TRequestCounterGuard&& other)
+{
+    MoveFrom(std::move(other));
+}
+
+TRequestCounterGuard::~TRequestCounterGuard()
+{
+    Release();
+}
+
+TRequestCounterGuard& TRequestCounterGuard::operator=(TRequestCounterGuard&& other)
+{
+    if (this != &other) {
+        Release();
+        MoveFrom(std::move(other));
+    }
+    return *this;
+}
+
+void TRequestCounterGuard::Release()
+{
+    if (Engine_) {
+        switch (RequestType_) {
+            case EIOEngineRequestType::Read:
+                Engine_->InFlightReadRequestCount_.fetch_sub(1);
+                break;
+            case EIOEngineRequestType::Write:
+                Engine_->InFlightWriteRequestCount_.fetch_sub(1);
+                break;
+            default:
+                YT_ABORT();
+        }
+
+        Engine_.Reset();
+    }
+}
+
+void TRequestCounterGuard::MoveFrom(TRequestCounterGuard&& other)
+{
+    Engine_ = other.Engine_;
+    RequestType_ = other.RequestType_;
+
+    other.Engine_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,6 +292,16 @@ i64 TIOEngineBase::GetTotalWrittenBytes() const
 EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
 {
     return Config_.Acquire()->UseDirectIOForReads;
+}
+
+bool TIOEngineBase::IsReadRequestLimitExceeded() const
+{
+    return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
+}
+
+bool TIOEngineBase::IsWriteRequestLimitExceeded() const
+{
+    return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
 }
 
 TIOEngineBase::TIOEngineBase(
@@ -383,6 +465,11 @@ void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
             SickReadWaitStart_.reset();
         }
     }
+}
+
+TRequestCounterGuard TIOEngineBase::CreateRequestCounterGuard(EIOEngineRequestType requestType)
+{
+    return TRequestCounterGuard(MakeStrong(this), requestType);
 }
 
 void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)

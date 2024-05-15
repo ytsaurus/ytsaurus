@@ -50,8 +50,8 @@ def test_tvm_user_ticket():
 
     with mock.patch('yt.packages.urllib3.connectionpool.HTTPConnectionPool.urlopen') as m:
         try:
-            tvm_auth.set_user_ticket("3:user:AAA")
+            tvm_auth.set_user_ticket("3:user:b64BODY:b64SIGN")
             client.get('//')
         except Exception:
             pass
-        assert m.call_args.kwargs["headers"]["X-Ya-User-Ticket"] == "3:user:AAA"
+        assert m.call_args.kwargs["headers"]["X-Ya-User-Ticket"] == "3:user:b64BODY:b64SIGN"

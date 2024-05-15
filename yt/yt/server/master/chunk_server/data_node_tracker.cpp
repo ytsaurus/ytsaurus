@@ -71,7 +71,7 @@ namespace {
 
 int GetChunkLocationShardIndex(TChunkLocationUuid uuid)
 {
-    return TDirectObjectIdHash()(uuid) % ChunkLocationShardCount;
+    return GetShardIndex<ChunkLocationShardCount>(uuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,19 +94,19 @@ public:
 
         RegisterLoader(
             "DataNodeTracker.Keys",
-            BIND(&TDataNodeTracker::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::LoadKeys, Unretained(this)));
         RegisterLoader(
             "DataNodeTracker.Values",
-            BIND(&TDataNodeTracker::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "DataNodeTracker.Keys",
-            BIND(&TDataNodeTracker::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "DataNodeTracker.Values",
-            BIND(&TDataNodeTracker::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TDataNodeTracker::SaveValues, Unretained(this)));
     }
 
     void Initialize() override
@@ -153,7 +153,7 @@ public:
         auto isSequoiaEnabled = config->SequoiaManager->Enable;
         auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -263,7 +263,7 @@ public:
         auto isSequoiaEnabled = config->SequoiaManager->Enable;
         auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
+        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -415,8 +415,9 @@ public:
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+        auto isPrimaryMaster = Bootstrap_->IsPrimaryMaster();
 
-        if (Bootstrap_->IsPrimaryMaster()) {
+        if (isPrimaryMaster) {
             for (auto locationUuid : chunkLocationUuids) {
                 if (IsObjectAlive(FindChunkLocationByUuid(locationUuid))) {
                     continue;
@@ -442,7 +443,10 @@ public:
             }
         }
 
-        if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+        ReplicateChunkLocations(node, chunkLocationUuids);
+        MakeLocationsOnline(node);
+
+        if (isPrimaryMaster) {
             auto* dataNodeInfoExt = response->MutableExtension(NNodeTrackerClient::NProto::TDataNodeInfoExt::data_node_info_ext);
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
@@ -450,6 +454,13 @@ public:
 
             dataNodeInfoExt->set_require_location_uuids(false);
         }
+    }
+
+    void ReplicateChunkLocations(
+        TNode* node,
+        const std::vector<TChunkLocationUuid>& chunkLocationUuids) override
+    {
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
         node->ClearChunkLocations();
 
@@ -477,13 +488,19 @@ public:
                 location->SetNode(node);
                 node->AddRealChunkLocation(location);
             }
-
-            location->SetState(EChunkLocationState::Online);
         }
 
         node->ChunkLocations().shrink_to_fit();
     }
 
+    void MakeLocationsOnline(TNode* node) override
+    {
+        YT_VERIFY(node->IsDataNode() || node->IsExecNode());
+
+        for (auto* location : node->RealChunkLocations()) {
+            location->SetState(EChunkLocationState::Online);
+        }
+    }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkLocation, TRealChunkLocation);
 

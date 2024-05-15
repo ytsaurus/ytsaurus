@@ -2,7 +2,8 @@
 
 #include <yt/cpp/mapreduce/interface/client.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
+
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/json/json_value.h>
 #include <library/cpp/json/json_writer.h>
@@ -90,111 +91,108 @@ REGISTER_RAW_JOB(TJsonValueJoin);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(RawOperations)
+TEST(RawOperations, Map)
 {
-    Y_UNIT_TEST(Map)
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
     {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
-        {
-            writer->AddRow(TNode()("one", "1")("two", "2"));
-            writer->AddRow(TNode()("five", "5")("eight", "8"));
-            writer->AddRow(TNode()("forty two", "42"));
-            writer->Finish();
-        }
-
-        client->RawMap(
-            TRawMapOperationSpec()
-            .AddInput(workingDir + "/input")
-            .AddOutput(workingDir + "/output")
-            .Format(TFormat(TNode("json"))),
-            new TJsonKvSwapper);
-
-        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
-
-        const TVector<TNode> expected = {
-            TNode()("1", "one")("2", "two"),
-            TNode()("5", "five")("8", "eight"),
-            TNode()("42", "forty two"),
-        };
-        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+        writer->AddRow(TNode()("one", "1")("two", "2"));
+        writer->AddRow(TNode()("five", "5")("eight", "8"));
+        writer->AddRow(TNode()("forty two", "42"));
+        writer->Finish();
     }
 
-    Y_UNIT_TEST(Reduce)
+    client->RawMap(
+        TRawMapOperationSpec()
+        .AddInput(workingDir + "/input")
+        .AddOutput(workingDir + "/output")
+        .Format(TFormat(TNode("json"))),
+        new TJsonKvSwapper);
+
+    TVector<TNode> actual = ReadTable(client, workingDir + "/output");
+
+    const TVector<TNode> expected = {
+        TNode()("1", "one")("2", "two"),
+        TNode()("5", "five")("8", "eight"),
+        TNode()("42", "forty two"),
+    };
+    EXPECT_EQ(actual, expected);
+}
+
+TEST(RawOperations, Reduce)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/input").SortedBy({"key"}));
     {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto writer = client->CreateTableWriter<TNode>(TRichYPath(workingDir + "/input").SortedBy({"key"}));
-        {
-            writer->AddRow(TNode()("key", "1")("value", "one"));
-            writer->AddRow(TNode()("key", "1")("value", "two"));
-            writer->AddRow(TNode()("key", "2")("value", "three"));
-            writer->AddRow(TNode()("key", "3")("value", "four"));
-            writer->AddRow(TNode()("key", "3")("value", "five"));
-            writer->AddRow(TNode()("key", "3")("value", "six"));
-            writer->Finish();
-        }
-
-        client->RawReduce(
-            TRawReduceOperationSpec()
-            .ReduceBy({"key"})
-            .AddInput(workingDir + "/input")
-            .AddOutput(workingDir + "/output")
-            .Format(TFormat(TNode("json"))),
-            new TJsonValueJoin);
-
-        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
-
-        const TVector<TNode> expected = {
-            TNode()("key", "1")("value", "one;two;"),
-            TNode()("key", "2")("value", "three;"),
-            TNode()("key", "3")("value", "four;five;six;"),
-        };
-        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+        writer->AddRow(TNode()("key", "1")("value", "one"));
+        writer->AddRow(TNode()("key", "1")("value", "two"));
+        writer->AddRow(TNode()("key", "2")("value", "three"));
+        writer->AddRow(TNode()("key", "3")("value", "four"));
+        writer->AddRow(TNode()("key", "3")("value", "five"));
+        writer->AddRow(TNode()("key", "3")("value", "six"));
+        writer->Finish();
     }
 
-    Y_UNIT_TEST(MapReduce)
+    client->RawReduce(
+        TRawReduceOperationSpec()
+        .ReduceBy({"key"})
+        .AddInput(workingDir + "/input")
+        .AddOutput(workingDir + "/output")
+        .Format(TFormat(TNode("json"))),
+        new TJsonValueJoin);
+
+    TVector<TNode> actual = ReadTable(client, workingDir + "/output");
+
+    const TVector<TNode> expected = {
+        TNode()("key", "1")("value", "one;two;"),
+        TNode()("key", "2")("value", "three;"),
+        TNode()("key", "3")("value", "four;five;six;"),
+    };
+    EXPECT_EQ(actual, expected);
+}
+
+TEST(RawOperations, MapReduce)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
     {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
-        {
-            writer->AddRow(TNode()("1", "key")("one", "value"));
-            writer->AddRow(TNode()("1", "key")("two", "value"));
-            writer->AddRow(TNode()("2", "key")("three", "value"));
-            writer->AddRow(TNode()("3", "key")("four", "value"));
-            writer->AddRow(TNode()("3", "key")("five", "value"));
-            writer->AddRow(TNode()("3", "key")("six", "value"));
-            writer->Finish();
-        }
-
-        client->RawMapReduce(
-            TRawMapReduceOperationSpec()
-            .AddInput(workingDir + "/input")
-            .AddOutput(workingDir + "/output")
-            .SortBy("key")
-            .MapperFormat(TFormat(TNode("json")))
-            .ReducerFormat(TFormat(TNode("json"))),
-            new TJsonKvSwapper,
-            nullptr,
-            new TJsonValueJoin);
-
-        TVector<TNode> actual = ReadTable(client, workingDir + "/output");
-
-        const TVector<TNode> expected = {
-            TNode()("key", "1")("value", "one;two;"),
-            TNode()("key", "2")("value", "three;"),
-            TNode()("key", "3")("value", "four;five;six;"),
-        };
-        UNIT_ASSERT_VALUES_EQUAL(actual, expected);
+        writer->AddRow(TNode()("1", "key")("one", "value"));
+        writer->AddRow(TNode()("1", "key")("two", "value"));
+        writer->AddRow(TNode()("2", "key")("three", "value"));
+        writer->AddRow(TNode()("3", "key")("four", "value"));
+        writer->AddRow(TNode()("3", "key")("five", "value"));
+        writer->AddRow(TNode()("3", "key")("six", "value"));
+        writer->Finish();
     }
+
+    client->RawMapReduce(
+        TRawMapReduceOperationSpec()
+        .AddInput(workingDir + "/input")
+        .AddOutput(workingDir + "/output")
+        .SortBy("key")
+        .MapperFormat(TFormat(TNode("json")))
+        .ReducerFormat(TFormat(TNode("json"))),
+        new TJsonKvSwapper,
+        nullptr,
+        new TJsonValueJoin);
+
+    TVector<TNode> actual = ReadTable(client, workingDir + "/output");
+
+    const TVector<TNode> expected = {
+        TNode()("key", "1")("value", "one;two;"),
+        TNode()("key", "2")("value", "three;"),
+        TNode()("key", "3")("value", "four;five;six;"),
+    };
+    EXPECT_EQ(actual, expected);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

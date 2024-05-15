@@ -6,24 +6,14 @@ from yt.wrapper.errors import create_http_response_error, YtRpcUnavailable
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth,
                                is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
-                               escape_c)
-
-try:
-    from yt.packages.six.moves import xrange, cPickle as pickle
-except ImportError:
-    from six.moves import xrange, cPickle as pickle
+                               escape_c, utcnow)
 
 import yt.wrapper as yt
 
-from flaky import flaky
-
 from datetime import datetime, timedelta
+from flaky import flaky
+import pickle
 import pytest
-
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
 
 
 def is_debug():
@@ -75,7 +65,7 @@ def test_is_prefix():
     assert is_prefix([1, 2], [1, 2, 3])
     assert not is_prefix([3, 2, 1], [1, 2, 3])
     assert is_prefix([], [1, 2, 3])
-    assert not is_prefix(list(xrange(100)), [1])
+    assert not is_prefix(list(range(100)), [1])
 
 
 @authors("asaitgalin")
@@ -112,7 +102,7 @@ def test_merge_blobs_by_size_performance():
         pytest.skip()
     start = datetime.now()
     size = 1000000
-    s = (b"x" for _ in xrange(size))
+    s = (b"x" for _ in range(size))
     assert list(merge_blobs_by_size(s, size)) == [b"x" * size]
     assert datetime.now() - start < timedelta(seconds=1)
 
@@ -120,7 +110,7 @@ def test_merge_blobs_by_size_performance():
 @authors("ignat")
 def test_time_functions():
     now = datetime.now()
-    now_utc = datetime.utcnow()
+    now_utc = utcnow()
     str1 = datetime_to_string(now_utc)
     str2 = datetime_to_string(now, is_local=True)
     tm1 = date_string_to_timestamp(str1)
@@ -190,7 +180,4 @@ def test_escape_c():
     assert escape_c("There are questions ???") == "There are questions \\x3F\\x3F?"
     assert escape_c("There are questions ??") == "There are questions \\x3F?"
     assert escape_c(bytearray("\0\1What about some bytes?", "utf-8")) == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
-    if PY3:
-        assert escape_c(b"\0\1What about some bytes?") == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"
-    else:
-        assert escape_c(b"\0\1What about some bytes?") == "\\0\\1What about some bytes?"
+    assert escape_c(b"\0\1What about some bytes?") == "\\x00\\x01\\x57\\x68\\x61\\x74\\x20\\x61\\x62\\x6F\\x75\\x74\\x20\\x73\\x6F\\x6D\\x65\\x20\\x62\\x79\\x74\\x65\\x73\\x3F"

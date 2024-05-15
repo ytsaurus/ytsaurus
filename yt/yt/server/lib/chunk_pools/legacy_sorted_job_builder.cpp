@@ -441,7 +441,7 @@ private:
             }
         };
 
-        auto addBarrier = [&] () {
+        auto addBarrier = [&] {
             Jobs_.back()->SetIsBarrier(true);
             Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
         };

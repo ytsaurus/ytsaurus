@@ -5,15 +5,8 @@
 #include "gpu_manager.h"
 #include "job_info.h"
 #include "public.h"
-#include "volume_manager.h"
-
-#include <yt/yt/server/node/exec_node/chunk_cache.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
-
-#include <yt/yt/library/containers/public.h>
-
-#include <yt/yt/library/containers/cri/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/job_report.h>
@@ -34,6 +27,9 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 
 #include <yt/yt/ytlib/scheduler/public.h>
+
+#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/containers/cri/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -65,7 +61,7 @@ struct TArtifact
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public NJobAgent::TResourceHolder
+    : public TRefCounted
 {
     struct TNameWithAddress
     {
@@ -114,7 +110,6 @@ public:
     void OnResultReceived(NControllerAgent::NProto::TJobResult jobResult);
 
     TJobId GetId() const noexcept;
-    TGuid GetIdAsGuid() const noexcept override;
     NScheduler::TAllocationId GetAllocationId() const;
 
     TOperationId GetOperationId() const;
@@ -257,7 +252,10 @@ private:
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
 
+    NLogging::TLogger Logger;
+
     TAllocationPtr Allocation_;
+    NJobAgent::TResourceHolderPtr ResourceHolder_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
@@ -383,7 +381,7 @@ private:
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
-    void OnResourcesAcquired() noexcept override;
+    void OnResourcesAcquired() noexcept;
 
     // Helpers.
 

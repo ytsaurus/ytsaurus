@@ -6,6 +6,7 @@ require_yt_client()
 from yt.wrapper import get, YPath, list as yt_list, exists  # noqa: E402
 from yt.wrapper.common import update_inplace  # noqa: E402
 from .version import __scala_version__  # noqa: E402
+from pyspark import __version__ as spark_version  # noqa: E402
 
 SPARK_BASE_PATH = YPath("//home/spark")
 
@@ -13,6 +14,7 @@ CONF_BASE_PATH = SPARK_BASE_PATH.join("conf")
 GLOBAL_CONF_PATH = CONF_BASE_PATH.join("global")
 
 SPYT_BASE_PATH = SPARK_BASE_PATH.join("spyt")
+DISTRIB_BASE_PATH = SPARK_BASE_PATH.join("distrib")
 
 RELEASES_SUBDIR = "releases"
 SNAPSHOTS_SUBDIR = "snapshots"
@@ -166,6 +168,16 @@ def latest_ytserver_proxy_path(cluster_version, client=None):
 
 def ytserver_proxy_attributes(path, client=None):
     return get("{}/@user_attributes".format(path), client=client)
+
+
+def get_spark_distributive(client):
+    distrib_root = DISTRIB_BASE_PATH.join(spark_version.replace('.', '/'))
+    distrib_root_contents = yt_list(distrib_root, client=client)
+    spark_tgz = [x for x in distrib_root_contents if x.endswith('.tgz')]
+    if len(spark_tgz) == 0:
+        raise RuntimeError(f"Spark {spark_version} tgz distributive doesn't exist "
+                           f"at path {distrib_root} on cluster {client.config['proxy']['url']}")
+    return (spark_tgz[0], distrib_root.join(spark_tgz[0]))
 
 
 def _get_or_else(d, key, default):

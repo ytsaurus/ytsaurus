@@ -126,7 +126,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
     request.Parameters = ConvertToNodeWithUtf8Decoding(GetAttr(pyRequest, "parameters"))->AsMap();
     request.ResponseParametersConsumer = holder->GetResponseParametersConsumer();
-    request.ResponseParametersFinishedCallback = [holder] () {
+    request.ResponseParametersFinishedCallback = [holder] {
         holder->OnResponseParametersFinished();
     };
 
@@ -328,7 +328,7 @@ void TDriverModuleBase::Initialize(
         BIND(&TDriverResponseHolder::OnAfterPythonFinalize),
         /*index*/ 0);
     RegisterAfterFinalizeShutdownCallback(
-        BIND([] () {
+        BIND([] {
             YT_LOG_INFO("Module shutdown started");
             for (const auto& [driverId, weakDriver] : ActiveDrivers) {
                 auto driver = weakDriver.Lock();

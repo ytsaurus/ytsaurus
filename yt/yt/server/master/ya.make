@@ -316,7 +316,6 @@ SRCS(
     sequoia_server/config.cpp
     sequoia_server/context.cpp
     sequoia_server/proto/sequoia_queue_manager.proto
-    sequoia_server/public.cpp
     sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_queue_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp

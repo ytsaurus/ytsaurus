@@ -336,24 +336,24 @@ private:
         }
 
         auto readFuture = chunk.Reader->ReadBlocks(chunk.ReadBlocksOptions, blockIndexes);
-        return readFuture.Apply(BIND([=, tagSet = TagSet_, Logger = Logger, this_ = MakeStrong(this)] (const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        return readFuture.Apply(BIND([=, this, this_ = MakeStrong(this), tagSet = TagSet_, Logger = Logger] (const std::vector<NChunkClient::TBlock>& blocks) mutable {
             YT_VERIFY(blocks.size() == blockIndexes.size());
 
             // Update read block counters.
             auto& chunkReaderStatistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics;
 
             i64 readBlockBytesFromCache = chunkReaderStatistics->DataBytesReadFromCache.exchange(0);
-            this_->ReadBlockBytesFromCache_ += readBlockBytesFromCache;
+            ReadBlockBytesFromCache_ += readBlockBytesFromCache;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_cache")
                 .Increment(readBlockBytesFromCache);
 
             i64 readBlockBytesFromDisk = chunkReaderStatistics->DataBytesReadFromDisk.exchange(0);
-            this_->ReadBlockBytesFromDisk_ += readBlockBytesFromDisk;
+            ReadBlockBytesFromDisk_ += readBlockBytesFromDisk;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_bytes_from_disk")
                 .Increment(readBlockBytesFromDisk);
 
             i64 readBlockMetaBytesFromDisk = chunkReaderStatistics->MetaBytesReadFromDisk.exchange(0);
-            this_->ReadBlockMetaBytesFromDisk_ += readBlockMetaBytesFromDisk;
+            ReadBlockMetaBytesFromDisk_ += readBlockMetaBytesFromDisk;
             TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_block_meta_bytes_from_disk")
                 .Increment(readBlockMetaBytesFromDisk);
 

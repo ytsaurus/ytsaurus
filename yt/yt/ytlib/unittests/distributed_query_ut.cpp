@@ -230,7 +230,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinIsLeftSkewed)
     auto primary = "//Alpha";
 
     std::map<TString, TDataSplit> splits;
-    splits["//Alpha"] = MakeSplit({
+    splits[primary] = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64},
     });
@@ -272,7 +272,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinCorrectProjectionAndOrder)
     auto primary = "//Alpha";
 
     std::map<TString, TDataSplit> splits;
-    splits["//Alpha"] = MakeSplit({
+    splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
         {"a3", EValueType::Int64},
@@ -327,7 +327,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinGroup)
     auto primary = "//Alpha";
 
     std::map<TString, TDataSplit> splits;
-    splits["//Alpha"] = MakeSplit({
+    splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
         {"a3", EValueType::Int64},
@@ -381,7 +381,7 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinEvaluatedColumns)
     auto primary = "//Alpha";
 
     std::map<TString, TDataSplit> splits;
-    splits["//Alpha"] = MakeSplit({
+    splits[primary] = MakeSplit({
         {"a1", EValueType::Int64, ESortOrder::Ascending},
         {"a2", EValueType::Int64},
         TColumnSchema{"a3", EValueType::Int64}.SetExpression("a1 + a2"),
@@ -416,6 +416,42 @@ TEST_F(TQueryPrepareJoinTreeTest, IndexJoinEvaluatedColumns)
     for (const auto& [_, evaluated] : betaQuery->JoinClauses.front()->SelfEquations) {
         EXPECT_FALSE(evaluated);
     }
+}
+
+TEST_F(TQueryPrepareJoinTreeTest, PredicatePushDown)
+{
+    auto queryString =
+        "SELECT a2 + b2 FROM [//Alpha] "
+        "JOIN [//Beta] on (a1, a2) = (b1, b2) "
+        "WHERE a1 = 5 and b1 != 2 and a2 + b1 > 9";
+
+    std::map<TString, TDataSplit> splits;
+    splits["//Alpha"] = MakeSplit({
+        {"a1", EValueType::Int64, ESortOrder::Ascending},
+        {"a2", EValueType::Int64},
+    });
+
+    splits["//Beta"] = MakeSplit({
+        {"b1", EValueType::Int64, ESortOrder::Ascending},
+        {"b2", EValueType::Int64},
+    });
+
+    auto primalQuery = Prepare(queryString, splits);
+
+    auto joinTree = MakeIndexJoinTree(
+        primalQuery,
+        {.ObjectId = splits.at("//Alpha").ObjectId});
+    auto root = joinTree->GetRoot();
+    auto betaQuery = root->GetQuery();
+    auto alphaQuery = root->GetChildren().first->GetQuery();
+
+    ASSERT_TRUE(alphaQuery->WhereClause);
+    ASSERT_TRUE(betaQuery->WhereClause);
+    ASSERT_TRUE(betaQuery->JoinClauses.front()->Predicate);
+
+    EXPECT_EQ(InferName(alphaQuery->WhereClause), TString("a1 = 0#5"));
+    EXPECT_EQ(InferName(betaQuery->JoinClauses.front()->Predicate), TString("b1 != 0#2"));
+    EXPECT_EQ(InferName(betaQuery->WhereClause), TString("a2 + b1 > 0#9"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

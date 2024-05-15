@@ -21,7 +21,10 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
   prepareLivyLog4jConfig()
 
   withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
-    val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
+    val (masterAddress, pingAddress) = fixedMasterAddress.map(a => (a, None)).getOrElse {
+      val address = waitForMaster(waitMasterTimeout, discoveryService)
+      (s"spark://${address.hostAndPort.toString}", Some(address.webUiHostAndPort))
+    }
     log.info(s"Starting livy server for master $masterAddress")
     val tcpRouter = TcpProxyService.register("LIVY")(yt)
     val address = HostAndPort(ytHostnameOrIpAddress, port)
@@ -34,7 +37,7 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
       discoveryService.registerLivy(externalAddress)
 
       def isAlive: Boolean = {
-        val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
+        val isMasterAlive = pingAddress.forall(a => DiscoveryService.isAlive(a, 3))
         val isLivyAlive = livyServer.isAlive(3)
 
         isMasterAlive && isLivyAlive
@@ -50,7 +53,8 @@ object LivyLauncher extends App with VanillaLauncher with SparkLauncher {
 
 case class LivyLauncherArgs(port: Int, ytConfig: YtClientConfiguration,
                             driverCores: Int, driverMemory: String, maxSessions: Int,
-                            baseDiscoveryPath: String, waitMasterTimeout: Duration)
+                            baseDiscoveryPath: String, waitMasterTimeout: Duration,
+                            fixedMasterAddress: Option[String])
 
 object LivyLauncherArgs {
   def apply(args: Args): LivyLauncherArgs = LivyLauncherArgs(
@@ -61,7 +65,8 @@ object LivyLauncherArgs {
     args.required("driver-memory"),
     args.required("max-sessions").toInt,
     args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
-    args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
+    args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes),
+    args.optional("master-address"),
   )
 
   def apply(args: Array[String]): LivyLauncherArgs = LivyLauncherArgs(Args(args))

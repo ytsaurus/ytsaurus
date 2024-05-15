@@ -8,7 +8,7 @@ from yt_commands import (
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
     write_file, read_table,
-    write_table, map, abort_op, run_sleeping_vanilla,
+    write_table, map, abort_op, run_sleeping_vanilla, sort,
     vanilla, run_test_vanilla, abort_job, get_job_spec,
     list_jobs, get_job, get_job_stderr, get_operation,
     sync_create_cells, get_singular_chunk_id,
@@ -2570,8 +2570,15 @@ class TestHealExecNode(YTEnvSetup):
 
         wait(lambda: has_job_proxy_build_info_missing_alert())
 
-        with raises_yt_error("is not resettable"):
-            heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
+        # TODO(arkady-e1ppa): Make this part of the raises_yt_error
+        # functionality?
+        try:
+            with raises_yt_error("can only be fixed by a force reset"):
+                heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"])
+        except YtError as wrong_error:
+            print_debug("Attempt to reset alert \"job_proxy_unavailable\" raised a wrong exception")
+            print_debug("Expected to contain: \"can only be fixed by a force reset\"")
+            print_debug(f"Actual: {wrong_error}")
 
         heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
@@ -2581,7 +2588,7 @@ class TestHealExecNode(YTEnvSetup):
                 os.remove("{}/disabled".format(location["path"]))
 
     @authors("ignat")
-    def test_reset_fatal_alert(self):
+    def test_force_reset_persistent_alert(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
 
         node_address = ls("//sys/cluster_nodes")[0]
@@ -2618,12 +2625,27 @@ class TestHealExecNode(YTEnvSetup):
 
         abort_job(job_id)
 
+        persistent_alerts = [
+            "porto_failure",
+            "job_environment_failure",
+        ]
+
+        def check_persistent_alerts():
+            alerts = get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address))
+
+            for persistent_alert in persistent_alerts:
+                if persistent_alert in alerts:
+                    print_debug(f"Found alert: {persistent_alert}")
+                    return True
+
+            return False
+
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
-        wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/exec_node/slot_manager/alerts".format(node_address)))
+        wait(check_persistent_alerts)
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
-        heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
+        heal_exec_node(node_address, alert_types_to_reset=persistent_alerts, force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
 
         def check_resurrect():
@@ -2822,6 +2844,55 @@ class TestUnusedMemoryAlertWithMemoryReserveFactorSet(YTEnvSetup):
 
 
 class TestConsecutiveJobAborts(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "slot_manager": {
+                    "max_consecutive_job_aborts": 2,
+                },
+            },
+        },
+    }
+
+    @authors("achulkov2")
+    def test_nonexistent_intermediate_medium(self):
+        v1 = {"key": "aaa"}
+        v2 = {"key": "bb"}
+        v3 = {"key": "bbxx"}
+        v4 = {"key": "zfoo"}
+        v5 = {"key": "zzz"}
+
+        create("table", "//tmp/t_in")
+        for i in range(0, 10):
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4])  # some random order
+
+        create("table", "//tmp/t_out")
+
+        with raises_yt_error("Job failed with fatal error"):
+            sort(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                sort_by="key",
+                spec={
+                    "partition_count": 5,
+                    "partition_job_count": 2,
+                    "data_weight_per_sort_job": 1,
+                    "intermediate_data_medium": "non_existent",
+                },
+            )
+
+        for node, attributes in get("//sys/exec_nodes", attributes=["alerts"]).items():
+            assert not attributes.attributes.get("alerts", [])
+
+
+##################################################################
+
+
+class TestConsecutiveJobAbortsPorto(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3382,6 +3453,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         def check_enable():
             node = ls("//sys/cluster_nodes")[0]
             alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
+            print_debug(alerts)
 
             return len(alerts) == 0
 
@@ -3486,7 +3558,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
         def check_enable():
             node = ls("//sys/cluster_nodes")[0]
             alerts = get("//sys/cluster_nodes/{}/@alerts".format(node))
-
+            print_debug(alerts)
             return len(alerts) == 0
 
         wait(lambda: check_enable())

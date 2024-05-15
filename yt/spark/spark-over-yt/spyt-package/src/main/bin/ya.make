@@ -5,6 +5,7 @@ PEERDIR(
 )
 
 # Change extension
+COPY_FILE(yt/spark/spark-over-yt/spyt-package/src/main/bin/livy-launch-yt livy-launch-yt.py)
 COPY_FILE(yt/spark/spark-over-yt/spyt-package/src/main/bin/spark-discovery-yt spark-discovery-yt.py)
 COPY_FILE(yt/spark/spark-over-yt/spyt-package/src/main/bin/spark-launch-yt spark-launch-yt.py)
 COPY_FILE(yt/spark/spark-over-yt/spyt-package/src/main/bin/spark-manage-yt spark-manage-yt.py)
@@ -13,6 +14,7 @@ COPY_FILE(yt/spark/spark-over-yt/spyt-package/src/main/bin/spark-submit-yt spark
 
 PY_SRCS(
     MAIN spyt_cli.py
+    livy-launch-yt.py
     spark-discovery-yt.py
     spark-launch-yt.py
     spark-manage-yt.py

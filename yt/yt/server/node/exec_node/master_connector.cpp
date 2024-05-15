@@ -134,9 +134,9 @@ private:
         // but there is no reason to preserve HeartbeatExecutor's state.
         HeartbeatExecutor_ = New<TRetryingPeriodicExecutor>(
             Bootstrap_->GetMasterConnectionInvoker(),
-            BIND([weakThis = MakeWeak(this)] {
-                auto strongThis = weakThis.Lock();
-                return strongThis ? strongThis->ReportHeartbeat() : TError("Master connector is destroyed");
+            BIND([this, weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                return this_ ? ReportHeartbeat() : TError("Master connector is destroyed");
             }),
             DynamicConfig_->HeartbeatExecutor);
 

@@ -878,7 +878,7 @@ public:
         const auto& controller = operation->GetControllerOrThrow();
 
         auto getOrchidAndCommit = BIND(
-            [controller, this_ = MakeStrong(this)] () {
+            [controller, this_ = MakeStrong(this)] {
                 controller->Commit();
                 // Orchid service runs on uncancellable invokers, so it is legal to use it after context cancellation.
                 controller->ZombifyOrchid();
@@ -886,7 +886,7 @@ public:
             .AsyncVia(controller->GetInvoker());
 
         auto saveOrchid = BIND(
-            [this, this_ = MakeStrong(this), operationId = operation->GetId(), controller] () {
+            [this, this_ = MakeStrong(this), operationId = operation->GetId(), controller] {
                 auto orchid = controller->GetOrchid();
                 if (orchid) {
                     ZombieOperationOrchids_->AddOrchid(operationId, std::move(orchid));

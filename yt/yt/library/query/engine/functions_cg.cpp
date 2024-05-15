@@ -685,6 +685,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
 
     return [
         =,
+        this,
         this_ = MakeStrong(this),
         argIds = std::move(argIds),
         argumentTypes = std::move(argumentTypes)
@@ -701,39 +702,39 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
         auto codegenBody = [&] (TCGBaseContext& baseBuilder, std::vector<Value*> arguments) {
             TCGExprContext innerBuilder(TCGOpaqueValuesContext(baseBuilder, builder), builder);
 
-            if (this_->UseFunctionContext_) {
+            if (UseFunctionContext_) {
                 auto functionContext = innerBuilder.GetOpaqueValue(functionContextIndex);
                 arguments.insert(arguments.begin(), GetTypedFunctionContext(innerBuilder, functionContext));
             }
             arguments.insert(arguments.begin(), GetTypedExecutionContext(builder, buffer));
 
-            auto functionType = this_->CallingConvention_->GetCalleeType(
+            auto functionType = CallingConvention_->GetCalleeType(
                 innerBuilder,
                 argumentTypes,
                 type,
-                this_->UseFunctionContext_);
+                UseFunctionContext_);
 
             if (executionBackend == EExecutionBackend::WebAssembly) {
                 BuildPrototypesForFunctions(
                     innerBuilder,
-                    {std::make_pair(this_->SymbolName_, functionType)});
+                    {std::pair(SymbolName_, functionType)});
             } else {
                 LoadLlvmFunctions(
                     innerBuilder,
-                    this_->FunctionName_,
-                    { std::pair(this_->SymbolName_, functionType) },
-                    this_->ImplementationFile_);
+                    FunctionName_,
+                    { std::pair(SymbolName_, functionType) },
+                    ImplementationFile_);
             }
 
             auto callee = innerBuilder.Module->GetModule()->getFunction(
-                ToStringRef(this_->SymbolName_));
+                ToStringRef(SymbolName_));
             YT_VERIFY(callee);
 
             auto result = innerBuilder->CreateCall(callee, arguments);
             return result;
         };
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        return CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArguments,
             codegenBody,
@@ -765,6 +766,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     auto finalizeName = AggregateName_ + "_finalize";
 
     auto makeCodegenBody = [
+        this,
         this_ = MakeStrong(this),
         argumentTypes = std::move(argumentTypes),
         stateType,
@@ -776,6 +778,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
         finalizeName
     ] (const TString& functionName, Value* executionContext) {
         return [
+            this,
             this_,
             executionContext,
             argumentTypes = std::move(argumentTypes),
@@ -792,7 +795,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
             auto aggregateFunctions = std::vector<std::pair<TString, llvm::FunctionType*>>();
 
-            auto initType = this_->CallingConvention_->GetCalleeType(
+            auto initType = CallingConvention_->GetCalleeType(
                 builder,
                 std::vector<EValueType>(),
                 stateType,
@@ -802,7 +805,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             std::vector<EValueType> updateArgs = {stateType};
             updateArgs.insert(updateArgs.end(), argumentTypes.begin(), argumentTypes.end());
 
-            auto updateType = this_->CallingConvention_->GetCalleeType(
+            auto updateType = CallingConvention_->GetCalleeType(
                 builder,
                 updateArgs,
                 stateType,
@@ -810,7 +813,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             auto update = std::pair(updateName, updateType);
 
 
-            auto mergeType = this_->CallingConvention_->GetCalleeType(
+            auto mergeType = CallingConvention_->GetCalleeType(
                 builder,
                 std::vector{
                     stateType,
@@ -819,7 +822,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
                 false);
             auto merge = std::pair(mergeName, mergeType);
 
-            auto finalizeType = this_->CallingConvention_->GetCalleeType(
+            auto finalizeType = CallingConvention_->GetCalleeType(
                 builder,
                 std::vector{stateType},
                 resultType,
@@ -836,9 +839,9 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             } else {
                 LoadLlvmFunctions(
                     builder,
-                    this_->AggregateName_,
+                    AggregateName_,
                     aggregateFunctions,
-                    this_->ImplementationFile_);
+                    ImplementationFile_);
             }
 
             auto callee = builder.Module->GetModule()->getFunction(ToStringRef(functionName));
@@ -850,13 +853,14 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
     TCodegenAggregate codegenAggregate;
     codegenAggregate.Initialize = [
+        this,
         this_ = MakeStrong(this),
         initName,
         stateType,
         name,
         makeCodegenBody
     ] (TCGBaseContext& builder, Value* buffer) {
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        return CallingConvention_->MakeCodegenFunctionCall(
             builder,
             std::vector<TCodegenValue>(),
             makeCodegenBody(initName, buffer),
@@ -866,6 +870,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     };
 
     codegenAggregate.Update = [
+        this,
         this_ = MakeStrong(this),
         updateName,
         stateType,
@@ -882,7 +887,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             });
         }
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        return CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(updateName, buffer),
@@ -892,6 +897,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     };
 
     codegenAggregate.Merge = [
+        this,
         this_ = MakeStrong(this),
         mergeName,
         stateType,
@@ -906,7 +912,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             return aggState;
         });
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        return CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(mergeName, buffer),
@@ -916,6 +922,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     };
 
     codegenAggregate.Finalize = [
+        this,
         this_ = MakeStrong(this),
         finalizeName,
         resultType,
@@ -927,7 +934,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             return aggState;
         });
 
-        return this_->CallingConvention_->MakeCodegenFunctionCall(
+        return CallingConvention_->MakeCodegenFunctionCall(
             builder,
             codegenArgs,
             makeCodegenBody(finalizeName, buffer),

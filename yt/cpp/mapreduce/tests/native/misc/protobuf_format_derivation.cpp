@@ -2,11 +2,11 @@
 
 #include <yt/cpp/mapreduce/tests/native/proto_lib/row.pb.h>
 
-#include <library/cpp/testing/unittest/registar.h>
-
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/config.h>
+
+#include <library/cpp/testing/gtest/gtest.h>
 
 using ::google::protobuf::Message;
 
@@ -126,193 +126,119 @@ using TEverythingSpecifiedReducer = TReducer<TUrlRow, THostRow>;
 REGISTER_REDUCER(TEverythingSpecifiedReducer)
 
 
-Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
-    Y_UNIT_TEST(DifferentTypesMapperInput)
-    {
-        TProtoFormatDerivationFixture fixture;
+TEST(ProtoFormatDerivation, DifferentTypesMapperInput)
+{
+    TProtoFormatDerivationFixture fixture;
 
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+        .ReduceBy("Host")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+        //the only way to add different types' table is to make it empty
+        .AddInput<THostRow>(fixture.GetWorkingDir() + "/empty")
+        .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+        new TUnspecifiedInputMapper,
+        new TEverythingSpecifiedReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+}
+
+TEST(ProtoFormatDerivation, DifferentTypesNoMapperInput)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    try {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
-            .ReduceBy("Host")
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-            //the only way to add different types' table is to make it empty
-            .AddInput<THostRow>(fixture.GetWorkingDir() + "/empty")
-            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-            new TUnspecifiedInputMapper,
+                .ReduceBy("Host")
+                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+                .AddInput<THostRow>(fixture.GetWorkingDir() + "/urls2")
+                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+            nullptr,
             new TEverythingSpecifiedReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+        FAIL() << "operation was expected to fail";
+    } catch (const TApiUsageError&) {
     }
+}
 
-    Y_UNIT_TEST(DifferentTypesNoMapperInput)
-    {
-        TProtoFormatDerivationFixture fixture;
+TEST(ProtoFormatDerivation, UnspecifiedMapperOutput)
+{
+    TProtoFormatDerivationFixture fixture;
 
-        try {
-            fixture.GetClient()->MapReduce(
-                TMapReduceOperationSpec()
-                    .ReduceBy("Host")
-                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-                    .AddInput<THostRow>(fixture.GetWorkingDir() + "/urls2")
-                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-                nullptr,
-                new TEverythingSpecifiedReducer,
-                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-            UNIT_FAIL("operation was expected to fail");
-        } catch (const TApiUsageError&) {
-        }
-    }
-
-    Y_UNIT_TEST(UnspecifiedMapperOutput)
-    {
-        TProtoFormatDerivationFixture fixture;
-
-        try {
-            fixture.GetClient()->MapReduce(
-                TMapReduceOperationSpec()
-                    .ReduceBy("Host")
-                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-                    .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-                new TUnspecifiedOutputMapper,
-                new TUnspecifiedInputReducer,
-                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-            UNIT_FAIL("operation was expected to fail");
-        } catch (const TApiUsageError&) {
-        }
-    }
-
-    Y_UNIT_TEST(HintedMapperOutput)
-    {
-        TProtoFormatDerivationFixture fixture;
-
+    try {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
-            .ReduceBy("Host")
-            .HintMapOutput<TUrlRow>()
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-            new TUnspecifiedOutputMapper,
-            new TEverythingSpecifiedReducer,
-            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-    }
-
-    Y_UNIT_TEST(UnspecifiedInputReduceCombiner)
-    {
-        TProtoFormatDerivationFixture fixture;
-
-        try {
-            fixture.GetClient()->MapReduce(
-                TMapReduceOperationSpec()
                 .ReduceBy("Host")
                 .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
                 .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
                 .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-                new TEverythingSpecifiedMapper,
-                new TUnspecifiedInputReduceCombiner,
-                new TEverythingSpecifiedReducer,
-                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-
-            UNIT_FAIL("operation was expected to fail");
-        } catch (const TApiUsageError&) {
-        }
+            new TUnspecifiedOutputMapper,
+            new TUnspecifiedInputReducer,
+            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+        FAIL() << "operation was expected to fail";
+    } catch (const TApiUsageError&) {
     }
+}
 
-    Y_UNIT_TEST(HintedInputReduceCombiner)
-    {
-        TProtoFormatDerivationFixture fixture;
+TEST(ProtoFormatDerivation, HintedMapperOutput)
+{
+    TProtoFormatDerivationFixture fixture;
 
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+        .ReduceBy("Host")
+        .HintMapOutput<TUrlRow>()
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+        .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+        new TUnspecifiedOutputMapper,
+        new TEverythingSpecifiedReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+}
+
+TEST(ProtoFormatDerivation, UnspecifiedInputReduceCombiner)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    try {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
             .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
             .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
-            .HintReduceCombinerInput<TUrlRow>(),
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             new TEverythingSpecifiedMapper,
             new TUnspecifiedInputReduceCombiner,
             new TEverythingSpecifiedReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+        FAIL() << "operation was expected to fail";
+    } catch (const TApiUsageError&) {
     }
+}
 
-    Y_UNIT_TEST(UnspecifiedOutputReduceCombiner)
-    {
-        TProtoFormatDerivationFixture fixture;
+TEST(ProtoFormatDerivation, HintedInputReduceCombiner)
+{
+    TProtoFormatDerivationFixture fixture;
 
-        try {
-            fixture.GetClient()->MapReduce(
-                TMapReduceOperationSpec()
-                .ReduceBy("Host")
-                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-                new TEverythingSpecifiedMapper,
-                new TUnspecifiedOutputReduceCombiner,
-                new TEverythingSpecifiedReducer,
-                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+        .ReduceBy("Host")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+        .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
+        .HintReduceCombinerInput<TUrlRow>(),
+        new TEverythingSpecifiedMapper,
+        new TUnspecifiedInputReduceCombiner,
+        new TEverythingSpecifiedReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+}
 
-            UNIT_FAIL("operation was expected to fail");
-        } catch (const TApiUsageError&) {
-        }
-    }
+TEST(ProtoFormatDerivation, UnspecifiedOutputReduceCombiner)
+{
+    TProtoFormatDerivationFixture fixture;
 
-    Y_UNIT_TEST(HintedOutputReduceCombiner)
-    {
-        TProtoFormatDerivationFixture fixture;
-
-        fixture.GetClient()->MapReduce(
-            TMapReduceOperationSpec()
-            .ReduceBy("Host")
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
-            .HintReduceCombinerOutput<TUrlRow>(),
-            new TEverythingSpecifiedMapper,
-            new TUnspecifiedOutputReduceCombiner,
-            new TEverythingSpecifiedReducer,
-            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-    }
-
-    Y_UNIT_TEST(UnspecifiedReducerInput)
-    {
-        TProtoFormatDerivationFixture fixture;
-
-        try {
-            fixture.GetClient()->MapReduce(
-                TMapReduceOperationSpec()
-                    .ReduceBy("Host")
-                    .AddInput<TNode>(fixture.GetWorkingDir() + "/urls1")
-                    .AddInput<TNode>(fixture.GetWorkingDir() + "/urls2")
-                    .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-                nullptr,
-                new TUnspecifiedInputReducer,
-                TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-
-            UNIT_FAIL("operation was expected to fail");
-        } catch (const TApiUsageError&) {
-        }
-    }
-
-    Y_UNIT_TEST(ReducerInputFromOperationInput)
-    {
-        TProtoFormatDerivationFixture fixture;
-
-        fixture.GetClient()->MapReduce(
-            TMapReduceOperationSpec()
-                .ReduceBy("Host")
-                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
-                .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
-                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
-            nullptr,
-            new TUnspecifiedInputReducer,
-            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
-    }
-
-    Y_UNIT_TEST(EverythingSpecified)
-    {
-        TProtoFormatDerivationFixture fixture;
-
+    try {
         fixture.GetClient()->MapReduce(
             TMapReduceOperationSpec()
             .ReduceBy("Host")
@@ -320,8 +246,77 @@ Y_UNIT_TEST_SUITE(ProtoFormatDerivation) {
             .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
             .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
             new TEverythingSpecifiedMapper,
-            new TEverythingSpecifiedReduceCombiner,
+            new TUnspecifiedOutputReduceCombiner,
             new TEverythingSpecifiedReducer,
             TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+        FAIL() << "operation was expected to fail";
+    } catch (const TApiUsageError&) {
     }
+}
+
+TEST(ProtoFormatDerivation, HintedOutputReduceCombiner)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+        .ReduceBy("Host")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+        .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host")
+        .HintReduceCombinerOutput<TUrlRow>(),
+        new TEverythingSpecifiedMapper,
+        new TUnspecifiedOutputReduceCombiner,
+        new TEverythingSpecifiedReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+}
+
+TEST(ProtoFormatDerivation, UnspecifiedReducerInput)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    try {
+        fixture.GetClient()->MapReduce(
+            TMapReduceOperationSpec()
+                .ReduceBy("Host")
+                .AddInput<TNode>(fixture.GetWorkingDir() + "/urls1")
+                .AddInput<TNode>(fixture.GetWorkingDir() + "/urls2")
+                .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+            nullptr,
+            new TUnspecifiedInputReducer,
+            TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+        FAIL() << "operation was expected to fail";
+    } catch (const TApiUsageError&) {
+    }
+}
+
+TEST(ProtoFormatDerivation, ReducerInputFromOperationInput)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+            .ReduceBy("Host")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+            .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+            .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+        nullptr,
+        new TUnspecifiedInputReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
+}
+
+TEST(ProtoFormatDerivation, EverythingSpecified)
+{
+    TProtoFormatDerivationFixture fixture;
+
+    fixture.GetClient()->MapReduce(
+        TMapReduceOperationSpec()
+        .ReduceBy("Host")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls1")
+        .AddInput<TUrlRow>(fixture.GetWorkingDir() + "/urls2")
+        .AddOutput<THostRow>(fixture.GetWorkingDir() + "/host"),
+        new TEverythingSpecifiedMapper,
+        new TEverythingSpecifiedReduceCombiner,
+        new TEverythingSpecifiedReducer,
+        TOperationOptions().Spec(TNode()("max_failed_job_count", 1)));
 }

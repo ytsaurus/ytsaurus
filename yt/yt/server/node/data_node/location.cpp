@@ -578,7 +578,7 @@ bool TChunkLocation::Resurrect()
 
     YT_LOG_WARNING("Location resurrection (LocationUuid: %v)", GetUuid());
 
-    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
             // Remove disabled lock file if exists.
             auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
@@ -1031,6 +1031,7 @@ std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
     bool throttled =
         readQueueSize > GetReadThrottlingLimit() ||
+        IOEngine_->IsReadRequestLimitExceeded() ||
         ReadMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledRead();
@@ -1049,6 +1050,7 @@ bool TChunkLocation::CheckWriteThrottling(
 {
     bool throttled =
         GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
+        IOEngine_->IsWriteRequestLimitExceeded() ||
         WriteMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledWrite();
@@ -1312,7 +1314,7 @@ TFuture<void> TChunkLocation::SynchronizeActions()
 
     return AllSet(futures)
         .AsVoid()
-        .Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             // All actions with this location ended here.
             auto actionsGuard = Guard(ActionsContainerLock_);
             YT_VERIFY(Actions_.empty());
@@ -1428,27 +1430,25 @@ private:
 
     std::optional<TCounters> GetCounters() const
     {
-        try {
-            auto counters = TCounters{
-                .FilesystemRead = IOEngine_->GetTotalReadBytes(),
-                .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
-            };
+        auto counters = TCounters{
+            .FilesystemRead = IOEngine_->GetTotalReadBytes(),
+            .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
+        };
 
-            auto diskStats = NYT::GetDiskStats();
-            auto it = diskStats.find(DeviceName_);
-            if (it != diskStats.end()) {
-                counters.DiskRead = it->second.SectorsRead * UnixSectorSize;
-                counters.DiskWritten = it->second.SectorsWritten * UnixSectorSize;
+        try {
+            auto stat = NYT::GetBlockDeviceStat(DeviceName_);
+            if (stat) {
+                counters.DiskRead = stat->SectorsRead * UnixSectorSize;
+                counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
             } else {
                 YT_LOG_WARNING("Cannot find disk IO statistics (DeviceName: %v)",
                     DeviceName_);
             }
-
-            return counters;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get disk IO statistics");
         }
-        return {};
+
+        return counters;
     }
 
     static i64 CalculateRate(i64 oldValue, i64 newValue, TDuration duration)
@@ -1875,7 +1875,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
         CreateDisableLockFile(reason);
     }
 
-    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] () {
+    YT_UNUSED_FUTURE(BIND([=, this, this_ = MakeStrong(this)] {
         try {
             CreateDisableLockFile(reason);
         } catch (const std::exception& ex) {

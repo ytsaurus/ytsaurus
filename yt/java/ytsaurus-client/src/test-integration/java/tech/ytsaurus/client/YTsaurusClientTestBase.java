@@ -61,12 +61,15 @@ public class YTsaurusClientTestBase {
             localYTsaurus = new FixedHostPortGenericContainer<>("ytsaurus/local:dev")
                     .withFixedExposedPort(10110, 80) // http
                     .withFixedExposedPort(10111, 10111) // rpc_proxy
+                    .withFixedExposedPort(10125, 10125)
                     .withNetwork(Network.newNetwork())
                     .withCommand(
                             "--proxy-config", "/tmp/proxy_config.yson",
                             "--rpc-proxy-count", "1",
                             "--rpc-proxy-port", "10111",
                             "--queue-agent-count", "1",
+                            "--discovery-server-count", "1",
+                            "--discovery-server-port", "10125",
                             "--queue-agent-config", "/etc/yt/server.yson",
                             "--enable-debug-logging"
                     )

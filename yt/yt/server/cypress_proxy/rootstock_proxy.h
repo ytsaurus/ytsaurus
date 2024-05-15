@@ -10,10 +10,10 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::IYPathServicePtr CreateRootstockProxy(
+ISequoiaServicePtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     NSequoiaClient::ISequoiaTransactionPtr transaction,
-    NYPath::TYPath resolvedPath);
+    NSequoiaClient::TAbsoluteYPath resolvedPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

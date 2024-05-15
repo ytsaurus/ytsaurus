@@ -118,8 +118,7 @@ public:
         const TError& error);
 
     //! Cleans the slot directory, initializes the location and enables it.
-    //! If force argument is specified then unconditionally performs initialization.
-    TFuture<void> Repair(bool force);
+    TFuture<void> Repair();
 
     IJobDirectoryManagerPtr GetJobDirectoryManager();
 
@@ -201,7 +200,7 @@ private:
 
     void DoInitialize();
 
-    void DoRepair(bool force);
+    void DoRepair();
 
     std::vector<TString> DoPrepareSandboxDirectories(
         int slotIndex,

@@ -3,9 +3,8 @@
 #include "cell_commit_session.h"
 #include "client.h"
 #include "config.h"
+#include "connection.h"
 #include "tablet_request_batcher.h"
-
-#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -242,7 +241,11 @@ private:
         }
 
         if (batchIndex == 0) {
-            ToProto(req->mutable_prerequisite_transaction_ids(), Options_.PrerequisiteTransactionIds);
+            auto prerequisiteTransactions = transaction->GetPrerequisiteTransactionIds();
+            for (auto transactionId : Options_.PrerequisiteTransactionIds) {
+                prerequisiteTransactions.push_back(transactionId);
+            }
+            ToProto(req->mutable_prerequisite_transaction_ids(), prerequisiteTransactions);
         }
 
         YT_LOG_DEBUG("Sending transaction rows (BatchIndex: %v/%v, RowCount: %v, "

@@ -1,15 +1,18 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map,
+    alter_table, authors, concatenate, create, get_driver, get, insert_rows, map as yt_map, write_table,
     map_reduce as yt_map_reduce, merge, read_table, reduce as yt_reduce, set as yt_set, set_node_banned,
-    sort as yt_sort, sync_create_cells, sync_freeze_table, sync_mount_table, wait, write_file, write_table)
+    sort as yt_sort, sync_create_cells, sync_freeze_table, sync_mount_table, wait, write_file,
+    multicell_sleep, remove)
 
 from yt.common import YtError
 
 import pytest
 
 import time
+
+import threading
 
 CELL_TAG_CONVERSION = 10
 
@@ -423,3 +426,44 @@ class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
 
 class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
     ENABLE_TMP_PORTAL = True
+
+
+##################################################################
+
+
+class TestChunkTeleportation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
+    def _schedule_unfreeze(self):
+        def do_unfreeze_edge():
+            time.sleep(3)
+            remove("//sys/@config/multicell_manager/testing/frozen_hive_edges")
+        threading.Thread(target=do_unfreeze_edge).start()
+
+    @authors("h0pless")
+    def test_teleportaion_with_hive_instability(self):
+        src_cell_tag = 11
+        dst_cell_tag = 12
+        create("table", "//tmp/output", attributes={"external_cell_tag": src_cell_tag})
+        create("table", "//tmp/table1", attributes={
+            "schema": [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"}
+            ],
+            "external_cell_tag": dst_cell_tag})
+        write_table("//tmp/table1", {"key": 123, "value": "value"})
+
+        yt_set("//sys/@config/multicell_manager/testing/frozen_hive_edges", [[src_cell_tag, dst_cell_tag]])
+        multicell_sleep()
+        self._schedule_unfreeze()
+        concatenate(["//tmp/table1"], "//tmp/output")
+
+        # Just don't crash.
+        time.sleep(3)

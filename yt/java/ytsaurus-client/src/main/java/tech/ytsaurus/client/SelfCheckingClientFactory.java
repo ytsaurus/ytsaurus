@@ -27,6 +27,32 @@ public interface SelfCheckingClientFactory {
 
 @NonNullApi
 @NonNullFields
+class ErrorHandlingClient extends FailureDetectingRpcClient implements RpcClient {
+    private static final Logger logger = LoggerFactory.getLogger(ClientPool.class);
+
+    final CompletableFuture<Void> statusFuture;
+
+    ErrorHandlingClient(RpcClient innerClient, CompletableFuture<Void> statusFuture) {
+        super(innerClient);
+        this.statusFuture = statusFuture;
+        setHandlers(
+                e -> {
+                    if (e instanceof YTsaurusError &&
+                            ((YTsaurusError) e).matches(YTsaurusErrorCode.TableMountInfoNotReady.code)) {
+                        // Workaround: we want to treat such errors as recoverable.
+                        return false;
+                    }
+                    return YTsaurusError.isUnrecoverable(e);
+                },
+                e -> {
+                    logger.debug("Error handling client {} detected fatal error:", this, e);
+                    statusFuture.completeExceptionally(e);
+                });
+    }
+}
+
+@NonNullApi
+@NonNullFields
 class SelfCheckingClientFactoryImpl implements SelfCheckingClientFactory {
     RpcClientFactory underlying;
     RpcOptions options;
@@ -45,7 +71,7 @@ class SelfCheckingClientFactoryImpl implements SelfCheckingClientFactory {
 
 @NonNullApi
 @NonNullFields
-class SelfCheckingClient extends FailureDetectingRpcClient implements RpcClient {
+class SelfCheckingClient extends ErrorHandlingClient {
     private static final Logger logger = LoggerFactory.getLogger(ClientPool.class);
 
     private static final Duration PING_PERIOD = Duration.ofSeconds(5);
@@ -54,31 +80,16 @@ class SelfCheckingClient extends FailureDetectingRpcClient implements RpcClient 
     final ScheduledExecutorService executorService;
     final RpcOptions options;
 
-    final CompletableFuture<Void> statusFuture;
     volatile CompletableFuture<RpcClientResponse<TRspDiscover>> pingResult = CompletableFuture.completedFuture(null);
 
     SelfCheckingClient(RpcClient innerClient, RpcOptions options, CompletableFuture<Void> statusFuture) {
-        super(innerClient);
-        this.statusFuture = statusFuture;
-        setHandlers(
-                e -> {
-                    if (e instanceof YTsaurusError &&
-                            ((YTsaurusError) e).matches(YTsaurusErrorCode.TableMountInfoNotReady.code)) {
-                        // Workaround: we want to treat such errors as recoverable.
-                        return false;
-                    }
-                    return YTsaurusError.isUnrecoverable(e);
-                },
-                e -> {
-                    logger.debug("Self checking client {} detected fatal error:", this, e);
-                    statusFuture.completeExceptionally(e);
-                });
-        executorService = new ScheduledSerializedExecutorService(innerClient.executor());
+        super(innerClient, statusFuture);
 
         this.options = new RpcOptions();
         this.options.setDefaultRequestAck(options.getDefaultRequestAck());
         this.options.setGlobalTimeout(PING_TIMEOUT);
 
+        executorService = new ScheduledSerializedExecutorService(innerClient.executor());
         executorService.submit(this::scheduleNextPing);
     }
 

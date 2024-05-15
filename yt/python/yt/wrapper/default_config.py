@@ -10,11 +10,6 @@ import yt.yson as yson
 import yt.json_wrapper as json
 from yt.yson import YsonEntity, YsonMap
 
-try:
-    import yt.packages.six as six
-except ImportError:
-    import six
-
 import os
 import sys
 from copy import deepcopy
@@ -340,6 +335,12 @@ default_config = {
         "modules_chunk_size": 100 * common.MB,
         # Bypass artifacts cache for modules files.
         "modules_bypass_artifacts_cache": None,
+        # Ignore "system" python modules (installed on client's host and presented in YT runtime).
+        "ignore_system_modules": False,
+        "system_module_patterns": [
+            r"/lib/python[\d\.]+/(site|dist)-packages/",
+            r"/lib/python[\d\.]+/.+\.(py|pyc|so)$",
+        ],
     },
 
     # Enables special behavior if client works with local mode cluster.
@@ -751,7 +752,7 @@ SHORTCUTS = {
     "POOL": "pool",
     "MEMORY_LIMIT": "memory_limit",
     "SPEC": "spec_defaults",
-    "BASE_LAYER" : "operation_base_layer",
+    "BASE_LAYER": "operation_base_layer",
     "TABLE_WRITER": "table_writer",
 
     "RETRY_READ": "read_retries/enable",
@@ -830,7 +831,7 @@ def _update_from_env_vars(config, shortcuts=None):
     if not shortcuts:
         shortcuts = SHORTCUTS
 
-    for key, value in six.iteritems(os.environ):
+    for key, value in os.environ.items():
         prefix = "YT_"
         if not key.startswith(prefix):
             continue

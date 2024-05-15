@@ -11,13 +11,13 @@ template <class TBaseService>
 class TErrorReportingServiceBase
     : public TBaseService
 {
-public:
+protected:
     template <class... TArgs>
     TErrorReportingServiceBase(IBootstrap* bootstrap, TArgs&&... args);
 
-    void BeforeInvoke(NRpc::IServiceContext* context) override;
-
     void OnMethodError(const TError& error, const TString& method) override;
+
+    void BeforeInvoke(NRpc::IServiceContext* context) override;
 
 private:
     IBootstrap* const Bootstrap_;

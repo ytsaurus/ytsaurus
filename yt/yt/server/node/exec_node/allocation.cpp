@@ -78,17 +78,18 @@ TAllocation::TAllocation(
     const NClusterNode::TJobResources& resourceDemand,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
-    : TResourceHolder(
+    : TResourceOwner(
+        id.Underlying(),
         bootstrap->GetJobResourceManager().Get(),
         EResourcesConsumerType::SchedulerAllocation,
-        ExecNodeLogger.WithTag(
-            "AllocationId: %v, OperationId: %v",
-            id,
-            operationId),
         resourceDemand)
     , Bootstrap_(bootstrap)
     , Id_(id)
     , OperationId_(operationId)
+    , Logger(ExecNodeLogger.WithTag(
+        "AllocationId: %v, OperationId: %v",
+        id,
+        operationId))
     , RequestedGpu_(resourceDemand.Gpu)
     , RequestedCpu_(resourceDemand.Cpu)
     , RequestedMemory_(resourceDemand.UserMemory)
@@ -111,13 +112,6 @@ TAllocationId TAllocation::GetId() const noexcept
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Id_;
-}
-
-TGuid TAllocation::GetIdAsGuid() const noexcept
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Id_.Underlying();
 }
 
 TOperationId TAllocation::GetOperationId() const noexcept
@@ -239,21 +233,11 @@ NClusterNode::TJobResources TAllocation::GetResourceUsage() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetResourceUsage();
-}
+    if (ResourceHolder_) {
+        return ResourceHolder_->GetResourceUsage();
+    }
 
-const NClusterNode::ISlotPtr& TAllocation::GetUserSlot() const noexcept
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return UserSlot_;
-}
-
-const std::vector<NClusterNode::ISlotPtr>& TAllocation::GetGpuSlots() const noexcept
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return GpuSlots_;
+    return {};
 }
 
 void TAllocation::Abort(TError error)
@@ -272,7 +256,7 @@ void TAllocation::Abort(TError error)
     FinishError_ = std::move(error);
 
     if (Job_) {
-        TransferResourcesTo(*Job_);
+        TransferResourcesToJob();
         auto job = EvictJob();
         job->Abort(FinishError_);
     } else {
@@ -296,7 +280,7 @@ void TAllocation::Complete()
     State_ = EAllocationState::Finished;
 
     if (Job_) {
-        TransferResourcesTo(*Job_);
+        TransferResourcesToJob();
         EvictJob();
     }
 
@@ -344,7 +328,7 @@ void TAllocation::Preempt(
 
 bool TAllocation::IsResourceUsageOverdraftOccurred() const
 {
-    return TResourceHolder::GetResourceUsage().UserMemory > GetRequestedMemory();
+    return ResourceHolder_->GetResourceUsage().UserMemory > GetRequestedMemory();
 }
 
 bool TAllocation::IsEmpty() const noexcept
@@ -415,7 +399,7 @@ void TAllocation::OnSettledJobReceived(
         jobControllerConfig->MinRequiredDiskSpace);
     auto resourceAttributes = BuildJobResourceAttributes(jobSpecExt);
 
-    UpdateResourceDemand(
+    ResourceHolder_->UpdateResourceDemand(
         resources,
         resourceAttributes,
         jobInfo.JobSpec.GetExtension(TJobSpecExt::job_spec_ext).user_job_spec().port_count());
@@ -489,6 +473,13 @@ void TAllocation::OnResourcesAcquired() noexcept
     Job_->Start();
 }
 
+const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noexcept
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return ResourceHolder_;
+}
+
 void TAllocation::OnAllocationFinished()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -510,6 +501,13 @@ void TAllocation::OnJobFinished(TJobPtr job)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     JobFinished_.Fire(std::move(job));
+}
+
+void TAllocation::TransferResourcesToJob()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    ResourceHolder_.Reset();
 }
 
 TAllocationPtr CreateAllocation(

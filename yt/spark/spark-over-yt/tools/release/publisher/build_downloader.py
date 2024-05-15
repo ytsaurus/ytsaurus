@@ -2,16 +2,10 @@ import argparse
 from os.path import join
 
 from .local_manager import Versions, get_release_level, load_versions, ReleaseLevel
-from .remote_manager import ClientBuilder, Client, spark_remote_dir, conf_remote_dir, spyt_remote_dir
+from .remote_manager import ClientBuilder, Client, conf_remote_dir, spyt_remote_dir
 from .utils import configure_logger
 
 logger = configure_logger("Build downloader")
-
-
-def download_spark_fork(downloader: Client, versions: Versions, sources_path: str):
-    logger.info("Downloading spark fork files")
-    spark_tgz = join(sources_path, 'spark.tgz')
-    downloader.read_file(f"{spark_remote_dir(versions)}/spark.tgz", spark_tgz)
 
 
 def download_spyt(downloader: Client, versions: Versions, sources_path: str):
@@ -34,8 +28,6 @@ def main(sources_path: str, downloader_builder: ClientBuilder):
     release_level = get_release_level(sources_path)
     versions = load_versions(sources_path)
     downloader = Client(downloader_builder)
-    if release_level < ReleaseLevel.SPARK_FORK:
-        download_spark_fork(downloader, versions, sources_path)
     if release_level < ReleaseLevel.SPYT:
         download_spyt(downloader, versions, sources_path)
     logger.info("Downloaded successfully")

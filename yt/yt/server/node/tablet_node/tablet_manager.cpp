@@ -104,6 +104,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
+#include <yt/yt/core/misc/string_helpers.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/authentication_identity.h>
@@ -210,42 +211,42 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND(&TTabletManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND(&TTabletManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadValues, Unretained(this)));
         RegisterLoader(
             "TabletManager.Async",
-            BIND(&TTabletManager::LoadAsync, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND(&TTabletManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND(&TTabletManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveValues, Unretained(this)));
         RegisterSaver(
             EAsyncSerializationPriority::Default,
             "TabletManager.Async",
-            BIND(&TTabletManager::SaveAsync, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnmountTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraRemountTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemountTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraSetTabletState, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraTrimRows, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraLockTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUnlockTablet, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraRotateStore, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraSplitPartition, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraMergePartitions, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletState, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraTrimRows, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraLockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportTabletLocked, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnlockTablet, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRotateStore, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSplitPartition, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMergePartitions, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdatePartitionSampleKeys, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAlterTableReplica, Unretained(this)));
@@ -255,7 +256,8 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletCellDecommissioned, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletCellSuspended, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReplicateTabletContent, Unretained(this)));
-        RegisterForwardedMethod(BIND(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
+        RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
     }
 
     void Initialize() override
@@ -510,10 +512,16 @@ public:
         ToProto(request.mutable_tablet_id(), tablet->GetId());
         request.set_mount_revision(tablet->GetMountRevision());
         request.set_reason(static_cast<int>(reason));
+
+        auto activeStore = tablet->GetActiveStore();
         // Out of band immediate rotation may happen when this mutation is scheduled but not applied.
         // This rotation request will become obsolete and may lead to an empty active store
         // being rotated.
-        ToProto(request.mutable_expected_active_store_id(), tablet->GetActiveStore()->GetId());
+        ToProto(request.mutable_expected_active_store_id(), activeStore->GetId());
+
+        // NB: Some aborted transactions that created skip list entries could be dropped on store reserialization.
+        request.set_allow_empty_store(activeStore->IsSorted() && activeStore->GetRowCount() > 0 && activeStore->GetTimestampCount() == 0);
+
         Slot_->CommitTabletMutation(request);
     }
 
@@ -1095,6 +1103,9 @@ private:
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMoveTarget = request->has_movement_source_cell_id();
+        auto userData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
+            ? TYsonString(request->replicatable_content().custom_runtime_data())
+            : TYsonString();
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1151,6 +1162,8 @@ private:
             retainedTimestamp,
             cumulativeDataWeight);
         tabletHolder->RawSettings() = rawSettings;
+
+        tabletHolder->CustomRuntimeData() = std::move(userData);
 
         InitializeTablet(tabletHolder.get());
 
@@ -1954,10 +1967,8 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto reason = static_cast<EStoreRotationReason>(request->reason());
-        TStoreId expectedActiveStoreId;
-        if (request->has_expected_active_store_id()) {
-            FromProto(&expectedActiveStoreId, request->expected_active_store_id());
-        }
+        auto expectedActiveStoreId = FromProto<TStoreId>(request->expected_active_store_id());
+        auto allowEmptyStore = request->allow_empty_store();
 
         auto* tablet = FindTablet(tabletId);
         if (!tablet) {
@@ -2003,7 +2014,7 @@ private:
             return;
         }
 
-        storeManager->Rotate(true, reason);
+        storeManager->Rotate(/*createNewStore*/ true, reason, allowEmptyStore);
         UpdateTabletSnapshot(tablet);
 
         if (tablet->IsPhysicallyOrdered()) {
@@ -3629,6 +3640,31 @@ private:
         PostTabletCellSuspensionToggledMessage(/*suspended*/ false);
     }
 
+    void HydraSetCustomRuntimeData(TReqSetCustomRuntimeData* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        if (request->has_custom_runtime_data()) {
+            static constexpr int CustomRuntimeDataTruncateLimit = 100;
+            YT_LOG_INFO("Set custom runtime data for tablet (%v, CustomRuntimeData: %v)",
+                tablet->GetLoggingTag(),
+                TruncateString(
+                    ConvertToYsonString(request->custom_runtime_data(), EYsonFormat::Text).ToString(),
+                    CustomRuntimeDataTruncateLimit));
+
+            tablet->CustomRuntimeData() = TYsonString(request->custom_runtime_data());
+        } else {
+            YT_LOG_INFO("Set empty custom runtime data for tablet (%v)",
+                tablet->GetLoggingTag());
+
+            tablet->CustomRuntimeData() = TYsonString();
+        }
+    }
+
     void SetTabletCellSuspend(bool suspend)
     {
         YT_VERIFY(HasHydraContext());
@@ -4308,6 +4344,7 @@ private:
                     .Item("provided_config").Value(tablet->RawSettings().Provided.MountConfigNode)
                     .Item("provided_extra_config").Value(tablet->RawSettings().Provided.ExtraMountConfig)
                 .EndMap()
+                .OptionalItem("custom_runtime_data", tablet->CustomRuntimeData())
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())

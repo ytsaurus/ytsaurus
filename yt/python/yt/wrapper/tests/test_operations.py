@@ -19,6 +19,7 @@ from yt.wrapper.operation_commands import (
 from yt.wrapper.schema import SortColumn, TableSchema
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
+from yt.wrapper.errors import YtOperationFailedError
 
 from yt.test_helpers import are_almost_equal
 
@@ -26,15 +27,9 @@ from yt.yson import YsonMap, YsonList, is_unicode, get_bytes
 from yt.skiff import SkiffTableSwitch
 import yt.logger as logger
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.local import start, stop
-
-try:
-    from yt.packages.six import b, PY3
-    from yt.packages.six.moves import xrange, zip as izip
-except ImportError:
-    from six import b, PY3
-    from six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
@@ -143,7 +138,7 @@ class TestOperations(object):
     def test_auto_merge(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(table, [{"x": i} for i in xrange(6)])
+        yt.write_table(table, [{"x": i} for i in range(6)])
 
         old_auto_merge_output = yt.config["auto_merge_output"]
 
@@ -164,8 +159,8 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
 
-        columns = [(random_string(7), random_string(7)) for _ in xrange(10)]
-        yt.write_table(table, [b("x={0}\ty={1}\n".format(*c)) for c in columns], format=yt.DsvFormat(), raw=True)
+        columns = [(random_string(7), random_string(7)) for _ in range(10)]
+        yt.write_table(table, [bytes("x={0}\ty={1}\n".format(*c), "utf-8") for c in columns], format=yt.DsvFormat(), raw=True)
 
         with pytest.raises(yt.YtError):
             yt.run_sort([table, other_table], other_table, sort_by=["y"])
@@ -344,7 +339,7 @@ class TestOperations(object):
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
         output_tables = []
-        for i in xrange(10):
+        for i in range(10):
             output_tables.append(TEST_DIR + "/temp%d" % i)
         append_table = TEST_DIR + "/temp_special"
         yt.write_table(table, [{"x": "1", "y": "1"}])
@@ -424,8 +419,8 @@ print(op.id)
         output_table = TEST_DIR + "/output_table"
         row_count = 10000
         slice_size = 1000
-        rows = [{"x": i // 10, "y": i} for i in xrange(row_count)]
-        for i in xrange(0, row_count, slice_size):
+        rows = [{"x": i // 10, "y": i} for i in range(row_count)]
+        for i in range(0, row_count, slice_size):
             yt.write_table(yt.TablePath(table, append=True), rows[i:i+slice_size])
 
         def sum_combiner(key, rows):
@@ -447,7 +442,7 @@ print(op.id)
             },
         )
         rows_actual = sorted(list(yt.read_table(output_table)), key=lambda row: row["x"])
-        rows_expected = [{"x": i, "y": sum(j for j in xrange(10 * i, 10 * i + 10))} for i in xrange(row_count // 10)]
+        rows_expected = [{"x": i, "y": sum(j for j in range(10 * i, 10 * i + 10))} for i in range(row_count // 10)]
         check_rows_equality(rows_expected, rows_actual)
 
     @authors("ignat")
@@ -518,9 +513,9 @@ print(op.id)
             second_cluster_client.remove(table)
             second_cluster_client.create("table", table, attributes={"compression_codec": "zlib_6"})
 
-            second_cluster_client.write_table(table, [{"a": [i, 2, 3]} for i in xrange(100)])
+            second_cluster_client.write_table(table, [{"a": [i, 2, 3]} for i in range(100)])
             yt.run_remote_copy(table, table, cluster_connection=second_cluster_connection)
-            assert list(yt.read_table(table)) == [{"a": [i, 2, 3]} for i in xrange(100)]
+            assert list(yt.read_table(table)) == [{"a": [i, 2, 3]} for i in range(100)]
             assert second_cluster_client.get(table + "/@compressed_data_size") == \
                    yt.get(table + "/@compressed_data_size")
 
@@ -646,7 +641,7 @@ print(op.id)
 
             input_table = TEST_DIR + "/input"
             output_table = TEST_DIR + "/output"
-            yt.write_table(input_table, [{"x": i} for i in xrange(100)])
+            yt.write_table(input_table, [{"x": i} for i in range(100)])
 
             op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"data_size_per_job": 1}, sync=False)
             wait(lambda: op.get_attributes(fields=["alerts"]).get("alerts", {}))
@@ -968,17 +963,17 @@ class TestOperationCommands(object):
         table = "//tmp/table"
         operation_count = 12
         table_paths = [0] * operation_count
-        for i in xrange(operation_count):
+        for i in range(operation_count):
             table_paths[i] = table + '_' + str(i)
 
-        for i in xrange(operation_count):
+        for i in range(operation_count):
             yt.write_table(table_paths[i], [{"x": "0"}])
 
         ops = [0] * operation_count
-        for i in xrange(operation_count):
+        for i in range(operation_count):
             ops[i] = yt.run_map("cat", table_paths[i], table_paths[i], sync=False, format="yson")
         start_times = [0] * operation_count
-        for i in xrange(operation_count):
+        for i in range(operation_count):
             ops[i].wait()
             start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
         start_times.sort()
@@ -1165,7 +1160,7 @@ class TestOperationsFormat(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": "0"}, {"x": "1"}, {"x": "2"}])
 
-        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in range(4)]
 
         yt.run_map(mapper, table, output_tables,
                    format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
@@ -1287,11 +1282,10 @@ class TestPythonOperations(object):
         yt.run_reduce(sum_y, table, table, reduce_by=["x"])
         check_rows_equality(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
-        if PY3:
-            yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
-            yt.run_sort(table, sort_by=[b"x"])
-            yt.run_reduce(sum_y_bytes, table, table, reduce_by=[b"x"], format=yt.YsonFormat(encoding=None))
-            check_rows_equality(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
+        yt.write_table(table, [{"x": 2}, {"x": 2, "y": 2}])
+        yt.run_sort(table, sort_by=[b"x"])
+        yt.run_reduce(sum_y_bytes, table, table, reduce_by=[b"x"], format=yt.YsonFormat(encoding=None))
+        check_rows_equality(yt.read_table(table), [{"y": 3, "x": 2}], ordered=False)
 
         yt.write_table(table, [{"x": "1"}, {"y": "2"}])
         yt.run_map(change_field, table, table, format=yt.DsvFormat())
@@ -1350,7 +1344,7 @@ class TestPythonOperations(object):
         @yt.raw
         def reformat(rec):
             values = rec.strip().split(b"\t", 2)
-            yield b"\t".join(b"=".join([k, v]) for k, v in izip([b"k", b"s", b"v"], values)) + b"\n"
+            yield b"\t".join(b"=".join([k, v]) for k, v in zip([b"k", b"s", b"v"], values)) + b"\n"
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -1520,6 +1514,38 @@ class TestPythonOperations(object):
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
 
+    @authors("dmifedorov")
+    @add_failed_operation_stderrs_to_error_message
+    def test_ignore_system_modules_in_pickling(self):
+        if arcadia_interop.yatest_common is not None:
+            # The test doesn't work in arcadia env since the latter doesn't use pickling at all.
+            pytest.skip()
+
+        def foo(rec):
+            import fakemodule  # noqa: F401
+            yield rec
+
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}])
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            init_file = os.path.join(tmp_dir, "__init__.py")
+            open(init_file, "w").close()
+
+            class fakemodule:
+                __file__ = init_file
+
+            with set_config_option("pickling/ignore_system_modules", True):
+                with pytest.raises(YtOperationFailedError) as exc_info:
+                    try:
+                        sys.modules["fakemodule"] = fakemodule
+                        yt.run_map(foo, table, table)
+                    finally:
+                        del sys.modules["fakemodule"]
+
+        # We check only one operation since there is no reason for errors to be different across the operations.
+        assert "ModuleNotFoundError" in exc_info.value.attributes["stderrs"][0]["stderr"]
+
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_is_inside_job(self):
@@ -1634,14 +1660,14 @@ class TestPythonOperations(object):
                    format=yt.YsonFormat(),
                    spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
 
-        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in range(3)])
 
         yt.run_sort(input, input, sort_by=["x"])
         yt.run_reduce(reducer, input, output,
                       reduce_by=["x"],
                       format=yt.YsonFormat(),
                       spec={"job_io": {"control_attributes": {"enable_row_index": True}}})
-        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in xrange(3)])
+        check_rows_equality(yt.read_table(output), [{"row_index": index} for index in range(3)])
 
         yt.write_table(input, [{"x": 1, "y": "a"}])
         yt.run_map(mapper_table_index, input, output, format=yt.YsonFormat(control_attributes_mode="iterator"))
@@ -1654,8 +1680,6 @@ class TestPythonOperations(object):
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
     def test_yson_string_proxy(self):
-        if not PY3:
-            return
 
         def mapper(row):
             row["is_unicode"] = is_unicode(row["string"])
@@ -1861,7 +1885,7 @@ class TestOperationsSeveralOutputTables(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
 
-        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in range(4)]
 
         yt.run_map(first_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="row_fields"))
 
@@ -1905,7 +1929,7 @@ class TestOperationsSeveralOutputTables(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
 
-        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in range(4)]
 
         yt.run_map(first_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="row_fields"))
 
@@ -1936,9 +1960,9 @@ class TestOperationsSeveralOutputTables(object):
             yield rec
 
         table = TEST_DIR + "/table"
-        yt.write_table(table, [{"key": "x", "value": str(i)} for i in xrange(3)])
+        yt.write_table(table, [{"key": "x", "value": str(i)} for i in range(3)])
 
-        output_tables = [TEST_DIR + "/output_" + str(i) for i in xrange(4)]
+        output_tables = [TEST_DIR + "/output_" + str(i) for i in range(4)]
 
         yt.run_map(first_mapper, table, output_tables, format=yt.YamrFormat())
 

@@ -1,4 +1,5 @@
 import re
+import copy
 
 
 def get_pool_trees(alert):
@@ -20,6 +21,22 @@ def match_pool_tree(pool_tree, pool_tree_matchers):
         else:
             raise RuntimeError("Unsupported matcher {}".format(matcher))
     return False
+
+
+def filter_pool_trees(alert, skip_pool_trees, include_pool_trees):
+    filtered_inner_errors = []
+    for error in alert["inner_errors"]:
+        pool_tree = error["attributes"].get("pool_tree", None)
+        if pool_tree is None:
+            continue
+        if (not match_pool_tree(pool_tree, skip_pool_trees) and  # noqa
+                (not include_pool_trees or match_pool_tree(pool_tree, include_pool_trees))):
+            filtered_inner_errors.append(error)
+    if filtered_inner_errors:
+        filtered_alert = copy.deepcopy(alert)
+        filtered_alert["inner_errors"] = filtered_inner_errors
+        return filtered_alert
+    return None
 
 
 def run_check_impl(yt_client,
@@ -49,14 +66,9 @@ def run_check_impl(yt_client,
             if alert_type in skip_alert_types or (include_alert_types and alert_type not in include_alert_types):
                 continue
             if alert_type == "update_fair_share":
-                pool_trees = get_pool_trees(alert)
-                if any(  # noqa
-                       map(lambda pool_tree:  # noqa
-                               not match_pool_tree(pool_tree, skip_pool_trees) and  # noqa
-                               (not include_pool_trees or match_pool_tree(pool_tree, include_pool_trees)),  # noqa
-                           pool_trees)  # noqa
-                ):   # noqa
-                    alerts.append(alert)
+                filtered_alert = filter_pool_trees(alert, skip_pool_trees, include_pool_trees)
+                if filtered_alert is not None:
+                    alerts.append(filtered_alert)
             else:
                 alerts.append(alert)
         if len(alerts) > 0:

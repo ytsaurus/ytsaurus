@@ -60,6 +60,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NQueryClient::IExpressionEvaluatorCachePtr& GetExpressionEvaluatorCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NChunkClient::IBlockCachePtr& GetBlockCache() override
     {
         YT_UNIMPLEMENTED();
@@ -240,6 +244,11 @@ public:
     }
 
     NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    std::vector<TString> GetDiscoveryServerAddresses() const override
     {
         YT_UNIMPLEMENTED();
     }

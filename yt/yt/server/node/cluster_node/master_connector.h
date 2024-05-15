@@ -4,6 +4,10 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 namespace NYT::NClusterNode {
@@ -54,12 +58,19 @@ struct IMasterConnector
      */
     virtual NRpc::IChannelPtr GetMasterChannel(NObjectClient::TCellTag cellTag) = 0;
 
-    //! Returns |True| iff node is currently connected to master.
+    //! Returns |True| iff node is currently connected to master, but not all processes related with registration are finished.
     /*!
     *  \note
     *  Thread affinity: any
     */
     virtual bool IsConnected() const = 0;
+
+    //! Returns |True| iff node is currently connected to master and all processes related with registration are finished.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual bool IsRegisteredAtPrimaryMaster() const = 0;
 
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.
@@ -88,7 +99,14 @@ struct IMasterConnector
     *  \note
     *  Thread affinity: any
     */
-    virtual const THashSet<NObjectClient::TCellTag>& GetMasterCellTags() const = 0;
+    virtual THashSet<NObjectClient::TCellTag> GetMasterCellTags() const = 0;
+
+    //! Modifies master cell tags list by adding those dynamically appearing as the result of cell directory synchronization.
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
+    virtual void AddMasterCellTags(const THashSet<NObjectClient::TCellTag>& newSecondaryMasterCellTags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

@@ -111,6 +111,11 @@ message TReqUpdateTabletTrimmedRowCount
     required int64 trimmed_row_count = 3;
 }
 
+message TReqMaterializeExtraMountConfigKeys
+{
+    repeated string table_mount_config_keys = 1;
+}
+
 message TReqUpdateTableReplicaStatistics
 {
     required NYT.NProto.TGuid tablet_id = 1;
@@ -201,7 +206,7 @@ message TReqSetTabletCellStatistics
         required TTabletCellStatistics statistics = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 
@@ -247,7 +252,7 @@ message TReqSetTabletCellBundleResourceUsage
         required TTabletResources resource_usage = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 

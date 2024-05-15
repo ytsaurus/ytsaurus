@@ -5,7 +5,7 @@
 
 #include <yt/cpp/mapreduce/http/abortable_http_response.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
@@ -41,89 +41,86 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_UNIT_TEST_SUITE(FileIo)
+TEST(FileIo, Read)
 {
-    Y_UNIT_TEST(Read)
-    {
-        TTestReaderFixture testReaderFixture;
+    TTestReaderFixture testReaderFixture;
 
-        auto client = testReaderFixture.GetClient();
-        auto reader = client->CreateFileReader(testReaderFixture.GetWorkingDir() + "/file");
-        TString result;
-        const auto readNextPart = [&] {
-            char buffer[1024];
-            size_t read = reader->Read(buffer, sizeof(buffer));
-            result += TStringBuf(buffer, read);
-            return read;
-        };
+    auto client = testReaderFixture.GetClient();
+    auto reader = client->CreateFileReader(testReaderFixture.GetWorkingDir() + "/file");
+    TString result;
+    const auto readNextPart = [&] {
+        char buffer[1024];
+        size_t read = reader->Read(buffer, sizeof(buffer));
+        result += TStringBuf(buffer, read);
+        return read;
+    };
 
-        auto read = readNextPart();
-        UNIT_ASSERT(read > 0);
+    auto read = readNextPart();
+    EXPECT_TRUE(read > 0);
 
-        UNIT_ASSERT(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
 
-        while (readNextPart()) {
-        }
-
-        UNIT_ASSERT_VALUES_EQUAL(result, testReaderFixture.GetFileData());
+    while (readNextPart()) {
     }
 
-    Y_UNIT_TEST(ReadRange)
-    {
-        TTestReaderFixture testReaderFixture;
-        auto client = testReaderFixture.GetClient();
-        const auto fileData = testReaderFixture.GetFileData();
+    EXPECT_EQ(result, testReaderFixture.GetFileData());
+}
 
-        constexpr size_t offset = 42;
-        constexpr size_t length = 1024 * 1024;
+TEST(FileIo, ReadRange)
+{
+    TTestReaderFixture testReaderFixture;
+    auto client = testReaderFixture.GetClient();
+    const auto fileData = testReaderFixture.GetFileData();
 
-        UNIT_ASSERT(offset + length < fileData.size());
-        auto reader = client->CreateFileReader(
-            testReaderFixture.GetWorkingDir() + "/file",
-            TFileReaderOptions().Offset(offset).Length(length));
+    constexpr size_t offset = 42;
+    constexpr size_t length = 1024 * 1024;
 
-        TString result;
-        const auto readNextPart = [&] {
-            char buffer[1024];
-            size_t read = reader->Read(buffer, sizeof(buffer));
-            result += TStringBuf(buffer, read);
-            return read;
-        };
+    EXPECT_TRUE(offset + length < fileData.size());
+    auto reader = client->CreateFileReader(
+        testReaderFixture.GetWorkingDir() + "/file",
+        TFileReaderOptions().Offset(offset).Length(length));
 
-        auto read = readNextPart();
-        UNIT_ASSERT(read > 0);
+    TString result;
+    const auto readNextPart = [&] {
+        char buffer[1024];
+        size_t read = reader->Read(buffer, sizeof(buffer));
+        result += TStringBuf(buffer, read);
+        return read;
+    };
 
-        UNIT_ASSERT(TAbortableHttpResponse::AbortAll("/read_file") > 0);
+    auto read = readNextPart();
+    EXPECT_TRUE(read > 0);
 
-        while (readNextPart()) {
-        }
+    EXPECT_TRUE(TAbortableHttpResponse::AbortAll("/read_file") > 0);
 
-        UNIT_ASSERT_VALUES_EQUAL(result, fileData.SubStr(offset, length));
+    while (readNextPart()) {
     }
 
-    void TryWriteFile(TFileWriterOptions options)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        auto writer = client->CreateFileWriter(workingDir + "/file", options);
-        writer->Write(GenerateRandomData(10 * 1024 * 1024));
-        writer->Finish();
-    }
+    EXPECT_EQ(result, fileData.SubStr(offset, length));
+}
 
-    Y_UNIT_TEST(InvalidWriterOptionsFail)
-    {
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            TryWriteFile(TFileWriterOptions().WriterOptions(
-                TWriterOptions()
-                    .UploadReplicationFactor(0))),
-            NYT::TErrorResponse,
-            "/upload_replication_factor");
-        UNIT_ASSERT_EXCEPTION_CONTAINS(
-            TryWriteFile(TFileWriterOptions().WriterOptions(
-                TWriterOptions()
-                    .MinUploadReplicationFactor(0))),
-            NYT::TErrorResponse,
-            "/min_upload_replication_factor");
-    }
+void TryWriteFile(TFileWriterOptions options)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto writer = client->CreateFileWriter(workingDir + "/file", options);
+    writer->Write(GenerateRandomData(10 * 1024 * 1024));
+    writer->Finish();
+}
+
+TEST(FileIo, InvalidWriterOptionsFail)
+{
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TryWriteFile(TFileWriterOptions().WriterOptions(
+            TWriterOptions()
+                .UploadReplicationFactor(0))),
+        NYT::TErrorResponse,
+        "/upload_replication_factor");
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(
+        TryWriteFile(TFileWriterOptions().WriterOptions(
+            TWriterOptions()
+                .MinUploadReplicationFactor(0))),
+        NYT::TErrorResponse,
+        "/min_upload_replication_factor");
 }

@@ -670,8 +670,8 @@ void TContext::SetupOutputParameters()
     OutputParametersConsumer_->OnBeginMap();
     DriverRequest_.ResponseParametersConsumer = OutputParametersConsumer_.get();
     DriverRequest_.ResponseParametersFinishedCallback = [this, weakThis = MakeWeak(this)] {
-        auto strongThis = weakThis.Lock();
-        if (!strongThis) {
+        auto this_ = weakThis.Lock();
+        if (!this_) {
             return;
         }
 

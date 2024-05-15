@@ -20,8 +20,11 @@ class TAuthCacheConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
+    //! Time between last update time and entry update for correct entries.
     TDuration CacheTtl;
+    //! Time between last access time and entry eviction.
     TDuration OptimisticCacheTtl;
+    //! Time between last update time and entry update for error entries.
     TDuration ErrorTtl;
 
     REGISTER_YSON_STRUCT(TAuthCacheConfig);
@@ -317,6 +320,8 @@ public:
     TString VaultServiceId;
     TString Consumer;
     bool EnableRevocation;
+    std::optional<TTvmId> DefaultTvmIdForNewTokens;
+    std::optional<TTvmId> DefaultTvmIdForExistingTokens;
 
     REGISTER_YSON_STRUCT(TDefaultSecretVaultServiceConfig);
 

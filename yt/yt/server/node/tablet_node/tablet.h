@@ -277,6 +277,8 @@ struct TTabletSnapshot
 
     TString TabletCellBundle;
 
+    NYson::TYsonString CustomRuntimeData;
+
     std::atomic<bool> Unregistered = false;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
@@ -626,6 +628,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NLsm::TTabletLsmStatistics, LsmStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TSmoothMovementData, SmoothMovementData);
+
+    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, CustomRuntimeData);
 
 public:
     TTablet(

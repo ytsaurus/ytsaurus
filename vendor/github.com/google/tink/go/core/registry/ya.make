@@ -13,4 +13,6 @@ GO_XTEST_SRCS(registry_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

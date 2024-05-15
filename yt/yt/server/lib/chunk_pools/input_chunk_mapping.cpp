@@ -267,10 +267,10 @@ void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripe
 
 void TInputChunkMapping::Persist(const TPersistenceContext& context)
 {
-    auto readerGuard = [&, this] () {
+    auto readerGuard = [&, this] {
         return context.IsSave() ? std::make_optional(ReaderGuard(SpinLock_)) : std::nullopt;
     }();
-    auto writerGuard = [&, this] () {
+    auto writerGuard = [&, this] {
         return context.IsLoad() ? std::make_optional(WriterGuard(SpinLock_)) : std::nullopt;
     }();
 

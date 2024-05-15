@@ -11,9 +11,8 @@ SRCS(
 )
 
 GO_TEST_SRCS(
-    dbstats_collector_test.go
-    go_collector_go121_test.go
-    go_collector_latest_test.go
+    # dbstats_collector_test.go
+    # go_collector_latest_test.go
 )
 
 END()

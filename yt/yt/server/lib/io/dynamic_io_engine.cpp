@@ -185,6 +185,16 @@ public:
         return GetCurrentEngine()->UseDirectIOForReads();
     }
 
+    bool IsReadRequestLimitExceeded() const override
+    {
+        return GetCurrentEngine()->IsReadRequestLimitExceeded();
+    }
+
+    bool IsWriteRequestLimitExceeded() const override
+    {
+        return GetCurrentEngine()->IsWriteRequestLimitExceeded();
+    }
+
 private:
     const TString LocationId_;
     const NProfiling::TProfiler Profiler_;

@@ -11,6 +11,7 @@ PY_SRCS(
     publisher/local_manager.py
     publisher/publish_cluster.py
     publisher/remote_manager.py
+    publisher/spark_distrib.py
     publisher/utils.py
 )
 

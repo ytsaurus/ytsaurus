@@ -270,10 +270,12 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"job_proxy/max_memory", "Maximum amount of memory used by the job proxy process", "bytes"},
         {"job_proxy/memory_reserve", "Amount of memory guaranteed for the job proxy at the time of start", "bytes"},
 
+        {"job_proxy/cpu/burst", "Burst CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/user", "User mode CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/system", "Kernel mode CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/wait", "Wait CPU time of the job proxy process", "ms"},
         {"job_proxy/cpu/throttled", "Throttled CPU time of the job proxy process", "ms"},
+        {"job_proxy/cpu/cfs_throttled", "Throttled CPU time of the job proxy process computed in a completely fair scheduler way", "ms"},
         {"job_proxy/cpu/peak_thread_count", "Maximum number of threads used by the job proxy process", "pieces"},
         {"job_proxy/cpu/context_switches", "Number of context switches performed by the job proxy process", "pieces"},
 
@@ -302,10 +304,12 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/tmpfs_volumes/*/size", "Current (or final) amount of tmpfs used by user job in this volume", "bytes"},
         {"user_job/tmpfs_volumes/*/max_size", "Maximum amount of tmpfs used by user job in this volume during execution", "bytes"},
 
+        {"user_job/cpu/burst", "Burst CPU time of the job", "ms"},
         {"user_job/cpu/user", "User mode CPU time of the job", "ms"},
         {"user_job/cpu/system", "Kernel mode CPU time of the job", "ms"},
         {"user_job/cpu/wait", "Wait CPU time of the job", "ms"},
         {"user_job/cpu/throttled", "Throttled CPU time of the job", "ms"},
+        {"user_job/cpu/cfs_throttled", "Throttled CPU time of the job computed in a completely fair scheduler way", "ms"},
         {"user_job/cpu/peak_thread_count", "Maximum number of threads used by the job", "pieces"},
         {"user_job/cpu/context_switches", "Number of context switches performed by the job", "pieces"},
 
@@ -491,6 +495,15 @@ bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
     }
 
     return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOneShotFluentLogEvent LogStructuredGpuEventFluently(EGpuSchedulingLogEventType eventType)
+{
+    return NLogging::LogStructuredEventFluently(SchedulerGpuEventLogger, NLogging::ELogLevel::Info)
+        .Item("timestamp").Value(TInstant::Now())
+        .Item("event_type").Value(eventType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

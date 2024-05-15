@@ -70,7 +70,6 @@ struct IUnbufferedFileChangelog
      */
     virtual double GetWriteAmplificationRatio() const = 0;
 
-
     //! Returns |true| is the changelog is open.
     /*
      *  \note

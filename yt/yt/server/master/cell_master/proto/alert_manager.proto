@@ -6,7 +6,7 @@ import "yt_proto/yt/core/misc/proto/error.proto";
 
 message TReqSetCellAlerts
 {
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated NYT.NProto.TError alerts = 2;
 }
 

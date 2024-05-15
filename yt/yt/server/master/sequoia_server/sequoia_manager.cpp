@@ -18,6 +18,7 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYTree;
 
@@ -35,13 +36,16 @@ public:
     explicit TSequoiaTransactionManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
     {
-        RegisterMethod(BIND(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
     }
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        WaitFor(CreateMutation(hydraManager, *request)->Commit())
+        auto mutation = CreateMutation(hydraManager, *request);
+        mutation->SetCurrentTraceContext();
+
+        WaitFor(mutation->Commit())
             .ThrowOnError();
     }
 
@@ -92,6 +96,7 @@ private:
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));
+        transaction->SetTraceContext(TryGetCurrentTraceContext());
     }
 };
 

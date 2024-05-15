@@ -717,19 +717,19 @@ TObjectManager::TObjectManager(TBootstrap* bootstrap)
 
     RegisterLoader(
         "ObjectManager.Keys",
-        BIND(&TObjectManager::LoadKeys, Unretained(this)));
+        BIND_NO_PROPAGATE(&TObjectManager::LoadKeys, Unretained(this)));
     RegisterLoader(
         "ObjectManager.Values",
-        BIND(&TObjectManager::LoadValues, Unretained(this)));
+        BIND_NO_PROPAGATE(&TObjectManager::LoadValues, Unretained(this)));
 
     RegisterSaver(
         ESyncSerializationPriority::Keys,
         "ObjectManager.Keys",
-        BIND(&TObjectManager::SaveKeys, Unretained(this)));
+        BIND_NO_PROPAGATE(&TObjectManager::SaveKeys, Unretained(this)));
     RegisterSaver(
         ESyncSerializationPriority::Values,
         "ObjectManager.Values",
-        BIND(&TObjectManager::SaveValues, Unretained(this)));
+        BIND_NO_PROPAGATE(&TObjectManager::SaveValues, Unretained(this)));
 
     RegisterHandler(CreateMasterTypeHandler(Bootstrap_));
 

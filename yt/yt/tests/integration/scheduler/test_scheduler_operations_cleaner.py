@@ -211,7 +211,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     def list_op_format(t):
         return t.strftime(YT_DATETIME_FORMAT_STRING)
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_archive_lookup(self):
         before_start_time = datetime.utcnow()
         ops = self._test_start_stop_impl(
@@ -233,7 +233,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert res["failed_jobs_count"] == len(ops)
             assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_archive_lookup_failure(self):
         before_start_time = datetime.utcnow()
         self._test_start_stop_impl(

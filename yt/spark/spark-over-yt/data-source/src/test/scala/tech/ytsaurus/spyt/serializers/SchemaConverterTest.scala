@@ -2,21 +2,21 @@ package tech.ytsaurus.spyt.serializers
 
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtUtils
-import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonType}
 import org.mockito.scalatest.MockitoSugar
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{FlatSpec, Matchers}
-import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.TypeV3
-import SchemaConverter.{MetadataFields, Unordered, ytLogicalSchema}
-import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
-import tech.ytsaurus.spyt.YtReader
 import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
-import tech.ytsaurus.spyt.SchemaTestUtils
+import tech.ytsaurus.spyt.format.conf.SparkYtConfiguration.Read.TypeV3
+import tech.ytsaurus.spyt.serializers.SchemaConverter.{MetadataFields, Unordered, ytLogicalSchema}
+import tech.ytsaurus.spyt.test.{LocalSpark, TestUtils, TmpDir}
+import tech.ytsaurus.spyt.{SchemaTestUtils, YtReader}
 import tech.ytsaurus.typeinfo.StructType.Member
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeMapNode}
 
-class SchemaConverterTest extends FlatSpec with Matchers
+class SchemaConverterTest extends AnyFlatSpec with Matchers
   with TestUtils with TmpDir with LocalSpark with SchemaTestUtils with MockitoSugar with TableDrivenPropertyChecks {
   behavior of "SchemaConverter"
 
@@ -83,6 +83,7 @@ class SchemaConverterTest extends FlatSpec with Matchers
     structField("Short", ShortType, nullable = false),
     structField("Integer", IntegerType, nullable = false),
     structField("Date", DateType, nullable = false),
+    structField("Datetime", new DatetimeType(), nullable = false),
     structField("Timestamp", TimestampType, nullable = false),
     structField("Array", ArrayType(BooleanType, containsNull = false), nullable = false),
     structField("Map", MapType(DoubleType, StringType, valueContainsNull = false), nullable = false),
@@ -125,8 +126,8 @@ class SchemaConverterTest extends FlatSpec with Matchers
       structField("uint32", LongType, nullable = true),
       structField("utf8", StringType, nullable = true),
       structField("date", DateType, nullable = true, arrowSupported = false),
-      structField("datetime", TimestampType, nullable = true, arrowSupported = false),
-      structField("timestamp", LongType, nullable = true, arrowSupported = false),
+      structField("datetime", new DatetimeType(), nullable = true, arrowSupported = false),
+      structField("timestamp", TimestampType, nullable = true, arrowSupported = false),
       structField("interval", LongType, nullable = true, arrowSupported = false),
       structField("list", YsonType, nullable = true),
       structField("dict", YsonType, nullable = true),
@@ -162,15 +163,15 @@ class SchemaConverterTest extends FlatSpec with Matchers
       structField("uint32", LongType, nullable = false),
       structField("utf8", StringType, nullable = false),
       structField("date", DateType, nullable = false, arrowSupported = false),
-      structField("datetime", TimestampType, nullable = false, arrowSupported = false),
-      structField("timestamp", LongType, nullable = false, arrowSupported = false),
+      structField("datetime", new DatetimeType(), nullable = false, arrowSupported = false),
+      structField("timestamp", TimestampType, nullable = false, arrowSupported = false),
       structField("interval", LongType, nullable = false, arrowSupported = false),
       structField("list", ArrayType(BooleanType, containsNull = false), nullable = false),
       structField("dict", MapType(DoubleType, StringType, valueContainsNull = false), nullable = false),
       structField("struct", StructType(Seq(StructField("a", StringType, nullable = false), StructField("b", YsonType, nullable = true))), nullable = false),
       structField("tuple", StructType(Seq(StructField("_1", BooleanType, nullable = false), StructField("_2", DateType, nullable = false))), nullable = false),
       structField("variantOverStruct", StructType(Seq(StructField("_vc", IntegerType, metadata = new MetadataBuilder().putBoolean("optional", false).build()),
-        StructField("_vd", LongType, metadata = new MetadataBuilder().putBoolean("optional", false).build()))), nullable = false),
+        StructField("_vd", TimestampType, metadata = new MetadataBuilder().putBoolean("optional", false).build()))), nullable = false),
       structField("variantOverTuple", StructType(Seq(StructField("_v_1", FloatType, metadata = new MetadataBuilder().putBoolean("optional", false).build()),
         StructField("_v_2", LongType, metadata = new MetadataBuilder().putBoolean("optional", false).build()))), nullable = false)
     ))
@@ -206,7 +207,8 @@ class SchemaConverterTest extends FlatSpec with Matchers
       .addValue("Short", TiType.int16())
       .addValue("Integer", TiType.int32())
       .addValue("Date", TiType.date())
-      .addValue("Timestamp", TiType.datetime())
+      .addValue("Datetime", TiType.datetime())
+      .addValue("Timestamp", TiType.timestamp())
       .addValue("Array", TiType.list(TiType.bool()))
       .addValue("Map", TiType.dict(TiType.doubleType(), TiType.string()))
       .addValue("Struct", TiType.struct(new Member("a", TiType.string()), new Member("b", TiType.yson())))
@@ -242,7 +244,8 @@ class SchemaConverterTest extends FlatSpec with Matchers
         getColumn("Short", "int16"),
         getColumn("Integer", "int32"),
         getColumn("Date", "date"),
-        getColumn("Timestamp", "datetime"),
+        getColumn("Datetime", "datetime"),
+        getColumn("Timestamp", "timestamp"),
         getColumn("Array", "any"),
         getColumn("Map", "any"),
         getColumn("Struct", "any"),

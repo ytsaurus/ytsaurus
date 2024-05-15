@@ -49,6 +49,8 @@ DECLARE_REFCOUNTED_STRUCT(TMediumThroughputLimits)
 DECLARE_REFCOUNTED_STRUCT(TAbcInfo)
 DECLARE_REFCOUNTED_STRUCT(TCellTagInfo)
 DECLARE_REFCOUNTED_STRUCT(TGlobalCellRegistry)
+DECLARE_REFCOUNTED_STRUCT(TDrillsModeOperationState)
+DECLARE_REFCOUNTED_STRUCT(TDrillsModeState)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -175,6 +177,10 @@ struct TBundleConfig
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
     THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
     bool InitChaosBundles;
+    int AdditionalChaosCellCount;
+    bool EnableDrillsMode;
+
+    THashSet<TString> ForbiddenDataCenters;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -255,6 +261,7 @@ struct TGlobalCellRegistry
     ui16 CellTagLast;
 
     THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> CellTags;
+    THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> AdditionalCellTags;
 
     REGISTER_YSON_STRUCT(TGlobalCellRegistry);
 
@@ -287,7 +294,6 @@ struct TBundleInfo
     TString NodeTagFilter;
     std::optional<TString> ShortName;
     std::optional<TString> RpcProxyRole;
-    THashSet<TString> ForbiddenDataCenters;
 
     bool EnableBundleController;
     bool EnableInstanceAllocation;
@@ -297,6 +303,9 @@ struct TBundleInfo
     bool EnableRpcProxyManagement;
     bool EnableSystemAccountManagement;
     bool EnableResourceLimitsManagement;
+
+    bool MuteTabletCellsCheck;
+    bool MuteTabletCellSnapshotsCheck;
 
     TBundleConfigPtr TargetConfig;
     std::vector<TString> TabletCellIds;
@@ -561,6 +570,35 @@ DEFINE_REFCOUNTED_TYPE(TNodeTagFilterOperationState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDrillsModeOperationState
+    : public NYTree::TYsonStruct
+{
+    TInstant CreationTime;
+
+    REGISTER_YSON_STRUCT(TDrillsModeOperationState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDrillsModeOperationState)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDrillsModeState
+    : public NYTree::TYsonStruct
+{
+    TDrillsModeOperationStatePtr TurningOn;
+    TDrillsModeOperationStatePtr TurningOff;
+
+    REGISTER_YSON_STRUCT(TDrillsModeState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDrillsModeState)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleControllerState
     : public TYsonStructAttributes<TBundleControllerState>
 {
@@ -577,6 +615,8 @@ struct TBundleControllerState
     // Here "releasement" is used as the opposite of "assignment"
     TIndexedEntries<TNodeTagFilterOperationState> BundleNodeReleasements;
     TIndexedEntries<TNodeTagFilterOperationState> SpareNodeReleasements;
+
+    TDrillsModeStatePtr DrillsMode;
 
     REGISTER_YSON_STRUCT(TBundleControllerState);
 

@@ -246,7 +246,7 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
 TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter, bool forceOptional)
 {
     if (forceOptional) {
-        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
+        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)] (TCheckedInDebugSkiffParser* parser) mutable {
             auto originalPyObject = converter(parser);
             if (originalPyObject.get() == Py_None) {
                 // The middleware may not be ready to handle None, so we avoid calling it here.
@@ -260,7 +260,7 @@ TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter conv
             return PyObjectPtr(pyObject.ptr());
         };
     } else {
-        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
+        return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)] (TCheckedInDebugSkiffParser* parser) mutable {
             Py::Tuple args(1);
             args[0] = Py::Object(converter(parser).release(), true);
             auto pyObject = middlewareConverter.apply(args);

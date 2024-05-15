@@ -1,4 +1,4 @@
-YT_UNITTEST()
+UNITTEST_WITH_CUSTOM_ENTRY_POINT()
 
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
@@ -24,14 +24,13 @@ SRCS(
 )
 
 PEERDIR(
-    library/cpp/testing/unittest
     yt/cpp/mapreduce/client
     yt/cpp/mapreduce/common
     yt/cpp/mapreduce/interface
     yt/cpp/mapreduce/library/lazy_sort
     yt/cpp/mapreduce/library/operation_tracker
     yt/cpp/mapreduce/tests/yt_unittest_lib
-    yt/cpp/mapreduce/tests/yt_unittest_main
+    yt/cpp/mapreduce/tests/gtest_main
     yt/cpp/mapreduce/tests/native/proto_lib
     yt/cpp/mapreduce/util
 )

@@ -683,11 +683,35 @@ DEFINE_REFCOUNTED_TYPE(TNbdConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobProxyLoggingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    EJobProxyLoggingMode Mode;
+
+    std::optional<TString> Directory;
+
+    NLogging::TLogManagerConfigPtr LogManagerTemplate;
+
+    std::optional<int> ShardingKeyLength;
+
+    std::optional<TString> JobProxyStderrPath;
+    std::optional<TString> ExecutorStderrPath;
+
+    REGISTER_YSON_STRUCT(TJobProxyLoggingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLoggingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public NYTree::TYsonStruct
 {
 public:
-    NLogging::TLogManagerConfigPtr JobProxyLogging;
+    TJobProxyLoggingConfigPtr JobProxyLogging;
 
     NTracing::TJaegerTracerConfigPtr JobProxyJaeger;
 
@@ -696,9 +720,6 @@ public:
     NAuth::TAuthenticationManagerConfigPtr JobProxyAuthenticationManager;
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
-
-    std::optional<TString> JobProxyStderrPath;
-    std::optional<TString> ExecutorStderrPath;
 
     TDuration SupervisorRpcTimeout;
 

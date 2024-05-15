@@ -384,8 +384,8 @@ private:
         RowIndex_ = 0;
         RowsFuture_ = InputStream_->Read()
             .Apply(BIND([this, weakThis = MakeWeak(this)] (const TSharedRef& data) {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Reader abandoned");
                 }
 

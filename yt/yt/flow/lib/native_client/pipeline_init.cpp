@@ -57,12 +57,27 @@ TTableSchema GetPartitionDataTableSchema()
         /*uniqueKeys*/ true);
 }
 
+TTableSchema GetInternalMessagesTableSchema()
+{
+    return TTableSchema(
+        std::vector{
+            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("message", EValueType::String),
+            TColumnSchema("system_timestamp", EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true);
+}
+
 auto GetTables()
 {
     return std::vector<std::tuple<TString, TTableSchema>>{
         {InputMessagesTableName, GetInputMessagesTableSchema()},
         {OutputMessagesTableName, GetOutputMessagesTableSchema()},
         {PartitionDataTableName, GetPartitionDataTableSchema()},
+        {InternalMessagesTableName, GetInternalMessagesTableSchema()},
     };
 }
 

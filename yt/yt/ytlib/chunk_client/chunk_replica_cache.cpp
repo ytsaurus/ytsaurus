@@ -16,6 +16,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NApi;
+using namespace NProfiling;
 
 using NYT::FromProto;
 
@@ -25,15 +26,25 @@ class TChunkReplicaCache
     : public IChunkReplicaCache
 {
 public:
-    explicit TChunkReplicaCache(NApi::NNative::IConnectionPtr connection)
+    TChunkReplicaCache(NApi::NNative::IConnectionPtr connection, const TProfiler& profiler)
         : Connection_(connection)
-        , Config_(connection->GetConfig()->ChunkReplicaCache)
         , NodeDirectory_(connection->GetNodeDirectory())
         , Logger(connection->GetLogger())
+        , HitsCounter_(profiler.Counter("/hits"))
+        , MissesCounter_(profiler.Counter("/misses"))
+        , DiscardsCounter_(profiler.Counter("/discards"))
+        , UpdatesCounter_(profiler.Counter("/updates"))
+        , ChunkLocationsCounter_(profiler.Counter("/chunk_locations"))
+        , LocationCallsCounter_(profiler.Counter("/location_calls"))
+        , ExpiredChunksCounter_(profiler.Counter("/expired_chunks"))
+        , MasterErrorDiscardsCounter_(profiler.Counter("/master_error_discards"))
+        , CacheSizeGauge_(profiler.Gauge("/cache_size"))
         , ExpirationExecutor_(New<TPeriodicExecutor>(
             connection->GetInvoker(),
             BIND(&TChunkReplicaCache::OnExpirationSweep, MakeWeak(this)),
-            Config_->ExpirationTime))
+            connection->GetConfig()->ChunkReplicaCache->ExpirationSweepPeriod))
+        , ExpirationTime_(connection->GetConfig()->ChunkReplicaCache->ExpirationTime)
+        , MaxChunksPerLocate_(connection->GetConfig()->ChunkReplicaCache->MaxChunksPerLocate)
     {
         ExpirationExecutor_->Start();
     }
@@ -48,6 +59,7 @@ public:
         auto mapGuard = ReaderGuard(EntriesLock_);
         for (int index = 0; index < std::ssize(chunkIds); ++index) {
             auto chunkId = chunkIds[index];
+            bool hit = false;
             YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
             auto it = Entries_.find(chunkId);
             if (it != Entries_.end()) {
@@ -56,11 +68,20 @@ public:
                 if (auto optionalExistingReplicas = entry.Future.TryGet()) {
                     if (optionalExistingReplicas->IsOK()) {
                         entry.LastAccessTime = now;
+                        hit = true;
                     }
                     replicas[index] = *optionalExistingReplicas;
                 }
             }
+
+            if (hit) {
+                HitsCounter_.Increment();
+            } else {
+                MissesCounter_.Increment();
+            }
         }
+
+        CacheSizeGauge_.Update(Entries_.size());
 
         return replicas;
     }
@@ -85,8 +106,11 @@ public:
                     auto entryGuard = Guard(entry.Lock);
                     entry.LastAccessTime = now;
                     futures[index] = entry.Future;
+                    HitsCounter_.Increment();
                 }
             }
+
+            CacheSizeGauge_.Update(Entries_.size());
         }
 
         std::vector<TPromise<TAllyReplicasInfo>> promises(chunkIds.size());
@@ -105,19 +129,27 @@ public:
                     entry.Promise = NewPromise<TAllyReplicasInfo>();
                     entry.Future = entry.Promise.ToFuture().ToUncancelable();
                     promises[index] = entry.Promise;
+                } else {
+                    HitsCounter_.Increment();
                 }
+
                 auto& entry = *it->second;
                 auto entryGuard = Guard(entry.Lock);
                 futures[index] = entry.Future;
             }
+
+            CacheSizeGauge_.Update(Entries_.size());
         }
 
+        MissesCounter_.Increment(cellTagToStillMissingIndices.size());
         if (!cellTagToStillMissingIndices.empty()) {
             auto connection = Connection_.Lock();
             if (!connection) {
                 return futures;
             }
 
+            ChunkLocationsCounter_.Increment(cellTagToStillMissingIndices.size());
+            auto maxChunksPerLocate = MaxChunksPerLocate_.load();
             for (auto& [cellTag, stillMissingIndices] : cellTagToStillMissingIndices) {
                 try {
                     auto channel = connection->GetMasterCellDirectory()->GetMasterChannelOrThrow(
@@ -146,6 +178,8 @@ public:
                             std::move(currentPromises)));
 
                         currentReq.Reset();
+
+                        LocationCallsCounter_.Increment();
                     };
 
                     for (auto index : stillMissingIndices) {
@@ -160,7 +194,7 @@ public:
 
                         ToProto(currentReq->add_subrequests(), chunkId);
 
-                        if (std::ssize(currentChunkIds) >= Config_->MaxChunksPerLocate) {
+                        if (std::ssize(currentChunkIds) >= maxChunksPerLocate) {
                             flushCurrent();
                         }
                     }
@@ -184,9 +218,12 @@ public:
                             if (entry.Promise == promises[index]) {
                                 entryGuard.Release();
                                 Entries_.erase(it);
+                                MasterErrorDiscardsCounter_.Increment();
                             }
                         }
                     }
+
+                    CacheSizeGauge_.Update(Entries_.size());
                 }
             }
         }
@@ -212,8 +249,11 @@ public:
                 Entries_.erase(it);
                 YT_LOG_DEBUG("Chunk replicas discarded (ChunkId: %v)",
                     chunkId);
+                DiscardsCounter_.Increment();
             }
         }
+
+        CacheSizeGauge_.Update(Entries_.size());
     }
 
     void UpdateReplicas(
@@ -233,6 +273,8 @@ public:
                 chunkId,
                 MakeFormattableView(replicas.Replicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
                 replicas.Revision);
+
+            UpdatesCounter_.Increment();
         };
 
         auto tryUpdate = [&] (TEntry& entry) {
@@ -270,6 +312,8 @@ public:
             } else {
                 tryUpdate(*it->second);
             }
+
+            CacheSizeGauge_.Update(Entries_.size());
         }
     }
 
@@ -287,13 +331,32 @@ public:
             });
     }
 
+    void Reconfigure(TChunkReplicaCacheConfigPtr config) override
+    {
+        ExpirationExecutor_->SetPeriod(config->ExpirationSweepPeriod);
+        ExpirationTime_.store(config->ExpirationTime);
+        MaxChunksPerLocate_.store(config->MaxChunksPerLocate);
+    }
+
 private:
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
-    const TChunkReplicaCacheConfigPtr Config_;
     const TNodeDirectoryPtr NodeDirectory_;
     const NLogging::TLogger Logger;
 
+    const TCounter HitsCounter_;
+    const TCounter MissesCounter_;
+    const TCounter DiscardsCounter_;
+    const TCounter UpdatesCounter_;
+    const TCounter ChunkLocationsCounter_;
+    const TCounter LocationCallsCounter_;
+    const TCounter ExpiredChunksCounter_;
+    const TCounter MasterErrorDiscardsCounter_;
+    const TGauge CacheSizeGauge_;
+
     const TPeriodicExecutorPtr ExpirationExecutor_;
+
+    std::atomic<TDuration> ExpirationTime_;
+    std::atomic<int> MaxChunksPerLocate_;
 
     struct TEntry
     {
@@ -357,6 +420,8 @@ private:
                     }
                     Entries_.erase(it);
                 }
+
+                CacheSizeGauge_.Update(Entries_.size());
             }
 
             auto error = TError(rspOrError);
@@ -368,10 +433,12 @@ private:
 
     void OnExpirationSweep()
     {
-        YT_LOG_DEBUG("Started expired chunk replica sweep");
-
         std::vector<TChunkId> expiredChunkIds;
-        auto deadline = TInstant::Now() - Config_->ExpirationTime;
+        auto deadline = TInstant::Now() - ExpirationTime_.load();
+
+        YT_LOG_DEBUG("Started expired chunk replica sweep (Deadline: %v)",
+            deadline);
+
         int totalChunkCount;
 
         {
@@ -385,12 +452,16 @@ private:
             }
         }
 
+        ExpiredChunksCounter_.Increment(expiredChunkIds.size());
+
         if (!expiredChunkIds.empty()) {
             auto mapGuard = WriterGuard(EntriesLock_);
             for (auto chunkId : expiredChunkIds) {
                 Entries_.erase(chunkId);
             }
         }
+
+        CacheSizeGauge_.Update(totalChunkCount);
 
         YT_LOG_DEBUG("Finished expired chunk replica sweep (TotalChunkCount: %v, ExpiredChunkCount: %v)",
             totalChunkCount,
@@ -400,9 +471,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkReplicaCachePtr CreateChunkReplicaCache(NApi::NNative::IConnectionPtr connection)
+IChunkReplicaCachePtr CreateChunkReplicaCache(
+    NApi::NNative::IConnectionPtr connection,
+    const TProfiler& profiler)
 {
-    return New<TChunkReplicaCache>(std::move(connection));
+    return New<TChunkReplicaCache>(
+        std::move(connection),
+        profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

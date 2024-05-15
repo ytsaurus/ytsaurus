@@ -17,6 +17,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTableNode*, IndexTable);
     DEFINE_BYVAL_RW_PROPERTY(ESecondaryIndexKind, Kind);
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, Predicate);
 
 public:
     using TObject::TObject;

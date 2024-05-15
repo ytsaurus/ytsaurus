@@ -20,13 +20,6 @@ from .progress_bar import CustomTqdm
 import yt.logger as logger
 import yt.yson as yson
 
-try:
-    from yt.packages.six import text_type, binary_type, string_types
-    from yt.packages.six.moves import map as imap, zip as izip
-except ImportError:
-    from six import text_type, binary_type, string_types
-    from six.moves import map as imap, zip as izip
-
 import os
 import time
 import types
@@ -62,8 +55,8 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
     #     [b'<rec2>', b'<row2>', b'<row3>'...]
     #   !`split_rows` - group rows by `rows_chunk_size` (number, not bytes)
     #     [b'<rec2>,<row2>', b'<row3>,<row4', ...]
-    if isinstance(stream, (text_type, binary_type)):
-        if isinstance(stream, text_type):
+    if isinstance(stream, (str, bytes)):
+        if isinstance(stream, str):
             try:
                 stream = stream.encode("ascii")
             except UnicodeDecodeError:
@@ -99,7 +92,7 @@ def _prepare_command_format(format, raw, client):
         format = get_config(client)["tabular_data_format"]
     if not raw and format is None:
         format = YsonFormat()
-    if isinstance(format, string_types):
+    if isinstance(format, str):
         format = create_format(format)
 
     require(format is not None,
@@ -115,7 +108,7 @@ def _prepare_source_tables(tables, replace_unexisting_by_empty=True, client=None
         filtered_result = []
         exists_results = batch_apply(exists, result, client=client)
 
-        for table, exists_result in izip(result, exists_results):
+        for table, exists_result in zip(result, exists_results):
             if exists_result:
                 filtered_result.append(table)
             else:
@@ -148,7 +141,7 @@ def _remove_tables(tables, client=None):
     exists_results = batch_apply(exists, tables, client=client)
 
     existing_tables = []
-    for table, exists_result in izip(tables, exists_results):
+    for table, exists_result in zip(tables, exists_results):
         if exists_result:
             existing_tables.append(table)
 
@@ -158,7 +151,7 @@ def _remove_tables(tables, client=None):
         client=client)
 
     tables_to_remove = []
-    for table, table_type in izip(existing_tables, type_results):
+    for table, table_type in zip(existing_tables, type_results):
         table = TablePath(table)
         if table_type == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
             if get_config(client)["yamr_mode"]["abort_transactions_with_remove"]:
@@ -229,7 +222,7 @@ class FileManager(object):
 
     def add_files(self, files):
         for file in flatten(files):
-            if isinstance(file, (text_type, binary_type, LocalFile)):
+            if isinstance(file, (str, bytes, LocalFile)):
                 file_params = {"filename": file}
             else:
                 file_params = deepcopy(file)
@@ -282,7 +275,7 @@ def _is_python_function(binary):
 def _prepare_format(format, default_format=None):
     if format is None:
         return default_format
-    if isinstance(format, string_types):
+    if isinstance(format, str):
         return create_format(format)
     return format
 
@@ -319,7 +312,7 @@ def _get_skiff_schema_from_tables(tables, client):
         if schema is None:
             return None
         schemas.append(schema)
-    return list(imap(convert_to_skiff_schema, schemas))
+    return list(map(convert_to_skiff_schema, schemas))
 
 
 def _prepare_default_format(binary, format_type, tables, client):
@@ -375,7 +368,7 @@ def _prepare_destination_tables(tables, create_on_cluster=False, client=None):
         if get_config(client)["yamr_mode"]["throw_on_missing_destination"]:
             raise YtError("Destination tables are missing")
         return []
-    tables = list(imap(lambda name: TablePath(name, client=client), flatten(tables)))
+    tables = list(map(lambda name: TablePath(name, client=client), flatten(tables)))
     if create_on_cluster:
         def make_table_path(path, client):
             table = TablePath(path)

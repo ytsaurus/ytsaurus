@@ -189,7 +189,8 @@ void TChunkStore::UpdateConfig(const TDataNodeDynamicConfigPtr& config)
 
 TFuture<void> TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 {
-    return location->RegisterAction(BIND([=, this, this_ = MakeStrong(this)] () {
+    return location->RegisterAction(
+        BIND([=, this, this_ = MakeStrong(this)] {
             auto descriptors = location->Scan();
 
             location->InitializeIds();
@@ -204,8 +205,7 @@ TFuture<void> TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
             }
 
             location->Start();
-        })
-        .AsyncVia(location->GetAuxPoolInvoker()));
+        }).AsyncVia(location->GetAuxPoolInvoker()));
 }
 
 void TChunkStore::RegisterNewChunk(
@@ -637,7 +637,7 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDu
     return chunk
         ->GetLocation()
         ->RegisterAction(
-            BIND([=, this, this_ = MakeStrong(this)] () {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 ChunkRemovalScheduled_.Fire(chunk);
 
                 if (startRemoveDelay) {

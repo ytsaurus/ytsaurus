@@ -131,7 +131,7 @@ class TOffloadingPoolSettingsConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Pool;
+    std::optional<TString> Pool;
 
     std::optional<double> Weight;
 
@@ -503,6 +503,7 @@ public:
 
     i64 BufferRowCount;
     std::optional<int> PipeCapacity;
+    bool UseDeliveryFencedPipeWriter;
 
     int PipeIOPoolSize;
 
@@ -1277,6 +1278,10 @@ public:
 
     bool EnableRpcProxyInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
+
+    bool FailOnJobRestart;
+
+    THashSet<EExtraEnvironment> ExtraEnvironment;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

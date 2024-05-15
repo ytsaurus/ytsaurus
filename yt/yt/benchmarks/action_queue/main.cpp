@@ -36,7 +36,7 @@ int main(int argc, char** argv)
 
         TWallTimer timer;
         for (i64 i = 0; i < actions; ++i) {
-            auto callback = BIND([&] () {
+            auto callback = BIND([&] {
                 Yield();
                 if (--count == 0) {
                     promise.Set();

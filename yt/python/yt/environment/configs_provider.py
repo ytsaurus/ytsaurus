@@ -488,7 +488,8 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
     ports = []
 
     for i in xrange(yt_config.discovery_server_count):
-        rpc_port, monitoring_port = next(ports_generator), next(ports_generator)
+        rpc_port = yt_config.discovery_server_ports[i] if yt_config.discovery_server_ports else next(ports_generator)
+        monitoring_port = next(ports_generator)
         address = to_yson_type("{0}:{1}".format(yt_config.fqdn, rpc_port))
         server_addresses.append(address)
         ports.append((rpc_port, monitoring_port))
@@ -906,17 +907,37 @@ def _build_node_configs(node_dirs,
 
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging",
-            _init_logging(logs_dir, log_name, yt_config)
+            "exec_node/job_proxy/job_proxy_logging/mode",
+            yt_config.job_proxy_logging["mode"]
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_stderr_path",
+            "exec_node/job_proxy/job_proxy_logging/sharding_key_length",
+            yt_config.job_proxy_logging["sharding_key_length"]
+        )
+        set_at(
+            config,
+            "exec_node/job_proxy/job_proxy_logging/directory",
+            os.path.join(logs_dir, "job_proxy-{0}".format(index))
+        )
+        set_at(
+            config,
+            "exec_node/job_proxy/job_proxy_logging/log_manager_template",
+            _init_logging(logs_dir, log_name, yt_config)
+        )
+
+        # COMPAT
+        for key in config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"]:
+            config["exec_node"]["job_proxy"]["job_proxy_logging"][key] = config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"][key]
+
+        set_at(
+            config,
+            "exec_node/job_proxy/job_proxy_logging/job_proxy_stderr_path",
             os.path.join(logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
         )
         set_at(
             config,
-            "exec_node/job_proxy/executor_stderr_path",
+            "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
         )
 

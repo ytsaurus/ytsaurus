@@ -366,19 +366,17 @@ class TestQueueAgentBase(YTEnvSetup):
         wait(config_updated_on_all_instances)
 
     def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None, **kwargs):
+        assert queue_table_schema is None and consumer_table_schema is None, \
+            "Current implementation of init_queue_agent_state does not support custom schemas"
         sync_create_cells(1)
         self.client = self.Env.create_native_client()
-        init_queue_agent_state.create_tables(
+        init_queue_agent_state.create_tables_latest_version(
             self.client,
-            queue_table_schema=queue_table_schema,
-            consumer_table_schema=consumer_table_schema,
-            create_registration_table=True,
-            create_replicated_table_mapping_table=True,
-            tablet_cell_bundle="default",
+            override_tablet_cell_bundle="default",
             **kwargs)
 
     def _drop_tables(self):
-        init_queue_agent_state.delete_tables(self.client)
+        init_queue_agent_state.delete_all_tables(self.client)
 
     def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
                       enable_cumulative_data_weight_column=True, mount=True, **kwargs):
@@ -401,7 +399,7 @@ class TestQueueAgentBase(YTEnvSetup):
         return schema, queue_id
 
     @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, **kwargs):
+    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
         if without_meta:
             attributes = {
                 "dynamic": True,
@@ -409,14 +407,14 @@ class TestQueueAgentBase(YTEnvSetup):
                 "treat_as_queue_consumer": True,
             }
             attributes.update(kwargs)
-            create("table", path, attributes=attributes)
+            create("table", path, attributes=attributes, driver=driver)
             if mount:
-                sync_mount_table(path)
+                sync_mount_table(path, driver=driver)
         else:
-            create("queue_consumer", path, attributes=kwargs)
+            create("queue_consumer", path, driver=driver, attributes=kwargs)
             if not mount:
-                wait_for_tablet_state(path, "mounted")
-                sync_unmount_table(path)
+                wait_for_tablet_state(path, "mounted", driver=driver)
+                sync_unmount_table(path, driver=driver)
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
         self._create_consumer(consumer_path, **kwargs)

@@ -314,7 +314,9 @@ std::vector<TRichYPath> GetLayerPathsFromDockerImage(
                 rspTags->AsMap()->GetKeys());
         }
 
-        return ConvertTo<std::vector<TRichYPath>>(rspTag);
+        auto layerPaths = ConvertTo<std::vector<TRichYPath>>(rspTag);
+        std::reverse(layerPaths.begin(), layerPaths.end());
+        return layerPaths;
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
             "Failed to load docker image %v:%v",
@@ -362,6 +364,18 @@ bool IsStaticTableWithHunks(TInputTablePtr table)
     }
 
     return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasJobUniquenessRequirements(
+    const NScheduler::TOperationSpecBasePtr& operationSpec,
+    const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs)
+{
+    return operationSpec->FailOnJobRestart ||
+        std::any_of(userJobSpecs.begin(), userJobSpecs.end(), [] (const auto& userJobSpec) {
+            return userJobSpec->FailOnJobRestart;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

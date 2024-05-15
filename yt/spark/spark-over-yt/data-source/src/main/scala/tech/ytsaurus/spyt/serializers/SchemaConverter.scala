@@ -2,15 +2,15 @@ package tech.ytsaurus.spyt.serializers
 
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
-import org.apache.spark.sql.yson.{UInt64Type, YsonType}
-import tech.ytsaurus.spyt.serialization.IndexedDataType.StructFieldMeta
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonType}
+import tech.ytsaurus.core.common.Decimal.textToBinary
+import tech.ytsaurus.core.tables.{ColumnSortOrder, TableSchema}
 import tech.ytsaurus.spyt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import tech.ytsaurus.spyt.format.conf.YtTableSparkSettings.isNullTypeAllowed
-import YtLogicalType.getStructField
-import tech.ytsaurus.core.common.Decimal.textToBinary
-import tech.ytsaurus.spyt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
-import tech.ytsaurus.core.tables.{ColumnSortOrder, TableSchema}
 import tech.ytsaurus.spyt.serialization.IndexedDataType
+import tech.ytsaurus.spyt.serialization.IndexedDataType.StructFieldMeta
+import tech.ytsaurus.spyt.serializers.YtLogicalType.getStructField
+import tech.ytsaurus.spyt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
 import tech.ytsaurus.typeinfo.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeNode, YTreeTextSerializer}
 
@@ -28,9 +28,11 @@ object SchemaConverter {
 
     def uniqueKeys: Boolean
   }
+
   case class Sorted(keys: Seq[String], uniqueKeys: Boolean) extends SortOption {
     if (keys.isEmpty) throw new IllegalArgumentException("Sort columns can't be empty in sorted table")
   }
+
   case object Unordered extends SortOption {
     override def keys: Seq[String] = Nil
 
@@ -145,7 +147,7 @@ object SchemaConverter {
   }
 
   private def wrapSparkAttributes(inner: YtLogicalType, flag: Boolean,
-                                    metadata: Option[Metadata] = None): YtLogicalType = {
+                                  metadata: Option[Metadata] = None): YtLogicalType = {
     def wrapNullable(ytType: YtLogicalType): YtLogicalType = {
       val optionalO = metadata.flatMap { m =>
         if (m.contains(MetadataFields.OPTIONAL)) Some(m.getBoolean(MetadataFields.OPTIONAL)) else None
@@ -210,7 +212,8 @@ object SchemaConverter {
     case YsonType => YtLogicalType.Any
     case BinaryType => YtLogicalType.Binary
     case DateType => YtLogicalType.Date
-    case TimestampType => YtLogicalType.Datetime
+    case _: DatetimeType => YtLogicalType.Datetime
+    case TimestampType => YtLogicalType.Timestamp
     case UInt64Type => YtLogicalType.Uint64
   }
 

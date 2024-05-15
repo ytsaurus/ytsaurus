@@ -58,6 +58,10 @@ struct IDataNodeTracker
         NNodeTrackerServer::TNode* node,
         NNodeTrackerClient::NProto::TReqRegisterNode* request,
         NNodeTrackerClient::NProto::TRspRegisterNode* response) = 0;
+    virtual void ReplicateChunkLocations(
+        NNodeTrackerServer::TNode* node,
+        const std::vector<TChunkLocationUuid>& chunkLocationUuids) = 0;
+    virtual void MakeLocationsOnline(TNode* node) = 0;
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChunkLocation, TRealChunkLocation);
     virtual TRealChunkLocation* FindChunkLocationByUuid(TChunkLocationUuid locationUuid) = 0;

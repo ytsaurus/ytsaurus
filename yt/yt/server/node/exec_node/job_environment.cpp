@@ -144,7 +144,7 @@ public:
 
             TJobProxyProcess jobProxyProcess;
             jobProxyProcess.Process = process;
-            jobProxyProcess.Result = BIND([=] () {
+            jobProxyProcess.Result = BIND([=] {
                     // Make forks outside controller thread.
                     return process->Spawn();
                 })
@@ -281,9 +281,9 @@ protected:
         }
 
         if (dynamicConfig->EnableJobEnvironmentResurrection) {
-            YT_UNUSED_FUTURE(BIND(&TSlotManager::Disable, Bootstrap_->GetSlotManager())
+            YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())
                 .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(error));
+                .Run(std::move(alert)));
         }
     }
 
@@ -563,7 +563,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        return BIND([this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
             std::vector<TShellCommandOutput> outputs;
             outputs.reserve(commands.size());
 
@@ -576,7 +576,8 @@ public:
                     command->Args,
                     user,
                     devices);
-                auto launcher = this_->CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
+
+                auto launcher = CreateSetupInstanceLauncher(slotIndex, slotType, jobId, rootFS, user, startIndex + index);
                 if (devices) {
                     launcher->SetDevices(*devices);
                 }
@@ -699,13 +700,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
-            // We use weak ptr to avoid cyclic references between container manager and job environment.
-            auto this_ = weakThis_.Lock();
-            if (this_) {
-                this_->Disable(error);
-            }
-        });
+        // We use weak ptr to avoid cyclic references between container manager and job environment.
+        auto portoFatalErrorHandler = BIND(&TPortoJobEnvironment::Disable, MakeWeak(this));
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
         SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
@@ -869,7 +865,8 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, launcher);
     }
 
-    void UpdateContainerCpuLimits() {
+    void UpdateContainerCpuLimits()
+    {
         if (MetaInstance_) {
             MetaInstance_->SetCpuLimit(CpuLimit_ - IdleCpuLimit_);
         }

@@ -50,7 +50,7 @@ message TReqSetAccountStatistics
         required TAccountStatistics statistics = 2;
     }
 
-    optional int32 cell_tag = 1;
+    optional uint32 cell_tag = 1;
     repeated TEntry entries = 2;
 }
 

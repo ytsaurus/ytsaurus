@@ -17,7 +17,7 @@ message TReqStartTransaction
 
     reserved 6;
 
-    repeated int32 replicate_to_cell_tags = 7;
+    repeated uint32 replicate_to_cell_tags = 7;
 
     required int64 timeout = 3;
     optional uint64 deadline = 8;
@@ -49,7 +49,7 @@ message TRspRegisterTransactionActions
 message TReqReplicateTransactions
 {
     repeated NYT.NProto.TGuid transaction_ids = 1;
-    required int32 destination_cell_tag = 2;
+    required uint32 destination_cell_tag = 2;
 
     optional NYT.NProto.TGuid boomerang_wave_id = 3;
     optional int32 boomerang_wave_size = 4;

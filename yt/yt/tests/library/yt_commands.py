@@ -1855,11 +1855,13 @@ def set_user_password(user, new_password, current_password=None, **kwargs):
     return execute_command("set_user_password", kwargs)
 
 
-def issue_token(user, password=None, **kwargs):
+def issue_token(user, password=None, description=None, **kwargs):
     kwargs["user"] = user
     if password:
         password = hashlib.sha256(password.encode("utf-8")).hexdigest()
         kwargs["password_sha256"] = password
+    if description:
+        kwargs["description"] = description
     token = execute_command("issue_token", kwargs, parse_yson=True)
     token_sha256 = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return token, token_sha256
@@ -1874,12 +1876,13 @@ def revoke_token(user, token_sha256, password=None, **kwargs):
     return execute_command("revoke_token", kwargs)
 
 
-def list_user_tokens(user, password=None, **kwargs):
+def list_user_tokens(user, password=None, with_metadata=False, **kwargs):
     kwargs["user"] = user
+    kwargs["with_metadata"] = with_metadata
     if password:
         password = hashlib.sha256(password.encode("utf-8")).hexdigest()
         kwargs["password_sha256"] = password
-    return execute_command("list_user_tokens", kwargs, parse_yson=True)
+    return execute_command("list_user_tokens", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def migrate_replication_cards(chaos_cell_id, replication_card_ids=None, **kwargs):
@@ -2209,7 +2212,7 @@ def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
-def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
+def create_secondary_index(table_path, index_table_path, kind=None, predicate=None, **kwargs):
     kwargs["type"] = "secondary_index"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -2217,6 +2220,8 @@ def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
     kwargs["attributes"]["index_table_path"] = index_table_path
     if kind is not None:
         kwargs["attributes"]["kind"] = kind
+    if predicate is not None:
+        kwargs["attributes"]["predicate"] = predicate
     return execute_command("create", kwargs, parse_yson=True)
 
 

@@ -1,6 +1,9 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0 AND MIT)
+LICENSE(
+    Apache-2.0 AND
+    MIT
+)
 
 SRCS(
     apic.go
@@ -29,4 +32,6 @@ GO_XTEST_SRCS(
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

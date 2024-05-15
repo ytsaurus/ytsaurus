@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
-
 #include <yt/yt/ytlib/api/public.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
@@ -25,18 +23,9 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
 
 ///////////////////////////////////////////////////////////////////////////////
 
-using TSecondaryMasterConnectionConfigs = THashMap<NObjectClient::TCellTag, NApi::NNative::TMasterConnectionConfigPtr>;
-
-///////////////////////////////////////////////////////////////////////////////
-
 struct ICellDirectory
     : public TRefCounted
 {
-    using TCellReconfigurationSignature = void(
-        const THashSet<NObjectClient::TCellTag>& /*addedSecondaryCellTags*/,
-        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<NObjectClient::TCellTag>& /*removedSecondaryTags*/);
-
     DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
 
     virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;

@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -147,6 +149,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     Connection_->GetQueueConsumerRegistrationManager()->StartSync();
+    Connection_->GetMasterCellDirectorySynchronizer()->Start();
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
@@ -155,10 +158,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", role}});
     };
     setGlobalRoleTag(Coordinator_->GetSelf()->Role);
-    Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));
+    Coordinator_->SubscribeOnSelfRoleChanged(BIND_NO_PROPAGATE(setGlobalRoleTag));
 
     DynamicConfigManager_ = CreateDynamicConfigManager(this);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
 
     if (Config_->ExposeConfigInOrchid) {
         SetNodeByYPath(

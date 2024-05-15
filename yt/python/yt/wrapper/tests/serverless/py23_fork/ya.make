@@ -12,6 +12,7 @@ PEERDIR(
     yt/python/yt/yson
     yt/python/yt/ypath
     yt/python/yt/wrapper
+    yt/python/yt/testlib
 )
 
 TEST_SRCS(

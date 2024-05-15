@@ -89,3 +89,4 @@ Library is actively developed on GitHub, code is available `here <https://github
    yt
    package_changelog
    configuration
+   cli_commands

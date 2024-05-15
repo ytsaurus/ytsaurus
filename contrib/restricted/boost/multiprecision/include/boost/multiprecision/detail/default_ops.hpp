@@ -1295,6 +1295,30 @@ inline BOOST_MP_CXX14_CONSTEXPR void eval_fmod(T& result, const T& a, const T& b
       eval_floor(n, result);
    eval_multiply(n, b);
    eval_subtract(result, a, n);
+   if (eval_get_sign(result) != 0)
+   {
+      //
+      // Sanity check, that due to rounding errors in division, 
+      // we haven't accidently calculated the wrong value:
+      // See https://github.com/boostorg/multiprecision/issues/604 for an example.
+      //
+      if (eval_get_sign(result) == eval_get_sign(b))
+      {
+         if (result.compare(b) >= 0)
+         {
+            eval_subtract(result, b);
+         }
+      }
+      else
+      {
+         n = b;
+         n.negate();
+         if (result.compare(n) >= 0)
+         {
+            eval_subtract(result, n);
+         }
+      }
+   }
 }
 template <class T, class A>
 inline BOOST_MP_CXX14_CONSTEXPR typename std::enable_if<boost::multiprecision::detail::is_arithmetic<A>::value, void>::type eval_fmod(T& result, const T& x, const A& a)
@@ -2462,13 +2486,19 @@ void raise_rounding_error(T1, T2, T3, T4, T5)
 template <typename T1, typename T2, typename T3, typename T4, typename T5>
 void raise_overflow_error(T1, T2, T3, T4, T5)
 {
-   BOOST_MP_THROW_EXCEPTION(std::runtime_error("Overflow error"));
+   BOOST_MP_THROW_EXCEPTION(std::overflow_error("Overflow error"));
 }
 
 template <typename T1, typename T2, typename T3, typename T4, typename T5>
 void raise_evaluation_error(T1, T2, T3, T4, T5)
 {
    BOOST_MP_THROW_EXCEPTION(std::runtime_error("Evaluation error"));
+}
+
+template <typename T1, typename T2, typename T3, typename T4, typename T5>
+void raise_domain_error(T1, T2, T3, T4, T5)
+{
+   BOOST_MP_THROW_EXCEPTION(std::domain_error("Domain error"));
 }
 
 template <typename T, typename... Args>

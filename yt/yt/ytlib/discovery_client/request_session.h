@@ -48,7 +48,7 @@ private:
 
     NServiceDiscovery::IServiceDiscoveryPtr ServiceDiscovery_;
     NConcurrency::TPeriodicExecutorPtr EndpointsUpdateExecutor_;
-    TFuture<void> ResolvedAddressesFuture_;
+    TPromise<void> ResolvedAddressesPromise_;
 
     void OnBanTimeoutExpired(const TString& address);
 

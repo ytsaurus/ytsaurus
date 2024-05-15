@@ -962,11 +962,11 @@ private:
 
         // Finally, setup structured logging messages to be emitted.
 
-        auto shouldEmit = [method = context->GetMethod()](const TStructuredLoggingTopicDynamicConfigPtr& config) {
-                return config->Enable &&
-                        !config->SuppressedMethods.contains(method) &&
-                        config->Methods.Value(method, DefaultMethodConfig)->Enable;
-            };
+        auto shouldEmit = [method = context->GetMethod()] (const TStructuredLoggingTopicDynamicConfigPtr& config) {
+            return config->Enable &&
+                !config->SuppressedMethods.contains(method) &&
+                config->Methods.Value(method, DefaultMethodConfig)->Enable;
+        };
 
         const auto& config = Config_.Acquire();
 
@@ -1219,7 +1219,7 @@ private:
             context,
             [=, Logger = Logger, connection = Connection_] {
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
-                    BIND([connection, clockClusterTag, count, Logger](TErrorOr<TTimestamp>&& providerResult) {
+                    BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
                             !(providerResult.FindMatching(NTransactionClient::EErrorCode::UnknownClockClusterTag) ||
                                 providerResult.FindMatching(NTransactionClient::EErrorCode::ClockClusterTagMismatch)))
@@ -1568,6 +1568,9 @@ private:
                     auto* protoIndexInfo = response->add_indices();
                     ToProto(protoIndexInfo->mutable_index_table_id(), indexInfo.TableId);
                     protoIndexInfo->set_index_kind(ToProto<i32>(indexInfo.Kind));
+                    if (const auto& predicate = indexInfo.Predicate) {
+                        ToProto(protoIndexInfo->mutable_predicate(), *predicate);
+                    }
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",

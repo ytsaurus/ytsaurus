@@ -1605,7 +1605,7 @@ private:
             leaderSwitchTimeout);
 
         TDelayedExecutor::Submit(
-            BIND([=, this, this_ = MakeWeak(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 ScheduleRestart(
                     epochContext,
                     TError("Leader switch did not complete within timeout"));

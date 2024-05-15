@@ -45,12 +45,12 @@ using NSecurityClient::EProxyKind;
 
 using NSecurityClient::TSecurityTag;
 
-DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TAccountResourceUsageLease, TAccountResourceUsageLeaseId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TProxyRole, TProxyRoleId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TAccount, TAccountId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TAccountResourceUsageLease, TAccountResourceUsageLeaseId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TUser, TUserId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TGroup, TGroupId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TProxyRole, TProxyRoleId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TAccount)
 DECLARE_MASTER_OBJECT_TYPE(TUser)

@@ -402,7 +402,7 @@ TEST_F(TCypressElectionManagerTest, TestAbortTransaction)
         SetUpCounts();
         auto electionManager = CreateElectionManager("electionManager");
         electionManager->Start();
-        WaitForPredicate([&] () {
+        WaitForPredicate([&] {
             return IsActive(electionManager->GetPrerequisiteTransactionId());
         });
         auto transactionId = electionManager->GetPrerequisiteTransactionId();

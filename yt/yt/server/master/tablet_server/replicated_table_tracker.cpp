@@ -392,8 +392,8 @@ private:
             }
 
             return CheckClusterState()
-                .Apply(BIND([=, this, weakThis_ = MakeWeak(this)] {
-                    if (auto this_ = weakThis_.Lock()) {
+                .Apply(BIND([=, this, weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
                         return CheckReplicaState();
                     } else {
                         return VoidFuture;
@@ -413,7 +413,7 @@ private:
                 ->GetHydraFacade()
                 ->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
 
-            return BIND([=, this, this_ = MakeStrong(this)] () {
+            return BIND([=, this, this_ = MakeStrong(this)] {
                 auto req = TTableReplicaYPathProxy::Alter(FromObjectId(Id_));
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(mode));

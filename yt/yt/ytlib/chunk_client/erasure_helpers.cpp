@@ -411,7 +411,7 @@ public:
 
         if (!indicesToRequest.empty()) {
             auto blocksFuture = BIND(
-                [=, this, this_ = MakeStrong(this)] () {
+                [=, this, this_ = MakeStrong(this)] {
                     return Reader_->ReadBlocks(indicesToRequest);
                 })
                 // Or simple Via?
@@ -454,7 +454,7 @@ private:
         TSharedMutableRef result;
 
         // We use lazy initialization.
-        auto initialize = [&] () {
+        auto initialize = [&] {
             if (!result) {
                 struct TErasureWriterSliceTag { };
                 result = TSharedMutableRef::Allocate<TErasureWriterSliceTag>(range.Size());

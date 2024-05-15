@@ -202,6 +202,9 @@ void TJobIOConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
+    registrar.Parameter("use_delivery_fenced_pipe_writer", &TThis::UseDeliveryFencedPipeWriter)
+        .Default(false);
+
     registrar.Parameter("pipe_io_pool_size", &TThis::PipeIOPoolSize)
         .Default(1)
         .GreaterThan(0);
@@ -497,10 +500,12 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 {
     static const std::vector<TString> DefaultSensorNames = {
+        "cpu/burst",
         "cpu/user",
         "cpu/system",
         "cpu/wait",
         "cpu/throttled",
+        "cpu/cfs_throttled",
         "cpu/context_switches",
         "current_memory/rss",
         "current_memory/mapped_file",
@@ -1069,6 +1074,12 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("rpc_proxy_worker_thread_pool_size", &TThis::RpcProxyWorkerThreadPoolSize)
         .Default(1)
         .GreaterThan(0);
+
+    registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
+        .Default(false);
+
+    registrar.Parameter("extra_environment", &TThis::ExtraEnvironment)
+        .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
         if ((spec->TmpfsSize || spec->TmpfsPath) && !spec->TmpfsVolumes.empty()) {

@@ -203,7 +203,11 @@ void TDefaultSecretVaultServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("consumer", &TThis::Consumer)
         .Optional();
     registrar.Parameter("enable_revocation", &TThis::EnableRevocation)
-        .Default(false);
+        .Default(true);
+    registrar.Parameter("default_tvm_id_for_new_tokens", &TThis::DefaultTvmIdForNewTokens)
+        .Default();
+    registrar.Parameter("default_tvm_id_for_existing_tokens", &TThis::DefaultTvmIdForExistingTokens)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

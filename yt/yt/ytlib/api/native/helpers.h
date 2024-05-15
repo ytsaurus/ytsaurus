@@ -74,4 +74,11 @@ TError MakeRevivalError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CheckReadPermission(
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const NAuth::TAuthenticationOptions& options,
+    const NYT::NApi::NNative::IConnectionPtr& connection);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

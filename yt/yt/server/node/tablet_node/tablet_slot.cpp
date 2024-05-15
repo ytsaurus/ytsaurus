@@ -285,7 +285,6 @@ DEFINE_REFCOUNTED_TYPE(TMediumThrottlerManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TTabletSlot
     : public TAutomatonInvokerHood<EAutomatonThreadQueue>
     , public ITabletSlot
@@ -808,8 +807,8 @@ public:
                 const auto& tabletNodeConfig = dynamicConfigManager->GetConfig()->TabletNode;
 
                 if (!tabletNodeConfig->EnableChunkFragmentReaderThrottling) {
-                    static const IThroughputThrottlerPtr EmptyThrottler;
-                    return EmptyThrottler;
+                    static const IThroughputThrottlerPtr NullThrottler;
+                    return NullThrottler;
                 }
 
                 return bootstrap->GetInThrottler(category);
@@ -823,7 +822,7 @@ public:
         return Bootstrap_->GetCompressionDictionaryManager();
     }
 
-    int EstimateChangelogMediumBytes(int payload) const override
+    i64 EstimateChangelogMediumBytes(i64 payload) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

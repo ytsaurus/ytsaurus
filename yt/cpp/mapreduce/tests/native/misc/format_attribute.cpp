@@ -3,7 +3,7 @@
 #include <yt/cpp/mapreduce/tests/lib/owning_yamr_row.h>
 #include <yt/cpp/mapreduce/interface/client.h>
 
-#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 #include <util/string/cast.h>
 #include <util/string/join.h>
@@ -67,111 +67,108 @@ void CreateYamrInput(const IClientBasePtr& client, const TYPath& workingDir)
     client->Set(workingDir + "/yamr_input/@_format", "yamr");
 }
 
-Y_UNIT_TEST_SUITE(FormatAttribute)
+TEST(FormatAttribute, Read_YamredDsv)
 {
-    Y_UNIT_TEST(Read_YamredDsv)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        CreateYamredDsvInput(client, workingDir);
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    CreateYamredDsvInput(client, workingDir);
 
-        TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamred_dsv_input");
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
-            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
-        }
-
-        const TVector<TOwningYaMRRow> expectedTable = {
-            {"oneone", "", "double=1.0\tint=1\tstring=one"},
-            {"twotwo", "", "double=2.0\tint=2\tstring=two"},
-        };
-
-        UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
+    TVector<TOwningYaMRRow> table;
+    auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamred_dsv_input");
+    for (; reader->IsValid(); reader->Next()) {
+        auto row = reader->GetRow();
+        table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
     }
 
-    Y_UNIT_TEST(Read_Yamr)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        CreateYamrInput(client, workingDir);
+    const TVector<TOwningYaMRRow> expectedTable = {
+        {"oneone", "", "double=1.0\tint=1\tstring=one"},
+        {"twotwo", "", "double=2.0\tint=2\tstring=two"},
+    };
 
-        TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamr_input");
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
-            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
-        }
+    EXPECT_EQ(table, expectedTable);
+}
 
-        const TVector<TOwningYaMRRow> expectedTable = {
-            {"1", "", "one"},
-            {"2", "", "two"},
-        };
+TEST(FormatAttribute, Read_Yamr)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    CreateYamrInput(client, workingDir);
 
-        UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
+    TVector<TOwningYaMRRow> table;
+    auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/yamr_input");
+    for (; reader->IsValid(); reader->Next()) {
+        auto row = reader->GetRow();
+        table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
     }
 
+    const TVector<TOwningYaMRRow> expectedTable = {
+        {"1", "", "one"},
+        {"2", "", "two"},
+    };
 
-    Y_UNIT_TEST(Operation_YamredDsv)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        CreateYamredDsvInput(client, workingDir);
+    EXPECT_EQ(table, expectedTable);
+}
 
-        client->Map(
-            TMapOperationSpec()
-            .AddInput<TYaMRRow>(workingDir + "/yamred_dsv_input")
-            .AddOutput<TYaMRRow>(workingDir + "/output"),
-            new TSwapKvMapper,
-            TOperationOptions().UseTableFormats(true));
 
-        TVector<TOwningYaMRRow> table;
+TEST(FormatAttribute, Operation_YamredDsv)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    CreateYamredDsvInput(client, workingDir);
 
-        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
-            table.emplace_back(NormalizeDsv(ToString(row.Key)), ToString(row.SubKey), ToString(row.Value));
-        }
+    client->Map(
+        TMapOperationSpec()
+        .AddInput<TYaMRRow>(workingDir + "/yamred_dsv_input")
+        .AddOutput<TYaMRRow>(workingDir + "/output"),
+        new TSwapKvMapper,
+        TOperationOptions().UseTableFormats(true));
 
-        const TVector<TOwningYaMRRow> expectedTable = {
-            {"double=1.0\tint=1\tstring=one", "", "oneone"},
-            {"double=2.0\tint=2\tstring=two", "", "twotwo"},
-        };
+    TVector<TOwningYaMRRow> table;
 
-        UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
+    auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
+    for (; reader->IsValid(); reader->Next()) {
+        auto row = reader->GetRow();
+        table.emplace_back(NormalizeDsv(ToString(row.Key)), ToString(row.SubKey), ToString(row.Value));
     }
 
-    Y_UNIT_TEST(Operation_Yamr)
-    {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-        CreateYamrInput(client, workingDir);
+    const TVector<TOwningYaMRRow> expectedTable = {
+        {"double=1.0\tint=1\tstring=one", "", "oneone"},
+        {"double=2.0\tint=2\tstring=two", "", "twotwo"},
+    };
 
-        client->Map(
-            TMapOperationSpec()
-            .AddInput<TYaMRRow>(workingDir + "/yamr_input")
-            .AddOutput<TYaMRRow>(workingDir + "/output"),
-            new TSwapKvMapper,
-            TOperationOptions().UseTableFormats(true));
+    EXPECT_EQ(table, expectedTable);
+}
 
-        TVector<TOwningYaMRRow> table;
-        auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
-        for (; reader->IsValid(); reader->Next()) {
-            auto row = reader->GetRow();
-            table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
-        }
+TEST(FormatAttribute, Operation_Yamr)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    CreateYamrInput(client, workingDir);
 
-        const TVector<TOwningYaMRRow> expectedTable = {
-            {"one", "", "1"},
-            {"two", "", "2"},
-        };
+    client->Map(
+        TMapOperationSpec()
+        .AddInput<TYaMRRow>(workingDir + "/yamr_input")
+        .AddOutput<TYaMRRow>(workingDir + "/output"),
+        new TSwapKvMapper,
+        TOperationOptions().UseTableFormats(true));
 
-        UNIT_ASSERT_VALUES_EQUAL(table, expectedTable);
+    TVector<TOwningYaMRRow> table;
+    auto reader = client->CreateTableReader<TYaMRRow>(workingDir + "/output");
+    for (; reader->IsValid(); reader->Next()) {
+        auto row = reader->GetRow();
+        table.emplace_back(ToString(row.Key), ToString(row.SubKey), NormalizeDsv(ToString(row.Value)));
     }
+
+    const TVector<TOwningYaMRRow> expectedTable = {
+        {"one", "", "1"},
+        {"two", "", "2"},
+    };
+
+    EXPECT_EQ(table, expectedTable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

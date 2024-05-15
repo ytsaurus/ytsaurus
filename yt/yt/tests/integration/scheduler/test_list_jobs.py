@@ -511,7 +511,7 @@ class TestListJobsBase(YTEnvSetup):
         job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
 
-    @authors("levysotsky")
+    @authors("omgronny")
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs_attributes(self):
         create_pool("my_pool")
@@ -574,7 +574,7 @@ class TestListJobsBase(YTEnvSetup):
         assert aborted_map_job["type"] == "partition_map"
         assert aborted_map_job.get("abort_reason") == "user_request"
 
-    @authors("levysotsky")
+    @authors("omgronny")
     @pytest.mark.timeout(150)
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs(self):
@@ -603,7 +603,7 @@ class TestListJobsStatisticsLz4(TestListJobsBase):
 
 
 class TestListJobs(TestListJobsBase):
-    @authors("ermolovd", "levysotsky")
+    @authors("ermolovd", "omgronny")
     def test_running_jobs_stderr_size(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -653,7 +653,7 @@ class TestListJobs(TestListJobsBase):
             )
             assert any("has_spec" in job and job["has_spec"] for job in res["jobs"])
 
-    @authors("ignat", "levysotsky")
+    @authors("ignat", "omgronny")
     def test_aborted_jobs(self):
         input_table, output_table = self._create_tables()
         before_start = datetime.utcnow()
@@ -710,7 +710,7 @@ class TestListJobs(TestListJobsBase):
             assert len(actual_jobs) == 1
             assert len(all_jobs) == 2
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_list_jobs_of_vanilla_operation(self):
         spec = {
             "tasks": {
@@ -730,7 +730,7 @@ class TestListJobs(TestListJobsBase):
         jobs = checked_list_jobs(op.id)["jobs"]
         assert len(jobs) == 1
 
-    @authors("levysotsky")
+    @authors("omgronny")
     def test_errors(self):
         input_table, output_table = self._create_tables()
         op = map(
@@ -751,7 +751,7 @@ class TestListJobs(TestListJobsBase):
             release_breakpoint()
             op.track()
 
-    @authors("levysotsky")
+    @authors("omgronny")
     @add_failed_operation_stderrs_to_error_message
     def test_stale_jobs(self):
         input_table, output_table = self._create_tables()
@@ -795,7 +795,7 @@ class TestListJobs(TestListJobsBase):
         assert res_job["archive_state"] == "running"
         assert res_job.get("is_stale")
 
-    @authors("levysotsky")
+    @authors("omgronny")
     @flaky(max_runs=3)
     def test_revival(self):
         op = run_test_vanilla(

@@ -11,6 +11,7 @@
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
 
+#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -37,7 +38,11 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
+#include <yt/yt/ytlib/table_client/schema.h>
+
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/library/query/base/query_preparer.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
@@ -64,6 +69,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NProto;
 using namespace NSecurityServer;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletServer;
 using namespace NTransactionServer;
@@ -126,19 +132,19 @@ public:
     {
         RegisterLoader(
             "TableManager.Keys",
-            BIND(&TTableManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TableManager.Values",
-            BIND(&TTableManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TableManager.Keys",
-            BIND(&TTableManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TableManager.Values",
-            BIND(&TTableManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTableManager::SaveValues, Unretained(this)));
 
         // COMPAT(shakurov, gritukan)
         RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraSendTableStatisticsUpdates, Unretained(this)), /*aliases*/ {"NYT.NTabletServer.NProto.TReqSendTableStatisticsUpdates"});
@@ -756,7 +762,8 @@ public:
         TObjectId hintId,
         ESecondaryIndexKind kind,
         TTableNode* table,
-        TTableNode* indexTable) override
+        TTableNode* indexTable,
+        std::optional<TString> predicate) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -775,6 +782,74 @@ public:
             }
 
             table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
+
+            auto tableType = TypeFromId(table->GetId());
+            auto indexTableType = TypeFromId(indexTable->GetId());
+            if (tableType != indexTableType) {
+                THROW_ERROR_EXCEPTION("Type mismatch: trying to create index of type %Qlv for a table of type %Qlv",
+                    indexTableType,
+                    tableType);
+            }
+
+            switch (tableType) {
+                case EObjectType::Table: {
+                    break;
+                }
+
+                case EObjectType::ReplicatedTable: {
+                    auto* tableCollocation = table->GetReplicationCollocation();
+                    auto* indexCollocation = indexTable->GetReplicationCollocation();
+
+                    if (tableCollocation == nullptr || tableCollocation != indexCollocation) {
+                        auto tableCollocationId = tableCollocation ? tableCollocation->GetId() : NullObjectId;
+                        auto indexCollocationId = indexCollocation ? indexCollocation->GetId() : NullObjectId;
+                        THROW_ERROR_EXCEPTION("Table and index table must belong to the same non-null table collocation")
+                            << TErrorAttribute("table_collocation_id", tableCollocationId)
+                            << TErrorAttribute("index_table_collocation_id", indexCollocationId);
+                    }
+
+                    if (auto type = tableCollocation->GetType(); type != ETableCollocationType::Replication) {
+                        THROW_ERROR_EXCEPTION("Unsupported collocation type %Qlv", type);
+                    }
+
+                    break;
+                }
+
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
+            }
+
+            const auto& tableSchema = table->GetSchema()->AsTableSchema();
+            const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
+
+            switch(kind) {
+                case ESecondaryIndexKind::FullSync:
+                    ValidateFullSyncIndexSchema(
+                        *tableSchema,
+                        *indexTableSchema);
+                    break;
+
+                case ESecondaryIndexKind::Unfolding:
+                    FindUnfoldingColumnAndValidate(
+                        *tableSchema,
+                        *indexTableSchema);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
+            if (predicate) {
+                auto expr = PrepareExpression(*predicate, *tableSchema);
+                THROW_ERROR_EXCEPTION_IF(expr->GetWireType() != EValueType::Boolean,
+                    "Expected boolean expression as predicate, got %v",
+                    *expr->LogicalType);
+
+                TColumnSet predicateColumns;
+                TReferenceHarvester(&predicateColumns).Visit(expr);
+
+                ValidateColumnsAreInIndexLockGroup(predicateColumns, *tableSchema, *indexTableSchema);
+            }
         };
 
         if (table->IsNative()) {
@@ -785,42 +860,6 @@ public:
             } catch (const std::exception& ex) {
                 YT_LOG_ALERT(ex, "Index creation validation failed on the foreign cell");
             }
-        }
-
-        auto tableType = TypeFromId(table->GetId());
-        auto indexTableType = TypeFromId(indexTable->GetId());
-        if (tableType != indexTableType) {
-            THROW_ERROR_EXCEPTION("Type mismatch: trying to create index of type %Qlv for a table of type %Qlv",
-                indexTableType,
-                tableType);
-        }
-
-        switch (tableType) {
-            case EObjectType::Table: {
-                break;
-            }
-
-            case EObjectType::ReplicatedTable: {
-                auto* tableCollocation = table->GetReplicationCollocation();
-                auto* indexCollocation = indexTable->GetReplicationCollocation();
-
-                if (tableCollocation == nullptr || tableCollocation != indexCollocation) {
-                    auto tableCollocationId = tableCollocation ? tableCollocation->GetId() : NullObjectId;
-                    auto indexCollocationId = indexCollocation ? indexCollocation->GetId() : NullObjectId;
-                    THROW_ERROR_EXCEPTION("Table and index table must belong to the same non-null table collocation")
-                        << TErrorAttribute("table_collocation_id", tableCollocationId)
-                        << TErrorAttribute("index_table_collocation_id", indexCollocationId);
-                }
-
-                if (auto type = tableCollocation->GetType(); type != ETableCollocationType::Replication) {
-                    THROW_ERROR_EXCEPTION("Unsupported collocation type %Qlv", type);
-                }
-
-                break;
-            }
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported table type %Qlv", tableType);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -837,6 +876,7 @@ public:
         secondaryIndex->SetExternalCellTag(table->IsNative()
             ? table->GetExternalCellTag()
             : NotReplicatedCellTagSentinel);
+        secondaryIndex->Predicate() = std::move(predicate);
 
         indexTable->SetIndexTo(secondaryIndex);
         InsertOrCrash(table->MutableSecondaryIndices(), secondaryIndex);

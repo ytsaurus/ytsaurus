@@ -2549,6 +2549,11 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
 
         if (AreNodesEqual(ConvertTo<NYTree::INodePtr>(it->second), ConvertTo<NYTree::INodePtr>(possiblyChangedState))) {
             unchangedBundleStates.push_back(bundleName);
+        } else {
+            YT_LOG_DEBUG("Bundle state changed (Bundle: %v,  OldState: %v, NewSatate: %v)",
+                bundleName,
+                ConvertToYsonString(it->second, EYsonFormat::Text),
+                ConvertToYsonString(possiblyChangedState, EYsonFormat::Text));
         }
     }
 
@@ -2587,15 +2592,199 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
             continue;
         }
 
+        if (!bundleInfo->EnableNodeTagFilterManagement) {
+            continue;
+        }
+
         if (bundleInfo->NodeTagFilter.empty()) {
             auto nodeTagFilter = Format("%v/%v", bundleInfo->Zone, bundleName);
             bundleInfo->NodeTagFilter = nodeTagFilter;
-            mutations->InitializedNodeTagFilters[bundleName] = nodeTagFilter;
+            mutations->ChangedNodeTagFilters[bundleName] = nodeTagFilter;
 
             YT_LOG_INFO("Initializing node tag filter for bundle (Bundle: %v, NodeTagFilter: %v)",
                 bundleName,
                 nodeTagFilter);
         }
+    }
+}
+
+TString GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName)
+{
+    return Format("%v/%v_drills_mode_on", bundleInfo->Zone, bundleName);
+}
+
+TString GetNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName)
+{
+    return Format("%v/%v", bundleInfo->Zone, bundleName);
+}
+
+void ProcessEnableDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
+    const auto& drillsMode = bundleState->DrillsMode;
+    if (!drillsMode->TurningOn) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Processing turning on drills mode (BundleName: %v)",
+        bundleName);
+
+    auto operationAge = TInstant::Now() - drillsMode->TurningOn->CreationTime;
+    if (operationAge > input.Config->NodeAssignmentTimeout) {
+        YT_LOG_WARNING("Turning on drills mode is stuck (BundleName: %v, OperationAge: %v, Threshold: %v)",
+            bundleName,
+            operationAge,
+            input.Config->NodeAssignmentTimeout);
+
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = "stuck_drills_mode",
+            .BundleName = bundleName,
+            .Description = Format("Turning on drills mode is stuck for bundle %v. OperationAge: %v, Threshold: %v",
+                bundleName,
+                operationAge,
+                input.Config->NodeAssignmentTimeout),
+        });
+    }
+
+    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    if (!bundleInfo->MuteTabletCellsCheck || !bundleInfo->MuteTabletCellSnapshotsCheck) {
+        mutations->ChangedMuteTabletCellsCheck[bundleName] = true;
+        mutations->ChangedMuteTabletCellSnapshotsCheck[bundleName] = true;
+
+        YT_LOG_DEBUG("Disabling tablet cell checks for bundle (BundleName: %v)",
+            bundleName);
+
+        return;
+    }
+
+    auto drillsNodeTagFilter = GetDrillsNodeTagFilter(bundleInfo, bundleName);
+    if (bundleInfo->NodeTagFilter != drillsNodeTagFilter) {
+        YT_LOG_DEBUG("Setting drills node tag filter for bundle (BundleName: %v, NodeTagFilter: %v)",
+            bundleName,
+            drillsNodeTagFilter);
+
+        mutations->ChangedNodeTagFilters[bundleName] = drillsNodeTagFilter;
+        return;
+    }
+
+    YT_LOG_DEBUG("Finished turning on drills mode (BundleName: %v)",
+        bundleName);
+
+    drillsMode->TurningOn.Reset();
+}
+
+void ProcessDisableDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
+    const auto& drillsMode = bundleState->DrillsMode;
+
+    if (!drillsMode->TurningOff) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Processing turning off drills mode (BundleName: %v)",
+        bundleName);
+
+    auto operationAge = TInstant::Now() - drillsMode->TurningOff->CreationTime;
+    auto disableTimeout = input.Config->NodeAssignmentTimeout + input.Config->MuteTabletCellsCheckGracePeriod;
+
+    if (operationAge > disableTimeout) {
+        YT_LOG_WARNING("Turning off drills mode is stuck (BundleName: %v, OperationAge: %v, Threshold: %v)",
+            bundleName,
+            operationAge,
+            disableTimeout);
+
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = "stuck_disable_drills_mode",
+            .BundleName = bundleName,
+            .Description = Format("Turning off drills mode is stuck for bundle %v. OperationAge: %v, Threshold: %v",
+                bundleName,
+                operationAge,
+                disableTimeout),
+        });
+    }
+
+    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    auto nodeTagFilter = GetNodeTagFilter(bundleInfo, bundleName);
+    if (bundleInfo->NodeTagFilter != nodeTagFilter) {
+        mutations->ChangedNodeTagFilters[bundleName] = nodeTagFilter;
+
+        YT_LOG_DEBUG("Setting node tag filter for bundle (BundleName: %v, NodeTagFilter: %v)",
+            bundleName,
+            nodeTagFilter);
+
+        return;
+    }
+
+    if (operationAge < input.Config->MuteTabletCellsCheckGracePeriod) {
+        YT_LOG_DEBUG("Waiting grace period before enabling tablet cell checks (BundleName: %v, OperationAge: %v, Threshold: %v)",
+            bundleName,
+            operationAge,
+            input.Config->MuteTabletCellsCheckGracePeriod);
+
+        return;
+    }
+
+    if (bundleInfo->MuteTabletCellsCheck || bundleInfo->MuteTabletCellSnapshotsCheck) {
+        YT_LOG_DEBUG("Enabling tablet cell checks for bundle (BundleName: %v)",
+            bundleName);
+
+        mutations->ChangedMuteTabletCellsCheck[bundleName] = false;
+        mutations->ChangedMuteTabletCellSnapshotsCheck[bundleName] = false;
+        return;
+    }
+
+    YT_LOG_DEBUG("Finished turning off drills mode (BundleName: %v)",
+        bundleName);
+
+    drillsMode->TurningOff.Reset();
+}
+
+void ToggleDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
+    const auto& drillsMode = bundleState->DrillsMode;
+
+    YT_VERIFY(!drillsMode->TurningOn || !drillsMode->TurningOff);
+
+    auto newState = New<TDrillsModeOperationState>();
+    newState->CreationTime = TInstant::Now();
+
+    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    auto enableDrillsMode = bundleInfo->TargetConfig->EnableDrillsMode;
+    auto drillsNodeTagFilter = GetDrillsNodeTagFilter(bundleInfo, bundleName);
+
+    // Transition from TurningOffDrillsMode --> TurningOnDrillsMode.
+    if (enableDrillsMode && drillsMode->TurningOff) {
+        drillsMode->TurningOff.Reset();
+        drillsMode->TurningOn = newState;
+    }
+
+    if (drillsMode->TurningOn || drillsMode->TurningOff) {
+        return;
+    }
+
+    if (enableDrillsMode && bundleInfo->NodeTagFilter != drillsNodeTagFilter) {
+        drillsMode->TurningOn = newState;
+    } else if (!enableDrillsMode && bundleInfo->NodeTagFilter == drillsNodeTagFilter) {
+        drillsMode->TurningOff = newState;
+    }
+}
+
+void ManageDrillsMode(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController || bundleInfo->Zone.empty()) {
+            continue;
+        }
+
+        if (!bundleInfo->EnableNodeTagFilterManagement) {
+            continue;
+        }
+
+        ProcessDisableDrillsMode(bundleName, input, mutations);
+        ProcessEnableDrillsMode(bundleName, input, mutations);
+        ToggleDrillsMode(bundleName, input, mutations);
     }
 }
 
@@ -2718,6 +2907,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageNodeTagFilters(input, mutations);
     ManageRpcProxyRoles(input, mutations);
     ManageBundleShortName(input, mutations);
+    ManageDrillsMode(input, mutations);
 
     mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
 }

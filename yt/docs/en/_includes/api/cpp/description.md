@@ -1,77 +1,70 @@
 # Description
 
-To use the features of {{product-name}}, you can use the [C++ client](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce).
+To use the features of {{product-name}}, you can use the [C++ client]({{source-root}}/yt/cpp/mapreduce).
 
-{% if audience == "internal" %}
-See also [Use cases](../../../api/cpp/examples.md).{% else %}{% endif %}
+See [Usage examples](../../../api/cpp/examples.md).
 
 {% if audience == "public" %}
 
 {% note warning %}
 
-Please note, the C++ client is provided as-is, so:
-- the client interface can change without backward compatibility;
-- only static linkage is currently supported;
-- email info@ytsaurus.tech if you have questions about building the client.
+The C++ client is currently provided as is, so:
+- The client interface may undergo non-backward compatible changes.
+- The current version only supports static linking.
+- Contact info@ytsaurus.tech if you have any questions about building the client.
 
 {% endnote %}
 
 {% endif %}
 
-## General information
+## Overview
 
 - The entire code is in the `NYT` namespace.
-- All the interfaces that the user might need can be found [here](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/interface).
-- The implementation of all the interfaces is available [here](https://github.com/ytsaurus/ytsaurus/tree/main/yt/cpp/mapreduce/client). Libraries need to be linked with `interface`, and the build (program) end goals must be linked with `client`.
+- All the interfaces that the user might need can be found [here]({{source-root}}/yt/cpp/mapreduce/interface).
+- The implementation of all the interfaces is available [here]({{source-root}}/yt/cpp/mapreduce/client). Libraries need to be linked with `interface`, and executable binaries must be linked with `client`.
 - `ISomethingPtr` is usually defined as `TIntrusivePtr` for interfaces.
 - All mandatory parameters are explicitly present in the signatures of the corresponding functions. All optional command parameters are presented as auxiliary structures within `TOptions`. These structures have a builder-like interface that allows for specifying parameters as `TWhateverOptions().Parameter1(value1).Parameter2(value2)` for single-line writing, if convenient.
 
 ## Logging { #logging }
 
 Logging is toggled with the `YT_LOG_LEVEL` environment variable, which can take one of the following values: `ERROR`, `WARNING` (equivalent to `ERROR` for compatibility with the [Python API](../../../api/python/userdoc.md)), `INFO`, `DEBUG`.
-In addition, you need to call the `NYT::Initialize()` method at the start of the program (see the next section).
+In addition, you need to call the `NYT::Initialize()` function at the start of the program (see the next section).
 
-If possible, saving logs at the `DEBUG` level is recommended, especially for production processes. Should any API issues occur, such logs will make fixing them much easier and faster. Attaching these logs to emails about API-related problems is recommended.
+If possible, saving logs at the `DEBUG` level is recommended, especially for production processes. Should any issues occur, such logs will make fixing them much easier and faster. Attaching these logs to emails about API-related problems is recommended.
 
 ## Initializing { #init }
 
-Similarly to the general interface, you need to call the `Initialize(argc, argv)` method before starting client actions.
+You need to call the `Initialize` method before starting client actions.
 
-This is where execution branches between the client code and the job code, and additional system initialization (logging, etc.) is performed.
-
-{% note warning %}
-
-Command line arguments with the `—yt*` prefix are reserved (for example, `--yt-reduce`).
-
-{% endnote %}
-
-If the program does not start operations, you can call `JoblessInitialize()`. This function will perform basic library initialization (logging, etc.), because it does not require passing `(argc, argv)`.
+This function performs initialization of required subsystems (logging, etc), it also checks if binary is launched on the {{product-name}} Node inside the job and if it is the case function switches execution into the job mode.
 
 The client entry point is the `CreateClient(serverName)` function, which returns a pointer to the `IClient` interface.
 
 Example of a minimum program (`main.cpp` file):
 
 ```c++
-#include <mapreduce/yt/interface/client.h>
-int main(int argc, const char* argv[])
+#include <yt/cpp/mapreduce/interface/client.h>
+int main()
 {
-    NYT::Initialize(argc, argv);
+    NYT::Initialize();
     auto client = NYT::CreateClient("cluster_name");
     client->Create("//tmp/table", NYT::NT_TABLE);
 }
 ```
 
+{% if audience == "internal" %}
 The corresponding `ya.make` file:
 
 ```
 PROGRAM()
 
-PEERDIR(mapreduce/yt/client)
+PEERDIR(yt/cpp/mapreduce/client)
 
 SRCS(main.cpp)
 
 END()
 ```
+{% endif %}
 
 If you need to have clients working under different [authorization tokens](../../../user-guide/storage/auth.md) within the same program, you can use the following options:
 
@@ -86,10 +79,10 @@ There are two interfaces (`IClient` and `ITransaction`) that have almost the sam
 Example of working with transactions:
 
 ```c++
-#include <mapreduce/yt/interface/client.h>
-int main(int argc, const char* argv[])
+#include <yt/cpp/mapreduce/interface/client.h>
+int main()
 {
-    NYT::Initialize(argc, argv);
+    NYT::Initialize();
     auto client = NYT::CreateClient("cluster_name");
     auto tx = client->StartTransaction();
     tx->Remove("//tmp/table");
@@ -111,17 +104,17 @@ tx->Commit();
 
 The `ITransaction::GetId()` method returns `TGUID` — the ID of this transaction.
 
-The transaction created using `StartTransaction()` is automatically pinged by the C++ client and is fully controlled.
+The transaction created using `StartTransaction()` is automatically pinged and managed by the C++ client.
 
-There is a way to work under an externally controlled transaction. To do this, call the `IClient::AttachTransaction(transactionId)` method. All commands called in such an object will be executed in the context of the transaction with this ID, but this transaction will not be pinged by the client.
+In order to work with externally created transaction you can use `IClient::AttachTransaction(transactionId)` method. It returns transaction object that can be used to execute commands with specified transactionId, but this transaction is not pinged by the client.
 
 For more information on transactions, see the [Transactions](../../../user-guide/storage/transactions.md) section.
 
 ## TNode { #tnode }
 
-[TNode](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cpp/mapreduce/interface/node.h) is the main class that provides for a dynamic DOM representation of [YSON documents](../../../user-guide/storage/yson-docs.md). It is used for working with Cypress, transferring additional operation specifications, as one of the ways to encode table rows, and more.
+[TNode]({{source-root}}/yt/cpp/mapreduce/interface/node.h) is the main class that provides for a dynamic DOM representation of [YSON documents](../../../user-guide/storage/yson-docs.md). It is used for working with Cypress, transferring additional operation specifications, as one of the ways to encode table rows, and more.
 
-Example of use:
+Usage examples:
 
 ```c++
 TNode i = 1; // all signed types -> int64
@@ -162,7 +155,7 @@ auto listNode = TNode().Add(100).Add(500);
 
 For more information about the commands, see [Working with the meta information tree](../../../user-guide/storage/cypress-example.md). Implemented as the `ICypressClient` interface, from which `IClientBase` is inherited.
 
-Example of use:
+Usage examples:
 
 ```c++
 TString node("//tmp/node");
@@ -192,7 +185,7 @@ Cout << client->Get("//tmp/table/@sorted").AsBool() << Endl;
 
 ### Create
 
-[Create](../../../api/commands.md#create) a node. [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#create).
+[Create](../../../api/commands.md#create) a node. [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#create).
 
 ```c++
 TNodeId Create(
@@ -205,7 +198,7 @@ TNodeId Create(
 | **Parameter** | **Type** | **Default value** | **Description** |
 | --------------|--------------|------------|---------------------------------- |
 | `path` | `TYPath` | - | Node path |
-| `type` | `ENodeType` | - | [Type](../../../user-guide/storage/objects.md#object_types) of node created: <br/>  `NT_STRING` — string (`string_node`);<br/> `NT_INT64` — signed integer (`int64_node`); <br/>`NT_UINT64` — unsigned integer (`uint64_node`); <br/>`NT_DOUBLE` — double (decimal) (`double_node`); <br/>`NT_BOOLEAN` — Boolean value (`boolean_node`); <br/>`NT_MAP` — a Cypress dictionary (keys — strings, values — other nodes, `map_node`); <br/>`NT_LIST` — ordered list in (values — other nodes) (`list_node`);<br/> `NT_FILE` — [file](../../../user-guide/storage/objects.md#files) (`file`); <br/>`NT_TABLE` — [table](../../../user-guide/storage/objects.md#tables) (`table`);<br/> `NT_DOCUMENT` — [document](../../../user-guide/storage/objects.md#yson_doc) (`document`); <br/>`NT_REPLICATED_TABLE` — [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) (`replicated_table`); <br/>`NT_TABLE_REPLICA` — (`table_replica`); |
+| `type` | `ENodeType` | - | [Type](../../../user-guide/storage/objects.md#object_types) of node created: <br/>  `NT_STRING` — string (`string_node`);<br/> `NT_INT64` — signed integer (`int64_node`); <br/>`NT_UINT64` — unsigned integer (`uint64_node`); <br/>`NT_DOUBLE` — double (decimal) (`double_node`); <br/>`NT_BOOLEAN` — Boolean value (`boolean_node`); <br/>`NT_MAP` — a Cypress dictionary (keys — strings, values — other nodes, `map_node`); <br/>`NT_LIST` — ordered list in (values — other nodes) (`list_node`);<br/> `NT_FILE` — [file](../../../user-guide/storage/objects.md#files) (`file`); <br/>`NT_TABLE` — [table](../../../user-guide/storage/objects.md#tables) (`table`);<br/> `NT_DOCUMENT` — [document](../../../user-guide/storage/objects.md#yson_doc) (`document`); <br/>`NT_REPLICATED_TABLE` — [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) (`replicated_table`); <br/>`NT_TABLE_REPLICA` — (`table_replica`); |
 | `options` &mdash; optional settings: | | |                                  |
 | `Recursive` | `bool` | `false` | Whether to create intermediate directories. |
 | `IgnoreExisting` | `bool` | `false` | If the node exists, do nothing and show no error. |
@@ -214,7 +207,7 @@ TNodeId Create(
 
 ### Remove
 
-[Remove](../../../api/commands.md#remove) the node. [See equivalent in the {{product-name}}saurus](../../../user-guide/storage/cypress-example.md#create) utility.
+[Remove](../../../api/commands.md#remove) the node. [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#remove).
 
 ```c++
 void Remove(
@@ -246,7 +239,7 @@ bool Exists(
 
 ### Get
 
-[Get the contents of the Cypress node](../../../api/commands.md#get) in `TNode` format. [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#get).
+[Get the contents of the Cypress node](../../../api/commands.md#get) in `TNode` format. [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#get).
 
 ```c++
 TNode Get(
@@ -263,7 +256,7 @@ TNode Get(
 
 ### Set
 
-[Write new Cypress node content.](../../../api/commands.md#set) [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#get).
+[Write new Cypress node content.](../../../api/commands.md#set) [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#set).
 
 ```c++
 void Set(
@@ -282,7 +275,7 @@ void Set(
 
 ### List
 
-[Get a list of the node's descendants](../../../api/commands.md#list). [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#list).
+[Get a list of the node's descendants](../../../api/commands.md#list). [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#list).
 
 ```c++
 TNode::TListType List(
@@ -299,7 +292,7 @@ TNode::TListType List(
 
 ### Copy
 
-[Copy the Cypress node to a new address](../../../api/commands.md#copy). [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#copy_move).
+[Copy the Cypress node to a new address](../../../api/commands.md#copy). [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#copy_move).
 
 {% note info "Note" %}
 
@@ -328,7 +321,7 @@ TNodeId Copy(
 
 ### Move
 
-[Move the node to a new path](../../../api/commands.md#move). [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#copy_move).
+[Move the node to a new path](../../../api/commands.md#move). [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#copy_move).
 
 ```c++
 TNodeId Move(
@@ -350,7 +343,7 @@ TNodeId Move(
 
 ### Link
 
-[Create](../../../api/commands.md#move) a [symbolic link](../../../user-guide/storage/links.md) to the object at the new address. [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#link).
+[Create](../../../api/commands.md#link) a [symbolic link](../../../user-guide/storage/links.md) to the object at the new address. [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#link).
 
 ```c++
 TNodeId Link(
@@ -371,7 +364,7 @@ TNodeId Link(
 
 ### Concatenate
 
-[Merge](../../../api/commands.md#concatenate) the set of files or tables (in the order in which their paths are listed). [See equivalent in the utility {{product-name}}](../../../user-guide/storage/cypress-example.md#concatenate).
+[Concatenate](../../../api/commands.md#concatenate) a set of files or tables (in the order in which their paths are listed). [See the CLI equivalent](../../../user-guide/storage/cypress-example.md#concatenate).
 
 The data merge takes place at the metadata level and exclusively on the [Cypress](../../../user-guide/storage/cypress.md) master server.
 
@@ -441,7 +434,7 @@ For more information about Protobuf, see [Protobuf representation of tables](../
 Here, it is possible to define a custom protobuf type. To display protobuf fields in column names, use the following extensions:
 
 ```c++
-import "mapreduce/yt/interface/protos/extension.proto";
+import "yt/yt_proto/yt/formats/extension.proto";
 message TSampleProto {
     optional int64  a = 1 [(NYT.column_name) = "column_a"];
     optional double b = 2 [(NYT.column_name) = "column_b"];
@@ -460,7 +453,7 @@ You should not use the `proto3` version. The [proto3 implementation](https://dev
 
 ## Table reading and writing
 
-See [mapreduce/yt/interface/io.h](https://github.com/ytsaurus/YTsaurus//blob/main/mapreduce/yt/interface/io.h).
+See [yt/cpp/mapreduce/interface/io.h]({{source-root}}/yt/cpp/mapreduce/interface/io.h).
 
 
 ```c++
@@ -470,7 +463,7 @@ writer->AddRow(TNode()("x", 0.)("y", 1.));
 writer->Finish();
 ```
 
-Block writing. When `AddRow()` is called, the data is stored in the internal buffer, and if this buffer is larger than 64 MB, a separate thread is triggered that transmits the accumulated data.
+Block writing. When `AddRow()` is called, the data is stored in the internal buffer, and if this buffer is larger than 64 MB, a separate thread is triggered that transmits the accumulated data.
 
 The `Finish()` method is guaranteed to reset all the accumulated records or show an error. When destroying a writer without calling `Finish()`, a reset attempt will be made in the destructor without a guaranteed result. If the table did not exist before the creation of the writer, it will be created in the context of the same client or transaction with all the default attributes. If you need a different replication factor, you should create a table and give it the required attributes beforehand.
 
@@ -568,7 +561,7 @@ Renaming columns:
 auto path = TRichYPath("//tmp/table").RenameColumns({{"a", "b"}, {"c", "d"}});
 ```
 
-The table column *a* will display under the name *b*, and column *c* &mdash; as *d*. The function resets the full list of renamed columns, so calling `RenameColumns` again will erase the results of the previous one. `Columns` is applied after `RenameColumns`, meaning in this case *b* and *d* will be suitable for `Columns`, while *a* and *c* &mdash; are not suitable.
+The table column *a* will display under the name *b*, and column *c* &mdash; as *d*. The function resets the full list of renamed columns, so calling `RenameColumns` again will erase the results of the previous one. `Columns` is applied after `RenameColumns`, meaning in this case *b* and *d* will be suitable for `Columns`, while *a* and *c* &mdash; are not suitable.
 
 You can still use unnormalized paths, for example:
 
@@ -578,7 +571,7 @@ auto path = TRichYPath("//tmp/table[#0:#100500]");
 
 ### Format settings
 
-There is a [TFormatHints](https://github.com/ytsaurus/YTsaurus/blob/main/mapreduce/yt/interface/client_method_options.h) class for fine-tuning formats. You can pass it in the `TTableReaderOptions::FormatHints` and `TTableWriterOptions::FormatHints` fields when creating a reader/writer.
+There is a [TFormatHints]({{source-root}}/yt/cpp/mapreduce/interface/client_method_options.h) class for fine-tuning formats. You can pass it in the `TTableReaderOptions::FormatHints` and `TTableWriterOptions::FormatHints` fields when creating a reader/writer.
 If this setting works for the requested format, it is applied; otherwise, an exception is made.
 
 Available settings:
@@ -597,11 +590,11 @@ auto writer = client->CreateTableWriter<TNode>("//tmp/table",
 
 ### Parallel read { #parallel_read }
 
-There is a [library](https://github.com/ytsaurus/YTsaurus/blob/main/yt/cpp/mapreduce/library/parallel_io/parallel_reader.h) for parallel reading of tables.
+There is a [library]({{source-root}}/yt/cpp/mapreduce/library/parallel_io/parallel_reader.h) for parallel reading of tables.
 
 ## Running operations { #operations }
 
-See [link](https://github.com/ytsaurus/ytsaurus/blob/main/yt/cpp/mapreduce/interface/operation.h).
+See [link]({{source-root}}/yt/cpp/mapreduce/interface/operation.h).
 
 Running an operation that contains a custom code requires:
 
@@ -613,7 +606,7 @@ Running an operation that contains a custom code requires:
 The`IMapper` and`IReducer` interfaces accept the `TTableReader<input record type>` and `TTableWriter<output record type>` types as template parameters. The `Do()` function takes pointers to these types.
 
 ```c++
-#include <mapreduce/yt/interface/operation.h>
+#include <yt/cpp/mapreduce/interface/operation.h>
 class TExtractKeyMapper
     : public IMapper<TTableReader<TYaMRRow>, TTableWriter<TNode>>
 {
@@ -632,7 +625,7 @@ Next, you need to create a macro that registers the custom class:
 REGISTER_MAPPER(TExtractKeyMapper).
 ```
 
-There is no need to generate unique IDs — the type_info mechanism is used for identification. The job type will be explicitly displayed within the operation web interface in the custom job start string:
+There is no need to generate unique IDs — the type_info mechanism is used for identification. The job type will be explicitly displayed within the operation web interface in the custom job start string:
 
 ```c++
 ./cppbinary --yt-map "TExtractKeyMapper" 1 0
@@ -644,7 +637,7 @@ If the user wants to ID their jobs some other way, they need to ensure the names
 REGISTER_NAMED_MAPPER("The best extract key mapper in the world", TExtractKeyMapper);
 ```
 
-The functions for running individual operations are as follows:
+The functions for running specific operation types are as follows:
 
 Map:
 
@@ -676,7 +669,7 @@ Join-Reduce:
        const TOperationOptions& options = TOperationOptions())
    ```
 
- MapReduce:
+ MapReduce:
 
 -
    ```c++
@@ -722,7 +715,6 @@ A call without additional parameters looks like this:
 client->Map(spec, new TExtractKeyMapper);
 ```
 
-
 This is safe because `TIntrusivePtr` is created internally for the job object.
 
 ### Transferring user files
@@ -761,8 +753,7 @@ class TProtoReducer
 
 You should not write `AddInput/AddOutput()` in the operation's specification. You must provide a specific type.
 
-In this case, the `GetRow()` and `AddRow()` methods become templates and must use specific user-defined types. For reading, you can select the function to call by using `GetTableIndex()` of the current entry before calling `GetRow()`. For writing, `AddRow(row, tableIndex)` is called. Types are controlled to be in accord with table indexes. 
-
+In this case, the `GetRow()` and `AddRow()` methods become templates and must use specific user-defined types. For reading, you can select the function to call by using `GetTableIndex()` of the current entry before calling `GetRow()`. For writing, `AddRow(row, tableIndex)` is called. Types are controlled to be in accord with table indexes.
 
 ### Initializing and serializing jobs
 
@@ -921,6 +912,7 @@ TListJobsResult ListJobs(
 | `WithStderr` | `TMaybe<bool>` | none | Whether the job wrote anything to stderr. |
 | `WithSpec` | `TMaybe<bool>` | none | Whether the job specification was saved. |
 | `WithFailContext` | `TMaybe<bool>` | none | Whether the job's fail context was saved. |
+| `WithMonitoringDescriptor` | `TMaybe<bool>` | none | Whether the job was assigned a monitoring descriptor. |
 | `SortField` | `TMaybe<EJobSortField>` | none | The field jobs are sorted by in the response. |
 | `SortOrder` | `TMaybe<ESortOrder>` | none | Ascending or descending job sorting order. |
 | `DataSource` | `TMaybe<EListJobsDataSource>` | none | Where to look for jobs: in the controller agent and Cypress (`Runtime`), in the archive of jobs (`Archive`), automatically depending on whether the operation is in Cypress (`Auto`), or other (`Manual`). |
@@ -956,7 +948,7 @@ IFileReaderPtr GetJobFailContext(
     const TGetJobFailContextOptions& options)
 ```
 
-| **Parameters** | **Description** |
+| **Parameter** | **Description** |
 | -------------------------------------------- | ----------- |
 | `operationId` | Operation ID. |
 | `jobId` | Job ID. |
@@ -981,9 +973,9 @@ IFileReaderPtr GetJobStderr(
 
 ## Working with file cache
 
-Clusters have a common file cache that stores files by key, which is their MD5 hash. It is currently
+Clusters have a common file cache that stores files by key, which is their MD5 hash. It is currently
 at `//tmp/yt_wrapper/file_storage/new_cache`.
-You can use the `PutFileToCache` and `GetFileFromCache` methods to work with it.
+You can use the `PutFileToCache` and `GetFileFromCache` methods to work with it.
 The same methods can be used to work with your cache that is located at a different path (but you will also need to clean it yourself).
 
 {% note warning %}
@@ -1066,7 +1058,7 @@ Currently these settings are available only from environment variables and are t
 
 ## Unit tests
 
-Unit tests for {{product-name}} operations are executed using UNITTEST or GTEST with the `mapreduce/yt/tests/yt_initialize_hook` hook added to PEERDIR. You likewise need to enable the `mapreduce/yt/tests/yt_unittest_lib` library, from which you need to use the `CreateTestClient()` method in tests instead of the regular `CreateClient()`, and also the `mapreduce/yt/python/recipe/recipe.inc` recipe, which creates a local {{product-name}} sandbox for the test client. If you need an operations archive for tests, use `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc` instead of the above-mentioned recipe.
+Unit tests for {{product-name}} operations are executed using UNITTEST or GTEST targets and appended to the PEERDIR of the `yt/cpp/mapreduce/tests/yt_initialize_hook`. You'll also need to enable the `yt/cpp/mapreduce/tests/yt_unittest_lib` library to use its `CreateTestClient()` method in tests instead of the regular `CreateClient()`, as well as the `mapreduce/yt/python/recipe/recipe.inc` recipe, which creates a local {{product-name}} sandbox for the test client. If you need an operations archive for tests, use `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc` instead of the above-mentioned recipe.
 
 Other than that, these are regular Arcadia unit tests.
 
@@ -1078,8 +1070,8 @@ Structure of the ya.make file for UNITTEST:
 UNITTEST()
 
 PEERDIR(
-    mapreduce/yt/tests/yt_initialize_hook
-    mapreduce/yt/tests/yt_unittest_lib
+    yt/cpp/mapreduce/tests/yt_initialize_hook
+    yt/cpp/mapreduce/tests/yt_unittest_lib
 )
 
 SIZE(MEDIUM)
@@ -1095,8 +1087,8 @@ And for GTEST:
 GTEST()
 
 PEERDIR(
-    mapreduce/yt/tests/yt_initialize_hook
-    mapreduce/yt/tests/yt_unittest_lib
+    yt/cpp/mapreduce/tests/yt_initialize_hook
+    yt/cpp/mapreduce/tests/yt_unittest_lib
 )
 
 SIZE(MEDIUM)
@@ -1108,14 +1100,14 @@ END()
 
 ## Using old and new C++ API at the same time
 
-The use of the old YaMR API and the new C++ API in one program is technically possible, but not recommended. A potential case where such combined use is justified would be ensuring a smooth transition of the program from one API to the other.
+The use of the old YaMR API and the new C++ API in one program is technically possible, but not recommended. A potential case where such combined use is justified would be ensuring a smooth transition of the program from one API to the other.
 
 At the top of the program, both APIs must be initialized, for example this way:
 
 ```c++
 int main(int argc, const char** argv) {
     NMR::Initialize(argc, argv);
-    NYT::Initialize(argc, argv);
+    NYT::Initialize();
     ...
 }
 ```

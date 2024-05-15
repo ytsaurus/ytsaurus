@@ -130,6 +130,7 @@ public:
         , NodeDisposalManager_(CreateNodeDisposalManager(bootstrap))
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraRegisterNode, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraMaterializeNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
         // COMPAT(aleksandra-zh)
@@ -144,22 +145,23 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeStates, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeState, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraResetNodePendingRestartMaintenance, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TNodeTracker::HydraSetNodeAggregatedStateReliability, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
-            BIND(&TNodeTracker::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::LoadKeys, Unretained(this)));
         RegisterLoader(
             "NodeTracker.Values",
-            BIND(&TNodeTracker::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "NodeTracker.Keys",
-            BIND(&TNodeTracker::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "NodeTracker.Values",
-            BIND(&TNodeTracker::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TNodeTracker::SaveValues, Unretained(this)));
 
         BufferedProducer_ = New<TBufferedProducer>();
         NodeTrackerProfiler
@@ -201,8 +203,6 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->SubscribeValidateSecondaryMasterRegistration(
-                BIND_NO_PROPAGATE(&TNodeTracker::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
             multicellManager->SubscribeReplicateKeysToSecondaryMaster(
                 BIND_NO_PROPAGATE(&TNodeTracker::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
@@ -291,6 +291,7 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DataCenter, TDataCenter);
 
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeRegistered);
+    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeReplicated);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeOnline);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeUnregistered);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeZombified);
@@ -852,6 +853,19 @@ public:
                 node->GetDefaultAddress(),
                 heartbeatType);
 
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            auto cellTag = multicellManager->GetCellTag();
+            auto shouldSetReliability = node->GetLocalCellAggregatedStateReliability() == ECellAggregatedStateReliability::DuringPropagation;
+            auto receivedAllNecessaryHeartbeats = node->ReportedHeartbeats() == GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
+            if (node->MustReportHeartbeatsToAllMasters() && shouldSetReliability && receivedAllNecessaryHeartbeats) {
+                YT_LOG_DEBUG("Node discovered \"new\" master cell (CellTag: %v, NodeId: %v, Address: %v)",
+                    cellTag,
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    heartbeatType);
+                SetNodeLocalCellAggregatedStateReliability(node, ECellAggregatedStateReliability::DynamicallyDiscovered);
+            }
+
             CheckNodeOnline(node);
         }
     }
@@ -884,6 +898,19 @@ public:
         if (multicellManager->IsSecondaryMaster()) {
             SendNodeState(node);
         }
+    }
+
+    void SetNodeLocalCellAggregatedStateReliability(TNode* node, ECellAggregatedStateReliability reliability)
+    {
+        if (reliability == node->GetLocalCellAggregatedStateReliability()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsSecondaryMaster());
+
+        node->SetLocalCellAggregatedStateReliability(reliability);
+        SendNodeAggregatedStateReliability(node);
     }
 
 private:
@@ -947,6 +974,21 @@ private:
     TNodeDiscoveryManagerPtr MasterCacheManager_;
     TNodeDiscoveryManagerPtr TimestampProviderManager_;
 
+    struct TNodeObjectCreationOptions
+    {
+        std::optional<TNodeId> NodeId;
+        TNodeAddressMap NodeAddresses;
+        TAddressMap Addresses;
+        TString DefaultAddress;
+        TTransactionId LeaseTransactionId;
+        std::vector<TString> Tags;
+        THashSet<ENodeFlavor> Flavors;
+        bool ExecNodeIsNotDataNode;
+        TString HostName;
+        std::optional<TYsonString> CypressAnnotations;
+        std::optional<TString> BuildVersion;
+    };
+
     using TNodeGroupList = TCompactVector<TNodeGroup*, 4>;
 
     void OnAggregatedNodeStateChanged(TNode* node)
@@ -994,6 +1036,140 @@ private:
         }
     }
 
+    void EnsureNodeObjectCreated(const TNodeObjectCreationOptions& options)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        // Check lease transaction.
+        TTransaction* leaseTransaction = nullptr;
+        if (options.LeaseTransactionId) {
+            YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            leaseTransaction = transactionManager->GetTransactionOrThrow(options.LeaseTransactionId);
+
+            if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
+                leaseTransaction->ThrowInvalidState();
+            }
+        }
+
+        TRack* oldNodeRack = nullptr;
+
+        auto* node = FindNodeByAddress(options.DefaultAddress);
+        auto isNodeNew = !IsObjectAlive(node);
+        if (!isNodeNew) {
+            KickOutPreviousNodeIncarnation(node, options.DefaultAddress);
+            oldNodeRack = node->GetRack();
+        }
+
+        auto* host = FindHostByName(options.HostName);
+        if (!IsObjectAlive(host)) {
+            CreateHostObject(node, options.HostName, oldNodeRack);
+            host = GetHostByName(options.HostName);
+        }
+
+        if (isNodeNew) {
+            auto nodeId = options.NodeId ? *options.NodeId : GenerateNodeId();
+            node = CreateNode(nodeId, options.NodeAddresses);
+        } else {
+            // NB: Default address should not change.
+            auto oldDefaultAddress = node->GetDefaultAddress();
+            node->SetNodeAddresses(options.NodeAddresses);
+            YT_VERIFY(node->GetDefaultAddress() == oldDefaultAddress);
+        }
+
+        node->SetHost(host);
+        node->SetNodeTags(options.Tags);
+        node->SetExecNodeIsNotDataNode(options.ExecNodeIsNotDataNode);
+        node->ReportedHeartbeats().clear();
+        SetNodeFlavors(node, options.Flavors);
+
+        if (options.CypressAnnotations) {
+            node->SetAnnotations(*options.CypressAnnotations);
+        }
+
+        if (options.BuildVersion) {
+            node->SetVersion(*options.BuildVersion);
+        }
+
+        // NB: Not all kinds of nodes should report heartbeats to all masters,
+        // such nodes should be considered as already dynamically discovered,
+        // because they have discovered cell to which they will report heartbeat.
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsDynamicallyPropagatedMaster() && !node->MustReportHeartbeatsToAllMasters()) {
+            node->SetLocalCellAggregatedStateReliability(ECellAggregatedStateReliability::DynamicallyDiscovered);
+        }
+
+        if (leaseTransaction) {
+            node->SetLeaseTransaction(leaseTransaction);
+            RegisterLeaseTransaction(node);
+        }
+    }
+
+    void KickOutPreviousNodeIncarnation(TNode* node, const TString& address)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        node->ValidateNotBanned();
+
+        if (multicellManager->IsPrimaryMaster()) {
+            auto localState = node->GetLocalState();
+            if (localState == ENodeState::Registered || localState == ENodeState::Online) {
+                YT_LOG_INFO("Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                    node->GetId(),
+                    address,
+                    localState);
+                UnregisterNode(node, true);
+            }
+            auto aggregatedState = node->GetAggregatedState();
+            if (aggregatedState != ENodeState::Offline) {
+                THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
+                    node->GetDefaultAddress(),
+                    aggregatedState);
+            }
+
+            if (node->GetRegistrationPending()) {
+                THROW_ERROR_EXCEPTION("Node %Qv is already being registered; must wait for it to become fully offline",
+                    node->GetDefaultAddress());
+            }
+        } else {
+            EnsureNodeDisposed(node);
+        }
+        // NB: No guarantee that node has saved dynamically propagated information about new master cells,
+        // so it is counted that it should discover new master composition again.
+        ResetCellAggregatedStateReliabilities(node);
+    }
+
+    void CreateHostObject(TNode* node, const TString& hostName, TRack* rack)
+    {
+        YT_VERIFY(HasMutationContext());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(static_cast<int>(EObjectType::Host));
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("name", hostName);
+        if (rack) {
+            attributes->Set("rack", rack->GetName());
+        }
+        ToProto(req->mutable_object_attributes(), *attributes);
+
+        const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
+        try {
+            SyncExecuteVerb(rootService, req);
+        } catch (const std::exception& ex) {
+            YT_LOG_ALERT(ex, "Failed to create host for a node");
+
+            if (IsObjectAlive(node)) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->UnrefObject(node);
+            }
+            throw;
+        }
+    }
+
     void HydraRegisterNode(
         const TCtxRegisterNodePtr& context,
         TReqRegisterNode* request,
@@ -1002,18 +1178,7 @@ private:
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
-        auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
-        auto tags = FromProto<std::vector<TString>>(request->tags());
         auto flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors());
-        auto execNodeIsNotDataNode = request->exec_node_is_not_data_node();
-
-        TString hostName;
-        // COMPAT(gritukan)
-        if (request->has_host_name()) {
-            hostName = request->host_name();
-        } else {
-            hostName = address;
-        }
 
         // COMPAT(gritukan)
         if (flavors.empty()) {
@@ -1029,125 +1194,26 @@ private:
             dataNodeTracker->ValidateRegisterNode(address, request);
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        TNodeObjectCreationOptions options{
+            .NodeId = request->has_node_id() ? std::make_optional(FromProto<TNodeId>(request->node_id())) : std::nullopt,
+            .NodeAddresses = std::move(nodeAddresses),
+            .Addresses = addresses,
+            .DefaultAddress = address,
+            .LeaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id()),
+            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Flavors = std::move(flavors),
+            .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
+            // COMPAT(gritukan)
+            .HostName = request->has_host_name() ? request->host_name() : address,
+            .CypressAnnotations = request->has_cypress_annotations()
+                ? std::make_optional(TYsonString(request->cypress_annotations(), EYsonType::Node))
+                : std::nullopt,
+            .BuildVersion = request->has_build_version() ? std::make_optional(request->build_version()) : std::nullopt,
+        };
 
-        // Check lease transaction.
-        TTransaction* leaseTransaction = nullptr;
-        if (leaseTransactionId) {
-            YT_VERIFY(multicellManager->IsPrimaryMaster());
+        EnsureNodeObjectCreated(options);
 
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            leaseTransaction = transactionManager->GetTransactionOrThrow(leaseTransactionId);
-
-            if (leaseTransaction->GetPersistentState() != ETransactionState::Active) {
-                leaseTransaction->ThrowInvalidState();
-            }
-        }
-
-        TRack* oldNodeRack = nullptr;
-
-        // Kick-out any previous incarnation.
-        auto* node = FindNodeByAddress(address);
-        auto isNodeNew = !IsObjectAlive(node);
-        if (!isNodeNew) {
-            node->ValidateNotBanned();
-
-            if (multicellManager->IsPrimaryMaster()) {
-                auto localState = node->GetLocalState();
-                if (localState == ENodeState::Registered || localState == ENodeState::Online) {
-                    YT_LOG_INFO("Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
-                        node->GetId(),
-                        address,
-                        localState);
-                    UnregisterNode(node, true);
-                }
-                auto aggregatedState = node->GetAggregatedState();
-                if (aggregatedState != ENodeState::Offline) {
-                    THROW_ERROR_EXCEPTION("Node %Qv is still in %Qlv state; must wait for it to become fully offline",
-                        node->GetDefaultAddress(),
-                        aggregatedState);
-                }
-
-                if (node->GetRegistrationPending()) {
-                    THROW_ERROR_EXCEPTION("Node %Qv is already being registered; must wait for it to become fully offline",
-                        node->GetDefaultAddress());
-                }
-            } else {
-                EnsureNodeDisposed(node);
-            }
-
-            oldNodeRack = node->GetRack();
-        }
-
-        auto* host = FindHostByName(hostName);
-        if (!IsObjectAlive(host)) {
-            YT_VERIFY(multicellManager->IsPrimaryMaster());
-
-            auto req = TMasterYPathProxy::CreateObject();
-            req->set_type(static_cast<int>(EObjectType::Host));
-
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("name", hostName);
-            ToProto(req->mutable_object_attributes(), *attributes);
-
-            const auto& rootService = Bootstrap_->GetObjectManager()->GetRootService();
-            try {
-                SyncExecuteVerb(rootService, req);
-            } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to create host for a node");
-
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(node);
-                throw;
-            }
-
-            host = GetHostByName(hostName);
-
-            if (oldNodeRack) {
-                SetHostRack(host, oldNodeRack);
-            }
-        }
-
-        if (isNodeNew) {
-            auto nodeId = request->has_node_id() ? FromProto<TNodeId>(request->node_id()) : GenerateNodeId();
-            node = CreateNode(nodeId, nodeAddresses);
-        } else {
-            // NB: Default address should not change.
-            auto oldDefaultAddress = node->GetDefaultAddress();
-            node->SetNodeAddresses(nodeAddresses);
-            YT_VERIFY(node->GetDefaultAddress() == oldDefaultAddress);
-        }
-
-        node->SetHost(host);
-        node->SetNodeTags(tags);
-        SetNodeFlavors(node, flavors);
-
-        if (request->has_cypress_annotations()) {
-            node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
-        }
-
-        if (request->has_build_version()) {
-            node->SetVersion(request->build_version());
-        }
-
-        node->SetExecNodeIsNotDataNode(execNodeIsNotDataNode);
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
-        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
-
-        UpdateLastSeenTime(node);
-        UpdateRegisterTime(node);
-
-        SetNodeLocalState(node, ENodeState::Registered);
-        node->ReportedHeartbeats().clear();
-
-        UpdateNodeCounters(node, +1);
-
-        if (leaseTransaction) {
-            node->SetLeaseTransaction(leaseTransaction);
-            RegisterLeaseTransaction(node);
-        }
+        auto* node = GetNodeByAddress(address);
 
         // COMPAT(kvk1920)
         if (GetDynamicConfig()->EnableRealChunkLocations) {
@@ -1165,11 +1231,6 @@ private:
             node->UseImaginaryChunkLocations() = true;
         }
 
-        if (node->IsDataNode() || (node->IsExecNode() && !execNodeIsNotDataNode)) {
-            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-            dataNodeTracker->ProcessRegisterNode(node, request, response);
-        }
-
         if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
             OnNodePendingRestartUpdated(node);
 
@@ -1178,6 +1239,20 @@ private:
                 address);
         }
 
+        if (node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode)) {
+            const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+            dataNodeTracker->ProcessRegisterNode(node, request, response);
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
+
+        UpdateLastSeenTime(node);
+        UpdateRegisterTime(node);
+        SetNodeLocalState(node, ENodeState::Registered);
+        UpdateNodeCounters(node, +1);
+
         NodeRegistered_.Fire(node);
 
         YT_LOG_INFO(
@@ -1185,16 +1260,17 @@ private:
             "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
             "LeaseTransactionId: %v, UseImaginaryChunkLocations: %v)",
             node->GetId(),
-            address,
-            tags,
-            flavors,
-            leaseTransactionId,
+            options.DefaultAddress,
+            options.Tags,
+            options.Flavors,
+            options.LeaseTransactionId,
             node->UseImaginaryChunkLocations());
 
         // NB: Exec nodes should not report heartbeats to secondary masters,
         // so node can already be online for this cell.
         CheckNodeOnline(node);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             node->SetRegistrationPending(multicellManager->GetCellTag());
             PostRegisterNodeMutation(node, request);
@@ -1208,6 +1284,72 @@ private:
             context->SetResponseInfo("NodeId: %v",
                 node->GetId());
         }
+    }
+
+    void HydraMaterializeNode(NProto::TReqMaterializeNode* request)
+    {
+        YT_VERIFY(Bootstrap_->IsSecondaryMaster());
+
+        auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
+        const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
+        const auto& address = GetDefaultAddress(addresses);
+
+        TNodeObjectCreationOptions options{
+            .NodeId = FromProto<TNodeId>(request->node_id()),
+            .NodeAddresses = std::move(nodeAddresses),
+            .Addresses = addresses,
+            .DefaultAddress = address,
+            .LeaseTransactionId = NullTransactionId,
+            .Tags = FromProto<std::vector<TString>>(request->tags()),
+            .Flavors = FromProto<THashSet<ENodeFlavor>>(request->flavors()),
+            .ExecNodeIsNotDataNode = request->exec_node_is_not_data_node(),
+            .HostName = request->host_name(),
+            .CypressAnnotations = TYsonString(request->cypress_annotations(), EYsonType::Node),
+            .BuildVersion = request->build_version(),
+        };
+
+        EnsureNodeObjectCreated(options);
+
+        auto* node = GetNodeByAddress(address);
+
+        node->UseImaginaryChunkLocations() = request->use_imaginary_chunk_locations();
+
+        if (node->ClearMaintenanceFlag(EMaintenanceType::PendingRestart)) {
+            OnNodePendingRestartUpdated(node);
+
+            YT_LOG_INFO("Removed pending restart flag (NodeId: %v, Address: %v)",
+                node->GetId(),
+                address);
+        }
+
+        auto chunkLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+        bool isDataNode = node->IsDataNode() || (node->IsExecNode() && !options.ExecNodeIsNotDataNode);
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        if (isDataNode) {
+            dataNodeTracker->ReplicateChunkLocations(node, chunkLocationUuids);
+        }
+
+        SetNodeLocalState(node, CheckedEnumCast<ENodeState>(request->node_state()));
+        if (node->GetLocalState() == ENodeState::Registered) {
+            if (isDataNode) {
+                dataNodeTracker->MakeLocationsOnline(node);
+            }
+
+            NodeRegistered_.Fire(node);
+        }
+        NodeReplicated_.Fire(node);
+
+        YT_LOG_INFO(
+            "Node replicated "
+            "(NodeId: %v, Address: %v, Tags: %v, Flavors: %v, "
+            "UseImaginaryChunkLocations: %v)",
+            node->GetId(),
+            options.DefaultAddress,
+            options.Tags,
+            options.Flavors,
+            node->UseImaginaryChunkLocations());
+
+        CheckNodeOnline(node);
     }
 
     void HydraUnregisterNode(TReqUnregisterNode* request)
@@ -1312,6 +1454,38 @@ private:
             auto statistics = FromProto<TCellNodeStatistics>(entry.statistics());
             node->SetStatistics(cellTag, statistics);
         }
+    }
+
+    void HydraSetNodeAggregatedStateReliability(TReqSetNodeAggregatedStateReliability* request)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        YT_VERIFY(multicellManager->IsPrimaryMaster());
+
+        auto cellTag = FromProto<TCellTag>(request->cell_tag());
+        if (!ValidateGossipCell(cellTag)) {
+            return;
+        }
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto reliability = CheckedEnumCast<ECellAggregatedStateReliability>(request->cell_reliability());
+        YT_LOG_ALERT_UNLESS(
+            reliability == ECellAggregatedStateReliability::DynamicallyDiscovered,
+            "Received unexpected cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
+            nodeId,
+            reliability,
+            cellTag);
+
+        YT_LOG_INFO("Received node cell aggregated state reliability (NodeId: %v, Reliability: %v, CellTag: %v)",
+            nodeId,
+            reliability,
+            cellTag);
+
+        auto* node = FindNode(nodeId);
+        if (!IsObjectAlive(node)) {
+            return;
+        }
+
+        node->SetCellAggregatedStateReliability(cellTag, reliability);
     }
 
     // COMPAT(aleksandra-zh)
@@ -1496,8 +1670,7 @@ private:
         TReqHeartbeat* request,
         TRspHeartbeat* response)
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        YT_VERIFY(multicellManager->IsPrimaryMaster());
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
 
         auto& statistics = *request->mutable_statistics();
         if (!GetDynamicConfig()->EnableNodeCpuStatistics) {
@@ -1625,6 +1798,8 @@ private:
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
+        YT_LOG_INFO("Started initializing nodes");
+
         AddressToNodeMap_.clear();
         HostNameToNodeMap_.clear();
         TransactionToNodeMap_.clear();
@@ -1690,6 +1865,8 @@ private:
         {
             PendingRestartMaintenanceNodeIdToSetIt_.emplace(it->second, it);
         }
+
+        YT_LOG_INFO("Finished initializing nodes");
     }
 
     void OnRecoveryStarted() override
@@ -1761,41 +1938,12 @@ private:
         PendingRegisterNodeAddresses_.clear();
     }
 
-
     THashSet<ENodeHeartbeatType> GetExpectedHeartbeats(TNode* node, bool primaryMaster)
     {
-        THashSet<ENodeHeartbeatType> result;
-        if (primaryMaster) {
-            result.insert(ENodeHeartbeatType::Cluster);
-        }
-
-        for (auto flavor : node->Flavors()) {
-            switch (flavor) {
-                case ENodeFlavor::Data:
-                    result.insert(ENodeHeartbeatType::Data);
-                    break;
-
-                case ENodeFlavor::Exec:
-                    if (!node->GetExecNodeIsNotDataNode()) {
-                        result.insert(ENodeHeartbeatType::Data);
-                    }
-                    if (primaryMaster) {
-                        result.insert(ENodeHeartbeatType::Exec);
-                    }
-                    break;
-
-                case ENodeFlavor::Tablet:
-                    result.insert(ENodeHeartbeatType::Tablet);
-                    result.insert(ENodeHeartbeatType::Cellar);
-                    break;
-
-                case ENodeFlavor::Chaos:
-                    result.insert(ENodeHeartbeatType::Cellar);
-                    break;
-
-                default:
-                    YT_ABORT();
-            }
+        auto result = node->GetHeartbeatTypes();
+        if (!primaryMaster) {
+            result.erase(ENodeHeartbeatType::Cluster);
+            result.erase(ENodeHeartbeatType::Exec);
         }
         return result;
     }
@@ -1817,10 +1965,26 @@ private:
         }
     }
 
+    void ResetCellAggregatedStateReliabilities(TNode* node)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& dynamicallyPropagatedMastersCellTags = multicellManager->GetDynamicallyPropagatedMastersCellTags();
+        if (multicellManager->IsDynamicallyPropagatedMaster()) {
+            node->SetLastCellAggregatedStateReliability(ECellAggregatedStateReliability::DuringPropagation);
+        }
+
+        for (auto cellTag : dynamicallyPropagatedMastersCellTags) {
+            node->SetCellAggregatedStateReliability(cellTag, ECellAggregatedStateReliability::DuringPropagation);
+        }
+    }
+
     void InitializeNodeStates(TNode* node)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        node->InitializeStates(multicellManager->GetCellTag(), multicellManager->GetSecondaryCellTags());
+        node->InitializeStates(
+            multicellManager->GetCellTag(),
+            multicellManager->GetSecondaryCellTags(),
+            multicellManager->GetDynamicallyPropagatedMastersCellTags());
     }
 
     void InitializeNodeIOWeights(TNode* node)
@@ -2048,6 +2212,28 @@ private:
         multicellManager->PostToPrimaryMaster(gossipRequest);
     }
 
+    void SendNodeAggregatedStateReliability(TNode* node)
+    {
+        YT_VERIFY(HasMutationContext());
+        auto reliability = node->GetLocalCellAggregatedStateReliability();
+        if (reliability == node->GetLastCellAggregatedStateReliability()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        TReqSetNodeAggregatedStateReliability request;
+        request.set_cell_tag(ToProto<int>(multicellManager->GetCellTag()));
+        request.set_node_id(ToProto<ui32>(node->GetId()));
+        request.set_cell_reliability(ToProto<int>(reliability));
+        node->SetLastCellAggregatedStateReliability(reliability);
+
+        YT_LOG_INFO("Sending node local aggregated state cell reliability (NodeId: %v, CellReliability: %v)",
+            node->GetId(),
+            reliability);
+
+        multicellManager->PostToPrimaryMaster(request);
+    }
+
     void SendNodeState(TNode* node)
     {
         YT_VERIFY(HasMutationContext());
@@ -2098,15 +2284,10 @@ private:
         TReqRegisterNode request;
         request.set_node_id(ToProto<ui32>(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-        for (const auto& tag : node->NodeTags()) {
-            request.add_tags(tag);
-        }
+        ToProto(request.mutable_tags(), node->NodeTags());
         request.set_cypress_annotations(node->GetAnnotations().ToString());
         request.set_build_version(node->GetVersion());
-
-        for (auto flavor : node->Flavors()) {
-            request.add_flavors(static_cast<int>(flavor));
-        }
+        ToProto(request.mutable_flavors(), node->Flavors());
 
         for (const auto* location : node->RealChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
@@ -2158,18 +2339,6 @@ private:
         --RackCount_;
     }
 
-    void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
-    {
-        auto nodes = GetValuesSortedByKey(NodeMap_);
-        for (const auto* node : nodes) {
-            if (node->GetAggregatedState() != ENodeState::Offline) {
-                THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while node %v is not offline",
-                    cellTag,
-                    node->GetDefaultAddress());
-            }
-        }
-    }
-
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2189,6 +2358,7 @@ private:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         auto replicateValues = [&] (const auto& objectMap) {
             for (auto* object : GetValuesSortedByKey(objectMap)) {
@@ -2204,23 +2374,7 @@ private:
             if (!IsObjectAlive(node)) {
                 continue;
             }
-            // NB: TReqRegisterNode+TReqUnregisterNode create an offline node at the secondary master.
-            {
-                TReqRegisterNode request;
-                request.set_node_id(ToProto<ui32>(node->GetId()));
-                ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
-                request.set_suppress_unsupported_chunk_locations_alert(true);
-
-                // NB: Hosts must be replicated prior to node replication.
-                request.set_host_name(node->GetHost()->GetName());
-
-                multicellManager->PostToMaster(request, cellTag);
-            }
-            {
-                TReqUnregisterNode request;
-                request.set_node_id(ToProto<ui32>(node->GetId()));
-                multicellManager->PostToMaster(request, cellTag);
-            }
+            ReplicateNode(node, cellTag);
             for (const auto& [id, request] : node->MaintenanceRequests()) {
                 using NMaintenanceTrackerServer::NProto::TReqReplicateMaintenanceRequestCreation;
                 TReqReplicateMaintenanceRequestCreation addMaintenance;
@@ -2235,6 +2389,34 @@ private:
         }
 
         replicateValues(NodeMap_);
+        tabletManager->MaterizlizeExtraMountConfigKeys(cellTag);
+    }
+
+    void ReplicateNode(const TNode* node, TCellTag cellTag)
+    {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        TReqMaterializeNode request;
+        request.set_node_id(ToProto<ui32>(node->GetId()));
+        ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
+        ToProto(request.mutable_tags(), node->NodeTags());
+        request.set_cypress_annotations(node->GetAnnotations().ToString());
+        request.set_build_version(node->GetVersion());
+        ToProto(request.mutable_flavors(), node->Flavors());
+        for (const auto* location : node->RealChunkLocations()) {
+            ToProto(request.add_chunk_location_uuids(), location->GetUuid());
+        }
+        request.set_host_name(node->GetHost()->GetName());
+        request.set_use_imaginary_chunk_locations(node->UseImaginaryChunkLocations());
+        request.set_exec_node_is_not_data_node(node->GetExecNodeIsNotDataNode());
+        auto state = node->GetLocalState();
+        auto materializedState = (state == ENodeState::Online || state == ENodeState::Registered)
+            ? ENodeState::Registered
+            : ENodeState::Offline;
+        request.set_node_state(ToProto<int>(materializedState));
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->PostToMaster(request, cellTag);
     }
 
     void InsertToAddressMaps(TNode* node)

@@ -132,11 +132,11 @@ bool TMutationContext::GetResponseKeeperSuppressed()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_THREAD_LOCAL(TMutationContext*) CurrentMutationContextSlot;
+YT_DEFINE_THREAD_LOCAL(TMutationContext*, CurrentMutationContextSlot);
 
 TMutationContext* TryGetCurrentMutationContext()
 {
-    return CurrentMutationContextSlot;
+    return CurrentMutationContextSlot();
 }
 
 TMutationContext* GetCurrentMutationContext()
@@ -153,7 +153,7 @@ bool HasMutationContext()
 
 void SetCurrentMutationContext(TMutationContext* context)
 {
-    CurrentMutationContextSlot = context;
+    CurrentMutationContextSlot() = context;
     SetCurrentHydraContext(context);
 }
 

@@ -161,19 +161,16 @@ TJob::TJob(
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap,
     const TJobCommonConfigPtr& commonConfig)
-    : TResourceHolder(
-        bootstrap->GetJobResourceManager().Get(),
-        EResourcesConsumerType::SchedulerAllocation,
-        ExecNodeLogger.WithTag(
-            "JobId: %v, OperationId: %v, JobType: %v",
-            jobId,
-            operationId,
-            CheckedEnumCast<EJobType>(jobSpec.type())),
-        allocation)
-    , Id_(jobId)
+    : Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
+    , Logger(ExecNodeLogger.WithTag(
+        "JobId: %v, OperationId: %v, JobType: %v",
+        jobId,
+        operationId,
+        CheckedEnumCast<EJobType>(jobSpec.type())))
     , Allocation_(std::move(allocation))
+    , ResourceHolder_(Allocation_->GetResourceHolder())
     , ControllerAgentDescriptor_(std::move(agentDescriptor))
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentDescriptor_))
@@ -221,7 +218,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
     GuardedAction(
         "DoStart",
-        [&] () {
+        [&] {
             auto now = TInstant::Now();
             PreparationStartTime_ = now;
 
@@ -264,12 +261,12 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
             // This is a heavy part of preparation, offload it to compression invoker.
             // TODO(babenko): get rid of MakeWeak
-            BIND([weakThis = MakeWeak(this)] {
-                auto strongThis = weakThis.Lock();
-                if (!strongThis) {
+            BIND([this, weakThis = MakeWeak(this)] {
+                auto this_ = weakThis.Lock();
+                if (!this_) {
                     return std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>();
                 }
-                return strongThis->PrepareNodeDirectory();
+                return PrepareNodeDirectory();
             })
                 .AsyncVia(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker())
                 .Run()
@@ -773,18 +770,11 @@ TJobId TJob::GetId() const noexcept
     return Id_;
 }
 
-TGuid TJob::GetIdAsGuid() const noexcept
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return Id_.Underlying();
-}
-
 TAllocationId TJob::GetAllocationId() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return TAllocationId(GetIdAsGuid());
+    return AllocationIdFromJobId(Id_);
 }
 
 TOperationId TJob::GetOperationId() const
@@ -981,7 +971,7 @@ NClusterNode::TJobResources TJob::GetResourceUsage() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetResourceUsage();
+    return ResourceHolder_->GetResourceUsage();
 }
 
 bool TJob::IsGpuRequested() const
@@ -993,7 +983,7 @@ const std::vector<int>& TJob::GetPorts() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return TResourceHolder::GetPorts();
+    return ResourceHolder_->GetPorts();
 }
 
 const TError& TJob::GetJobError() const
@@ -1034,7 +1024,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
-        TResourceHolder::SetBaseResourceUsage(newUsage);
+        ResourceHolder_->SetBaseResourceUsage(newUsage);
     }
 }
 
@@ -1192,7 +1182,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
     auto [
         baseResourceUsage,
         additionalResourceUsage
-    ] = TResourceHolder::GetDetailedResourceUsage();
+    ] = ResourceHolder_->GetDetailedResourceUsage();
 
     return TBriefJobInfo(
         GetId(),
@@ -1905,7 +1895,8 @@ std::vector<TDevice> TJob::GetGpuDevices()
 
 bool TJob::IsFullHostGpuJob() const
 {
-    return !GpuSlots_.empty() && GpuSlots_.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
+    const auto& gpuSlots = GetGpuSlots();
+    return !gpuSlots.empty() && gpuSlots.size() == Bootstrap_->GetGpuManager()->GetGpuDevices().size();
 }
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
@@ -1980,32 +1971,34 @@ void TJob::RunWithWorkspaceBuilder()
         Invoker_,
         std::move(context));
 
-    workspaceBuilder->SubscribeUpdateArtifactStatistics(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (i64 compressedDataSize, bool cacheHit) {
-        UpdateArtifactStatistics(compressedDataSize, cacheHit);
-    })
-        .Via(Invoker_));
+    workspaceBuilder->SubscribeUpdateArtifactStatistics(
+        BIND_NO_PROPAGATE(&TJob::UpdateArtifactStatistics, MakeWeak(this)));
 
     // TODO(pogorelov): Refactor it. Phase should be changed in callback, not in signal handler.
     // We intentionally subscribe here without Via(Invoker_) to prevent data race.
-    workspaceBuilder->SubscribeUpdateBuilderPhase(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (EJobPhase phase) {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        SetJobPhase(phase);
-    }));
+    workspaceBuilder->SubscribeUpdateBuilderPhase(
+        BIND_NO_PROPAGATE(&TJob::SetJobPhase, MakeWeak(this)));
 
     // TODO(pogorelov): Do not pass TJobWorkspaceBuilderPtr, define structure.
-    workspaceBuilder->SubscribeUpdateTimers(BIND_NO_PROPAGATE([this, this_ = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
-        PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
-        PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+    workspaceBuilder->SubscribeUpdateTimers(
+        BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const TJobWorkspaceBuilderPtr& workspace) {
+            auto this_ = weakThis.Lock();
+            if (!this_) {
+                return;
+            }
 
-        StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
-        FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
-    })
-        .Via(Invoker_));
+            PreliminaryGpuCheckStartTime_ = workspace->GetGpuCheckStartTime();
+            PreliminaryGpuCheckFinishTime_ = workspace->GetGpuCheckFinishTime();
+
+            StartPrepareVolumeTime_ = workspace->GetVolumePrepareStartTime();
+            FinishPrepareVolumeTime_ = workspace->GetVolumePrepareFinishTime();
+        })
+            .Via(Invoker_));
 
     auto workspaceFuture = workspaceBuilder->Run();
-    workspaceFuture.Subscribe(BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
-        .Via(Invoker_));
+    workspaceFuture.Subscribe(
+        BIND(&TJob::OnWorkspacePreparationFinished, MakeStrong(this))
+            .Via(Invoker_));
     WorkspaceBuildingFuture_ = workspaceFuture.AsVoid();
 }
 
@@ -2155,11 +2148,11 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError("Failed to wait for job cleanup within timeout")
+        auto error = TError(EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
-        Bootstrap_->GetSlotManager()->Disable(error);
+        Bootstrap_->GetSlotManager()->OnWaitingForJobCleanupTimeout(std::move(error));
     }
 }
 
@@ -2167,7 +2160,7 @@ IUserSlotPtr TJob::GetUserSlot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    const auto& userSlot = Allocation_ ? Allocation_->GetUserSlot() : UserSlot_;
+    const auto& userSlot = ResourceHolder_->GetUserSlot();
 
     return StaticPointerCast<IUserSlot>(userSlot);
 }
@@ -2176,7 +2169,7 @@ std::vector<TGpuSlotPtr> TJob::GetGpuSlots() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    const auto& gpuSlots = Allocation_ ? Allocation_->GetGpuSlots() : GpuSlots_;
+    const auto& gpuSlots = ResourceHolder_->GetGpuSlots();
 
     std::vector<TGpuSlotPtr> result;
     result.reserve(std::size(gpuSlots));
@@ -2221,11 +2214,11 @@ void TJob::OnJobProxyFinished(const TError& error)
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
-        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+        checker->SubscribeRunCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
             ExtraGpuCheckStartTime_ = TInstant::Now();
         })
             .Via(Invoker_));
-        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] () {
+        checker->SubscribeFinishCheck(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
             ExtraGpuCheckFinishTime_ = TInstant::Now();
         })
             .Via(Invoker_));
@@ -2331,7 +2324,7 @@ void TJob::Cleanup()
     {
         auto* inputNodeDirectory = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext)
             ->release_input_node_directory();
-        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] () {
+        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(BIND([inputNodeDirectory] {
             delete inputNodeDirectory;
         }));
     }
@@ -2339,8 +2332,8 @@ void TJob::Cleanup()
     // Release resources.
     GpuStatistics_.clear();
 
-    if (IsStarted()) {
-        ReleaseCumulativeResources();
+    if (IsStarted() && !Allocation_) {
+        ResourceHolder_->ReleaseNonSlotResources();
     }
 
     if (RootVolume_) {
@@ -2372,7 +2365,11 @@ void TJob::Cleanup()
         }
     }
 
-    ReleaseResources();
+    if (!Allocation_) {
+        ResourceHolder_->ReleaseBaseResources();
+    } else {
+        ResourceHolder_.Reset();
+    }
 
     SetJobPhase(EJobPhase::Finished);
 
@@ -2563,8 +2560,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
                 YT_VERIFY(artifact.Chunk);
 
                 YT_LOG_INFO(
-                    "Make bind for artifact (FileName: %v, Executable: %v"
-                    ", SandboxKind: %v, CompressedDataSize: %v)",
+                    "Make bind for artifact (FileName: %v, Executable: %v, "
+                    "SandboxKind: %v, CompressedDataSize: %v)",
                     artifact.Name,
                     artifact.Executable,
                     artifact.SandboxKind,
@@ -2583,12 +2580,20 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     }
 
+    auto calculateShardingKey = [&] (int shardingKeyLength) {
+        auto entropy = EntropyFromAllocationId(GetAllocationId());
+        auto entropyHex = Format("%016lx", entropy);
+        return entropyHex.substr(0, shardingKeyLength);
+    };
+
     auto tryReplaceSlotIndex = [&] (TString& str) {
-        size_t index = str.find(SlotIndexPattern);
+        auto index = str.find(SlotIndexPattern);
         if (index != TString::npos) {
             str.replace(index, SlotIndexPattern.size(), ToString(GetUserSlot()->GetSlotIndex()));
         }
     };
+
+    auto jobProxyLoggingConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging;
 
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
@@ -2598,7 +2603,19 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
-        tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+
+        if (jobProxyLoggingConfig->Mode == EJobProxyLoggingMode::Simple) {
+            tryReplaceSlotIndex(fileLogWriterConfig->FileName);
+        } else {
+            fileLogWriterConfig->FileName = NFS::JoinPaths(
+                NFS::JoinPaths(
+                    jobProxyLoggingConfig->Directory.value(),
+                    calculateShardingKey(jobProxyLoggingConfig->ShardingKeyLength.value())
+                ),
+                NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
+            );
+        }
+
         return writerConfig->BuildFullConfig(fileLogWriterConfig);
     });
 
@@ -3101,6 +3118,7 @@ bool TJob::IsFatalError(const TError& error)
             !AbortJobIfAccountLimitExceeded_
         ) ||
         error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
+        error.FindMatching(NChunkClient::EErrorCode::NoSuchMedium) ||
         error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||
         error.FindMatching(NTableClient::EErrorCode::InvalidDoubleValue) ||
         error.FindMatching(NTableClient::EErrorCode::IncomparableTypes) ||

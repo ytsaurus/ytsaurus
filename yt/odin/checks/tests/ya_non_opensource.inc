@@ -1,4 +1,6 @@
 TEST_SRCS(
+    test_configuration.py
+
     test_broken_gpu_nodes.py
     test_remote_copy.py
     test_scheduler_metering_statistics.py
@@ -21,6 +23,10 @@ PEERDIR(
     yt/odin/checks/lib/yp_helpers
 )
 
+DATA(
+    arcadia/yt/odin/checks/config
+)
+
 INCLUDE(${ARCADIA_ROOT}/yp/python/ya_programs.make.inc)
 
 DEPENDS(
@@ -33,4 +39,5 @@ DEPENDS(
     yt/odin/checks/bin/yp_master
     yt/odin/checks/bin/yp_masters_available
     yt/odin/checks/bin/yp_schedule_pod
+    yt/odin/checks/config
 )

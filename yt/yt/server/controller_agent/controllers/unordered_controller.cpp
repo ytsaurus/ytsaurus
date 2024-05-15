@@ -528,6 +528,11 @@ protected:
 
         jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig).ToString());
     }
+
+    TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override
+    {
+        return UnorderedTask_->GetVertexDescriptor();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TUnorderedTask);
@@ -805,14 +810,14 @@ private:
 
         ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
 
-        auto validateOutputNotSorted = [&] () {
+        auto validateOutputNotSorted = [&] {
             if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
                     << TErrorAttribute("schema", *table->TableUploadOptions.TableSchema);
             }
         };
 
-        auto inferFromInput = [&] () {
+        auto inferFromInput = [&] {
             if (Spec->InputQuery) {
                 table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
             } else {

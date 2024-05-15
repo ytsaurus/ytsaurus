@@ -49,7 +49,6 @@ struct ISchedulerStrategyHost
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const = 0;
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const = 0;
-    virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter = {}) const = 0;
 
     // TODO(eshcherbin): Add interface for node manager to be used by strategy.
     virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
@@ -259,7 +258,7 @@ struct ISchedulerStrategy
         bool considerGuaranteesForSingleTree) = 0;
 
     //! Error results in operation's failure.
-    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
+    virtual TError OnOperationMaterialized(TOperationId operationId, bool revivedFromSnapshot) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 

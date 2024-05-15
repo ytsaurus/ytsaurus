@@ -325,7 +325,7 @@ private:
                 error <<= TErrorAttribute(node.Name(), node.Value<TString>());
             }
         } catch (const std::exception&) {
-            error <<= TErrorAttribute("ResponseBody", responseBody.ToStringBuf());
+            error <<= TErrorAttribute("response_body", responseBody.ToStringBuf());
             auto headers = response->GetHeaders();
             for (TStringBuf header : {"x-amz-request-id", "x-amz-id-2"}) {
                 if (auto* value = headers->Find(header)) {
@@ -342,14 +342,14 @@ private:
         auto req = BaseHttpRequest_;
         request.Serialize(&req);
 
-        return BIND([this, this_ = MakeStrong(this)](THttpRequest req) {
+        return BIND([this, this_ = MakeStrong(this)] (THttpRequest req) {
             PrepareHttpRequest(
                 &req,
                 Config_->AccessKeyId,
                 Config_->SecretAccessKey);
 
             return Client_->MakeRequest(std::move(req))
-                .ApplyUnique(BIND([](TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
+                .ApplyUnique(BIND([] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
                     if (!responseOrError.IsOK()) {
                         return TError("HTTP request failed") << std::move(responseOrError);
                     }

@@ -14,13 +14,7 @@ import yt.logger as logger
 
 from yt.yson import is_unicode, get_bytes
 
-try:
-    from yt.packages.six import iteritems, binary_type, text_type
-    from yt.packages.six.moves import builtins, map as imap, filter as ifilter
-except ImportError:
-    from six import iteritems, binary_type, text_type
-    from six.moves import builtins, map as imap, filter as ifilter
-
+import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
 
@@ -308,7 +302,7 @@ def concatenate(source_paths, destination_path, client=None):
     :param destination_path: destination path.
     :type destination_path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
     """
-    source_paths = builtins.list(imap(lambda path: YPath(path, client=client), source_paths))
+    source_paths = builtins.list(map(lambda path: YPath(path, client=client), source_paths))
     destination_path = YPath(destination_path, client=client)
     if not source_paths:
         raise YtError("Source paths must be non-empty")
@@ -379,7 +373,7 @@ def list(path,
             request_result.sort()
         if absolute and format is None:
             attributes = request_result.attributes
-            request_result = yson.YsonList(imap(join, request_result))
+            request_result = yson.YsonList(map(join, request_result))
             request_result.attributes = attributes
 
         return request_result
@@ -656,12 +650,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     encoding = get_structured_format(format=None, client=client)._encoding
 
     def to_response_key_type(string):
-        if isinstance(string, binary_type):
+        if isinstance(string, bytes):
             if encoding is None:
                 return string
             else:
                 return string.decode("ascii")
-        elif isinstance(string, text_type):
+        elif isinstance(string, str):
             if encoding is None:
                 return string.encode("ascii")
             else:
@@ -670,7 +664,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             assert False, "Unexpected input <{}>{!r}".format(type(string), string)
 
     def to_native_string(string):
-        if isinstance(string, binary_type):
+        if isinstance(string, bytes):
             return string.decode("ascii")
         else:
             return string
@@ -801,8 +795,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 (node_type is None or object_type in flatten(node_type)) and \
                 (object_filter is None or object_filter(node.content)) and \
                 (path_filter is None or path_filter(node.path)):
-            yson_path_attributes = dict(ifilter(lambda item: item[0] in attributes,
-                                                iteritems(node.content.attributes)))
+            yson_path_attributes = dict(filter(lambda item: item[0] in attributes,
+                                               node.content.attributes.items()))
             yson_path = yson.to_yson_type(node.path, attributes=yson_path_attributes)
             yield yson_path
 
@@ -810,7 +804,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             if map_node_order is not None:
                 items_iter = ((key, node.content[key]) for key in map_node_order(node.path, node.content))
             else:
-                items_iter = iteritems(node.content)
+                items_iter = node.content.items()
             for key, value in items_iter:
                 if isinstance(key, yson.yson_types.YsonStringProxy):
                     actual_key = to_response_key_type(escape_ypath_literal(yson.get_bytes(key)))

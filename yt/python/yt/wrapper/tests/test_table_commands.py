@@ -15,11 +15,6 @@ from yt.wrapper import heavy_commands, parallel_writer
 
 from yt.yson import YsonMap
 
-try:
-    from yt.packages.six.moves import xrange, map as imap
-except ImportError:
-    from six.moves import xrange, map as imap
-
 from yt.local import start, stop
 
 import yt.wrapper as yt
@@ -100,8 +95,8 @@ class TestTableCommands(object):
             yt.write_table(table, [b"x=1\n"], raw=True)
 
         with set_config_option("read_retries/change_proxy_period", 1):
-            yt.write_table(table, [{"y": i} for i in xrange(10)])
-            check_rows_equality([{"y": i} for i in xrange(10)], yt.read_table(table))
+            yt.write_table(table, [{"y": i} for i in range(10)])
+            check_rows_equality([{"y": i} for i in range(10)], yt.read_table(table))
 
         file = TEST_DIR + "/test_file"
         yt.create("file", file)
@@ -129,7 +124,7 @@ class TestTableCommands(object):
 
     def _test_abandoned_read(self):
         table = TEST_DIR + "/table"
-        yt.write_table(yt.TablePath(table), [{"x": i} for i in xrange(100000)])
+        yt.write_table(yt.TablePath(table), [{"x": i} for i in range(100000)])
         iterator = yt.read_table(table)
         row = next(iterator)
         assert row == {"x": 0}
@@ -250,7 +245,7 @@ class TestTableCommands(object):
                 "optimize_for": "scan",
             })
 
-        data = [{"id": i, "value": 0.9 * i} for i in xrange(64)]
+        data = [{"id": i, "value": 0.9 * i} for i in range(64)]
         with set_config_option("write_parallel/enable", True):
             with set_config_option("write_retries/chunk_size", 256):
                 yt.write_table("//tmp/table", data)
@@ -262,7 +257,7 @@ class TestTableCommands(object):
         schema = TableSchema().add_column("id", typing.Int64).add_column("value", typing.Double)
         yt.create("table", "//tmp/table", recursive=True, attributes={"schema": schema})
 
-        data = [{"id": i, "value": 0.9 * i} for i in xrange(64)]
+        data = [{"id": i, "value": 0.9 * i} for i in range(64)]
         with set_config_option("write_parallel/enable", True):
             with set_config_option("write_retries/chunk_size", 256):
                 yt.write_table("//tmp/table", data)
@@ -311,7 +306,7 @@ class TestTableCommands(object):
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):
             table = TEST_DIR + "/table"
-            for i in xrange(3):
+            for i in range(3):
                 yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])
             assert yt.get(table + "/@chunk_count") == 9
 
@@ -329,7 +324,7 @@ class TestTableCommands(object):
         table = TEST_DIR + "/table"
         yt.create("table", table)
         try:
-            for _ in xrange(5):
+            for _ in range(5):
                 tx = yt.start_transaction(timeout=10000)
                 yt.config.COMMAND_PARAMS["transaction_id"] = tx
                 yt.lock(table, mode="shared")
@@ -738,7 +733,7 @@ class TestBlobTables(object):
                                                          {"name": "data", "type": "string"}]})
         yt.write_table(table, [{"key": "test" + str(i),
                                 "part_index": j,
-                                "data": "data" + str(j) + str(i)} for i in xrange(3) for j in xrange(3)])
+                                "data": "data" + str(j) + str(i)} for i in range(3) for j in range(3)])
 
         stream = yt.read_blob_table(table + "[test0]", part_size=6)
         assert stream.read() == b"data00data10data20"
@@ -777,7 +772,7 @@ class TestBlobTables(object):
 
         yt.write_table(table, [{"key": "test",
                                 "part_index": j,
-                                "data": "data" + str(j)} for j in xrange(3)])
+                                "data": "data" + str(j)} for j in range(3)])
 
         yt.set(table + "/@part_size", 5)
         stream = yt.read_blob_table(table + "[test]")
@@ -797,7 +792,7 @@ class TestBlobTables(object):
 
         yt.write_table(table, [{"key": "test",
                                 "part_index": j,
-                                "data": "data" + str(j)} for j in xrange(3)])
+                                "data": "data" + str(j)} for j in range(3)])
         yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "data03"}])
         with pytest.raises(yt.YtError):
             stream = yt.read_blob_table(table + "[test]")
@@ -809,7 +804,7 @@ class TestBlobTables(object):
                                                          {"name": "data", "type": "string"}]})
 
         yt.write_table(table, [{"part_index": i, "data": "data" + str(i)}
-                               for i in xrange(3)])
+                               for i in range(3)])
 
         stream = yt.read_blob_table(table, part_size=5)
         assert stream.read() == b"data0data1data2"
@@ -865,7 +860,7 @@ class TestTableCommandsOperations(object):
     @authors("ignat")
     def test_erase(self):
         table = TEST_DIR + "/table"
-        yt.write_table(table, [{"a": i} for i in xrange(10)])
+        yt.write_table(table, [{"a": i} for i in range(10)])
         assert yt.row_count(table) == 10
         yt.run_erase(yt.TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 5
@@ -911,9 +906,9 @@ class TestTableCommandsHuge(object):
         table = TEST_DIR + "/table"
         power = 3
         format = yt.JsonFormat()
-        records = imap(format.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
-                                                                    " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
-                       for i in xrange(10 ** power)))
+        records = map(format.dumps_row, ({"k": i, "s": i * i, "v": "long long string with strange symbols"
+                                                                   " #*@*&^$#%@(#!@:L|L|KL..,,.~`"}
+                      for i in range(10 ** power)))
         yt.write_table(table, yt.StringIterIO(records), format=format, raw=True)
 
         assert yt.row_count(table) == 10 ** power
@@ -939,10 +934,10 @@ class TestTableCommandsHuge(object):
         }
         with set_config_options(override_options):
             table = TEST_DIR + "/table"
-            for i in xrange(3):
-                yt.write_table("<append=%true>" + table, [{"x": i, "y": j} for j in xrange(100)])
+            for i in range(3):
+                yt.write_table("<append=%true>" + table, [{"x": i, "y": j} for j in range(100)])
             assert yt.get(table + "/@chunk_count") == 300
-            assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in xrange(3) for j in xrange(100)]
+            assert list(yt.read_table(table)) == [{"x": i, "y": j} for i in range(3) for j in range(100)]
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -1073,7 +1068,7 @@ class TestTableCommandsFraming(object):
         chunk_size = 100
         rows_chunk = [{"column_1": 1, "column_2": "foo"}] * chunk_size
         chunk_count = 100
-        for i in xrange(chunk_count):
+        for i in range(chunk_count):
             yt.write_table(yt.TablePath(suspending_path, append=True), rows_chunk)
         override_options = deepcopy(self.OVERRIDE_OPTIONS)
         if not use_compression:
@@ -1086,7 +1081,7 @@ class TestTableCommandsFraming(object):
     def test_error_in_read(self, yt_env_with_framing):
         suspending_path = yt_env_with_framing.framing_options["suspending_path"]
         row_count = 10000
-        rows = [{"a": random_string(100)} for _ in xrange(row_count)]
+        rows = [{"a": random_string(100)} for _ in range(row_count)]
         rows.append({"b": 12})
         yt.write_table(suspending_path, rows)
         with _check_delay(yt_env_with_framing), \

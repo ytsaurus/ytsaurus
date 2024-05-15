@@ -3,11 +3,6 @@ from __future__ import print_function
 from .common import update, get_arg_spec
 from .default_config import get_default_config, RemotePatchableValueBase, _get_settings_from_cluster_callback, _update_from_env_vars, FORCED_SHORTCUTS
 
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
-
 from copy import deepcopy
 import functools
 import inspect
@@ -67,10 +62,8 @@ def create_class_method_impl(func, decorator):
         method_arg_names.append('*' + arg_spec.varargs)
         callee_arg_names.append('*' + arg_spec.varargs)
 
-    if PY3:
-        keywords = arg_spec.varkw
-    else:
-        keywords = arg_spec.keywords
+    keywords = arg_spec.varkw
+
     if keywords is not None:
         method_arg_names.append("**" + keywords)
         callee_arg_names.append("**" + keywords)

@@ -142,7 +142,13 @@ func (c *httpClient) ReadTable(
 			return nil, err
 		}
 
-		return smartreader.NewReader(ctx, tx, true, c.log, path, &opts)
+		r, err := smartreader.NewReader(ctx, tx, true, c.log, path, &opts)
+		if err != nil {
+			_ = tx.Abort()
+			return nil, err
+		}
+
+		return r, err
 	} else {
 		return c.Encoder.ReadTable(ctx, path, options)
 	}

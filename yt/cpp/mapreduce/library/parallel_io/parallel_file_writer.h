@@ -28,6 +28,11 @@ struct TParallelFileWriterOptions
     /// @brief Directory for temporary files. By default: directory of the output file.
     FLUENT_FIELD_OPTION(TYPath, TmpDirectory);
 
+    /// @brief Attributes to set for written file.
+    /// Useful for changing node attributes, for example, "primary_medium"="ssd_blobs".
+    /// Applies to both temporary nodes (speeding up write) and final node.
+    FLUENT_FIELD_DEFAULT(NYT::TNode, FileAttributes, NYT::TNode::CreateMap());
+
     ///
     /// @brief Wheter to call Finish automatically in writer destructor.
     ///

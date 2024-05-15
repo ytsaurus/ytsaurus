@@ -633,25 +633,25 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "ChunkReincarnator",
-            BIND(&TChunkReincarnator::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::Save, Unretained(this)));
         RegisterLoader(
             "ChunkReincarnator",
-            BIND(&TChunkReincarnator::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::Load, Unretained(this)));
 
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraCheckExportedChunkReincarnation, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraCheckExportedChunkReincarnation, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraCheckForeignChunkReincarnation, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraCheckForeignChunkReincarnation, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraOnExportedChunkReincarnationCheckFinished, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraOnExportedChunkReincarnationCheckFinished, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraUpdateChunkReincarnatorTransactions, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraUpdateChunkReincarnatorTransactions, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraCreateReincarnatedChunks, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraCreateReincarnatedChunks, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraReincarnateChunks, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraReincarnateChunks, Unretained(this)));
         RegisterMethod(
-            BIND(&TChunkReincarnator::HydraReincarnateForeignChunks, Unretained(this)));
+            BIND_NO_PROPAGATE(&TChunkReincarnator::HydraReincarnateForeignChunks, Unretained(this)));
 
         for (auto [path, kind] : ReincarnationMetrics) {
             Metrics_[kind] = ChunkServerProfiler.Counter(path);

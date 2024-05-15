@@ -319,7 +319,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return WriteAmplification_.load(std::memory_order::relaxed);
+        return WriteAmplificationRatio_.load(std::memory_order::relaxed);
     }
 
     bool IsOpen() const override
@@ -496,7 +496,7 @@ private:
 
     i64 PayloadWrittenBytes_ = 0;
     i64 MediaWrittenBytes_ = 0;
-    std::atomic<double> WriteAmplification_ = 1;
+    std::atomic<double> WriteAmplificationRatio_ = 1;
 
     TChangelogMeta Meta_;
     TSharedRef SerializedMeta_;
@@ -522,7 +522,7 @@ private:
         }
 
         auto amplification = static_cast<double>(MediaWrittenBytes_) / PayloadWrittenBytes_;
-        WriteAmplification_.store(amplification, std::memory_order::relaxed);
+        WriteAmplificationRatio_.store(amplification, std::memory_order::relaxed);
 
         YT_LOG_DEBUG("Updating write amplification (PayloadWrittenBytes: %v, MediaWrittenBytes: %v, WriteAmplification: %v)",
             PayloadWrittenBytes_,

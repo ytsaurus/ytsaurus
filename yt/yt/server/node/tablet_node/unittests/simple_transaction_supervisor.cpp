@@ -45,9 +45,9 @@ TSimpleTransactionSupervisor::TSimpleTransactionSupervisor(
         std::move(automatonInvoker))
     , TransactionManager_(std::move(transactionManager))
 {
-    TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraPrepareTransactionCommit, Unretained(this)));
-    TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraCommitTransaction, Unretained(this)));
-    TCompositeAutomatonPart::RegisterMethod(BIND(&TSimpleTransactionSupervisor::HydraAbortTransaction, Unretained(this)));
+    TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TSimpleTransactionSupervisor::HydraPrepareTransactionCommit, Unretained(this)));
+    TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TSimpleTransactionSupervisor::HydraCommitTransaction, Unretained(this)));
+    TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TSimpleTransactionSupervisor::HydraAbortTransaction, Unretained(this)));
 }
 
 TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(

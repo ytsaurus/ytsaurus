@@ -1,2 +1,0 @@
-org.apache.spark.ml.source.libsvm.LibSVMFileFormat
-org.apache.spark.ml.source.image.ImageFileFormat

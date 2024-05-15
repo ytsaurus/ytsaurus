@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/node/data_node/public.h>
 
-#include <yt/yt/server/node/exec_node/job.h>
-
 #include <yt/yt/core/actions/future.h>
 
 namespace NYT::NExecNode {

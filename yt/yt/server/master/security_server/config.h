@@ -65,6 +65,9 @@ public:
     //! Period between user statistics commits.
     TDuration UserStatisticsFlushPeriod;
 
+    //! COMPAT(cherepashka)
+    bool DisableUpdateUserLastSeen;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

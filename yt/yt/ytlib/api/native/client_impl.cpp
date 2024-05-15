@@ -80,6 +80,7 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NHiveClient;
 using namespace NScheduler;
+using namespace NSecurityClient;
 using namespace NHydra;
 
 using NNodeTrackerClient::CreateNodeChannelFactory;
@@ -182,18 +183,10 @@ TClient::TClient(
         return factory;
     };
 
-    auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
-        MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
-    };
-    auto initCypressChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
-        CypressChannels_[kind][cellTag] = wrapChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag));
-    };
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-        initMasterChannel(kind, Connection_->GetPrimaryMasterCellTag());
-        initCypressChannel(kind, Connection_->GetPrimaryMasterCellTag());
+        InitChannelsOrThrow(kind, Connection_->GetPrimaryMasterCellTag());
         for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
-            initMasterChannel(kind, cellTag);
-            initCypressChannel(kind, cellTag);
+            InitChannelsOrThrow(kind, cellTag);
         }
     }
 
@@ -265,26 +258,40 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     EMasterChannelKind kind,
     TCellTag cellTag)
 {
-    const auto& channels = MasterChannels_[kind];
-    auto it = channels.find(cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
-    if (it == channels.end()) {
-        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            cellTag);
+    auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+    if (auto channel = FindMasterChannel(kind, effectiveCellTag)) {
+        return channel;
     }
-    return it->second;
+
+    //! NB: Since clients can be spawned at random moments there is no point in subscribing to master cell directory changes,
+    // but it is still necessary to try to update channels.
+    InitChannelsOrThrow(kind, effectiveCellTag);
+    if (auto channel = FindMasterChannel(kind, effectiveCellTag)) {
+        return channel;
+    }
+
+    THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+        cellTag);
 }
 
 IChannelPtr TClient::GetCypressChannelOrThrow(
     EMasterChannelKind kind,
     TCellTag cellTag)
 {
-    const auto& channels = CypressChannels_[kind];
-    auto it = channels.find(cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
-    if (it == channels.end()) {
-        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-            cellTag);
+    auto effectiveCellTag = (cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+    if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
+        return channel;
     }
-    return it->second;
+
+    //! NB: Since clients can be spawned at random moments there is no point in subscribing to master cell directory changes,
+    // but it is still necessary to try to update channels.
+    InitChannelsOrThrow(kind, effectiveCellTag);
+    if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
+        return channel;
+    }
+
+    THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+        cellTag);
 }
 
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
@@ -311,14 +318,56 @@ void TClient::Terminate()
     auto error = TError("Client terminated");
 
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-        for (const auto& [cellTag, channel] : MasterChannels_[kind]) {
+        for (auto [cellTag, channel] : GetMasterChannels(kind)) {
             channel->Terminate(error);
         }
-        for (const auto& [cellTag, channel] : CypressChannels_[kind]) {
+        for (auto [cellTag, channel] : GetCypressChannels(kind)) {
             channel->Terminate(error);
         }
     }
     SchedulerChannel_->Terminate(error);
+}
+
+IChannelPtr TClient::FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag)
+{
+    auto guard = ReaderGuard(MasterChannelsLock_);
+    const auto& channels = MasterChannels_[kind];
+    return channels.contains(cellTag) ? GetOrCrash(channels, cellTag) : nullptr;
+}
+
+TClient::TChannels TClient::GetMasterChannels(EMasterChannelKind kind)
+{
+    auto guard = ReaderGuard(MasterChannelsLock_);
+    return MasterChannels_[kind];
+}
+
+TClient::TChannels TClient::GetCypressChannels(EMasterChannelKind kind)
+{
+    auto guard = ReaderGuard(CypressChannelsLock_);
+    return CypressChannels_[kind];
+}
+
+IChannelPtr TClient::FindCypressChannel(EMasterChannelKind kind, TCellTag cellTag)
+{
+    auto guard = ReaderGuard(CypressChannelsLock_);
+    const auto& channels = CypressChannels_[kind];
+    return channels.contains(cellTag) ? GetOrCrash(channels, cellTag) : nullptr;
+}
+
+void TClient::InitChannelsOrThrow(EMasterChannelKind kind, TCellTag cellTag)
+{
+    const auto& authenticationIdentity = Options_.GetAuthenticationIdentity();
+
+    {
+        const auto& authenticateddMasterChannel = CreateAuthenticatedChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag), authenticationIdentity);
+        auto guard = WriterGuard(MasterChannelsLock_);
+        EmplaceOrCrash(MasterChannels_[kind], cellTag, authenticateddMasterChannel);
+    }
+    {
+        const auto& authenticateddCypressChannel = CreateAuthenticatedChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag), authenticationIdentity);
+        auto guard = WriterGuard(CypressChannelsLock_);
+        EmplaceOrCrash(CypressChannels_[kind], cellTag, authenticateddCypressChannel);
+    }
 }
 
 const IClientPtr& TClient::GetOperationsArchiveClient()
@@ -330,7 +379,7 @@ const IClientPtr& TClient::GetOperationsArchiveClient()
         }
     }
 
-    auto options = TClientOptions::FromUser(NSecurityClient::OperationsClientUserName);
+    auto options = TClientOptions::FromUser(OperationsClientUserName);
     auto client = Connection_->CreateNativeClient(options);
 
     {
@@ -354,10 +403,10 @@ TFuture<T> TClient::Execute(
         promise,
         callback = std::move(callback),
         this,
-        this_ = MakeWeak(this)
+        weakThis = MakeWeak(this)
     ] () mutable {
-        auto client = this_.Lock();
-        if (!client) {
+        auto this_ = weakThis.Lock();
+        if (!this_) {
             return;
         }
 
@@ -589,11 +638,11 @@ NApi::IClientPtr TClient::CreateRootClient()
 
 void TClient::ValidateSuperuserPermissions()
 {
-    if (Options_.User == NSecurityClient::RootUserName) {
+    if (Options_.User == RootUserName) {
         return;
     }
 
-    auto pathToGroupYsonList = NSecurityClient::GetUserPath(*Options_.User) + "/@member_of_closure";
+    auto pathToGroupYsonList = GetUserPath(*Options_.User) + "/@member_of_closure";
 
     TGetNodeOptions options;
     options.SuppressTransactionCoordinatorSync = true;
@@ -606,13 +655,13 @@ void TClient::ValidateSuperuserPermissions()
         Options_.User,
         groups);
 
-    if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
+    if (!groups.contains(SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
     }
 }
 
 void TClient::ValidatePermissionsWithAcn(
-    NSecurityClient::EAccessControlObject accessControlObjectName,
+    EAccessControlObject accessControlObjectName,
     EPermission permission)
 {
     TErrorOr<TCheckPermissionResponse> response;
@@ -631,7 +680,7 @@ void TClient::ValidatePermissionsWithAcn(
         response = TError(ex);
     }
 
-    if (!(response.IsOK() && response.Value().Action == NSecurityClient::ESecurityAction::Allow)) {
+    if (!(response.IsOK() && response.Value().Action == ESecurityAction::Allow)) {
         ValidateSuperuserPermissions();
         YT_LOG_WARNING("There is no access control object with the necessary permissions (Name: %v, Path: %v, Permission: %v)",
             Options_.User,

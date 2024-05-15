@@ -89,5 +89,24 @@ struct TSelfifyRewriter
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReferenceHarvester
+    : public TVisitor<TReferenceHarvester>
+{
+public:
+    explicit TReferenceHarvester(TColumnSet* storage)
+        : Storage_(storage)
+    { }
+
+    void OnReference(const TReferenceExpression* referenceExpr)
+    {
+        Storage_->insert(referenceExpr->ColumnName);
+    }
+
+private:
+    TColumnSet* Storage_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
 

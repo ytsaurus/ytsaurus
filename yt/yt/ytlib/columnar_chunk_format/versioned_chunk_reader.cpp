@@ -757,6 +757,24 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     readerStatistics->BuildColumnInfosTime = getDurationAndReset();
 
+    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
+    readerStatistics->CreateBlockManagerTime = getDurationAndReset();
+
+    // Do not log in case of reading from memory.
+    YT_LOG_DEBUG_IF(
+        !blockManager->IsFetchingCompleted(),
+        "Creating rowset builder (ReadItemCount: %v, GroupIds: %v, KeyTypes: %v, "
+        "ReadItemWidth: %v, KeyColumnIndexes: %v, ValueTypes: %v, NewMeta: %v)",
+        readItemCount,
+        groupIds,
+        keyTypes,
+        readItemWidth,
+        keyColumnIndexes,
+        MakeFormattableView(valueSchema, [] (TStringBuilderBase* builder, TValueSchema valueSchema) {
+            builder->AppendFormat("%v", valueSchema.Type);
+        }),
+        preparedChunkMeta->FullNewMeta);
+
     auto rowsetBuilder = CreateRowsetBuilder(std::move(readItems), {
         keyTypes,
         static_cast<ui16>(readItemWidth),
@@ -769,9 +787,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     });
 
     readerStatistics->CreateRowsetBuilderTime = getDurationAndReset();
-
-    auto blockManager = blockManagerFactory(std::move(groupBlockHolders), windowsList);
-    readerStatistics->CreateBlockManagerTime = getDurationAndReset();
 
     std::unique_ptr<bool[]> columnHunkFlags;
     if (chunkSchema->HasHunkColumns()) {

@@ -39,8 +39,8 @@ DECLARE_REFCOUNTED_CLASS(TAlienClusterRegistry)
 using TChaosCellBundleId = NCellServer::TCellBundleId;
 using TChaosCellId = NCellServer::TTamedCellId;
 
-DECLARE_ENTITY_TYPE(TChaosCellBundle, TChaosCellBundleId, NObjectClient::TDirectObjectIdHash)
-DECLARE_ENTITY_TYPE(TChaosCell, TChaosCellId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TChaosCellBundle, TChaosCellBundleId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TChaosCell, TChaosCellId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TChaosCellBundle)
 DECLARE_MASTER_OBJECT_TYPE(TChaosCell)

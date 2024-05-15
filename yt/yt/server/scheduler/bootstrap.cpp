@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -131,6 +133,7 @@ void TBootstrap::DoRun()
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
+    Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
     BusServer_ = CreateBusServer(Config_->BusServer);
 

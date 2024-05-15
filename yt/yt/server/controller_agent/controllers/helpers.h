@@ -100,6 +100,12 @@ bool IsStaticTableWithHunks(TInputTablePtr table);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool HasJobUniquenessRequirements(
+    const NScheduler::TOperationSpecBasePtr& operationSpec,
+    const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

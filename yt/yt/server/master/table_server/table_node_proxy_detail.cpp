@@ -52,6 +52,8 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/table_client/schema.h>
+
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -410,6 +412,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(isDynamic && !table->SecondaryIndices().empty()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IndexTo)
         .SetPresent(isDynamic && table->GetIndexTo()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CustomRuntimeData)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetOpaque(true)
+        .SetPresent(static_cast<bool>(table->CustomRuntimeData())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -1073,6 +1080,16 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::CustomRuntimeData:
+            if (!table->CustomRuntimeData()) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->CustomRuntimeData());
+
+            return true;
+
         default:
             break;
     }
@@ -1298,6 +1315,15 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetQueueAgentStage(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::CustomRuntimeData: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->CustomRuntimeData() = {};
+
+            Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, {});
+
             return true;
         }
 
@@ -1675,6 +1701,15 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::CustomRuntimeData: {
+            auto* lockedTable = LockThisImpl();
+            lockedTable->CustomRuntimeData() = value;
+
+            Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, value);
+
+            return true;
+        }
+
         default:
             break;
     }
@@ -1892,6 +1927,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         auto* protoIndexInfo = response->add_indices();
         ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTable()->GetId());
         protoIndexInfo->set_index_kind(ToProto<i32>(index->GetKind()));
+        if (const auto& predicate = index->Predicate()) {
+            ToProto(protoIndexInfo->mutable_predicate(), *predicate);
+        }
     }
 
     if (trunkTable->IsReplicated()) {
@@ -2090,6 +2128,36 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
             table->IsEmpty() && !table->IsDynamic());
+
+        if (table->IsDynamic()) {
+            for (const auto* index : table->SecondaryIndices()) {
+                const auto& indexTableSchema = index->GetIndexTable()->GetSchema()->AsTableSchema();
+                switch (index->GetKind()) {
+                    case ESecondaryIndexKind::FullSync:
+                        ValidateFullSyncIndexSchema(*schema, *indexTableSchema);
+                        break;
+                    case ESecondaryIndexKind::Unfolding:
+                        FindUnfoldingColumnAndValidate(*schema, *indexTableSchema);
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+            }
+
+            if (const auto* index = table->GetIndexTo()) {
+                const auto& tableSchema = index->GetTable()->GetSchema()->AsTableSchema();
+                switch (index->GetKind()) {
+                    case ESecondaryIndexKind::FullSync:
+                        ValidateFullSyncIndexSchema(*tableSchema, *schema);
+                        break;
+                    case ESecondaryIndexKind::Unfolding:
+                        FindUnfoldingColumnAndValidate(*tableSchema, *schema);
+                        break;
+                    default:
+                        YT_ABORT();
+                }
+            }
+        }
 
         if (!config->EnableDescendingSortOrder ||
             dynamic && !config->EnableDescendingSortOrderDynamic)

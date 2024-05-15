@@ -1,6 +1,7 @@
 Checks: >
   -*,
   arcadia-typeid-name-restriction,
+  arcadia-ascii-compare-ignorecase,
   # bugprone-use-after-move is disabled as it does not treat . as a synchornization point, as guaranteed by C++17
   # See the discussion in
   # https://github.com/llvm/llvm-project/issues/57758
@@ -26,6 +27,9 @@ CheckOptions:
     value: _
   - key: readability-identifier-naming.FunctionCase
     value: CamelCase
+  # make_error_code is used by std::error_code constructor with enum arg
+  - key: readability-identifier-naming.FunctionIgnoredRegexp
+    value: "make_error_code"
   - key: readability-identifier-naming.ClassMethodCase
     value: CamelCase
   # do not tide public begin / end methods to workaround clang-tidy bug in range-based for loops

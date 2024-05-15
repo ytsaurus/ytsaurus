@@ -13,6 +13,7 @@ SRCS(
     evaluation_helpers.cpp
     evaluator.cpp
     expression_context.cpp
+    expression_evaluator.cpp
     new_range_inferrer.cpp
     position_independent_value.cpp
     position_independent_value_transfer.cpp

@@ -61,7 +61,7 @@ TApi::TApi(TBootstrap* bootstrap)
     });
 
     const auto& dynamicConfigManager = bootstrap->GetDynamicConfigManager();
-    dynamicConfigManager->SubscribeConfigChanged(BIND(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
+    dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TApi::OnDynamicConfigChanged, MakeWeak(this)));
 }
 
 TString TApi::GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const

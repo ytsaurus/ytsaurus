@@ -16,6 +16,7 @@ using namespace NApi;
 using namespace NApi::NNative;
 using namespace NConcurrency;
 using namespace NObjectClient;
+using namespace NTracing;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -107,6 +108,8 @@ private:
 
     void DoSync()
     {
+        // TODO(cherepashka) remove after testing.
+        TTraceContextGuard traceContextGuard(GetOrCreateTraceContext("MasterCellDirectory"));
         try {
             YT_LOG_DEBUG("Started synchronizing master cell directory");
 

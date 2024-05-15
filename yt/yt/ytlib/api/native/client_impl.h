@@ -889,8 +889,11 @@ private:
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
-    TEnumIndexedArray<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
-    TEnumIndexedArray<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> CypressChannels_;
+    using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterChannelsLock_);
+    TEnumIndexedArray<EMasterChannelKind, TChannels> MasterChannels_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CypressChannelsLock_);
+    TEnumIndexedArray<EMasterChannelKind, TChannels> CypressChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveClientLock_);
     IClientPtr OperationsArchiveClient_;
@@ -915,6 +918,14 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
+
+    TChannels GetMasterChannels(EMasterChannelKind kind);
+    NRpc::IChannelPtr FindMasterChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
+    TChannels GetCypressChannels(EMasterChannelKind kind);
+    NRpc::IChannelPtr FindCypressChannel(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
+
+    //! NB: Could throw in case of non-existing cell tag.
+    void InitChannelsOrThrow(EMasterChannelKind kind, NObjectClient::TCellTag cellTag);
 
     const IClientPtr& GetOperationsArchiveClient();
 

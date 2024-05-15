@@ -210,7 +210,10 @@ public:
     bool GetVital() const;
     void SetVital(bool vital);
 
-    bool IsDurabilityRequired(const IChunkManagerPtr& chunkManager) const;
+    //! The difference between the two methods below is in whether or not the `Vital` flag itself is considered.
+    bool IsDurable(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const;
+    //! This method always returns `false` for non-vital chunks.
+    bool IsDurabilityRequired(const IChunkManagerPtr& chunkManager, bool isErasureChunk) const;
 
     //! Returns |true| iff this replication settings would not result in a data
     //! loss (i.e. on at least on medium, replication factor is non-zero and

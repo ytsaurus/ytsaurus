@@ -15,14 +15,4 @@ DECLARE_REFCOUNTED_CLASS(TDynamicSequoiaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EAevum,
-    ((None)                                           (0))
-    ((SequoiaChunkMetaExtensions)                     (1)) // gritukan
-    ((SequoiaConfirmChunks)                           (2)) // aleksandra-zh
-);
-
-EAevum GetCurrentAevum();
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NSequoiaServer

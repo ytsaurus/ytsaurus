@@ -4,7 +4,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.yson.{UInt64Type, YsonType}
+import org.apache.spark.sql.yson.{DatetimeType, UInt64Type, YsonType}
 import org.apache.spark.unsafe.types.UTF8String
 import tech.ytsaurus.client.rows.{WireRowDeserializer, WireValueDeserializer}
 import tech.ytsaurus.core.common.Decimal.binaryToText
@@ -70,7 +70,8 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
             case ShortType => addValue(value.toShort)
             case ByteType => addValue(value.toByte)
             case DateType => addValue(value.toInt)
-            case TimestampType => addValue(value * 1000000)
+            case _: DatetimeType => addValue(value)
+            case TimestampType => addValue(value)
             case YsonType => addValue(toYsonBytes(value))
             case UInt64Type => addValue(value)
             case _ => throwSchemaViolation()

@@ -32,8 +32,6 @@ print(client.list("/"))
 
 Существует возможность передавать заданный набор параметров во все запросы, задаваемые через клиент (например, `trace_id`). Для этого есть специальный метод [create_client_with_command_params](https://pydoc.ytsaurus.tech/yt.wrapper.html?highlight=create_client_with#yt.wrapper.client.create_client_with_command_params), который позволяет указать произвольный набор опций, которые будут передавать во все вызовы API.
 
-<!--Пример todo использования данной функциональности для указания предварительных условий.-->
-
 #### Потокобезопасность { #threadsafety }
 
 Даже если вы пользуетесь не потоками (threading), а процессами (multiprocessing), то совет также остается в силе. Одна из причин: если в главном процессе вы уже задавали запрос к кластеру, то был инициализирован connection pool до этого кластера в рамках глобального клиента. Поэтому после fork процессы будут использовать одни и те же сокеты при общении с кластером, что приведет к разнообразным проблемам.
@@ -188,7 +186,7 @@ client = yt.YtClient(config=my_config)
 
 Подробнее про форматы можно прочитать [в разделе](../../../user-guide/storage/formats.md).
 
-Для каждого есть имеется отдельный класс:
+Для каждого формата существует отдельный класс:
   - [YsonFormat](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.format.YsonFormat);
   - [JsonFormat](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.format.JsonFormat);
   - [DsvFormat](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.format.DsvFormat);
@@ -506,7 +504,7 @@ class Row:
 
 #### Схемы { #table_schema }
 
-Каждая таблица в YT имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.yt.yandex.net/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [датакласса](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, это происходит автоматически при записи таблицы.Однако иногда приходится собирать схему вручную, это может быть удобно делать с помощью builder-интерфейса, например:
+Каждая таблица в {{product-name}} имеет [схему](../../../user-guide/storage/static-schema.md). В Python API есть соответствующий класс [TableSchema](https://pydoc.ytsaurus.tech/yt.wrapper.schema.html#yt.wrapper.schema.table_schema.TableSchema). Основной способ создания схемы — из [датакласса](#dataclass): `schema = TableSchema.from_row_type(Row)`, в частности, это происходит автоматически при записи таблицы. Однако иногда приходится собирать схему вручную, это может быть удобно делать с помощью builder-интерфейса, например:
 
 ```python
 import yt.type_info.typing as ti
@@ -1178,9 +1176,17 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Для того, чтобы запустить операцию, необходимо описать специальный класс-наследник `yt.wrapper.TypedJob` и передать объект данного класса в [функцию](#run_operation_commands) запуска операции (либо указать в соответствующем поле [SpecBuilder-а](#spec_builders)).
 
- В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](../../../api/python/examples.md#table_switches) в туториале).
+В классе джоба обязательно должен быть определен метод `__call__(self, row)` (для mapper-а) или `__call__(self, rows)` (для reducer-а). На вход данному методу приходят строки таблицы (в случае reducer-а один вызов `__call__` соответствует набору строк с одинаковым ключом). Он обязан вернуть (**с помощью `yield`**) строки, которые нужно записать в выходную таблицу. Если выходных таблиц несколько, нужно использовать класс-обёртку `yt.wrapper.OutputRow`, конструктор которого принимает записываемую строку и `table_index` в виде именованного параметра (смотрите [пример](../../../api/python/examples.md#table_switches) в туториале).
 
-Дополнительно можно определить методы `start(self)` (будет вызван ровно один раз перед обработкой записей джоба) и `finish(self)` (будет вызван один раз после обработки записей джоба), которые, как и `__call__`, могут генерировать (с помощью `yield`) новые записи, что позволяет, например, удобно делать агрегирующие операции (не вызываются для "честных" агрегирующих операций типа `@yt.aggregator`). А также метод [`.prepare_operation(self, context, preparer)`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Более подробно смотрите [ниже](#prepare_operation) и примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
+Дополнительно можно определить методы:
+- `start(self)` — будет вызван ровно один раз перед обработкой записей джоба;
+- `finish(self)` — будет вызван один раз после обработки записей джоба.
+
+Эти методы, как и `__call__`, могут генерировать с помощью `yield` новые записи. Это позволяет делать буферизацию или какое-то накапливание данных. Эти методы не вызываются для операций, помеченных `@yt.aggregator` и получающих весь вход целиком.
+
+Также можно определить метод [.prepare_operation(self, context, preparer)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.prepare_operation). Он используется для указания типов строк входных и выходных таблиц, а также для модификации спеки операции. Для более подробной информации смотрите раздел [Подготовка операции из джоба](#prepare_operation), а также изучите примеры:
+- [{#T}](../../../api/python/examples.md#prepare_operation);
+- [{#T}](../../../api/python/examples.md#grep).
 
 ### Подготовка операции из джоба { #prepare_operation }
 
@@ -1191,7 +1197,7 @@ yt.get_attribute("//sys/groups/testers", "members")
 
 Объект [`context`](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.OperationPreparationContext) позволяет получать информацию о входных и выходных потоках: их количество, схемы и пути к таблицам.
 
-смотрите примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](#examples.md#grep).
+смотрите примеры в туториале: [раз](../../../api/python/examples.md#prepare_operation) и [два](../../../api/python/examples.md#grep).
 
 Если запускается MapReduce с несколькими промежуточными потоками, то требуется также переопределить метод [.get_intermediate_stream_count(self)](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.prepare_operation.TypedJob.get_intermediate_stream_count), вернув из него количество промежуточных потоков. Смотрите [пример](../../../api/python/examples.md#map_reduce_multiple_intermediate_streams).
 
@@ -1408,13 +1414,14 @@ def reducer(key, rows):
 
    ```python
    import yt.yson as yson
-   s = yson.YsonString("a")
+   s = yson.YsonString(b"a")
+   s == b"a" # True
    s.attributes["b"] = "c"
-   s == "a" # False
+   s == b"a" # False
 
-   str(s) == "a" # True
+   bytes(s) == b"a" # True
 
-   other_s = yson.YsonString("a")
+   other_s = yson.YsonString(b"a")
    other_s == s # False
 
    other_s.attributes["b"] = "c"

@@ -73,7 +73,7 @@ pyaml (this module) tries to improve on that a bit, with the following tweaks:
   are represented as their safe YAML-compatible base (like int, list or mapping),
   with mappings key-sorted by default for more diff-friendly output.
 
-* Use shorter and simplier yes/no for booleans.
+* Use shorter and simpler yes/no for booleans.
 
 * List items get indented, as they should be.
 
@@ -297,11 +297,11 @@ It's a regular Python 3.8+ module/package, published on PyPI (as pyaml_).
 Module uses PyYAML_ for processing of the actual YAML files
 and should pull it in as a dependency.
 
-Dependency on unidecode_ module is optional and should only be useful
-with force_embed=False keyword (defaults to True), and same-id objects
-or recursion is used within serialized data - i.e. only when generating
-&some_key_id anchors is needed.
-If module is unavailable at runtime, anchor ids will be less like their
+Dependency on unidecode_ module is optional and only be used with
+force_embed=False keyword (defaults to True), and same-id objects
+or recursion within serialized data - i.e. only when generating
+&some_key_id anchors is actually needed.
+If module is unavailable at runtime, anchor ids might be less like their
 keys and maybe not as nice.
 
 Using pip_ is how you generally install it, usually coupled with venv_ usage

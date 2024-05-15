@@ -25,7 +25,7 @@ message TReqBeginUpload
     // be replicated to the corresponding secondary cell. This list
     // may provide additional cells to replicate the transaction to.
     // This is useful, e.g., in implementing "concat" command.
-    repeated int32 upload_transaction_secondary_cell_tags = 6;
+    repeated uint32 upload_transaction_secondary_cell_tags = 6;
     repeated NYT.NProto.TGuid upload_prerequisite_transaction_ids = 13;
     optional NYT.NTableClient.NProto.TTableSchemaExt table_schema = 7;
     optional int32 schema_mode = 8; // ETableSchemaMode
@@ -38,7 +38,7 @@ message TReqBeginUpload
 message TRspBeginUpload
 {
     required NYT.NProto.TGuid upload_transaction_id = 1;
-    required int32 cell_tag = 2;
+    required uint32 cell_tag = 2;
     optional NYT.NProto.TGuid upload_chunk_schema_id = 3;
 }
 

@@ -14,7 +14,7 @@ using namespace NHydra;
 
 int GetCellShardIndex(TCellId cellId)
 {
-    return TDirectObjectIdHash()(cellId) % CellShardCount;
+    return GetShardIndex<CellShardCount>(cellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

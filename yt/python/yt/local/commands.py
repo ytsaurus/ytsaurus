@@ -116,6 +116,7 @@ def start(master_count=1,
           rpc_proxy_count=0,
           master_cache_count=0,
           tablet_balancer_count=0,
+          discovery_server_count=0,
           queue_agent_count=0,
           cypress_proxy_count=0,
           rpc_proxy_config=None,
@@ -132,6 +133,7 @@ def start(master_count=1,
           https_proxy_ports=None,
           http_proxy_count=1,
           rpc_proxy_ports=None,
+          discovery_server_ports=None,
           id=None,
           local_cypress_dir=None,
           enable_debug_logging=False,
@@ -166,7 +168,8 @@ def start(master_count=1,
           enable_master_cache=False,
           clock_count=0,
           chaos_node_count=0,
-          replicated_table_tracker_count=0):
+          replicated_table_tracker_count=0,
+          job_proxy_logging_mode=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -195,6 +198,11 @@ def start(master_count=1,
     if scheduler_count == 0:
         controller_agent_count = 0
 
+    job_proxy_logging = {
+        "mode": job_proxy_logging_mode or "simple",
+        "sharding_key_length": 3,
+    }
+
     yt_config = LocalYtConfig(
         master_count=master_count,
         clock_count=clock_count,
@@ -211,6 +219,7 @@ def start(master_count=1,
         replicated_table_tracker_count=replicated_table_tracker_count,
         # TODO: Should we default to a fixed name, like "primary" in integration tests?
         cluster_name=sandbox_id,
+        discovery_server_count=discovery_server_count,
         queue_agent_count=queue_agent_count,
         delta_queue_agent_config=_load_config(queue_agent_config),
         delta_master_config=_load_config(master_config),
@@ -226,6 +235,7 @@ def start(master_count=1,
         http_proxy_ports=http_proxy_ports,
         https_proxy_ports=https_proxy_ports,
         rpc_proxy_ports=rpc_proxy_ports,
+        discovery_server_ports=discovery_server_ports,
         enable_master_cache=enable_master_cache,
         enable_debug_logging=enable_debug_logging,
         enable_structured_logging=enable_structured_logging,
@@ -249,7 +259,8 @@ def start(master_count=1,
         local_cypress_dir=local_cypress_dir,
         meta_files_suffix=meta_files_suffix,
         wait_tablet_cell_initialization=wait_tablet_cell_initialization,
-        init_operations_archive=init_operations_archive)
+        init_operations_archive=init_operations_archive,
+        job_proxy_logging=job_proxy_logging)
 
     environment = YTInstance(
         sandbox_path,

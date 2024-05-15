@@ -29,7 +29,7 @@ public:
             .MaxRowsPerRead = 1
         };
 
-        auto executeRead = [&] () {
+        auto executeRead = [&] {
             TUnversionedOwningRowBuilder builder;
             builder.AddValue(MakeUnversionedInt64Value(RandomNumber<ui64>(1000000000), 0));
 
@@ -49,7 +49,7 @@ public:
             reader->Read(options);
         };
 
-        auto executeWrite = [&] () {
+        auto executeWrite = [&] {
             auto transaction = StartTransaction();
 
             TUnversionedOwningRowBuilder builder;

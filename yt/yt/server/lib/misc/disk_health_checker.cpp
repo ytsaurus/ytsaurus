@@ -88,17 +88,21 @@ void TDiskHealthChecker::DoRunCheck()
     YT_LOG_DEBUG("Disk health check started");
 
     if (auto lockFilePath = NFS::CombinePaths(Path_, DisabledLockFileName); NFS::Exists(lockFilePath)) {
-        TError lockFileError;
+        TError lockFileError("Empty lock file found");
         try {
-            lockFileError = NYTree::ConvertTo<TError>(NYson::TYsonString(TFileInput(lockFilePath).ReadAll()));
+            if (
+                auto error = NYTree::ConvertTo<TError>(NYson::TYsonString(TFileInput(lockFilePath).ReadAll()));
+                !error.IsOK())
+            {
+                lockFileError = std::move(error);
+            }
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Failed to extract error from location lock file");
+            lockFileError = TError("Failed to extract error from location lock file")
+                << ex;
         }
-        auto error = TError("Lock file is found");
-        if (!lockFileError.IsOK()) {
-            error.MutableInnerErrors()->push_back(std::move(lockFileError));
-        }
-        THROW_ERROR(error);
+
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::LockFileIsFound, "Lock file is found") << std::move(lockFileError);
     }
 
     std::vector<ui8> writeData(Config_->TestSize);
@@ -141,9 +145,8 @@ void TDiskHealthChecker::DoRunCheck()
         if (memcmp(readData.data(), writeData.data(), Config_->TestSize) != 0) {
             THROW_ERROR_EXCEPTION("Test file is corrupt");
         }
-
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Disk health check failed at %v", Path_)
+        THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::DiskHealthCheckFailed, "Disk health check failed at %v", Path_)
             << ex;
     }
 

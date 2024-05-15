@@ -3,6 +3,7 @@
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/node_id_to_path.record.h>
@@ -24,180 +25,154 @@ using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NYTree;
-using namespace NYPath;
 
-using TYPath = NYPath::TYPath;
+using TYPath = NSequoiaClient::TYPath;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto SlashYPath = TAbsoluteYPath("/");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPathResolver
 {
 public:
-    TPathResolver(
-        ISequoiaTransactionPtr transaction,
-        TYPath path)
-        : Transaction_(std::move(transaction))
-        , Path_(std::move(path))
+    explicit TPathResolver(TSequoiaServiceContext* context)
+        : Context_(context)
     { }
 
-    TResolveResult Resolve()
+    void Resolve()
     {
-        Tokenizer_.Reset(Path_);
-        TYPath rewrittenPath;
+        TAbsoluteYPathBuf path(GetRequestTargetYPath(Context_->RequestHeader()));
+        TAbsoluteYPath rewrittenPath;
 
-        for (int resolveDepth = 0; ; ++resolveDepth) {
-            ValidateYPathResolutionDepth(Path_, resolveDepth);
+        auto [rootDesignator, pathSuffix] = path.GetRootDesignator();
+        static_assert(std::variant_size<decltype(rootDesignator)>() == 2);
 
-            if (auto rewrite = MaybeRewriteRoot()) {
-                rewrittenPath = std::move(*rewrite);
-                Tokenizer_.Reset(rewrittenPath);
-                continue;
+        auto* objectId = std::get_if<TGuid>(&rootDesignator);
+        if (objectId) {
+            auto objectPath = GetObjectPathOrThrow(*objectId);
+            rewrittenPath = objectPath + pathSuffix;
+            path = rewrittenPath;
+
+            pathSuffix = path.GetRootDesignator().second;
+        }
+
+        struct TResolveAttempt
+        {
+            TAbsoluteYPath Prefix;
+            TString Suffix;
+        };
+        constexpr int TypicalTokenCount = 16;
+        TCompactVector<TResolveAttempt, TypicalTokenCount> resolveAttempts;
+
+        NYPath::TTokenizer tokenizer(pathSuffix.Underlying());
+        tokenizer.Advance();
+
+        TAbsoluteYPath currentPrefix = SlashYPath;
+        while (tokenizer.Skip(NYPath::ETokenType::Slash)) {
+            if (tokenizer.GetType() != NYPath::ETokenType::Literal) {
+                break;
             }
 
-            struct TResolveAttempt
-            {
-                TYPath Prefix;
-                TYPath Suffix;
-            };
-            constexpr int TypicalTokenCount = 16;
-            TCompactVector<TResolveAttempt, TypicalTokenCount> resolveAttempts;
+            currentPrefix.Append(tokenizer.GetLiteralValue());
 
-            while (Tokenizer_.Skip(ETokenType::Slash)) {
-                if (Tokenizer_.GetType() != ETokenType::Literal) {
-                    break;
-                }
+            tokenizer.Advance();
 
-                Tokenizer_.Advance();
-
-                resolveAttempts.push_back(TResolveAttempt{
-                    .Prefix = TYPath(Tokenizer_.GetPrefix()),
-                    .Suffix = TYPath(Tokenizer_.GetInput()),
-                });
-            }
-
-            std::vector<NRecords::TPathToNodeIdKey> prefixKeys;
-            prefixKeys.reserve(resolveAttempts.size());
-            for (const auto& resolveAttempt : resolveAttempts) {
-                prefixKeys.push_back(NRecords::TPathToNodeIdKey{
-                    .Path = MangleSequoiaPath(resolveAttempt.Prefix),
-                });
-            }
-
-            // TODO(gritukan, babenko): Add column filters to codegen library.
-            const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
-                ->GetRecordDescriptor()
-                ->GetSchema();
-            NTableClient::TColumnFilter columnFilter({
-                schema->GetColumnIndex("path"),
-                schema->GetColumnIndex("node_id"),
+            resolveAttempts.push_back(TResolveAttempt{
+                .Prefix = currentPrefix,
+                .Suffix = TString(tokenizer.GetInput()),
             });
-            auto lookupRsps = WaitFor(Transaction_->LookupRows(prefixKeys, columnFilter))
-                .ValueOrThrow();
-            YT_VERIFY(lookupRsps.size() == prefixKeys.size());
 
-            bool scionFound = false;
-            TSequoiaResolveResult result;
-            for (int index = 0; index < std::ssize(lookupRsps); ++index) {
-                if (const auto& rsp = lookupRsps[index]) {
-                    auto nodeId = ConvertTo<TNodeId>(rsp->NodeId);
-                    if (TypeFromId(nodeId) == EObjectType::Scion) {
-                        scionFound = true;
-                    }
+            tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        }
 
-                    if (scionFound) {
-                        const auto& resolveAttempt = resolveAttempts[index];
-                        YT_VERIFY(MangleSequoiaPath(resolveAttempt.Prefix) == rsp->Key.Path);
+        std::vector<NRecords::TPathToNodeIdKey> prefixKeys;
+        prefixKeys.reserve(resolveAttempts.size());
+        for (const auto& resolveAttempt : resolveAttempts) {
+            prefixKeys.push_back(NRecords::TPathToNodeIdKey{
+                .Path = resolveAttempt.Prefix.ToMangledSequoiaPath(),
+            });
+        }
 
-                        result = TSequoiaResolveResult{
-                            .ResolvedPrefix = resolveAttempt.Prefix,
-                            .ResolvedPrefixNodeId = nodeId,
-                            .UnresolvedSuffix = resolveAttempt.Suffix,
-                        };
-                    }
+        // TODO(gritukan, babenko): Add column filters to codegen library.
+        const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
+            ->GetRecordDescriptor()
+            ->GetSchema();
+        NTableClient::TColumnFilter columnFilter({
+            schema->GetColumnIndex("path"),
+            schema->GetColumnIndex("node_id"),
+        });
+        auto lookupRsps = WaitFor(Context_->GetSequoiaTransaction()->LookupRows(prefixKeys, columnFilter))
+            .ValueOrThrow();
+        YT_VERIFY(lookupRsps.size() == prefixKeys.size());
+
+        bool scionFound = false;
+        TSequoiaResolveResult result;
+        for (int index = 0; index < std::ssize(lookupRsps); ++index) {
+            if (const auto& rsp = lookupRsps[index]) {
+                auto nodeId = ConvertTo<TNodeId>(rsp->NodeId);
+                if (TypeFromId(nodeId) == EObjectType::Scion) {
+                    scionFound = true;
+                }
+
+                if (scionFound) {
+                    const auto& resolveAttempt = resolveAttempts[index];
+                    YT_VERIFY(resolveAttempt.Prefix.ToMangledSequoiaPath() == rsp->Key.Path);
+
+                    result = TSequoiaResolveResult{
+                        .ResolvedPrefix = std::move(resolveAttempt.Prefix),
+                        .ResolvedPrefixNodeId = nodeId,
+                        .UnresolvedSuffix = TYPath(std::move(resolveAttempt.Suffix)),
+                    };
                 }
             }
+        }
 
-            if (scionFound) {
-                return result;
-            }
-
-            return TCypressResolveResult{};
+        if (scionFound) {
+            Context_->SetResolveResult(std::move(result));
+        } else {
+            Context_->SetResolveResult(TCypressResolveResult{});
         }
     }
 
 private:
-    const ISequoiaTransactionPtr Transaction_;
+    TSequoiaServiceContext* const Context_;
 
-    const TYPath Path_;
 
-    TTokenizer Tokenizer_;
-
-    std::optional<TYPath> MaybeRewriteRoot()
+    TAbsoluteYPath GetObjectPathOrThrow(TObjectId objectId)
     {
-        YT_VERIFY(Tokenizer_.Skip(ETokenType::StartOfStream));
-        switch (Tokenizer_.GetType()) {
-            case ETokenType::EndOfStream:
-                THROW_ERROR_EXCEPTION("YPath cannot be empty");
-
-            case ETokenType::Slash: {
-                Tokenizer_.Advance();
-                return std::nullopt;
-            }
-
-            case ETokenType::Literal: {
-                auto token = Tokenizer_.GetToken();
-                if (!token.StartsWith(ObjectIdPathPrefix)) {
-                    Tokenizer_.ThrowUnexpected();
-                }
-
-                auto idWithoutPrefix = token.substr(ObjectIdPathPrefix.size());
-                auto objectId = TObjectId::FromString(idWithoutPrefix);
-
-                if (!IsSequoiaId(objectId)) {
-                    THROW_ERROR_EXCEPTION("Object id syntax for non-Sequoia objects is not supported yet");
-                }
-
-                const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
-                    ->GetRecordDescriptor()
-                    ->GetSchema();
-                NTableClient::TColumnFilter columnFilter({
-                    schema->GetColumnIndex("node_id"),
-                    schema->GetColumnIndex("path"),
-                });
-
-                std::vector<NRecords::TNodeIdToPathKey> key;
-                key.push_back(NRecords::TNodeIdToPathKey{.NodeId = TNodeId::FromString(idWithoutPrefix)});
-                auto lookupRsp = std::move(WaitFor(Transaction_->LookupRows(key, columnFilter))
-                    .ValueOrThrow()[0]);
-
-                if (!lookupRsp) {
-                    THROW_ERROR_EXCEPTION("No such object")
-                        << TErrorAttribute("object_id", objectId);
-                }
-
-                Tokenizer_.Advance();
-
-                return lookupRsp->Path + Tokenizer_.GetInput();
-            }
-
-            default:
-                Tokenizer_.ThrowUnexpected();
+        if (!IsSequoiaId(objectId)) {
+            THROW_ERROR_EXCEPTION("Object id syntax for non-Sequoia objects is not supported yet");
         }
 
-        YT_ABORT();
+        const auto& schema = ITableDescriptor::Get(ESequoiaTable::PathToNodeId)
+            ->GetRecordDescriptor()
+            ->GetSchema();
+        NTableClient::TColumnFilter columnFilter({
+            schema->GetColumnIndex("node_id"),
+            schema->GetColumnIndex("path"),
+        });
+
+        std::vector<NRecords::TNodeIdToPathKey> key;
+        key.push_back(NRecords::TNodeIdToPathKey{.NodeId = objectId});
+        auto lookupRsp = std::move(WaitFor(Context_->GetSequoiaTransaction()->LookupRows(key, columnFilter))
+            .ValueOrThrow()[0]);
+
+        if (!lookupRsp) {
+            THROW_ERROR_EXCEPTION("No such object %v", objectId);
+        }
+
+        return TAbsoluteYPath(lookupRsp->Path);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResolveResult ResolvePath(
-    ISequoiaTransactionPtr transaction,
-    TYPath path)
+void ResolvePath(TSequoiaServiceContext* context)
 {
-    TPathResolver resolver(
-        std::move(transaction),
-        std::move(path));
-    return resolver.Resolve();
+    TPathResolver resolver(context);
+    resolver.Resolve();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

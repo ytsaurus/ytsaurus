@@ -377,6 +377,11 @@ public:
         return Timeout_.value_or(Owner_->Config_->DefaultTransactionTimeout);
     }
 
+    const std::vector<TTransactionId>& GetPrerequisiteTransactionIds() const
+    {
+        return PrerequisiteTransactionIds_;
+    }
+
     TCellTagList GetReplicatedToCellTags() const
     {
         return ReplicatedToMasterCellTags_;
@@ -492,6 +497,7 @@ private:
     EAtomicity Atomicity_ = EAtomicity::Full;
     EDurability Durability_ = EDurability::Sync;
     TCellTag ClockClusterTag_ = InvalidCellTag;
+    std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
@@ -616,9 +622,6 @@ private:
         if (options.ParentId) {
             THROW_ERROR_EXCEPTION("Tablet transaction cannot have a parent");
         }
-        if (!options.PrerequisiteTransactionIds.empty()) {
-            THROW_ERROR_EXCEPTION("Tablet transaction cannot have prerequisites");
-        }
         if (options.Id) {
             auto type = TypeFromId(options.Id);
             if (type != EObjectType::AtomicTabletTransaction) {
@@ -693,6 +696,7 @@ private:
         Timeout_ = options.Timeout;
         Atomicity_ = options.Atomicity;
         Durability_ = options.Durability;
+        PrerequisiteTransactionIds_ = options.PrerequisiteTransactionIds;
 
         switch (Atomicity_) {
             case EAtomicity::Full:
@@ -772,7 +776,7 @@ private:
         if (options.ReplicateToMasterCellTags) {
             for (auto tag : *options.ReplicateToMasterCellTags) {
                 if (tag != CoordinatorMasterCellTag_) {
-                    request->add_replicate_to_cell_tags(ToProto<int>(tag));
+                    request->add_replicate_to_cell_tags(ToProto<ui32>(tag));
                 }
             }
         }
@@ -1553,7 +1557,7 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
-    return transaction->Start(type, options).Apply(BIND([=] () {
+    return transaction->Start(type, options).Apply(BIND([=] {
         return TTransaction::Create(transaction);
     }));
 }
@@ -1655,6 +1659,11 @@ TDuration TTransaction::GetTimeout() const
 TCellTagList TTransaction::GetReplicatedToCellTags() const
 {
     return Impl_->GetReplicatedToCellTags();
+}
+
+const std::vector<TTransactionId>& TTransaction::GetPrerequisiteTransactionIds() const
+{
+    return Impl_->GetPrerequisiteTransactionIds();
 }
 
 void TTransaction::RegisterParticipant(TCellId cellId)

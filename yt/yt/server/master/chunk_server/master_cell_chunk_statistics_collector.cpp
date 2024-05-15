@@ -46,10 +46,10 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "MasterCellChunkStatisticsCollector",
-            BIND(&TMasterCellChunkStatisticsCollector::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TMasterCellChunkStatisticsCollector::Save, Unretained(this)));
         RegisterLoader(
             "MasterCellChunkStatisticsCollector",
-            BIND(&TMasterCellChunkStatisticsCollector::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TMasterCellChunkStatisticsCollector::Load, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(
             &TMasterCellChunkStatisticsCollector::HydraUpdateMasterCellChunkStatistics,

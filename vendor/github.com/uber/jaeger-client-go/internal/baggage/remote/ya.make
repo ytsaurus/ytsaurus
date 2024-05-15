@@ -11,4 +11,6 @@ GO_TEST_SRCS(restriction_manager_test.go)
 
 END()
 
-RECURSE(gotest)
+RECURSE(
+    gotest
+)

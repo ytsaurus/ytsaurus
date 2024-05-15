@@ -45,7 +45,7 @@ message TReqUnrefExportedObjects
         required int32 import_ref_counter = 2;
     }
 
-    required int32 cell_tag = 1;
+    required uint32 cell_tag = 1;
     repeated TUnrefEntry entries = 2;
 }
 
@@ -56,7 +56,7 @@ message TReqUnrefExportedObjects
 message TReqConfirmObjectLifeStage
 {
     required NYT.NProto.TGuid object_id = 1;
-    required int32 cell_tag = 2;
+    required uint32 cell_tag = 2;
 }
 
 // Forces an object to move on to its next life stage. Sent by primary master to

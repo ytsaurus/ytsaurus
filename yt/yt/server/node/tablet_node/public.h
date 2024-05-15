@@ -128,7 +128,7 @@ DECLARE_REFCOUNTED_STRUCT(ITransactionManagerHost)
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTabletData)
 DECLARE_REFCOUNTED_STRUCT(TRuntimeTableReplicaData)
 DECLARE_REFCOUNTED_STRUCT(TChaosTabletData)
-DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(TSampleKeyList)
 DECLARE_REFCOUNTED_STRUCT(TPartitionSnapshot)
@@ -205,12 +205,13 @@ DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 
+DECLARE_REFCOUNTED_STRUCT(IErrorManager)
+
 DECLARE_REFCOUNTED_CLASS(TOverloadController)
 DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
 DECLARE_REFCOUNTED_CLASS(TCongestionController)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
-DECLARE_REFCOUNTED_CLASS(TErrorManager)
 DECLARE_REFCOUNTED_CLASS(TMediumThrottlerManager);
 
 struct TSortedDynamicRowHeader;
@@ -233,7 +234,7 @@ DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletHost)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)

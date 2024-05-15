@@ -7,6 +7,8 @@
 
 #include <util/generic/algorithm.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -249,6 +251,10 @@ void TSchedulingSegmentManager::ResetOperationModule(const TSchedulerOperationEl
 
     const auto& segment = operation->SchedulingSegment;
     YT_VERIFY(segment);
+
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationModuleAssignmentRevoked)
+        .Item("operation_id").Value(operationElement->GetOperationId())
+        .Item("scheduling_segment_module").Value(operationModule);
 
     double operationFairResourceAmount = GetElementFairResourceAmount(operationElement, context);
 
@@ -715,6 +721,12 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
         }
 
         if (!bestModule) {
+            LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::FailedToAssignOperation)
+                .Item("operation_id").Value(operationId)
+                .Item("specified_modules").Value(operation->SpecifiedSchedulingSegmentModules)
+                .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
+                .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
+
             YT_LOG_INFO(
                 "Failed to find a suitable module for operation "
                 "(AvailableModules: %v, SpecifiedModules: %v, OperationDemand: %v, "
@@ -742,6 +754,12 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
         context->RemainingCapacityPerModule[operation->SchedulingSegmentModule] -= operationDemand;
 
         operation->FailingToAssignToModuleSince.reset();
+
+        LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationAssignedToModule)
+            .Item("operation_id").Value(operationId)
+            .Item("scheduling_segment_module").Value(*operation->SchedulingSegmentModule)
+            .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
+            .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
 
         YT_LOG_INFO(
             "Assigned operation to a new scheduling segment module "
@@ -979,6 +997,16 @@ void TSchedulingSegmentManager::DoRebalanceSegments(TUpdateSchedulingSegmentsCon
         trySatisfySegment(segment, currentResourceAmount, fairResourceAmount, movableNodes);
     }
 
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::MovedNodes)
+        .Item("nodes").BeginMap()
+            .DoFor(context->MovedNodes, [&] (NYTree::TFluentMap fluent, const TSetNodeSchedulingSegmentOptions& nodeOptions) {
+                fluent
+                    .Item("node_id").Value(nodeOptions.NodeId)
+                    .Item("old_segment").Value(nodeOptions.OldSegment)
+                    .Item("new_segment").Value(nodeOptions.NewSegment);
+            })
+        .EndMap();
+
     auto [isSegmentUnsatisfied, hasUnsatisfiedSegment] = FindUnsatisfiedSegments(context);
     YT_LOG_WARNING_IF(hasUnsatisfiedSegment,
         "Failed to satisfy all scheduling segments during rebalancing (IsSegmentUnsatisfied: %v)",
@@ -1153,11 +1181,12 @@ void TSchedulingSegmentManager::SetNodeSegment(
         return;
     }
 
-    node->SchedulingSegment = segment;
     context->MovedNodes.push_back(TSetNodeSchedulingSegmentOptions{
         .NodeId = node->Descriptor->Id,
-        .Segment = segment,
+        .OldSegment = node->SchedulingSegment,
+        .NewSegment = segment,
     });
+    node->SchedulingSegment = segment;
 }
 
 void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSegmentsContext* context) const
@@ -1221,6 +1250,52 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     }
 
     SensorProducer_->Update(std::move(sensorBuffer));
+
+    LogSegmentsStructured(context);
+}
+
+void TSchedulingSegmentManager::LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const
+{
+    LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::SchedulingSegmentsInfo)
+        .Item("operations_info").DoMapFor(context->OperationStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
+            const auto& [operationId, operationState] = item;
+            fluent
+                .Do(BIND(&TSchedulingSegmentManager::BuildGpuOperationInfo, this, operationId, operationState));
+        })
+        .Item("nodes_info").DoMapFor(context->NodeStates, [this] (NYTree::TFluentMap fluent, const auto& item) {
+            const auto& [_, nodeState] = item;
+            fluent
+                .Do(BIND(&TSchedulingSegmentManager::BuildGpuNodeInfo, this, nodeState));
+        });
+}
+
+void TSchedulingSegmentManager::BuildGpuOperationInfo(
+    TOperationId operationId,
+    const TFairShareTreeAllocationSchedulerOperationStatePtr& operationState,
+    NYTree::TFluentMap fluent) const
+{
+    fluent
+        .Item(ToString(operationId)).BeginMap()
+            .Item("scheduling_segment").Value(operationState->SchedulingSegment)
+            .Item("scheduling_segment_module").Value(operationState->SchedulingSegmentModule)
+        .EndMap();
+}
+
+void TSchedulingSegmentManager::BuildGpuNodeInfo(
+    const TFairShareTreeAllocationSchedulerNodeState& nodeState,
+    NYTree::TFluentMap fluent) const
+{
+    if (!nodeState.Descriptor) {
+        return;
+    }
+
+    fluent
+        .Item(nodeState.Descriptor->Address).BeginMap()
+            .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
+            .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
+            .Item("scheduling_segment_module").Value(GetNodeModule(nodeState))
+            .Item("running_allocations").Value(nodeState.RunningAllocations)
+        .EndMap();
 }
 
 void TSchedulingSegmentManager::BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const

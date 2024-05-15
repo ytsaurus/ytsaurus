@@ -32,7 +32,7 @@ message TReqExecute
     // When Cypress Proxy is used, requests to different cells and peer kinds
     // are sent to the same proxies. These fields are used by Cypress Proxy to
     // redirect request properly. Master ignores these fields.
-    optional int32 cell_tag = 9;
+    optional uint32 cell_tag = 9;
     optional int32 peer_kind = 10; // EMasterChannelKind
 }
 

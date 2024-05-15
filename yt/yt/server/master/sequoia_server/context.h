@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/write_set.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,16 +51,20 @@ const ISequoiaContextPtr& GetSequoiaContext();
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSequoiaContextGuard
+    : public TNonCopyable
 {
 public:
     explicit TSequoiaContextGuard(NSecurityServer::ISecurityManagerPtr securityManager);
     TSequoiaContextGuard(
         ISequoiaContextPtr context,
         NSecurityServer::ISecurityManagerPtr securityManager,
-        NRpc::TAuthenticationIdentity identity);
+        NRpc::TAuthenticationIdentity identity,
+        NTracing::TTraceContextPtr traceContext);
     ~TSequoiaContextGuard();
+
 private:
     NSecurityServer::TAuthenticatedUserGuard UserGuard_;
+    NTracing::TTraceContextGuard TraceContextGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

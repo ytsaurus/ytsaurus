@@ -116,12 +116,21 @@ func Example(ctx context.Context, yc yt.Client) error {
 	logger.Info("Got completed Query")
 
 	for i := int64(0); i < *query.ResultCount; i++ {
+		qr, err := yc.GetQueryResult(ctx, id, 0, &yt.GetQueryResultOptions{
+			QueryTrackerOptions: &yt.QueryTrackerOptions{
+				Stage: stage,
+			},
+		})
+		if err != nil {
+			return err
+		}
+
 		rows, err := readSubqueryResult(ctx, yc, id, i)
 		if err != nil {
 			return err
 		}
 
-		logger.Info("Got QueryResult", log.Int64("result_index", i), log.Any("rows", rows))
+		logger.Info("Got QueryResult", log.Int64("result_index", i), log.Any("schema", qr.Schema), log.Any("rows", rows))
 	}
 
 	return nil

@@ -5,23 +5,18 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/yt/server/node/data_node/private.h>
-
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/data_node/private.h>
 #include <yt/yt/server/node/data_node/artifact.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/disk_location.h>
 
 #include <yt/yt/server/node/exec_node/volume.pb.h>
-#include <yt/yt/server/node/exec_node/bootstrap.h>
 
 #include <yt/yt/server/lib/nbd/cypress_file_block_device.h>
-
-#include <yt/yt/library/containers/instance.h>
-#include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -30,6 +25,9 @@
 
 #include <yt/yt/server/tools/tools.h>
 #include <yt/yt/server/tools/proc.h>
+
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -46,6 +44,8 @@
 
 #include <yt/yt/library/profiling/tagged_counters.h>
 
+#include <yt/yt/library/process/process.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/client/formats/public.h>
@@ -57,6 +57,8 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/net/local_address.h>
+
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
@@ -65,15 +67,11 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <yt/yt/library/process/process.h>
-
 #include <library/cpp/resource/resource.h>
 
 #include <library/cpp/yt/string/string.h>
 
 #include <util/system/fs.h>
-
-#include <yt/yt/core/net/local_address.h>
 
 namespace NYT::NExecNode {
 
@@ -819,7 +817,7 @@ private:
 
             auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());
 
-            NFS::WrapIOErrors([&] () {
+            NFS::WrapIOErrors([&] {
                 TFileInput metaFileInput(metaFile);
                 metaFileInput.Read(metaFileBlob.Begin(), metaFile.GetLength());
             });
@@ -871,11 +869,16 @@ private:
 
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
+
             if (HealthChecker_) {
                 HealthChecker_->RunCheck();
             }
         } catch (const std::exception& ex) {
-            Disable(ex, /*persistentDisable*/ true);
+            auto error = TError(ex);
+            Disable(
+                ex,
+                /*persistentDisable*/ !error.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+
             THROW_ERROR_EXCEPTION("Failed to initialize layer location %v",
                 Config_->Path)
                 << ex;
@@ -918,8 +921,12 @@ private:
             LoadLayers();
 
             if (HealthChecker_) {
-                HealthChecker_->SubscribeFailed(BIND([=, this, this_ = MakeWeak(this)] (const TError& result) {
-                    Disable(result, /*persistentDisable*/ true);
+                HealthChecker_->SubscribeFailed(BIND([=, this, weakThis = MakeWeak(this)] (const TError& result) {
+                    if (auto this_ = weakThis.Lock()) {
+                        Disable(
+                            result,
+                            /*persistentDisable*/ !result.FindMatching(NChunkClient::EErrorCode::LockFileIsFound).has_value());
+                    }
                 }).Via(LocationQueue_->GetInvoker()));
                 HealthChecker_->Start();
             }
@@ -1319,7 +1326,7 @@ private:
             &builder,
             overlayDataArray.begin(),
             overlayDataArray.end(),
-            [](TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
+            [] (TStringBuilderBase* builder, const TOverlayData& volumeOrLayer) {
                 builder->AppendString(volumeOrLayer.GetPath());
             },
             ";");
@@ -1560,6 +1567,45 @@ DEFINE_REFCOUNTED_TYPE(TLayer)
 
 /////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsLayerCacheCounters
+{
+public:
+    TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler)
+        : Profiler_(std::move(profiler))
+    { }
+
+    NProfiling::TCounter GetCounter(const NProfiling::TTagSet& tagSet, const TString& name)
+    {
+        auto key = CreateKey(tagSet, name);
+
+        auto guard = Guard(Lock_);
+        auto [it, inserted] = Counters_.emplace(key, NProfiling::TCounter());
+        if (inserted) {
+            it->second = Profiler_.WithTags(tagSet).Counter(name);
+        }
+
+        return it->second;
+    }
+
+private:
+    using TKey = NProfiling::TTagList;
+
+    static TKey CreateKey(const NProfiling::TTagSet& tagSet, const TString& name)
+    {
+        auto key = tagSet.Tags();
+        key.push_back({"name", name});
+        return key;
+    }
+
+private:
+    const NProfiling::TProfiler Profiler_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
+    THashMap<TKey, NProfiling::TCounter> Counters_;
+};
+
+/////////////////////////////////////////////////////////////////////////////
+
 using TAbsorbLayerCallback = TCallback<TFuture<TLayerPtr>(
     const TArtifactKey& artifactKey,
     const TArtifactDownloadOptions& downloadOptions,
@@ -1593,6 +1639,9 @@ public:
         , UpdateFailedCounter_(ExecNodeProfiler
             .WithTag("cache_name", CacheName_)
             .Gauge("/layer_cache/update_failed"))
+        , TmpfsLayerCacheCounters(ExecNodeProfiler
+            .WithTag("cache_name", CacheName_)
+            .WithGlobal())
     {  }
 
     TLayerPtr FindLayer(const TArtifactKey& artifactKey)
@@ -1603,8 +1652,21 @@ public:
             auto layer = it->second;
             guard.Release();
 
+            // The following counter can help find layers that do not benefit from residing in tmpfs layer cache.
+            auto cacheHitsCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                "/layer_cache/tmpfs_layer_hits");
+
+            cacheHitsCypressPathCounter.Increment();
             HitCounter_.Increment();
             return layer;
+        } else {
+            // The following counter can help find layers that could benefit from residing in tmpfs layer cache.
+            auto cacheMissesCypressPathCounter = TmpfsLayerCacheCounters.GetCounter(
+                NProfiling::TTagSet({{"cypress_path", artifactKey.data_source().path()}}),
+                "/layer_cache/tmpfs_layer_misses");
+
+            cacheMissesCypressPathCounter.Increment();
         }
         return nullptr;
     }
@@ -1685,7 +1747,7 @@ public:
         return result;
     }
 
-    TFuture<void> Disable(const TError& error, bool persistentDisable = true)
+    TFuture<void> Disable(const TError& error, bool persistentDisable = false)
     {
         VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -1755,6 +1817,8 @@ private:
 
     TCounter HitCounter_;
     TGauge UpdateFailedCounter_;
+
+    TTmpfsLayerCacheCounters TmpfsLayerCacheCounters;
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
@@ -1841,7 +1905,7 @@ private:
         std::vector<TFuture<TFetchedArtifactKey>> futures;
         for (const auto& pair : CachedLayerDescriptors_) {
             auto future = BIND(
-                [=, this, this_ = MakeStrong(this)] () {
+                [=, this, this_ = MakeStrong(this)] {
                     const auto& path = pair.first;
                     const auto& fetchedKey = pair.second;
                     auto revision = fetchedKey.ArtifactKey
@@ -2093,7 +2157,7 @@ public:
             ProfilingExecutor_->Stop(),
             RegularTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false),
             NirvanaTmpfsLayerCache_->Disable(reason, /*persistentDisable*/ false)
-        }).Apply(BIND([=, this, this_ = MakeStrong(this)] () {
+        }).Apply(BIND([=, this, this_ = MakeStrong(this)] {
             OnProfiling();
         }));
     }
@@ -2252,7 +2316,7 @@ private:
                 }
 
                 if (!location) {
-                    location = this_->PickLocation();
+                    location = PickLocation();
                 }
 
                 // Import layer in context of container, i.e. account memory allocations to container, e.g.
@@ -2348,7 +2412,7 @@ public:
 
         // At first remove volume, then unregister export.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, layer = ArtifactKey_, nbdServer = NbdServer_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
             YT_LOG_DEBUG("Removed NBD volume (VolumeId: %v, ExportId: %v, Path: %v)",
                 volumeId,
                 layer.nbd_export_id(),
@@ -2426,7 +2490,7 @@ public:
 
         // At first remove overlay volume, then remove constituent volumes and layers.
         auto future = Location_->RemoveVolume(TagSet_, volumeId);
-        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, overlayDataArray = OverlayDataArray_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() mutable {
+        RemoveFuture_ = future.Apply(BIND([volumeId = volumeId, overlayDataArray = OverlayDataArray_, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] () mutable {
             YT_LOG_DEBUG("Removed Overlay volume (VolumeId: %v)", volumeId);
 
             std::vector<TFuture<void>> futures;
@@ -2516,7 +2580,7 @@ public:
             volumeId,
             volumePath);
 
-        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)]() {
+        RemoveFuture_ = Location_->RemoveVolume(TagSet_, volumeId).Apply(BIND([volumeId = volumeId, volumePath = volumePath, volumeRemoveTimeGuard = std::move(volumeRemoveTimeGuard)] {
             YT_LOG_DEBUG("Removed squashfs volume (VolumeId: %v, VolumePath: %v)",
                 volumeId,
                 volumePath);
@@ -2748,11 +2812,11 @@ public:
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to respect job preparation context switch guards.
         return AllSucceeded(std::move(overlayDataFutures))
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TOverlayData>& overlayDataArray) {
                 auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "overlay", /*volumeFilePath*/ "n/a");
                 TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                 TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
-                return this_->CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
+                return CreateOverlayVolume(tag, std::move(tagSet), std::move(volumeCreateTimeGuard), options, overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
             .As<IVolumePtr>();
@@ -2833,7 +2897,7 @@ private:
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
 
-            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] () {
+            future = initializeFuture.Apply(BIND([tag = tag, layer = layer, Logger = Logger] {
                 YT_LOG_DEBUG("Prepared NBD export (Tag: %v, ExportId: %v, Path: %v, Filesystem: %v)",
                     tag,
                     layer.nbd_export_id(),
@@ -2943,13 +3007,13 @@ private:
 
             auto downloadFuture = ChunkCache_->DownloadArtifact(artifactKey, downloadOptions);
             auto volumeFuture = downloadFuture.Apply(
-                BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
+                BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& chunkCacheArtifact) {
                     auto tagSet = TVolumeProfilerCounters::MakeTagSet(/*volumeType*/ "squashfs", /*volumeFilePath*/ artifactKey.data_source().path());
                     TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
                     TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
                     // We pass chunkCacheArtifact here to later save it in SquashFS volume so that SquashFS file outlives SquashFS volume.
-                    return this_->CreateSquashFSVolume(
+                    return CreateSquashFSVolume(
                         tag,
                         std::move(tagSet),
                         std::move(volumeCreateTimeGuard),
@@ -3161,7 +3225,7 @@ TFuture<IVolumeManagerPtr> CreatePortoVolumeManager(
         std::move(memoryUsageTracker),
         bootstrap);
 
-    return volumeManager->Initialize().Apply(BIND([=] () {
+    return volumeManager->Initialize().Apply(BIND([=] {
         return static_cast<IVolumeManagerPtr>(volumeManager);
     }));
 }

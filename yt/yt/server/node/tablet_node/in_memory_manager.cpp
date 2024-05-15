@@ -387,7 +387,7 @@ private:
 
         bool failed = false;
         auto readerProfiler = New<TReaderProfiler>();
-        auto profileGuard = Finally([&] () {
+        auto profileGuard = Finally([&] {
             readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Preload, failed);
         });
 
@@ -641,7 +641,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         endBlockIndex - startBlockIndex);
 
     if (preThrottledBytes) {
-        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload  (Blocks: %v-%v, Bytes: %v)",
+        YT_LOG_DEBUG("Preliminary throttling of network bandwidth for preload (Blocks: %v-%v, Bytes: %v)",
             startBlockIndex,
             endBlockIndex,
             preThrottledBytes);
@@ -915,7 +915,7 @@ private:
 
     TFuture<void> SendNextBatch()
     {
-        return BIND([this_ = MakeStrong(this), this] () {
+        return BIND([this_ = MakeStrong(this), this] {
             while (DoSendNextBatch())
             { }
         })

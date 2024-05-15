@@ -63,13 +63,15 @@ public:
             EInternedAttributeKey::TableId.Unintern());
         auto indexTableId = attributes->GetAndRemove<TTableId>(
             EInternedAttributeKey::IndexTableId.Unintern());
+        auto predicate = attributes->FindAndRemove<TString>(
+            EInternedAttributeKey::Predicate.Unintern());
 
         const auto& tableManager = Bootstrap_->GetTableManager();
 
         auto* table = tableManager->GetTableNodeOrThrow(tableId);
         auto* indexTable = tableManager->GetTableNodeOrThrow(indexTableId);
 
-        return tableManager->CreateSecondaryIndex(hintId, kind, table, indexTable);
+        return tableManager->CreateSecondaryIndex(hintId, kind, table, indexTable, std::move(predicate));
     }
 
 private:

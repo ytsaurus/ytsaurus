@@ -246,25 +246,25 @@ public:
         CollectAndTopologicallySortAllAncestors(std::move(transactions));
     }
 
-    template <std::invocable<TRange<std::optional<NRecords::TTransaction>>> F>
-    void IterateOverInnermosTTransactionGroupedByCoordinator(F&& callback)
+    template <CInvocable<void(TRange<std::optional<NRecords::TTransaction>>)> F>
+    void IterateOverInnermostTransactionGroupedByCoordinator(F&& callback)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(!InnermosTTransaction_.empty());
+        YT_VERIFY(!InnermostTransaction_.empty());
 
         int currentGroupStart = 0;
-        for (int i = 1; i < std::ssize(InnermosTTransaction_); ++i) {
-            const auto& previous = CellTagFromId(InnermosTTransaction_[i - 1]->Key.TransactionId);
-            const auto& current = CellTagFromId(InnermosTTransaction_[i]->Key.TransactionId);
+        for (int i = 1; i < std::ssize(InnermostTransaction_); ++i) {
+            const auto& previous = CellTagFromId(InnermostTransaction_[i - 1]->Key.TransactionId);
+            const auto& current = CellTagFromId(InnermostTransaction_[i]->Key.TransactionId);
             if (previous != current) {
-                callback(TRange(InnermosTTransaction_).Slice(currentGroupStart, i));
+                callback(TRange(InnermostTransaction_).Slice(currentGroupStart, i));
                 currentGroupStart = i;
             }
         }
 
-        callback(TRange(InnermosTTransaction_)
-                    .Slice(currentGroupStart, InnermosTTransaction_.size()));
+        callback(TRange(InnermostTransaction_)
+            .Slice(currentGroupStart, InnermostTransaction_.size()));
     }
 
     TFuture<void> Run()
@@ -282,7 +282,7 @@ private:
     const ISequoiaTransactionPtr SequoiaTransaction_;
     const IInvokerPtr Invoker_;
     const TTransactionReplicationDestinationCellTagList CellTags_;
-    std::vector<std::optional<NRecords::TTransaction>> InnermosTTransaction_;
+    std::vector<std::optional<NRecords::TTransaction>> InnermostTransaction_;
     std::vector<TTransactionId> AncestorIds_;
 
     struct TFetchedInfo
@@ -305,7 +305,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto totalTransactionCount = AncestorIds_.size() + InnermosTTransaction_.size();
+        auto totalTransactionCount = AncestorIds_.size() + InnermostTransaction_.size();
 
         auto cellCount = std::ssize(CellTags_);
         // See comment in |TFetchedInfo|.
@@ -351,7 +351,7 @@ private:
         };
 
         replicateTransactions(ancestors, ancestorReplicas);
-        replicateTransactions(InnermosTTransaction_, transactionReplicas);
+        replicateTransactions(InnermostTransaction_, transactionReplicas);
 
         replicator.Run();
     }
@@ -410,7 +410,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto totalTransactionCount = AncestorIds_.size() + InnermosTTransaction_.size();
+        auto totalTransactionCount = AncestorIds_.size() + InnermostTransaction_.size();
         std::vector<NRecords::TTransactionReplicaKey> keys(
             totalTransactionCount * CellTags_.size());
         for (int cellTagIndex = 0; cellTagIndex < std::ssize(CellTags_); ++cellTagIndex) {
@@ -430,8 +430,8 @@ private:
 
             auto transactionsOffset = ancestorsOffset + AncestorIds_.size();
             std::transform(
-                InnermosTTransaction_.begin(),
-                InnermosTTransaction_.end(),
+                InnermostTransaction_.begin(),
+                InnermostTransaction_.end(),
                 keys.begin() + transactionsOffset,
                 [=] (const std::optional<NRecords::TTransaction>& record) {
                     return NRecords::TTransactionReplicaKey{
@@ -501,7 +501,7 @@ private:
                 }
             }
         }
-        InnermosTTransaction_ = std::move(transactions);
+        InnermostTransaction_ = std::move(transactions);
     }
 };
 
@@ -661,7 +661,7 @@ protected:
             Bootstrap_->GetCellTag());
         ToProto(Request_.mutable_hint_id(), transactionId);
 
-        auto createResponseMessage = BIND([transactionId] () {
+        auto createResponseMessage = BIND([transactionId] {
             NProto::TRspStartCypressTransaction rspProto;
             ToProto(rspProto.mutable_id(), transactionId);
             return NRpc::CreateResponseMessage(rspProto);
@@ -879,7 +879,7 @@ private:
 //! dependent transactions.
 /*!
  *  This class is used to implement transaction finishing: when transaction is
- *  comitted or aborted, all its dependent (and nested) transactions are aborted
+ *  committed or aborted, all its dependent (and nested) transactions are aborted
  *  too. To achive this we have to collect all dependent transactions and find
  *  topmost ones: it's sufficient to abort only subtree's root because it leads
  *  to abortion of all subtree.
@@ -1041,7 +1041,7 @@ private:
                     this_ = MakeStrong(this),
                     descendentTransactionFuture = descendentTransaction,
                     dependentTransactionFuture = dependentTransaction
-                ] () {
+                ] {
                     VERIFY_INVOKER_AFFINITY(Invoker_);
                     YT_ASSERT(descendentTransactionFuture.IsSet());
                     YT_ASSERT(dependentTransactionFuture.IsSet());
@@ -1523,7 +1523,7 @@ private:
         // NB: replication of transaction T with ancestors (P1, P2, ...) causes
         // replication of these ancestors too. So we don't need to send
         // replication requests for (P1, P2, ...).
-        replicator->IterateOverInnermosTTransactionGroupedByCoordinator(
+        replicator->IterateOverInnermostTransactionGroupedByCoordinator(
             [&] (TRange<std::optional<NRecords::TTransaction>> group) {
                 YT_VERIFY(!group.empty());
 

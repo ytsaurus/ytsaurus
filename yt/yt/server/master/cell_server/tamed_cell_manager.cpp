@@ -165,19 +165,19 @@ public:
 
         RegisterLoader(
             "CellManager.Keys",
-            BIND(&TTamedCellManager::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTamedCellManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "CellManager.Values",
-            BIND(&TTamedCellManager::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTamedCellManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "CellManager.Keys",
-            BIND(&TTamedCellManager::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTamedCellManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "CellManager.Values",
-            BIND(&TTamedCellManager::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTamedCellManager::SaveValues, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraAssignPeers, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTamedCellManager::HydraRevokePeers, Unretained(this)));
@@ -1654,11 +1654,6 @@ private:
         }
 
         node->UpdateCellarSize(cellarType, newSize);
-    }
-
-    void OnNodeRegistered(TNode* node)
-    {
-        node->InitCellars();
     }
 
     void OnNodeUnregistered(TNode* node)

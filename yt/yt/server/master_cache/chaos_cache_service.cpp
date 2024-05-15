@@ -24,6 +24,13 @@ using namespace NChaosClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto MinimalFetchOptions = TReplicationCardFetchOptions{
+    .IncludeCoordinators = true,
+    .IncludeHistory = true,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChaosCacheService
     : public TServiceBase
 {
@@ -66,24 +73,25 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         fetchOptions,
         refreshEra);
 
-    TGetReplicationCardOptions getCardOptions;
-    getCardOptions.BypassCache = true;
-    static_cast<TReplicationCardFetchOptions&>(getCardOptions) = fetchOptions;
+    const auto& extendedFetchOptions = MinimalFetchOptions.Contains(fetchOptions)
+        ? MinimalFetchOptions
+        : fetchOptions;
 
     TFuture<TReplicationCardPtr> replicationCardFuture;
     const auto& requestHeader = context->GetRequestHeader();
     if (requestHeader.HasExtension(TCachingHeaderExt::caching_header_ext)) {
         const auto& cachingRequestHeaderExt = requestHeader.GetExtension(TCachingHeaderExt::caching_header_ext);
+        const auto& user = context->GetAuthenticationIdentity().User;
 
         auto key = TChaosCacheKey{
-            .User = context->GetAuthenticationIdentity().User,
             .CardId = replicationCardId,
-            .FetchOptions = fetchOptions
+            .FetchOptions = extendedFetchOptions,
         };
 
-        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v)",
+        YT_LOG_DEBUG("Serving request from cache (RequestId: %v, Key: %v, User: %v)",
             requestId,
-            key);
+            key,
+            user);
 
         auto expireAfterSuccessfulUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_successful_update_time());
         auto expireAfterFailedUpdateTime = FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time());
@@ -93,7 +101,8 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
             key,
             expireAfterSuccessfulUpdateTime,
             expireAfterFailedUpdateTime,
-            refreshEra);
+            refreshEra,
+            user);
 
         replicationCardFuture = cookie.GetValue().Apply(BIND([] (const TErrorOr<TChaosCacheEntryPtr>& entry) -> TErrorOr<TReplicationCardPtr> {
             if (entry.IsOK()) {
@@ -104,6 +113,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         }));
 
         if (cookie.IsActive()) {
+            TGetReplicationCardOptions getCardOptions;
+            getCardOptions.BypassCache = true;
+            static_cast<TReplicationCardFetchOptions&>(getCardOptions) = extendedFetchOptions;
+
             // TODO(max42): switch to Subscribe.
             YT_UNUSED_FUTURE(Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
                 BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
@@ -114,6 +127,10 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
                 })));
         }
     } else {
+        TGetReplicationCardOptions getCardOptions;
+        getCardOptions.BypassCache = true;
+        static_cast<TReplicationCardFetchOptions&>(getCardOptions) = fetchOptions;
+
         replicationCardFuture = Client_->GetReplicationCard(replicationCardId, getCardOptions);
     }
 

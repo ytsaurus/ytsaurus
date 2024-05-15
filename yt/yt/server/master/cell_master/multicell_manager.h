@@ -77,6 +77,7 @@ struct IMulticellManager
     virtual bool IsPrimaryMaster() const = 0;
     virtual bool IsSecondaryMaster() const = 0;
     virtual bool IsMulticell() const = 0;
+    virtual bool IsDynamicallyPropagatedMaster() const = 0;
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
@@ -87,6 +88,7 @@ struct IMulticellManager
 
     virtual const NObjectClient::TCellTagList& GetSecondaryCellTags() const = 0;
     virtual const NApi::NNative::TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const = 0;
+    virtual THashSet<NObjectClient::TCellTag> GetDynamicallyPropagatedMastersCellTags() const = 0;
 
     virtual int GetCellCount() const = 0;
     virtual int GetSecondaryCellCount() const = 0;
@@ -112,6 +114,8 @@ struct IMulticellManager
 
     //! Returns |true| if there is a registered master cell with a given cell tag.
     virtual bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag) const = 0;
+
+    virtual void ValidateRegisteredMasterCell() const = 0;
 
     //! Returns the set of roles the cell is configured for.
     /*!
@@ -201,7 +205,6 @@ struct IMulticellManager
      */
     virtual TFuture<void> SyncWithUpstream() = 0;
 
-    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
 };

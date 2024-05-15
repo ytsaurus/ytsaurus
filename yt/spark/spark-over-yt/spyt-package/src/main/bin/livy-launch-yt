@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+from spyt.dependency_utils import require_yt_client
+require_yt_client()
+
+from yt.wrapper import YtClient  # noqa: E402
+from yt.wrapper.cli_helpers import ParseStructuredArgument  # noqa: E402
+from yt.wrapper.http_helpers import get_user_name  # noqa: E402
+from spyt.enabler import SpytEnablers  # noqa: E402
+from spyt.spec import SparkDefaultArguments  # noqa: E402
+from spyt.standalone import start_livy_server  # noqa: E402
+from spyt.utils import add_parser_group, default_token, get_default_arg_parser, parse_args  # noqa: E402
+
+
+def main(raw_args=None):
+    parser = get_default_arg_parser(description="Livy Launch")
+
+    parser.add_argument("--pool", required=False)
+    parser.add_argument("--operation-alias", required=False)
+    parser.add_argument("--network-project", required=False)
+    parser.add_argument("--params", required=False, action=ParseStructuredArgument, dest="params",
+                        default=SparkDefaultArguments.get_params())
+    parser.add_argument("--spyt-version", "--spark-cluster-version", required=False)
+    parser.add_argument("--preemption_mode", required=False, default="normal")
+    parser.add_argument("--cluster-log-level", required=False, default="INFO")
+
+    default_enablers = SpytEnablers()
+    add_parser_group(parser, '--enable-mtn', '--disable-mtn', 'enable_mtn', default_enablers.enable_mtn)
+    add_parser_group(parser, '--prefer-ipv6', '--prefer-ipv4', 'enable_preference_ipv6',
+                     default_enablers.enable_preference_ipv6)
+
+    add_parser_group(parser, '--enable-tmpfs', '--disable-tmpfs', 'enable_tmpfs', False)
+    add_parser_group(parser, '--enable-stderr-table', '--disable-stderr-table', 'enable_stderr_table', False)
+
+    add_parser_group(parser, '--enable-tcp-proxy', '--disable-tcp-proxy', 'enable_tcp_proxy',
+                     default_enablers.enable_tcp_proxy)
+    parser.add_argument('--tcp-proxy-range-start', required=False, default=30000, type=int)
+    parser.add_argument('--tcp-proxy-range-size', required=False, default=100, type=int)
+
+    add_parser_group(parser, '--enable-rpc-job-proxy', '--disable-rpc-job-proxy', 'rpc_job_proxy', True)
+    parser.add_argument("--rpc-job-proxy-thread-pool-size", required=False, default=4, type=int)
+
+    parser.add_argument('--livy-driver-cores', required=False,
+                        default=SparkDefaultArguments.LIVY_DRIVER_CORES, type=int)
+    parser.add_argument('--livy-driver-memory', required=False, default=SparkDefaultArguments.LIVY_DRIVER_MEMORY)
+    parser.add_argument('--livy-max-sessions', required=False,
+                        default=SparkDefaultArguments.LIVY_MAX_SESSIONS, type=int)
+    parser.add_argument('--spark-master-address', required=False, type=str)
+    args, unknown_args = parse_args(parser, raw_args=raw_args)
+
+    yt_client = YtClient(proxy=args.proxy, token=default_token())
+
+    start_livy_server(operation_alias=args.operation_alias,
+                      discovery_path=args.discovery_path,
+                      pool=args.pool or get_user_name(client=yt_client),
+                      enable_tmpfs=args.enable_tmpfs,
+                      network_project=args.network_project,
+                      params=args.params,
+                      spark_cluster_version=args.spyt_version,
+                      enablers=SpytEnablers(
+                          enable_mtn=args.enable_mtn,
+                          enable_preference_ipv6=args.enable_preference_ipv6,
+                          enable_tcp_proxy=args.enable_tcp_proxy
+                      ),
+                      client=yt_client,
+                      preemption_mode=args.preemption_mode,
+                      cluster_log_level=args.cluster_log_level,
+                      livy_driver_cores=args.livy_driver_cores,
+                      livy_driver_memory=args.livy_driver_memory,
+                      livy_max_sessions=args.livy_max_sessions,
+                      spark_master_address=args.spark_master_address,
+                      rpc_job_proxy=args.rpc_job_proxy,
+                      rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size,
+                      tcp_proxy_range_start=args.tcp_proxy_range_start,
+                      tcp_proxy_range_size=args.tcp_proxy_range_size,
+                      enable_stderr_table=args.enable_stderr_table)
+
+
+if __name__ == '__main__':
+    main()

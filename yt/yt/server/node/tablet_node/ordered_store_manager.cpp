@@ -257,7 +257,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
     ) {
         ISchemalessChunkWriterPtr tableWriter;
 
-        auto updateProfilerGuard = Finally([&] () {
+        auto updateProfilerGuard = Finally([&] {
             writerProfiler->Update(tableWriter);
         });
 

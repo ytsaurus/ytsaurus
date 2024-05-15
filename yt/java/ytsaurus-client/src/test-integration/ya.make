@@ -9,6 +9,10 @@ JDK_VERSION(11)
 IF(OS_LINUX AND NOT OPENSOURCE)
     # Тесты -tt запускаются только под Linux-ом (только там работает YT)
     INCLUDE(${ARCADIA_ROOT}/mapreduce/yt/python/recipe/recipe_with_tablets.inc)
+
+    REQUIREMENTS(
+        ram_disk:4
+    )
 ENDIF()
 
 SIZE(MEDIUM)

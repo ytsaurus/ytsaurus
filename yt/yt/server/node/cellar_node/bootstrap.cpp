@@ -3,15 +3,15 @@
 #include "bundle_dynamic_config_manager.h"
 #include "master_connector.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
-
-#include <yt/yt/server/node/cellar_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/bootstrap_proxy.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
@@ -204,7 +204,8 @@ public:
             return;
         }
 
-        for (auto masterCellTag : GetMasterCellTags()) {
+        const auto& clusterNodeMasterConnector = GetClusterNodeBootstrap()->GetMasterConnector();
+        for (auto masterCellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
             MasterConnector_->ScheduleHeartbeat(masterCellTag, immediately);
         }
     }
@@ -268,17 +269,20 @@ private:
         }
 
         auto cellId = GetConfig()->DryRun->TabletCellId;
+        auto tabletCellBundle = GetConfig()->DryRun->TabletCellBundle;
         auto clockClusterTag = GetConfig()->DryRun->ClockClusterTag;
         YT_VERIFY(cellId);
+        YT_VERIFY(tabletCellBundle);
 
         YT_LOG_EVENT(
             DryRunLogger,
             NLogging::ELogLevel::Info,
-            "Creating dry-run occupant (CellId: %v, ClockClusterTag: %v)",
+            "Creating dry-run occupant (CellId: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
             cellId,
+            tabletCellBundle,
             clockClusterTag);
 
-        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId, clockClusterTag);
+        DryRunOccupant_ = NTabletNode::CreateFakeOccupant(ClusterNodeBootstrap_, cellId, tabletCellBundle, clockClusterTag);
     }
 
     void DoLoadSnapshot(
@@ -296,7 +300,7 @@ private:
             DryRunOccupant_->GetSnapshotLocalIOInvoker());
 
         const auto& automaton = DryRunOccupant_->GetAutomaton();
-        automaton->SetSnapshotValidationOptions({dumpSnapshot, false, nullptr});
+        automaton->SetSerializationDumpEnabled(dumpSnapshot);
 
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
         auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);

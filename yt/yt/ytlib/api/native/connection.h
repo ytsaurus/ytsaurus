@@ -60,6 +60,7 @@ struct IConnection
 
     virtual const NQueryClient::IEvaluatorPtr& GetQueryEvaluator() = 0;
     virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
+    virtual const NQueryClient::IExpressionEvaluatorCachePtr& GetExpressionEvaluatorCache() = 0;
     virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
     virtual const NChunkClient::IClientChunkMetaCachePtr& GetChunkMetaCache() = 0;
 
@@ -136,6 +137,7 @@ struct IConnection
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
+    virtual std::vector<TString> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
         NDiscoveryClient::TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory) = 0;

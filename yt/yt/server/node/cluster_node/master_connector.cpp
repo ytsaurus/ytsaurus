@@ -27,6 +27,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
@@ -52,6 +53,7 @@
 namespace NYT::NClusterNode {
 
 using namespace NApi;
+using namespace NApi::NNative;
 using namespace NCellMasterClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
@@ -111,9 +113,6 @@ public:
         const auto secondaryMasterCellTags = connection->GetSecondaryMasterCellTags();
         MasterCellTags_.insert(connection->GetPrimaryMasterCellTag());
         MasterCellTags_.insert(secondaryMasterCellTags.begin(), secondaryMasterCellTags.end());
-        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
-            BIND_NO_PROPAGATE(&TMasterConnector::OnMasterCellDirectoryChanged, MakeStrong(this))
-                .Via(Bootstrap_->GetControlInvoker()));
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterConnector::OnDynamicConfigChanged, MakeWeak(this)));
@@ -175,28 +174,13 @@ public:
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
                 *heartbeat.mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
-                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage(/*includeWaiting*/ true));
+                *heartbeat.mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage(/*includePending*/ true));
             })
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run())
         .ThrowOnError();
 
         return heartbeat;
-    }
-
-    void OnMasterCellDirectoryChanged(
-        const THashSet<TCellTag>& addedSecondaryCellTags,
-        const TSecondaryMasterConnectionConfigs& /*reconfiguredSecondaryMasterConfigs*/,
-        const THashSet<TCellTag>& removedSecondaryCellTags)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        YT_LOG_ALERT_UNLESS(
-            addedSecondaryCellTags.empty() && removedSecondaryCellTags.empty(),
-            "Unexpected master cell configuration detected "
-            "(AddedCellTags: %v, RemovedCellTags: %v)",
-            addedSecondaryCellTags,
-            removedSecondaryCellTags);
     }
 
     void OnHeartbeatResponse(const TRspHeartbeat& response)
@@ -273,6 +257,13 @@ public:
         return GetNodeId() != InvalidNodeId;
     }
 
+    bool IsRegisteredAtPrimaryMaster() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return  RegisteredAtPrimary_.load();
+    }
+
     NNodeTrackerClient::TNodeId GetNodeId() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -294,11 +285,22 @@ public:
         return Epoch_.load();
     }
 
-    const THashSet<TCellTag>& GetMasterCellTags() const override
+    THashSet<TCellTag> GetMasterCellTags() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto guard = ReaderGuard(MasterCellTagsLock_);
         return MasterCellTags_;
+    }
+
+    void AddMasterCellTags(const THashSet<TCellTag>& newSecondaryMasterCellTags) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto guard = WriterGuard(MasterCellTagsLock_);
+        for (auto cellTag : newSecondaryMasterCellTags) {
+            InsertOrCrash(MasterCellTags_, cellTag);
+        }
     }
 
 private:
@@ -316,6 +318,8 @@ private:
 
     IInvokerPtr MasterConnectionInvoker_;
 
+    std::atomic<bool> RegisteredAtPrimary_;
+
     std::atomic<TNodeId> NodeId_ = InvalidNodeId;
     TAtomicObject<TString> LocalHostName_;
 
@@ -329,6 +333,7 @@ private:
     TDuration HeartbeatPeriod_;
     TDuration HeartbeatPeriodSplay_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, MasterCellTagsLock_);
     THashSet<TCellTag> MasterCellTags_;
 
     std::vector<TError> GetAlerts()
@@ -447,6 +452,7 @@ private:
         Epoch_++;
 
         MasterDisconnected_.Fire();
+        RegisteredAtPrimary_.store(false);
     }
 
     void RegisterAtMaster()
@@ -468,9 +474,11 @@ private:
         }
 
         MasterConnected_.Fire(GetNodeId());
+        RegisteredAtPrimary_.store(true);
 
-        YT_LOG_INFO("Successfully registered at primary master (NodeId: %v)",
-            GetNodeId());
+        YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
+            GetNodeId(),
+            GetMasterCellTags());
 
         StartHeartbeats();
     }
@@ -626,7 +634,11 @@ private:
         WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
             .ThrowOnError();
         YT_LOG_INFO("Cluster directory synchronized");
-        // TODO(cherepashka): add synchronization of master cell directory in future.
+
+        YT_LOG_INFO("Synchronizing master cell directory");
+        WaitFor(connection->GetMasterCellDirectorySynchronizer()->NextSync())
+            .ThrowOnError();
+        YT_LOG_INFO("Master cell directory synchronized");
     }
 
     void StartHeartbeats()
@@ -677,7 +689,7 @@ private:
         } else {
             YT_LOG_WARNING(rspOrError, "Error reporting cluster node heartbeat to master");
             if (IsRetriableError(rspOrError) || rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly)) {
-                ScheduleHeartbeat(/* immediately*/ false);
+                ScheduleHeartbeat(/*immediately*/ false);
             } else {
                 ResetAndRegisterAtMaster(/*firstTime*/ false);
             }

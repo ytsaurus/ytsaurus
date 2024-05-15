@@ -24,6 +24,8 @@
 #include <yt/yt/server/lib/misc/restart_manager.h>
 #include <yt/yt/server/lib/misc/disk_change_checker.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -187,6 +189,7 @@ private:
 
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         Connection_->GetClusterDirectorySynchronizer()->Start();
+        Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
         RootClient_ = Connection_->CreateClient({.User = NSecurityClient::RootUserName});
 

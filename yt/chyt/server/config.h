@@ -41,6 +41,8 @@ class TCompositeSettings
 public:
     EExtendedYsonFormat DefaultYsonFormat;
 
+    bool ConvertUnsupportedTypesToString;
+
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
     static void Register(TRegistrar registrar);

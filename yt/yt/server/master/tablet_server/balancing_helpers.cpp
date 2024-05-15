@@ -187,7 +187,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
     int startIndex = tablet->GetIndex();
     int endIndex = tablet->GetIndex();
 
-    auto sizeGood = [&] () {
+    auto sizeGood = [&] {
         int tabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
         i64 tabletSize = size / tabletCount;
         return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;

@@ -20,7 +20,6 @@
     XX(ActualTabletState, actual_tablet_state) \
     XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
-    XX(Aevum, aevum) \
     XX(AlertCount, alert_count) \
     XX(AllowIdleCpuPolicy, allow_idle_cpu_policy) \
     XX(Alerts, alerts) \
@@ -152,6 +151,7 @@
     XX(DiskSpace, disk_space) \
     XX(Domestic, domestic) \
     XX(Dynamic, dynamic) \
+    XX(DynamicallyPropagatedMastersCellTags, dynamically_propagated_masters_cell_tags) \
     XX(DynamicConfigVersion, dynamic_config_version) \
     XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
@@ -382,6 +382,7 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PoolConfigPresets, pool_config_presets) \
+    XX(Predicate, predicate) \
     XX(PreloadState, preload_state) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
@@ -558,6 +559,7 @@
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \
     XX(UserAttributeKeys, user_attribute_keys) \
+    XX(CustomRuntimeData, custom_runtime_data) \
     XX(UserTags, user_tags) \
     XX(AssociatedNodes, associated_nodes) \
     XX(Value, value) \

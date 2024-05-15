@@ -6,23 +6,23 @@
 
 namespace NYT::NTransactionSupervisor {
 
-YT_THREAD_LOCAL(bool) InTransactionAction;
+YT_DEFINE_THREAD_LOCAL(bool, InTransactionAction);
 
 bool IsInTransactionAction()
 {
-    return InTransactionAction;
+    return InTransactionAction();
 }
 
 TTransactionActionGuard::TTransactionActionGuard()
 {
-    YT_VERIFY(!InTransactionAction);
-    InTransactionAction = true;
+    YT_VERIFY(!InTransactionAction());
+    InTransactionAction() = true;
 }
 
 TTransactionActionGuard::~TTransactionActionGuard()
 {
-    YT_VERIFY(InTransactionAction);
-    InTransactionAction = false;
+    YT_VERIFY(InTransactionAction());
+    InTransactionAction() = false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

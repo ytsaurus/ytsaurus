@@ -86,14 +86,14 @@ public:
 
         RegisterLoader(
             "TimestampManager",
-            BIND(&TImpl::Load, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::Load, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TimestampManager",
-            BIND(&TImpl::Save, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::Save, Unretained(this)));
 
         TCompositeAutomatonPart::RegisterMethod(
-            BIND(&TImpl::HydraCommitTimestamp, Unretained(this)));
+            BIND_NO_PROPAGATE(&TImpl::HydraCommitTimestamp, Unretained(this)));
     }
 
     IServicePtr GetRpcService()
@@ -330,7 +330,7 @@ private:
             ->GetAutomatonCancelableContext()
             ->CreateInvoker(TimestampInvoker_);
 
-        auto callback = BIND([=, this, this_ = MakeStrong(this)] () {
+        auto callback = BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             Active_.store(true);
@@ -363,7 +363,7 @@ private:
 
         TCompositeAutomatonPart::OnStopLeading();
 
-        TimestampInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] () {
+        TimestampInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             if (!Active_.load()) {

@@ -1,6 +1,7 @@
 #include "client_impl.h"
 
 #include "connection.h"
+#include "config.h"
 #include "helpers.h"
 
 #include <yt/yt/client/api/file_reader.h>
@@ -15,8 +16,6 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/record_helpers.h>
-
-#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
