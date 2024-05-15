@@ -4208,9 +4208,33 @@ class TestCypressLeaderSwitch(YTEnvSetup):
         old_leader_rpc_address = get_active_primary_master_leader_address(self)
         new_leader_rpc_address = get_active_primary_master_follower_address(self)
         cell_id = get("//sys/@cell_id")
-        switch_leader(cell_id, new_leader_rpc_address)
-        wait(lambda: is_active_primary_master_leader(new_leader_rpc_address))
-        wait(lambda: is_active_primary_master_follower(old_leader_rpc_address))
+        self._do_switch_leader(cell_id, old_leader_rpc_address, new_leader_rpc_address)
+
+    def _switch_leader_back_and_forth(self):
+        old_leader_rpc_address = get_active_primary_master_leader_address(self)
+        new_leader_rpc_address = get_active_primary_master_follower_address(self)
+        cell_id = get("//sys/@cell_id")
+        self._do_switch_leader(cell_id, old_leader_rpc_address, new_leader_rpc_address)
+        self._do_switch_leader(cell_id, new_leader_rpc_address, old_leader_rpc_address)
+
+    def _do_switch_leader(self, cell_id, old_leader_address, new_leader_address):
+        # Currently, there's no way to force balancing channel and/or peer discovery
+        # to refresh peers. Thus, attempting to switch leader again immediately after
+        # having switched it once will result in a transient error.
+        def switch_leader_with_retries():
+            try:
+                switch_leader(cell_id, new_leader_address)
+            except YtError as error:
+                if error.contains_text("Peer is not leading"):
+                    return False
+                else:
+                    raise
+            return True
+
+        wait(lambda: switch_leader_with_retries())
+
+        wait(lambda: is_active_primary_master_leader(new_leader_address))
+        wait(lambda: is_active_primary_master_follower(old_leader_address))
 
     @authors("shakurov")
     @flaky(max_runs=3)
@@ -4221,6 +4245,42 @@ class TestCypressLeaderSwitch(YTEnvSetup):
 
         time.sleep(2.0)
         assert not exists("//tmp/t")
+
+    @authors("shakurov")
+    @flaky(max_runs=3)
+    def test_expiration_time_and_timeout_leader_switch(self):
+        set("//sys/@config/object_manager/enable_gc", False)
+        expiration_time = str(get_current_time() + timedelta(milliseconds=5000))
+        # The disappearance of this node is used as an indicator of the expiration time having been reached.
+        create(
+            "table",
+            "//tmp/t0",
+            attributes={
+                "expiration_time": expiration_time,
+            },
+        )
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "expiration_timeout": 400,
+                "expiration_time": expiration_time,
+            },
+        )
+        time.sleep(0.6)
+        # By now, the node should've been zombified (but not destroyed).
+        assert not exists("//tmp/t1")
+
+        self._switch_leader_back_and_forth()
+        set("//sys/@config/object_manager/enable_gc", True)
+
+        # Wait for the node to be destroyed.
+        gc_collect()
+
+        # More importantly, master should not crash when the expiration *time* is reached.
+        wait(lambda: not exists("//tmp/t0"))
+
+        time.sleep(1.0)
 
 
 ##################################################################

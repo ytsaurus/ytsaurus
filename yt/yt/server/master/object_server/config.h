@@ -58,6 +58,8 @@ public:
     //! Period between subsequent GC queue checks.
     TDuration GCSweepPeriod;
 
+    bool EnableGC;
+
     //! Period between pairwise secondary cells sync, which enables
     //! advancing from |RemovalAwaitingCellsSync| to |RemovalCommitted| life stage.
     TDuration ObjectRemovalCellsSyncPeriod;
