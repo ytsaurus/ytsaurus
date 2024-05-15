@@ -30,6 +30,9 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
         .Default(100000);
     registrar.Parameter("gc_sweep_period", &TThis::GCSweepPeriod)
         .Default(TDuration::MilliSeconds(1000));
+    registrar.Parameter("enable_gc", &TThis::EnableGC)
+        .Default(true)
+        .DontSerializeDefault();
     registrar.Parameter("object_removal_cells_sync_period", &TThis::ObjectRemovalCellsSyncPeriod)
         .Default(TDuration::MilliSeconds(100));
     registrar.Parameter("mutation_idempotizer", &TThis::MutationIdempotizer)
