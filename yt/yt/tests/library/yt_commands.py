@@ -663,6 +663,12 @@ def abort_job(job_id, **kwargs):
     execute_command("abort_job", kwargs)
 
 
+def save_job_proxy_log(job_id, output_path, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["output_path"] = output_path
+    execute_command("save_job_proxy_log", kwargs)
+
+
 def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
     kwargs["job_id"] = job_id
     kwargs["interrupt_timeout"] = interrupt_timeout

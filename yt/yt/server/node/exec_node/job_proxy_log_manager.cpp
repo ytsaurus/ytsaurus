@@ -152,6 +152,12 @@ private:
         YT_LOG_INFO("Removing job directory (Path: %v)", logsPath);
         NFS::RemoveRecursive(logsPath);
     }
+
+    TString JobIdToLogsPath(TJobId jobId)
+    {
+        auto shardingKey = GetShardingKey(jobId);
+        return NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxyLogManager);
@@ -177,6 +183,11 @@ public:
         TJobProxyLogManagerDynamicConfigPtr /*oldConfig*/,
         TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
     {}
+
+    void SaveJobProxyLog(TJobId /*jobId*/, const NYPath::TYPath& /*outputPath*/) override
+    {
+        THROW_ERROR_EXCEPTION("Method SaveJobProxyLog is not supported in simple JobProxy logging mode");
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockJobProxyLogManager);

@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "job.h"
 #include "job_controller.h"
+#include "job_proxy_log_manager.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/job_prober_client/job_prober_service_proxy.h>
@@ -45,6 +46,7 @@ public:
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SaveJobProxyLog));
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
     }
@@ -202,6 +204,23 @@ private:
                 << TErrorAttribute("job_phase", job->GetPhase());
         }
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SaveJobProxyLog)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto outputPath = FromProto<NYPath::TYPath>(request->output_path());
+
+        context->SetRequestInfo(
+            "JobId: %v, OutputPath: %v",
+            jobId, outputPath);
+
+        auto jobProxyLogManager = Bootstrap_->GetJobController()->GetJobProxyLogManager();
+        jobProxyLogManager->SaveJobProxyLog(jobId, outputPath);
+        
         context->Reply();
     }
 };

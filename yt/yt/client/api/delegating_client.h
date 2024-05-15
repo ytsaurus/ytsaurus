@@ -555,6 +555,12 @@ public:
         const TAbortJobOptions& options),
         (jobId, options))
 
+    DELEGATE_METHOD(TFuture<void>, SaveJobProxyLog, (
+        NJobTrackerClient::TJobId jobId,
+        const NYPath::TYPath& outputPath,
+        const TSaveJobProxyLogOptions& options),
+        (jobId, outputPath, options))
+
     // Metadata
     DELEGATE_METHOD(TFuture<TClusterMeta>, GetClusterMeta, (
         const TGetClusterMetaOptions& options),

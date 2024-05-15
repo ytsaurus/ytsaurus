@@ -212,6 +212,43 @@ void TClient::DoAbortJob(
     }
 }
 
+void TClient::DoSaveJobProxyLog(
+    TJobId jobId,
+    const TYPath& outputPath,
+    const TSaveJobProxyLogOptions& /*options*/)
+{
+    auto allocationId = AllocationIdFromJobId(jobId);
+
+    auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(
+        *SchedulerOperationProxy_,
+        allocationId,
+        NScheduler::TAllocationInfoToRequest{
+            .OperationId = true,
+            .OperationAcl = true,
+            .NodeDescriptor = true,
+        }))
+        .ValueOrThrow();
+
+    ValidateOperationAccess(
+        allocationBriefInfo.OperationId,
+        *allocationBriefInfo.OperationAcl,
+        jobId,
+        EPermissionSet(EPermission::Manage));
+    
+    NJobProberClient::TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
+        allocationBriefInfo.NodeDescriptor));
+
+    auto req = proxy.SaveJobProxyLog();
+    ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_output_path(), outputPath);
+
+    auto rspOrError = WaitFor(req->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        rspOrError,
+        "Error saving JobProxy log for job %v",
+        jobId);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

@@ -305,6 +305,11 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NApi::TAbortJobOptions& options) override;
 
+    TFuture<void> SaveJobProxyLog(
+        NJobTrackerClient::TJobId jobId,
+        const NYPath::TYPath& outputPath,
+        const NApi::TSaveJobProxyLogOptions& options) override;
+
     // Metadata.
     TFuture<NApi::TClusterMeta> GetClusterMeta(
         const NApi::TGetClusterMetaOptions&) override;

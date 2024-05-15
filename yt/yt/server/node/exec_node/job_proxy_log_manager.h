@@ -20,6 +20,8 @@ struct IJobProxyLogManager
     virtual void OnDynamicConfigChanged(
         TJobProxyLogManagerDynamicConfigPtr oldConfig,
         TJobProxyLogManagerDynamicConfigPtr newConfig) = 0;
+
+    virtual void SaveJobProxyLog(TJobId jobId, const NYPath::TYPath& outputPath) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyLogManager);

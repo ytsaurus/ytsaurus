@@ -219,6 +219,10 @@ struct TAbortJobOptions
     std::optional<TDuration> InterruptTimeout;
 };
 
+struct TSaveJobProxyLogOptions
+    : public TTimeoutOptions
+{ };
+
 struct TGetOperationOptions
     : public TTimeoutOptions
     , public TMasterReadOptions
@@ -443,6 +447,11 @@ struct IOperationClient
     virtual TFuture<void> AbortJob(
         NJobTrackerClient::TJobId jobId,
         const TAbortJobOptions& options = {}) = 0;
+
+    virtual TFuture<void> SaveJobProxyLog(
+        NJobTrackerClient::TJobId jobId,
+        const NYPath::TYPath& outputPath,
+        const TSaveJobProxyLogOptions& = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
