@@ -111,6 +111,17 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     return Annotated[py_type, Annotation(ti_type, to_yt_type=to_yt_type, from_yt_type=from_yt_type)]
 
 
+def yt_enum(ti_type, to_yt_type=None, from_yt_type=None):
+    def _wrapper(py_type):
+        return create_annotated_type(
+            py_type,
+            ti_type=ti_type,
+            to_yt_type=to_yt_type,
+            from_yt_type=from_yt_type,
+        )
+    return _wrapper
+
+
 def _is_py_type_optional(py_type):
     return _is_py_type_optional_old_style(py_type) or _is_py_type_optional_new_style(py_type)
 
@@ -184,22 +195,10 @@ def _get_py_time_types():
     return _get_py_time_types._info
 
 
-try:
-    from enum import StrEnum
-except ImportError:
-    # TODO: chiffa@ add comment
-    class StrEnum:
-        pass
-
-
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     check_schema_module_available()
     if py_type is int:
         return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
-    elif py_type is enum.IntEnum:
-        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
-    elif py_type is StrEnum:
-        return ti_type in (ti.Utf8, ti.String)
     elif py_type is str:
         return ti_type in (ti.Utf8, ti.String)
     elif py_type is bytes:
@@ -214,6 +213,11 @@ def _is_py_type_compatible_with_ti_type(py_type, ti_type):
         return ti_type in (ti.Datetime, ti.Timestamp)
     elif py_type is datetime.timedelta:
         return ti_type == ti.Interval
+    elif issubclass(py_type, enum.IntEnum):
+        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
+    # StrEnum was added in python3.11
+    elif hasattr(enum, 'StrEnum') and issubclass(py_type, getattr(enum, 'StrEnum')):
+        return ti_type in (ti.Utf8, ti.String)
     else:
         assert False, "Unsupported python type {}".format(py_type)
 

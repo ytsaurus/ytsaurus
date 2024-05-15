@@ -200,11 +200,11 @@ def _get_args(py_type):
 
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
-    print(_get_origin(py_type))
-    print(py_type)
-    print("===")
-    if py_type is enum.IntEnum or _get_origin(py_type) is enum.IntEnum:
+    if issubclass(_get_origin(py_type), enum.IntEnum):
         origin = int
+    # StrEnum was added in python3.11
+    elif hasattr(enum, 'StrEnum') and issubclass(py_type, getattr(enum, 'StrEnum')):
+        origin = str
     else:
         for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
             if py_type is type_ or _get_origin(py_type) is type_:
@@ -511,7 +511,6 @@ def _create_py_schema(py_type, ti_type=None, field_name=None, schema_runtime_con
     effective_field_name = field_name if field_name is not None else "<unknown>"
     is_ti_type_optional = False
     primitive_origin, annotation = _get_primitive_type_origin_and_annotation(py_type)
-    print(primitive_origin, annotation)
 
     if ti_type is not None and ti_type.name == "Optional":
         is_ti_type_optional = True
