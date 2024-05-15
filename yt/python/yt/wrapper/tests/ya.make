@@ -158,6 +158,7 @@ TEST_SRCS(
     test_ipython.py
     test_job_commands.py
     test_job_tool.py
+    test_jupyter.py
     test_misc.py
     test_module.py
     test_operations.py
