@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import enum
+
 from yt.common import YtError
 from yt.testlib import authors
 
@@ -1341,6 +1343,45 @@ class TestTypedApi(object):
         row = typed_rows[0]
         assert row.tuple_str_int == ("a", 10,)
         assert row.tuple_int_bytes == (1, b"\x01",)
+
+    @authors("thenno")
+    def test_enum(self):
+        @yt.yt_enum(ti.Int32)
+        class CustomEnum(enum.IntEnum):
+            A = 1
+            B = 2
+            C = 3
+
+        @yt_dataclass
+        class RowWithEnum:
+            field: CustomEnum
+            field_optional: typing.Optional[CustomEnum]
+            field_list: typing.List[CustomEnum]
+            field_optional_list: typing.Optional[typing.List[CustomEnum]]
+
+        schema = TableSchema.from_row_type(RowWithEnum)
+
+        table = "//tmp/table"
+        yt.create("table", table, attributes={"schema": schema})
+        yt.write_table_structured(
+            table,
+            RowWithEnum,
+            [
+                RowWithEnum(
+                    field=CustomEnum.A,
+                    field_optional=CustomEnum.B,
+                    field_list=[CustomEnum.C],
+                    field_optional_list=[CustomEnum.A],
+                )
+            ])
+
+        typed_rows = list(yt.read_table_structured(table, RowWithEnum))
+        assert len(typed_rows) == 1
+        row = typed_rows[0]
+        assert row.field == CustomEnum.A
+        assert row.field_optional == CustomEnum.B
+        assert row.field_list == [CustomEnum.C]
+        assert row.field_optional_list == [CustomEnum.A]
 
     class SimpleIdentityMapper(TypedJob):
         def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:
