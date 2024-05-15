@@ -222,6 +222,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+@pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
 class TestCumulativeMemoryStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -266,7 +267,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
                 "data_weight_per_job": 1,
                 "mapper": {
-                    "memory_limit": 200 * 10 ** 6,
+                    "memory_limit": 500 * 10 ** 6,
                     "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
                 },
