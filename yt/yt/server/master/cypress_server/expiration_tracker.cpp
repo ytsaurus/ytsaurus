@@ -49,7 +49,13 @@ void TExpirationTracker::Start()
         expiredNodes.size());
 
     for (auto* trunkNode : expiredNodes) {
-        YT_ASSERT(!trunkNode->GetExpirationTimeIterator() && !trunkNode->GetExpirationTimeoutIterator());
+        if (trunkNode->GetExpirationTimeIterator()) {
+            UnregisterNodeExpirationTime(trunkNode);
+        }
+
+        if (trunkNode->GetExpirationTimeoutIterator()) {
+            UnregisterNodeExpirationTimeout(trunkNode);
+        }
 
         if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
             RegisterNodeExpirationTime(trunkNode, *expirationTime);
