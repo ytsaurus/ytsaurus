@@ -39,6 +39,8 @@ PEERDIR(
     yt/python/yt/environment
 )
 
+EXPLICIT_DATA()
+
 DEPENDS(
     yt/odin/checks/bin/controller_agent_alerts
     yt/odin/checks/bin/controller_agent_count
