@@ -86,7 +86,6 @@ IF (NOT OPENSOURCE)
     DEPENDS(
         # These python used for various tests
         yt/python/yt/wrapper/tests/yt_python
-        yt/python/yt/wrapper/tests/yt_python3
         yt/python/yt/wrapper/tests/yt_ipython
     )
 
@@ -179,13 +178,12 @@ END()
 
 RECURSE_FOR_TESTS(
     serverless
-    py3_only
+    typed_api
 )
 
 IF (NOT OPENSOURCE)
     RECURSE(
         yt_python
-        yt_python3
         yt_ipython
     )
 

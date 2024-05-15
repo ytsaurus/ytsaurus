@@ -34,11 +34,11 @@ TEST_SRCS(
     test_formats.py
     test_schema.py
     test_thread_pool.py
+    test_typed.py
 )
 
 END()
 
 RECURSE(
     py23_fork
-    py3_only
 )
