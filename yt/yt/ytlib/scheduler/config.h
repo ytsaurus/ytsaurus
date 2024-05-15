@@ -287,6 +287,8 @@ public:
 
     bool EnableDetailedLogs;
 
+    std::vector<TString> ConfigPresets;
+    // COMPAT(omgronny)
     std::optional<TString> ConfigPreset;
 
     // Overrides the same option in tree config.

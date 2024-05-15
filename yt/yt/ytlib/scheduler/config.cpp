@@ -2173,6 +2173,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_detailed_logs", &TThis::EnableDetailedLogs)
         .Default(false);
 
+    registrar.Parameter("config_presets", &TThis::ConfigPresets)
+        .Default();
+
     registrar.Parameter("config_preset", &TThis::ConfigPreset)
         .Default();
 
@@ -2201,13 +2204,20 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
 
-    // COMPAT(arkady-e1ppa)
     registrar.Postprocessor([] (TThis* config) {
+        // COMPAT(arkady-e1ppa)
         if (config->InferChildrenWeightsFromHistoricUsage) {
             config->HistoricUsageAggregationPeriod =
                 config->HistoricUsageAggregationPeriod.value_or(TAdjustedExponentialMovingAverage::DefaultHalflife);
         } else {
             config->HistoricUsageAggregationPeriod.reset();
+        }
+
+        // COMPAT(omgronny)
+        if (config->ConfigPreset && !config->ConfigPresets.empty()) {
+            THROW_ERROR_EXCEPTION("Cannot specify both %Qv and %Qv at the same time",
+                "config_preset",
+                "config_presets");
         }
     });
 }

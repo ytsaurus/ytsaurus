@@ -330,7 +330,7 @@ public:
 
         std::vector<TError> innerErrors;
 
-        if (jobResultError)  {
+        if (jobResultError) {
             innerErrors.push_back(*jobResultError);
         }
 

@@ -1812,6 +1812,24 @@ class TestSchedulerPoolConfigPresets(YTEnvSetup):
         remove("//sys/pool_trees/default/pool/@fair_share_starvation_timeout")
         wait(lambda: get(scheduler_orchid_pool_path("pool"))["fair_share_starvation_timeout"] == 2000)
 
+    def test_multiple_presets(self):
+        create_pool("pool")
+
+        set("//sys/pool_trees/default/@config/pool_config_presets",
+            {
+                "presetA": {
+                    "fair_share_starvation_tolerance": 0.6,
+                },
+                "presetB": {
+                    "fair_share_starvation_tolerance": 0.5,
+                    "fair_share_starvation_timeout": 2000,
+                },
+            })
+
+        set("//sys/pool_trees/default/pool/@config_presets", ["presetA", "presetB"])
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/fair_share_starvation_tolerance") == 0.6)
+        wait(lambda: get(scheduler_orchid_pool_path("pool") + "/fair_share_starvation_timeout") == 2000)
+
     def test_preset_with_forbidden_option(self):
         create_pool("pool", wait_for_orchid=True)
 

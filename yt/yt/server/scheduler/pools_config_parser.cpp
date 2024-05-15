@@ -64,19 +64,25 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
         try {
             auto poolConfigNode = ConvertToNode(childNode->Attributes());
             auto poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
+            auto configPresets = poolConfig->ConfigPresets;
+            // COMPAT(omgronny)
             if (poolConfig->ConfigPreset) {
-                auto it = PoolConfigPresets_.find(*poolConfig->ConfigPreset);
+                configPresets.push_back(*poolConfig->ConfigPreset);
+            }
+            // Explicit config has the highest prioriry.
+            // Config presets are arranged in descending priority order.
+            for (const auto& preset : configPresets) {
+                auto it = PoolConfigPresets_.find(preset);
                 if (it == PoolConfigPresets_.end()) {
-                    THROW_ERROR_EXCEPTION("Config preset %Qv is not found", *poolConfig->ConfigPreset);
+                    THROW_ERROR_EXCEPTION("Config preset %Qv is not found", preset);
                 }
 
                 const auto& presetNode = it->second;
-                ValidatePoolPresetConfig(*poolConfig->ConfigPreset, presetNode);
+                ValidatePoolPresetConfig(preset, presetNode);
 
-                // Explicit config has higher priority than preset.
                 poolConfigNode = PatchNode(presetNode, poolConfigNode);
-                poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
             }
+            poolConfig = ConvertTo<TPoolConfigPtr>(poolConfigNode);
             poolConfig->Validate(childName);
 
             updatePoolAction.PoolConfig = poolConfig;
