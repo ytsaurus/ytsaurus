@@ -110,6 +110,8 @@ struct TUserJobEnvironmentOptions
     bool EnableNat64;
     bool DisableNetwork;
 
+    bool EnableFuse = false;
+
     bool EnableCudaGpuCoreDump = false;
 
     bool EnablePortoMemoryTracking = false;

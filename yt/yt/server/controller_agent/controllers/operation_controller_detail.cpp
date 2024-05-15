@@ -10112,6 +10112,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
     jobSpec->set_make_rootfs_writable(makeRootFSWritable);
 
+    jobSpec->set_enable_fuse(jobSpecConfig->EnableFuse);
+
     jobSpec->set_use_smaps_memory_tracker(jobSpecConfig->UseSMapsMemoryTracker);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {

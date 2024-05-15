@@ -1172,6 +1172,7 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
         .NetworkAddresses = Config_->NetworkAddresses,
         .EnableNat64 = Config_->EnableNat64,
         .DisableNetwork = Config_->DisableNetwork,
+        .EnableFuse = Config_->EnableFuse,
         .EnableCudaGpuCoreDump = options.EnableGpuCoreDumps,
         .EnablePortoMemoryTracking = options.EnablePortoMemoryTracking,
         .EnablePorto = options.EnablePorto,

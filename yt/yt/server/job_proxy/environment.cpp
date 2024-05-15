@@ -343,19 +343,15 @@ public:
             }
         }
 
-        if (!devices.empty()) {
-            if (NFS::Exists("/dev/kvm")) {
-                devices.push_back(TDevice{
-                    .DeviceName = "/dev/kvm",
-                    .Access = "rw",
-                });
-            }
-            if (Config_->AllowMountFuseDevice && NFS::Exists("/dev/fuse")) {
-                devices.push_back(TDevice{
-                    .DeviceName = "/dev/fuse",
-                    .Access = "rw",
-                });
-            }
+        if (NFS::Exists("/dev/kvm")) {
+            devices.push_back(TDevice{
+                .DeviceName = "/dev/kvm",
+                .Access = "rw",
+            });
+        }
+
+        if (Options_.EnableFuse && NFS::Exists("/dev/fuse")) {
+            launcher->SetEnableFuse(true);
         }
 
         // Restrict access to devices, that are not explicitly granted.
