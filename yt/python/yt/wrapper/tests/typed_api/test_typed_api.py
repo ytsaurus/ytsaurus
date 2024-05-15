@@ -342,6 +342,23 @@ def write_and_read_primitive(py_type, ti_type, value, mode):
         assert False, "Unsupported mode {}".format(mode)
 
 
+# typing.get_type_hints requires that all types be available in the global scope
+@yt.yt_enum(ti.Int32)
+class CustomIntEnum(enum.IntEnum):
+    A = 1
+    B = 2
+    C = 3
+    D = 4
+
+
+@yt.yt_enum(ti.Utf8)
+class CustomStrEnum(enum.StrEnum):
+    A = "a"
+    B = "b"
+    C = "c"
+    D = "d"
+
+
 @pytest.mark.usefixtures("yt_env_v4")
 class TestTypedApi(object):
     @authors("levysotsky")
@@ -1346,18 +1363,18 @@ class TestTypedApi(object):
 
     @authors("thenno")
     def test_enum(self):
-        @yt.yt_enum(ti.Int32)
-        class CustomEnum(enum.IntEnum):
-            A = 1
-            B = 2
-            C = 3
-
         @yt_dataclass
         class RowWithEnum:
-            field: CustomEnum
-            field_optional: typing.Optional[CustomEnum]
-            field_list: typing.List[CustomEnum]
-            field_optional_list: typing.Optional[typing.List[CustomEnum]]
+            # int
+            field_int: CustomIntEnum
+            field_optional_int: typing.Optional[CustomIntEnum]
+            field_list_int: typing.List[CustomIntEnum]
+            field_optional_list_int: typing.Optional[typing.List[CustomIntEnum]]
+            # str
+            field_str: CustomStrEnum
+            field_optional_str: typing.Optional[CustomStrEnum]
+            field_list_str: typing.List[CustomStrEnum]
+            field_optional_list_str: typing.Optional[typing.List[CustomStrEnum]]
 
         schema = TableSchema.from_row_type(RowWithEnum)
 
@@ -1368,20 +1385,30 @@ class TestTypedApi(object):
             RowWithEnum,
             [
                 RowWithEnum(
-                    field=CustomEnum.A,
-                    field_optional=CustomEnum.B,
-                    field_list=[CustomEnum.C],
-                    field_optional_list=[CustomEnum.A],
+                    field_int=CustomIntEnum.A,
+                    field_optional_int=CustomIntEnum.B,
+                    field_list_int=[CustomIntEnum.C],
+                    field_optional_list_int=[CustomIntEnum.D],
+                    field_str=CustomStrEnum.A,
+                    field_optional_str=CustomStrEnum.B,
+                    field_list_str=[CustomStrEnum.C],
+                    field_optional_list_str=[CustomStrEnum.D],
                 )
             ])
 
         typed_rows = list(yt.read_table_structured(table, RowWithEnum))
         assert len(typed_rows) == 1
         row = typed_rows[0]
-        assert row.field == CustomEnum.A
-        assert row.field_optional == CustomEnum.B
-        assert row.field_list == [CustomEnum.C]
-        assert row.field_optional_list == [CustomEnum.A]
+
+        assert row.field_int == CustomIntEnum.A
+        assert row.field_optional_int == CustomIntEnum.B
+        assert row.field_list_int == [CustomIntEnum.C]
+        assert row.field_optional_list_int == [CustomIntEnum.D]
+
+        assert row.field_str == CustomStrEnum.A
+        assert row.field_optional_str == CustomStrEnum.B
+        assert row.field_list_str == [CustomStrEnum.C]
+        assert row.field_optional_list_str == [CustomStrEnum.D]
 
     class SimpleIdentityMapper(TypedJob):
         def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:
