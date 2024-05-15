@@ -17,7 +17,7 @@ from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
 from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config, \
-    _get_config_path, _ConfigFSHelper, DEFAULT_GLOBAL_CONFIG_PATH, DEFAULT_USER_CONFIG_PATH, _update_from_file, \
+    _get_config_path, _ConfigFSHelper, DEFAULT_GLOBAL_CONFIG_PATH, DEFAULT_USER_CONFIG_REL_PATH, _update_from_file, \
     default_config
 from yt.wrapper.format import SkiffFormat
 
@@ -1798,7 +1798,7 @@ class TestFileConfig:
     )
     def test_get_config_path(self, global_config, user_config, result):
         homedir = "/home/user"
-        user_config_path = os.path.join(homedir, DEFAULT_USER_CONFIG_PATH)
+        user_config_path = os.path.join(homedir, DEFAULT_USER_CONFIG_REL_PATH)
 
         fs_helper = self._MockConfigFSHelper(
             data={

@@ -20,7 +20,7 @@ from datetime import timedelta
 
 DEFAULT_WRITE_CHUNK_SIZE = 128 * common.MB
 DEFAULT_GLOBAL_CONFIG_PATH = "/etc/ytclient.conf"
-DEFAULT_USER_CONFIG_PATH = ".yt/config"
+DEFAULT_USER_CONFIG_REL_PATH = ".yt/config"
 
 
 def retry_backoff_config(**kwargs):
@@ -935,7 +935,7 @@ def _get_config_path(fs_helper):
     home = fs_helper.get_home_dir()
     config_path = DEFAULT_GLOBAL_CONFIG_PATH
     if home:
-        home_config_path = os.path.join(home, DEFAULT_USER_CONFIG_PATH)
+        home_config_path = os.path.join(home, DEFAULT_USER_CONFIG_REL_PATH)
         if fs_helper.is_file(home_config_path):
             config_path = home_config_path
     if not fs_helper.validate(config_path):
