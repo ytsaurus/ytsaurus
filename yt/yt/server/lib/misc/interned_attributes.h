@@ -112,6 +112,7 @@
     XX(ComputePromisedGuaranteeFairShare, compute_promised_guarantee_fair_share) \
     XX(Config, config) \
     XX(ConfigPreset, config_preset) \
+    XX(ConfigPresets, config_presets) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
     XX(UsePoolSatisfactionForScheduling, use_pool_satisfaction_for_scheduling) \
