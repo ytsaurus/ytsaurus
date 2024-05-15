@@ -40,7 +40,7 @@
 
 {% cut "Пример записи" %}
 ```
-2023-09-15 00:00:17,215385      I       ExecNode        Artifacts prepared (JobId: d15d7d5f-164ff08a-3fe0384-128e0, OperationId: cd56ab80-d21ef5ab-3fe03e8-d05edd49, JobType: Map)      Job     fff6d4149ccdf656    2bd5c3c9-600a44f5-de721d58-fb905017 
+2023-09-15 00:00:17,215385      I       ExecNode        Artifacts prepared (JobId: d15d7d5f-164ff08a-3fe0384-128e0, OperationId: cd56ab80-d21ef5ab-3fe03e8-d05edd49, JobType: Map)      Job     fff6d4149ccdf656    2bd5c3c9-600a44f5-de721d58-fb905017
 ```
 {% endcut %}
 
@@ -82,6 +82,14 @@ categoriesFilter:
  - `structured_rpc_proxy_log` — лог запросов к rpc proxy, по одной строке на запрос; пишется на rpc proxy, категория `RpcProxyStructuredMain`;
  - `scheduler_event_log` — лог событий планировщика; пишется планировщиком, категория `SchedulerEventLog`;
  - `controller_event_log` — лог событий контроллер-агента; пишется на контроллер-агенте, категория `ControllerEventLog`.
+
+### Лог доступа к таблице { #access_log }
+
+{% include [Подробно про наполнение лога](access-log-details.md) %}
+
+#### Замечания
+
+{% include [Замечания](access-log-note.md) %}
 
 ## Настройка ротации логов { #log_rotation }
 Для отладочных и структурированных логов, которые пишутся в файл, можно настроить встроенный механизм ротации (поле `rotationPolicy`). Настройки ротации приведены в таблице. Если не используется опция `useTimestampSuffix`, в момент ротации файлы старых сегментов переименовываются, с дописыванием порядкового номера.

@@ -169,7 +169,11 @@ ru:
       type: redirect
 
     - from: /description/common/access_log.md
-      to: /user-guide/storage/access_log.md
+      to: /user-guide/storage/access-log.md
+      type: redirect
+
+    - from: /user-guide/storage/access_log.md
+      to: /user-guide/storage/access-log.md
       type: redirect
 
     - from: /description/common/accounts.md
