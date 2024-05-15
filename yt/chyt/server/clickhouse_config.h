@@ -204,6 +204,8 @@ public:
 
     std::optional<i64> MaxServerMemoryUsage;
 
+    i64 MaxTemporaryDataOnDiskSize;
+
     //! Settings for default user profile, this field is introduced for convenience.
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
     //! This map is merged into `users/profiles/default`.

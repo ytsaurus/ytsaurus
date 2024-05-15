@@ -177,6 +177,15 @@ void TClickHouseConfig::Register(TRegistrar registrar)
     registrar.Parameter("http_port", &TThis::HttpPort)
         .Default(0);
 
+    registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
+        .Default();
+
+    registrar.Parameter("max_temporary_data_on_disk_size", &TThis::MaxTemporaryDataOnDiskSize)
+        // NB: By default we want to disable disk usage for temporary data.
+        // There is no way to disable it completely,
+        // so just set a limit to 1 byte (0 means "unlimited").
+        .Default(1);
+
     registrar.Parameter("settings", &TThis::Settings)
         .DefaultCtor([] {
             THashMap<TString, NYTree::INodePtr> map;
@@ -191,9 +200,6 @@ void TClickHouseConfig::Register(TRegistrar registrar)
             map["use_hedged_requests"] = NYTree::ConvertToNode(0);
             return map;
         });
-
-    registrar.Parameter("max_server_memory_usage", &TThis::MaxServerMemoryUsage)
-        .Default();
 
     // NOTE(dakovalkov): this option name correspond to Poco::Net::SSLManager's config option.
     // https://docs.pocoproject.org/current/Poco.Net.SSLManager.html

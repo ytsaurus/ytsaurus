@@ -322,11 +322,7 @@ private:
 
         YT_LOG_DEBUG("Setting temporary storage");
 
-        // NB: There is no way to disable disk usage for temporary data in ClickHouse,
-        // so set a limit to 1 byte (0 means "unlimited").
-        // ClickHouse doesn't always obey the limit, though:
-        // https://github.com/ClickHouse/ClickHouse/issues/58826
-        ServerContext_->setTemporaryStoragePath("tmp", /*max_temporary_data_on_disk_size*/ 1);
+        ServerContext_->setTemporaryStoragePath("tmp", Config_->MaxTemporaryDataOnDiskSize);
 
         YT_LOG_INFO("Finished setting up context");
     }
