@@ -112,6 +112,21 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
 
 
 def yt_enum(ti_type, to_yt_type=None, from_yt_type=None):
+    """
+    Create enum for yt_dataclass.
+    yt_enum supports only typed enums (e.g. enum.StrEnum and enum.IntEnum)
+
+    Example:
+        @yt_enum(ti.Int32)
+        class CustomEnum(enum.IntEnum):
+            a = 1
+
+        @yt_dataclass
+        class TableRow:
+            a: CustomEnum
+            b: Optional[CustomEnum]
+            c: List[CustomEnum]
+    """
     def _wrapper(py_type):
         return create_annotated_type(
             py_type,

@@ -200,10 +200,11 @@ def _get_args(py_type):
 
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
-    if issubclass(_get_origin(py_type), enum.IntEnum):
+    py_type_origin = _get_origin(py_type)
+    if isinstance(py_type_origin, type) and issubclass(py_type_origin, enum.IntEnum):
         origin = int
     # StrEnum was added in python3.11
-    elif hasattr(enum, 'StrEnum') and issubclass(py_type, getattr(enum, 'StrEnum')):
+    elif hasattr(enum, 'StrEnum') and isinstance(py_type_origin, type) and issubclass(py_type_origin, getattr(enum, 'StrEnum')):
         origin = str
     else:
         for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
