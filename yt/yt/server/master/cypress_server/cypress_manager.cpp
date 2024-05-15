@@ -1926,7 +1926,7 @@ public:
         auto nodeId = trunkNode->GetId();
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
+            auto* branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
             if (!branchedNode) {
                 continue;
             }
