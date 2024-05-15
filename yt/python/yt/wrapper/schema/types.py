@@ -231,7 +231,7 @@ def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     elif issubclass(py_type, enum.IntEnum):
         return ti_type in _get_integer_info()["all"]
     # StrEnum was added in python3.11
-    elif hasattr(enum, 'StrEnum') and issubclass(py_type, getattr(enum, 'StrEnum')):
+    elif hasattr(enum, "StrEnum") and issubclass(py_type, getattr(enum, "StrEnum")):
         return ti_type in (ti.Utf8, ti.String)
     else:
         assert False, "Unsupported python type {}".format(py_type)
