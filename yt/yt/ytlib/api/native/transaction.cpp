@@ -4,9 +4,11 @@
 #include "client.h"
 #include "connection.h"
 #include "config.h"
+#include "helpers.h"
 #include "sync_replica_cache.h"
 #include "transaction_helpers.h"
 #include "tablet_commit_session.h"
+#include "tablet_helpers.h"
 #include "tablet_request_batcher.h"
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
@@ -23,10 +25,10 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
+
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/hunks.h>
-
-#include <yt/yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -345,17 +347,16 @@ public:
         i64 newOffset,
         const TAdvanceConsumerOptions& /*options*/) override
     {
-        auto tableMountCache = GetClient()->GetTableMountCache();
-        auto queuePhysicalPath = queuePath;
-        auto queueTableInfoOrError = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()));
-        if (!queueTableInfoOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to resolve queue path")
-                << queueTableInfoOrError;
-        }
-        queuePhysicalPath = NYPath::TRichYPath(queueTableInfoOrError.Value()->PhysicalPath, queuePath.Attributes());
+        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
+        auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
+            .ValueOrThrow();
+
+        CheckReadPermission(tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
 
         auto queueClient = GetClient();
-        if (auto queueCluster = queuePath.GetCluster()) {
+        if (auto queueCluster = registrationCheckResult.ResolvedQueue.GetCluster()) {
             auto queueConnection = FindRemoteConnection(Client_->GetNativeConnection(), *queueCluster);
             if (!queueConnection) {
                 THROW_ERROR_EXCEPTION(
@@ -369,7 +370,7 @@ public:
             queueClient = queueConnection->CreateNativeClient(queueClientOptions);
         }
 
-        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), queuePhysicalPath);
+        auto subConsumerClient = CreateSubConsumerClient(GetClient(), queueClient, consumerPath.GetPath(), registrationCheckResult.ResolvedQueue);
         subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 
         return VoidFuture;

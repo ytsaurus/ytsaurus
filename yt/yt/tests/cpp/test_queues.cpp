@@ -961,5 +961,131 @@ TEST_W(TPartitionReaderTest, EmptyQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TConsumerApiTest
+    : public TQueueTestBase
+{
+public:
+    static void TearDownTestCase();
+
+    static void SetUpTestCase();
+
+protected:
+    void CreateConsumer(const TRichYPath& path)
+    {
+        TCreateNodeOptions options;
+        options.Force = true;
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("dynamic", true);
+        options.Attributes->Set("schema", GetConsumerSchema());
+
+        WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        YT_UNUSED_FUTURE(Client_->MountTable(path.GetPath()));
+        WaitUntilEqual(path.GetPath() + "/@tablet_state", "mounted");
+    }
+
+    void CreateQueue(const TRichYPath& path)
+    {
+        TCreateNodeOptions options;
+        options.Force = true;
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("dynamic", true);
+        options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("data", EValueType::String).SetRequired(true),
+            TColumnSchema("$timestamp", EValueType::Uint64).SetRequired(true),
+            TColumnSchema("$cumulative_data_weight", EValueType::Int64).SetRequired(true),
+        }, /*strict*/ true, /*uniqueKeys*/ false));
+
+        WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::Table, options))
+            .ThrowOnError();
+
+        YT_UNUSED_FUTURE(Client_->MountTable(path.GetPath()));
+        WaitUntilEqual(path.GetPath() + "/@tablet_state", "mounted");
+    }
+};
+
+void TConsumerApiTest::TearDownTestCase()
+{
+    WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
+        .ThrowOnError();
+
+    TQueueTestBase::TearDownTestCase();
+}
+
+void TConsumerApiTest::SetUpTestCase()
+{
+    TQueueTestBase::SetUpTestCase();
+
+    auto cellId = WaitFor(Client_->CreateObject(EObjectType::TabletCell))
+        .ValueOrThrow();
+    WaitUntilEqual(TYPath("#") + ToString(cellId) + "/@health", "good");
+
+    WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(1000)))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
+{
+    TRichYPath consumerPath;
+    consumerPath.SetPath("//tmp/test_consumer");
+
+    TRichYPath queuePath;
+    queuePath.SetPath("//tmp/test_queue");
+
+    CreateConsumer(consumerPath);
+    CreateQueue(queuePath);
+
+    TRichYPath queueLinkPath;
+    queueLinkPath.SetPath("//tmp/test_queue_link");
+
+    WaitFor(Client_->LinkNode(queuePath.GetPath(), queueLinkPath.GetPath()))
+        .ValueOrThrow();
+
+    auto consumerClient = NQueueClient::CreateSubConsumerClient(Client_, Client_, consumerPath.GetPath(), queuePath);
+
+    auto partitions = WaitFor(consumerClient->CollectPartitions(1))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 1u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 0);
+    EXPECT_EQ(partitions[0].NextRowIndex, 0);
+
+    WaitFor(Client_->RegisterQueueConsumer(queuePath, consumerPath, true))
+        .ThrowOnError();
+
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    WaitFor(transaction->AdvanceConsumer(consumerPath, queueLinkPath, 0, {}, 1, {}))
+        .ThrowOnError();
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(1))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 1u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 0);
+    EXPECT_EQ(partitions[0].NextRowIndex, 1);
+
+    transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    WaitFor(transaction->AdvanceConsumer(consumerPath, queueLinkPath, 0, {}, 10, {}))
+        .ThrowOnError();
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    partitions = WaitFor(consumerClient->CollectPartitions(1))
+        .ValueOrThrow();
+    ASSERT_EQ(partitions.size(), 1u);
+    EXPECT_EQ(partitions[0].PartitionIndex, 0);
+    EXPECT_EQ(partitions[0].NextRowIndex, 10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NCppTests
