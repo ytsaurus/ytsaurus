@@ -517,7 +517,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         auto it = EmplaceOrCrash(batchRequests, cellTag, TCellTagBatch{proxy.ExecuteBatch(), {}});
 
         for (auto cellId : CellIds_) {
-            auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
+            auto req = TYPathProxy::Get(FromObjectId(cellId) + "/@");
             ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
             it->second.Request->AddRequest(req, ToString(cellId));
         }
@@ -529,7 +529,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
     for (auto cellTag : cellTags) {
         for (auto cellId : CellIds_) {
             const auto& batchReq = batchRequests[cellTag].Response.Get().Value();
-            auto rspOrError = batchReq->GetResponse<TTableYPathProxy::TRspGet>(ToString(cellId));
+            auto rspOrError = batchReq->GetResponse<TYPathProxy::TRspGet>(ToString(cellId));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
             auto attributes = ConvertToAttributes(TYsonString(rspOrError.Value()->value()));
