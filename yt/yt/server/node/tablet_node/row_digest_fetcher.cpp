@@ -185,7 +185,7 @@ private:
 
                 auto& compactionHints = sortedChunkStore->CompactionHints().RowDigest;
                 compactionHints.FetchStatus.RequestStep = RequestStep;
-                YT_ASSERT(!store->GetTablet()->GetTableSchema()->HasAggregateColumns());
+                YT_VERIFY(!store->GetTablet()->GetTableSchema()->HasAggregateColumns());
                 compactionHints.CompactionHint = GetUpcomingCompactionInfo(
                     store->GetId(),
                     store->GetTablet()->GetSettings().MountConfig,
