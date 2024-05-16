@@ -237,7 +237,7 @@ class YtTestEnvironment(object):
 
         self.config["enable_token"] = False
         self.config["pickling"]["module_filter"] = lambda module: \
-            hasattr(module, "__file__") and "driver_lib" not in module.__file__
+            hasattr(module, "__file__") and module.__file__ is not None and "driver_lib" not in module.__file__
 
         self.config["pickling"]["python_binary"] = sys.executable
         self.config["user_job_spec_defaults"] = {
