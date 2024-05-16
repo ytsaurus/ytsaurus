@@ -220,6 +220,26 @@ void PrintSystemBlockMeta(const TSystemBlockMetaExt& blocks, int dataBlockCount)
     }
 }
 
+void PrintHunkChunkRefsExt(const THunkChunkRefsExt& refs)
+{
+    Cout << "  Hunk chunk refs: " << Endl;
+    for (const auto& ref : refs.refs()) {
+        Cout << "    Hunk chunk id: " << ToString(FromProto<TGuid>(ref.chunk_id())) << Endl;
+        if (ref.has_hunk_count()) {
+            Cout << "      Hunk count: " << ref.hunk_count() << Endl;
+        }
+        if (ref.has_total_hunk_length()) {
+            Cout << "      Total hunk length: " << ref.total_hunk_length() << Endl;
+        }
+        if (ref.has_erasure_codec()) {
+            Cout << "      Erasure codec: " << ToString(FromProto<NYT::NErasure::ECodec>(ref.erasure_codec())) << Endl;
+        }
+        if (ref.has_compression_dictionary_id()) {
+            Cout << "      Compression dictionary id: " << ToString(FromProto<TGuid>(ref.compression_dictionary_id())) << Endl;
+        }
+    }
+}
+
 void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
 {
     auto chunkId = TChunkId::FromString(NFS::GetFileName(TString(chunkFileName)));
@@ -237,6 +257,7 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     auto maybeKeyColumnsExt = FindProtoExtension<NTableClient::NProto::TKeyColumnsExt>(meta->extensions());
     auto tableSchemaExt = GetProtoExtension<NTableClient::NProto::TTableSchemaExt>(meta->extensions());
     auto maybeVersionedRowDigestExt = FindProtoExtension<NTableClient::NProto::TVersionedRowDigestExt>(meta->extensions());
+    auto maybeHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(meta->extensions());
 
     TTableSchema schema;
     if (maybeKeyColumnsExt) {
@@ -308,6 +329,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
         Cout << "      Last key: " << ToString(FromProto<TLegacyOwningKey>(block.last_key())) << Endl;
     }
 #endif
+
+    if (maybeHunkChunkRefsExt) {
+        PrintHunkChunkRefsExt(*maybeHunkChunkRefsExt);
+    }
 }
 
 void PrintMeta(const IIOEnginePtr& ioEngine, const std::vector<TString>& chunkFileNames)

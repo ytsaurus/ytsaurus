@@ -1150,6 +1150,8 @@ private:
 
     IAttributeDictionaryPtr InputTableAttributes_;
 
+    THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
+
     void ValidateTableType(auto table) const
     {
         if (table->Type != EObjectType::Table && table->Type != EObjectType::File) {
@@ -1435,6 +1437,13 @@ private:
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));
         remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto<i64>(Spec_->ErasureChunkRepairDelay));
         remoteCopyJobSpecExt->set_repair_erasure_chunks(Spec_->RepairErasureChunks);
+
+        // TODO(alexelex): For the future, now it is always empty: YT-20044
+        for (const auto& mapping : HunkChunkIdMapping_) {
+            auto* protoMapping = remoteCopyJobSpecExt->add_hunk_chunk_id_mapping();
+            ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
+            ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
+        }
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

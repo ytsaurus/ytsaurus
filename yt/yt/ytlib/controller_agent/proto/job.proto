@@ -687,6 +687,12 @@ message TRemoteCopyJobSpecExt
         optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
     }
 
+    message THunkChunkIdMapping
+    {
+        required NYT.NProto.TGuid input_hunk_chunk_id = 1;
+        required NYT.NProto.TGuid output_hunk_chunk_id = 2;
+    }
+
     required bytes connection_config = 1;
 
     required int32 concurrency = 2;
@@ -698,6 +704,8 @@ message TRemoteCopyJobSpecExt
     optional int64 erasure_chunk_repair_delay = 5;
 
     optional bool repair_erasure_chunks = 6;
+
+    repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
