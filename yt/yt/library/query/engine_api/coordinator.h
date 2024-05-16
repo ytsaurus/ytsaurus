@@ -10,13 +10,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRefiner = std::function<TConstExpressionPtr(
-    const TConstExpressionPtr& expr,
-    const TKeyColumns& keyColumns)>;
-
-std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
-    const TConstQueryPtr& query,
-    const std::vector<TRefiner>& refiners);
+std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query);
 
 TSharedRange<TRowRange> GetPrunedRanges(
     const TConstExpressionPtr& predicate,
@@ -44,11 +38,11 @@ using TEvaluateResult = std::pair<
     TFuture<TQueryStatistics>>;
 
 TQueryStatistics CoordinateAndExecute(
-    const TConstQueryPtr& query,
-    const IUnversionedRowsetWriterPtr& writer,
-    const std::vector<TRefiner>& ranges,
-    std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulUnversionedReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop);
+    bool ordered,
+    bool prefetch,
+    int splitCount,
+    std::function<TEvaluateResult()> evaluateSubQuery,
+    std::function<TQueryStatistics(const ISchemafulUnversionedReaderPtr&)> evaluateTopQuery);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1978,34 +1978,26 @@ protected:
         auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
         YT_VERIFY(primaryQuery->GroupClause);
 
-        int tablets = owningSources.size();
+        int tabletCount = owningSources.size();
 
-        std::vector<TRefiner> refiners(
-            tablets,
-            [] (TConstExpressionPtr expr, const TKeyColumns& /*keyColumns*/) {
-                return expr;
-            });
+        auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(primaryQuery);
 
-        TConstFrontQueryPtr frontQuery;
-        std::vector<TConstQueryPtr> subqueries;
-        std::tie(frontQuery, subqueries) = CoordinateQuery(primaryQuery, refiners);
-
-        std::vector<std::vector<TOwningRow>> owningSourceRows(tablets);
-        std::vector<std::vector<TRow>> sourceRows(tablets);
-        for (int index = 0; index < tablets; ++index) {
+        std::vector<std::vector<TOwningRow>> owningSourceRows(tabletCount);
+        std::vector<std::vector<TRow>> sourceRows(tabletCount);
+        for (int index = 0; index < tabletCount; ++index) {
             for (const auto& row : owningSources[index]) {
                 owningSourceRows[index].push_back(
-                    NTableClient::YsonToSchemafulRow(row, *subqueries[index]->GetReadSchema(), true));
+                    NTableClient::YsonToSchemafulRow(row, *bottomQuery->GetReadSchema(), true));
                 sourceRows[index].push_back(TRow(owningSourceRows[index].back()));
             }
         }
 
         int tabletIndex = 0;
-        std::vector<int> tabletReadProgress(tablets, 0);
-        std::vector<TQueryStatistics> resultStatistics(tablets);
-        auto getNextReader = [&] () -> ISchemafulUnversionedReaderPtr {
+        std::vector<int> tabletReadProgress(tabletCount, 0);
+        std::vector<TQueryStatistics> resultStatistics(tabletCount);
+        auto getNextReader = [&, bottomQuery = bottomQuery] () -> ISchemafulUnversionedReaderPtr {
             int index = tabletIndex++;
-            if (index == tablets) {
+            if (index == tabletCount) {
                 return nullptr;
             }
 
@@ -2036,7 +2028,7 @@ protected:
 
             auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
             resultStatistics[index] = Evaluator_->Run(
-                subqueries[index],
+                bottomQuery,
                 readerMock,
                 pipe->GetWriter(),
                 /*joinProfiler*/ nullptr,

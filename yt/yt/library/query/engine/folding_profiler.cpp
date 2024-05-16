@@ -1853,12 +1853,10 @@ void TQueryProfiler::Profile(
                 subquery->ProjectClause = projectClause;
                 subquery->WhereClause = joinClause->Predicate;
 
-                auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
-
                 std::vector<size_t> foreignColumns;
-                for (int index = 0; index < std::ssize(joinRenamedTableColumns); ++index) {
-                    const auto& renamedColumn = joinRenamedTableColumns[index];
-                    if (joinClause->ForeignJoinedColumns.contains(joinRenamedTableColumns[index].Name())) {
+                auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
+                for (const auto& renamedColumn : joinRenamedTableColumns) {
+                    if (joinClause->ForeignJoinedColumns.contains(renamedColumn.Name())) {
                         foreignColumns.push_back(projectClause->Projections.size());
 
                         projectClause->AddProjection(
@@ -1873,6 +1871,9 @@ void TQueryProfiler::Profile(
                 singleJoinParameters.IsLeft = joinClause->IsLeft;
                 singleJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
                 singleJoinParameters.ForeignColumns = std::move(foreignColumns);
+                // TODO(lukyan): Transfer projectClause instead of subquery. Move query construction to joinProfiler.
+                // How to get foreignColumns, foreignColumnsIndexes?
+                // Or build projectClause in query preparer?
                 singleJoinParameters.ExecuteForeign = joinProfiler(std::move(subquery), joinClause);
             }
             joinParameters.Items.push_back(std::move(singleJoinParameters));

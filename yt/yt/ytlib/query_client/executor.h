@@ -14,7 +14,16 @@ namespace NYT::NQueryClient {
 struct TQueryExecutorRowBufferTag
 { };
 
-std::vector<std::pair<TDataSource, TString>> InferRanges(
+struct TInferRangesResult
+{
+    std::vector<std::pair<TDataSource, TString>> DataSources;
+    TConstQueryPtr ResultQuery;
+
+    // COMPAT(lukyan)
+    bool SortedDataSource;
+};
+
+TInferRangesResult InferRanges(
     NApi::NNative::IConnectionPtr connection,
     TConstQueryPtr query,
     const TDataSource& dataSource,

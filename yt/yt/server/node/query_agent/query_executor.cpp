@@ -451,10 +451,38 @@ public:
             }
         }
 
-        auto counters = TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser());
-        profilerGuard.Start(counters->Execute);
+        profilerGuard.Start(TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser())->Execute);
 
-        return DoExecute();
+        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(GetProfilingUser(Identity_));
+
+        ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
+        ChunkReadOptions_.KeyFilterStatistics = TabletSnapshots_.CreateKeyFilterStatistics();
+
+        auto updateProfiling = Finally([&] {
+            auto failed = std::uncaught_exceptions() != 0;
+            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
+            counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
+
+            if (const auto& keyFilterStatistics = ChunkReadOptions_.KeyFilterStatistics) {
+                const auto& rangeFilterCounters = counters->RangeFilterCounters;
+                rangeFilterCounters.InputRangeCount.Increment(
+                    keyFilterStatistics->InputEntryCount.load(std::memory_order::relaxed));
+                rangeFilterCounters.FilteredOutRangeCount.Increment(
+                    keyFilterStatistics->FilteredOutEntryCount.load(std::memory_order::relaxed));
+                rangeFilterCounters.FalsePositiveRangeCount.Increment(
+                    keyFilterStatistics->FalsePositiveEntryCount.load(std::memory_order::relaxed));
+            }
+        });
+
+        auto statistics = DoExecute();
+
+        auto cpuTime = statistics.SyncTime;
+        for (const auto& innerStatistics : statistics.InnerStatistics) {
+            cpuTime += innerStatistics.SyncTime;
+        }
+        counters->CpuTime.Add(cpuTime);
+
+        return statistics;
     }
 
 private:
@@ -495,10 +523,7 @@ private:
         }
     }
 
-    TQueryStatistics DoCoordinateAndExecute(
-        std::vector<TRefiner> refiners,
-        std::vector<TSubreaderCreator> subreaderCreators,
-        std::vector<std::vector<TDataSource>> readRanges)
+    TQueryStatistics DoCoordinateAndExecute(std::vector<std::vector<TDataSource>> groupedDataSplits)
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
@@ -527,19 +552,39 @@ private:
             FunctionImplCache_,
             ChunkReadOptions_);
 
+        auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
+
+        bool ordered = Query_->IsOrdered();
+        bool prefetch = Query_->Limit == std::numeric_limits<i64>::max() - 1;
+        int splitCount = std::ssize(groupedDataSplits);
+
         return CoordinateAndExecute(
-            Query_,
-            Writer_,
-            refiners,
-            [&] (const TConstQueryPtr& primarySubquery, int index) {
+            ordered,
+            prefetch,
+            splitCount,
+            [
+                &,
+                bottomQueryPattern = bottomQueryPattern,
+                groupedDataSplits = std::move(groupedDataSplits),
+                subqueryIndex = 0
+            ] () mutable -> TEvaluateResult {
+                if (subqueryIndex >= std::ssize(groupedDataSplits)) {
+                    return {};
+                }
+
+                auto dataSplits = groupedDataSplits[subqueryIndex++];
+
                 auto asyncSubqueryResults = std::make_shared<std::vector<TFuture<TQueryStatistics>>>();
 
-                bool orderedExecution = primarySubquery->IsOrdered();
+                // Copy query to generate new id.
+                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
+
+                bool orderedExecution = bottomQuery->IsOrdered();
 
                 auto foreignProfileCallback = [
                     asyncSubqueryResults,
                     remoteExecutor,
-                    dataSplits = std::move(readRanges[index]),
+                    dataSplits,
                     orderedExecution,
                     this,
                     this_ = MakeStrong(this)
@@ -717,16 +762,16 @@ private:
                     }
                 };
 
-                auto mergingReader = subreaderCreators[index]();
+                auto mergingReader = CreateReaderForDataSources(std::move(dataSplits));
 
-                YT_LOG_DEBUG("Evaluating subquery (SubqueryId: %v)", primarySubquery->Id);
+                YT_LOG_DEBUG("Evaluating bottom query (BottomQueryId: %v)", bottomQuery->Id);
 
                 auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
 
                 auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
                     .AsyncVia(Invoker_)
                     .Run(
-                        primarySubquery,
+                        bottomQuery,
                         mergingReader,
                         pipe->GetWriter(),
                         foreignProfileCallback,
@@ -739,14 +784,17 @@ private:
                     =,
                     this,
                     this_ = MakeStrong(this)
-                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics>
-                {
+                ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics> {
                     if (!result.IsOK()) {
                         pipe->Fail(result);
-                        YT_LOG_DEBUG(result, "Failed evaluating subquery (SubqueryId: %v)", primarySubquery->Id);
+                        YT_LOG_DEBUG(result, "Bottom query failed (SubqueryId: %v)", bottomQuery->Id);
                         return MakeFuture(result);
                     } else {
                         TQueryStatistics statistics = result.Value();
+
+                        YT_LOG_DEBUG("Bottom query finished (SubqueryId: %v, Statistics: %v)",
+                            bottomQuery->Id,
+                            statistics);
 
                         return AllSucceeded(*asyncSubqueryResults)
                         .Apply(BIND([
@@ -765,136 +813,47 @@ private:
 
                 return std::pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
-                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+            [&, frontQuery = frontQuery] (const ISchemafulUnversionedReaderPtr& reader) {
+                YT_LOG_DEBUG("Evaluating front query (FrontQueryId: %v)", frontQuery->Id);
                 auto result = Evaluator_->Run(
-                    topQuery,
+                    frontQuery,
                     std::move(reader),
-                    std::move(writer),
+                    Writer_,
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,
                     QueryOptions_);
-                YT_LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
+                YT_LOG_DEBUG("Finished evaluating front query (FrontQueryId: %v)", frontQuery->Id);
                 return result;
             });
     }
 
     TQueryStatistics DoExecute()
     {
-        auto tags = GetProfilingUser(Identity_);
-        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectRowsCounters(tags);
+        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
-        ChunkReadOptions_.HunkChunkReaderStatistics = TabletSnapshots_.CreateHunkChunkReaderStatistics();
-        ChunkReadOptions_.KeyFilterStatistics = TabletSnapshots_.CreateKeyFilterStatistics();
-
-        auto statistics = DoExecuteImpl();
-
-        auto updateProfiling = Finally([&] {
-            auto failed = std::uncaught_exceptions() != 0;
-            counters->ChunkReaderStatisticsCounters.Increment(ChunkReadOptions_.ChunkReaderStatistics, failed);
-            counters->HunkChunkReaderCounters.Increment(ChunkReadOptions_.HunkChunkReaderStatistics, failed);
-
-            if (const auto& keyFilterStatistics = ChunkReadOptions_.KeyFilterStatistics) {
-                const auto& rangeFilterCounters = counters->RangeFilterCounters;
-                rangeFilterCounters.InputRangeCount.Increment(
-                    keyFilterStatistics->InputEntryCount.load(std::memory_order::relaxed));
-                rangeFilterCounters.FilteredOutRangeCount.Increment(
-                    keyFilterStatistics->FilteredOutEntryCount.load(std::memory_order::relaxed));
-                rangeFilterCounters.FalsePositiveRangeCount.Increment(
-                    keyFilterStatistics->FalsePositiveEntryCount.load(std::memory_order::relaxed));
-            }
-        });
-
-        auto cpuTime = statistics.SyncTime;
-        for (const auto& innerStatistics : statistics.InnerStatistics) {
-            cpuTime += innerStatistics.SyncTime;
-        }
-        counters->CpuTime.Add(cpuTime);
-
-        return statistics;
-    }
-
-    TQueryStatistics DoExecuteImpl()
-    {
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag(), MemoryChunkProvider_);
+        auto classifiedDataSources = GetClassifiedDataSources(rowBuffer);
 
-        auto splits = Split(GetClassifiedDataSources(rowBuffer), rowBuffer);
+        auto splits = CoordinateDataSources(classifiedDataSources, rowBuffer);
 
-        std::vector<TRefiner> refiners;
-        std::vector<TSubreaderCreator> subreaderCreators;
-        std::vector<std::vector<TDataSource>> readRanges;
+        std::vector<std::vector<TDataSource>> groupedDataSplits;
 
         auto processSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (beginIndex == endIndex) {
                 return;
             }
 
-            std::vector<TDataSource> groupedSplit(splits.begin() + beginIndex, splits.begin() + endIndex);
-            readRanges.push_back(groupedSplit);
-
-            std::vector<TRowRange> keyRanges;
-            for (const auto& dataRange : groupedSplit) {
-                keyRanges.insert(keyRanges.end(), dataRange.Ranges.Begin(), dataRange.Ranges.End());
-            }
-
-            refiners.push_back([keyRanges = std::move(keyRanges), inferRanges = Query_->InferRanges] (
-                const TConstExpressionPtr& expr,
-                const TKeyColumns& keyColumns)
-            {
-                if (inferRanges) {
-                    return EliminatePredicate(keyRanges, expr, keyColumns);
-                } else {
-                    return expr;
-                }
-            });
-
-            subreaderCreators.push_back([=, this, groupedSplit = std::move(groupedSplit)] {
-                size_t rangeCount = std::accumulate(
-                    groupedSplit.begin(),
-                    groupedSplit.end(),
-                    0,
-                    [] (size_t sum, const TDataSource& element) {
-                        return sum + element.Ranges.Size();
-                    });
-                YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
-                    groupedSplit.size(),
-                    rangeCount);
-
-                LogSplits(groupedSplit);
-
-                auto bottomSplitReaderGenerator = [
-                    =,
-                    this,
-                    this_ = MakeStrong(this),
-                    groupedSplit = std::move(groupedSplit),
-                    index = 0
-                ] () mutable -> ISchemafulUnversionedReaderPtr {
-                    if (index == std::ssize(groupedSplit)) {
-                        return nullptr;
-                    }
-
-                    const auto& group = groupedSplit[index++];
-
-                    try {
-                        return GetMultipleRangesReader(group.ObjectId, group.Ranges);
-                    } catch (const std::exception& ex) {
-                        THROW_ERROR EnrichErrorForErrorManager(TError(ex), TabletSnapshots_.GetCachedTabletSnapshot(group.ObjectId));
-                    }
-                };
-
-                return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
-            });
+            groupedDataSplits.emplace_back(splits.begin() + beginIndex, splits.begin() + endIndex);
         };
-
-        bool regroupByTablets = Query_->GroupClause && Query_->GroupClause->CommonPrefixWithPrimaryKey > 0;
 
         auto regroupAndProcessSplitsRanges = [&] (int beginIndex, int endIndex) {
             if (!regroupByTablets) {
                 processSplitsRanges(beginIndex, endIndex);
                 return;
             }
+            // Tablets must be read individually because they can be interleaved with tablets at other nodes.
             ssize_t lastOffset = beginIndex;
             for (ssize_t index = beginIndex; index < endIndex; ++index) {
                 if (index > lastOffset && splits[index].ObjectId != splits[lastOffset].ObjectId) {
@@ -906,28 +865,7 @@ private:
         };
 
         auto processSplitKeys = [&] (int index) {
-            readRanges.push_back({splits[index]});
-
-            auto tabletId = splits[index].ObjectId;
-            const auto& keys = splits[index].Keys;
-
-            refiners.push_back([keys, inferRanges = Query_->InferRanges] (
-                const TConstExpressionPtr& expr,
-                const TKeyColumns& keyColumns)
-            {
-                if (inferRanges) {
-                    return EliminatePredicate(keys, expr, keyColumns);
-                } else {
-                    return expr;
-                }
-            });
-            subreaderCreators.push_back([=, this, keys = std::move(keys)] {
-                try {
-                    return GetTabletReader(tabletId, keys);
-                } catch (const std::exception& ex) {
-                    THROW_ERROR EnrichErrorForErrorManager(TError(ex), TabletSnapshots_.GetCachedTabletSnapshot(tabletId));
-                }
-            });
+            groupedDataSplits.push_back({splits[index]});
         };
 
         int splitCount = splits.size();
@@ -954,10 +892,7 @@ private:
 
         YT_VERIFY(splitOffset == splitCount);
 
-        return DoCoordinateAndExecute(
-            std::move(refiners),
-            std::move(subreaderCreators),
-            std::move(readRanges));
+        return DoCoordinateAndExecute(std::move(groupedDataSplits));
     }
 
     std::vector<TDataSource> GetClassifiedDataSources(const TRowBufferPtr& rowBuffer)
@@ -995,7 +930,7 @@ private:
         }
 
         size_t rangeCount = 0;
-        size_t keysCount = 0;
+        size_t keyCount = 0;
         for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
             std::vector<TRow> keys;
@@ -1013,7 +948,7 @@ private:
 
             auto pushKeys = [&] {
                 if (!keys.empty()) {
-                    keysCount += keys.size();
+                    keyCount += keys.size();
                     classifiedDataSources.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
@@ -1060,12 +995,12 @@ private:
 
         YT_LOG_DEBUG("Splitting ranges (RangeCount: %v, KeyCount: %v)",
             rangeCount,
-            keysCount);
+            keyCount);
 
         return classifiedDataSources;
     }
 
-    std::vector<TDataSource> Split(std::vector<TDataSource> dataSourcesByTablet, TRowBufferPtr rowBuffer)
+    std::vector<TDataSource> CoordinateDataSources(std::vector<TDataSource> dataSourcesByTablet, TRowBufferPtr rowBuffer)
     {
         std::vector<TDataSource> groupedSplits;
 
@@ -1132,86 +1067,104 @@ private:
         return groupedSplits;
     }
 
-    ISchemafulUnversionedReaderPtr GetMultipleRangesReader(
-        TTabletId tabletId,
-        const TSharedRange<TRowRange>& bounds)
+    ISchemafulUnversionedReaderPtr CreateReaderForDataSources(std::vector<TDataSource> dataSplits)
     {
-        auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
-        auto tableProfiler = tabletSnapshot->TableProfiler;
-        auto userTag = GetProfilingUser(Identity_);
-        auto enableDetailedProfiling = tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling;
+        size_t rangeCount = std::accumulate(
+            dataSplits.begin(),
+            dataSplits.end(),
+            0,
+            [] (size_t sum, const TDataSource& element) {
+                return sum + element.Ranges.Size();
+            });
+        YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
+            dataSplits.size(),
+            rangeCount);
 
-        ISchemafulUnversionedReaderPtr reader;
-
-        if (!tabletSnapshot->TableSchema->IsSorted()) {
-            auto bottomSplitReaderGenerator = [
-                =,
-                this,
-                this_ = MakeStrong(this),
-                tabletSnapshot = std::move(tabletSnapshot),
-                bounds = std::move(bounds),
-                index = 0
-            ] () mutable -> ISchemafulUnversionedReaderPtr {
-                if (index == std::ssize(bounds)) {
-                    return nullptr;
-                }
-
-                const auto& range = bounds[index++];
-
-                return CreateSchemafulOrderedTabletReader(
-                    tabletSnapshot,
-                    columnFilter,
-                    TLegacyOwningKey(range.first),
-                    TLegacyOwningKey(range.second),
-                    QueryOptions_.TimestampRange,
-                    ChunkReadOptions_,
-                    ETabletDistributedThrottlerKind::Select,
-                    ChunkReadOptions_.WorkloadDescriptor.Category);
-            };
-
-            reader = CreateUnorderedSchemafulReader(std::move(bottomSplitReaderGenerator), 1);
-        } else {
-            reader = CreateSchemafulSortedTabletReader(
-                std::move(tabletSnapshot),
-                columnFilter,
-                bounds,
-                QueryOptions_.TimestampRange,
-                ChunkReadOptions_,
-                ETabletDistributedThrottlerKind::Select,
-                ChunkReadOptions_.WorkloadDescriptor.Category,
-                QueryOptions_.MergeVersionedRows);
+        if (QueryOptions_.VerboseLogging) {
+            for (const auto& dataSplit : dataSplits) {
+                YT_LOG_DEBUG("Read items in split (TabletId: %v, Ranges: %v, Keys: %v)",
+                    dataSplit.ObjectId,
+                    MakeFormattableView(dataSplit.Ranges, TRangeFormatter()),
+                    dataSplit.Keys);
+            }
         }
 
-        return New<TProfilingReaderWrapper>(
-            reader,
-            *tableProfiler->GetSelectRowsCounters(userTag),
-            enableDetailedProfiling);
-    }
+        auto bottomSplitReaderGenerator = [
+            =,
+            this,
+            this_ = MakeStrong(this),
+            dataSplits = std::move(dataSplits),
+            dataSplitIndex = 0
+        ] () mutable -> ISchemafulUnversionedReaderPtr {
+            if (dataSplitIndex == std::ssize(dataSplits)) {
+                return nullptr;
+            }
 
-    ISchemafulUnversionedReaderPtr GetTabletReader(
-        TTabletId tabletId,
-        const TSharedRange<TRow>& keys)
-    {
-        auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
-        auto tableProfiler = tabletSnapshot->TableProfiler;
-        auto userTag = GetProfilingUser(Identity_);
-        auto enableDetailedProfiling = tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling;
+            const auto& dataSplit = dataSplits[dataSplitIndex++];
 
-        auto reader = CreateSchemafulLookupTabletReader(
-            std::move(tabletSnapshot),
-            columnFilter,
-            keys,
-            QueryOptions_.TimestampRange,
-            ChunkReadOptions_,
-            ETabletDistributedThrottlerKind::Select,
-            ChunkReadOptions_.WorkloadDescriptor.Category);
+            auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSplit.ObjectId);
+            auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
 
-        return New<TProfilingReaderWrapper>(
-            reader,
-            *tableProfiler->GetSelectRowsCounters(userTag),
-            enableDetailedProfiling);
+            try {
+                ISchemafulUnversionedReaderPtr reader;
+                if (dataSplit.Ranges) {
+                    if (tabletSnapshot->TableSchema->IsSorted()) {
+                        reader = CreateSchemafulSortedTabletReader(
+                            tabletSnapshot,
+                            columnFilter,
+                            dataSplit.Ranges,
+                            QueryOptions_.TimestampRange,
+                            ChunkReadOptions_,
+                            ETabletDistributedThrottlerKind::Select,
+                            ChunkReadOptions_.WorkloadDescriptor.Category,
+                            QueryOptions_.MergeVersionedRows);
+                    } else {
+                        auto orderedRangeReaderGenerator = [
+                            =,
+                            this,
+                            this_ = MakeStrong(this),
+                            rangeIndex = 0
+                        ] () mutable -> ISchemafulUnversionedReaderPtr {
+                            if (rangeIndex == std::ssize(dataSplit.Ranges)) {
+                                return nullptr;
+                            }
+
+                            const auto& range = dataSplit.Ranges[rangeIndex++];
+
+                            return CreateSchemafulOrderedTabletReader(
+                                tabletSnapshot,
+                                columnFilter,
+                                TLegacyOwningKey(range.first),
+                                TLegacyOwningKey(range.second),
+                                QueryOptions_.TimestampRange,
+                                ChunkReadOptions_,
+                                ETabletDistributedThrottlerKind::Select,
+                                ChunkReadOptions_.WorkloadDescriptor.Category);
+                        };
+
+                        reader = CreateUnorderedSchemafulReader(std::move(orderedRangeReaderGenerator), 1);
+                    }
+                } else if (dataSplit.Keys) {
+                    reader = CreateSchemafulLookupTabletReader(
+                        tabletSnapshot,
+                        columnFilter,
+                        dataSplit.Keys,
+                        QueryOptions_.TimestampRange,
+                        ChunkReadOptions_,
+                        ETabletDistributedThrottlerKind::Select,
+                        ChunkReadOptions_.WorkloadDescriptor.Category);
+                }
+
+                return New<TProfilingReaderWrapper>(
+                    reader,
+                    *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
+                    tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling);
+            } catch (const std::exception& ex) {
+                THROW_ERROR EnrichErrorForErrorManager(TError(ex), tabletSnapshot);
+            }
+        };
+
+        return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
     }
 };
 

@@ -79,48 +79,15 @@ TRow GetPivotKey(const TTabletInfoPtr& shard)
     return shard->PivotKey;
 }
 
-std::vector<std::pair<TDataSource, TString>> DoInferRanges(
+std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
     const NHiveClient::ICellDirectoryPtr& cellDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
-    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     const TTableMountInfoPtr& tableInfo,
-    TConstQueryPtr query,
     const TDataSource& dataSource,
-    const TQueryOptions& options,
-    TRowBufferPtr rowBuffer,
-    const NLogging::TLogger& Logger)
+    TRowBufferPtr rowBuffer)
 {
-    auto tableId = dataSource.ObjectId;
     auto ranges = dataSource.Ranges;
     auto keys = dataSource.Keys;
-
-    // TODO(lukyan): Infer ranges if no initial ranges or keys?
-    if (!keys && query->InferRanges) {
-        ranges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            columnEvaluatorCache,
-            GetBuiltinRangeExtractors(),
-            options);
-
-        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
-            ranges.Size(),
-            tableId);
-    }
-
-    if (*query->Schema.Original != *tableInfo->Schemas[ETableSchemaKind::Query]) {
-        THROW_ERROR_EXCEPTION(
-            NTabletClient::EErrorCode::InvalidMountRevision,
-            "Invalid revision for table info; schema has changed")
-            << TErrorAttribute("path", tableInfo->Path)
-            << TErrorAttribute("original_schema", *query->Schema.Original)
-            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
-    }
-
-    tableInfo->ValidateDynamic();
-    tableInfo->ValidateNotPhysicallyLog();
 
     THashMap<NTabletClient::TTabletCellId, TCellDescriptorPtr> tabletCellReplicas;
 
@@ -158,21 +125,6 @@ std::vector<std::pair<TDataSource, TString>> DoInferRanges(
 
         return &subsources.emplace_back(std::move(dataSubsource), address).first;
     };
-
-    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
-        ranges ? "ranges" : "keys",
-        ranges ? ranges.size() : keys.size(),
-        tableInfo->Tablets.size(),
-        tableInfo->LowerCapBound,
-        tableInfo->UpperCapBound);
-
-    if (options.VerboseLogging) {
-        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
-            ranges ? "ranges" : "keys",
-            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
-                builder->AppendFormat("%v", tablet->PivotKey.Get());
-            }));
-    }
 
     if (ranges) {
         YT_VERIFY(!keys);
@@ -231,7 +183,48 @@ std::vector<std::pair<TDataSource, TString>> DoInferRanges(
     return subsources;
 }
 
-std::vector<std::pair<TDataSource, TString>> InferRanges(
+void ValidateTableInfo(const TTableMountInfoPtr& tableInfo, TTableSchemaPtr expectedQuerySchema)
+{
+
+    if (*expectedQuerySchema != *tableInfo->Schemas[ETableSchemaKind::Query]) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::InvalidMountRevision,
+            "Invalid revision for table info; schema has changed")
+            << TErrorAttribute("path", tableInfo->Path)
+            << TErrorAttribute("original_schema", *expectedQuerySchema)
+            << TErrorAttribute("query_schema", *tableInfo->Schemas[ETableSchemaKind::Query]);
+    }
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateNotPhysicallyLog();
+}
+
+void LogInitialDataSources(
+    const TTableMountInfoPtr& tableInfo,
+    const TDataSource& dataSource,
+    bool verboseLogging,
+    const NLogging::TLogger& Logger)
+{
+    auto ranges = dataSource.Ranges;
+    auto keys = dataSource.Keys;
+
+    YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
+        ranges ? "ranges" : "keys",
+        ranges ? ranges.size() : keys.size(),
+        tableInfo->Tablets.size(),
+        tableInfo->LowerCapBound,
+        tableInfo->UpperCapBound);
+
+    if (verboseLogging) {
+        YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
+            ranges ? "ranges" : "keys",
+            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
+                builder->AppendFormat("%v", tablet->PivotKey.Get());
+            }));
+    }
+}
+
+TInferRangesResult InferRanges(
     NApi::NNative::IConnectionPtr connection,
     TConstQueryPtr query,
     const TDataSource& dataSource,
@@ -239,19 +232,62 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     TRowBufferPtr rowBuffer,
     const NLogging::TLogger& Logger)
 {
-    auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
+    auto tableId = dataSource.ObjectId;
+    auto ranges = dataSource.Ranges;
+    auto keys = dataSource.Keys;
+
+    TConstQueryPtr resultQuery;
+
+    // TODO(lukyan): Infer ranges if no initial ranges or keys?
+    if (!keys && query->InferRanges) {
+        ranges = GetPrunedRanges(
+            query,
+            tableId,
+            ranges,
+            rowBuffer,
+            connection->GetColumnEvaluatorCache(),
+            GetBuiltinRangeExtractors(),
+            options);
+
+        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
+            ranges.Size(),
+            tableId);
+
+        auto newQuery = New<TQuery>(*query);
+
+        if (query->WhereClause && !ranges.Empty()) {
+            newQuery->WhereClause = EliminatePredicate(
+                ranges,
+                query->WhereClause,
+                query->GetKeyColumns());
+        }
+
+        resultQuery = newQuery;
+    } else {
+        resultQuery = query;
+    }
+
+    auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(FromObjectId(tableId)))
         .ValueOrThrow();
 
-    return DoInferRanges(
+    ValidateTableInfo(tableInfo, query->Schema.Original);
+
+    TDataSource inferredDataSource{
+        .ObjectId = tableId,
+        .Ranges = ranges,
+        .Keys = keys
+    };
+
+    LogInitialDataSources(tableInfo, inferredDataSource, options.VerboseLogging, Logger);
+
+    auto dataSources = CoordinateDataSources(
         connection->GetCellDirectory(),
         connection->GetNetworks(),
-        connection->GetColumnEvaluatorCache(),
         tableInfo,
-        query,
-        dataSource,
-        options,
-        rowBuffer,
-        Logger);
+        inferredDataSource,
+        rowBuffer);
+
+    return {std::move(dataSources), std::move(resultQuery), tableInfo->IsSorted()};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,10 +298,12 @@ class TQueryResponseReader
 public:
     TQueryResponseReader(
         TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
+        TGuid id,
         TTableSchemaPtr schema,
         NCompression::ECodec codecId,
         NLogging::TLogger logger)
-        : Schema_(std::move(schema))
+        : Id_(id)
+        , Schema_(std::move(schema))
         , CodecId_(codecId)
         , Logger(std::move(logger))
     {
@@ -318,6 +356,7 @@ public:
     }
 
 private:
+    const TGuid Id_;
     const TTableSchemaPtr Schema_;
     const NCompression::ECodec CodecId_;
     const NLogging::TLogger Logger;
@@ -325,15 +364,28 @@ private:
     TFuture<TQueryStatistics> QueryResult_;
     TAtomicIntrusivePtr<ISchemafulUnversionedReader> RowsetReader_;
 
-    TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
+    TErrorOr<TQueryStatistics> OnResponse(const TErrorOr<TQueryServiceProxy::TRspExecutePtr>& responseOrError)
     {
-        RowsetReader_.Store(CreateWireProtocolRowsetReader(
-            response->Attachments(),
-            CodecId_,
-            Schema_,
-            false,
-            Logger));
-        return FromProto<TQueryStatistics>(response->query_statistics());
+        if (responseOrError.IsOK()) {
+            auto response = responseOrError.Value();
+            RowsetReader_.Store(CreateWireProtocolRowsetReader(
+                response->Attachments(),
+                CodecId_,
+                Schema_,
+                false,
+                Logger));
+            auto statistics = FromProto<TQueryStatistics>(response->query_statistics());
+
+            YT_LOG_DEBUG("Subquery finished (SubqueryId: %v, Statistics: %v)",
+                Id_,
+                statistics);
+            return statistics;
+        } else {
+            YT_LOG_DEBUG(responseOrError, "Subquery failed (SubqueryId: %v)",
+                Id_);
+
+            return TError(responseOrError);
+        }
     }
 };
 
@@ -372,11 +424,7 @@ public:
         const TQueryOptions& options) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
-        auto execute = query->IsOrdered()
-            ? &TQueryExecutor::DoExecuteOrdered
-            : &TQueryExecutor::DoExecute;
-
-        return BIND(execute, MakeStrong(this))
+        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
             .AsyncVia(Invoker_)
             .Run(
                 std::move(query),
@@ -401,16 +449,9 @@ private:
         const TQueryOptions& options,
         const IUnversionedRowsetWriterPtr& writer,
         bool sortedDataSource,
-        int subrangesCount,
-        std::function<std::pair<std::vector<TDataSource>, TString>(int)> getSubsources)
+        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
     {
         auto Logger = MakeQueryLogger(query);
-
-        std::vector<TRefiner> refiners(subrangesCount, [] (
-            TConstExpressionPtr expr,
-            const TKeyColumns& /*keyColumns*/) {
-                return expr;
-            });
 
         auto functionGenerators = New<TFunctionProfilerMap>();
         auto aggregateGenerators = New<TAggregateProfilerMap>();
@@ -429,34 +470,50 @@ private:
             FunctionImplCache_,
             chunkReadOptions);
 
+        auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(query);
+
+        bool ordered = query->IsOrdered();
+        bool prefetch = query->Limit == std::numeric_limits<i64>::max() - 1;
+        int splitCount = std::ssize(groupedDataSplits);
+
         return CoordinateAndExecute(
-            query,
-            writer,
-            refiners,
-            [&] (const TConstQueryPtr& subquery, int index) {
-                std::vector<TDataSource> dataSources;
-                TString address;
-                std::tie(dataSources, address) = getSubsources(index);
+            ordered,
+            prefetch,
+            splitCount,
+            [
+                &,
+                bottomQueryPattern = bottomQueryPattern,
+                groupedDataSplits = std::move(groupedDataSplits),
+                subqueryIndex = 0
+            ] () mutable -> TEvaluateResult {
+                if (subqueryIndex >= std::ssize(groupedDataSplits)) {
+                    return {};
+                }
+
+                auto& [dataSources, address] = groupedDataSplits[subqueryIndex++];
+
+                // Copy query to generate new id.
+                auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
                 YT_LOG_DEBUG("Delegating subquery (SubQueryId: %v, Address: %v, MaxSubqueries: %v)",
-                    subquery->Id,
+                    bottomQuery->Id,
                     address,
                     options.MaxSubqueries);
 
                 return Delegate(
-                    std::move(subquery),
+                    bottomQuery,
                     externalCGInfo,
                     options,
                     std::move(dataSources),
                     sortedDataSource,
                     address);
             },
-            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
-                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
+            [&, frontQuery = frontQuery] (const ISchemafulUnversionedReaderPtr& reader) {
+                YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
                 return Evaluator_->Run(
-                    std::move(topQuery),
+                    std::move(frontQuery),
                     std::move(reader),
-                    std::move(writer),
+                    writer,
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
@@ -478,24 +535,24 @@ private:
             TQueryExecutorRowBufferTag{},
             MemoryChunkProvider_);
 
-        auto tableInfo = WaitFor(Connection_->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
-            .ValueOrThrow();
-
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networks = Connection_->GetNetworks();
-
-        auto allSplits = DoInferRanges(
-            cellDirectory,
-            networks,
-            Connection_->GetColumnEvaluatorCache(),
-            tableInfo,
+        auto [allSplits, coordinatedQuery, sortedDataSource] = InferRanges(
+            Connection_,
             query,
             dataSource,
             options,
             rowBuffer,
             Logger);
 
-        if (!query->IsOrdered()) {
+        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
+
+        if (coordinatedQuery->IsOrdered()) {
+            // Splits are ordered by tablet bounds.
+            YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
+
+            for (const auto& [dataSource, address] : allSplits) {
+                groupedDataSplits.emplace_back(std::vector<TDataSource>{dataSource}, address);
+            }
+        } else {
             size_t minKeyWidth = std::numeric_limits<size_t>::max();
             for (const auto& [split, address] : allSplits) {
                 for (const auto& range : split.Ranges) {
@@ -520,89 +577,32 @@ private:
                     YT_LOG_DEBUG("Executing query with full scan");
                 }
             }
+
+            YT_LOG_DEBUG("Regrouping %v splits into groups",
+                allSplits.size());
+
+            THashMap<TString, std::vector<TDataSource>> groupsByAddress;
+            for (const auto& split : allSplits) {
+                const auto& address = split.second;
+                groupsByAddress[address].push_back(split.first);
+            }
+
+            for (const auto& group : groupsByAddress) {
+                groupedDataSplits.emplace_back(group.second, group.first);
+            }
+
+            YT_LOG_DEBUG("Regrouped %v splits into %v groups",
+                allSplits.size(),
+                groupsByAddress.size());
         }
-
-        YT_LOG_DEBUG("Regrouping %v splits into groups",
-            allSplits.size());
-
-        THashMap<TString, std::vector<TDataSource>> groupsByAddress;
-        for (const auto& split : allSplits) {
-            const auto& address = split.second;
-            groupsByAddress[address].push_back(split.first);
-        }
-
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
-        for (const auto& group : groupsByAddress) {
-            groupedSplits.emplace_back(group.second, group.first);
-        }
-
-        YT_LOG_DEBUG("Regrouped %v splits into %v groups",
-            allSplits.size(),
-            groupsByAddress.size());
 
         return DoCoordinateAndExecute(
-            query,
+            coordinatedQuery,
             externalCGInfo,
             options,
             writer,
-            tableInfo->IsSorted(),
-            groupedSplits.size(),
-            [&] (int index) {
-                return groupedSplits[index];
-            });
-    }
-
-    TQueryStatistics DoExecuteOrdered(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        TDataSource dataSource,
-        const TQueryOptions& options,
-        IUnversionedRowsetWriterPtr writer)
-    {
-        auto Logger = MakeQueryLogger(query);
-
-        auto rowBuffer = New<TRowBuffer>(
-            TQueryExecutorRowBufferTag(),
-            MemoryChunkProvider_);
-
-        auto tableInfo = WaitFor(Connection_->GetTableMountCache()->GetTableInfo(FromObjectId(dataSource.ObjectId)))
-            .ValueOrThrow();
-
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networks = Connection_->GetNetworks();
-
-        auto allSplits = DoInferRanges(
-            cellDirectory,
-            networks,
-            Connection_->GetColumnEvaluatorCache(),
-            tableInfo,
-            query,
-            dataSource,
-            options,
-            rowBuffer,
-            Logger);
-
-        // Splits are ordered by tablet bounds.
-        YT_LOG_DEBUG("Got splits (SplitCount: %v)", allSplits.size());
-
-        return DoCoordinateAndExecute(
-            query,
-            externalCGInfo,
-            options,
-            writer,
-            tableInfo->IsSorted(),
-            allSplits.size(),
-            [&] (int index) {
-                const auto& split = allSplits[index];
-                const auto& [dataSource, address] = split;
-
-                YT_LOG_DEBUG("Delegating request to tablet (TabletId: %v, CellId: %v, Address: %v)",
-                    dataSource.ObjectId,
-                    dataSource.CellId,
-                    address);
-
-                return std::pair(std::vector<TDataSource>{dataSource}, address);
-            });
+            sortedDataSource,
+            std::move(groupedDataSplits));
     }
 
     std::pair<ISchemafulUnversionedReaderPtr, TFuture<TQueryStatistics>> Delegate(
@@ -687,6 +687,7 @@ private:
 
         auto resultReader = New<TQueryResponseReader>(
             req->Invoke(),
+            query->Id,
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             Logger);
