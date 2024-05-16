@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -510,6 +512,9 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_tracing", &TThis::EnableTracing)
         .Default(false);
+
+    registrar.Parameter("tracing_sampler", &TThis::TracingSampler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

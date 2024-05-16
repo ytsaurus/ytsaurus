@@ -20,6 +20,8 @@
 
 #include <yt/yt/library/gpu/config.h>
 
+#include <yt/yt/library/tracing/jaeger/public.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/ytree/node.h>
@@ -383,6 +385,8 @@ public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
     bool EnableTracing;
+
+    NTracing::TSamplerConfigPtr TracingSampler;
 
     REGISTER_YSON_STRUCT(THeartbeatReporterDynamicConfigBase);
 
