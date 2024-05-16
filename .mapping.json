@@ -826,6 +826,7 @@
   "yt/yt/client/arrow/CMakeLists.txt":"",
   "yt/yt/client/arrow/fbs/CMakeLists.txt":"",
   "yt/yt/client/cache/CMakeLists.txt":"",
+  "yt/yt/client/cache/unittests/CMakeLists.txt":"",
   "yt/yt/client/driver/CMakeLists.txt":"",
   "yt/yt/client/federated/CMakeLists.txt":"",
   "yt/yt/client/federated/unittests/CMakeLists.txt":"",

@@ -22,6 +22,22 @@ TEST(RpcClientTest, SetClusterUrlWithProxy)
     EXPECT_EQ("bigb", config.GetProxyRole());
 }
 
+TEST(RpcClientTest, SetClusterUrlFqdnWithoutProxy)
+{
+    TConfig config;
+    SetClusterUrl(config, "https://markov.yt.yandex.net:443");
+    EXPECT_EQ("https://markov.yt.yandex.net:443", config.GetClusterName());
+    EXPECT_EQ("", config.GetProxyRole());
+}
+
+TEST(RpcClientTest, SetClusterUrlFqdnWithProxy)
+{
+    TConfig config;
+    SetClusterUrl(config, "https://markov.yt.yandex.net:443/bigb");
+    EXPECT_EQ("https://markov.yt.yandex.net:443", config.GetClusterName());
+    EXPECT_EQ("bigb", config.GetProxyRole());
+}
+
 TEST(RpcClientTest, ProxyRoleOverride)
 {
     TConfig config;

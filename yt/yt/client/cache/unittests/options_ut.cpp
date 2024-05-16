@@ -27,7 +27,7 @@ TEST(TClientOptionsTest, TokenFromFile)
         {"YT_TOKEN", ""},
         {"YT_TOKEN_PATH", ""},
     }};
-    const auto clientOptions = GetClientOpsFromEnv();
+    const auto clientOptions = NApi::GetClientOpsFromEnv();
     EXPECT_TRUE(clientOptions.Token);
     EXPECT_EQ("AAAA-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", *clientOptions.Token);
 }
@@ -44,7 +44,7 @@ TEST(TClientOptionsTest, TokenFromYtTokenPath)
         {"YT_TOKEN", ""},
         {"YT_TOKEN_PATH", tokenPath},
     }};
-    const auto clientOptions = GetClientOpsFromEnv();
+    const auto clientOptions = NApi::GetClientOpsFromEnv();
     EXPECT_TRUE(clientOptions.Token);
     EXPECT_EQ("BBBB-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", *clientOptions.Token);
 }
@@ -52,7 +52,7 @@ TEST(TClientOptionsTest, TokenFromYtTokenPath)
 TEST(TClientOptionsTest, TokenFromEnv)
 {
     NTesting::TScopedEnvironment tokenGuard("YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB");
-    const auto& clientOptions = GetClientOpsFromEnv();
+    const auto& clientOptions = NApi::GetClientOpsFromEnv();
     EXPECT_TRUE(clientOptions.Token);
     EXPECT_EQ("BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB", *clientOptions.Token);
 }
@@ -63,7 +63,7 @@ TEST(TClientOptionsTest, UserFromEnv)
         {"YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"},
         {"YT_USER", "yt_test_user"},
     }};
-    const auto& clientOptions = GetClientOpsFromEnv();
+    const auto& clientOptions = NApi::GetClientOpsFromEnv();
     EXPECT_TRUE(clientOptions.User);
     EXPECT_EQ("yt_test_user", *clientOptions.User);
 }
@@ -74,7 +74,7 @@ TEST(TClientOptionsTest, AllowEmptyUser)
         {"YT_TOKEN", "BBBB-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"},
         {"YT_USER", ""},
     }};
-    const auto& clientOptions = GetClientOpsFromEnv();
+    const auto& clientOptions = NApi::GetClientOpsFromEnv();
     EXPECT_TRUE(!clientOptions.User);
 }
 

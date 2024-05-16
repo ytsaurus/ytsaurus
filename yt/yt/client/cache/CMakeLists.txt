@@ -13,6 +13,7 @@
 # system may be rejected.
 
 find_package(linux-headers-generic REQUIRED)
+add_subdirectory(unittests)
 
 add_library(yt-client-cache)
 
