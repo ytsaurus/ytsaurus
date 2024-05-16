@@ -20,6 +20,8 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(2));
     registrar.Parameter("worker_thread_pool_size", &TThis::WorkerThreadPoolSize)
         .Default(3);
+    registrar.Parameter("pivot_picker_thread_pool_size", &TThis::PivotPickerThreadPoolSize)
+        .Default(3);
 
     registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
         .Default(TDuration::Minutes(5));
