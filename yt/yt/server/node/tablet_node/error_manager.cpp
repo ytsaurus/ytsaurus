@@ -115,7 +115,7 @@ class TErrorManager
     : public IErrorManager
 {
 public:
-    explicit TErrorManager(IBootstrap const* bootstrap)
+    explicit TErrorManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , ActionQueue_(New<TActionQueue>("ErrorManager"))
         , ExpiredErrorsCleanerExecutor_(New<TPeriodicExecutor>(
@@ -173,7 +173,7 @@ public:
     }
 
 private:
-    IBootstrap const* Bootstrap_;
+    IBootstrap* const Bootstrap_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     NConcurrency::TPeriodicExecutorPtr ExpiredErrorsCleanerExecutor_;
     TIntrusivePtr<TDeduplicationCache> DeduplicationCache_;
@@ -227,7 +227,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TErrorManager)
 
-IErrorManagerPtr CreateErrorManager(IBootstrap const* bootstrap)
+IErrorManagerPtr CreateErrorManager(IBootstrap* bootstrap)
 {
     return New<TErrorManager>(bootstrap);
 }
