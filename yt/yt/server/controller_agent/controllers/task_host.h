@@ -42,8 +42,6 @@ struct ITaskHost
     //! Called to extract `enable_cuda_gpu_core_dump' from the spec.
     virtual bool GetEnableCudaGpuCoreDump() const = 0;
 
-    virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
-
     virtual void UpdateTask(const TTaskPtr& task) = 0;
 
     //! Account currently building job specs. This is used to implement ShouldSkipScheduleAllocationRequest() controller method.
@@ -112,6 +110,8 @@ struct ITaskHost
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const = 0;
+
+    virtual TInputManagerPtr GetInputManager() const = 0;
 
     virtual void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,

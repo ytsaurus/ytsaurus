@@ -12,6 +12,8 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
+static constexpr auto SampleChunkIdCount = 10;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
@@ -103,6 +105,15 @@ bool IsStaticTableWithHunks(TInputTablePtr table);
 bool HasJobUniquenessRequirements(
     const NScheduler::TOperationSpecBasePtr& operationSpec,
     const std::vector<NScheduler::TUserJobSpecPtr>& userJobSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TTablePtr>
+void FetchTableSchemas(
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TTablePtr>& tables,
+    TCallback<NTransactionClient::TTransactionId(const TTablePtr&)> tableToTransactionId,
+    bool fetchFromExternalCells);
 
 ////////////////////////////////////////////////////////////////////////////////
 

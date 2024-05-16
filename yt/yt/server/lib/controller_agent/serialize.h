@@ -43,6 +43,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((WaitingForResourcesDuration)          (301503))
     ((ForceAllowJobInterruption)            (301504))
     ((BatchRowCount_24_1)                   (301505))
+    ((InputManagerIntroduction)             (301506))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 
 #include "alert_manager.h"
 #include "auto_merge_director.h"
+#include "input_manager.h"
 #include "job_memory.h"
 #include "job_splitter.h"
 #include "live_preview.h"
@@ -88,12 +89,6 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EInputChunkState,
-    (Active)
-    (Skipped)
-    (Waiting)
-);
-
 DEFINE_ENUM(ETransactionType,
     (Async)
     (Input)
@@ -113,8 +108,9 @@ DEFINE_ENUM(EIntermediateChunkUnstageMode,
 class TOperationControllerBase
     : public IOperationController
     , public NScheduler::TEventLogHostBase
-    , public ITaskHost
+    , public virtual ITaskHost
     , public IAlertManagerHost
+    , public IInputManagerHost
 {
     // In order to make scheduler more stable, we do not allow
     // pure YT_VERIFY to be executed from the controller code (directly
@@ -201,13 +197,12 @@ private: \
         (context, resourceLimits, treeId),
         true)
 
-    //! Callback called by TChunkScraper when get information on some chunk.
     IMPLEMENT_SAFE_METHOD(
         void,
-        OnInputChunkLocated,
-        (NChunkClient::TChunkId chunkId, const NChunkClient::TChunkReplicaWithMediumList& replicas, bool missing),
-        (chunkId, replicas, missing),
-        false)
+        InvokeSafely,
+        (std::function<void()> closure),
+        (std::move(closure)),
+        true)
 
     //! Called by #IntermediateChunkScraper.
     IMPLEMENT_SAFE_METHOD(
@@ -303,7 +298,6 @@ public:
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-    virtual void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -327,6 +321,7 @@ public:
 
     // ITaskHost implementation.
 
+    IInvokerPtr GetChunkScraperInvoker() const override;
     IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
     IInvokerPtr GetJobSpecBuildInvoker() const override;
     TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
@@ -335,8 +330,6 @@ public:
     std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
     std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
     bool GetEnableCudaGpuCoreDump() const override;
-
-    void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
 
     void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
 
@@ -409,6 +402,8 @@ public:
     const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& InputNodeDirectory() const override;
+
+    TInputManagerPtr GetInputManager() const override;
 
     void RegisterRecoveryInfo(
         const TCompletedJobPtr& completedJob,
@@ -557,12 +552,7 @@ protected:
     i64 PrimaryInputDataWeight = 0;
     i64 ForeignInputDataWeight = 0;
 
-    int ChunkLocatedCallCount = 0;
-    THashSet<NChunkClient::TChunkId> UnavailableInputChunkIds;
     int UnavailableIntermediateChunkCount = 0;
-
-    // Maps node ids to descriptors for job input chunks.
-    NNodeTrackerClient::TNodeDirectoryPtr InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
 
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
     TInputTransactionsManagerPtr InputTransactions;
@@ -583,7 +573,8 @@ protected:
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;
 
-    std::vector<TInputTablePtr> InputTables_;
+    TInputManagerPtr InputManager;
+
     THashMap<NYPath::TYPath, TOutputTablePtr> PathToOutputTable_;
     std::vector<TOutputTablePtr> OutputTables_;
     TOutputTablePtr StderrTable_;
@@ -591,8 +582,6 @@ protected:
 
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
-
-    THashMap<TString, std::vector<TInputTablePtr>> PathToInputTables_;
 
     TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
@@ -712,11 +701,8 @@ protected:
     void ValidateSecureVault();
 
     // Preparation.
-    void RegisterInputChunk(const NChunkClient::TInputChunkPtr& inputChunk);
-    void LockInputTables();
-    virtual void ValidateInputTablesTypes() const;
+    void ValidateInputTablesTypes() const override;
     virtual void ValidateUpdatingTablesTypes() const;
-    void GetInputTablesAttributes();
     virtual NObjectClient::EObjectType GetOutputTableDesiredType() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
@@ -727,7 +713,6 @@ protected:
     void InferInputRanges();
 
     // Materialization.
-    void FetchInputTables();
     void FetchUserFiles();
     void DoFetchUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void ValidateUserFileSizes();
@@ -739,9 +724,7 @@ protected:
     virtual void CustomMaterialize();
     void InitializeHistograms();
     void InitializeSecurityTags();
-    void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
-
 
     //! If auto-merge is not possible for operation, returns error with a reason.
     virtual TError GetAutoMergeError() const;
@@ -801,9 +784,6 @@ protected:
 
     virtual TString GetLoggingProgress() const;
 
-    //! Called to extract input table paths from the spec.
-    virtual std::vector<NYPath::TRichYPath> GetInputTablePaths() const = 0;
-
     //! Called to extract output table paths from the spec.
     virtual std::vector<NYPath::TRichYPath> GetOutputTablePaths() const = 0;
 
@@ -860,36 +840,6 @@ protected:
 
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary, const TJobletPtr& joblet) const;
 
-    struct TStripeDescriptor
-    {
-        NChunkPools::TChunkStripePtr Stripe;
-        NChunkPools::IChunkPoolInput::TCookie Cookie = NChunkPools::IChunkPoolInput::NullCookie;
-        TTaskPtr Task;
-
-        void Persist(const TPersistenceContext& context);
-    };
-
-    struct TInputChunkDescriptor
-        : public TRefTracked<TInputChunkDescriptor>
-    {
-        TCompactVector<TStripeDescriptor, 1> InputStripes;
-        TCompactVector<NChunkClient::TInputChunkPtr, 1> InputChunks;
-        EInputChunkState State = EInputChunkState::Active;
-
-        void Persist(const TPersistenceContext& context);
-    };
-
-    //! Called when a job is unable to read an input chunk or
-    //! chunk scraper has encountered unavailable chunk.
-    void OnInputChunkUnavailable(
-        NChunkClient::TChunkId chunkId,
-        TInputChunkDescriptor* descriptor);
-
-    void OnInputChunkAvailable(
-        NChunkClient::TChunkId chunkId,
-        NChunkClient::TChunkReplicaWithMediumList replicas,
-        TInputChunkDescriptor* descriptor);
-
     bool IsLegacyOutputLivePreviewSupported() const;
     bool IsOutputLivePreviewSupported() const;
     bool IsLegacyIntermediateLivePreviewSupported() const;
@@ -940,10 +890,10 @@ protected:
 
     virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
 
-    virtual NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const;
+    NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override;
 
     //! Enables fetching boundary keys for chunk specs.
-    virtual bool IsBoundaryKeysFetchEnabled() const;
+    bool IsBoundaryKeysFetchEnabled() const override;
 
     //! Number of currently unavailable input chunks. In case of Sort or Sorted controller, shows
     //! number of unavailable chunks during materialization (fetching samples or chunk slices).
@@ -1073,8 +1023,6 @@ protected:
     void InitInputStreamDirectory();
     const NChunkPools::TInputStreamDirectory& GetInputStreamDirectory() const;
 
-    NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
-
     int GetPrimaryInputTableCount() const;
 
     virtual void InitOutputTables();
@@ -1106,9 +1054,6 @@ private:
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
 
     THashSet<TString> BannedTreeIds_;
-
-    //! Keeps information needed to maintain the liveness state of input chunks.
-    THashMap<NChunkClient::TChunkId, TInputChunkDescriptor> InputChunkMap;
 
     TOperationSpecBasePtr Spec_;
     TOperationOptionsPtr Options;
@@ -1162,8 +1107,6 @@ private:
 
     //! Maps scheduler's job ids to controller's joblets.
     THashMap<TAllocationId, TJobletPtr> JobletMap;
-
-    NChunkClient::TChunkScraperPtr InputChunkScraper;
 
     //! Scrapes chunks of dynamic tables during data slice fetching.
     std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers;
@@ -1303,9 +1246,6 @@ private:
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed = false;
-
-    bool InputHasOrderedDynamicStores_ = false;
-    bool InputHasStaticTableWithHunks_ = false;
 
     std::atomic<bool> MemoryLimitExceeded_ = false;
 
@@ -1481,18 +1421,12 @@ private:
 
     std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
-    void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
+    void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
+    const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
 
     void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport);
 
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
-
-    template <class TTable, class TTransactionIdFunc>
-    void FetchTableSchemas(
-        const NApi::NNative::IClientPtr& client,
-        const TRange<TTable>& tables,
-        TTransactionIdFunc tableToTransactionId,
-        bool fetchFromExternalCells) const;
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
@@ -1524,9 +1458,6 @@ private:
 
     TControllerFeatures ControllerFeatures_;
 
-    void RegisterUnavailableInputChunks();
-    void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
-    void UnregisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);
     bool NeedEraseOffloadingTrees() const;
 
     void SendRunningAllocationTimeStatisticsUpdates();

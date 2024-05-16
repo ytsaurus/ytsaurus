@@ -157,7 +157,7 @@ public:
             if (Controller_->GetOperationType() == EOperationType::Map) {
                 config->EnableJobSplitting &=
                     (IsJobInterruptible() &&
-                    std::ssize(Controller_->InputTables_) <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                    std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options->JobSplitter->MaxInputTableCount);
             } else {
                 YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
                 // TODO(gritukan): YT-13646.
@@ -299,10 +299,10 @@ protected:
     void InitTeleportableInputTables()
     {
         if (GetJobType() == EJobType::UnorderedMerge && !Spec->InputQuery) {
-            for (int index = 0; index < std::ssize(InputTables_); ++index) {
-                if (InputTables_[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
-                    InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
-                        *InputTables_[index]->Schema,
+            for (int index = 0; index < std::ssize(InputManager->GetInputTables()); ++index) {
+                if (InputManager->GetInputTables()[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
+                    InputManager->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
+                        *InputManager->GetInputTables()[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
                         false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
                 }
@@ -381,7 +381,7 @@ protected:
             int versionedSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
             for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-                const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
+                const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
@@ -512,7 +512,7 @@ protected:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputTables_));
+            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryWithAutoMerge(

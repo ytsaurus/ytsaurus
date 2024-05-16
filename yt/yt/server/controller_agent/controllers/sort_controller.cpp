@@ -1031,7 +1031,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                std::ssize(Controller_->InputTables_) <= Controller_->Options->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options->JobSplitter->MaxInputTableCount);
 
             return config;
         }
@@ -2648,7 +2648,7 @@ protected:
         int versionedSlices = 0;
         // TODO(max42): use CollectPrimaryInputDataSlices() here?
         for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-            const auto& comparator = InputTables_[chunk->GetTableIndex()]->Comparator;
+            const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
@@ -2953,7 +2953,7 @@ protected:
 
         ValidateAccountPermission(Spec->IntermediateDataAccount, EPermission::Use);
 
-        for (const auto& table : InputTables_) {
+        for (const auto& table : InputManager->GetInputTables()) {
             for (const auto& sortColumn : Spec->SortBy) {
                 if (auto column = table->Schema->FindColumn(sortColumn.Name)) {
                     if (column->Aggregate()) {
@@ -3493,7 +3493,7 @@ private:
             }
             i64 sampleCount = static_cast<i64>(PartitionCount) * Spec->SamplesPerPartition;
 
-            FetcherChunkScraper = CreateFetcherChunkScraper();
+            FetcherChunkScraper = InputManager->CreateFetcherChunkScraper();
 
             auto samplesRowBuffer = New<TRowBuffer>(
                 TRowBufferTag(),
@@ -3505,7 +3505,7 @@ private:
                 sampleCount,
                 GetColumnNames(Spec->SortBy),
                 Options->MaxSampleSize,
-                InputNodeDirectory_,
+                InputManager->GetInputNodeDirectory(),
                 GetCancelableInvoker(),
                 samplesRowBuffer,
                 FetcherChunkScraper,
@@ -3596,7 +3596,7 @@ private:
             jobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig).ToString());
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
-                BuildDataSourceDirectoryFromInputTables(InputTables_));
+                BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
@@ -3633,7 +3633,7 @@ private:
                 jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec->PartitionJobIO)).ToString());
                 SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
-                    BuildDataSourceDirectoryFromInputTables(InputTables_));
+                    BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
             } else {
                 jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
                 SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
@@ -4192,15 +4192,15 @@ private:
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Filter(GetColumnNames(Spec->SortBy))->Columns();
             }
         } else {
-            YT_VERIFY(!InputTables_.empty());
-            for (const auto& inputTable : InputTables_) {
+            YT_VERIFY(!InputManager->GetInputTables().empty());
+            for (const auto& inputTable : InputManager->GetInputTables()) {
                 IntermediateStreamSchemas_.push_back(toStreamSchema(inputTable->Schema, Spec->SortBy));
             }
             if (AreAllEqual(IntermediateStreamSchemas_)) {
                 chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
             } else {
                 for (const auto& sortColumn : Spec->SortBy) {
-                    auto type = InferColumnType(InputTables_, sortColumn.Name);
+                    auto type = InferColumnType(InputManager->GetInputTables(), sortColumn.Name);
                     chunkSchemaColumns.emplace_back(sortColumn.Name, std::move(type), sortColumn.SortOrder);
                 }
             }
@@ -4439,7 +4439,7 @@ private:
             jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig)).ToString());
             SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
-                BuildDataSourceDirectoryFromInputTables(InputTables_));
+                BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
             SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForMapper());
