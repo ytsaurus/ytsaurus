@@ -17,6 +17,7 @@ IF (NOT OPENSOURCE)
         orm
         packages/tests_package
         utilities
+        scripts
     )
 ENDIF()
 
