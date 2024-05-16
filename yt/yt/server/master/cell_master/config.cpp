@@ -130,7 +130,8 @@ void TMasterCellDescriptor::Register(TRegistrar registrar)
 void TTestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
-        .Default();
+        .Default()
+        .DontSerializeDefault();
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& edge : config->FrozenHiveEdges) {
