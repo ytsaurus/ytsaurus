@@ -2486,12 +2486,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     ])
     @authors("akozhikhov", "sabdenovch")
     def test_max_key_column_count(self, optimize_for, chunk_format):
+        MAX_KEY_COLUMN_COUNT = 128
         cell_id = sync_create_cells(1)[0]
 
         def _create_key_schema(key_count):
             return [{"name": f"key{i}", "type": "int64", "sort_order": "ascending"} for i in range(key_count)]
 
-        key_schema = _create_key_schema(64)
+        key_schema = _create_key_schema(MAX_KEY_COLUMN_COUNT)
         value_schema = [{"name": "value", "type": "int64"}]
         self._create_sorted_table(
             "//tmp/t1",
@@ -2500,7 +2501,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             chunk_format=chunk_format)
         sync_mount_table("//tmp/t1")
 
-        rows = [{f"key{i}": None if i % 5 == 3 else i + j for i in range(64)} | {"value": 123} for j in range(100)]
+        rows = [{f"key{i}": None if i % 5 == 3 else i + j for i in range(MAX_KEY_COLUMN_COUNT)} | {"value": 123} for j in range(100)]
 
         insert_rows("//tmp/t1", rows)
         assert_items_equal(select_rows("* FROM [//tmp/t1] limit 100"), rows)
@@ -2520,7 +2521,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_unmount_table("//tmp/t1")
 
-        key_schema = _create_key_schema(65)
+        key_schema = _create_key_schema(MAX_KEY_COLUMN_COUNT + 1)
         with pytest.raises(YtError):
             alter_table("//tmp/t1", schema=key_schema + value_schema)
         with pytest.raises(YtError):
