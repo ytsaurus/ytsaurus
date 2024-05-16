@@ -527,7 +527,7 @@ protected:
                 dstKey,
                 index,
                 *srcKey,
-                /*null*/ (nullKeyMask & (static_cast<TDynamicTableKeyMask>(1) << index)) != 0,
+                /*null*/ static_cast<bool>(nullKeyMask & (static_cast<TDynamicTableKeyMask>(1) << index)),
                 /*flags*/ {});
             dstKey++;
         }
@@ -1893,7 +1893,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          index < KeyColumnCount_;
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
-        bool isNull = nullKeyMask & nullKeyBit;
+        auto isNull = static_cast<bool>(nullKeyMask & nullKeyBit);
         dstRow.GetDataWeight() += NTabletNode::GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
         if (!isNull) {
             if (IsStringLikeType(columnIt->GetWireType())) {

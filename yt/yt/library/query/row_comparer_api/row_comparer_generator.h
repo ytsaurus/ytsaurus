@@ -53,4 +53,6 @@ DEFINE_REFCOUNTED_TYPE(IRowComparerProvider)
 
 IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config);
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
