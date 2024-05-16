@@ -2115,14 +2115,23 @@ void TClient::DoReshardTableWithTabletCount(
     }
 
     if (options.EnableSlicing.value_or(false)) {
-        auto pivots = PickPivotKeysWithSlicing(
-            MakeStrong(this),
-            path,
-            tabletCount,
-            options,
-            Logger);
-        DoReshardTableWithPivotKeys(path, pivots, options);
-        return;
+        try {
+            auto pivots = PickPivotKeysWithSlicing(
+                MakeStrong(this),
+                path,
+                tabletCount,
+                options,
+                Logger);
+            DoReshardTableWithPivotKeys(path, pivots, options);
+            return;
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NChunkClient::EErrorCode::TooManyChunksToFetch)) {
+                YT_LOG_DEBUG(ex,
+                    "Too many chunks have been requested to fetch, fallback to reshard without slicing");
+            } else {
+                throw;
+            }
+        }
     }
 
     auto req = MakeReshardRequest(options);

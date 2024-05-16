@@ -2656,6 +2656,39 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             sync_reshard_table("//tmp/t", 4, enable_slicing=True)
 
+    @authors("alexelexa")
+    def test_too_many_chunks_reshard(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"block_size": 5})
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//sys/@config/chunk_manager/max_chunks_per_fetch", 2)
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value"} for i in range(420)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        sync_reshard_table("//tmp/t", 2, enable_slicing=True)
+        assert get("//tmp/t/@tablet_count") == 2
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": i, "value": "value"} for i in range(500, 920, 2)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value"} for i in range(501, 920, 2)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        sync_reshard_table("//tmp/t", 4, enable_slicing=True)
+        assert get("//tmp/t/@tablet_count") < 4
+
+        set("//sys/@config/chunk_manager/max_chunks_per_fetch", 100)
+        sync_reshard_table("//tmp/t", 4, enable_slicing=True)
+        assert get("//tmp/t/@tablet_count") == 4
+
 
 ##################################################################
 

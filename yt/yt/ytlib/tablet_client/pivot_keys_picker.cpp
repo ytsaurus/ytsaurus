@@ -41,6 +41,7 @@ using NYT::ToProto;
 
 constexpr double DefaultSlicingAccuracy = 0.05;
 constexpr i64 ExpectedAverageOverlapping = 10;
+constexpr i64 MaxChunkCountForSlicing = 500000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +70,17 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
         client,
         path,
         &tableId,
-        &externalCellTag);
+        &externalCellTag,
+        {"chunk_count"});
+
+    if (!options.FirstTabletIndex && !options.LastTabletIndex) {
+        auto chunkCount = tableAttributes->Get<i64>("chunk_count");
+        THROW_ERROR_EXCEPTION_IF(chunkCount >= MaxChunkCountForSlicing,
+            NChunkClient::EErrorCode::TooManyChunksToFetch,
+            "Too many chunks for reshard with slicing: expected less than %v but found %v",
+            MaxChunkCountForSlicing,
+            chunkCount);
+    }
 
     TReadRange range;
     if (options.FirstTabletIndex) {
@@ -113,8 +124,14 @@ std::vector<TLegacyOwningKey> PickPivotKeysWithSlicing(
 
     YT_LOG_DEBUG("Fetching chunk specs");
 
-    WaitFor(chunkSpecFetcher->Fetch())
-        .ThrowOnError();
+    if (auto result = WaitFor(chunkSpecFetcher->Fetch()); !result.IsOK()) {
+        auto error = result.FindMatching(NChunkClient::EErrorCode::TooManyChunksToFetch);
+        THROW_ERROR_EXCEPTION_IF(error,
+            NChunkClient::EErrorCode::TooManyChunksToFetch,
+            "Too many chunks for reshard with slicing: expected less than %v",
+            error->Attributes().Get<i64>("limit"));
+        result.ThrowOnError();
+    }
 
     YT_LOG_DEBUG("Chunk specs fetched");
 
