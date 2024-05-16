@@ -5,7 +5,7 @@ from yt_commands import (
     create_domestic_medium, create_s3_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
-    get_media, set_node_banned)
+    get_media, set_node_banned, set_all_nodes_banned)
 
 from yt.common import YtError
 
@@ -531,9 +531,7 @@ class TestMedia(YTEnvSetup):
         # NB: banning just the nodes with replicas is sufficient but racy: there
         # could be a straggler replication job. It's possible to account for it
         # but it's simpler to just ban everything.
-
-        for node in ls("//sys/cluster_nodes"):
-            set_node_banned(node, True)
+        set_all_nodes_banned(True, wait_for_master=False)
 
         def persistent_chunk_is_lost_vital():
             lvc = ls("//sys/lost_vital_chunks")
