@@ -281,6 +281,24 @@ def create_odin_checks_config():
                     "total_threshold": 1000000
                 }
             },
+            "query_tracker_yql_liveness": {
+                "check_timeout": 240,
+                "options": {
+                    "soft_query_timeout": 165,
+                },
+            },
+            "query_tracker_chyt_liveness": {
+                "check_timeout": 60,
+                "options": {
+                    "soft_query_timeout": 30,
+                },
+            },
+            "query_tracker_ql_liveness": {
+                "check_timeout": 60,
+                "options": {
+                    "soft_query_timeout": 30,
+                },
+            },
         },
     }
 
