@@ -1981,17 +1981,21 @@ class TestSchedulerTracing(YTEnvSetup):
         assert trace_id is not None
 
         has_allocation_registered_line = False
+        has_spans_dropped_line_scheduler = False
         with open(scheduler_log_file, "rb") as fin:
             binary_reader = decompressor.stream_reader(fin, read_size=8192)
             text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
+
             for line in text_stream:
                 if line.strip().endswith(trace_id) and "Allocation registered" in line:
                     has_allocation_registered_line = True
-                    break
+                if "Spans dropped in test" in line:
+                    has_spans_dropped_line_scheduler = True
 
         assert has_allocation_registered_line
 
         has_processing_scheduling_allocation_request_line = False
+        has_spans_dropped_line_controller_agent = False
         with open(controller_agent_log_file, "rb") as fin:
             binary_reader = decompressor.stream_reader(fin, read_size=8192)
             text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
@@ -1999,12 +2003,15 @@ class TestSchedulerTracing(YTEnvSetup):
             for line in text_stream:
                 if line.strip().endswith(trace_id) and "Processing schedule allocation request" in line:
                     has_processing_scheduling_allocation_request_line = True
+                if "Spans dropped in test" in line:
+                    has_spans_dropped_line_controller_agent = True
 
         assert has_processing_scheduling_allocation_request_line
 
         has_preparing_scheduler_heartbeat_line = False
         has_successfully_reported_heartbeat_line = False
         has_allocation_created_line = False
+        has_spans_dropped_line_node = False
         with open(node_log_file, "rb") as fin:
             binary_reader = decompressor.stream_reader(fin, read_size=8192)
             text_stream = io.TextIOWrapper(binary_reader, encoding="utf-8")
@@ -2017,7 +2024,13 @@ class TestSchedulerTracing(YTEnvSetup):
                         has_successfully_reported_heartbeat_line = True
                     if "Allocation created" in line:
                         has_allocation_created_line = True
+                if "Spans dropped in test" in line:
+                    has_spans_dropped_line_node = True
 
         assert has_preparing_scheduler_heartbeat_line
         assert has_successfully_reported_heartbeat_line
         assert has_allocation_created_line
+
+        assert has_spans_dropped_line_scheduler
+        assert has_spans_dropped_line_controller_agent
+        assert has_spans_dropped_line_node
