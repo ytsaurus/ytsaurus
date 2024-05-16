@@ -179,18 +179,16 @@ void TClient::DoAbortJob(
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
-    auto allocationBriefInfo = [&] {
-        return WaitFor(GetAllocationBriefInfo(
-            *SchedulerOperationProxy_,
-            allocationId,
-            NScheduler::TAllocationInfoToRequest{
-                .OperationId = true,
-                .OperationAcl = true,
-                .ControllerAgentDescriptor = true,
-                .NodeDescriptor = true,
-            }))
-            .ValueOrThrow();
-    }();
+    auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(
+        *SchedulerOperationProxy_,
+        allocationId,
+        NScheduler::TAllocationInfoToRequest{
+            .OperationId = true,
+            .OperationAcl = true,
+            .ControllerAgentDescriptor = true,
+            .NodeDescriptor = true,
+        }))
+        .ValueOrThrow();
 
     ValidateOperationAccess(
         allocationBriefInfo.OperationId,

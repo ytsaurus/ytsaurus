@@ -252,7 +252,7 @@ private:
     const TOperationId OperationId_;
     IBootstrap* const Bootstrap_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     TAllocationPtr Allocation_;
     NJobAgent::TResourceHolderPtr ResourceHolder_;

@@ -1115,8 +1115,7 @@ private:
 
         YT_LOG_INFO_UNLESS(
             ports.empty(),
-            "Releasing ports (PortCount: %v, Ports: %v)",
-            ports.size(),
+            "Releasing ports (Ports: %v)",
             ports);
         for (auto port : ports) {
             InsertOrCrash(FreePorts_, port);
@@ -1504,11 +1503,11 @@ void TResourceHolder::ReleaseAdditionalResources()
 void TResourceHolder::ReleaseNonSlotResources()
 {
     auto usedSlotResources = ZeroJobResources();
-    auto resources = GetResourceUsage();
-    usedSlotResources.UserSlots = resources.UserSlots;
-    usedSlotResources.Gpu = resources.Gpu;
 
     auto guard = WriterGuard(ResourcesLock_);
+
+    usedSlotResources.UserSlots = BaseResourceUsage_.UserSlots;
+    usedSlotResources.Gpu = BaseResourceUsage_.Gpu;
 
     DoSetResourceUsage(
         usedSlotResources,
@@ -1574,21 +1573,20 @@ const std::vector<int>& TResourceHolder::GetPorts() const noexcept
 
 const ISlotPtr& TResourceHolder::GetUserSlot() const noexcept
 {
-    auto guard = ReaderGuard(ResourcesLock_);
-
     return UserSlot_;
 }
 
 const std::vector<ISlotPtr>& TResourceHolder::GetGpuSlots() const noexcept
 {
-    auto guard = ReaderGuard(ResourcesLock_);
-
     return GpuSlots_;
 }
 
 bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 {
     auto guard = WriterGuard(ResourcesLock_);
+
+    YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
+    YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
 
     YT_LOG_FATAL_IF(
         State_ != EResourcesState::Acquired,
