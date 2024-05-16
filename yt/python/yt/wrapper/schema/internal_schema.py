@@ -203,12 +203,12 @@ def _get_primitive_type_origin_and_annotation(py_type):
     py_type_origin = _get_origin(py_type)
     if isinstance(py_type_origin, type) and issubclass(py_type_origin, enum.IntEnum):
         origin = int
-    # StrEnum was added in python3.11
+    # StrEnum was added in python3.11.
     elif hasattr(enum, "StrEnum") and isinstance(py_type_origin, type) and issubclass(py_type_origin, getattr(enum, "StrEnum")):
         origin = str
     else:
         for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
-            if py_type is type_ or _get_origin(py_type) is type_:
+            if py_type is type_ or py_type_origin is type_:
                 origin = type_
                 break
     annotation = None
