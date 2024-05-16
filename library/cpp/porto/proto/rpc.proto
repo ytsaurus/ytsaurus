@@ -752,6 +752,7 @@ message TContainerSpec {
     optional bool isolate = 9;
     optional string virt_mode = 10;
     optional string enable_porto = 11;
+    optional bool enable_fuse = 91;
     optional string porto_namespace = 12;
     optional string cgroupfs = 78;
     optional bool userns = 79;
