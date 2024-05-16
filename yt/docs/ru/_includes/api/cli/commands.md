@@ -33,17 +33,17 @@ usage: yt copy [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 #### Positional Arguments
 
-> `source_path`    source address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `source_path`    source address, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `destination_path`    destination address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `destination_path`    destination address, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-path`    source address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--source-path`    source address, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--destination-path`    destination address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--destination-path`    destination address, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--preserve-account`
 
@@ -87,7 +87,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
@@ -95,7 +95,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`
 
@@ -196,13 +196,13 @@ usage: yt exists [-h] [--params PARAMS] [--path PATH] [--suppress-transaction-co
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--suppress-transaction-coordinator-sync`    suppress transaction coordinator sync
 
@@ -220,13 +220,13 @@ usage: yt externalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--cell-tag`    (Required)
 
@@ -242,13 +242,13 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--name, -name`    pattern of node name, use shell-style wildcards:
 
@@ -294,17 +294,17 @@ usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--form
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--max-size`    maximum size of entries returned by get; if actual directory size exceeds that value only subset of entries will be listed (it’s not specified which subset); default value is enough to list any nonsystem directory.
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--attribute`    desired node attributes in the response Accepted multiple times.
 
@@ -324,13 +324,13 @@ usage: yt internalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--cell-tag`    (Required)
 
@@ -344,17 +344,17 @@ usage: yt link [-h] [--params PARAMS] [--target-path TARGET_PATH] [--link-path L
 
 #### Positional Arguments
 
-> `target_path`    address of original node to link, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `target_path`    address of original node to link, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `link_path`    address of resulting link, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `link_path`    address of resulting link, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--target-path`    address of original node to link, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--target-path`    address of original node to link, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--link-path`    address of resulting link, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--link-path`    address of resulting link, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`    create parent nodes recursively
 
@@ -378,17 +378,17 @@ usage: yt list [-h] [--params PARAMS] [--path PATH] [-l] [--format FORMAT] [--at
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-l, --long-format`    print some extra information about nodes
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--attribute`    node attributes to add into response Accepted multiple times.
 
@@ -416,17 +416,17 @@ usage: yt move [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 #### Positional Arguments
 
-> `source_path`    old node address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `source_path`    old node address, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `destination_path`    new node address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `destination_path`    new node address, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-path`    old node address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--source-path`    old node address, path must exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--destination-path`    new node address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--destination-path`    new node address, path must not exist. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--preserve-account`
 
@@ -460,13 +460,13 @@ usage: yt remove [-h] [--params PARAMS] [--path PATH] [-r] [-f] [path]
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`
 
@@ -482,7 +482,7 @@ usage: yt remove-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `name`
 
@@ -490,7 +490,7 @@ usage: yt remove-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`
 
@@ -504,7 +504,7 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `value`    new node attribute value, in yson format. You can specify in bash pipe: «cat file_with_value | yt set //tmp/my_node»
 
@@ -512,9 +512,9 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
 
 > `-r, --recursive`
 
@@ -534,7 +534,7 @@ usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name va
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `name`
 
@@ -544,7 +544,7 @@ usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name va
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`
 
@@ -562,13 +562,13 @@ usage: yt download [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_READ
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--file-reader`    structured file-reader in yson format
 
@@ -586,13 +586,13 @@ usage: yt read-file [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_REA
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--file-reader`    structured file-reader in yson format
 
@@ -610,13 +610,13 @@ usage: yt upload [-h] [--params PARAMS] [--destination DESTINATION] [--file-writ
 
 #### Positional Arguments
 
-> `destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `destination`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--destination`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--file-writer`    structured file-writer in yson format
 
@@ -638,13 +638,13 @@ usage: yt write-file [-h] [--params PARAMS] [--destination DESTINATION] [--file-
 
 #### Positional Arguments
 
-> `destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `destination`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--destination`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--file-writer`    structured file-writer in yson format
 
@@ -670,13 +670,13 @@ usage: yt alter-table [-h] [--params PARAMS] [--path PATH] [--schema [SCHEMA]] [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--schema`    new schema value, in yson format.
 
@@ -698,7 +698,7 @@ usage: yt create-temp-table [-h] [--params PARAMS] [--path PATH] [--name-prefix 
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path where temporary table will be created. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    path where temporary table will be created. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--name-prefix`    prefix of table name
 
@@ -811,7 +811,7 @@ usage: yt get-table-columnar-statistics [-h] [--params PARAMS] --path PATHS
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    (Required) Path to source table. See also: [{#T}](../../../user-guide/storage/ypath.md) Accepted multiple times.
+> `--path`    (Required) Path to source table. See also: [YPATH](../../../user-guide/storage/ypath.md) Accepted multiple times.
 
 ### read
 
@@ -823,15 +823,15 @@ usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--table-reader`    structured table-reader in yson format
 
@@ -852,13 +852,13 @@ usage: yt read-blob-table [-h] [--params PARAMS] [--table TABLE] [--part-index-c
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--part-index-column-name`    name of column with part indexes
 
@@ -878,15 +878,15 @@ usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [-
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--table-reader`    structured table-reader in yson format
 
@@ -906,15 +906,15 @@ usage: yt write [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--tabl
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--table-writer`    structured table-writer in yson format
 
@@ -932,15 +932,15 @@ usage: yt write-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--table-writer`    structured table-writer in yson format
 
@@ -1022,15 +1022,15 @@ usage: yt delete-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--atomicity`    Possible choices: full, none
 
@@ -1090,13 +1090,13 @@ usage: yt freeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-inde
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1114,17 +1114,17 @@ usage: yt get-tablet-errors [-h] [--params PARAMS] [--path PATH] [--limit LIMIT]
 
 #### Positional Arguments
 
-> `path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    path to dynamic table. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    path to dynamic table. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--limit`    number of tablets with errors
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### get-tablet-infos
 
@@ -1136,17 +1136,17 @@ usage: yt get-tablet-infos [-h] [--params PARAMS] [--path PATH] [--tablet-indexe
 
 #### Positional Arguments
 
-> `path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    path to dynamic table. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    path to dynamic table. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--tablet-indexes`
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### insert
 
@@ -1172,15 +1172,15 @@ usage: yt insert-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--atomicity`    Possible choices: full, none
 
@@ -1222,15 +1222,15 @@ usage: yt lookup-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--versioned`    return all versions of the requested rows
 
@@ -1248,13 +1248,13 @@ usage: yt mount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1278,13 +1278,13 @@ usage: yt remount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1302,7 +1302,7 @@ usage: yt reshard-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `pivot_keys`
 
@@ -1310,7 +1310,7 @@ usage: yt reshard-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1336,13 +1336,13 @@ usage: yt reshard-table-automatic [-h] [--params PARAMS] [--path PATH] [--sync] 
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--sync`
 
@@ -1417,7 +1417,7 @@ usage: yt trim-rows [-h] [--params PARAMS] [--path PATH] [path] tablet_index tri
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `tablet_index`
 
@@ -1427,7 +1427,7 @@ usage: yt trim-rows [-h] [--params PARAMS] [--path PATH] [path] tablet_index tri
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ### unfreeze-table
 
@@ -1439,13 +1439,13 @@ usage: yt unfreeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-in
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1463,13 +1463,13 @@ usage: yt unmount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--first-tablet-index`
 
@@ -1493,13 +1493,13 @@ usage: yt erase [-h] [--params PARAMS] [--table TABLE] [--print-statistics] [--a
 
 #### Positional Arguments
 
-> `table`    path to table to erase. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    path to table to erase. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    path to table to erase. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    path to table to erase. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--print-statistics`
 
@@ -1650,7 +1650,7 @@ usage: yt map-reduce [-h] [--params PARAMS] [--mapper MAPPER] --reducer REDUCER 
 
 > `--spec`    structured spec in yson format
 
-> `--format`    (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 > `--map-input-format`    see –format help
 
@@ -1680,7 +1680,7 @@ usage: yt merge [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --d
 
 > `--src`    (Required)  Accepted multiple times.
 
-> `--dst`    (Required) path to destination table. For append mode add <append=true> before path. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--dst`    (Required) path to destination table. For append mode add <append=true> before path. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--mode`    Possible choices: unordered, ordered, sorted, auto
 
@@ -1902,7 +1902,7 @@ usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--inclu
 
 > `--operation`    operation id
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### list-operations
 
@@ -1934,11 +1934,11 @@ usage: yt list-operations [-h] [--params PARAMS] [--user USER] [--state STATE] [
 
 > `--without-failed-jobs`    show only operations without failed jobs
 
-> `--from-time`    lower limit for operations start time. Time is accepted as unix timestamp or time string in YT format
+> `--from-time`    lower limit for operations start time. Time is accepted as unix timestamp or time string in {{product-name}} format
 
-> `--to-time`    upper limit for operations start time. Time is accepted as unix timestamp or time string in YT format
+> `--to-time`    upper limit for operations start time. Time is accepted as unix timestamp or time string in {{product-name}} format
 
-> `--cursor-time`    cursor time. Used in combination with –cursor-direction and –limit. Time is accepted as unix timestamp or time string in YT format
+> `--cursor-time`    cursor time. Used in combination with –cursor-direction and –limit. Time is accepted as unix timestamp or time string in {{product-name}} format
 
 > `--cursor-direction`    cursor direction, can be one of («none», «past», «future»). Used in combination with –cursor-time and –limit
 
@@ -1948,7 +1948,7 @@ usage: yt list-operations [-h] [--params PARAMS] [--user USER] [--state STATE] [
 
 > `--limit`    maximum number of operations in output
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### resume-op
 
@@ -2070,7 +2070,7 @@ usage: yt get-job [-h] [--params PARAMS] [--job-id JOB_ID] [--operation-id OPERA
 
 > `--operation-id`    operation id, for example: 876084ca-efd01a47-3e8-7a62e787
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### get-job-input
 
@@ -2221,7 +2221,7 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--job-typ
 
 > data sources to list jobs from
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### run-job-shell
 
@@ -2297,13 +2297,13 @@ usage: yt lock [-h] [--params PARAMS] [--path PATH] [--mode {snapshot,shared,exc
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--mode`    Possible choices: snapshot, shared, exclusive
 
@@ -2361,13 +2361,13 @@ usage: yt unlock [-h] [--params PARAMS] [--path PATH] [path]
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ## ACL (permission) commands
 
@@ -2411,7 +2411,7 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 > `permission`    one of read, write, administer, create, use
 
-> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
@@ -2421,7 +2421,7 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 > `--permission`    one of read, write, administer, create, use
 
-> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--read-from`    Can be set to «cache» to enable reads from system cache
 
@@ -2429,7 +2429,7 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 > `--columns`    structured columns in yson format
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 ### issue-token
 
@@ -2638,13 +2638,13 @@ usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] --output-file OUTP
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--output-file`    (Required)
 
@@ -2658,13 +2658,13 @@ usage: yt upload-parquet [-h] [--params PARAMS] [--table TABLE] --input-file INP
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--input-file`    (Required)
 
@@ -2683,17 +2683,17 @@ usage: yt advance-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH
 
 #### Positional Arguments
 
-> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `consumer_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `queue_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--consumer-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--partition-index`    (Required)
 
@@ -2713,11 +2713,11 @@ usage: yt list-queue-consumer-registrations [-h] [--params PARAMS] [--queue-path
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    Path to queue in Cypress; cluster may be specified. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    Path to queue in Cypress; cluster may be specified. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    Path to consumer in Cypress; cluster may be specified. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--consumer-path`    Path to consumer in Cypress; cluster may be specified. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### pull-consumer
 
@@ -2731,17 +2731,17 @@ usage: yt pull-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [
 
 #### Positional Arguments
 
-> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `consumer_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `queue_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--consumer-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--offset`    (Required)
 
@@ -2753,7 +2753,7 @@ usage: yt pull-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [
 
 > `--replica-consistency`    Possible choices: none, sync
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### pull-queue
 
@@ -2767,13 +2767,13 @@ usage: yt pull-queue [-h] [--params PARAMS] [--queue-path QUEUE_PATH] --offset O
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `queue_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--offset`    (Required)
 
@@ -2785,7 +2785,7 @@ usage: yt pull-queue [-h] [--params PARAMS] [--queue-path QUEUE_PATH] --offset O
 
 > `--replica-consistency`    Possible choices: none, sync
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### register-queue-consumer
 
@@ -2797,17 +2797,17 @@ usage: yt register-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PAT
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `queue_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `consumer_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--consumer-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--vital`    Whether the consumer is vital
 
@@ -2825,17 +2825,17 @@ usage: yt unregister-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_P
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `queue_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `consumer_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--queue-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--consumer-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ## Query tracker
 
@@ -2881,7 +2881,7 @@ usage: yt get-query [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--stage STA
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### get-query-result
 
@@ -2903,7 +2903,7 @@ usage: yt get-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX] 
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### list-queries
 
@@ -2926,11 +2926,11 @@ usage: yt list-queries [-h] [--params PARAMS] [--user USER] [--engine ENGINE] [-
 
 > `--filter`    filter queries by some text factor. For example, part of the query can be passed to this option
 
-> `--from-time`    lower limit for operations start time. Time is accepted as unix timestamp or time string in YT format
+> `--from-time`    lower limit for operations start time. Time is accepted as unix timestamp or time string in {{product-name}} format
 
-> `--to-time`    upper limit for operations start time. Time is accepted as unix timestamp or time string in YT format
+> `--to-time`    upper limit for operations start time. Time is accepted as unix timestamp or time string in {{product-name}} format
 
-> `--cursor-time`    cursor time. Used in combination with –cursor-direction and –limit. Time is accepted as unix timestamp or time string in YT format
+> `--cursor-time`    cursor time. Used in combination with –cursor-direction and –limit. Time is accepted as unix timestamp or time string in {{product-name}} format
 
 > `--cursor-direction`    cursor direction, can be one of («none», «past», «future»). Used in combination with –cursor-time and –limit
 
@@ -2940,7 +2940,7 @@ usage: yt list-queries [-h] [--params PARAMS] [--user USER] [--engine ENGINE] [-
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### read-query-result
 
@@ -2962,7 +2962,7 @@ usage: yt read-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX]
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [Formats](../../../user-guide/storage/formats.md)
 
 ### start-query
 
@@ -3024,7 +3024,7 @@ yt admin switch-leader [-h] [--cell-id CELL_ID] [--new-leader-address NEW_LEADER
 
 ### chyt
 
-ClickHouse over YT commands
+ClickHouse over {{product-name}} commands
 
 ```bash
 usage: yt chyt [-h] clickhouse_command ...
@@ -3117,7 +3117,7 @@ yt chyt ctl [--address ADDRESS] command ...
 
 ### clickhouse
 
-ClickHouse over YT commands
+ClickHouse over {{product-name}} commands
 
 ```bash
 usage: yt clickhouse [-h] clickhouse_command ...
@@ -3284,7 +3284,7 @@ usage: yt flow [-h] flow_command ...
 
 ##### start-pipeline
 
-start YT Flow pipeline. Start YT Flow pipeline
+start {{product-name}} Flow pipeline. Start {{product-name}} Flow pipeline
 
 ```bash
 yt flow start-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
@@ -3292,15 +3292,15 @@ yt flow start-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ##### stop-pipeline
 
-stop YT Flow pipeline. Stop YT Flow pipeline
+stop {{product-name}} Flow pipeline. Stop {{product-name}} Flow pipeline
 
 ```bash
 yt flow stop-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
@@ -3308,15 +3308,15 @@ yt flow stop-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ##### pause-pipeline
 
-pause YT Flow pipeline. Pause YT Flow pipeline
+pause {{product-name}} Flow pipeline. Pause {{product-name}} Flow pipeline
 
 ```bash
 yt flow pause-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
@@ -3324,15 +3324,15 @@ yt flow pause-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ##### get-pipeline-spec
 
-get YT Flow pipeline spec. Get YT Flow pipeline spec
+get {{product-name}} Flow pipeline spec. Get {{product-name}} Flow pipeline spec
 
 ```bash
 yt flow get-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--spec-path SPEC_PATH] [pipeline_path]
@@ -3340,19 +3340,19 @@ yt flow get-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--spec-path`    Path to part of the spec
 
 ##### set-pipeline-spec
 
-set YT Flow pipeline spec. Set YT Flow pipeline spec
+set {{product-name}} Flow pipeline spec. Set {{product-name}} Flow pipeline spec
 
 ```bash
 yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--force] [--spec-path SPEC_PATH] [--value VALUE] [pipeline_path] [value]
@@ -3360,15 +3360,15 @@ yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `value`    new spec attribute value
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3380,7 +3380,7 @@ yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 ##### remove-pipeline-spec
 
-remove YT Flow pipeline spec. Remove YT Flow pipeline spec
+remove {{product-name}} Flow pipeline spec. Remove {{product-name}} Flow pipeline spec
 
 ```bash
 yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--force] [--spec-path SPEC_PATH] [pipeline_path]
@@ -3388,13 +3388,13 @@ yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORM
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3404,7 +3404,7 @@ yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORM
 
 ##### get-pipeline-dynamic-spec
 
-get YT Flow pipeline dynamic spec. Get YT Flow pipeline dynamic spec
+get {{product-name}} Flow pipeline dynamic spec. Get {{product-name}} Flow pipeline dynamic spec
 
 ```bash
 yt flow get-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--spec-path SPEC_PATH] [pipeline_path]
@@ -3412,19 +3412,19 @@ yt flow get-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--spec-path`    Path to part of the spec
 
 ##### set-pipeline-dynamic-spec
 
-set YT Flow pipeline dynamic spec. Set YT Flow pipeline dynamic spec
+set {{product-name}} Flow pipeline dynamic spec. Set {{product-name}} Flow pipeline dynamic spec
 
 ```bash
 yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [--spec SPEC] [pipeline_path] [spec]
@@ -3432,15 +3432,15 @@ yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `spec`    new spec attribute value
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3450,7 +3450,7 @@ yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 ##### remove-pipeline-dynamic-spec
 
-remove YT Flow pipeline dynamic spec. Remove YT Flow pipeline dynamic spec
+remove {{product-name}} Flow pipeline dynamic spec. Remove {{product-name}} Flow pipeline dynamic spec
 
 ```bash
 yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT] [--expected-version EXPECTED_VERSION] [--spec-path SPEC_PATH] [pipeline_path]
@@ -3458,13 +3458,13 @@ yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--for
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `pipeline_path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--pipeline-path`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3494,7 +3494,7 @@ usage: yt get-features [-h] [--params PARAMS] [--format FORMAT]
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [Formats](../../../user-guide/storage/formats.md)
 
 
 {% if audience == "internal" %}
@@ -3518,7 +3518,7 @@ usage: yt idm [-h] (--path PATH | --account ACCOUNT | --bundle TABLET_CELL_BUNDL
 
 > `--bundle`    Tablet cell bundle name
 
-> `--group`    YT group name
+> `--group`    {{product-name}} group name
 
 > `--pool`    Pool name
 
@@ -3647,7 +3647,7 @@ yt idm copy [-h] [--immediate] [--erase] [--dry-run] destination
 
 ### jupyt
 
-Jupyter over YT commands
+Jupyter over {{product-name}} commands
 
 ```bash
 usage: yt jupyt [-h] jupyter_command ...
@@ -3719,13 +3719,13 @@ usage: yt run-compression-benchmarks [-h] [--params PARAMS] [--table TABLE] [--a
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
+> `--table`    address in Cypress. See also: [YPATH](../../../user-guide/storage/ypath.md)
 
 > `--all-codecs`    benchmark every level of codecs with levels
 
@@ -3799,7 +3799,7 @@ usage: yt sky-share [-h] [--params PARAMS] [--cluster CLUSTER] [--key-column KEY
 
 ### spark
 
-Spark over YT commands
+Spark over {{product-name}} commands
 
 ```bash
 usage: yt spark [-h] spark_command ...
@@ -3813,7 +3813,7 @@ usage: yt spark [-h] spark_command ...
 
 ##### start-cluster
 
-start Spark Standalone cluster in YT Vanilla Operation. See [{#T}](../../../user-guide/data-processing/spyt/overview.md). Start Spark Standalone cluster in YT Vanilla Operation
+start Spark Standalone cluster in {{product-name}} Vanilla Operation. See [About Spark](../../../user-guide/data-processing/spyt/overview.md) section. Start Spark Standalone cluster in {{product-name}} Vanilla Operation
 
 ```bash
 yt spark start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
@@ -3832,11 +3832,11 @@ yt spark start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --
 
 > `--spark-worker-timeout`    Worker timeout to wait master start, default: `«5m»`
 
-> `--operation-alias`    Alias for the underlying YT operation
+> `--operation-alias`    Alias for the underlying {{product-name}} operation
 
 > `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in find-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
 
-> `--pool`    Pool for the underlying YT operation
+> `--pool`    Pool for the underlying {{product-name}} operation
 
 > `--spark-worker-tmpfs-limit`    Limit of tmpfs usage per Spark worker, default: `«150G»`
 
@@ -3844,9 +3844,9 @@ yt spark start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --
 
 > `--spark-history-server-memory-limit`    Memory limit on Spark History Server, default: `«8G»`
 
-> `--dynamic-config-path`    YT path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
+> `--dynamic-config-path`    {{product-name}} path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
 
-> `--operation-spec`    YT Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
+> `--operation-spec`    {{product-name}} Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
 
 ##### find-cluster
 
@@ -3862,7 +3862,7 @@ yt spark find-cluster [-h] [--discovery-path DISCOVERY_PATH]
 
 ### spyt
 
-Spark over YT commands
+Spark over {{product-name}} commands
 
 ```bash
 usage: yt spyt [-h] spark_command ...
@@ -3876,7 +3876,7 @@ usage: yt spyt [-h] spark_command ...
 
 ##### start-cluster
 
-start Spark Standalone cluster in YT Vanilla Operation. See [{#T}](../../../user-guide/data-processing/spyt/overview.md). Start Spark Standalone cluster in YT Vanilla Operation
+start Spark Standalone cluster in {{product-name}} Vanilla Operation. See [About Spark](../../../user-guide/data-processing/spyt/overview.md) section. Start Spark Standalone cluster in {{product-name}} Vanilla Operation
 
 ```bash
 yt spyt start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
@@ -3895,11 +3895,11 @@ yt spyt start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --s
 
 > `--spark-worker-timeout`    Worker timeout to wait master start, default: `«5m»`
 
-> `--operation-alias`    Alias for the underlying YT operation
+> `--operation-alias`    Alias for the underlying {{product-name}} operation
 
 > `--discovery-path`    Cypress path for discovery files and logs, the same path must be used in find-spark-cluster. SPARK_YT_DISCOVERY_PATH env variable is used by default
 
-> `--pool`    Pool for the underlying YT operation
+> `--pool`    Pool for the underlying {{product-name}} operation
 
 > `--spark-worker-tmpfs-limit`    Limit of tmpfs usage per Spark worker, default: `«150G»`
 
@@ -3907,9 +3907,9 @@ yt spyt start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --s
 
 > `--spark-history-server-memory-limit`    Memory limit on Spark History Server, default: `«8G»`
 
-> `--dynamic-config-path`    YT path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
+> `--dynamic-config-path`    {{product-name}} path of dynamic config, default: `«//sys/spark/bin/releases/spark-launch-conf»`
 
-> `--operation-spec`    YT Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
+> `--operation-spec`    {{product-name}} Vanilla Operation spec. structured operation-spec in yson format, default: `{"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}`
 
 ##### find-cluster
 
