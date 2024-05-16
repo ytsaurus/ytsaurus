@@ -2613,6 +2613,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
     proxyConfig->MakeRootFSWritable = UserJobSpec_ && UserJobSpec_->make_rootfs_writable();
 
+    // TODO(ignat): add option to disable fuse within exec node.
+    proxyConfig->EnableFuse = UserJobSpec_ && UserJobSpec_->enable_fuse();
+
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 

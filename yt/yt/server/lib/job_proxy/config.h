@@ -192,6 +192,9 @@ public:
 
     bool MakeRootFSWritable;
 
+    //! Enable mount of fuse device to user job container.
+    bool EnableFuse;
+
     //! Path to write job proxy stderr (for testing purposes).
     std::optional<TString> StderrPath;
     //! Path to write executor stderr (for testing purposes).

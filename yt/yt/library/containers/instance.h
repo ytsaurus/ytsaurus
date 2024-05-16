@@ -102,6 +102,7 @@ struct IInstanceLauncher
 
     virtual void SetEnablePorto(EEnablePorto enablePorto) = 0;
     virtual void SetIsolate(bool isolate) = 0;
+    virtual void SetEnableFuse(bool enableFuse) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetGroup(int groupId) = 0;
     virtual void SetUser(const TString& user) = 0;

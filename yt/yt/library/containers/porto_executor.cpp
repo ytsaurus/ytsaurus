@@ -558,6 +558,7 @@ private:
 
         portoSpec.set_enable_porto(FormatEnablePorto(spec.EnablePorto));
         portoSpec.set_isolate(spec.Isolate);
+        portoSpec.set_enable_fuse(spec.EnableFuse);
 
         if (spec.StdinPath) {
             portoSpec.set_stdin_path(*spec.StdinPath);

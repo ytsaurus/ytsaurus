@@ -30,6 +30,7 @@ struct TRunnableContainerSpec
 
     EEnablePorto EnablePorto = EEnablePorto::None;
     bool Isolate = true;
+    bool EnableFuse = false;
 
     std::optional<TString> StdinPath;
     std::optional<TString> StdoutPath;

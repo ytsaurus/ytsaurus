@@ -127,6 +127,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
         .Default(false);
 
+    registrar.Parameter("enable_fuse", &TThis::EnableFuse)
+        .Default(false);
+
     registrar.Parameter("docker_image", &TThis::DockerImage)
         .Default();
 

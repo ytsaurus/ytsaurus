@@ -1044,6 +1044,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
         .Default(false);
+    registrar.Parameter("enable_fuse", &TThis::EnableFuse)
+        .Default(false);
     registrar.Parameter("use_smaps_memory_tracker", &TThis::UseSMapsMemoryTracker)
         .Default(false);
     registrar.Parameter("monitoring", &TThis::Monitoring)

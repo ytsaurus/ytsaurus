@@ -282,6 +282,11 @@ public:
         Spec_.Isolate = isolate;
     }
 
+    void SetEnableFuse(bool enableFuse) override
+    {
+        Spec_.EnableFuse = enableFuse;
+    }
+
     void EnableMemoryTracking() override
     {
         Spec_.CGroupControllers.push_back("memory");

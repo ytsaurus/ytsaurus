@@ -3840,3 +3840,27 @@ class TestCriJobStatistics(YTEnvSetup):
         )
 
         assert op.get_statistics()["job"]["memory"]["rss"][0]["summary"]["max"] > 200 * 1000 * 1000
+
+
+##################################################################
+
+
+class TestPortoFuseDevice(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    USE_PORTO = True
+
+    @authors("ignat")
+    def test_fuse_device(self):
+        op = run_test_vanilla(
+            command=with_breakpoint("stat /dev/fuse >&2; BREAKPOINT"),
+            task_patch={
+                "enable_fuse": True,
+            },
+        )
+
+        job_id = wait_breakpoint()[0]
+
+        assert b"File: '/dev/fuse'" in get_job_stderr(op.id, job_id)
