@@ -46,83 +46,54 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTabletExportProgress)
-
-class TTabletExportProgress
-    : public NYTree::TYsonStruct
+void TQueueTabletExportProgress::Register(TRegistrar registrar)
 {
-public:
-    TChunkId LastChunk;
-    TTimestamp MaxTimestamp;
-    i64 RowCount;
-    i64 ChunkCount;
-
-    REGISTER_YSON_STRUCT(TTabletExportProgress);
-
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("last_chunk", &TThis::LastChunk)
-            .Default(NullChunkId);
-        registrar.Parameter("max_timestamp", &TThis::MaxTimestamp)
-            .Default(NullTimestamp);
-        registrar.Parameter("row_count", &TThis::RowCount)
-            .Default(0);
-        registrar.Parameter("chunk_count", &TThis::ChunkCount)
-            .Default(0);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletExportProgress)
+    registrar.Parameter("last_chunk", &TThis::LastChunk)
+        .Default(NullChunkId);
+    registrar.Parameter("max_timestamp", &TThis::MaxTimestamp)
+        .Default(NullTimestamp);
+    registrar.Parameter("row_count", &TThis::RowCount)
+        .Default(0);
+    registrar.Parameter("chunk_count", &TThis::ChunkCount)
+        .Default(0);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TExportProgress)
-
-class TExportProgress
-    : public TYsonStruct
+void TQueueExportProgress::Update(i64 tabletIndex, TChunkId chunkId, TTimestamp maxTimestamp, i64 rowCount)
 {
-public:
-    TInstant LastExportIterationInstant;
-    ui64 LastExportedFragmentUnixTs;
-    THashMap<i64, TTabletExportProgressPtr> Tablets;
-
-    void Update(i64 tabletIndex, TChunkId chunkId, TTimestamp maxTimestamp, i64 rowCount)
-    {
-        auto tabletProgressIt = Tablets.find(tabletIndex);
-        if (tabletProgressIt == Tablets.end()) {
-            tabletProgressIt = Tablets.emplace(tabletIndex, New<TTabletExportProgress>()).first;
-        }
-
-        tabletProgressIt->second->LastChunk = chunkId;
-        ++tabletProgressIt->second->ChunkCount;
-        tabletProgressIt->second->MaxTimestamp = std::max(tabletProgressIt->second->MaxTimestamp, maxTimestamp);
-        tabletProgressIt->second->RowCount = rowCount;
+    auto tabletProgressIt = Tablets.find(tabletIndex);
+    if (tabletProgressIt == Tablets.end()) {
+        tabletProgressIt = Tablets.emplace(tabletIndex, New<TQueueTabletExportProgress>()).first;
     }
 
-    REGISTER_YSON_STRUCT(TExportProgress);
+    tabletProgressIt->second->LastChunk = chunkId;
+    ++tabletProgressIt->second->ChunkCount;
+    tabletProgressIt->second->MaxTimestamp = std::max(tabletProgressIt->second->MaxTimestamp, maxTimestamp);
+    tabletProgressIt->second->RowCount = rowCount;
+}
 
-    static void Register(TRegistrar registrar)
-    {
-        registrar.Parameter("last_export_iteration_instant", &TThis::LastExportIterationInstant)
-            .Default(TInstant::Zero());
-        registrar.Parameter("last_exported_fragment_unix_ts", &TThis::LastExportedFragmentUnixTs)
-            .Default(0);
-        registrar.Parameter("tablets", &TThis::Tablets)
-            .Default();
-    }
-};
+void TQueueExportProgress::Register(TRegistrar registrar)
+{
+    registrar.Parameter("last_export_iteration_instant", &TThis::LastExportIterationInstant)
+        .Default(TInstant::Zero());
+    registrar.Parameter("last_exported_fragment_unix_ts", &TThis::LastExportedFragmentUnixTs)
+        .Default(0);
+    registrar.Parameter("tablets", &TThis::Tablets)
+        .Default();
+}
 
-DEFINE_REFCOUNTED_TYPE(TExportProgress)
+////////////////////////////////////////////////////////////////////////////////
 
 struct TProgressDiff
 {
     i64 RowCount = 0;
     i64 ChunkCount = 0;
 
-    TProgressDiff(const TExportProgressPtr& currentProgress, const TExportProgressPtr& newProgress)
+    TProgressDiff(const TQueueExportProgressPtr& currentProgress, const TQueueExportProgressPtr& newProgress)
     {
         for (const auto& [tabletIndex, newTabletProgress] : newProgress->Tablets) {
-            auto currentTabletProgress = currentProgress->Tablets.Value(tabletIndex, New<TTabletExportProgress>());
+            auto currentTabletProgress = currentProgress->Tablets.Value(tabletIndex, New<TQueueTabletExportProgress>());
             RowCount += newTabletProgress->RowCount - currentTabletProgress->RowCount;
             ChunkCount += newTabletProgress->ChunkCount - currentTabletProgress->ChunkCount;
         }
@@ -155,7 +126,7 @@ public:
             ExportConfig_.ExportPeriod))
     { }
 
-    TFuture<void> Run()
+    TFuture<TQueueExportProgressPtr> Run()
     {
         return BIND(&TQueueExportTask::DoRun, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -213,7 +184,7 @@ private:
     //! In any case, we will only produce an output table if its unix ts is strictly greater than the one of the last exported table.
     //! If the physical time diverges from the cluster time, the only effect is that some chunks might end up being
     //! exported into later tables, which is perfectly fine.
-    void DoRun()
+    TQueueExportProgressPtr DoRun()
     {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
 
@@ -246,7 +217,7 @@ private:
         if (ChunkSpecsToExport_.empty()) {
             YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
             YT_UNUSED_FUTURE(transaction->Abort());
-            return;
+            return newExportProgress;
         }
 
         CreateOutputTable();
@@ -268,6 +239,8 @@ private:
         ProfilingCounters_->ExportedTables.Increment();
 
         YT_LOG_INFO("Finished queue static export iteration");
+
+        return newExportProgress;
     }
 
     ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
@@ -377,7 +350,7 @@ private:
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
     }
 
-    TExportProgressPtr ValidateDestinationAndFetchProgress()
+    TQueueExportProgressPtr ValidateDestinationAndFetchProgress()
     {
         auto exportDirectoryAttributes = FetchNodeAttributes(
             ExportConfig_.ExportDirectory,
@@ -392,7 +365,7 @@ private:
                 QueueObject_.ObjectId);
         }
 
-        auto currentExportProgress = exportDirectoryAttributes->Find<TExportProgressPtr>(ExportProgressAttributeName_);
+        auto currentExportProgress = exportDirectoryAttributes->Find<TQueueExportProgressPtr>(ExportProgressAttributeName_);
         if (currentExportProgress && currentExportProgress->LastExportedFragmentUnixTs >= ExportFragmentUnixTs_) {
             THROW_ERROR_EXCEPTION(
                 "Fragment with unix ts %v is already exported, last exported fragment unix ts is %v",
@@ -400,10 +373,10 @@ private:
                 currentExportProgress->LastExportedFragmentUnixTs);
         }
 
-        return currentExportProgress ? currentExportProgress : New<TExportProgress>();
+        return currentExportProgress ? currentExportProgress : New<TQueueExportProgress>();
     }
 
-    TExportProgressPtr SelectChunkSpecsToExport(const TExportProgressPtr& currentExportProgress)
+    TQueueExportProgressPtr SelectChunkSpecsToExport(const TQueueExportProgressPtr& currentExportProgress)
     {
         auto newExportProgress = CloneYsonStruct(currentExportProgress);
 
@@ -736,8 +709,8 @@ private:
     }
 
     TProgressDiff UpdateCypressExportProgress(
-        const TExportProgressPtr& currentExportProgress,
-        const TExportProgressPtr& newExportProgress)
+        const TQueueExportProgressPtr& currentExportProgress,
+        const TQueueExportProgressPtr& newExportProgress)
     {
         TSetNodeOptions options;
         options.TransactionId = Options_.TransactionId;
@@ -773,12 +746,17 @@ TQueueExportProfilingCounters::TQueueExportProfilingCounters(const TProfiler& pr
 
 TQueueExporter::TQueueExporter(
     TString exportName,
+    TCrossClusterReference queue,
+    const NQueueClient::TQueueStaticExportConfig& config,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
     IAlertCollectorPtr alertCollector,
     const TProfiler& queueProfiler,
     const TLogger& logger)
     : ExportName_(std::move(exportName))
+    , Queue_(std::move(queue))
+    , Config_(config)
+    , ExportProgress_(New<TQueueExportProgress>())
     , ClientDirectory_(std::move(clientDirectory))
     , Invoker_(std::move(invoker))
     , AlertCollector_(std::move(alertCollector))
@@ -786,29 +764,66 @@ TQueueExporter::TQueueExporter(
     , Logger(logger.WithTag("ExportName: %v", ExportName_))
 { }
 
-TFuture<void> TQueueExporter::RunExportIteration(
-    const TCrossClusterReference& queue,
-    const TQueueStaticExportConfig& exportConfig)
+TFuture<void> TQueueExporter::RunExportIteration()
 {
+    auto config = GetConfig();
+
     auto exportTask = New<TQueueExportTask>(
-        ClientDirectory_->GetClientOrThrow(queue.Cluster),
+        ClientDirectory_->GetClientOrThrow(Queue_.Cluster),
         Invoker_,
         ProfilingCounters_,
-        queue.Path,
-        exportConfig,
+        Queue_.Path,
+        config,
         Logger);
+
     auto exportTaskFuture = exportTask->Run();
-    exportTaskFuture.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-        if (!error.IsOK()) {
+
+    exportTaskFuture.SubscribeUnique(BIND([
+        this,
+        this_ = MakeStrong(this),
+        config = std::move(config)
+    ] (TErrorOr<TQueueExportProgressPtr>&& exportProgress) {
+        if (!exportProgress.IsOK()) {
             AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
                 "Failed to perform static export for queue",
                 /*tags*/ {{"export_name", ExportName_}},
-                error));
+                /*error*/ exportProgress));
+        } else {
+            auto nextExportProgress = exportProgress.Value();
+
+            auto guard = Guard(Lock_);
+
+            if (config.ExportDirectory == Config_.ExportDirectory) {
+                ExportProgress_ = std::move(nextExportProgress);
+            }
         }
         AlertCollector_->PublishAlerts();
     }));
-    return exportTaskFuture;
+
+    return exportTaskFuture.AsVoid();
+}
+
+void TQueueExporter::Reconfigure(const NQueueClient::TQueueStaticExportConfig& config) {
+    auto guard = Guard(Lock_);
+
+    if (config.ExportDirectory != Config_.ExportDirectory) {
+        ExportProgress_ = New<TQueueExportProgress>();
+    }
+
+    Config_ = config;
+}
+
+TQueueExportProgressPtr TQueueExporter::GetExportProgress() const
+{
+    auto guard = Guard(Lock_);
+    return ExportProgress_;
+}
+
+NQueueClient::TQueueStaticExportConfig TQueueExporter::GetConfig()
+{
+    auto guard = Guard(Lock_);
+    return Config_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
