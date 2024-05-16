@@ -1,4 +1,4 @@
-# Команды YT cli
+# Команды {{product-name}} CLI
 
 ## Cypress commands
 
@@ -33,25 +33,25 @@ usage: yt copy [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 #### Positional Arguments
 
-> `source_path`    source address, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `source_path`    source address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `destination_path`    destination address, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `destination_path`    destination address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-path`    source address, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--source-path`    source address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--destination-path`    destination address, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--destination-path`    destination address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--preserve-account`    
+> `--preserve-account`
 
-> `--no-preserve-account`    
+> `--no-preserve-account`
 
-> `--preserve-owner`    
+> `--preserve-owner`
 
-> `--no-preserve-owner`    
+> `--no-preserve-owner`
 
 > `--preserve-creation-time`    preserve creation time of node
 
@@ -61,19 +61,19 @@ usage: yt copy [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 > `--preserve-expiration-timeout`    preserve expiration timeout of node
 
-> `--preserve-acl`    
+> `--preserve-acl`
 
-> `--no-preserve-acl`    
+> `--no-preserve-acl`
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
-> `-i, --ignore-existing`    
+> `-i, --ignore-existing`
 
-> `-l, --lock-existing`    
+> `-l, --lock-existing`
 
-> `-f, --force`    
+> `-f, --force`
 
-> `--no-pessimistic-quota-check`    
+> `--no-pessimistic-quota-check`
 
 ### create
 
@@ -87,7 +87,7 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
@@ -95,15 +95,15 @@ usage: yt create [-h] [--params PARAMS] [--type TYPE] [--path PATH] [-r] [-i] [-
 
 > `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
-> `-i, --ignore-existing`    
+> `-i, --ignore-existing`
 
-> `-l, --lock-existing`    
+> `-l, --lock-existing`
 
-> `-f, --force`    
+> `-f, --force`
 
 > `--attributes`    structured attributes in yson format
 
@@ -117,21 +117,21 @@ usage: yt create-account [-h] [--params PARAMS] [--name NAME] [--parent-name PAR
 
 #### Positional Arguments
 
-> `name`    
+> `name`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--name`    
+> `--name`
 
-> `--parent-name`    
+> `--parent-name`
 
 > `--resource-limits`    structured resource-limits in yson format
 
-> `-i, --ignore-existing`    
+> `-i, --ignore-existing`
 
-> `--allow-children-limit-overcommit`    
+> `--allow-children-limit-overcommit`
 
 > `--attributes`    structured attributes in yson format
 
@@ -148,41 +148,41 @@ usage: yt create-pool [-h] [--params PARAMS] [--name NAME] [--pool-tree POOL_TRE
 
 #### Positional Arguments
 
-> `name`    
+> `name`
 
-> `pool_tree`    
+> `pool_tree`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--name`    
+> `--name`
 
-> `--pool-tree`    
+> `--pool-tree`
 
-> `--parent-name`    
+> `--parent-name`
 
-> `--weight`    
+> `--weight`
 
 > `--mode`    fifo or fair_share
 
 > `--fifo-sort-parameters`    structured fifo-sort-parameters in yson format
 
-> `--max-operation-count`    
+> `--max-operation-count`
 
-> `--max-running-operation-count`    
+> `--max-running-operation-count`
 
-> `--forbid-immediate-operations`    
+> `--forbid-immediate-operations`
 
 > `--resource-limits`    structured resource-limits in yson format
 
 > `--min-share-resources`    structured min-share-resources in yson format
 
-> `--create-ephemeral-subpools`    
+> `--create-ephemeral-subpools`
 
 > `--ephemeral-subpool-config`    structured ephemeral-subpool-config in yson format
 
-> `-i, --ignore-existing`    
+> `-i, --ignore-existing`
 
 > `--attributes`    structured attributes in yson format
 
@@ -196,13 +196,13 @@ usage: yt exists [-h] [--params PARAMS] [--path PATH] [--suppress-transaction-co
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--suppress-transaction-coordinator-sync`    suppress transaction coordinator sync
 
@@ -220,13 +220,13 @@ usage: yt externalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--cell-tag`    (Required)
 
@@ -242,15 +242,15 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--name, -name`    pattern of node name, use shell-style wildcards: 
+> `--name, -name`    pattern of node name, use shell-style wildcards:
 
 > ```
 > *
@@ -260,9 +260,9 @@ usage: yt find [-h] [--params PARAMS] [--path PATH] [--name NAME] [--type TYPE] 
 
 > `--type`    one of table, file, document, account, user, list_node, map_node, string_node, int64_node, uint64_node, double_node, …
 
-> `--account`    
+> `--account`
 
-> `--owner`    
+> `--owner`
 
 > `--follow-links`    follow links
 
@@ -294,17 +294,17 @@ usage: yt get [-h] [--params PARAMS] [--path PATH] [--max-size MAX_SIZE] [--form
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--max-size`    maximum size of entries returned by get; if actual directory size exceeds that value only subset of entries will be listed (it’s not specified which subset); default value is enough to list any nonsystem directory.
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--attribute`    desired node attributes in the response Accepted multiple times.
 
@@ -324,13 +324,13 @@ usage: yt internalize [-h] [--params PARAMS] [--path PATH] --cell-tag CELL_TAG [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--cell-tag`    (Required)
 
@@ -344,23 +344,23 @@ usage: yt link [-h] [--params PARAMS] [--target-path TARGET_PATH] [--link-path L
 
 #### Positional Arguments
 
-> `target_path`    address of original node to link, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `target_path`    address of original node to link, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `link_path`    address of resulting link, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `link_path`    address of resulting link, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--target-path`    address of original node to link, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--target-path`    address of original node to link, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--link-path`    address of resulting link, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--link-path`    address of resulting link, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `-r, --recursive`    create parent nodes recursively
 
-> `-i, --ignore-existing`    
+> `-i, --ignore-existing`
 
-> `-l, --lock-existing`    
+> `-l, --lock-existing`
 
 > `-f, --force`    force create link even if destination already exists (supported only on cluster with 19+ version)
 
@@ -378,17 +378,17 @@ usage: yt list [-h] [--params PARAMS] [--path PATH] [-l] [--format FORMAT] [--at
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `-l, --long-format`    print some extra information about nodes
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--attribute`    node attributes to add into response Accepted multiple times.
 
@@ -416,25 +416,25 @@ usage: yt move [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 #### Positional Arguments
 
-> `source_path`    old node address, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `source_path`    old node address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `destination_path`    new node address, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `destination_path`    new node address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-path`    old node address, path must exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--source-path`    old node address, path must exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--destination-path`    new node address, path must not exist. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--destination-path`    new node address, path must not exist. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--preserve-account`    
+> `--preserve-account`
 
-> `--no-preserve-account`    
+> `--no-preserve-account`
 
-> `--preserve-owner`    
+> `--preserve-owner`
 
-> `--no-preserve-owner`    
+> `--no-preserve-owner`
 
 > `--preserve-creation-time`    preserve creation time of node
 
@@ -444,11 +444,11 @@ usage: yt move [-h] [--params PARAMS] [--source-path SOURCE_PATH] [--destination
 
 > `--preserve-expiration-timeout`    preserve expiration timeout of node
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
-> `-f, --force`    
+> `-f, --force`
 
-> `--no-pessimistic-quota-check`    
+> `--no-pessimistic-quota-check`
 
 ### remove
 
@@ -460,17 +460,17 @@ usage: yt remove [-h] [--params PARAMS] [--path PATH] [-r] [-f] [path]
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
-> `-f, --force`    
+> `-f, --force`
 
 ### remove-attribute
 
@@ -482,17 +482,17 @@ usage: yt remove-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `name`    
+> `name`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
 ### set
 
@@ -504,7 +504,7 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `value`    new node attribute value, in yson format. You can specify in bash pipe: «cat file_with_value | yt set //tmp/my_node»
 
@@ -512,13 +512,13 @@ usage: yt set [-h] [--params PARAMS] [--path PATH] [--format FORMAT] [-r] [-f] [
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
-> `-f, --force`    
+> `-f, --force`
 
 > `--suppress-transaction-coordinator-sync`    suppress transaction coordinator sync
 
@@ -534,9 +534,9 @@ usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name va
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `name`    
+> `name`
 
 > `value`    structured value in yson format
 
@@ -544,9 +544,9 @@ usage: yt set-attribute [-h] [--params PARAMS] [--path PATH] [-r] [path] name va
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `-r, --recursive`    
+> `-r, --recursive`
 
 ## File commands
 
@@ -562,13 +562,13 @@ usage: yt download [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_READ
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--file-reader`    structured file-reader in yson format
 
@@ -586,13 +586,13 @@ usage: yt read-file [-h] [--params PARAMS] [--path PATH] [--file-reader FILE_REA
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--file-reader`    structured file-reader in yson format
 
@@ -610,13 +610,13 @@ usage: yt upload [-h] [--params PARAMS] [--destination DESTINATION] [--file-writ
 
 #### Positional Arguments
 
-> `destination`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--destination`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--file-writer`    structured file-writer in yson format
 
@@ -638,13 +638,13 @@ usage: yt write-file [-h] [--params PARAMS] [--destination DESTINATION] [--file-
 
 #### Positional Arguments
 
-> `destination`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--destination`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--destination`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--file-writer`    structured file-writer in yson format
 
@@ -670,19 +670,19 @@ usage: yt alter-table [-h] [--params PARAMS] [--path PATH] [--schema [SCHEMA]] [
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--schema`    new schema value, in yson format.
 
-> `--dynamic`    
+> `--dynamic`
 
-> `--static`    
+> `--static`
 
 > `--upstream-replica-id`    upstream replica id
 
@@ -698,7 +698,7 @@ usage: yt create-temp-table [-h] [--params PARAMS] [--path PATH] [--name-prefix 
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path where temporary table will be created. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    path where temporary table will be created. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--name-prefix`    prefix of table name
 
@@ -730,21 +730,21 @@ yt dirtable upload [-h] --directory DIRECTORY [--part-size PART_SIZE] [--recursi
 
 ###### Named Arguments
 
-> `--directory`    
+> `--directory`
 
 > `--part-size`    Default: `4194304`
 
-> `--recursive`    
+> `--recursive`
 
-> `--no-recursive`    
+> `--no-recursive`
 
-> `--yt-table`    
+> `--yt-table`
 
 > `--process-count`    Default: `4`
 
-> `--force`    
+> `--force`
 
-> `--prepare-for-sky-share`    
+> `--prepare-for-sky-share`
 
 ##### download
 
@@ -757,9 +757,9 @@ yt dirtable download [-h] --directory DIRECTORY --yt-table YT_TABLE [--process-c
 
 ###### Named Arguments
 
-> `--directory`    
+> `--directory`
 
-> `--yt-table`    
+> `--yt-table`
 
 > `--process-count`    Default: `4`
 
@@ -779,7 +779,7 @@ yt dirtable list-files [-h] --yt-table YT_TABLE
 
 ###### Named Arguments
 
-> `--yt-table`    
+> `--yt-table`
 
 ##### append-single-file
 
@@ -791,11 +791,11 @@ yt dirtable append-single-file [-h] --yt-table YT_TABLE --yt-name YT_NAME --fs-p
 
 ###### Named Arguments
 
-> `--yt-table`    
+> `--yt-table`
 
-> `--yt-name`    
+> `--yt-name`
 
-> `--fs-path`    
+> `--fs-path`
 
 > `--process-count`    Default: `4`
 
@@ -811,7 +811,7 @@ usage: yt get-table-columnar-statistics [-h] [--params PARAMS] --path PATHS
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    (Required) Path to source table. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath) Accepted multiple times.
+> `--path`    (Required) Path to source table. See also: [{#T}](../../../user-guide/storage/ypath.md) Accepted multiple times.
 
 ### read
 
@@ -823,21 +823,21 @@ usage: yt read [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--table
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--table-reader`    structured table-reader in yson format
 
 > `--control-attributes`    structured control-attributes in yson format
 
-> `--unordered`    
+> `--unordered`
 
 > `--as-json-list`    In case of JSON format output stream as JSON list instead of JSON lines format
 
@@ -852,13 +852,13 @@ usage: yt read-blob-table [-h] [--params PARAMS] [--table TABLE] [--part-index-c
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--part-index-column-name`    name of column with part indexes
 
@@ -878,21 +878,21 @@ usage: yt read-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [-
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--table-reader`    structured table-reader in yson format
 
 > `--control-attributes`    structured control-attributes in yson format
 
-> `--unordered`    
+> `--unordered`
 
 > `--as-json-list`    In case of JSON format output stream as JSON list instead of JSON lines format
 
@@ -906,15 +906,15 @@ usage: yt write [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [--tabl
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--table-writer`    structured table-writer in yson format
 
@@ -932,15 +932,15 @@ usage: yt write-table [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--table-writer`    structured table-writer in yson format
 
@@ -962,7 +962,7 @@ usage: yt alter-table-replica [-h] [--params PARAMS] [--enable | --disable] [--e
 
 #### Positional Arguments
 
-> `replica_id`    
+> `replica_id`
 
 #### Named Arguments
 
@@ -998,7 +998,7 @@ usage: yt balance-tablet-cells [-h] [--params PARAMS] [--bundle BUNDLE] [--table
 
 > `--tables`    tables to balance. If omitted, all tables of bundle will be balanced
 
-> `--sync`    
+> `--sync`
 
 ### delete
 
@@ -1022,23 +1022,23 @@ usage: yt delete-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--atomicity`    Possible choices: full, none
 
 > `--durability`    Possible choices: sync, async
 
-> `--require-sync-replica`    
+> `--require-sync-replica`
 
-> `--no-require-sync-replica`    
+> `--no-require-sync-replica`
 
 ### explain-query
 
@@ -1052,33 +1052,33 @@ usage: yt explain-query [-h] [--params PARAMS] [--query QUERY] [--timestamp TIME
 
 #### Positional Arguments
 
-> `query`    
+> `query`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--query`    
+> `--query`
 
-> `--timestamp`    
+> `--timestamp`
 
-> `--input-row-limit`    
+> `--input-row-limit`
 
-> `--output-row-limit`    
+> `--output-row-limit`
 
-> `--allow-full-scan`    
+> `--allow-full-scan`
 
-> `--forbid-full-scan`    
+> `--forbid-full-scan`
 
-> `--allow-join-without-index`    
+> `--allow-join-without-index`
 
-> `--forbid-join-without-index`    
+> `--forbid-join-without-index`
 
-> `--execution-pool`    
+> `--execution-pool`
 
-> `--format`    
+> `--format`
 
-> `--syntax-version`    
+> `--syntax-version`
 
 ### freeze-table
 
@@ -1090,19 +1090,19 @@ usage: yt freeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-inde
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
-> `--sync`    
+> `--sync`
 
 ### get-tablet-errors
 
@@ -1114,17 +1114,17 @@ usage: yt get-tablet-errors [-h] [--params PARAMS] [--path PATH] [--limit LIMIT]
 
 #### Positional Arguments
 
-> `path`    path to dynamic table. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path to dynamic table. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--limit`    number of tablets with errors
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### get-tablet-infos
 
@@ -1136,17 +1136,17 @@ usage: yt get-tablet-infos [-h] [--params PARAMS] [--path PATH] [--tablet-indexe
 
 #### Positional Arguments
 
-> `path`    path to dynamic table. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    path to dynamic table. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    path to dynamic table. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--tablet-indexes`    
+> `--tablet-indexes`
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### insert
 
@@ -1172,33 +1172,33 @@ usage: yt insert-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--atomicity`    Possible choices: full, none
 
 > `--durability`    Possible choices: sync, async
 
-> `--require-sync-replica`    
+> `--require-sync-replica`
 
-> `--no-require-sync-replica`    
+> `--no-require-sync-replica`
 
-> `--update`    
+> `--update`
 
-> `--no-update`    
+> `--no-update`
 
-> `--aggregate`    
+> `--aggregate`
 
-> `--no-aggregate`    
+> `--no-aggregate`
 
-> `--lock_type`    
+> `--lock_type`
 
 ### lookup
 
@@ -1222,15 +1222,15 @@ usage: yt lookup-rows [-h] [--params PARAMS] [--table TABLE] [--format FORMAT] [
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    input format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--versioned`    return all versions of the requested rows
 
@@ -1248,21 +1248,21 @@ usage: yt mount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-index
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
-> `--freeze`    
+> `--freeze`
 
-> `--sync`    
+> `--sync`
 
 > `--cell-id`    tablet cell id where the tablets will be mounted to, if omitted then an appropriate cell is chosen automatically
 
@@ -1278,17 +1278,17 @@ usage: yt remount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
 ### reshard-table
 
@@ -1302,29 +1302,29 @@ usage: yt reshard-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `pivot_keys`    
+> `pivot_keys`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
-> `--tablet-count`    
+> `--tablet-count`
 
-> `--sync`    
+> `--sync`
 
-> `--uniform`    
+> `--uniform`
 
-> `--enable-slicing`    
+> `--enable-slicing`
 
-> `--slicing-accuracy`    
+> `--slicing-accuracy`
 
 ### reshard-table-automatic
 
@@ -1336,15 +1336,15 @@ usage: yt reshard-table-automatic [-h] [--params PARAMS] [--path PATH] [--sync] 
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--sync`    
+> `--sync`
 
 ### select
 
@@ -1371,41 +1371,41 @@ usage: yt select-rows [-h] [--params PARAMS] [--query QUERY] [--timestamp TIMEST
 
 #### Positional Arguments
 
-> `query`    
+> `query`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--query`    
+> `--query`
 
-> `--timestamp`    
+> `--timestamp`
 
-> `--input-row-limit`    
+> `--input-row-limit`
 
-> `--output-row-limit`    
+> `--output-row-limit`
 
-> `--verbose-logging`    
+> `--verbose-logging`
 
-> `--enable-code-cache`    
+> `--enable-code-cache`
 
-> `--disable-code-cache`    
+> `--disable-code-cache`
 
-> `--allow-full-scan`    
+> `--allow-full-scan`
 
-> `--forbid-full-scan`    
+> `--forbid-full-scan`
 
-> `--allow-join-without-index`    
+> `--allow-join-without-index`
 
-> `--forbid-join-without-index`    
+> `--forbid-join-without-index`
 
-> `--execution-pool`    
+> `--execution-pool`
 
-> `--format`    
+> `--format`
 
-> `--print-statistics`    
+> `--print-statistics`
 
-> `--syntax-version`    
+> `--syntax-version`
 
 ### trim-rows
 
@@ -1417,17 +1417,17 @@ usage: yt trim-rows [-h] [--params PARAMS] [--path PATH] [path] tablet_index tri
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `tablet_index`    
+> `tablet_index`
 
-> `trimmed_row_count`    
+> `trimmed_row_count`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ### unfreeze-table
 
@@ -1439,19 +1439,19 @@ usage: yt unfreeze-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-in
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
-> `--sync`    
+> `--sync`
 
 ### unmount-table
 
@@ -1463,21 +1463,21 @@ usage: yt unmount-table [-h] [--params PARAMS] [--path PATH] [--first-tablet-ind
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--first-tablet-index`    
+> `--first-tablet-index`
 
-> `--last-tablet-index`    
+> `--last-tablet-index`
 
-> `--force`    
+> `--force`
 
-> `--sync`    
+> `--sync`
 
 ## Run operation commands
 
@@ -1493,15 +1493,15 @@ usage: yt erase [-h] [--params PARAMS] [--table TABLE] [--print-statistics] [--a
 
 #### Positional Arguments
 
-> `table`    path to table to erase. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    path to table to erase. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    path to table to erase. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    path to table to erase. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1519,13 +1519,13 @@ usage: yt join-reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TAB
 
 #### Positional Arguments
 
-> `command`    
+> `command`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--binary`    
+> `--binary`
 
 > `--src`    (Required)  Accepted multiple times.
 
@@ -1535,19 +1535,19 @@ usage: yt join-reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TAB
 
 > `--local-file`    > Accepted multiple times.
 
-> `--job-count`    
+> `--job-count`
 
 > `--memory-limit`    in MB
 
 > `--spec`    structured spec in yson format
 
-> `--format`    
+> `--format`
 
-> `--input-format`    
+> `--input-format`
 
-> `--output-format`    
+> `--output-format`
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1565,13 +1565,13 @@ usage: yt map [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOUR
 
 #### Positional Arguments
 
-> `command`    
+> `command`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--binary`    
+> `--binary`
 
 > `--src`    (Required)  Accepted multiple times.
 
@@ -1581,19 +1581,19 @@ usage: yt map [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [SOUR
 
 > `--local-file`    > Accepted multiple times.
 
-> `--job-count`    
+> `--job-count`
 
 > `--memory-limit`    in MB
 
 > `--spec`    structured spec in yson format
 
-> `--format`    
+> `--format`
 
-> `--input-format`    
+> `--input-format`
 
-> `--output-format`    
+> `--output-format`
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1616,11 +1616,11 @@ usage: yt map-reduce [-h] [--params PARAMS] [--mapper MAPPER] --reducer REDUCER 
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--mapper`    
+> `--mapper`
 
 > `--reducer`    (Required)
 
-> `--reduce-combiner`    
+> `--reduce-combiner`
 
 > `--src`    (Required)  Accepted multiple times.
 
@@ -1650,7 +1650,7 @@ usage: yt map-reduce [-h] [--params PARAMS] [--mapper MAPPER] --reducer REDUCER 
 
 > `--spec`    structured spec in yson format
 
-> `--format`    (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 > `--map-input-format`    see –format help
 
@@ -1680,13 +1680,13 @@ usage: yt merge [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --d
 
 > `--src`    (Required)  Accepted multiple times.
 
-> `--dst`    (Required) path to destination table. For append mode add <append=true> before path. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--dst`    (Required) path to destination table. For append mode add <append=true> before path. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--mode`    Possible choices: unordered, ordered, sorted, auto
 
 > use sorted mode for saving sortedness. unordered mode by default, ordered for saving order of chunks. Mode auto chooses from sorted and unordered modes depending on sortedness of source tables., default: `«auto»`
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1705,13 +1705,13 @@ usage: yt reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [S
 
 #### Positional Arguments
 
-> `command`    
+> `command`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--binary`    
+> `--binary`
 
 > `--src`    (Required)  Accepted multiple times.
 
@@ -1721,19 +1721,19 @@ usage: yt reduce [-h] [--params PARAMS] [--binary command] --src SOURCE_TABLE [S
 
 > `--local-file`    > Accepted multiple times.
 
-> `--job-count`    
+> `--job-count`
 
 > `--memory-limit`    in MB
 
 > `--spec`    structured spec in yson format
 
-> `--format`    
+> `--format`
 
-> `--input-format`    
+> `--input-format`
 
-> `--output-format`    
+> `--output-format`
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1762,11 +1762,11 @@ usage: yt remote-copy [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ..
 
 > `--cluster`    (Required) remote cluster proxy, like smith
 
-> `--network`    
+> `--network`
 
 > `--copy-attributes`    specify this flag to coping node attributes too
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1788,9 +1788,9 @@ usage: yt shuffle [-h] [--params PARAMS] --table TABLE [--temp-column-name TEMP_
 
 > `--table`    (Required)
 
-> `--temp-column-name`    
+> `--temp-column-name`
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1812,7 +1812,7 @@ usage: yt sort [-h] [--params PARAMS] --src SOURCE_TABLE [SOURCE_TABLE ...] --ds
 
 > `--sort-by`    (Required) Columns to sort by. In order to choose descending sort order, provide a map of form "{name=foo; sort_order=descending}"
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1830,7 +1830,7 @@ usage: yt vanilla [-h] [--params PARAMS] [--print-statistics] [--async] [--tasks
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--print-statistics`    
+> `--print-statistics`
 
 > `--async`    do not track operation progress
 
@@ -1902,7 +1902,7 @@ usage: yt get-operation [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--inclu
 
 > `--operation`    operation id
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### list-operations
 
@@ -1948,7 +1948,7 @@ usage: yt list-operations [-h] [--params PARAMS] [--user USER] [--state STATE] [
 
 > `--limit`    maximum number of operations in output
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### resume-op
 
@@ -2070,7 +2070,7 @@ usage: yt get-job [-h] [--params PARAMS] [--job-id JOB_ID] [--operation-id OPERA
 
 > `--operation-id`    operation id, for example: 876084ca-efd01a47-3e8-7a62e787
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### get-job-input
 
@@ -2201,15 +2201,15 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--job-typ
 
 > `--offset`    offset starting from zero
 
-> `--with-spec`    
+> `--with-spec`
 
-> `--with-stderr`    
+> `--with-stderr`
 
-> `--with-fail-context`    
+> `--with-fail-context`
 
 > `--with-competitors`    with competitive jobs
 
-> `--with-monitoring-descriptor`    
+> `--with-monitoring-descriptor`
 
 > `--include-cypress`    include jobs from Cypress in result. Have effect only if –data-source is set to «manual»
 
@@ -2221,7 +2221,7 @@ usage: yt list-jobs [-h] [--params PARAMS] [--operation OPERATION_ID] [--job-typ
 
 > data sources to list jobs from
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### run-job-shell
 
@@ -2235,7 +2235,7 @@ usage: yt run-job-shell [-h] [--params PARAMS] [--shell-name SHELL_NAME] [--time
 
 > `job_id`    job id, for example: 5c51-24e204-384-9f3f6437
 
-> `command`    
+> `command`
 
 #### Named Arguments
 
@@ -2245,7 +2245,7 @@ usage: yt run-job-shell [-h] [--params PARAMS] [--shell-name SHELL_NAME] [--time
 
 > `--timeout`    inactivity timeout in milliseconds after job has finished, by default 60000 milliseconds
 
-> `--command`    
+> `--command`
 
 ## Transaction commands
 
@@ -2297,13 +2297,13 @@ usage: yt lock [-h] [--params PARAMS] [--path PATH] [--mode {snapshot,shared,exc
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--mode`    Possible choices: snapshot, shared, exclusive
 
@@ -2361,13 +2361,13 @@ usage: yt unlock [-h] [--params PARAMS] [--path PATH] [path]
 
 #### Positional Arguments
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ## ACL (permission) commands
 
@@ -2383,17 +2383,17 @@ usage: yt add-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP] [m
 
 #### Positional Arguments
 
-> `member`    
+> `member`
 
-> `group`    
+> `group`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--member`    
+> `--member`
 
-> `--group`    
+> `--group`
 
 ### check-permission
 
@@ -2407,21 +2407,21 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 #### Positional Arguments
 
-> `user`    
+> `user`
 
 > `permission`    one of read, write, administer, create, use
 
-> `path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--user`    
+> `--user`
 
 > `--permission`    one of read, write, administer, create, use
 
-> `--path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--read-from`    Can be set to «cache» to enable reads from system cache
 
@@ -2429,7 +2429,7 @@ usage: yt check-permission [-h] [--params PARAMS] [--user USER] [--permission PE
 
 > `--columns`    structured columns in yson format
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 ### issue-token
 
@@ -2477,17 +2477,17 @@ usage: yt remove-member [-h] [--params PARAMS] [--member MEMBER] [--group GROUP]
 
 #### Positional Arguments
 
-> `member`    
+> `member`
 
-> `group`    
+> `group`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--member`    
+> `--member`
 
-> `--group`    
+> `--group`
 
 ### revoke-token
 
@@ -2588,15 +2588,15 @@ yt job-tool prepare-job-environment [-h] [--operation-id OPERATION_ID] [--job-id
 
 ###### Positional Arguments
 
-> `operation_id`    
+> `operation_id`
 
-> `job_id`    
+> `job_id`
 
 ###### Named Arguments
 
-> `--operation-id`    
+> `--operation-id`
 
-> `--job-id`    
+> `--job-id`
 
 > `--job-path`    output directory to store job environment. Default: `<cwd>/job_<job_id>`
 
@@ -2638,13 +2638,13 @@ usage: yt dump-parquet [-h] [--params PARAMS] [--table TABLE] --output-file OUTP
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--output-file`    (Required)
 
@@ -2658,13 +2658,13 @@ usage: yt upload-parquet [-h] [--params PARAMS] [--table TABLE] --input-file INP
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--input-file`    (Required)
 
@@ -2683,21 +2683,21 @@ usage: yt advance-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH
 
 #### Positional Arguments
 
-> `consumer_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `queue_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--consumer-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--queue-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--partition-index`    (Required)
 
-> `--old-offset`    
+> `--old-offset`
 
 > `--new-offset`    (Required)
 
@@ -2713,11 +2713,11 @@ usage: yt list-queue-consumer-registrations [-h] [--params PARAMS] [--queue-path
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    Path to queue in Cypress; cluster may be specified. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    Path to queue in Cypress; cluster may be specified. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    Path to consumer in Cypress; cluster may be specified. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--consumer-path`    Path to consumer in Cypress; cluster may be specified. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### pull-consumer
 
@@ -2731,29 +2731,29 @@ usage: yt pull-consumer [-h] [--params PARAMS] [--consumer-path CONSUMER_PATH] [
 
 #### Positional Arguments
 
-> `consumer_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `queue_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--consumer-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--queue-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--offset`    (Required)
 
 > `--partition-index`    (Required)
 
-> `--max-row-count`    
+> `--max-row-count`
 
-> `--max-data-weight`    
+> `--max-data-weight`
 
 > `--replica-consistency`    Possible choices: none, sync
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### pull-queue
 
@@ -2767,25 +2767,25 @@ usage: yt pull-queue [-h] [--params PARAMS] [--queue-path QUEUE_PATH] --offset O
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--offset`    (Required)
 
 > `--partition-index`    (Required)
 
-> `--max-row-count`    
+> `--max-row-count`
 
-> `--max-data-weight`    
+> `--max-data-weight`
 
 > `--replica-consistency`    Possible choices: none, sync
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### register-queue-consumer
 
@@ -2797,23 +2797,23 @@ usage: yt register-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_PAT
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `consumer_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--vital`    Whether the consumer is vital
 
 > `--non-vital`    Whether the consumer is vital
 
-> `--partitions`    
+> `--partitions`
 
 ### unregister-queue-consumer
 
@@ -2825,17 +2825,17 @@ usage: yt unregister-queue-consumer [-h] [--params PARAMS] [--queue-path QUEUE_P
 
 #### Positional Arguments
 
-> `queue_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `queue_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `consumer_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `consumer_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--queue-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--queue-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--consumer-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--consumer-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ## Query tracker
 
@@ -2881,7 +2881,7 @@ usage: yt get-query [-h] [--params PARAMS] [--attribute ATTRIBUTES] [--stage STA
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### get-query-result
 
@@ -2903,7 +2903,7 @@ usage: yt get-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX] 
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### list-queries
 
@@ -2940,7 +2940,7 @@ usage: yt list-queries [-h] [--params PARAMS] [--user USER] [--engine ENGINE] [-
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### read-query-result
 
@@ -2962,7 +2962,7 @@ usage: yt read-query-result [-h] [--params PARAMS] [--result-index RESULT_INDEX]
 
 > `--stage`    query tracker stage, defaults to «production»
 
-> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    output format. (yson string), one of «yson», «json», «yamr», «dsv», «yamred_dsv», «schemaful_dsv» with modifications. See also: [{#T}](../../../user-guide/storage/formats.md)
 
 ### start-query
 
@@ -3018,9 +3018,9 @@ yt admin switch-leader [-h] [--cell-id CELL_ID] [--new-leader-address NEW_LEADER
 
 ###### Named Arguments
 
-> `--cell-id`    
+> `--cell-id`
 
-> `--new-leader-address`    
+> `--new-leader-address`
 
 ### chyt
 
@@ -3053,17 +3053,17 @@ yt chyt start-clique [-h] --instance-count INSTANCE_COUNT [--alias ALIAS] [--cyp
 
 > `--alias, --operation-alias`    Alias for clique; may be also specified via CHYT_PROXY env variable
 
-> `--cypress-ytserver-clickhouse-path`    
+> `--cypress-ytserver-clickhouse-path`
 
-> `--cypress-clickhouse-trampoline-path`    
+> `--cypress-clickhouse-trampoline-path`
 
-> `--cypress-ytserver-log-tailer-path`    
+> `--cypress-ytserver-log-tailer-path`
 
 > `--cypress-base-config-path`    Default: `«//sys/clickhouse/config»`
 
-> `--cpu-limit`    
+> `--cpu-limit`
 
-> `--cypress-geodata-path`    
+> `--cypress-geodata-path`
 
 > `--abort-existing`    Abort existing operation under same alias
 
@@ -3109,7 +3109,7 @@ yt chyt ctl [--address ADDRESS] command ...
 
 ###### Positional Arguments
 
-> `command`    
+> `command`
 
 ###### Named Arguments
 
@@ -3146,17 +3146,17 @@ yt clickhouse start-clique [-h] --instance-count INSTANCE_COUNT [--alias ALIAS] 
 
 > `--alias, --operation-alias`    Alias for clique; may be also specified via CHYT_PROXY env variable
 
-> `--cypress-ytserver-clickhouse-path`    
+> `--cypress-ytserver-clickhouse-path`
 
-> `--cypress-clickhouse-trampoline-path`    
+> `--cypress-clickhouse-trampoline-path`
 
-> `--cypress-ytserver-log-tailer-path`    
+> `--cypress-ytserver-log-tailer-path`
 
 > `--cypress-base-config-path`    Default: `«//sys/clickhouse/config»`
 
-> `--cpu-limit`    
+> `--cpu-limit`
 
-> `--cypress-geodata-path`    
+> `--cypress-geodata-path`
 
 > `--abort-existing`    Abort existing operation under same alias
 
@@ -3202,7 +3202,7 @@ yt clickhouse ctl [--address ADDRESS] command ...
 
 ###### Positional Arguments
 
-> `command`    
+> `command`
 
 ###### Named Arguments
 
@@ -3228,7 +3228,7 @@ usage: yt execute [-h] [--params PARAMS] command_name execute_params
 
 #### Positional Arguments
 
-> `command_name`    
+> `command_name`
 
 > `execute_params`    structured execute_params in yson format
 
@@ -3292,11 +3292,11 @@ yt flow start-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ##### stop-pipeline
 
@@ -3308,11 +3308,11 @@ yt flow stop-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ##### pause-pipeline
 
@@ -3324,11 +3324,11 @@ yt flow pause-pipeline [-h] [--pipeline-path PIPELINE_PATH] [pipeline_path]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ##### get-pipeline-spec
 
@@ -3340,13 +3340,13 @@ yt flow get-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--spec-path`    Path to part of the spec
 
@@ -3360,15 +3360,15 @@ yt flow set-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORMAT]
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `value`    new spec attribute value
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3388,13 +3388,13 @@ yt flow remove-pipeline-spec [-h] [--pipeline-path PIPELINE_PATH] [--format FORM
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3412,13 +3412,13 @@ yt flow get-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--spec-path`    Path to part of the spec
 
@@ -3432,15 +3432,15 @@ yt flow set-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--format
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `spec`    new spec attribute value
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3458,13 +3458,13 @@ yt flow remove-pipeline-dynamic-spec [-h] [--pipeline-path PIPELINE_PATH] [--for
 
 ###### Positional Arguments
 
-> `pipeline_path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `pipeline_path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 ###### Named Arguments
 
-> `--pipeline-path`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--pipeline-path`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats), default: `«<format=pretty>yson»`
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md), default: `«<format=pretty>yson»`
 
 > `--expected-version`    Pipeline spec expected version
 
@@ -3494,7 +3494,7 @@ usage: yt get-features [-h] [--params PARAMS] [--format FORMAT]
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [https://yt.yandex-team.ru/docs/user-guide/storage/formats](https://yt.yandex-team.ru/docs/user-guide/storage/formats)
+> `--format`    response or input format: yson or json, for example: «<format=binary>yson». See also: [{#T}](../../../user-guide/storage/formats.md)
 
 
 {% if audience == "internal" %}
@@ -3669,7 +3669,7 @@ yt jupyt ctl [--address ADDRESS] command ...
 
 ###### Positional Arguments
 
-> `command`    
+> `command`
 
 ###### Named Arguments
 
@@ -3719,13 +3719,13 @@ usage: yt run-compression-benchmarks [-h] [--params PARAMS] [--table TABLE] [--a
 
 #### Positional Arguments
 
-> `table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--table`    address in Cypress. See also: [https://yt.yandex-team.ru/docs/user-guide/storage/ypath](https://yt.yandex-team.ru/docs/user-guide/storage/ypath)
+> `--table`    address in Cypress. See also: [{#T}](../../../user-guide/storage/ypath.md)
 
 > `--all-codecs`    benchmark every level of codecs with levels
 
@@ -3813,7 +3813,7 @@ usage: yt spark [-h] spark_command ...
 
 ##### start-cluster
 
-start Spark Standalone cluster in YT Vanilla Operation. See [https://yt.yandex-team.ru/docs/user-guide/data-processing/spyt/overview](https://yt.yandex-team.ru/docs/user-guide/data-processing/spyt/overview). Start Spark Standalone cluster in YT Vanilla Operation
+start Spark Standalone cluster in YT Vanilla Operation. See [{#T}](../../../user-guide/data-processing/spyt/overview.md). Start Spark Standalone cluster in YT Vanilla Operation
 
 ```bash
 yt spark start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
@@ -3876,7 +3876,7 @@ usage: yt spyt [-h] spark_command ...
 
 ##### start-cluster
 
-start Spark Standalone cluster in YT Vanilla Operation. See [https://yt.yandex-team.ru/docs/user-guide/data-processing/spyt/overview](https://yt.yandex-team.ru/docs/user-guide/data-processing/spyt/overview). Start Spark Standalone cluster in YT Vanilla Operation
+start Spark Standalone cluster in YT Vanilla Operation. See [{#T}](../../../user-guide/data-processing/spyt/overview.md). Start Spark Standalone cluster in YT Vanilla Operation
 
 ```bash
 yt spyt start-cluster [-h] --spark-worker-core-count SPARK_WORKER_CORE_COUNT --spark-worker-memory-limit SPARK_WORKER_MEMORY_LIMIT --spark-worker-count SPARK_WORKER_COUNT
@@ -3933,17 +3933,17 @@ usage: yt transfer-account-resources [-h] [--params PARAMS] [--source-account SO
 
 #### Positional Arguments
 
-> `source_account`    
+> `source_account`
 
-> `destination_account`    
+> `destination_account`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-account, --src`    
+> `--source-account, --src`
 
-> `--destination-account, --dst`    
+> `--destination-account, --dst`
 
 > `--resource-delta`    structured resource-delta in yson format
 
@@ -3958,21 +3958,21 @@ usage: yt transfer-pool-resources [-h] [--params PARAMS] [--source-pool SOURCE_P
 
 #### Positional Arguments
 
-> `source_pool`    
+> `source_pool`
 
-> `destination_pool`    
+> `destination_pool`
 
-> `pool_tree`    
+> `pool_tree`
 
 #### Named Arguments
 
 > `--params`    specify additional params. structured params in yson format
 
-> `--source-pool, --src`    
+> `--source-pool, --src`
 
-> `--destination-pool, --dst`    
+> `--destination-pool, --dst`
 
-> `--pool-tree`    
+> `--pool-tree`
 
 > `--resource-delta`    structured resource-delta in yson format
 
