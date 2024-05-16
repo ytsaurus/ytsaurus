@@ -371,21 +371,33 @@ def _maybe_truncate(list_of_strings, length_limit):
     return truncated
 
 
-def try_get_nirvana_block_url_from_context():
+def try_get_nirvana_job_context():
+    result = None
     home_dir = get_home_dir()
     if home_dir == "/slot/sandbox/j" and os.getenv("NV_YT_OPERATION_ID"):
         nirvana_job_context_path = os.path.join(home_dir, "job_context.json")
         if os.path.exists(nirvana_job_context_path):
-            nirvana_context = {}
             try:
                 with open(nirvana_job_context_path) as ctx_file:
-                    nirvana_context = json.loads(ctx_file)
+                    result = json.loads(ctx_file)
             except Exception:
                 pass
-            if "meta" in nirvana_context:
-                meta = nirvana_context["meta"]
-                if "blockURL" in meta:
-                    return yson.convert.to_yson_type(meta["blockURL"], attributes={"_type_tag": "url"})
+    return result
+
+
+def try_get_nirvana_block_url_from_context():
+    nirvana_context = try_get_nirvana_job_context()
+    if nirvana_context and "meta" in nirvana_context:
+        meta = nirvana_context["meta"]
+        if "blockURL" in meta:
+            return yson.convert.to_yson_type(meta["blockURL"], attributes={"_type_tag": "url"})
+    return None
+
+
+def try_get_nirvana_annotations_from_context():
+    nirvana_context = try_get_nirvana_job_context()
+    if nirvana_context is not None:
+        return nirvana_context.get("meta", {}).get("annotations")
     return None
 
 

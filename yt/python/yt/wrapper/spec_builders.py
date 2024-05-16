@@ -5,7 +5,7 @@ from .config import get_config
 from .common import (flatten, round_up_to, GB, MB,
                      get_value, unlist, get_started_by,
                      parse_bool, is_prefix, require, YtError, update,
-                     underscore_case_to_camel_case)
+                     underscore_case_to_camel_case, try_get_nirvana_annotations_from_context)
 from .cypress_commands import exists, get, remove_with_empty_dirs, get_attribute
 from .errors import YtOperationFailedError
 from .file_commands import LocalFile, _touch_file_in_cache
@@ -1257,6 +1257,11 @@ class SpecBuilder(object):
         if "title" not in spec and operation_title_parts:
             operation_title = ", ".join(operation_title_parts)
             spec = update(spec, {"title": operation_title})
+
+        nirvana_annotations = try_get_nirvana_annotations_from_context()
+        if nirvana_annotations is not None:
+            nirvana_annotations["nv_annotations_source"] = "job_context"
+            spec = update(spec, {"annotations": nirvana_annotations})
 
         return spec
 
