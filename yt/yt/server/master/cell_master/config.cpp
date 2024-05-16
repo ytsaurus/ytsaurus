@@ -152,7 +152,8 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cell_directory_override", &TThis::MasterCellDirectoryOverride)
         .Default();
     registrar.Parameter("frozen_hive_edges", &TThis::FrozenHiveEdges)
-        .Default();
+        .Default()
+        .DontSerializeDefault();
     registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
         .Default();
 
