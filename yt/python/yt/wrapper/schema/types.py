@@ -1,4 +1,5 @@
 import enum
+import inspect
 
 from .helpers import check_schema_module_available, is_schema_module_available
 
@@ -199,40 +200,34 @@ def _get_time_types():
 
 
 def _get_py_time_types():
-    if hasattr(_get_py_time_types, "_info"):
-        return _get_py_time_types._info
-    check_schema_module_available()
-    _get_py_time_types._info = {
-        datetime.date,
+    # Sorted in order of inheritance.
+    return (
         datetime.datetime,
+        datetime.date,
         datetime.timedelta,
-    }
-    return _get_py_time_types._info
+    )
 
 
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     check_schema_module_available()
-    if py_type is int:
-        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
-    elif py_type is str:
-        return ti_type in (ti.Utf8, ti.String)
-    elif py_type is bytes:
-        return ti_type in (ti.String, ti.Yson, ti.Utf8)
-    elif py_type is bool:
+    if not inspect.isclass(py_type):
+        assert False, "py_type should be a type, not {}".format(type(py_type))
+    if issubclass(py_type, bool):
         return ti_type == ti.Bool
-    elif py_type is float:
-        return ti_type in (ti.Float, ti.Double)
-    elif py_type is datetime.date:
-        return ti_type == ti.Date
-    elif py_type is datetime.datetime:
-        return ti_type in (ti.Datetime, ti.Timestamp)
-    elif py_type is datetime.timedelta:
-        return ti_type == ti.Interval
-    elif issubclass(py_type, enum.IntEnum):
-        return ti_type in _get_integer_info()["all"]
-    # StrEnum was added in python3.11.
-    elif hasattr(enum, "StrEnum") and issubclass(py_type, getattr(enum, "StrEnum")):
+    elif issubclass(py_type, int):
+        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
+    elif issubclass(py_type, str):
         return ti_type in (ti.Utf8, ti.String)
+    elif issubclass(py_type, bytes):
+        return ti_type in (ti.String, ti.Yson, ti.Utf8)
+    elif issubclass(py_type, float):
+        return ti_type in (ti.Float, ti.Double)
+    elif issubclass(py_type, datetime.datetime):
+        return ti_type in (ti.Datetime, ti.Timestamp)
+    elif issubclass(py_type, datetime.date):
+        return ti_type == ti.Date
+    elif issubclass(py_type, datetime.timedelta):
+        return ti_type == ti.Interval
     else:
         assert False, "Unsupported python type {}".format(py_type)
 

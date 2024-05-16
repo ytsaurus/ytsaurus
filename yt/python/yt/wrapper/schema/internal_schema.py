@@ -1,4 +1,5 @@
 import enum
+import inspect
 
 from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
@@ -201,16 +202,13 @@ def _get_args(py_type):
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
     py_type_origin = _get_origin(py_type)
-    if isinstance(py_type_origin, type) and issubclass(py_type_origin, enum.IntEnum):
-        origin = int
-    # StrEnum was added in python3.11.
-    elif hasattr(enum, "StrEnum") and isinstance(py_type_origin, type) and issubclass(py_type_origin, getattr(enum, "StrEnum")):
-        origin = str
-    else:
-        for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
-            if py_type is type_ or py_type_origin is type_:
-                origin = type_
-                break
+    for type_ in (bool, int, str, bytes, float) + _get_py_time_types():
+        if (
+            (inspect.isclass(py_type) and issubclass(py_type, type_))
+            or (inspect.isclass(py_type_origin) and issubclass(py_type_origin, type_))
+        ):
+            origin = type_
+            break
     annotation = None
     for metadata in getattr(py_type, "__metadata__", []):
         if isinstance(metadata, Annotation):
