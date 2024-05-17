@@ -96,6 +96,18 @@ void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPutBucketRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Put;
+    request->Path = Format("/%v", Bucket);
+    request->Headers["Content-Length"] = "0";
+}
+
+void TPutBucketResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPutObjectRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Put;
@@ -299,6 +311,7 @@ public:
 
     DEFINE_STRUCTURED_COMMAND(ListBuckets)
     DEFINE_STRUCTURED_COMMAND(ListObjects)
+    DEFINE_STRUCTURED_COMMAND(PutBucket)
     DEFINE_STRUCTURED_COMMAND(PutObject)
     DEFINE_STRUCTURED_COMMAND(UploadPart)
     DEFINE_STRUCTURED_COMMAND(GetObject)

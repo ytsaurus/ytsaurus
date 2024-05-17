@@ -74,6 +74,20 @@ struct TListObjectsResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPutBucketRequest
+{
+    TString Bucket;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct TPutBucketResponse
+{
+    void Deserialize(const NHttp::IResponsePtr& response);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPutObjectRequest
 {
     TString Bucket;
@@ -238,6 +252,7 @@ struct IClient
 
     DEFINE_COMMAND(ListBuckets)
     DEFINE_COMMAND(ListObjects)
+    DEFINE_COMMAND(PutBucket)
     DEFINE_COMMAND(PutObject)
     DEFINE_COMMAND(UploadPart)
     DEFINE_COMMAND(GetObject)

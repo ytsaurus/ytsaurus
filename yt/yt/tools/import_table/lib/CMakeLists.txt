@@ -13,44 +13,26 @@
 # system may be rejected.
 
 find_package(linux-headers-generic REQUIRED)
-add_subdirectory(lib)
-add_subdirectory(unittests)
 
-add_executable(import_table)
+add_library(tools-import_table-lib)
 
-target_link_libraries(import_table PUBLIC
+target_link_libraries(tools-import_table-lib PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-cpuid_check
-  tools-import_table-lib
   cpp-mapreduce-client
   cpp-mapreduce-util
+  mapreduce-library-blob_table
   mapreduce-library-table_schema
+  yt-library-arrow_parquet_adapter
+  yt-library-huggingface_client
+  yt-library-s3
   cpp-yson-node
   library-cpp-getopt
+  libs-apache-arrow
 )
 
-target_link_options(import_table PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lpthread
-  -lrt
-  -ldl
-  -lutil
+target_sources(tools-import_table-lib PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/lib/import_table.cpp
 )
-
-target_sources(import_table PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/tools/import_table/main.cpp
-)
-
-target_allocator(import_table
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
-)
-
-vcs_info(import_table)
 

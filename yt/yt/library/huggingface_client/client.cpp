@@ -15,14 +15,18 @@ namespace NYT::NHuggingface {
 
 using namespace NYT::NHttp;
 
+const TString DefaultHuggingfaceUrl = "https://huggingface.co";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-NHttp::IClientPtr CreateHttpClient(NConcurrency::IPollerPtr poller, int maxRedirectCounts)
+NHttp::IClientPtr CreateHttpClient(
+    NConcurrency::IPollerPtr poller,
+    int maxRedirectCount)
 {
     auto httpsConfig = NYT::New<NYT::NHttps::TClientConfig>();
-    httpsConfig->MaxRedirectCount = maxRedirectCounts;
+    httpsConfig->MaxRedirectCount = maxRedirectCount;
     return NHttps::CreateClient(httpsConfig, poller);
 }
 
@@ -32,10 +36,17 @@ NHttp::IClientPtr CreateHttpClient(NConcurrency::IPollerPtr poller, int maxRedir
 
 THuggingfaceClient::THuggingfaceClient(
     const std::optional<TString>& token,
-    NConcurrency::IPollerPtr poller)
+    NConcurrency::IPollerPtr poller,
+    const std::optional<TString>& urlOverride)
     : Token_(token)
-    , Client_(CreateHttpClient(std::move(poller), MaxRedirectCounts))
-{ }
+    , Client_(CreateHttpClient(std::move(poller), MaxRedirectCount))
+{
+    if (urlOverride) {
+        Url_ = *urlOverride;
+    } else {
+        Url_ = DefaultHuggingfaceUrl;
+    }
+}
 
 std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split)
 {
@@ -44,8 +55,7 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
         headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    auto url = NYT::Format("https://huggingface.co/api/datasets/%v/parquet/%v/%v", dataset, config, split);
-
+    auto url = NYT::Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, config, split);
     auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 
