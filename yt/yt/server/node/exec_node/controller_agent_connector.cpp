@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 namespace NYT::NExecNode {
@@ -252,6 +254,9 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
         requestTraceContext = TTraceContext::NewRoot("AgentHeartbeatRequest");
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", ToString(nodeId));
+
+        static const TString ControllerAgentConnectorTracingUserName = "controller_agent_connector";
+        ControllerAgentConnectorPool_->TracingSampler_->SampleTraceContext(ControllerAgentConnectorTracingUserName, requestTraceContext);
     }
 
     auto contextGuard = TTraceContextGuard(requestTraceContext);
@@ -423,6 +428,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     IBootstrap* const bootstrap)
     : DynamicConfig_(New<TControllerAgentConnectorDynamicConfig>())
     , Bootstrap_(bootstrap)
+    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
 { }
 
 void TControllerAgentConnectorPool::Start()
@@ -550,6 +556,8 @@ void TControllerAgentConnectorPool::OnConfigUpdated(
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
         controllerAgentConnector->OnConfigUpdated(newConfig);
     }
+
+    TracingSampler_->UpdateConfig(newConfig->TracingSampler);
 }
 
 void TControllerAgentConnectorPool::OnJobFinished(const TJobPtr& job)

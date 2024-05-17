@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/library/tracing/jaeger/public.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/backoff_strategy.h>
@@ -129,6 +131,8 @@ private:
     TAtomicIntrusivePtr<TControllerAgentConnectorDynamicConfig> DynamicConfig_;
 
     IBootstrap* const Bootstrap_;
+
+    NTracing::TSamplerPtr TracingSampler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

@@ -1893,6 +1893,52 @@ class TestSchedulerTracing(YTEnvSetup):
 
     LOG_WRITE_WAIT_TIME = 0.5
 
+    DELTA_SCHEDULER_CONFIG = {
+        "jaeger": {
+            "collector_channel_config": {
+                "address": "localhost:12345",
+            },
+            "service_name": "scheduler",
+            "flush_period": 100,
+            "test_drop_spans": True,
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "jaeger": {
+            "collector_channel_config": {
+                "address": "localhost:12345",
+            },
+            "service_name": "controller_agent",
+            "flush_period": 100,
+            "test_drop_spans": True,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "jaeger": {
+            "collector_channel_config": {
+                "address": "localhost:12345",
+            },
+            "service_name": "node",
+            "flush_period": 100,
+            "test_drop_spans": True,
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "scheduler_connector": {
+                    "enable_tracing": True,
+                    "tracing_sampler": {
+                        "global_sample_rate": 1.0,
+                    },
+                },
+            },
+        },
+    }
+
     @authors("ignat", "pogorelov")
     def test_tracing(self):
         # update_scheduler_config("rpc_server/tracing_mode", "enable")

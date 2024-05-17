@@ -23,12 +23,13 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
+#include <yt/yt/library/tracing/jaeger/sampler.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 namespace NYT::NExecNode {
 
 using namespace NTracing;
-
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -57,6 +58,7 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
+    , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
@@ -87,6 +89,8 @@ void TSchedulerConnector::OnDynamicConfigChanged(
         newConfig->HeartbeatExecutor.MaxBackoff,
         newConfig->HeartbeatExecutor.BackoffMultiplier);
     HeartbeatExecutor_->SetOptions(newConfig->HeartbeatExecutor);
+
+    TracingSampler_->UpdateConfig(newConfig->TracingSampler);
 }
 
 void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
@@ -188,6 +192,9 @@ TError TSchedulerConnector::DoSendHeartbeat()
         requestTraceContext = TTraceContext::NewRoot("SchedulerHeartbeatRequest");
         requestTraceContext->SetRecorded();
         requestTraceContext->AddTag("node_id", ToString(nodeId));
+
+        static const TString SchedulerConnectorTracingUserName = "scheduler_connector";
+        TracingSampler_->SampleTraceContext(SchedulerConnectorTracingUserName, requestTraceContext);
     }
 
     auto contextGuard = TTraceContextGuard(requestTraceContext);

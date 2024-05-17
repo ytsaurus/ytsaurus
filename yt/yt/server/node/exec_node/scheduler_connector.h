@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
+#include <yt/yt/library/tracing/jaeger/public.h>
+
 #include <yt/yt/core/concurrency/retrying_periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -72,6 +74,8 @@ private:
     NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
 
     THashSet<TAllocationPtr> FinishedAllocations_;
+
+    NTracing::TSamplerPtr TracingSampler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
