@@ -670,6 +670,7 @@ type OperationStatus struct {
 	State             OperationState             `yson:"state"`
 	Result            *OperationResult           `yson:"result"`
 	Type              OperationType              `yson:"type"`
+	BriefProgress     OperationBriefProgress     `yson:"brief_progress"`
 	BriefSpec         map[string]any             `yson:"brief_spec"`
 	FullSpec          yson.RawValue              `yson:"full_spec"`
 	StartTime         yson.Time                  `yson:"start_time"`
@@ -677,6 +678,16 @@ type OperationStatus struct {
 	Suspend           bool                       `yson:"suspend"`
 	AuthenticatedUser string                     `yson:"authenticated_user"`
 	RuntimeParameters OperationRuntimeParameters `yson:"runtime_parameters"`
+}
+
+type OperationBriefProgress struct {
+	TotalJobCounter *TotalJobCounter `yson:"total_job_counter"`
+}
+
+type TotalJobCounter struct {
+	Total     int64 `yson:"total"`
+	Completed int64 `yson:"completed"`
+	Running   int64 `yson:"running"`
 }
 
 type OperationStartClient interface {
