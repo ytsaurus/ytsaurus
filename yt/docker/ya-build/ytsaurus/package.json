@@ -70,7 +70,7 @@
         {
             "source": {
                 "type": "ARCADIA",
-                "path": "yt/opensource-packages/ytsaurus/Dockerfile",
+                "path": "yt/docker/ya-build/ytsaurus/Dockerfile",
             },
             "destination": {
                 "path": "/Dockerfile",
