@@ -102,6 +102,8 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
         .Default(7);
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
+    registrar.Parameter("proxy_thread_pool_size", &TThis::ProxyThreadPoolSize)
+        .Default(4);
     registrar.Parameter("user", &TThis::User);
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(NYTree::BuildYsonNodeFluently()

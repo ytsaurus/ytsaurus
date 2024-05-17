@@ -46,7 +46,9 @@ private:
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::IThreadPoolPtr ProxyPool_;
     IInvokerPtr ControlInvoker_;
+    IInvokerPtr ProxyInvoker_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
@@ -62,6 +64,8 @@ private:
     NAlertManager::IAlertManagerPtr AlertManager_;
 
     IQueryTrackerPtr QueryTracker_;
+
+    TQueryTrackerProxyPtr QueryTrackerProxy_;
 
     void DoRun();
 

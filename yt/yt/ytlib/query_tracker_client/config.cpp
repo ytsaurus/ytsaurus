@@ -2,6 +2,14 @@
 
 namespace NYT::NQueryTrackerClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueryTrackerChannelConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("timeout", &TThis::Timeout)
+        .Default(TDuration::Minutes(1));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 void TQueryTrackerStageConfig::Register(TRegistrar registrar)
@@ -10,6 +18,8 @@ void TQueryTrackerStageConfig::Register(TRegistrar registrar)
         .Default("//sys/query_tracker");
     registrar.Parameter("user", &TThis::User)
         .Default("query_tracker");
+    registrar.Parameter("channel", &TThis::Channel)
+        .Default();
 }
 
 ///////////////////////////////////////////////////////////////////////////////

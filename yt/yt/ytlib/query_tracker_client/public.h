@@ -21,6 +21,7 @@ struct TFinishedQueryPartial;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TQueryTrackerChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerStageConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerConnectionConfig)
 

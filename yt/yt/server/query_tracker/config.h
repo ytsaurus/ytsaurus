@@ -137,6 +137,8 @@ public:
     int MinRequiredStateVersion;
     bool AbortOnUnrecognizedOptions;
 
+    int ProxyThreadPoolSize;
+
     TString User;
 
     NYTree::IMapNodePtr CypressAnnotations;

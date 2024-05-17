@@ -1,8 +1,10 @@
 #include "bootstrap.h"
 
 #include "query_tracker.h"
+#include "query_tracker_proxy.h"
 #include "config.h"
 #include "private.h"
+#include "proxy_service.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -105,6 +107,9 @@ void TBootstrap::Run()
     ControlQueue_ = New<TActionQueue>("Control");
     ControlInvoker_ = ControlQueue_->GetInvoker();
 
+    ProxyPool_ = CreateThreadPool(Config_->ProxyThreadPoolSize, "Proxy");
+    ProxyInvoker_ = ProxyPool_->GetInvoker();
+
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(ControlInvoker_)
         .Run()
@@ -194,6 +199,11 @@ void TBootstrap::DoRun()
         orchidRoot,
         "query_tracker");
 
+    QueryTrackerProxy_ = CreateQueryTrackerProxy(
+        NativeClient_,
+        Config_->Root
+    );
+
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
         CoreDumper_,
@@ -202,6 +212,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         ControlInvoker_,
         NativeAuthenticator_));
+    RpcServer_->RegisterService(CreateProxyService(
+        ProxyInvoker_,
+        QueryTrackerProxy_));
 
     QueryTracker_ = CreateQueryTracker(
         DynamicConfigManager_->GetConfig()->QueryTracker,

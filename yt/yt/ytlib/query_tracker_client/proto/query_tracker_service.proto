@@ -1,0 +1,147 @@
+package NYT.NQueryTrackerClient.NProto;
+
+import "yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto";
+import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.EQueryEngine engine = 1;
+    required string query = 2;
+    optional bytes settings = 3; // YSON
+    required bool draft = 4;
+    optional bytes annotations = 5; // YSON
+    required bytes files = 6; // YSON
+    optional string access_control_object = 7;
+}
+
+message TRspStartQuery
+{
+    optional NYT.NProto.TGuid query_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortQuery
+{
+    required NYT.NProto.TGuid query_id = 1;
+    optional string abort_message = 2;
+}
+
+message TRspAbortQuery
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryResult
+{
+    required NYT.NProto.TGuid query_id = 1;
+    required int64 result_index = 2;
+}
+
+message TRspGetQueryResult
+{
+    required NYT.NProto.TGuid query_id = 1;
+    required int64 result_index = 2;
+    required NYT.NProto.TError error = 3;
+    optional NYT.NApi.NRpcProxy.NProto.TTableSchema schema = 4;
+    required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 5;
+    required bool is_truncated = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadQueryResult
+{
+    message TColumns
+    {
+        repeated string items = 1;
+    }
+
+    required NYT.NProto.TGuid query_id = 1;
+    required int64 result_index = 2;
+    optional TColumns columns = 3;
+    optional int64 lower_row_index = 4;
+    optional int64 upper_row_index = 5;
+}
+
+// Filled with one attachment containing the query result
+message TRspReadQueryResult
+{
+    required NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor rowset_descriptor = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TQuery
+{
+    required NYT.NProto.TGuid id = 1;
+    optional NYT.NApi.NRpcProxy.NProto.EQueryEngine engine = 2;
+    optional string query = 3;
+    optional bytes files = 4; // YSON
+    optional uint64 start_time = 5; // TInstant
+    optional uint64 finish_time = 6; // TInstant
+    optional bytes settings = 7; // YSON
+    optional string user = 8;
+    optional string access_control_object = 9;
+    optional NYT.NApi.NRpcProxy.NProto.EQueryState state = 10;
+    optional int64 result_count = 11;
+    optional bytes progress = 12; // YSON
+    optional NYT.NProto.TError error = 13;
+    optional bytes annotations = 14; // YSON
+    optional NYT.NYTree.NProto.TAttributeDictionary other_attributes = 15;
+}
+
+message TReqGetQuery
+{
+    required NYT.NProto.TGuid query_id = 1;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 2;
+    optional uint64 timestamp = 3;
+}
+
+message TRspGetQuery
+{
+    optional TQuery query = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqListQueries
+{
+    optional uint64 from_time = 1; // TInstant
+    optional uint64 to_time = 2; // TInstant
+    optional uint64 cursor_time = 3; // TInstant
+    required NYT.NApi.NRpcProxy.NProto.EOperationSortDirection cursor_direction = 4;
+    optional string user_filter = 5;
+    optional NYT.NApi.NRpcProxy.NProto.EQueryState state_filter = 6;
+    optional NYT.NApi.NRpcProxy.NProto.EQueryEngine engine_filter = 7;
+    optional string substr_filter = 8;
+    required uint64 limit = 9;
+    optional NYT.NYTree.NProto.TAttributeFilter attributes = 10;
+}
+
+message TRspListQueries
+{
+    repeated TQuery queries = 1;
+    required bool incomplete = 2;
+    required uint64 timestamp = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAlterQuery
+{
+    required NYT.NProto.TGuid query_id = 1;
+    optional bytes annotations = 2; // YSON
+    optional string access_control_object = 3;
+}
+
+message TRspAlterQuery
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
