@@ -215,7 +215,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isUtf8()) {
                 serializer.serializeUtf8((String) object);
             } else if (tiType.isString()) {
-                serializer.serializeBytes((byte[]) object);
+                serializeString(object, serializer);
             } else if (tiType.isUuid()) {
                 serializer.serializeGuid((GUID) object);
             } else if (tiType.isTimestamp()) {
@@ -231,6 +231,23 @@ public class EntitySkiffSerializer<T> {
             throwInvalidSchemeException(e);
         }
         throw new IllegalStateException();
+    }
+
+    private <StringType> void serializeString(
+            StringType object,
+            SkiffSerializer serializer
+    ) {
+        if (object.getClass().equals(byte[].class)) {
+            serializer.serializeString((byte[]) object);
+            return;
+        }
+        if (object.getClass().equals(String.class)) {
+            serializer.serializeString(((String) object).getBytes(StandardCharsets.UTF_8));
+            return;
+        }
+        throwInvalidSchemeException(new RuntimeException(
+                String.format("Incorrect string field type: %s", object.getClass().getCanonicalName())
+        ));
     }
 
     private <ObjectType> void serializeComplexObject(
@@ -354,10 +371,15 @@ public class EntitySkiffSerializer<T> {
             List<Type> genericTypeParameters,
             SkiffParser parser
     ) {
-        tiType = extractSchemeFromOptional(tiType, parser);
+        if (tiType.isOptional()) {
+            if (parser.parseVariant8Tag() == ZERO_TAG) {
+                return null;
+            }
+            tiType = tiType.asOptional().getItem();
+        }
 
         if (isSimpleType(tiType)) {
-            return deserializeSimpleType(tiType, parser);
+            return deserializeSimpleType(clazz, tiType, parser);
         }
         if (tiType.isDecimal()) {
             if (!clazz.equals(BigDecimal.class)) {
@@ -589,7 +611,8 @@ public class EntitySkiffSerializer<T> {
         return castToType(array);
     }
 
-    private <SimpleType> @Nullable SimpleType deserializeSimpleType(
+    private <SimpleType> SimpleType deserializeSimpleType(
+            Class<SimpleType> clazz,
             TiType tiType,
             SkiffParser parser
     ) {
@@ -617,15 +640,13 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isUtf8()) {
                 return castToType(deserializeUtf8(parser));
             } else if (tiType.isString()) {
-                return castToType(deserializeBytes(parser));
+                return deserializeString(clazz, parser);
             } else if (tiType.isUuid()) {
                 return castToType(deserializeGuid(parser));
             } else if (tiType.isTimestamp()) {
                 return castToType(deserializeTimestamp(parser));
             } else if (tiType.isYson()) {
                 return castToType(deserializeYson(parser));
-            } else if (tiType.isNull()) {
-                return null;
             }
             throw new IllegalArgumentException(
                     String.format("Type '%s' is not supported", tiType));
@@ -641,9 +662,20 @@ public class EntitySkiffSerializer<T> {
                 ref.getLength(), StandardCharsets.UTF_8);
     }
 
-    private byte[] deserializeBytes(SkiffParser parser) {
+    private <StringType> StringType deserializeString(Class<StringType> clazz, SkiffParser parser) {
         BufferReference ref = parser.parseString32();
-        return Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength());
+        if (clazz.equals(byte[].class)) {
+            return castToType(
+                    Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength())
+            );
+        }
+        if (clazz.equals(String.class)) {
+            return castToType(new String(ref.getBuffer(), ref.getOffset(), ref.getLength(), StandardCharsets.UTF_8));
+        }
+        throwInvalidSchemeException(new RuntimeException(
+                String.format("Incorrect string field type: %s", clazz.getCanonicalName())
+        ));
+        return null;
     }
 
     private GUID deserializeGuid(SkiffParser parser) {
@@ -661,14 +693,6 @@ public class EntitySkiffSerializer<T> {
         BufferReference ref = parser.parseYson32();
         return YTreeBinarySerializer.deserialize(
                 new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength()));
-    }
-
-    private TiType extractSchemeFromOptional(TiType tiType, SkiffParser parser) {
-        if (!tiType.isOptional()) {
-            return tiType;
-        }
-        return parser.parseVariant8Tag() == ZERO_TAG ?
-                TiType.nullType() : tiType.asOptional().getItem();
     }
 
     private void throwInvalidSchemeException(@Nullable Exception e) {

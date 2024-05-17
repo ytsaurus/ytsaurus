@@ -1,18 +1,67 @@
 package tech.ytsaurus.client.rows;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
-import tech.ytsaurus.typeinfo.TypeName;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 class TiTypeUtil {
+    private static class TypeDescription {
+        private final TiType tiType;
+        private final Set<Class<?>> fieldTypes;
+
+        TypeDescription(TiType tiType, Class<?>... fieldTypes) {
+            this.tiType = tiType;
+            this.fieldTypes = Set.of(fieldTypes);
+        }
+
+        public TiType getTiType() {
+            return tiType;
+        }
+
+        public Set<Class<?>> getFieldTypes() {
+            return fieldTypes;
+        }
+    }
+
+
+    private static class ColumnDefinitionToTypeDescriptionMapper {
+        private final Map<String, TypeDescription> columnDefinitionToTypeDescriptionMap;
+
+        ColumnDefinitionToTypeDescriptionMapper(TypeDescription... typeDescriptions) {
+            this.columnDefinitionToTypeDescriptionMap = Arrays.stream(typeDescriptions)
+                    .collect(Collectors.toMap(
+                            typeDescr -> typeDescr.getTiType().getTypeName().getWireName(), Function.identity()
+                    ));
+        }
+
+        boolean hasTypeDescription(String columnDefinition) {
+            return columnDefinitionToTypeDescriptionMap.containsKey(columnDefinition);
+        }
+
+        TypeDescription getTypeDescription(String columnDefinition) {
+            return columnDefinitionToTypeDescriptionMap.get(columnDefinition);
+        }
+    }
+
+    private static final ColumnDefinitionToTypeDescriptionMapper COLUMN_DEFINITION_TO_TYPE_DESCR =
+            new ColumnDefinitionToTypeDescriptionMapper(
+                    new TypeDescription(TiType.uint8(), long.class, Long.class),
+                    new TypeDescription(TiType.uint16(), long.class, Long.class),
+                    new TypeDescription(TiType.uint32(), long.class, Long.class),
+                    new TypeDescription(TiType.uint64(), long.class, Long.class),
+                    new TypeDescription(TiType.string(), byte[].class, String.class)
+            );
+
     private static final Map<Class<?>, TiType> SIMPLE_TYPES_MAP = Map.ofEntries(
             Map.entry(byte.class, TiType.int8()),
             Map.entry(Byte.class, TiType.int8()),
@@ -32,35 +81,27 @@ class TiTypeUtil {
             Map.entry(Instant.class, TiType.timestamp())
     );
 
-    private static final Map<String, TiType> COLUMN_DEFINITION_TO_TI_TYPE_MAP = Map.ofEntries(
-            Map.entry(TypeName.Uint8.getWireName(), TiType.uint8()),
-            Map.entry(TypeName.Uint16.getWireName(), TiType.uint16()),
-            Map.entry(TypeName.Uint32.getWireName(), TiType.uint32()),
-            Map.entry(TypeName.Uint64.getWireName(), TiType.uint64())
-    );
-
-    private static final String COLUMN_DEFINITION_EXCEPTION_MESSAGE_FORMAT =
-            "Field with columnDefinition='%s' must be of type '%s'";
-    private static final String LONG_NAME = "Long";
-
     private TiTypeUtil() {
     }
 
     static Optional<TiType> getTiTypeIfSimple(Class<?> clazz, String columnDefinition) {
-        for (var stringTiTypeEntry : COLUMN_DEFINITION_TO_TI_TYPE_MAP.entrySet()) {
-            if (!columnDefinition.equalsIgnoreCase(stringTiTypeEntry.getKey())) {
-                continue;
-            }
-            if (!clazz.equals(Long.class)) {
+        if (COLUMN_DEFINITION_TO_TYPE_DESCR.hasTypeDescription(columnDefinition)) {
+            var typeDescr = COLUMN_DEFINITION_TO_TYPE_DESCR.getTypeDescription(columnDefinition);
+            if (!typeDescr.getFieldTypes().contains(clazz)) {
                 throw new RuntimeException(
                         String.format(
-                                COLUMN_DEFINITION_EXCEPTION_MESSAGE_FORMAT,
-                                stringTiTypeEntry.getKey(),
-                                LONG_NAME
+                                "Field with columnDefinition='%s' must be one of the following types: '%s'",
+                                columnDefinition,
+                                typeDescr.getFieldTypes()
                         )
                 );
             }
-            return Optional.of(stringTiTypeEntry.getValue());
+            return Optional.of(typeDescr.getTiType());
+        }
+        if (!columnDefinition.isEmpty()) {
+            throw new RuntimeException(
+                    String.format("columnDefinition='%s' is not supported", columnDefinition)
+            );
         }
         if (YTreeNode.class.isAssignableFrom(clazz)) {
             return Optional.of(TiType.yson());
@@ -76,7 +117,7 @@ class TiTypeUtil {
                 tiType.isDouble() || tiType.isBool() ||
                 tiType.isUtf8() || tiType.isString() ||
                 tiType.isUuid() || tiType.isYson() ||
-                tiType.isTimestamp() || tiType.isNull();
+                tiType.isTimestamp();
     }
 
     static TiType tableSchemaToStructTiType(TableSchema tableSchema) {

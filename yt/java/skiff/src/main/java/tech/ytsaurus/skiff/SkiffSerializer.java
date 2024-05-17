@@ -117,7 +117,7 @@ public class SkiffSerializer implements AutoCloseable, Flushable {
         }
     }
 
-    public void serializeBytes(byte[] bytes) {
+    public void serializeString(byte[] bytes) {
         serializeInt(bytes.length);
         try {
             byteOS.write(bytes);

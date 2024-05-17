@@ -34,14 +34,18 @@ public class EntityTableSchemaCreator {
     private EntityTableSchemaCreator() {
     }
 
-    public static <T> TableSchema create(Class<T> annotatedClass, @Nullable TableSchema schema) {
+    public static <T> TableSchema create(Class<T> annotatedClass) {
+        return create(annotatedClass, null);
+    }
+
+    public static <T> TableSchema create(Class<T> annotatedClass, @Nullable TableSchema tableSchema) {
         if (!anyOfAnnotationsPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
 
         TableSchema.Builder tableSchemaBuilder = TableSchema.builder();
-        StructType tableSchemaAsStructType = schema != null ?
-                TiTypeUtil.tableSchemaToStructTiType(schema).asStruct() : null;
+        StructType tableSchemaAsStructType = tableSchema != null ?
+                TiTypeUtil.tableSchemaToStructTiType(tableSchema).asStruct() : null;
         for (Field field : getAllDeclaredFields(annotatedClass)) {
             if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
                 continue;
@@ -173,13 +177,12 @@ public class EntityTableSchemaCreator {
                             .orElse(null)
             );
         }
-        return tiTypeIfSimple.orElseGet(() -> getEntityTiType(
-                        clazz,
-                        Optional.ofNullable(tiTypeInSchema)
-                                .filter(TiType::isStruct)
-                                .map(TiType::asStruct)
-                                .orElse(null)
-                )
+        return getEntityTiType(
+                clazz,
+                Optional.ofNullable(tiTypeInSchema)
+                        .filter(TiType::isStruct)
+                        .map(TiType::asStruct)
+                        .orElse(null)
         );
     }
 
