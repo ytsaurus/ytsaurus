@@ -15,6 +15,7 @@ package expfmt
 
 import (
 	"bufio"
+	"errors"
 	"io"
 	"net/http"
 	"reflect"
@@ -84,7 +85,7 @@ mf2 4
 	for {
 		var smpls model.Vector
 		err := dec.Decode(&smpls)
-		if err == io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -100,8 +101,7 @@ mf2 4
 }
 
 func TestProtoDecoder(t *testing.T) {
-
-	var testTime = model.Now()
+	testTime := model.Now()
 
 	scenarios := []struct {
 		in       string
@@ -346,7 +346,7 @@ func TestProtoDecoder(t *testing.T) {
 		for {
 			var smpls model.Vector
 			err := dec.Decode(&smpls)
-			if err == io.EOF {
+			if err != nil && errors.Is(err, io.EOF) {
 				break
 			}
 			if scenario.fail {
@@ -369,7 +369,7 @@ func TestProtoDecoder(t *testing.T) {
 }
 
 func testDiscriminatorHTTPHeader(t testing.TB) {
-	var scenarios = []struct {
+	scenarios := []struct {
 		input  map[string]string
 		output Format
 	}{
@@ -435,7 +435,7 @@ func TestExtractSamples(t *testing.T) {
 			Help: proto.String("Help for foo."),
 			Type: dto.MetricType_COUNTER.Enum(),
 			Metric: []*dto.Metric{
-				&dto.Metric{
+				{
 					Counter: &dto.Counter{
 						Value: proto.Float64(4711),
 					},
@@ -447,7 +447,7 @@ func TestExtractSamples(t *testing.T) {
 			Help: proto.String("Help for bar."),
 			Type: dto.MetricType_GAUGE.Enum(),
 			Metric: []*dto.Metric{
-				&dto.Metric{
+				{
 					Gauge: &dto.Gauge{
 						Value: proto.Float64(3.14),
 					},
@@ -459,7 +459,7 @@ func TestExtractSamples(t *testing.T) {
 			Help: proto.String("Help for bad."),
 			Type: dto.MetricType(42).Enum(),
 			Metric: []*dto.Metric{
-				&dto.Metric{
+				{
 					Gauge: &dto.Gauge{
 						Value: proto.Float64(2.7),
 					},
@@ -505,7 +505,7 @@ func TestTextDecoderWithBufioReader(t *testing.T) {
 	for {
 		var mf dto.MetricFamily
 		if err := dec.Decode(&mf); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			t.Fatalf("Unexpected error: %v", err)

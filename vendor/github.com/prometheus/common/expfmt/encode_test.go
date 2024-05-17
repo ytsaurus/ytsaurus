@@ -102,6 +102,7 @@ func TestNegotiateOpenMetrics(t *testing.T) {
 		})
 	}
 }
+
 func TestEncode(t *testing.T) {
 	var buff bytes.Buffer
 	delimEncoder := NewEncoder(&buff, FmtProtoDelim)

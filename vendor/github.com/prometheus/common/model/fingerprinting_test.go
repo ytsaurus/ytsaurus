@@ -22,7 +22,6 @@ func TestFingerprintFromString(t *testing.T) {
 	fs := "4294967295"
 
 	f, err := FingerprintFromString(fs)
-
 	if err != nil {
 		t.Errorf("unexpected error while getting Fingerprint from string: %s", err.Error())
 	}

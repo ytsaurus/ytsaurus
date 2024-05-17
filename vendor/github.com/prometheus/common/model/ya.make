@@ -8,6 +8,7 @@ SRCS(
     fnv.go
     labels.go
     labelset.go
+    metadata.go
     metric.go
     model.go
     signature.go

@@ -24,7 +24,7 @@ import (
 func TestAlertValidate(t *testing.T) {
 	ts := time.Now()
 
-	var cases = []struct {
+	cases := []struct {
 		alert *Alert
 		err   string
 	}{

@@ -19,7 +19,7 @@ import (
 )
 
 func testLabelNames(t testing.TB) {
-	var scenarios = []struct {
+	scenarios := []struct {
 		in  LabelNames
 		out LabelNames
 	}{
@@ -55,7 +55,7 @@ func BenchmarkLabelNames(b *testing.B) {
 }
 
 func testLabelValues(t testing.TB) {
-	var scenarios = []struct {
+	scenarios := []struct {
 		in  LabelValues
 		out LabelValues
 	}{
@@ -91,7 +91,7 @@ func BenchmarkLabelValues(b *testing.B) {
 }
 
 func TestLabelNameIsValid(t *testing.T) {
-	var scenarios = []struct {
+	scenarios := []struct {
 		ln    LabelName
 		valid bool
 	}{

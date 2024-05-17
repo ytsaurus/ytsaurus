@@ -20,7 +20,7 @@ import (
 )
 
 func TestMatcherValidate(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		matcher *Matcher
 		err     string
 	}{
@@ -89,7 +89,7 @@ func TestMatcherValidate(t *testing.T) {
 func TestSilenceValidate(t *testing.T) {
 	ts := time.Now()
 
-	var cases = []struct {
+	cases := []struct {
 		sil *Silence
 		err string
 	}{

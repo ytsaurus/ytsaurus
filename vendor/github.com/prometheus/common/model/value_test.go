@@ -153,7 +153,6 @@ func TestEqualSamples(t *testing.T) {
 			t.Errorf("Comparing %s, %v and %v: got %t, want %t", name, test.in1, test.in2, got, test.want)
 		}
 	}
-
 }
 
 func TestScalarJSON(t *testing.T) {

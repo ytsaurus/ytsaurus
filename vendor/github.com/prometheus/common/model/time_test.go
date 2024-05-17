@@ -88,7 +88,7 @@ func TestDuration(t *testing.T) {
 }
 
 func TestParseDuration(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		in  string
 		out time.Duration
 
@@ -159,7 +159,7 @@ func TestParseDuration(t *testing.T) {
 }
 
 func TestDuration_UnmarshalText(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		in  string
 		out time.Duration
 
@@ -232,7 +232,7 @@ func TestDuration_UnmarshalText(t *testing.T) {
 }
 
 func TestDuration_UnmarshalJSON(t *testing.T) {
-	var cases = []struct {
+	cases := []struct {
 		in  string
 		out time.Duration
 
@@ -242,43 +242,55 @@ func TestDuration_UnmarshalJSON(t *testing.T) {
 			in:             `"0"`,
 			out:            0,
 			expectedString: `"0s"`,
-		}, {
+		},
+		{
 			in:             `"0w"`,
 			out:            0,
 			expectedString: `"0s"`,
-		}, {
+		},
+		{
 			in:  `"0s"`,
 			out: 0,
-		}, {
+		},
+		{
 			in:  `"324ms"`,
 			out: 324 * time.Millisecond,
-		}, {
+		},
+		{
 			in:  `"3s"`,
 			out: 3 * time.Second,
-		}, {
+		},
+		{
 			in:  `"5m"`,
 			out: 5 * time.Minute,
-		}, {
+		},
+		{
 			in:  `"1h"`,
 			out: time.Hour,
-		}, {
+		},
+		{
 			in:  `"4d"`,
 			out: 4 * 24 * time.Hour,
-		}, {
+		},
+		{
 			in:  `"4d1h"`,
 			out: 4*24*time.Hour + time.Hour,
-		}, {
+		},
+		{
 			in:             `"14d"`,
 			out:            14 * 24 * time.Hour,
 			expectedString: `"2w"`,
-		}, {
+		},
+		{
 			in:  `"3w"`,
 			out: 3 * 7 * 24 * time.Hour,
-		}, {
+		},
+		{
 			in:             `"3w2d1h"`,
 			out:            3*7*24*time.Hour + 2*24*time.Hour + time.Hour,
 			expectedString: `"23d1h"`,
-		}, {
+		},
+		{
 			in:  `"10y"`,
 			out: 10 * 365 * 24 * time.Hour,
 		},
@@ -312,7 +324,7 @@ func TestDuration_UnmarshalJSON(t *testing.T) {
 }
 
 func TestParseBadDuration(t *testing.T) {
-	var cases = []string{
+	cases := []string{
 		"1",
 		"1y1m1d",
 		"-1w",
@@ -362,10 +374,8 @@ func TestTimeJSON(t *testing.T) {
 			if !test.in.Equal(tm) {
 				t.Fatalf("Mismatch after Unmarshal expected=%v actual=%v", test.in, tm)
 			}
-
 		})
 	}
-
 }
 
 func BenchmarkParseDuration(b *testing.B) {

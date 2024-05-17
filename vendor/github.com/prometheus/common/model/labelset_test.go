@@ -32,7 +32,6 @@ func TestUnmarshalJSONLabelSet(t *testing.T) {
 }`
 	var c testConfig
 	err := json.Unmarshal([]byte(labelSetJSON), &c)
-
 	if err != nil {
 		t.Errorf("unexpected error while marshalling JSON : %s", err.Error())
 	}
@@ -116,5 +115,4 @@ func TestLabelSetMerge(t *testing.T) {
 			t.Errorf("expected to get LabelValue %s, but got %s for LabelName %s", expected, lv, ln)
 		}
 	}
-
 }
