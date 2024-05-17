@@ -4,7 +4,8 @@ Usage notes: spyt module must be imported before any of pyspark.* modules in ord
 for extensions to take an effect.
 """
 
-from .client import connect, spark_session, info, stop, jvm_process_pid, yt_client, is_stopped
+from .client import connect, spark_session, connect_direct, direct_spark_session, \
+    info, stop, jvm_process_pid, yt_client, is_stopped
 from .extensions import read_yt, schema_hint, write_yt, sorted_by, optimize_for, withYsonColumn, transform, \
     _extract_code_globals, _code_reduce
 from spyt.types import UInt64Type
@@ -17,7 +18,9 @@ from types import CodeType
 
 __all__ = [
     'connect',
+    'connect_direct',
     'spark_session',
+    'direct_spark_session',
     'info',
     'stop',
     'jvm_process_pid',

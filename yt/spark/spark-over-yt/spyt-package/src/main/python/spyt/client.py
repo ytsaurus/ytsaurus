@@ -3,6 +3,9 @@ import os
 import sys
 from contextlib import contextmanager
 
+from pyspark import SparkContext, SparkConf
+from pyspark.sql import SparkSession
+
 from spyt.dependency_utils import require_yt_client
 require_yt_client()
 
@@ -82,21 +85,36 @@ def spark_session(num_executors=None,
                   local_conf_path=Defaults.LOCAL_CONF_PATH,
                   client=None,
                   spyt_version=None):
+    def do_create_inner_cluster_session():
+        return connect(
+            num_executors=num_executors,
+            yt_proxy=yt_proxy,
+            discovery_path=discovery_path,
+            app_name=app_name,
+            cores_per_executor=cores_per_executor,
+            executor_memory_per_core=executor_memory_per_core,
+            driver_memory=driver_memory,
+            dynamic_allocation=dynamic_allocation,
+            spark_conf_args=spark_conf_args,
+            local_conf_path=local_conf_path,
+            client=client,
+            spyt_version=spyt_version,
+        )
+
+    with _create_spark_session(do_create_inner_cluster_session) as spark:
+        yield spark
+
+
+@contextmanager
+def direct_spark_session(yt_proxy, conf: SparkConf = None):
+    with _create_spark_session(lambda: connect_direct(yt_proxy, conf)) as spark:
+        yield spark
+
+
+@contextmanager
+def _create_spark_session(do_create_spark_session):
     spark_session_already_existed = _spark_session_exists()
-    spark = connect(
-        num_executors=num_executors,
-        yt_proxy=yt_proxy,
-        discovery_path=discovery_path,
-        app_name=app_name,
-        cores_per_executor=cores_per_executor,
-        executor_memory_per_core=executor_memory_per_core,
-        driver_memory=driver_memory,
-        dynamic_allocation=dynamic_allocation,
-        spark_conf_args=spark_conf_args,
-        local_conf_path=local_conf_path,
-        client=client,
-        spyt_version=spyt_version,
-    )
+    spark = do_create_spark_session()
     exception = None
     try:
         yield spark
@@ -138,13 +156,17 @@ def _configure_client_mode(spark_conf,
     spark_conf.set("spark.master", master)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
     os.environ["SPARK_BASE_DISCOVERY_PATH"] = str(discovery.base_discovery_path)
-    if "SPARK_CONF_DIR" not in os.environ:
-        os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
+    _set_spark_conf_dir()
 
     spyt_version = spyt_version or SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
     validate_versions_compatibility(spyt_version, spark_cluster_version)
     spark_conf.set("spark.yt.version", spyt_version)
+
+
+def _set_spark_conf_dir():
+    if "SPARK_CONF_DIR" not in os.environ:
+        os.environ["SPARK_CONF_DIR"] = os.path.join(get_spyt_home(), "conf")
 
 
 def _validate_resources(num_executors, cores_per_executor, executor_memory_per_core):
@@ -226,8 +248,6 @@ def _build_spark_conf(num_executors=None,
                       local_conf_path=None,
                       client=None,
                       spyt_version=None):
-    from pyspark import SparkConf
-
     is_client_mode = os.getenv("IS_SPARK_CLUSTER") is None
     local_conf = {}
     spark_conf = SparkConf()
@@ -286,7 +306,6 @@ def connect(num_executors=5,
             local_conf_path=Defaults.LOCAL_CONF_PATH,
             client=None,
             spyt_version=None):
-    from pyspark.sql import SparkSession
     conf = _build_spark_conf(
         num_executors=num_executors,
         yt_proxy=yt_proxy,
@@ -319,6 +338,15 @@ def connect(num_executors=5,
     if spark.conf.get("spark.sql.files.maxPartitionBytes") == "5000000":
         spark.conf.set("spark.sql.files.maxPartitionBytes", "2Gb")
 
+    return spark
+
+
+def connect_direct(yt_proxy: str, conf: SparkConf = None):
+    checked_extract_spark()
+    _set_spark_conf_dir()
+
+    conf = conf or SparkConf()
+    spark = SparkSession.builder.master("ytsaurus://" + yt_proxy).config(conf=conf).getOrCreate()
     return spark
 
 
@@ -392,7 +420,6 @@ def yt_client(spark):
 
 
 def jvm_process_pid():
-    from pyspark import SparkContext
     return SparkContext._gateway.proc.pid
 
 
@@ -419,8 +446,6 @@ def _raise_first(*exceptions):
 
 
 def _shutdown_jvm(spark):
-    from pyspark import SparkContext
-    from pyspark.sql import SparkSession
     from subprocess import Popen
     proc = SparkContext._gateway.proc
     if not isinstance(proc, Popen):
@@ -428,6 +453,7 @@ def _shutdown_jvm(spark):
         return
     proc.stdin.close()
     SparkContext._gateway.shutdown()
+    proc.wait(timeout=15)
     SparkContext._gateway = None
     SparkContext._jvm = None
     spark._jvm = None
@@ -435,5 +461,4 @@ def _shutdown_jvm(spark):
 
 
 def _spark_session_exists():
-    from pyspark.sql import SparkSession
     return SparkSession._instantiatedSession is not None

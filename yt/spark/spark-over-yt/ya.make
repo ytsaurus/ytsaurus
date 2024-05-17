@@ -1,6 +1,7 @@
 RECURSE(
     spyt-package/src/main
     python-examples/yamake_sample
+    python-examples/direct_submit_example
     tools/release
 )
 
