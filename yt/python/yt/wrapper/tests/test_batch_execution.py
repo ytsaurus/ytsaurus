@@ -120,6 +120,22 @@ class TestBatchExecution(object):
 
         assert set(list_result.get_result()) == set(("table_" + str(i) for i in range(10)))
 
+    @authors("ignat")
+    def test_lock_commands(self):
+        yt.mkdir(TEST_DIR + "/lock_dir", recursive=True)
+
+        with yt.Transaction():
+            client = create_batch_client()
+            lock_rsp = client.lock(TEST_DIR + "/lock_dir", mode="snapshot")
+            client.commit_batch()
+
+            lock_result = lock_rsp.get_result()
+            if yt.config["api_version"] == "v4":
+                assert "lock_id" in lock_result
+                assert "node_id" in lock_result
+            else:
+                assert isinstance(lock_result, str)
+
     @authors("ostyakov")
     def test_acl_commands(self):
         client = create_batch_client()

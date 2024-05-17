@@ -1,9 +1,10 @@
 from .common import get_value, YtError, set_param
 from .ypath import YPath
-from .cypress_commands import get
 from .batch_response import apply_function_to_result
+from .cypress_commands import get
 from .driver import get_api_version, make_request, make_formatted_request
 
+import os
 import time
 from datetime import timedelta, datetime
 
@@ -44,9 +45,15 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     set_param(params, "attribute_key", attribute_key)
 
     lock_response = make_formatted_request("lock", params, format=None, client=client)
-    lock_id = apply_function_to_result(
-        lambda rsp: rsp["lock_id"] if get_api_version(client) == "v4" else rsp,
-        lock_response)
+    if _is_batch_client(client):
+        # COMPAT(ignat)
+        if bool(int(os.environ.get("YT_LEGACY_BATCH_CLIENT_LOCK_COMMAND_RETURN_VALUE", "0"))):
+            apply_function_to_result(
+                lambda rsp: rsp["lock_id"] if get_api_version(client) == "v4" else rsp,
+                lock_response)
+        return lock_response
+
+    lock_id = lock_response["lock_id"] if get_api_version(client) == "v4" else lock_response
     if not lock_id:
         return None
 
