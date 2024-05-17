@@ -2108,7 +2108,7 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
             "policy": "watching",
             "clusters": ["primary", "remote_0", "remote_1"],
             "poll_replicated_objects": True,
-            "write_registration_table_mapping": True,
+            "write_replicated_table_mapping": True,
         },
         "queue_agent": {
             "handle_replicated_objects": True,
@@ -2421,7 +2421,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         "cypress_synchronizer": {
             "policy": "watching",
             "poll_replicated_objects": True,
-            "write_registration_table_mapping": True,
+            "write_replicated_table_mapping": True,
         },
         "queue_agent": {
             "handle_replicated_objects": True,
