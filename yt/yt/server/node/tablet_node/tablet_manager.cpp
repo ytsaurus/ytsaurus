@@ -507,7 +507,8 @@ public:
         ToProto(request.mutable_expected_active_store_id(), activeStore->GetId());
 
         // NB: Some aborted transactions that created skip list entries could be dropped on store reserialization.
-        request.set_allow_empty_store(activeStore->IsSorted() && activeStore->GetRowCount() > 0 && activeStore->GetTimestampCount() == 0);
+        // NB: Comparison with 1 is correct since sorted dynamic store always _contains_ NullTimestamp.
+        request.set_allow_empty_store(activeStore->IsSorted() && activeStore->GetRowCount() > 0 && activeStore->GetTimestampCount() == 1);
 
         Slot_->CommitTabletMutation(request);
     }
