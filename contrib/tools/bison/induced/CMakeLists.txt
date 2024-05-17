@@ -14,9 +14,9 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(bison-bison-induced INTERFACE)
+add_library(tools-bison-induced INTERFACE)
 
-target_link_libraries(bison-bison-induced INTERFACE
+target_link_libraries(tools-bison-induced INTERFACE
   linux-headers-generic::linux-headers-generic
 )
 
