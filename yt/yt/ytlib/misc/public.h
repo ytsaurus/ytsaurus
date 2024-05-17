@@ -37,6 +37,8 @@ DEFINE_ENUM(EMemoryCategory,
     ((Unknown)                    (17))
     ((Mixed)                      (18))
     ((TabletBackground)           (19))
+    ((JobInputBlockCache)         (25))
+    ((JobInputChunkMetaCache)     (26))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

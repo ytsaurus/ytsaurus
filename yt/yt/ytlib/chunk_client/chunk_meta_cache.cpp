@@ -257,17 +257,24 @@ DECLARE_REFCOUNTED_CLASS(TClientChunkMetaCache)
 
 class TClientChunkMetaCache
     : public IClientChunkMetaCache
-    , public TAsyncSlruCacheBase<TChunkId, TCachedChunkMeta>
+    , public TMemoryTrackingAsyncSlruCacheBase<TChunkId, TCachedChunkMeta>
 {
 public:
     TClientChunkMetaCache(
         TClientChunkMetaCacheConfigPtr config,
+        IMemoryUsageTrackerPtr memoryUsageTracker,
         TProfiler profiler)
-        : TAsyncSlruCacheBase(
+        : TMemoryTrackingAsyncSlruCacheBase(
             std::move(config),
+            std::move(memoryUsageTracker),
             std::move(profiler))
         , Invoker_(TDispatcher::Get()->GetReaderInvoker())
     { }
+
+    void Reconfigure(const TSlruCacheDynamicConfigPtr& config) override
+    {
+        TMemoryTrackingAsyncSlruCacheBase::Reconfigure(std::move(config));
+    }
 
     TFuture<TRefCountedChunkMetaPtr> Fetch(
         TChunkId chunkId,
@@ -333,10 +340,12 @@ DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCache)
 
 IClientChunkMetaCachePtr CreateClientChunkMetaCache(
     TClientChunkMetaCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryUsageTracker,
     TProfiler profiler)
 {
     return New<TClientChunkMetaCache>(
         std::move(config),
+        std::move(memoryUsageTracker),
         std::move(profiler));
 }
 

@@ -13,6 +13,9 @@ void TRemoteReaderOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_p2p", &TThis::EnableP2P)
         .Default(false);
+
+    registrar.Parameter("use_proxying_data_node_service", &TThis::UseProxyingDataNodeService)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

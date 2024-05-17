@@ -735,7 +735,14 @@ protected:
         }
 
         try {
-            const auto& channelFactory = reader->Client_->GetChannelFactory();
+            IChannelFactoryPtr channelFactory = reader->Client_->GetChannelFactory();
+
+            if (reader->Options_->UseProxyingDataNodeService) {
+                channelFactory = CreateRealmChannelFactory(
+                    channelFactory,
+                    ProxyingDataNodeServiceRealmId);
+            }
+
             // TODO(akozhikhov): Don't catch here.
             return channelFactory->CreateChannel(address);
         } catch (const std::exception& ex) {

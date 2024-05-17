@@ -687,6 +687,11 @@ IChunkReaderPtr CreateRemoteReader(
 
     auto Logger = ChunkClientLogger.WithTag("ChunkId: %v", chunkId);
 
+    auto optionsPerChunk = New<TRemoteReaderOptions>();
+    optionsPerChunk->AllowFetchingSeedsFromMaster = options->AllowFetchingSeedsFromMaster;
+    optionsPerChunk->EnableP2P = options->EnableP2P;
+    optionsPerChunk->UseProxyingDataNodeService = chunkSpec.use_proxying_data_node_service();
+
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
@@ -719,7 +724,7 @@ IChunkReaderPtr CreateRemoteReader(
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, index);
             auto reader = CreateReplicationReader(
                 partConfig,
-                options,
+                optionsPerChunk,
                 chunkReaderHost,
                 partChunkId,
                 partReplicas);
@@ -738,7 +743,7 @@ IChunkReaderPtr CreateRemoteReader(
 
         return CreateReplicationReader(
             std::move(config),
-            std::move(options),
+            std::move(optionsPerChunk),
             std::move(chunkReaderHost),
             chunkId,
             replicas);

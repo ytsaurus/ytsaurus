@@ -47,6 +47,7 @@ target_sources(server-lib-exec_node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.cpp
 )
 target_proto_addincls(server-lib-exec_node
   ./

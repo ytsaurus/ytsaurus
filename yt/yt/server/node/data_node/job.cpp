@@ -1099,8 +1099,10 @@ private:
                 /*rpsThrottler*/ GetUnlimitedThrottler(),
                 /*mediumThrottler*/ GetUnlimitedThrottler(),
                 /*trafficMeter*/ nullptr);
+
             auto reader = NJournalClient::CreateChunkReader(
                 DynamicConfig_->Reader,
+                New<TRemoteReaderOptions>(),
                 std::move(chunkReaderHost),
                 ChunkId_,
                 codecId,
@@ -2538,6 +2540,7 @@ private:
 
         auto reader = NJournalClient::CreateChunkReader(
             DynamicConfig_->Reader,
+            New<TRemoteReaderOptions>(),
             std::move(chunkReaderHost),
             BodyChunkId_,
             ErasureCodecId_,

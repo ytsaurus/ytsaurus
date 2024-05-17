@@ -332,6 +332,8 @@ private:
     std::optional<ui32> NetworkProjectId_;
     std::vector<TString> TmpfsPaths_;
 
+    std::atomic<bool> UseJobInputCache_ = false;
+
     std::vector<TArtifact> Artifacts_;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
     std::optional<TString> DockerImage_;
@@ -380,6 +382,8 @@ private:
     // Tracing.
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
+
+    const TJobInputCachePtr JobInputCache_;
 
     void OnResourcesAcquired() noexcept;
 

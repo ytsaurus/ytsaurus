@@ -54,6 +54,11 @@ bool TInputTable::IsPrimary() const
     return !IsForeign();
 }
 
+bool TInputTable::UseReadViaExecNode() const
+{
+    return Path.GetReadViaExecNode();
+}
+
 bool TInputTable::SupportsTeleportation() const
 {
     return !Dynamic && !Path.GetColumns() && ColumnRenameDescriptors.empty();

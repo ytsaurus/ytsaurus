@@ -404,6 +404,8 @@ private:
             ? EUnavailablePartPolicy::CreateNullReader
             : EUnavailablePartPolicy::Crash;
 
+        YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
+
         auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
@@ -564,6 +566,8 @@ private:
         }
 
         if (!erasedPartIndices.empty()) {
+            YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
+
             RepairErasureChunk(
                 outputSessionId,
                 erasureCodec,
@@ -724,6 +728,8 @@ private:
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
         TDeferredChunkMetaPtr chunkMeta;
+
+        YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
         auto reader = CreateReplicationReader(
             ReaderConfig_,

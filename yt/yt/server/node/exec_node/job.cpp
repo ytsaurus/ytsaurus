@@ -7,6 +7,7 @@
 #include "job_controller.h"
 #include "job_gpu_checker.h"
 #include "job_workspace_builder.h"
+#include "job_input_cache.h"
 #include "gpu_manager.h"
 #include "private.h"
 #include "slot.h"
@@ -33,6 +34,7 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
+#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -49,6 +51,7 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
+#include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -88,6 +91,8 @@
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
 #include <library/cpp/yt/system/handle_eintr.h>
 
 #include <util/system/env.h>
@@ -122,11 +127,13 @@ using namespace NNet;
 using namespace NProfiling;
 using namespace NContainers;
 using namespace NTracing;
+using namespace NTransactionClient;
+using namespace NObjectClient;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
-using NObjectClient::TypeFromId;
+using NObjectClient::TObjectId;
 using NCypressClient::EObjectType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,8 +196,10 @@ TJob::TJob(
     , IsGpuRequested_(Allocation_->GetRequestedGpu() > 0)
     , TraceContext_(TTraceContext::NewRoot("Job"))
     , FinishGuard_(TraceContext_)
+    , JobInputCache_(Bootstrap_->GetExecNodeBootstrap()->GetJobInputCache())
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+    YT_VERIFY(JobInputCache_);
 
     PackBaggageFromJobSpec(TraceContext_, JobSpec_, OperationId_, Id_);
 
@@ -2369,6 +2378,10 @@ void TJob::Cleanup()
         ResourceHolder_.Reset();
     }
 
+    if (UseJobInputCache_.load()) {
+        JobInputCache_->UnregisterJobChunks(Id_);
+    }
+
     SetJobPhase(EJobPhase::Finished);
 
     CleanupFinished_.Set();
@@ -2416,8 +2429,8 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
-    if (jobSpecExt.has_input_node_directory()) {
+    auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
+    if (jobSpecExt->has_input_node_directory()) {
         YT_LOG_INFO("Node directory is provided by scheduler");
         return nullptr;
     }
@@ -2456,8 +2469,8 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             }
         };
 
-        validateTableSpecs(jobSpecExt.input_table_specs());
-        validateTableSpecs(jobSpecExt.foreign_input_table_specs());
+        validateTableSpecs(jobSpecExt->input_table_specs());
+        validateTableSpecs(jobSpecExt->foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : Artifacts_) {
@@ -2486,6 +2499,13 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
     auto protoNodeDirectory = std::make_unique<NNodeTrackerClient::NProto::TNodeDirectory>();
     nodeDirectory->DumpTo(protoNodeDirectory.get());
+
+    if (JobInputCache_->IsEnabled()) {
+        UseJobInputCache_.store(true);
+        JobInputCache_->RegisterJobChunks(
+            Id_,
+            ModifyChunkSpecForJobInputCache(Bootstrap_->GetNodeId(), GetType(), jobSpecExt));
+    }
 
     YT_LOG_INFO("Finish preparing node directory");
 

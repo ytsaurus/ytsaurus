@@ -115,8 +115,8 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     std::iota(partIndexList.begin(), partIndexList.end(), 0);
 
     return CreateErasurePartReaders(
-        config,
-        options,
+        std::move(config),
+        std::move(options),
         std::move(chunkReaderHost),
         chunkId,
         seedReplicas,

@@ -328,6 +328,7 @@ public:
         } else if (config->ChunkMetaCache) {
             ChunkMetaCache_ = CreateClientChunkMetaCache(
                 config->ChunkMetaCache,
+                GetNullMemoryUsageTracker(),
                 Profiler_.WithPrefix("/chunk_meta_cache"));
         } else {
             ChunkMetaCache_ = nullptr;

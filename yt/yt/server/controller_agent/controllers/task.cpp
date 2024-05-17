@@ -1483,6 +1483,7 @@ void TTask::AddChunksToInputSpec(
                 // For non-input tasks comparator is passed from the controller. Actually
                 // it's now used for sorted merge task in sort controller only.
                 comparator = inputTable->Comparator;
+                newChunkSpec->set_use_proxying_data_node_service(inputTable->UseReadViaExecNode() || TaskHost_->GetSpec()->ReadViaExecNode);
             }
 
             if (comparator) {

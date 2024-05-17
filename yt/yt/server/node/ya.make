@@ -73,6 +73,8 @@ SRCS(
     exec_node/job_prober_service.cpp
     exec_node/job_workspace_builder.cpp
     exec_node/master_connector.cpp
+    exec_node/job_input_cache.cpp
+    exec_node/proxying_data_node_service.cpp
     exec_node/orchid.cpp
     exec_node/public.cpp
     exec_node/scheduler_connector.cpp

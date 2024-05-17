@@ -176,6 +176,8 @@ target_sources(yt-server-node PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_prober_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_workspace_builder.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/master_connector.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/job_input_cache.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp
