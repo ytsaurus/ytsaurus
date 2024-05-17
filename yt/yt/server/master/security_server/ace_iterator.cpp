@@ -299,7 +299,7 @@ void TAceIterator::DoAdvanceUnderlying(bool checkFirst)
             return true;
         }
         auto value = DereferenceUnderlying();
-        return value.Acl && ! value.Acl->Entries.empty();
+        return value.Acl && !value.Acl->Entries.empty();
     };
 
     if (checkFirst && shouldStop()) {
@@ -391,36 +391,56 @@ TAceIterator::TValue TAceIterator::operator*() const
 TTagFilteringAceIterator::TTagFilteringAceIterator(
     const NObjectServer::IObjectManager* objectManager,
     NObjectServer::TObject* object,
+    bool alwaysEvaluateFirstElement,
     const TBooleanFormulaTags* tags,
     TAcdOverride firstObjectAcdOverride)
     : Tags_(tags)
     , Underlying_(objectManager, object, std::move(firstObjectAcdOverride))
-{ }
+{
+    // COMPAT(h0pless): a bug when first element of any ACE would always be evaluated is in 23.2
+    // We want to have an ability to roll this fix out to masters which necessitates this flag.
+    if (alwaysEvaluateFirstElement) {
+        return;
+    }
 
-TTagFilteringAceIterator& TTagFilteringAceIterator::operator++()
+    if (ShouldAdvance()) {
+        Advance();
+    }
+}
+
+bool TTagFilteringAceIterator::ShouldAdvance() const
+{
+    if (Underlying_.GetStopCause() != EAceIteratorStopCause::None) {
+        return false;
+    }
+
+    auto underlyingValue = *Underlying_;
+    const auto& optionalTagFilter = underlyingValue.Ace->SubjectTagFilter;
+
+    // NB: tags should be |nullptr| only when tag filtering is disabled.
+    // If this element has tag filter with the action "deny", then the act of disabling said tag filter
+    // will deny some users who should have access to the object.
+    if (!Tags_) {
+        return optionalTagFilter && underlyingValue.Ace->Action == ESecurityAction::Deny;
+    }
+
+    if (!optionalTagFilter) {
+        return false;
+    }
+
+    return !optionalTagFilter->IsSatisfiedBy(*Tags_);
+}
+
+void TTagFilteringAceIterator::Advance()
 {
     do {
         ++Underlying_;
+    } while (ShouldAdvance());
+}
 
-        if (Underlying_.GetStopCause() != EAceIteratorStopCause::None) {
-            break;
-        }
-
-        if (!Tags_) {
-            break;
-        }
-
-        auto underlyingValue = *Underlying_;
-        const auto& optionalTagFilter = underlyingValue.Ace->SubjectTagFilter;
-        if (!optionalTagFilter) {
-            break;
-        }
-
-        if (optionalTagFilter->IsSatisfiedBy(*Tags_)) {
-            break;
-        }
-    } while (true);
-
+TTagFilteringAceIterator& TTagFilteringAceIterator::operator++()
+{
+    Advance();
     return *this;
 }
 
