@@ -409,6 +409,7 @@
   "contrib/restricted/boost/ratio/CMakeLists.txt":"",
   "contrib/restricted/boost/rational/CMakeLists.txt":"",
   "contrib/restricted/boost/regex/CMakeLists.txt":"",
+  "contrib/restricted/boost/scope/CMakeLists.txt":"",
   "contrib/restricted/boost/serialization/CMakeLists.txt":"",
   "contrib/restricted/boost/smart_ptr/CMakeLists.txt":"",
   "contrib/restricted/boost/spirit/CMakeLists.txt":"",

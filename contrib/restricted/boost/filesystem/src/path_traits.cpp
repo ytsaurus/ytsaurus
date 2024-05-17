@@ -15,8 +15,8 @@
 #include <boost/filesystem/detail/path_traits.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/system/system_error.hpp>
-#include <boost/smart_ptr/scoped_array.hpp>
 #include <boost/assert.hpp>
+#include <memory>
 #include <string>
 #include <locale>  // for codecvt_base::result
 #include <cwchar>  // for mbstate_t
@@ -122,8 +122,8 @@ void convert(const char* from, const char* from_end, std::wstring& to, const cod
     if (from == from_end)
         return;
 
-    BOOST_ASSERT(from != NULL);
-    BOOST_ASSERT(from_end != NULL);
+    BOOST_ASSERT(from != nullptr);
+    BOOST_ASSERT(from_end != nullptr);
 
     if (!cvt)
         cvt = &fs::path::codecvt();
@@ -133,7 +133,7 @@ void convert(const char* from, const char* from_end, std::wstring& to, const cod
     //  dynamically allocate a buffer only if source is unusually large
     if (buf_size > default_codecvt_buf_size)
     {
-        boost::scoped_array< wchar_t > buf(new wchar_t[buf_size]);
+        std::unique_ptr< wchar_t[] > buf(new wchar_t[buf_size]);
         convert_aux(from, from_end, buf.get(), buf.get() + buf_size, to, *cvt);
     }
     else
@@ -153,8 +153,8 @@ void convert(const wchar_t* from, const wchar_t* from_end, std::string& to, cons
     if (from == from_end)
         return;
 
-    BOOST_ASSERT(from != NULL);
-    BOOST_ASSERT(from_end != NULL);
+    BOOST_ASSERT(from != nullptr);
+    BOOST_ASSERT(from_end != nullptr);
 
     if (!cvt)
         cvt = &fs::path::codecvt();
@@ -169,7 +169,7 @@ void convert(const wchar_t* from, const wchar_t* from_end, std::string& to, cons
     //  dynamically allocate a buffer only if source is unusually large
     if (buf_size > default_codecvt_buf_size)
     {
-        boost::scoped_array< char > buf(new char[buf_size]);
+        std::unique_ptr< char[] > buf(new char[buf_size]);
         convert_aux(from, from_end, buf.get(), buf.get() + buf_size, to, *cvt);
     }
     else

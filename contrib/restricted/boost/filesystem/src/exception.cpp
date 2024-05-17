@@ -115,11 +115,11 @@ BOOST_FILESYSTEM_DECL filesystem_error& filesystem_error::operator=(filesystem_e
     return *this;
 }
 
-BOOST_FILESYSTEM_DECL filesystem_error::~filesystem_error() BOOST_NOEXCEPT_OR_NOTHROW
+BOOST_FILESYSTEM_DECL filesystem_error::~filesystem_error() noexcept
 {
 }
 
-BOOST_FILESYSTEM_DECL const char* filesystem_error::what() const BOOST_NOEXCEPT_OR_NOTHROW
+BOOST_FILESYSTEM_DECL const char* filesystem_error::what() const noexcept
 {
     if (m_imp_ptr.get()) try
     {
@@ -150,7 +150,7 @@ BOOST_FILESYSTEM_DECL const char* filesystem_error::what() const BOOST_NOEXCEPT_
     return system::system_error::what();
 }
 
-BOOST_FILESYSTEM_DECL path const& filesystem_error::get_empty_path() BOOST_NOEXCEPT
+BOOST_FILESYSTEM_DECL path const& filesystem_error::get_empty_path() noexcept
 {
     static const path empty_path;
     return empty_path;

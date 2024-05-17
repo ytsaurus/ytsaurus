@@ -14,10 +14,11 @@
 #ifndef BOOST_FILESYSTEM_SRC_WINDOWS_TOOLS_HPP_
 #define BOOST_FILESYSTEM_SRC_WINDOWS_TOOLS_HPP_
 
-#include <cstddef>
 #include <boost/filesystem/config.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/file_status.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/scope/unique_resource.hpp>
 #include <boost/winapi/basic_types.hpp> // NTSTATUS_
 
 #include <windows.h>
@@ -39,6 +40,34 @@
 namespace boost {
 namespace filesystem {
 namespace detail {
+
+//! Deleter for HANDLEs
+struct handle_deleter
+{
+    using result_type = void;
+
+    result_type operator() (HANDLE h) const noexcept
+    {
+        ::CloseHandle(h);
+    }
+};
+
+//! Resource traits for HANDLEs
+struct handle_resource_traits
+{
+    static HANDLE make_default() noexcept
+    {
+        return INVALID_HANDLE_VALUE;
+    }
+
+    static bool is_allocated(HANDLE h) noexcept
+    {
+        return h != INVALID_HANDLE_VALUE && h != nullptr;
+    }
+};
+
+//! Unique HANDLE wrapper
+using unique_handle = boost::scope::unique_resource< HANDLE, handle_deleter, handle_resource_traits >;
 
 BOOST_INLINE_VARIABLE BOOST_CONSTEXPR_OR_CONST wchar_t colon = L':';
 BOOST_INLINE_VARIABLE BOOST_CONSTEXPR_OR_CONST wchar_t questionmark = L'?';
@@ -91,10 +120,10 @@ inline bool is_reparse_point_tag_a_symlink(ULONG reparse_point_tag)
 //! Platform-specific parameters for directory iterator construction
 struct directory_iterator_params
 {
-    //! Handle of the directory to iterate over. If not \c INVALID_HANDLE_VALUE, the directory path is ignored.
-    HANDLE use_handle;
+    //! Handle of the directory to iterate over. If not \c INVALID_HANDLE_VALUE, the directory path is only used to generate paths returned by the iterator.
+    HANDLE dir_handle;
     /*!
-     * If \c use_handle is not \c INVALID_HANDLE_VALUE, specifies whether the directory iterator should close the handle upon destruction.
+     * If \c dir_handle is not \c INVALID_HANDLE_VALUE, specifies whether the directory iterator should close the handle upon destruction.
      * If \c false, the handle must remain valid for the lifetime of the iterator.
      */
     bool close_handle;
@@ -241,30 +270,36 @@ typedef BOOL (WINAPI GetFileInformationByHandleEx_t)(
 
 extern GetFileInformationByHandleEx_t* get_file_information_by_handle_ex_api;
 
-//! HANDLE wrapper that automatically closes the handle
-struct handle_wrapper
-{
-    HANDLE handle;
-
-    handle_wrapper() BOOST_NOEXCEPT : handle(INVALID_HANDLE_VALUE) {}
-    explicit handle_wrapper(HANDLE h) BOOST_NOEXCEPT : handle(h) {}
-    ~handle_wrapper() BOOST_NOEXCEPT
-    {
-        if (handle != INVALID_HANDLE_VALUE)
-            ::CloseHandle(handle);
-    }
-    BOOST_DELETED_FUNCTION(handle_wrapper(handle_wrapper const&))
-    BOOST_DELETED_FUNCTION(handle_wrapper& operator=(handle_wrapper const&))
-};
-
 //! Creates a file handle
-inline HANDLE create_file_handle(boost::filesystem::path const& p, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile = NULL)
+inline unique_handle create_file_handle
+(
+    boost::filesystem::path const& p,
+    DWORD dwDesiredAccess,
+    DWORD dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD dwCreationDisposition,
+    DWORD dwFlagsAndAttributes,
+    HANDLE hTemplateFile = nullptr
+)
 {
-    return ::CreateFileW(p.c_str(), dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+    return unique_handle(::CreateFileW(p.c_str(), dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile));
 }
 
 //! Creates a file handle for a file relative to a previously opened base directory. The file path must be relative and in preferred format.
-boost::winapi::NTSTATUS_ nt_create_file_handle_at(HANDLE& out, HANDLE basedir_handle, boost::filesystem::path const& p, ULONG FileAttributes, ACCESS_MASK DesiredAccess, ULONG ShareMode, ULONG CreateDisposition, ULONG CreateOptions);
+boost::winapi::NTSTATUS_ nt_create_file_handle_at
+(
+    unique_handle& out,
+    HANDLE basedir_handle,
+    boost::filesystem::path const& p,
+    ULONG FileAttributes,
+    ACCESS_MASK DesiredAccess,
+    ULONG ShareMode,
+    ULONG CreateDisposition,
+    ULONG CreateOptions
+);
+
+//! Returns status of the file identified by an open handle. The path \a p is used to report errors and infer file permissions.
+filesystem::file_status status_by_handle(HANDLE h, path const& p, system::error_code* ec);
 
 } // namespace detail
 } // namespace filesystem

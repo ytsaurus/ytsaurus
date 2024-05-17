@@ -1,7 +1,7 @@
 //  filesystem path.cpp  -------------------------------------------------------------  //
 
 //  Copyright Beman Dawes 2008
-//  Copyright Andrey Semashev 2021-2023
+//  Copyright Andrey Semashev 2021-2024
 
 //  Distributed under the Boost Software License, Version 1.0.
 //  See http://www.boost.org/LICENSE_1_0.txt
@@ -13,7 +13,6 @@
 #include <boost/filesystem/config.hpp>
 #include <boost/filesystem/path.hpp>
 #include <boost/filesystem/detail/path_traits.hpp> // codecvt_error_category()
-#include <boost/scoped_array.hpp>
 #include <boost/system/error_category.hpp> // for BOOST_SYSTEM_HAS_CONSTEXPR
 #include <boost/assert.hpp>
 #include <algorithm>
@@ -91,7 +90,7 @@ inline bool is_device_name_char(wchar_t c)
 }
 
 //! Returns position of the first directory separator in the \a size initial characters of \a p, or \a size if not found
-inline size_type find_separator(const wchar_t* p, size_type size) BOOST_NOEXCEPT
+inline size_type find_separator(const wchar_t* p, size_type size) noexcept
 {
     size_type pos = 0u;
     for (; pos < size; ++pos)
@@ -110,7 +109,7 @@ const char dot_dot_path_literal[] = "..";
 const char separators[] = "/";
 
 //! Returns position of the first directory separator in the \a size initial characters of \a p, or \a size if not found
-inline size_type find_separator(const char* p, size_type size) BOOST_NOEXCEPT
+inline size_type find_separator(const char* p, size_type size) noexcept
 {
     const char* sep = static_cast< const char* >(std::memchr(p, '/', size));
     size_type pos = size;
@@ -272,14 +271,6 @@ BOOST_FILESYSTEM_DECL path path_algorithms::lexically_normal_v4(path const& p)
     size_type root_dir_pos = find_root_directory_start(pathname, pathname_size, root_name_size);
     path normal(pathname, pathname + root_name_size);
 
-#if defined(BOOST_WINDOWS_API)
-    for (size_type i = 0; i < root_name_size; ++i)
-    {
-        if (normal.m_pathname[i] == path::separator)
-            normal.m_pathname[i] = path::preferred_separator;
-    }
-#endif
-
     size_type root_path_size = root_name_size;
     if (root_dir_pos < pathname_size)
     {
@@ -364,6 +355,122 @@ BOOST_FILESYSTEM_DECL path path_algorithms::lexically_normal_v4(path const& p)
 
     return normal;
 }
+
+//  generic_path ---------------------------------------------------------------------//
+
+BOOST_FILESYSTEM_DECL path path_algorithms::generic_path_v3(path const& p)
+{
+    path tmp;
+    const size_type pathname_size = p.m_pathname.size();
+    tmp.m_pathname.reserve(pathname_size);
+
+    const value_type* const pathname = p.m_pathname.c_str();
+
+    // Don't remove duplicate slashes from the root name
+    size_type root_name_size = 0u;
+    size_type root_dir_pos = find_root_directory_start(pathname, pathname_size, root_name_size);
+    if (root_name_size > 0u)
+    {
+        tmp.m_pathname.append(pathname, root_name_size);
+#if defined(BOOST_WINDOWS_API)
+        std::replace(tmp.m_pathname.begin(), tmp.m_pathname.end(), L'\\', L'/');
+#endif
+    }
+
+    size_type pos = root_name_size;
+    if (root_dir_pos < pathname_size)
+    {
+        tmp.m_pathname.push_back(path::separator);
+        pos = root_dir_pos + 1u;
+    }
+
+    while (pos < pathname_size)
+    {
+        size_type element_size = find_separator(pathname + pos, pathname_size - pos);
+        if (element_size > 0u)
+        {
+            tmp.m_pathname.append(pathname + pos, element_size);
+
+            pos += element_size;
+            if (pos >= pathname_size)
+                break;
+
+            tmp.m_pathname.push_back(path::separator);
+        }
+
+        ++pos;
+    }
+
+    return tmp;
+}
+
+BOOST_FILESYSTEM_DECL path path_algorithms::generic_path_v4(path const& p)
+{
+    path tmp;
+    const size_type pathname_size = p.m_pathname.size();
+    tmp.m_pathname.reserve(pathname_size);
+
+    const value_type* const pathname = p.m_pathname.c_str();
+
+    // Treat root name specially as it may contain backslashes, duplicate ones too,
+    // in case of UNC paths and Windows-specific prefixes.
+    size_type root_name_size = 0u;
+    size_type root_dir_pos = find_root_directory_start(pathname, pathname_size, root_name_size);
+    if (root_name_size > 0u)
+        tmp.m_pathname.append(pathname, root_name_size);
+
+    size_type pos = root_name_size;
+    if (root_dir_pos < pathname_size)
+    {
+        tmp.m_pathname.push_back(path::separator);
+        pos = root_dir_pos + 1u;
+    }
+
+    while (pos < pathname_size)
+    {
+        size_type element_size = find_separator(pathname + pos, pathname_size - pos);
+        if (element_size > 0u)
+        {
+            tmp.m_pathname.append(pathname + pos, element_size);
+
+            pos += element_size;
+            if (pos >= pathname_size)
+                break;
+
+            tmp.m_pathname.push_back(path::separator);
+        }
+
+        ++pos;
+    }
+
+    return tmp;
+}
+
+#if defined(BOOST_WINDOWS_API)
+
+//  make_preferred -------------------------------------------------------------------//
+
+BOOST_FILESYSTEM_DECL void path_algorithms::make_preferred_v3(path& p)
+{
+    std::replace(p.m_pathname.begin(), p.m_pathname.end(), L'/', L'\\');
+}
+
+BOOST_FILESYSTEM_DECL void path_algorithms::make_preferred_v4(path& p)
+{
+    const size_type pathname_size = p.m_pathname.size();
+    if (pathname_size > 0u)
+    {
+        value_type* const pathname = &p.m_pathname[0];
+
+        // Avoid converting slashes in the root name
+        size_type root_name_size = 0u;
+        find_root_directory_start(pathname, pathname_size, root_name_size);
+
+        std::replace(pathname + root_name_size, pathname + pathname_size, L'/', L'\\');
+    }
+}
+
+#endif // defined(BOOST_WINDOWS_API)
 
 //  append  --------------------------------------------------------------------------//
 
@@ -824,23 +931,6 @@ BOOST_FILESYSTEM_DECL path path::lexically_relative(path const& base) const
         detail::path_algorithms::append_v4(tmp, *mm.first);
     return tmp;
 }
-
-#if defined(BOOST_WINDOWS_API)
-
-BOOST_FILESYSTEM_DECL path path::generic_path() const
-{
-    path tmp(*this);
-    std::replace(tmp.m_pathname.begin(), tmp.m_pathname.end(), L'\\', L'/');
-    return tmp;
-}
-
-BOOST_FILESYSTEM_DECL path& path::make_preferred()
-{
-    std::replace(m_pathname.begin(), m_pathname.end(), L'/', L'\\');
-    return *this;
-}
-
-#endif // defined(BOOST_WINDOWS_API)
 
 } // namespace filesystem
 } // namespace boost
@@ -1358,9 +1448,9 @@ std::locale default_locale()
 #endif
 }
 
-std::locale* g_path_locale = NULL;
+std::locale* g_path_locale = nullptr;
 
-void schedule_path_locale_cleanup() BOOST_NOEXCEPT;
+void schedule_path_locale_cleanup() noexcept;
 
 // std::locale("") construction, needed on non-Apple POSIX systems, can throw
 // (if environmental variables LC_MESSAGES or LANG are wrong, for example), so
@@ -1415,10 +1505,10 @@ inline std::locale* replace_path_locale(std::locale const& loc)
 
 #if defined(_MSC_VER)
 
-const boost::filesystem::path* g_dot_path = NULL;
-const boost::filesystem::path* g_dot_dot_path = NULL;
+const boost::filesystem::path* g_dot_path = nullptr;
+const boost::filesystem::path* g_dot_dot_path = nullptr;
 
-inline void schedule_path_locale_cleanup() BOOST_NOEXCEPT
+inline void schedule_path_locale_cleanup() noexcept
 {
 }
 
@@ -1469,11 +1559,11 @@ inline boost::filesystem::path const& get_dot_dot_path()
 void __cdecl destroy_path_globals()
 {
     delete g_dot_dot_path;
-    g_dot_dot_path = NULL;
+    g_dot_dot_path = nullptr;
     delete g_dot_path;
-    g_dot_path = NULL;
+    g_dot_path = nullptr;
     delete g_path_locale;
-    g_path_locale = NULL;
+    g_path_locale = nullptr;
 }
 
 BOOST_FILESYSTEM_INIT_FUNC init_path_globals()
@@ -1526,7 +1616,7 @@ struct path_locale_deleter
     ~path_locale_deleter()
     {
         delete g_path_locale;
-        g_path_locale = NULL;
+        g_path_locale = nullptr;
     }
 };
 
@@ -1539,7 +1629,7 @@ const boost::filesystem::path g_dot_path(dot_path_literal);
 BOOST_FILESYSTEM_INIT_PRIORITY(BOOST_FILESYSTEM_PATH_GLOBALS_INIT_PRIORITY)
 const boost::filesystem::path g_dot_dot_path(dot_dot_path_literal);
 
-inline void schedule_path_locale_cleanup() BOOST_NOEXCEPT
+inline void schedule_path_locale_cleanup() noexcept
 {
 }
 
@@ -1555,7 +1645,7 @@ inline boost::filesystem::path const& get_dot_dot_path()
 
 #else // defined(BOOST_FILESYSTEM_HAS_INIT_PRIORITY)
 
-inline void schedule_path_locale_cleanup() BOOST_NOEXCEPT
+inline void schedule_path_locale_cleanup() noexcept
 {
     BOOST_ATTRIBUTE_UNUSED static const path_locale_deleter g_path_locale_deleter;
 }
@@ -1599,14 +1689,10 @@ BOOST_FILESYSTEM_DECL std::locale path::imbue(std::locale const& loc)
     std::cout << "***** path::imbue() called" << std::endl;
 #endif
     std::locale* p = replace_path_locale(loc);
-    if (BOOST_LIKELY(p != NULL))
+    if (BOOST_LIKELY(p != nullptr))
     {
         // Note: copying/moving std::locale does not throw
-#if !defined(BOOST_NO_CXX11_RVALUE_REFERENCES)
         std::locale temp(std::move(*p));
-#else
-        std::locale temp(*p);
-#endif
         delete p;
         return temp;
     }

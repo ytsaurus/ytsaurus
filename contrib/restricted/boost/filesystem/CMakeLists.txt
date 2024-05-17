@@ -41,6 +41,7 @@ target_link_libraries(restricted-boost-filesystem PUBLIC
   restricted-boost-io
   restricted-boost-iterator
   restricted-boost-predef
+  restricted-boost-scope
   restricted-boost-smart_ptr
   restricted-boost-system
   restricted-boost-type_traits
