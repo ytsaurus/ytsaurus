@@ -1229,7 +1229,7 @@ public:
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = ReadMemoryLimit_,
             .MaxInitialReaderReservedMemory = ReadMemoryLimit_,
-            .MemoryUsageTracker = MemoryUsageTracker_
+            .MemoryUsageTracker = MemoryUsageTracker_,
         };
 
         MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(

@@ -441,7 +441,7 @@ public:
     bool EnableProfiling;
 
     //! Test location disable during full heartbeat, contains location uuid.
-    std::optional<TGuid> LocationUuidToDisableDuringFullHeartbeat;
+    std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
 
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
