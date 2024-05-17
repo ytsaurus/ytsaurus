@@ -26,6 +26,8 @@ struct IBootstrap
     virtual void Initialize() = 0;
     virtual void Run() = 0;
 
+    virtual const TJobInputCachePtr& GetJobInputCache() const = 0;
+
     virtual const TGpuManagerPtr& GetGpuManager() const = 0;
 
     virtual const TSlotManagerPtr& GetSlotManager() const = 0;

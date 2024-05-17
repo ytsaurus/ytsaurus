@@ -559,6 +559,20 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("block_cache", &TThis::BlockCache)
+        .DefaultNew();
+    registrar.Parameter("meta_cache", &TThis::MetaCache)
+        .DefaultNew();
+    registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
+        .Default(0.8);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TGpuManagerTestingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("test_resource", &TThis::TestResource)
@@ -914,6 +928,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("chunk_cache", &TThis::ChunkCache)
+        .DefaultNew();
+
+    registrar.Parameter("job_input_cache", &TThis::JobInputCache)
         .DefaultNew();
 
     registrar.Parameter("nbd", &TThis::Nbd)

@@ -69,6 +69,7 @@ using namespace NTableChunkFormat;
 using namespace NYTree;
 using namespace NYson;
 
+using NControllerAgent::NProto::TJobSpecExt;
 using NChunkClient::NProto::TChunkSpec;
 
 using NYPath::TRichYPath;
@@ -883,6 +884,26 @@ void EnsureAnyValueEncoded(
     } else {
         ValidateValueType(*value, schema, id, /*typeAnyAcceptsAllValues*/ false, ignoreRequired);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
+    const TJobSpecExt& jobSpecExt,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory)
+{
+    std::vector<TTableSchemaPtr> schemas;
+    if (jobSpecExt.input_stream_schemas_size() > 0) {
+        for (const auto& schemaProto : jobSpecExt.input_stream_schemas()) {
+            DeserializeFromWireProto(&schemas.emplace_back(), schemaProto);
+        }
+    } else {
+        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+            schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
+        }
+    }
+
+    return schemas;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

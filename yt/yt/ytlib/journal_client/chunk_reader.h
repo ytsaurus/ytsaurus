@@ -20,6 +20,7 @@ namespace NYT::NJournalClient {
 
 NChunkClient::IChunkReaderPtr CreateChunkReader(
     TChunkReaderConfigPtr config,
+    NChunkClient::TRemoteReaderOptionsPtr remoteReaderOptions,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     NChunkClient::TChunkId chunkId,
     NErasure::ECodec codecId,

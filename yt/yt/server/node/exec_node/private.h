@@ -30,6 +30,9 @@ struct TControllerAgentDescriptor;
 inline const NLogging::TLogger ExecNodeLogger("ExecNode");
 inline const NProfiling::TProfiler ExecNodeProfiler("/exec_node");
 
+inline const NLogging::TLogger JobInputCacheLogger("JobInputCache");
+inline const NProfiling::TProfiler JobInputCacheProfiler = ExecNodeProfiler.WithPrefix("/job_input_cache");
+
 constexpr int TmpfsRemoveAttemptCount = 5;
 
 ////////////////////////////////////////////////////////////////////////////////

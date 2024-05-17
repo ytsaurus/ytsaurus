@@ -463,6 +463,26 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobInputCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
+    TSlruCacheDynamicConfigPtr MetaCache;
+
+    double FallbackTimeoutFraction;
+
+    REGISTER_YSON_STRUCT(TJobInputCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobInputCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGpuManagerTestingConfig
     : public NYTree::TYsonStruct
 {
@@ -804,6 +824,8 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
     TChunkCacheDynamicConfigPtr ChunkCache;
+
+    TJobInputCacheDynamicConfigPtr JobInputCache;
 
     // NB(yuryalekseev): At the moment dynamic NBD config is used only to create
     // NBD server during startup or to dynamically enable/disable creation of NBD volumes.

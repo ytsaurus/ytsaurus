@@ -197,6 +197,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_prober_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_workspace_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/job_input_cache.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/proxying_data_node_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/orchid.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/exec_node/scheduler_connector.cpp

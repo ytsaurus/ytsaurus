@@ -3864,3 +3864,164 @@ class TestPortoFuseDevice(YTEnvSetup):
         job_id = wait_breakpoint()[0]
 
         assert b"File: '/dev/fuse'" in get_job_stderr(op.id, job_id)
+
+
+##################################################################
+
+
+class TestJobInputCache(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 15
+
+    JOB_COUNT = 5
+
+    SORTED_SCHEMA = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "string"},
+    ]
+
+    UNSORTED_SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string"},
+    ]
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "memory_limits": {
+                "lookup_rows_cache": {
+                    "type": "static",
+                    "value": 0,
+                },
+                "block_cache": {
+                    "type": "static",
+                    "value": 0,
+                }
+            },
+            "tablet_static": {
+                "type": "static",
+                "value": 0,
+            }
+        },
+        "data_node": {
+            "p2p": {
+                "enabled": False,
+            },
+        },
+        "exec_node_is_not_data_node": True
+    }
+
+    DELTA_NODE_FLAVORS = [["data"] for _ in range(NUM_NODES)]
+    DELTA_NODE_FLAVORS[0] = ["exec"]
+    DELTA_NODE_FLAVORS[1] = ["data", "exec"]
+
+    def _set_config(self):
+        update_nodes_dynamic_config({
+            "data_node": {
+                "p2p": {
+                    "enabled": False,
+                },
+            },
+            "exec_node": {
+                "job_input_cache": {
+                    "enabled": True,
+                    "block_cache": {
+                        "compressed_data": {
+                            "capacity": 256 * 1024 * 1024
+                        }
+                    },
+                    "meta_cache": {
+                        "capacity": 256 * 1024 * 1024
+                    }
+                }
+            }
+        })
+
+    def _seed_counter(self, node, path):
+        return profiler_factory().at_node(node).counter(path)
+
+    def _seed_gauge(self, node, path):
+        return profiler_factory().at_node(node).gauge(path)
+
+    def _fill_table(self,
+                    table,
+                    replication_factor,
+                    erasure_codec,
+                    optimize_for,
+                    sort,
+                    compression_codec):
+        schema = self.SORTED_SCHEMA if sort else self.UNSORTED_SCHEMA
+
+        create("table", table, attributes={
+            "schema": schema,
+            "replication_factor": 1,
+            "erasure_codec": erasure_codec,
+            "optimize_for": optimize_for,
+            "compression_codec": compression_codec,
+        })
+
+        for key in range(self.JOB_COUNT):
+            rows = [{"key": key, "value": "value"}]
+            write_table("<append=%true>{}".format(table), rows)
+
+    def _run_job(self, node, sort, retry):
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_block_cache/limit".format(node)) == 256 * 1024 * 1024)
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_chunk_meta_cache/limit".format(node)) == 256 * 1024 * 1024)
+
+        hit_compressed_block_cache = self._seed_counter(node, "exec_node/job_input_cache/block_cache/compressed_data/hit_count")
+        missed_compressed_block_cache = self._seed_counter(node, "exec_node/job_input_cache/block_cache/compressed_data/missed_count")
+
+        hit_meta_cache = self._seed_counter(node, "exec_node/job_input_cache/meta_cache/hit_count")
+        missed_meta_cache = self._seed_counter(node, "exec_node/job_input_cache/meta_cache/missed_count")
+
+        block_compressed_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/block_cache/compressed_data/size")
+        meta_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/meta_cache/size")
+
+        map(
+            in_="<read_via_exec_node=%true>//tmp/input{}".format("[0:1,3:4]" if sort else ""),
+            out="//tmp/output",
+            command="cat",
+            spec={
+                "mapper": {
+                    "format": "json",
+                },
+                "data_weight_per_job": 1,
+                "max_failed_job_count": 1,
+                "scheduling_tag_filter": node
+            })
+
+        if not retry:
+            wait(lambda: missed_compressed_block_cache.get_delta() > 0)
+            wait(lambda: missed_meta_cache.get_delta() > 0)
+
+            wait(lambda: block_compressed_cache_size.get() > 0)
+            wait(lambda: meta_cache_size.get() > 0)
+
+            wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_block_cache/used".format(node)) > 0)
+            wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_chunk_meta_cache/used".format(node)) > 0)
+        else:
+            wait(lambda: hit_compressed_block_cache.get_delta() > 0)
+            wait(lambda: hit_meta_cache.get_delta() > 0)
+
+            wait(lambda: block_compressed_cache_size.get() > 0)
+            wait(lambda: meta_cache_size.get() > 0)
+
+    @pytest.mark.timeout(200)
+    @authors("don-dron")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("sort", [True, False])
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_reed_solomon_6_3"])
+    def test_job_input_cache(self, optimize_for, sort, erasure_codec):
+        self._set_config()
+
+        self._fill_table("//tmp/input", 1, erasure_codec, optimize_for, sort, "none")
+        self._fill_table("//tmp/output", 1, erasure_codec, optimize_for, sort, "none")
+
+        nodes_to_run = [
+            self.find_node_with_flavors(["exec"]),
+            self.find_node_with_flavors(["data", "exec"]),
+        ]
+
+        for node in nodes_to_run:
+            self._run_job(node, sort=sort, retry=False)
+            self._run_job(node, sort=sort, retry=True)

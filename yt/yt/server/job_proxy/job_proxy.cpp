@@ -13,6 +13,7 @@
 #include "shallow_merge_job.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
+#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
@@ -455,7 +456,9 @@ void TJobProxy::RetrieveJobSpec()
         Abort(EJobProxyExitCode::InvalidSpecVersion);
     }
 
-    JobSpecHelper_ = MaybePatchDataSourceDirectory(rsp->job_spec());
+    auto jobSpec = rsp->job_spec();
+    PatchProxiedChunkSpecs(&jobSpec);
+    JobSpecHelper_ = MaybePatchDataSourceDirectory(std::move(jobSpec));
 
     const auto& resourceUsage = rsp->resource_usage();
 

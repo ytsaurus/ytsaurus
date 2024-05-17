@@ -8,6 +8,7 @@ SRCS(
     job_report.cpp
     gpu_helpers.cpp
     helpers.cpp
+    proxying_data_node_service_helpers.cpp
 
     proto/supervisor_service.proto
 )

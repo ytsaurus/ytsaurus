@@ -1120,6 +1120,9 @@ public:
     std::optional<TString> CudaProfilerLayerPath;
     TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
+    //! Read input tables via exec node.
+    bool ReadViaExecNode;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

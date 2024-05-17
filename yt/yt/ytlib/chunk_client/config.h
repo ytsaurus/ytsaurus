@@ -43,6 +43,8 @@ public:
     //! Advertise current host as a P2P peer.
     bool EnableP2P;
 
+    bool UseProxyingDataNodeService;
+
     REGISTER_YSON_STRUCT(TRemoteReaderOptions);
 
     static void Register(TRegistrar registrar);

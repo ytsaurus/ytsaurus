@@ -18,6 +18,9 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/exec_node/job_input_cache.h>
+#include <yt/yt/server/node/exec_node/proxying_data_node_service.h>
+
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/ytree_integration.h>
 
@@ -142,6 +145,10 @@ public:
             }
         }
 
+        JobInputCache_ = CreateJobInputCache(this);
+
+        GetRpcServer()->RegisterService(CreateProxyingDataNodeService(this));
+
         GetRpcServer()->RegisterService(CreateJobProberService(this));
 
         GetRpcServer()->RegisterService(CreateSupervisorService(this));
@@ -209,6 +216,11 @@ public:
 
         ControllerAgentConnectorPool_->Start();
         DiskChangeChecker_->Start();
+    }
+
+    const TJobInputCachePtr& GetJobInputCache() const override
+    {
+        return JobInputCache_;
     }
 
     const TGpuManagerPtr& GetGpuManager() const override
@@ -285,6 +297,8 @@ private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
     const TActionQueuePtr DnsOverRpcActionQueue_ = New<TActionQueue>("DnsOverRpc");
+
+    TJobInputCachePtr JobInputCache_;
 
     TSlotManagerPtr SlotManager_;
 
@@ -396,6 +410,7 @@ private:
             }
         }
 
+        JobInputCache_->Reconfigure(newConfig->ExecNode->JobInputCache);
         JobController_->OnDynamicConfigChanged(
             oldConfig->ExecNode->JobController,
             newConfig->ExecNode->JobController);

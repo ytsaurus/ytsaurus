@@ -61,6 +61,8 @@ using TReadSessionId = NObjectClient::TObjectId;
 
 struct TSessionId;
 
+constexpr NRpc::TRealmId ProxyingDataNodeServiceRealmId = TGuid(0xd452d72f, 0x3142caa3);
+
 constexpr int DefaultPartIndex = -1;
 
 //! Estimated memory overhead per chunk reader.

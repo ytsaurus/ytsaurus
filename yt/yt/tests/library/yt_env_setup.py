@@ -258,6 +258,8 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_DROP_COLUMN = True
     ENABLE_TLS = False
 
+    DELTA_NODE_FLAVORS = []
+
     DELTA_DRIVER_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -437,6 +439,15 @@ class YTEnvSetup(object):
             return param_name
 
         return name
+
+    @classmethod
+    def find_node_with_flavors(self, required_flavors):
+        for node in yt_commands.get("//sys/cluster_nodes"):
+            flavors = yt_commands.get("//sys/cluster_nodes/{}/@flavors".format(node))
+            found = (sorted(flavors) == sorted(required_flavors))
+            if found:
+                return node
+        return None
 
     @classmethod
     def get_param(cls, name, cluster_index):
@@ -896,6 +907,10 @@ class YTEnvSetup(object):
 
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
+
+        nodeFlavorsLength = len(cls.DELTA_NODE_FLAVORS)
+        assert nodeFlavorsLength == 0 or cls.NUM_NODES == nodeFlavorsLength
+
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             if cls.USE_CUSTOM_ROOTFS:
@@ -914,6 +929,10 @@ class YTEnvSetup(object):
             })
 
             config = cls.update_timestamp_provider_config(cluster_index, config)
+
+            if nodeFlavorsLength != 0:
+                config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
+
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index], cluster_index)
 

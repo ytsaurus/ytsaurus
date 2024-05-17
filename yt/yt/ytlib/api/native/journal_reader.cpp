@@ -211,8 +211,11 @@ private:
                 auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
                 auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
+                YT_VERIFY(!chunkSpec.use_proxying_data_node_service());
+
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
+                    New<TRemoteReaderOptions>(),
                     TChunkReaderHost::FromClient(Client_),
                     chunkId,
                     codecId,

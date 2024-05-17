@@ -28,34 +28,14 @@ class TestNodeFlavors(YTEnvSetup):
         },
     }
 
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        node_flavors = [
-            ["data"],
-            ["exec"],
-            ["tablet"],
-            ["data", "exec"],
-            ["data", "tablet"],
-            ["exec", "tablet"],
-        ]
-
-        if not hasattr(cls, "node_counter"):
-            cls.node_counter = 0
-        config["flavors"] = node_flavors[cls.node_counter]
-        cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
-
-    def _find_node_with_flavors(self, required_flavors):
-        for node in get("//sys/cluster_nodes"):
-            flavors = get("//sys/cluster_nodes/{}/@flavors".format(node))
-            found = True
-            for flavor in required_flavors:
-                if flavor not in flavors:
-                    found = False
-                    break
-
-            if found:
-                return node
-        return None
+    DELTA_NODE_FLAVORS = [
+        ["data"],
+        ["exec"],
+        ["tablet"],
+        ["data", "exec"],
+        ["data", "tablet"],
+        ["exec", "tablet"],
+    ]
 
     @authors("gritukan")
     def test_data_nodes(self):
@@ -118,7 +98,7 @@ class TestNodeFlavors(YTEnvSetup):
 
     @authors("gritukan")
     def test_ban_multi_flavor_node(self):
-        node = self._find_node_with_flavors(["data", "exec"])
+        node = self.find_node_with_flavors(["data", "exec"])
         assert node is not None
 
         def check_banned(expected):

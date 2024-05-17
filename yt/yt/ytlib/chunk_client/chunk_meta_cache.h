@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,6 +41,8 @@ struct IClientChunkMetaCache
         TChunkId chunkId,
         const std::optional<std::vector<int>>& extensionTags,
         const TMetaFetchCallback& metaFetchCallback) = 0;
+
+    virtual void Reconfigure(const TSlruCacheDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientChunkMetaCache)
@@ -47,6 +51,7 @@ DEFINE_REFCOUNTED_TYPE(IClientChunkMetaCache)
 
 IClientChunkMetaCachePtr CreateClientChunkMetaCache(
     TClientChunkMetaCacheConfigPtr config,
+    IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker(),
     NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////

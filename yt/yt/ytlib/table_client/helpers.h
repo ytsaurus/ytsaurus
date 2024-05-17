@@ -235,6 +235,12 @@ void EnsureAnyValueEncoded(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
+    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_

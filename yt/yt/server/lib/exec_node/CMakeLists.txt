@@ -60,6 +60,7 @@ target_sources(server-lib-exec_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/job_report.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/gpu_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.cpp
 )
 
 target_proto_addincls(server-lib-exec_node
