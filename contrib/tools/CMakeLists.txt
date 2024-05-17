@@ -12,6 +12,5 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build
 # system may be rejected.
 
-add_subdirectory(bison)
 add_subdirectory(flatc)
 add_subdirectory(protoc)

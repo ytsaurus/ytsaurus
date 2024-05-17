@@ -33,7 +33,7 @@ target_link_libraries(library-query-base PUBLIC
   yt-yt-client
   library-query-misc
   library-query-proto
-  tools-bison-induced
+  build-induced-by_bison
 )
 
 target_sources(library-query-base PRIVATE

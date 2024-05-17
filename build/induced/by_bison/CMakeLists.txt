@@ -12,10 +12,11 @@
 # by maintainers. Any complex modifications which can't be easily ported back to the ya build
 # system may be rejected.
 
-add_subdirectory(library)
-add_subdirectory(contrib)
-add_subdirectory(util)
-add_subdirectory(tools)
-add_subdirectory(yt)
-add_subdirectory(certs)
-add_subdirectory(build)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(build-induced-by_bison INTERFACE)
+
+target_link_libraries(build-induced-by_bison INTERFACE
+  linux-headers-generic::linux-headers-generic
+)
+
