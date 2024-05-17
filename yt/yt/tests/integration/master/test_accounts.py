@@ -10,7 +10,7 @@ from yt_commands import (
     create_dynamic_table, get_chunk_owner_disk_space, cluster_resources_equal, master_memory_sleep,
     assert_true_for_all_cells, wait_true_for_all_cells, gc_collect, get_driver, raises_yt_error,
     get_active_primary_master_leader_address, start_transaction, abort_transaction, commit_transaction,
-    get_currently_active_pirmary_master_follower_addresses)
+    get_currently_active_pirmary_master_follower_addresses, print_debug)
 
 from yt.yson import to_yson_type, YsonEntity
 from yt.common import YtError
@@ -4705,6 +4705,20 @@ class TestAccountsProfiling(YTEnvSetup):
             self._check_profiler_values(follower_profiler, gauge_name, False)
         for profiler in secondary_profilers:
             self._check_profiler_values(profiler, gauge_name, False)
+
+        chunk_count_limtis_old = leader_profiler.gauge("accounts/chunk_count_limit").get_all()
+
+        for i in range(10):
+            create_account(f"achulkov2_test_{i}")
+
+        sleep(5)
+
+        chunk_count_limits_new = leader_profiler.gauge("accounts/chunk_count_limit").get_all()
+
+        for old_sensor in chunk_count_limtis_old:
+            for new_sensor in chunk_count_limits_new:
+                if new_sensor["tags"].get("account", "-") == old_sensor["tags"].get("account", "-") and new_sensor["value"] != old_sensor["value"]:
+                    print_debug(f"Limit for account {old_sensor['tags'].get('account', '-')} increased from {old_sensor['value']} to {new_sensor['value']}")
 
         set("//sys/@config/security_manager/enable_accounts_profiling", False)
         # Check that nobody is reporting now.
