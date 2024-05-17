@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import enum
 
 from yt.common import YtError
@@ -340,23 +338,6 @@ def write_and_read_primitive(py_type, ti_type, value, mode):
         return rows[0]["field"]
     else:
         assert False, "Unsupported mode {}".format(mode)
-
-
-# typing.get_type_hints requires that all types be available in the global scope
-@yt.yt_enum(ti.Int32)
-class CustomIntEnum(enum.IntEnum):
-    A = 1
-    B = 2
-    C = 3
-    D = 4
-
-
-@yt.yt_enum(ti.Utf8)
-class CustomStrEnum(enum.StrEnum):
-    A = "a"
-    B = "b"
-    C = "c"
-    D = "d"
 
 
 @pytest.mark.usefixtures("yt_env_v4")
@@ -1363,6 +1344,20 @@ class TestTypedApi(object):
 
     @authors("thenno")
     def test_enum(self):
+        @yt.yt_enum(ti.Int32)
+        class CustomIntEnum(enum.IntEnum):
+            A = 1
+            B = 2
+            C = 3
+            D = 4
+
+        @yt.yt_enum(ti.Utf8)
+        class CustomStrEnum(enum.StrEnum):
+            A = "a"
+            B = "b"
+            C = "c"
+            D = "d"
+
         @yt_dataclass
         class RowWithEnum:
             # int
