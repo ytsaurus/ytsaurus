@@ -1,23 +1,64 @@
 from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import (
-    authors, create, ls, get, set, copy, move, remove, create_domestic_medium,
-    exists, multiset_attributes, create_account,
-    create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member, remove_group, remove_user, start_transaction, lock,
-    read_table, write_table, alter_table,
-    map, set_account_disk_space_limit, raises_yt_error,
-    gc_collect, build_snapshot,
-    create_access_control_object_namespace, create_access_control_object,)
+    authors, create, ls, get, set, copy, move, remove, create_domestic_medium, exists, multiset_attributes,
+    create_account, create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member,
+    remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
+    set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
+    create_access_control_object, get_active_primary_master_leader_address,
+)
 
 from yt_type_helpers import make_schema
 
-from yt_helpers import skip_if_renaming_disabled
+from yt_helpers import skip_if_renaming_disabled, profiler_factory
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
 import pytest
+
+##################################################################
+
+
+class TestCheckPermissionProfiling(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    @authors("h0pless")
+    def test_check_permission_profilers(self):
+        create_user("grudgebearer")
+        resulting_acl = [make_ace("allow", "grudgebearer", ["administer", "read", "write", "create"])]
+        for i in range(1, 5):
+            create_user(f"elf{i}")
+            resulting_acl.append(make_ace("deny", f"elf{i}", ["administer", "read", "write", "create"]))
+            create_user(f"human{i}")
+            resulting_acl.append(make_ace("deny", f"human{i}", ["administer", "read", "write", "create"]))
+            create_user(f"dwarf{i}")
+            resulting_acl.append(make_ace("allow", f"dwarf{i}", ["read", "write"]))
+
+        create(
+            "map_node",
+            "//tmp/grudges",
+            attributes={
+                "acl": resulting_acl,
+            },
+        )
+
+        for grudge_counter in range(1, 50):
+            create(
+                "map_node",
+                f"//tmp/grudges/grudge_{grudge_counter}",
+                authenticated_user="grudgebearer",
+            )
+
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+        check_permission_time = profiler.counter("permission_validation/check_permission_wall_time").get()
+        assert check_permission_time != 0
+        acl_iteration_time = profiler.counter("permission_validation/acl_iteration_wall_time").get()
+        assert acl_iteration_time != 0
+
 
 ##################################################################
 
@@ -1720,6 +1761,37 @@ class TestCypressAcls(CheckPermissionBase):
                 authenticated_user="u",
             )
 
+    @authors("h0pless")
+    def test_fix_attribute_based_access_control(self):
+        create_user("smoothie_lover")
+        set("//sys/users/smoothie_lover/@tags", ['smoothie'])
+
+        create(
+            "map_node",
+            "//tmp/smoothie_discussion",
+            attributes={
+                "acl": [
+                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!smoothie"),
+                ],
+            },
+        )
+
+        set("//sys/@config/security_manager/fix_subject_tag_filter_iterator_never_skipping_first_ace", False)
+        # Trying to evaluate rule "deny" for "everyone" even though filter is not satisfied for user.
+        with pytest.raises(YtError, match="Access denied for user"):
+            create(
+                "table",
+                "//tmp/smoothie_discussion/topic",
+                authenticated_user="smoothie_lover",
+            )
+
+        set("//sys/@config/security_manager/fix_subject_tag_filter_iterator_never_skipping_first_ace", True)
+        create(
+            "table",
+            "//tmp/smoothie_discussion/topic",
+            authenticated_user="smoothie_lover",
+        )
+
     @authors("vovamelnikov")
     def test_user_tags_limits(self):
         create_user("u")
@@ -1749,6 +1821,58 @@ class TestCypressAcls(CheckPermissionBase):
 
         with pytest.raises(YtError, match="tag filter size limit exceeded"):
             set("//tmp/dir/@acl/0/subject_tag_filter", "&".join([f"tag_{i}" for i in range(10)]))
+
+    @authors("h0pless")
+    def test_disable_subject_tag_filters(self):
+        create_user("George50")
+        set("//sys/users/George50/@tags", ['cool', 'lonely'])
+
+        create(
+            "map_node",
+            "//tmp/cool_dir",
+            attributes={
+                "acl": [
+                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="cool"),
+                    make_ace("deny", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!lonely"),
+                ],
+            },
+        )
+        create(
+            "map_node",
+            "//tmp/uncool_dir",
+            attributes={
+                "acl": [
+                    make_ace("allow", "everyone", ["administer", "read", "write", "create"], subject_tag_filter="!cool"),
+                ],
+            },
+        )
+        set("//tmp/cool_dir/@inherit_acl", False)
+        set("//tmp/uncool_dir/@inherit_acl", False)
+
+        # Subject tag filter is active.
+        create(
+            "table",
+            "//tmp/cool_dir/cool_table",
+            authenticated_user="George50",
+        )
+        with pytest.raises(YtError, match="Access denied for user"):
+            create(
+                "table",
+                "//tmp/uncool_dir/cool_table",
+                authenticated_user="George50",
+            )
+
+        set("//sys/@config/security_manager/enable_subject_tag_filters", False)
+        create(
+            "table",
+            "//tmp/cool_dir/anohter_cool_table",
+            authenticated_user="George50",
+        )
+        create(
+            "table",
+            "//tmp/uncool_dir/another_cool_table",
+            authenticated_user="George50",
+        )
 
 
 ##################################################################

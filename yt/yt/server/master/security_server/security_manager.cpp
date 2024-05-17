@@ -554,6 +554,14 @@ public:
                 .WithDefaultDisabled()
                 .AddProducer("", producer);
         }
+
+        auto perCellPermissionValidationProfiler = PermissionValidationProfiler
+            .WithSparse()
+            .WithDefaultDisabled();
+        CheckPermissionTimer_ = perCellPermissionValidationProfiler
+            .Timer("/check_permission_wall_time");
+        AclIterationTimer_ = perCellPermissionValidationProfiler
+            .Timer("/acl_iteration_wall_time");
     }
 
     void OnAccountsProfiling()
@@ -2136,6 +2144,8 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
+        TWallTimer checkPermissionTimer;
+
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG("Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
@@ -2160,10 +2170,15 @@ public:
 
         auto* owner = GetObjectOwner(object, options.FirstObjectAcdOverride.Owner());
 
+        auto dynamicConfig = GetDynamicConfig();
+        auto* userTags = dynamicConfig->EnableSubjectTagFilters ? &user->Tags() : nullptr;
+
+        TWallTimer aclIterationTimer;
         TTagFilteringAceIterator aceIter(
             Bootstrap_->GetObjectManager().Get(),
             object,
-            &user->Tags(),
+            /*alwaysEvaluateFirstElement*/ !dynamicConfig->FixSubjectTagFilterIteratorNeverSkippingFirstAce,
+            userTags,
             std::move(options.FirstObjectAcdOverride));
         auto aceEndIter = TTagFilteringAceIterator();
 
@@ -2182,6 +2197,7 @@ public:
                 break;
             }
         }
+        AclIterationTimer_.Record(aclIterationTimer.GetElapsedTime());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2200,6 +2216,7 @@ public:
                 currentDepth);
         }
 
+        CheckPermissionTimer_.Record(checkPermissionTimer.GetElapsedTime());
         return checker.GetResponse();
     }
 
@@ -2855,6 +2872,9 @@ private:
     bool RecomputeAccountRefCounters_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
+
+    TEventTimer CheckPermissionTimer_;
+    TEventTimer AclIterationTimer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

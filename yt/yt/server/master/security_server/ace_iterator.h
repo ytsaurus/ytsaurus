@@ -191,10 +191,11 @@ public:
     TTagFilteringAceIterator(
         const NObjectServer::IObjectManager* objectManager,
         NObjectServer::TObject* object,
+        bool alwaysEvaluateFirstElement,
         const TBooleanFormulaTags* tags = nullptr,
         TAcdOverride firstObjectAcdOverride = {});
 
-    //! Constructs and end iterator.
+    //! Constructs an end iterator.
     TTagFilteringAceIterator() = default;
 
     TTagFilteringAceIterator& operator++();
@@ -206,6 +207,10 @@ public:
     EAceIteratorStopCause GetStopCause() const;
 
 private:
+    bool ShouldAdvance() const;
+
+    void Advance();
+
     const TBooleanFormulaTags* const Tags_ = nullptr;
     TAceIterator Underlying_;
 };
