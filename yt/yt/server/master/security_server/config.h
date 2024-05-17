@@ -68,6 +68,12 @@ public:
     //! COMPAT(cherepashka)
     bool DisableUpdateUserLastSeen;
 
+    // COMPAT(h0pless): This is a flag that makes the related commit rollable. See ace_iterator.cpp.
+    bool FixSubjectTagFilterIteratorNeverSkippingFirstAce;
+
+    // This is a panic button.
+    bool EnableSubjectTagFilters;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);
