@@ -150,21 +150,17 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    IClientPtr Get(const TString& cluster)
+    IClientPtr Get(const TString& clusterName)
     {
-        if (const auto& client = Clients_[cluster]; client) {
+        if (const auto& client = Clients_[clusterName]; client) {
             return client;
         }
 
         auto localConnection = Bootstrap_->GetClient()->GetNativeConnection();
-        auto foreignConnection = localConnection->GetClusterDirectory()->FindConnection(cluster);
-        if (!foreignConnection) {
-            THROW_ERROR_EXCEPTION("Cluster %Qv is not known", cluster);
-        }
-
+        auto foreignConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
         // TODO(capone212): Use separate user name NSecurityClient::BundleControllerUserName
         auto client = foreignConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
-        Clients_[cluster] = client;
+        Clients_[clusterName] = client;
 
         return client;
     }
@@ -282,10 +278,10 @@ private:
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
                 LinkOrchidService();
                 LinkBundleControllerService();
-                DoScanBundles();
+                DoScanTabletBundles();
                 SuccessfulScanBundleCounter_.Increment();
             }
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Scanning tablet cell bundles failed");
             FailedScanBundleCounter_.Increment();
         }
@@ -295,7 +291,7 @@ private:
     {
         try {
             DoScanChaosBundles();
-        } catch (const TErrorException& ex) {
+        } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Scanning chaos cell bundles failed");
             FailedScanBundleCounter_.Increment();
         }
@@ -413,7 +409,7 @@ private:
         return result;
     }
 
-    void DoScanBundles() const
+    void DoScanTabletBundles() const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 

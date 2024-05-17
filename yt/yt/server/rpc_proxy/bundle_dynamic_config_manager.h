@@ -10,9 +10,10 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBundleDynamicConfigManager
+class IBundleDynamicConfigManager
     : public NDynamicConfig::TDynamicConfigManagerBase<TBundleProxyDynamicConfig>
 {
+public:
     using TDynamicConfigManagerBase<TBundleProxyDynamicConfig>::TDynamicConfigManagerBase;
 
     virtual void Initialize() = 0;

@@ -13,9 +13,9 @@ DECLARE_REFCOUNTED_CLASS(TAccessCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TAccessCheckerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleProxyDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(IBundleDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(IDynamicConfigManager)
-DECLARE_REFCOUNTED_STRUCT(IBundleDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
