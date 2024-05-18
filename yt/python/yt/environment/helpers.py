@@ -395,6 +395,7 @@ MASTER_CACHES_SERVICE = "master_caches"
 QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
 HTTP_PROXIES_SERVICE = "http_proxies"
+KAFKA_PROXIES_SERVICE = "kafka_proxies"
 
 
 class Restarter(object):

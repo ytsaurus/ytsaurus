@@ -7,6 +7,7 @@ PEERDIR(
     ${YT_TESTS_ROOT}/cypress
     ${YT_TESTS_ROOT}/dynamic_tables
     ${YT_TESTS_ROOT}/formats
+    ${YT_TESTS_ROOT}/kafka
     ${YT_TESTS_ROOT}/master
     ${YT_TESTS_ROOT}/misc
     ${YT_TESTS_ROOT}/node
@@ -29,7 +30,7 @@ RECURSE(
     fake_blackbox
     yt_cli
 )
-    
+
 IF (NOT OPENSOURCE)
     RECURSE(
         compat

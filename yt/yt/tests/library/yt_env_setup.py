@@ -30,6 +30,7 @@ from yt.environment.helpers import (  # noqa
     QUEUE_AGENTS_SERVICE,
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
+    KAFKA_PROXIES_SERVICE,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -248,6 +249,7 @@ class YTEnvSetup(object):
     NUM_CELL_BALANCERS = 0
     ENABLE_BUNDLE_CONTROLLER = False
     NUM_QUEUE_AGENTS = 0
+    NUM_KAFKA_PROXIES = 0
     NUM_TABLET_BALANCERS = 0
     NUM_CYPRESS_PROXIES = 0
     NUM_REPLICATED_TABLE_TRACKERS = 0
@@ -285,6 +287,7 @@ class YTEnvSetup(object):
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
     DELTA_QUEUE_AGENT_CONFIG = {}
+    DELTA_KAFKA_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_CONFIG = {}
 
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
@@ -361,6 +364,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_queue_agent_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_kafka_proxy_config(cls, config):
         pass
 
     @classmethod
@@ -508,6 +515,7 @@ class YTEnvSetup(object):
             enable_bundle_controller=cls.get_param("ENABLE_BUNDLE_CONTROLLER", index),
             discovery_server_count=cls.get_param("NUM_DISCOVERY_SERVERS", index),
             queue_agent_count=cls.get_param("NUM_QUEUE_AGENTS", index),
+            kafka_proxy_count=cls.get_param("NUM_KAFKA_PROXIES", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             chaos_node_count=cls.get_param("NUM_CHAOS_NODES", index),
@@ -866,6 +874,10 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
             configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_queue_agent_config(configs["queue_agent"][index])
+        for index, config in enumerate(configs["kafka_proxy"]):
+            config = update_inplace(config, cls.get_param("DELTA_KAFKA_PROXY_CONFIG", cluster_index))
+            configs["kafka_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_kafka_proxy_config(configs["kafka_proxy"][index])
         for index, config in enumerate(configs["cell_balancer"]):
             config = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
             configs["cell_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
@@ -1887,4 +1899,5 @@ def get_service_component_name(service):
         QUEUE_AGENTS_SERVICE: "queue-agent",
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",
+        KAFKA_PROXIES_SERVICE: "kafka-proxy",
     }[service]

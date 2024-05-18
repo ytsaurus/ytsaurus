@@ -40,6 +40,7 @@ ALL_COMPONENTS = [
     "queue-agent",
     "cypress-proxy",
     "query-tracker",
+    "kafka-proxy",
     "replicated-table-tracker",
 ]
 

@@ -22,6 +22,7 @@ PEERDIR(
     yt/yt/server/exec
     yt/yt/server/http_proxy
     yt/yt/server/job_proxy
+    yt/yt/server/kafka_proxy
     yt/yt/server/log_tailer
     yt/yt/server/master
     yt/yt/server/master_cache

@@ -1,0 +1,49 @@
+Metadata-Version: 2.1
+Name: confluent-kafka
+Version: 2.3.0
+Summary: Confluent's Python client for Apache Kafka
+Home-page: https://github.com/confluentinc/confluent-kafka-python
+Author: Confluent Inc
+Author-email: support@confluent.io
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+License-File: LICENSE.txt
+Requires-Dist: futures ; python_version < "3.2"
+Requires-Dist: enum34 ; python_version < "3.4"
+Provides-Extra: avro
+Requires-Dist: avro <2,>=1.11.1 ; extra == 'avro'
+Requires-Dist: requests ; extra == 'avro'
+Requires-Dist: fastavro <1.0,>=0.23.0 ; (python_version < "3.0") and extra == 'avro'
+Requires-Dist: fastavro >=1.0 ; (python_version > "3.0") and extra == 'avro'
+Provides-Extra: dev
+Requires-Dist: pytest-timeout ; extra == 'dev'
+Requires-Dist: flake8 ; extra == 'dev'
+Requires-Dist: avro <2,>=1.11.1 ; extra == 'dev'
+Requires-Dist: requests ; extra == 'dev'
+Requires-Dist: pytest ==4.6.4 ; (python_version < "3.0") and extra == 'dev'
+Requires-Dist: fastavro <1.0,>=0.23.0 ; (python_version < "3.0") and extra == 'dev'
+Requires-Dist: fastavro >=1.0 ; (python_version > "3.0") and extra == 'dev'
+Requires-Dist: pytest ; (python_version >= "3.0") and extra == 'dev'
+Provides-Extra: doc
+Requires-Dist: sphinx ; extra == 'doc'
+Requires-Dist: sphinx-rtd-theme ; extra == 'doc'
+Requires-Dist: avro <2,>=1.11.1 ; extra == 'doc'
+Requires-Dist: requests ; extra == 'doc'
+Requires-Dist: fastavro <1.0,>=0.23.0 ; (python_version < "3.0") and extra == 'doc'
+Requires-Dist: fastavro >=1.0 ; (python_version > "3.0") and extra == 'doc'
+Provides-Extra: json
+Requires-Dist: jsonschema ; extra == 'json'
+Requires-Dist: requests ; extra == 'json'
+Requires-Dist: pyrsistent ==0.16.1 ; (python_version < "3.0") and extra == 'json'
+Requires-Dist: pyrsistent ; (python_version > "3.0") and extra == 'json'
+Provides-Extra: protobuf
+Requires-Dist: protobuf ; extra == 'protobuf'
+Requires-Dist: requests ; extra == 'protobuf'
+Provides-Extra: schema-registry
+Requires-Dist: requests ; extra == 'schema-registry'
+

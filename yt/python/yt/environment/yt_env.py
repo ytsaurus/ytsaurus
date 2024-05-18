@@ -98,7 +98,7 @@ def _get_yt_versions(custom_paths):
                 "ytserver-http-proxy", "ytserver-proxy", "ytserver-job-proxy",
                 "ytserver-clock", "ytserver-discovery", "ytserver-cell-balancer",
                 "ytserver-exec", "ytserver-tools", "ytserver-timestamp-provider", "ytserver-master-cache",
-                "ytserver-tablet-balancer", "ytserver-replicated-table-tracker"]
+                "ytserver-tablet-balancer", "ytserver-replicated-table-tracker", "ytserver-kafka-proxy", "ytserver-queue-agent"]
 
     binary_paths = [(name, _get_yt_binary_path(name, custom_paths=custom_paths)) for name in binaries]
 
@@ -208,7 +208,7 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker", "queue-agent"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -319,6 +319,7 @@ class YTInstance(object):
                 "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
                 "queue_agent": self._make_service_dirs("queue_agent", self.yt_config.queue_agent_count),
+                "kafka_proxy": self._make_service_dirs("kafka_proxy", self.yt_config.kafka_proxy_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count),
                 "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count),
                 "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count),
@@ -406,6 +407,7 @@ class YTInstance(object):
             ("ytserver-cell-balancer", "cell balancers", self.yt_config.cell_balancer_count),
             (None, "secondary cells", self.yt_config.secondary_cell_count),
             ("ytserver-queue-agent", "queue agents", self.yt_config.queue_agent_count),
+            ("ytserver-kafka-proxy", "kafka proxies", self.yt_config.kafka_proxy_count),
             ("ytserver-tablet-balancer", "tablet balancers", self.yt_config.tablet_balancer_count),
             ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
             ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count),
@@ -467,6 +469,8 @@ class YTInstance(object):
             self._prepare_cell_balancers(cluster_configuration["cell_balancer"])
         if self.yt_config.queue_agent_count > 0:
             self._prepare_queue_agents(cluster_configuration["queue_agent"])
+        if self.yt_config.kafka_proxy_count > 0:
+            self._prepare_kafka_proxies(cluster_configuration["kafka_proxy"])
         if self.yt_config.tablet_balancer_count > 0:
             self._prepare_tablet_balancers(cluster_configuration["tablet_balancer"])
         if self.yt_config.cypress_proxy_count > 0:
@@ -548,6 +552,9 @@ class YTInstance(object):
             if self.yt_config.queue_agent_count > 0:
                 self.start_queue_agents(sync=False)
 
+            if self.yt_config.kafka_proxy_count > 0:
+                self.start_kafka_proxy(sync=False)
+
             if self.yt_config.tablet_balancer_count > 0:
                 self.start_tablet_balancers(sync=False)
 
@@ -579,6 +586,8 @@ class YTInstance(object):
             queue_agent_dynamic_config = None
             if self.yt_config.queue_agent_count > 0:
                 queue_agent_dynamic_config = self._apply_queue_agent_dynamic_config(client)
+
+            # TODO(nadya73): fill kafka proxy dynamic config.
 
             if self.yt_config.node_count > 0 and not self.yt_config.defer_node_start:
                 self.start_nodes(sync=False)
@@ -618,6 +627,7 @@ class YTInstance(object):
             self._wait_for_dynamic_config_update(patched_node_config, client)
             if queue_agent_dynamic_config is not None:
                 self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
+            # TODO(nadya73): update kafka proxy dynamic config
             self._write_environment_info_to_file()
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
@@ -643,7 +653,7 @@ class YTInstance(object):
 
         for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
                      "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
-                     "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent"]:
+                     "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -728,6 +738,15 @@ class YTInstance(object):
 
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, port_path, "http_proxy"))
                 for config in self.configs["http_proxy"]]
+
+    def get_kafka_proxy_address(self):
+        return self.get_kafka_proxy_addresses()[0]
+
+    def get_kafka_proxy_addresses(self):
+        if self.yt_config.kafka_proxy_count == 0:
+            raise YtError("Kafka proxies are not started")
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "kafkaproxy"))
+                for config in self.configs["kafka_proxy"]]
 
     def get_rpc_proxy_address(self, tvm_only=False):
         return self.get_rpc_proxy_addresses(tvm_only=tvm_only)[0]
@@ -844,6 +863,9 @@ class YTInstance(object):
 
     def kill_queue_agents(self, indexes=None):
         self.kill_service("queue_agent", indexes=indexes)
+
+    def kill_kafka_proxies(self, indexes=None):
+        self.kill_service("kafka_proxy", indexes=indexes)
 
     def kill_tablet_balancers(self, indexes=None):
         self.kill_service("tablet_balancer", indexes=indexes)
@@ -1846,6 +1868,24 @@ class YTInstance(object):
         self.configs["driver_logging"] = config
         self.config_paths["driver_logging"] = config_path
 
+    def _prepare_kafka_proxies(self, kafka_proxy_configs, force_overwrite=False):
+        self.configs["kafka_proxy"] = []
+        self.config_paths["kafka_proxy"] = []
+
+        for i in xrange(self.yt_config.kafka_proxy_count):
+            config_path = os.path.join(self.configs_path, "kafka-proxy-{}.yson".format(i))
+            if self._load_existing_environment and not force_overwrite:
+                if not os.path.isfile(config_path):
+                    raise YtError("Kafka proxy config {0} not found".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = kafka_proxy_configs[i]
+                write_config(config, config_path)
+
+            self.configs["kafka_proxy"].append(config)
+            self.config_paths["kafka_proxy"].append(config_path)
+            self._service_processes["kafka_proxy"].append(None)
+
     def _prepare_http_proxies(self, proxy_configs, force_overwrite=False):
         self.configs["http_proxy"] = []
         self.config_paths["http_proxy"] = []
@@ -1911,6 +1951,16 @@ class YTInstance(object):
             return True
 
         self._wait_or_skip(lambda: self._wait_for(proxy_ready, "http_proxy"), sync)
+
+    def start_kafka_proxy(self, sync=True):
+        self._run_builtin_yt_component("kafka-proxy", name="kafka_proxy")
+
+        def proxy_ready():
+            self._validate_processes_are_running("kafka_proxy")
+            # TODO(nadya73): add wait condition.
+            return True
+
+        self._wait_or_skip(lambda: self._wait_for(proxy_ready, "kafka_proxy"), sync)
 
     def start_rpc_proxy(self, sync=True):
         self._run_builtin_yt_component("proxy", name="rpc_proxy")

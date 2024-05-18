@@ -12,6 +12,7 @@ RECURSE(
     controller_agent
     http_proxy
     job_proxy
+    kafka_proxy
     queue_agent
     query_tracker
     rpc_proxy

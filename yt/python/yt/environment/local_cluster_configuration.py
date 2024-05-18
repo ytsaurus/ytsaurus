@@ -297,6 +297,10 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if yt_config.delta_queue_agent_config:
             update_inplace(config, yt_config.delta_queue_agent_config)
 
+    for config in cluster_configuration["kafka_proxy"]:
+        if yt_config.delta_kafka_proxy_config:
+            update_inplace(config, yt_config.delta_kafka_proxy_config)
+
     for config in cluster_configuration["node"]:
         if yt_config.optimize_config:
             for patch in NODE_CONFIG_PATCHES:

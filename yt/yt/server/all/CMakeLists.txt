@@ -36,6 +36,7 @@ target_link_libraries(ytserver-all PUBLIC
   yt-server-exec
   yt-server-http_proxy
   yt-server-job_proxy
+  yt-server-kafka_proxy
   yt-server-log_tailer
   yt-server-master
   yt-server-master_cache

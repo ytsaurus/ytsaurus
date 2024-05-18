@@ -225,6 +225,9 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/packet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/protocol.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/zookeeper/requests.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/packet.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/protocol.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/kafka/requests.cpp
 )
 
 configure_file(

@@ -17,7 +17,7 @@ import errno
 
 DESCRIPTION = """Command-line utility to work with local YT instances."""
 
-SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher", "queue-agent")
+SERVICE_LIST = ("master", "node", "scheduler", "controller-agent", "proxy", "rpc-proxy", "watcher", "queue-agent", "kafka-proxy")
 
 logger = logging.getLogger("YtLocal")
 
@@ -154,6 +154,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers")
     parser.add_argument("--master-cache-count", type=int, default=0, help="number of master caches")
     parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents")
+    parser.add_argument("--kafka-proxy-count", type=int, default=0, help="number of kafka proxies")
     parser.add_argument("--discovery-server-count", type=int, default=0, help="number of discovery servers")
 
     for service in SERVICE_LIST:
@@ -229,7 +230,7 @@ def add_start_subparser(subparsers):
     parser.add_argument("--cell-tag", type=int, default=1,
                         help="cluster cell tag")
 
-    parser.add_argument("--job-proxy-logging-mode", choices=["simple", "per_job_directory"], default="simple", 
+    parser.add_argument("--job-proxy-logging-mode", choices=["simple", "per_job_directory"], default="simple",
                         help="job proxy logging mode")
 
     parser.add_argument("--ytserver-all-path",

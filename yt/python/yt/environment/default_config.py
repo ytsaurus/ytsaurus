@@ -855,6 +855,16 @@ def get_queue_agent_config():
 """)
 
 
+def get_kafka_proxy_config():
+    return yson.loads(b"""
+{
+    dynamic_config_manager = {
+        update_period = 100;
+    };
+}
+""")
+
+
 def get_dynamic_queue_agent_config(yt_config):
     return yson.loads(b"""
 {
