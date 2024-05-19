@@ -2418,7 +2418,7 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
 
     // The non-native API via SelectRows checks permissions on its own.
     if (checkPermissions && options.UseNativeTabletNodeApi) {
-        CheckReadPermission(tableInfo, Options_, Connection_);
+        CheckReadPermission(queuePath.GetPath(), tableInfo, Options_, Connection_);
     }
 
     // The code below is used to facilitate reading from [chaos] replicated tables and
@@ -2632,7 +2632,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     tableInfo->ValidateOrdered();
 
     if (checkPermissions) {
-        CheckReadPermission(tableInfo, Options_, Connection_);
+        CheckReadPermission(queuePath.GetPath(), tableInfo, Options_, Connection_);
     }
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
@@ -2681,7 +2681,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
         .ValueOrThrow();
 
-    CheckReadPermission(tableInfo, Options_, Connection_);
+    CheckReadPermission(consumerPath.GetPath(), tableInfo, Options_, Connection_);
 
     auto registrationCheckResult = Connection_->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
 
@@ -2718,8 +2718,8 @@ IQueueRowsetPtr TClient::DoPullConsumer(
                 partitionIndex,
                 consumerPath,
                 queuePath
-
             );
+
             THROW_ERROR_EXCEPTION(
                 "Failed to calculate current offset for consumer %v for queue %v",
                 consumerPath,

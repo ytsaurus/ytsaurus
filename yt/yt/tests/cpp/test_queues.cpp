@@ -310,6 +310,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
         auto rowsetOrError = WaitFor(userClient->PullQueue(queue->GetPath(), 0, 0, {}));
         EXPECT_FALSE(rowsetOrError.IsOK());
         EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+        EXPECT_TRUE(ToString(rowsetOrError).Contains("No read permission for //tmp/queue"));
 
         WaitFor(Client_->SetNode(
             queue->GetPath() + "/@acl/end",
@@ -364,6 +365,7 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     auto rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+    EXPECT_TRUE(ToString(rowsetOrError).Contains("No read permission for //tmp/consumer"));
 
     WaitFor(Client_->SetNode(
         consumer->GetPath() + "/@acl/end",

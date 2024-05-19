@@ -216,6 +216,7 @@ TError MakeRevivalError(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckReadPermission(
+    const NYPath::TYPath& path,
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
@@ -227,7 +228,7 @@ void CheckReadPermission(
     };
     const auto& permissionCache = connection->GetPermissionCache();
     WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError();
+        .ThrowOnError("No read permission for %v", path);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

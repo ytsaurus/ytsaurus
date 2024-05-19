@@ -356,7 +356,7 @@ public:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
             .ValueOrThrow();
 
-        CheckReadPermission(tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+        CheckReadPermission(consumerPath.GetPath(), tableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
 
         auto registrationCheckResult = Client_->GetNativeConnection()->GetQueueConsumerRegistrationManager()->GetRegistrationOrThrow(queuePath, consumerPath);
 

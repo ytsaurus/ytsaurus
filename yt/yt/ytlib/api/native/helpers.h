@@ -75,6 +75,7 @@ TError MakeRevivalError(
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckReadPermission(
+    const NYPath::TYPath& path,
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NAuth::TAuthenticationOptions& options,
     const NYT::NApi::NNative::IConnectionPtr& connection);
