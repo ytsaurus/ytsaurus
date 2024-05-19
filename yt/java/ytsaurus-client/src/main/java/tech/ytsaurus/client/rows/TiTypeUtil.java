@@ -59,7 +59,8 @@ class TiTypeUtil {
                     new TypeDescription(TiType.uint16(), long.class, Long.class),
                     new TypeDescription(TiType.uint32(), long.class, Long.class),
                     new TypeDescription(TiType.uint64(), long.class, Long.class),
-                    new TypeDescription(TiType.string(), byte[].class, String.class)
+                    new TypeDescription(TiType.string(), String.class),
+                    new TypeDescription(TiType.int64(), Instant.class)
             );
 
     private static final Map<Class<?>, TiType> SIMPLE_TYPES_MAP = Map.ofEntries(

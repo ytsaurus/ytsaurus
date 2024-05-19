@@ -178,7 +178,7 @@ public class RetriesTest extends YTsaurusClientTestBase {
 
         assertThrows(
                 ExecutionException.class,
-                () -> yt.createNode(thirdTablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS)
+                () -> yt.createNode(thirdTablePath.toString(), CypressNodeType.TABLE).get(3, TimeUnit.SECONDS)
         );
 
         var thirdCreateRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");

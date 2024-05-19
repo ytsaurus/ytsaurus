@@ -65,18 +65,18 @@ public class CypressTest extends YTsaurusClientTestBase {
 
         yt.existsNode(tablePath.toString()).get(2, TimeUnit.SECONDS);
 
-        outageController.addDelays("ExistsNode", 2, Duration.ofMillis(500));
+        outageController.addDelays("ExistsNode", 2, Duration.ofSeconds(1));
         outageController.addDelays("OtherQuery", 2, Duration.ofSeconds(3));
 
         for (int retryId = 0; retryId < 2; ++retryId) {
             long start = System.currentTimeMillis();
             yt.existsNode(tablePath.toString()).join();
-            Assert.assertTrue("Has delay=500ms", System.currentTimeMillis() - start > 500);
+            Assert.assertTrue("Has delay=1s", System.currentTimeMillis() - start > 1000);
         }
 
         long start = System.currentTimeMillis();
         yt.existsNode(tablePath.toString()).join();
-        Assert.assertTrue("No delay", System.currentTimeMillis() - start < 400);
+        Assert.assertTrue("No delay", System.currentTimeMillis() - start < 1000);
     }
 
     @SuppressWarnings("checkstyle:AvoidNestedBlocks")

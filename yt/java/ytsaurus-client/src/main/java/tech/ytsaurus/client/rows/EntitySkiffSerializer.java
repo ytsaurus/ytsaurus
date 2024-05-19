@@ -199,15 +199,15 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isInt32()) {
                 serializer.serializeInt((int) object);
             } else if (tiType.isInt64()) {
-                serializer.serializeLong((long) object);
+                serializeInt64(object, serializer);
             } else if (tiType.isUint8()) {
-                serializer.serializeUint8((Long) object);
+                serializer.serializeUint8((long) object);
             } else if (tiType.isUint16()) {
-                serializer.serializeUint16((Long) object);
+                serializer.serializeUint16((long) object);
             } else if (tiType.isUint32()) {
-                serializer.serializeUint32((Long) object);
+                serializer.serializeUint32((long) object);
             } else if (tiType.isUint64()) {
-                serializer.serializeUint64((Long) object);
+                serializer.serializeUint64((long) object);
             } else if (tiType.isDouble()) {
                 serializer.serializeDouble((double) object);
             } else if (tiType.isBool()) {
@@ -233,21 +233,34 @@ public class EntitySkiffSerializer<T> {
         throw new IllegalStateException();
     }
 
+    private <Int64Type> void serializeInt64(
+            Int64Type object,
+            SkiffSerializer serializer
+    ) {
+        long l = 0;
+        if (object.getClass().equals(Long.class)) {
+            l = (long) object;
+        } else if (object.getClass().equals(Instant.class)) {
+            l = ((Instant) object).toEpochMilli();
+        } else {
+            throwIncorrectFieldTypeException("int64", object.getClass());
+        }
+        serializer.serializeLong(l);
+    }
+
     private <StringType> void serializeString(
             StringType object,
             SkiffSerializer serializer
     ) {
+        byte[] bytes = null;
         if (object.getClass().equals(byte[].class)) {
-            serializer.serializeString((byte[]) object);
-            return;
+            bytes = (byte[]) object;
+        } else if (object.getClass().equals(String.class)) {
+            bytes = ((String) object).getBytes(StandardCharsets.UTF_8);
+        } else {
+            throwIncorrectFieldTypeException("string", object.getClass());
         }
-        if (object.getClass().equals(String.class)) {
-            serializer.serializeString(((String) object).getBytes(StandardCharsets.UTF_8));
-            return;
-        }
-        throwInvalidSchemeException(new RuntimeException(
-                String.format("Incorrect string field type: %s", object.getClass().getCanonicalName())
-        ));
+        serializer.serializeString(bytes);
     }
 
     private <ObjectType> void serializeComplexObject(
@@ -624,7 +637,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isInt32()) {
                 return castToType(parser.parseInt32());
             } else if (tiType.isInt64()) {
-                return castToType(parser.parseInt64());
+                return deserializeInt64(clazz, parser);
             } else if (tiType.isUint8()) {
                 return castToType(parser.parseUint8());
             } else if (tiType.isUint16()) {
@@ -656,6 +669,18 @@ public class EntitySkiffSerializer<T> {
         throw new IllegalStateException();
     }
 
+    private <Int64Type> Int64Type deserializeInt64(Class<Int64Type> clazz, SkiffParser parser) {
+        long int64 = parser.parseInt64();
+        if (clazz.equals(long.class) || clazz.equals(Long.class)) {
+            return castToType(int64);
+        }
+        if (clazz.equals(Instant.class)) {
+            return castToType(Instant.ofEpochMilli(int64));
+        }
+        throwIncorrectFieldTypeException("int64", clazz);
+        return null;
+    }
+
     private String deserializeUtf8(SkiffParser parser) {
         BufferReference ref = parser.parseString32();
         return new String(ref.getBuffer(), ref.getOffset(),
@@ -672,9 +697,7 @@ public class EntitySkiffSerializer<T> {
         if (clazz.equals(String.class)) {
             return castToType(new String(ref.getBuffer(), ref.getOffset(), ref.getLength(), StandardCharsets.UTF_8));
         }
-        throwInvalidSchemeException(new RuntimeException(
-                String.format("Incorrect string field type: %s", clazz.getCanonicalName())
-        ));
+        throwIncorrectFieldTypeException("string", clazz);
         return null;
     }
 
@@ -697,6 +720,12 @@ public class EntitySkiffSerializer<T> {
 
     private void throwInvalidSchemeException(@Nullable Exception e) {
         throw new IllegalStateException("Scheme does not correspond to object", e);
+    }
+
+    private void throwIncorrectFieldTypeException(String typeName, Class<?> clazz) {
+        throw new RuntimeException(
+                String.format("Incorrect field type for '%s': %s", typeName, clazz.getCanonicalName())
+        );
     }
 
     private void throwNoSchemaException() {
