@@ -114,14 +114,6 @@ private:
 
     TTimestamp MaxClipTimestamp_ = NullTimestamp;
 
-    TSharedRange<TLegacyKey> FilterKeysByReadRange(
-        TSharedRange<TLegacyKey> keys,
-        int* skippedBefore,
-        int* skippedAfter) const;
-
-    TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
-        const TSharedRange<NTableClient::TRowRange>& ranges) const;
-
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         const NTableClient::TChunkStatePtr& chunkState,
         TSharedRange<TLegacyKey> keys,
@@ -137,7 +129,6 @@ private:
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-        const TSharedRange<NTableClient::TRowRange>& singletonClippingRange,
         bool enableNewScanReader) const;
 
     NTableClient::IVersionedReaderPtr MaybeWrapWithTimestampResettingAdapter(
@@ -206,11 +197,6 @@ TSharedRange<TLegacyKey> FilterKeysByReadRange(
     TSharedRange<TLegacyKey> keys,
     int* skippedBefore,
     int* skippedAfter);
-
-//! Returns the slice of |ranges| having non-empty intersection with the half-interval |readRange|.
-TSharedRange<NTableClient::TRowRange> FilterRowRangesByReadRange(
-    const NTableClient::TRowRange& readRange,
-    const TSharedRange<NTableClient::TRowRange>& ranges);
 
 ////////////////////////////////////////////////////////////////////////////////
 

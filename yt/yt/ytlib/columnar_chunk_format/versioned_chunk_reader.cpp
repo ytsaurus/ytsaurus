@@ -872,12 +872,24 @@ TSharedRange<TRowRange> ClipRanges(
     }
 
     if (startIt != endIt) {
+        if (lower && lower <= startIt->first) {
+            lower = {};
+        }
+
+        if (upper && upper >= (endIt - 1)->second) {
+            upper = {};
+        }
+
+        if (!lower && !upper) {
+            return ranges.Slice(startIt, endIt);
+        }
+
         std::vector<TRowRange> items(startIt, endIt);
-        if (lower && lower > items.front().first) {
+        if (lower) {
             items.front().first = lower;
         }
 
-        if (upper && upper < items.back().second) {
+        if (upper) {
             items.back().second = upper;
         }
 
