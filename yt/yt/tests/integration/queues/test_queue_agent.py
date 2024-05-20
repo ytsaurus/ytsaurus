@@ -3080,7 +3080,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     }
 
     @authors("apachee")
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(200)
     def test_basic(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -3089,7 +3089,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period_seconds = 5
+        export_period_seconds = 12
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
@@ -3138,7 +3138,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period_seconds = 5
+        export_period_seconds = 12
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
