@@ -717,6 +717,7 @@ public:
     TDuration DurationBeforeJobConsideredDisappearedFromNode;
 
     bool EnableGracefulAbort;
+    bool CheckNodeHeartbeatSequentialId;
 
     REGISTER_YSON_STRUCT(TJobTrackerConfig);
 

@@ -76,6 +76,7 @@ private:
     NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
     std::atomic<i64> EnqueuedControllerEventCount_ = 0;
     NProfiling::TCounter HeartbeatCount_;
+    NProfiling::TCounter StaleHeartbeatCount_;
     NProfiling::TCounter ReceivedJobCount_;
     NProfiling::TCounter ReceivedUnknownOperationCount_;
     NProfiling::TCounter ReceivedRunningJobCount_;
@@ -203,12 +204,18 @@ private:
 
     struct TNodeInfo
     {
+    public:
         TNodeJobs Jobs;
         NConcurrency::TLease Lease;
 
         TGuid RegistrationId;
 
         TString NodeAddress;
+
+        ui64 LastHeartbeatId = 0;
+
+        //! |false| if heartbeat is stale.
+        bool CheckHeartbeatSequentialId(ui64 heartbeatSequentialId);
     };
 
     THashMap<TNodeId, TNodeInfo> RegisteredNodes_;
