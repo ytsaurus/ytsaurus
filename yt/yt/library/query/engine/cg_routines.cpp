@@ -3145,6 +3145,109 @@ void LastSeenReplicaSetMerge(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unversionedValue, INodePtr value)
+{
+    if (!value) {
+        unversionedValue.Type = EValueType::Null;
+        return;
+    }
+    auto ysonString = NYson::ConvertToYsonString(value);
+    unversionedValue.Type = EValueType::Any;
+    unversionedValue.Length = ysonString.AsStringBuf().size();
+    char* data = AllocateBytes(context, unversionedValue.Length);
+    std::memcpy(data, ysonString.AsStringBuf().data(), unversionedValue.Length);
+    unversionedValue.Data.String = ConvertPointerFromHostToWasm(data, unversionedValue.Length);
+}
+
+INodePtr FromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
+{
+    if (unversionedValue.Type == EValueType::Null) {
+        return nullptr;
+    }
+    auto data = ConvertPointerFromWasmToHost(unversionedValue.Data.String, unversionedValue.Length);
+    auto stringBuf = TStringBuf{data, unversionedValue.Length};
+    auto ysonString = NYson::TYsonString{stringBuf};
+    return NYT::NYTree::ConvertToNode(ysonString);
+}
+
+void RemoveRecursively(INodePtr node)
+{
+    INodePtr parent = node->GetParent();
+    while (parent) {
+        if (parent->GetType() != ENodeType::Map) {
+            break;
+        }
+
+        auto parentMap = parent->AsMap();
+        parentMap->RemoveChild(node);
+        if (parentMap->GetChildCount() == 0) {
+            node = parent;
+            parent = parentMap->GetParent();
+        } else {
+            parent = nullptr;
+        }
+    }
+}
+
+INodePtr DictSum(INodePtr stateRoot, INodePtr deltaRoot)
+{
+    if (!deltaRoot || deltaRoot->GetType() != ENodeType::Map) {
+        return stateRoot;
+    }
+
+    if (!stateRoot) {
+        return deltaRoot;
+    }
+
+    if (stateRoot->GetType() != ENodeType::Map) {
+        return nullptr;
+    }
+
+    auto oldStateRoot = NYT::NYTree::ConvertToNode(stateRoot);
+    std::vector<std::pair<IMapNodePtr, IMapNodePtr>> traversal;
+    traversal.push_back({stateRoot->AsMap(), deltaRoot->AsMap()});
+    while (!traversal.empty()) {
+        auto [state, delta] = traversal.back();
+        traversal.pop_back();
+        for (auto& [key, deltaChild] : delta->GetChildren()) {
+            auto stateChild = state->FindChild(key);
+            if (!stateChild) {
+                delta->RemoveChild(deltaChild);
+                state->AddChild(key, deltaChild);
+                continue;
+            }
+
+            if (stateChild->GetType() == ENodeType::Int64 && deltaChild->GetType() == ENodeType::Int64) {
+                auto intNode = stateChild->AsInt64();
+                intNode->SetValue(intNode->GetValue() + deltaChild->AsInt64()->GetValue());
+                if (intNode->GetValue() == 0) {
+                    RemoveRecursively(intNode);
+                }
+            } else if (stateChild->GetType() == ENodeType::Map && deltaChild->GetType() == ENodeType::Map) {
+                traversal.push_back({stateChild->AsMap(), deltaChild->AsMap()});
+            } else {
+                return oldStateRoot;
+            }
+        }
+    }
+
+    return stateRoot;
+}
+
+void DictSumIteration(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* state,
+    TUnversionedValue* delta)
+{
+    auto stateNode = FromWasmUnversionedValue(*state);
+    auto deltaNode = FromWasmUnversionedValue(*delta);
+    auto resultNode = DictSum(std::move(stateNode), std::move(deltaNode));
+    ToWasmUnversionedValue(context, *result, resultNode);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(dtorilov): Add unit-test.
 void HasPermissions(
     TExpressionContext* /*context*/,
@@ -3850,6 +3953,7 @@ REGISTER_ROUTINE(HasPermissions);
 REGISTER_ROUTINE(YsonLength);
 REGISTER_ROUTINE(LikeOpHelper);
 REGISTER_ROUTINE(CompositeMemberAccessorHelper);
+REGISTER_ROUTINE(DictSumIteration);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);

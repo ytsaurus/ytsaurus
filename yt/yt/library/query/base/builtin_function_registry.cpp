@@ -276,6 +276,15 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "hyperloglog",
         ECallingConvention::UnversionedValue);
 
+    builder->RegisterAggregate(
+        "dict_sum",
+        std::unordered_map<TTypeParameter, TUnionType>{},
+        EValueType::Any,
+        EValueType::Any,
+        EValueType::Any,
+        "dict_sum",
+        ECallingConvention::UnversionedValue);
+
     builder->RegisterFunction(
         "format_timestamp",
         std::vector<TType>{EValueType::Int64, EValueType::String},
