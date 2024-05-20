@@ -43,6 +43,38 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
     }
 
     {
+        TDockerImageSpec image("localhost:5000/image", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image:tag", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image:tag", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
         TDockerImageSpec image("external.registry/image", defaultConfig);
         EXPECT_EQ(image.Registry, "external.registry");
         EXPECT_EQ(image.Image, "image");
