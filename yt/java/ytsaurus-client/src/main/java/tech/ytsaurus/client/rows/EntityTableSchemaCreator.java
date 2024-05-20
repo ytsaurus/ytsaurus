@@ -20,6 +20,7 @@ import tech.ytsaurus.typeinfo.ListType;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
 
+import static tech.ytsaurus.client.rows.TiTypeUtil.getTiTypeForClassWithColumnDefinition;
 import static tech.ytsaurus.client.rows.TiTypeUtil.getTiTypeIfSimple;
 import static tech.ytsaurus.core.utils.ClassUtils.anyMatchWithAnnotation;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
@@ -123,12 +124,13 @@ public class EntityTableSchemaCreator {
                                              @Nullable Annotation annotation,
                                              List<Type> genericTypeParameters,
                                              @Nullable TiType tiTypeInSchema) {
-        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(
-                clazz,
-                JavaPersistenceApi.isColumnAnnotationPresent(annotation) ?
-                        JavaPersistenceApi.getColumnDefinition(annotation) :
-                        ""
-        );
+        if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
+            String columnDefinition = JavaPersistenceApi.getColumnDefinition(annotation);
+            if (!columnDefinition.isEmpty()) {
+                return getTiTypeForClassWithColumnDefinition(clazz, columnDefinition);
+            }
+        }
+        Optional<TiType> tiTypeIfSimple = getTiTypeIfSimple(clazz);
         if (tiTypeIfSimple.isPresent()) {
             return tiTypeIfSimple.get();
         }

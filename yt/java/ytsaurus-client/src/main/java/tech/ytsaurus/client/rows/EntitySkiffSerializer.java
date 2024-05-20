@@ -213,7 +213,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isBool()) {
                 serializer.serializeBoolean((boolean) object);
             } else if (tiType.isUtf8()) {
-                serializer.serializeUtf8((String) object);
+                serializeUtf8(object, serializer);
             } else if (tiType.isString()) {
                 serializeString(object, serializer);
             } else if (tiType.isUuid()) {
@@ -248,19 +248,32 @@ public class EntitySkiffSerializer<T> {
         serializer.serializeLong(l);
     }
 
+    private <Utf8Type> void serializeUtf8(
+            Utf8Type object,
+            SkiffSerializer serializer
+    ) {
+        String str = null;
+        if (object.getClass().equals(String.class)) {
+            str = (String) object;
+        } else if (Enum.class.isAssignableFrom(object.getClass())) {
+            str = ((Enum<?>) object).name();
+        } else {
+            throwIncorrectFieldTypeException("utf8", object.getClass());
+        }
+        serializer.serializeUtf8(str);
+    }
+
     private <StringType> void serializeString(
             StringType object,
             SkiffSerializer serializer
     ) {
-        byte[] bytes = null;
         if (object.getClass().equals(byte[].class)) {
-            bytes = (byte[]) object;
-        } else if (object.getClass().equals(String.class)) {
-            bytes = ((String) object).getBytes(StandardCharsets.UTF_8);
+            serializer.serializeString((byte[]) object);
+        } else if (object.getClass().equals(String.class) || Enum.class.isAssignableFrom(object.getClass())) {
+            serializeUtf8(object, serializer);
         } else {
             throwIncorrectFieldTypeException("string", object.getClass());
         }
-        serializer.serializeString(bytes);
     }
 
     private <ObjectType> void serializeComplexObject(
@@ -651,7 +664,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isBool()) {
                 return castToType(parser.parseBoolean());
             } else if (tiType.isUtf8()) {
-                return castToType(deserializeUtf8(parser));
+                return castToType(deserializeUtf8(clazz, parser));
             } else if (tiType.isString()) {
                 return deserializeString(clazz, parser);
             } else if (tiType.isUuid()) {
@@ -681,21 +694,32 @@ public class EntitySkiffSerializer<T> {
         return null;
     }
 
-    private String deserializeUtf8(SkiffParser parser) {
+    private <Utf8Type> Utf8Type deserializeUtf8(Class<Utf8Type> clazz, SkiffParser parser) {
         BufferReference ref = parser.parseString32();
-        return new String(ref.getBuffer(), ref.getOffset(),
-                ref.getLength(), StandardCharsets.UTF_8);
+        String str = new String(ref.getBuffer(), ref.getOffset(), ref.getLength(), StandardCharsets.UTF_8);
+        if (clazz.equals(String.class)) {
+            return castToType(str);
+        }
+        if (Enum.class.isAssignableFrom(clazz)) {
+            return castToType(deserializeEnum(clazz, str));
+        }
+        throwIncorrectFieldTypeException("utf8", clazz);
+        return null;
+    }
+
+    private <E extends Enum<E>> E deserializeEnum(Class<?> clazz, String value) {
+        return Enum.valueOf(castToType(clazz), value);
     }
 
     private <StringType> StringType deserializeString(Class<StringType> clazz, SkiffParser parser) {
-        BufferReference ref = parser.parseString32();
         if (clazz.equals(byte[].class)) {
+            BufferReference ref = parser.parseString32();
             return castToType(
                     Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength())
             );
         }
-        if (clazz.equals(String.class)) {
-            return castToType(new String(ref.getBuffer(), ref.getOffset(), ref.getLength(), StandardCharsets.UTF_8));
+        if (clazz.equals(String.class) || Enum.class.isAssignableFrom(clazz)) {
+            return deserializeUtf8(clazz, parser);
         }
         throwIncorrectFieldTypeException("string", clazz);
         return null;

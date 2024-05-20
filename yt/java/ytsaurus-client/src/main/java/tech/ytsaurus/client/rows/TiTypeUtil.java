@@ -59,7 +59,7 @@ class TiTypeUtil {
                     new TypeDescription(TiType.uint16(), long.class, Long.class),
                     new TypeDescription(TiType.uint32(), long.class, Long.class),
                     new TypeDescription(TiType.uint64(), long.class, Long.class),
-                    new TypeDescription(TiType.string(), String.class),
+                    new TypeDescription(TiType.string(), String.class, Enum.class),
                     new TypeDescription(TiType.int64(), Instant.class)
             );
 
@@ -85,10 +85,20 @@ class TiTypeUtil {
     private TiTypeUtil() {
     }
 
-    static Optional<TiType> getTiTypeIfSimple(Class<?> clazz, String columnDefinition) {
+    static Optional<TiType> getTiTypeIfSimple(Class<?> clazz) {
+        if (YTreeNode.class.isAssignableFrom(clazz)) {
+            return Optional.of(TiType.yson());
+        }
+        if (Enum.class.isAssignableFrom(clazz)) {
+            return Optional.of(TiType.utf8());
+        }
+        return Optional.ofNullable(SIMPLE_TYPES_MAP.get(clazz));
+    }
+
+    static TiType getTiTypeForClassWithColumnDefinition(Class<?> clazz, String columnDefinition) {
         if (COLUMN_DEFINITION_TO_TYPE_DESCR.hasTypeDescription(columnDefinition)) {
             var typeDescr = COLUMN_DEFINITION_TO_TYPE_DESCR.getTypeDescription(columnDefinition);
-            if (!typeDescr.getFieldTypes().contains(clazz)) {
+            if (typeDescr.getFieldTypes().stream().noneMatch(typeClass -> typeClass.isAssignableFrom(clazz))) {
                 throw new RuntimeException(
                         String.format(
                                 "Field with columnDefinition='%s' must be one of the following types: '%s'",
@@ -97,17 +107,11 @@ class TiTypeUtil {
                         )
                 );
             }
-            return Optional.of(typeDescr.getTiType());
+            return typeDescr.getTiType();
         }
-        if (!columnDefinition.isEmpty()) {
-            throw new RuntimeException(
-                    String.format("columnDefinition='%s' is not supported", columnDefinition)
-            );
-        }
-        if (YTreeNode.class.isAssignableFrom(clazz)) {
-            return Optional.of(TiType.yson());
-        }
-        return Optional.ofNullable(SIMPLE_TYPES_MAP.get(clazz));
+        throw new RuntimeException(
+                String.format("columnDefinition='%s' is not supported", columnDefinition)
+        );
     }
 
     static boolean isSimpleType(TiType tiType) {
