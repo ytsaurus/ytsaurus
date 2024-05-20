@@ -32,7 +32,7 @@
         {
             "source": {
                 "type": "ARCADIA",
-                "path": "yt/opensource-packages/ytsaurus-server-override/Dockerfile",
+                "path": "yt/docker/ya-build/ytsaurus-server-override/Dockerfile",
             },
             "destination": {
                 "path": "/Dockerfile",
