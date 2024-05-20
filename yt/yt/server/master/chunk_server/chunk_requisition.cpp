@@ -211,7 +211,7 @@ TSerializableChunkReplication::TSerializableChunkReplication(
 
 void TSerializableChunkReplication::ToChunkReplication(
     TChunkReplication* replication,
-    const IChunkManagerPtr& chunkManager)
+    const IChunkManagerPtr& chunkManager) const
 {
     replication->ClearEntries();
 

@@ -2342,7 +2342,8 @@ void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& 
     }
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName) {
+void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName)
+{
     auto* node = GetThisImpl<TCompositeNodeBase>();
     TChunkReplication newReplication;
     auto replication = node->TryGetHunkMedia();
@@ -2355,7 +2356,8 @@ void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const TStri
     }
 }
 
-std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeProxyBase::DoSetMedia(NChunkServer::TSerializableChunkReplication serializableReplication) {
+std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeProxyBase::DoSetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication)
+{
     ValidateNoTransaction();
 
     auto* node = GetThisImpl<TCompositeNodeBase>();
@@ -2374,7 +2376,7 @@ std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeP
     return replication;
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkReplication serializableReplication)
+void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChunkReplication& serializableReplication)
 {
     auto optionalReplication = DoSetMedia(serializableReplication);
     if (!optionalReplication) {
@@ -2396,7 +2398,7 @@ void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkRepli
     node->SetMedia(replication);
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetHunkMedia(TSerializableChunkReplication serializableReplication)
+void TNontemplateCompositeCypressNodeProxyBase::SetHunkMedia(const TSerializableChunkReplication& serializableReplication)
 {
     auto optionalReplication = DoSetMedia(serializableReplication);
     if (!optionalReplication) {

@@ -635,8 +635,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
 
     auto* hunkMedium = chunkManager->GetMediumByIndexOrThrow(node->GetHunkPrimaryMediumIndex());
     Save(*context, hunkMedium);
-
     Save(*context, node->HunkReplication());
+
     context->RegisterExternalCellTag(node->GetExternalCellTag());
 }
 

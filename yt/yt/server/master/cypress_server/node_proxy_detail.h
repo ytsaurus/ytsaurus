@@ -267,14 +267,14 @@ private:
     void SetReplicationFactor(int replicationFactor);
     void SetPrimaryMedium(const TString& primaryMediumName);
     void SetHunkPrimaryMedium(const TString& hunkPrimaryMediumName);
-    std::optional<NChunkServer::TChunkReplication> DoSetMedia(NChunkServer::TSerializableChunkReplication serializableReplication);
+    std::optional<NChunkServer::TChunkReplication> DoSetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
     std::optional<int> DoSetPrimaryMedium(TCompositeNodeBase* node,
         const std::optional<NChunkServer::TChunkReplication>& replication,
         const TString& primaryMediumName,
         std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication& newReplication);
-    void SetMedia(NChunkServer::TSerializableChunkReplication serializableReplication);
-    void SetHunkMedia(NChunkServer::TSerializableChunkReplication serializableReplication);
+    void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
+    void SetHunkMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
     void ThrowReplicationFactorMismatch(int mediumIndex) const;
 };
 

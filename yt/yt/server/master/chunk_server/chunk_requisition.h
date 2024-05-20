@@ -266,7 +266,7 @@ public:
 
     void ToChunkReplication(
         TChunkReplication* replication,
-        const IChunkManagerPtr& chunkManager);
+        const IChunkManagerPtr& chunkManager) const;
 
     void Serialize(NYson::IYsonConsumer* consumer) const;
     void Deserialize(NYTree::INodePtr node);
