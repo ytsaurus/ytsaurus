@@ -53,6 +53,10 @@ void ModifyChunkSpecReplicas(
     TTableInputSpec* tableSpec,
     THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>* chunkSpecs)
 {
+    if (schemas.empty()) {
+        return;
+    }
+
     std::vector<NChunkClient::NProto::TChunkSpec> proxiedChunkSpecs;
     proxiedChunkSpecs.reserve(tableSpec->chunk_specs_size());
 
@@ -154,10 +158,6 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
     auto* jobSpecExt = jobSpecProto->MutableExtension(TJobSpecExt::job_spec_ext);
 
     auto patchTableSpec = [&] (auto* tableSpec) {
-        if (tableSpec->proxied_chunk_specs_size() == 0) {
-            return;
-        }
-
         THashMap<TChunkId, NChunkClient::NProto::TChunkSpec> proxiedChunkSpecs;
 
         for (auto& chunkSpec : tableSpec->proxied_chunk_specs()) {
@@ -175,9 +175,16 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
 
             auto proxiedChunkSpecIt = proxiedChunkSpecs.find(proxiedChunkId);
             if (proxiedChunkSpecIt.IsEnd()) {
-                newChunkSpecs.push_back(chunkSpec);
+                auto newChunkSpec = chunkSpec;
+
+                // For unpatched chunks, must explicitly set use_proxying_data_node_service = false.
+                newChunkSpec.set_use_proxying_data_node_service(false);
+                newChunkSpecs.push_back(newChunkSpec);
             } else {
                 const auto& proxiedChunkSpec = proxiedChunkSpecIt->second;
+
+                YT_VERIFY(proxiedChunkSpec.use_proxying_data_node_service());
+
                 auto newChunkSpec = chunkSpec;
 
                 newChunkSpec.mutable_chunk_id()->CopyFrom(proxiedChunkSpec.chunk_id());
@@ -198,6 +205,8 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
                 newChunkSpecs.push_back(std::move(newChunkSpec));
             }
         }
+
+        YT_VERIFY(tableSpec->chunk_specs_size() == std::ssize(newChunkSpecs));
 
         ToProto(tableSpec->mutable_chunk_specs(), std::move(newChunkSpecs));
     };
