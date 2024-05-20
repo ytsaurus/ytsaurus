@@ -27,5 +27,6 @@ IF (NOT OPENSOURCE)
         stateless-service-controller
         gh_ci_vm_image_builder
         sevenpct
+        abc_integration_client
     )
 ENDIF()
