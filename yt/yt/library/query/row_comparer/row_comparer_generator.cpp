@@ -64,7 +64,7 @@ class TComparerBuilder
 {
 public:
     TComparerBuilder(
-        TCGModulePtr module,
+        TCGModulePtr cgModule,
         TRange<EValueType> keyColumnTypes);
 
     void BuildDDComparer(TString& functionName);
@@ -326,11 +326,11 @@ private:
 };
 
 TComparerBuilder::TComparerBuilder(
-    TCGModulePtr module,
+    TCGModulePtr cgModule,
     TRange<EValueType> keyColumnTypes)
-    : IRBuilder(module->GetContext())
+    : IRBuilder(cgModule->GetContext())
     , KeyColumnTypes_(keyColumnTypes)
-    , Module_(std::move(module))
+    , Module_(std::move(cgModule))
     , Context_(Module_->GetContext())
 { }
 
@@ -552,8 +552,8 @@ void TComparerBuilder::BuildMainLoop(
 
 TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 {
-    auto module = TCGModule::Create(GetComparerRoutineRegistry());
-    auto builder = TComparerBuilder(module, keyColumnTypes);
+    auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
+    auto builder = TComparerBuilder(cgModule, keyColumnTypes);
     auto ddComparerName = TString("DDCompare");
     auto duComparerName = TString("DUCompare");
     auto uuComparerName = TString("UUCompare");
@@ -562,13 +562,13 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
     builder.BuildDUComparer(duComparerName);
     builder.BuildUUComparer(uuComparerName);
 
-    module->ExportSymbol(ddComparerName);
-    module->ExportSymbol(duComparerName);
-    module->ExportSymbol(uuComparerName);
+    cgModule->ExportSymbol(ddComparerName);
+    cgModule->ExportSymbol(duComparerName);
+    cgModule->ExportSymbol(uuComparerName);
 
-    auto ddComparer = module->GetCompiledFunction<TDDComparerSignature>(ddComparerName);
-    auto duComparer = module->GetCompiledFunction<TDUComparerSignature>(duComparerName);
-    auto uuComparer = module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
+    auto ddComparer = cgModule->GetCompiledFunction<TDDComparerSignature>(ddComparerName);
+    auto duComparer = cgModule->GetCompiledFunction<TDUComparerSignature>(duComparerName);
+    auto uuComparer = cgModule->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
 
     return TCGKeyComparers{ddComparer, duComparer, uuComparer};
 }
