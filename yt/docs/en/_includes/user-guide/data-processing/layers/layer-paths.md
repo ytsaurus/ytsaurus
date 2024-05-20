@@ -16,7 +16,7 @@ Depending on the cluster configuration (`exec_node/slot_manager/job_environment/
 - **Docker registry**: a server for storing and distributing Docker image data and metadata.
 - **Internal Docker Registry**: a Docker registry that stores images directly in [Cypress](../../../../user-guide/storage/cypress.md).
 
-Docker images are referenced by name in the following format: `[REGISTRY/]IMAGE[:TAG|@DIGEST]`, where `REGISTRY` represents the `FQDN[:PORT]` of the Docker registry server. By default, `TAG` is set to **latest**. [More](https://docs.docker.com/engine/reference/commandline/pull/)
+Docker images are referenced by name in the following format: `[REGISTRY/]IMAGE[:TAG|@DIGEST]`, where `REGISTRY` represents the `FQDN[:PORT]` of the Docker registry server. Registry `FQDN` must has at least one "." or `PORT`. By default, `TAG` is set to **latest**. [More](https://docs.docker.com/engine/reference/commandline/pull/)
 
 Docker images without a specified `REGISTRY` are assumed to be from the **Internal Docker Registry**, where `IMAGE` corresponds to the `//IMAGE` path pointing to the directory with the image metadata in Cypress.
 
