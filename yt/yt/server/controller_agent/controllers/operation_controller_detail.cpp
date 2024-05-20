@@ -5324,7 +5324,8 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
 
     State = EControllerState::Completed;
 
-    YT_UNUSED_FUTURE(
+    // NB(coteeq): Inner lambda will abort on exception.
+    GetCancelableInvoker()->Invoke(
         BIND([this, this_ = MakeStrong(this)] {
             BuildAndSaveProgress();
             FlushOperationNode(/*checkFlushResult*/ true);
@@ -5332,9 +5333,7 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
             LogProgress(/*force*/ true);
 
             Host->OnOperationCompleted();
-        })
-            .AsyncVia(GetCancelableInvoker())
-            .Run());
+        }));
 }
 
 void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush, bool abortAllJoblets)
