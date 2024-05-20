@@ -357,7 +357,7 @@ Use an ordered list when order matters, and unordered list otherwise. Every item
 When working with tables, keep the following in mind:
 
 - There must be a reference to the table, for example: "Table 1 shows...".
-- It is mandatory to add a table title: `<small>Table N — Title of the table`. It should start with a capital letter, without a period at the end. 
+- It is mandatory to add a table title: `<small>Table N — Title of the table</small>`. It should start with a capital letter, without a period at the end. 
 - Periods are not needed in the table: neither in the header nor in the cells.
 
 Example:
@@ -365,7 +365,7 @@ Example:
 ```
 The attributes of subjects are shown in Table 1.
 
-<small>Table 1 — Attributes of Subjects<small>
+<small>Table 1 — Attributes of Subjects</small>
 
 | **Attribute**       | **Type**        | **Description**                                           |
 | ------------------- | --------------- | --------------------------------------------------------- |
