@@ -271,10 +271,10 @@ TValueTypeLabels CodegenHasherBody(
         builder->CreateBr(gotoNextBB);
     };
 
-    BasicBlock* cmpStringBB = nullptr;
+    BasicBlock* hashStringBB = nullptr;
     {
-        cmpStringBB = builder->CreateBBHere("hashNull");
-        builder->SetInsertPoint(cmpStringBB);
+        hashStringBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashStringBB);
 
         auto valuePtr = builder->CreateInBoundsGEP(
             TValueTypeBuilder::Get(builder->getContext()),
@@ -308,14 +308,14 @@ TValueTypeLabels CodegenHasherBody(
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(hashInt8ScalarBB);
     indirectBranch->addDestination(hashInt64ScalarBB);
-    indirectBranch->addDestination(cmpStringBB);
+    indirectBranch->addDestination(hashStringBB);
 
-    return TValueTypeLabels{
+    return {
         llvm::BlockAddress::get(hashInt8ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
-        llvm::BlockAddress::get(cmpStringBB)
+        llvm::BlockAddress::get(hashStringBB),
     };
 }
 
@@ -583,12 +583,12 @@ TValueTypeLabels CodegenLessComparerBody(
     indirectBranch->addDestination(cmpDoubleBB);
     indirectBranch->addDestination(cmpStringBB);
 
-    return TValueTypeLabels{
+    return {
         llvm::BlockAddress::get(cmpBooleanBB),
         llvm::BlockAddress::get(cmpIntBB),
         llvm::BlockAddress::get(cmpUintBB),
         llvm::BlockAddress::get(cmpDoubleBB),
-        llvm::BlockAddress::get(cmpStringBB)
+        llvm::BlockAddress::get(cmpStringBB),
     };
 }
 
