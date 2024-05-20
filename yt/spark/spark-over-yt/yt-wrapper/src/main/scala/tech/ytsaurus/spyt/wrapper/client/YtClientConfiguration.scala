@@ -1,6 +1,6 @@
 package tech.ytsaurus.spyt.wrapper.client
 
-import tech.ytsaurus.client.YTsaurusCluster
+import org.slf4j.LoggerFactory
 
 import java.time.{Duration => JDuration}
 import tech.ytsaurus.spyt.wrapper.Utils
@@ -10,7 +10,7 @@ import tech.ytsaurus.client.rpc.YTsaurusClientAuth
 import java.net.URL
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 @SerialVersionUID(-7486028686763336923L)
 case class YtClientConfiguration(proxy: String,
@@ -43,6 +43,8 @@ case class YtClientConfiguration(proxy: String,
 }
 
 object YtClientConfiguration {
+  private val log = LoggerFactory.getLogger(getClass)
+
   def parseEmptyWorkersListStrategy(getByName: String => Option[String]): EmptyWorkersListStrategy = {
     val strategyFromConf = for {
       name <- getByName("byop.remote.emptyWorkersList.strategy")
@@ -56,9 +58,9 @@ object YtClientConfiguration {
     val byopEnabled = getByName("byop.enabled").orElse(sys.env.get("SPARK_YT_BYOP_ENABLED")).exists(_.toBoolean)
 
     YtClientConfiguration(
-      proxy.getOrElse(getByName("proxy").orElse(sys.env.get("YT_PROXY")).getOrElse(
+      proxy.orElse(getByName("proxy")).orElse(sys.env.get("YT_PROXY")).getOrElse(
         throw new IllegalArgumentException("Proxy must be specified")
-      )),
+      ),
       getByName("user").orElse(sys.env.get("YT_SECURE_VAULT_YT_USER")).getOrElse(DefaultRpcCredentials.user),
       getByName("token").orElse(sys.env.get("YT_SECURE_VAULT_YT_TOKEN")).getOrElse(DefaultRpcCredentials.token),
       getByName("timeout").map(Utils.parseDuration).getOrElse(60 seconds),
@@ -73,6 +75,17 @@ object YtClientConfiguration {
       getByName("masterWrapper.url"),
       getByName("extendedFileTimeout").forall(_.toBoolean)
     )
+  }
+
+  def optionalApply(getByName: String => Option[String]): Option[YtClientConfiguration] = {
+    val result = Try(apply(getByName))
+    result match {
+      case Success(value) =>
+        Some(value)
+      case Failure(exception) =>
+        log.info("Cannot parse YTsaurus config", exception)
+        None
+    }
   }
 
   def default(proxy: String): YtClientConfiguration = default(

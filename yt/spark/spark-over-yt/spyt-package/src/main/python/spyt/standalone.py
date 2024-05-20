@@ -85,9 +85,9 @@ def _create_spark_env(client, spark_home):
     return spark_env
 
 
-def _wait_op_start(op, operation_path, client):
+def _wait_op_start(op, operation_path=None, client=None):
     for state in op.get_state_monitor(TimeWatcher(5.0, 5.0, 0.0)):
-        if state.is_running() and exists(operation_path, client=client):
+        if state.is_running() and operation_path is not None and exists(operation_path, client=client):
             return op
         elif state.is_unsuccessfully_finished():
             process_operation_unsuccessful_finish_state(op, op.get_error(state))
@@ -96,8 +96,7 @@ def _wait_op_start(op, operation_path, client):
 
 
 def _wait_child_start(op, spark_discovery, client):
-    _wait_op_start(
-        op, spark_discovery.children_operations().join(op.id), client)
+    _wait_op_start(op, spark_discovery.children_operations().join(op.id), client)
 
 
 def _wait_master_start(op, spark_discovery, client):
@@ -286,11 +285,12 @@ def abort_spark_operations(spark_discovery, client):
         raise error
 
 
-def get_base_cluster_config(global_conf, spark_cluster_version, params, base_discovery_path, client):
+def get_base_cluster_config(global_conf, spark_cluster_version, params, base_discovery_path=None, client=None):
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(global_conf, spark_cluster_version, client=client))
     update_config_inplace(dynamic_config, params)
-    dynamic_config['spark_conf']['spark.base.discovery.path'] = base_discovery_path
+    if base_discovery_path is not None:
+        dynamic_config['spark_conf']['spark.base.discovery.path'] = base_discovery_path
     return dynamic_config
 
 
@@ -301,14 +301,15 @@ def start_livy_server(operation_alias=None, discovery_path=None, pool=None, enab
                       livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
                       livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS, spark_master_address=None,
                       rpc_job_proxy=False, rpc_job_proxy_thread_pool_size=4, tcp_proxy_range_start=30000,
-                      tcp_proxy_range_size=100, enable_stderr_table=False):
-    enablers = enablers or SpytEnablers()
+                      tcp_proxy_range_size=100, enable_stderr_table=False, master_group_id=None, group_id=None):
+    if discovery_path is None and group_id is None:
+        raise RuntimeError("Either discovery path or discovery group id must be provided")
 
-    spark_discovery = SparkDiscovery(discovery_path=discovery_path)
+    enablers = enablers or SpytEnablers()
 
     if spark_master_address is None:
         logger.warning("Spark master address is not specified, "
-                       "standalone cluster will be discovered from discovery_path. "
+                       "standalone cluster will be discovered. "
                        "If you want use direct submit, "
                        "please provide the option `--spark-master-address ytsaurus://<ytsaurus-proxy>`")
 
@@ -320,21 +321,24 @@ def start_livy_server(operation_alias=None, discovery_path=None, pool=None, enab
     validate_mtn_config(enablers, network_project, tvm_id, tvm_secret)
 
     global_conf = read_global_conf(client=client)
-    dynamic_config = get_base_cluster_config(global_conf, spark_cluster_version, params,
-                                             spark_discovery.base_discovery_path, client)
+    dynamic_config = get_base_cluster_config(global_conf, spark_cluster_version, params, discovery_path, client)
     enablers.apply_config(dynamic_config)
 
-    spark_discovery.create(client)
-    spark_discovery.set_cluster_version_if_none(spark_cluster_version, client)
+    spark_discovery = None
+    if discovery_path is not None:
+        spark_discovery = SparkDiscovery(discovery_path=discovery_path)
+        spark_discovery.create(client)
+        spark_discovery.set_cluster_version_if_none(spark_cluster_version, client)
 
     common_config = CommonComponentConfig(
         operation_alias, pool, enable_tmpfs, network_project, tvm_id, tvm_secret, enablers, preemption_mode,
         cluster_log_level, rpc_job_proxy, rpc_job_proxy_thread_pool_size, tcp_proxy_range_start,
-        tcp_proxy_range_size, enable_stderr_table, "livy"
+        tcp_proxy_range_size, enable_stderr_table, "livy", spark_discovery, group_id
     )
-    livy_config = LivyConfig(livy_driver_cores, livy_driver_memory, livy_max_sessions, spark_master_address)
+    livy_config = LivyConfig(
+        livy_driver_cores, livy_driver_memory, livy_max_sessions, spark_master_address, master_group_id
+    )
     livy_args = {
-        'spark_discovery': spark_discovery,
         'config': dynamic_config,
         'client': client,
         'job_types': ['livy'],
@@ -346,10 +350,11 @@ def start_livy_server(operation_alias=None, discovery_path=None, pool=None, enab
     op = None
     try:
         op = run_operation(livy_builder, sync=False, client=client)
-        _wait_livy_start(op, spark_discovery, client)
-        logger.info("Livy operation %s", op.id)
-        livy_address = SparkDiscovery.get(spark_discovery.livy(), client=client)
-        logger.info("Livy UI: http://{0}".format(livy_address))
+        if spark_discovery is not None:
+            _wait_livy_start(op, spark_discovery, client)
+            logger.info("Livy operation %s", op.id)
+            livy_address = SparkDiscovery.get(spark_discovery.livy(), client=client)
+            logger.info("Livy UI: http://{0}".format(livy_address))
         return op
     except Exception as err:
         logging.error(err, exc_info=True)
@@ -384,7 +389,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
                         livy_driver_memory=SparkDefaultArguments.LIVY_DRIVER_MEMORY,
                         livy_max_sessions=SparkDefaultArguments.LIVY_MAX_SESSIONS, rpc_job_proxy=False,
                         rpc_job_proxy_thread_pool_size=4, tcp_proxy_range_start=30000,
-                        tcp_proxy_range_size=100, enable_stderr_table=False):
+                        tcp_proxy_range_size=100, enable_stderr_table=False, group_id=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -448,6 +453,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     :param tcp_proxy_range_start: start port of TCP proxy allocation range
     :param tcp_proxy_range_size: size of TCP proxy allocation range
     :param enable_stderr_table: enables writing YT operation logs to stderr table
+    :param group_id: discovery group id
     :return:
     """
     worker_res = WorkerResources(worker_cores, worker_memory, worker_num, worker_cores_overhead, worker_timeout,
@@ -526,7 +532,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     common_config = CommonComponentConfig(
         operation_alias, pool, enable_tmpfs, network_project, tvm_id, tvm_secret, enablers, preemption_mode,
         cluster_log_level, rpc_job_proxy, rpc_job_proxy_thread_pool_size, tcp_proxy_range_start,
-        tcp_proxy_range_size, enable_stderr_table, "spark"
+        tcp_proxy_range_size, enable_stderr_table, "spark", spark_discovery, group_id
     )
     master_config = MasterConfig(master_memory_limit, master_port)
     worker_config = WorkerConfig(
@@ -539,7 +545,6 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_cores_ov
     )
     livy_config = LivyConfig(livy_driver_cores, livy_driver_memory, livy_max_sessions)
     args = {
-        'spark_discovery': spark_discovery,
         'config': dynamic_config,
         'client': client,
         'job_types': job_types,

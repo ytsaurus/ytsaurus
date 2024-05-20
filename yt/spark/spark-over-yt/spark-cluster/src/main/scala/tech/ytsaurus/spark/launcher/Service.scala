@@ -48,7 +48,7 @@ sealed trait ServiceWithAddress extends Service {
 
   def address: HostAndPort
 
-  def isAddressAvailable(retry: Int = 0): Boolean = DiscoveryService.isAlive(address, retry)
+  private def isAddressAvailable(retry: Int = 0): Boolean = DiscoveryService.isAlive(address, retry)
 
   override def isAlive(retry: Int = 0): Boolean = {
     val isAddressAlive = isAddressAvailable(retry)

@@ -19,29 +19,31 @@ object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher
 
   prepareProfiler()
 
-  withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
-    val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
-    val tcpRouter = TcpProxyService.register("SHS")(yt)
+  withYtClient(ytConfig) { yt =>
+    withCypressDiscovery(baseDiscoveryPath, yt) { cypressDiscovery =>
+      val masterAddress = waitForMaster(waitMasterTimeout, cypressDiscovery)
+      val tcpRouter = TcpProxyService.register("SHS")(yt)
 
-    withService(startHistoryServer(logPath, memory, discoveryService)) { historyServer =>
-      val historyServerAddress =
-        tcpRouter.map(_.getExternalAddress("SHS")).getOrElse(historyServer.address)
+      withService(startHistoryServer(logPath, memory, cypressDiscovery)) { historyServer =>
+        val historyServerAddress =
+          tcpRouter.map(_.getExternalAddress("SHS")).getOrElse(historyServer.address)
 
-      discoveryService.registerSHS(historyServerAddress)
-      tcpRouter.foreach { router =>
-        updateTcpAddress(historyServer.address.toString, router.getPort("SHS"))(yt)
-        log.info("Tcp proxy port addresses updated")
+        cypressDiscovery.registerSHS(historyServerAddress)
+        tcpRouter.foreach { router =>
+          updateTcpAddress(historyServer.address.toString, router.getPort("SHS"))(yt)
+          log.info("Tcp proxy port addresses updated")
+        }
+
+        def isAlive: Boolean = {
+          val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
+          val isShsAlive = historyServer.isAlive(3)
+
+          isMasterAlive && isShsAlive
+        }
+
+        checkPeriodically(isAlive)
+        log.error("Shutdown SHS")
       }
-
-      def isAlive: Boolean = {
-        val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
-        val isShsAlive = historyServer.isAlive(3)
-
-        isMasterAlive && isShsAlive
-      }
-
-      checkPeriodically(isAlive)
-      log.error("Shutdown SHS")
     }
   }
 }

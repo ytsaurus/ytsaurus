@@ -20,7 +20,7 @@ def main(raw_args=None):
     parser.add_argument("--network-project", required=False)
     parser.add_argument("--params", required=False, action=ParseStructuredArgument, dest="params",
                         default=SparkDefaultArguments.get_params())
-    parser.add_argument("--spyt-version", "--spark-cluster-version", required=False)
+    parser.add_argument("--spyt-version", required=False)
     parser.add_argument("--preemption_mode", required=False, default="normal")
     parser.add_argument("--cluster-log-level", required=False, default="INFO")
 
@@ -46,7 +46,9 @@ def main(raw_args=None):
     parser.add_argument('--livy-max-sessions', required=False,
                         default=SparkDefaultArguments.LIVY_MAX_SESSIONS, type=int)
     parser.add_argument('--spark-master-address', required=False, type=str)
-    args, unknown_args = parse_args(parser, raw_args=raw_args)
+    parser.add_argument('--master-group-id', required=False, type=str)
+    parser.add_argument('--group-id', required=False, type=str)
+    args, unknown_args = parser.parse_known_args(args=raw_args)
 
     yt_client = YtClient(proxy=args.proxy, token=default_token())
 
@@ -73,7 +75,9 @@ def main(raw_args=None):
                       rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size,
                       tcp_proxy_range_start=args.tcp_proxy_range_start,
                       tcp_proxy_range_size=args.tcp_proxy_range_size,
-                      enable_stderr_table=args.enable_stderr_table)
+                      enable_stderr_table=args.enable_stderr_table,
+                      master_group_id=args.master_group_id,
+                      group_id=args.group_id)
 
 
 if __name__ == '__main__':

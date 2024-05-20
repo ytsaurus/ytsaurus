@@ -73,6 +73,8 @@ class CommonComponentConfig(NamedTuple):
     tcp_proxy_range_size: int = 100
     enable_stderr_table: bool = False
     alias_prefix: str = ""
+    spark_discovery: SparkDiscovery = None
+    group_id: str = None
 
 
 class MasterConfig(NamedTuple):
@@ -118,6 +120,7 @@ class LivyConfig(NamedTuple):
     livy_driver_memory: str = SparkDefaultArguments.LIVY_DRIVER_MEMORY
     livy_max_sessions: int = SparkDefaultArguments.LIVY_MAX_SESSIONS
     spark_master_address: str = None
+    master_group_id: str = None
 
 
 class CommonSpecParams(NamedTuple):
@@ -128,8 +131,12 @@ class CommonSpecParams(NamedTuple):
     environment: dict
     spark_conf: dict
     task_spec: dict
-    spark_discovery: SparkDiscovery
     config: CommonComponentConfig
+
+
+def _put_if_not_none(d, key, value):
+    if value is not None:
+        d[key] = value
 
 
 def spark_conf_to_opts(config: dict):
@@ -178,6 +185,7 @@ def build_livy_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams
     livy_environment = {
         "LIVY_HOME": "$HOME/{}/livy".format(common_params.spark_home),
     }
+    _put_if_not_none(livy_environment, "SPARK_MASTER_DISCOVERY_GROUP_ID", config.master_group_id)
     livy_environment = update(common_params.environment, livy_environment)
 
     livy_file_paths = copy.copy(common_params.task_spec["file_paths"])
@@ -200,12 +208,13 @@ def build_livy_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams
 def build_hs_spec(builder: VanillaSpecBuilder, common_params: CommonSpecParams, config: HistoryServerConfig):
     spark_conf_hs = common_params.spark_conf.copy()
     if "spark.workerLog.tablePath" not in spark_conf_hs:
-        worker_log_location = "yt:/{}".format(common_params.spark_discovery.worker_log())
+        worker_log_location = "yt:/{}".format(common_params.config.spark_discovery.worker_log())
         spark_conf_hs["spark.workerLog.tablePath"] = worker_log_location
     if config.advanced_event_log:
-        event_log_path = "ytEventLog:/{}".format(config.shs_location or common_params.spark_discovery.event_log_table())
+        event_log_path = "ytEventLog:/{}".format(config.shs_location or
+                                                 common_params.config.spark_discovery.event_log_table())
     else:
-        event_log_path = "yt:/{}".format(config.shs_location or common_params.spark_discovery.event_log())
+        event_log_path = "yt:/{}".format(config.shs_location or common_params.config.spark_discovery.event_log())
     if "spark.history.fs.numReplayThreads" not in spark_conf_hs:
         spark_conf_hs["spark.history.fs.numReplayThreads"] = config.history_server_cpu_limit
 
@@ -255,7 +264,7 @@ def build_worker_spec(builder: VanillaSpecBuilder, job_type: str, ytserver_proxy
 
     spark_conf_worker['spark.shuffle.service.enabled'] = 'true'
     if "spark.workerLog.tablePath" not in common_params.spark_conf:
-        worker_log_location = "yt:/{}".format(common_params.spark_discovery.worker_log())
+        worker_log_location = "yt:/{}".format(common_params.config.spark_discovery.worker_log())
         spark_conf_worker["spark.workerLog.tablePath"] = worker_log_location
     if config.driver_op_discovery_script:
         script_absolute_path = _script_absolute_path(config.driver_op_discovery_script)
@@ -284,7 +293,8 @@ def build_worker_spec(builder: VanillaSpecBuilder, job_type: str, ytserver_proxy
 
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(common_params.config.enablers.enable_byop),
-        "SPARK_WORKER_PORT": str(config.worker_port)
+        "SPARK_WORKER_PORT": str(config.worker_port),
+        "SPARK_YT_CLUSTER_CONF_PATH": str(common_params.config.spark_discovery.conf()),
     }
     worker_environment = update(common_params.environment, worker_environment)
     if common_params.config.enablers.enable_byop:
@@ -341,7 +351,7 @@ def build_worker_spec(builder: VanillaSpecBuilder, job_type: str, ytserver_proxy
         .end_task()
 
 
-def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, client: YtClient,
+def build_spark_operation_spec(config: dict, client: YtClient,
                                job_types: List[str], common_config: CommonComponentConfig,
                                master_config: MasterConfig = None, worker_config: WorkerConfig = None,
                                hs_config: HistoryServerConfig = None, livy_config: LivyConfig = None):
@@ -361,25 +371,28 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
     user = get_user_name(client=client)
 
     operation_spec = copy.copy(config["operation_spec"])
-    if common_config.enable_stderr_table:
+    if common_config.spark_discovery is not None and common_config.enable_stderr_table:
         if "master" in job_types:
-            operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
+            operation_spec["stderr_table_path"] = str(common_config.spark_discovery.stderr())
         elif "driver" in job_types:
-            operation_spec["stderr_table_path"] = str(spark_discovery.stderr() + "_driver")
+            operation_spec["stderr_table_path"] = str(common_config.spark_discovery.stderr() + "_driver")
         else:
-            operation_spec["stderr_table_path"] = str(spark_discovery.stderr()) + "_worker"
+            operation_spec["stderr_table_path"] = str(common_config.spark_discovery.stderr()) + "_worker"
     if "title" not in operation_spec:
         operation_spec["title"] = common_config.operation_alias or (common_config.alias_prefix + "_" + str(user))
     operation_spec["pool"] = common_config.pool
     operation_spec['preemption_mode'] = common_config.preemption_mode
+    description = {
+        "cluster_version": config["cluster_version"],
+        "client_version": __version__,
+        "enablers": str(common_config.enablers),
+        "job_types": job_types,
+    }
+    if common_config.spark_discovery is not None:
+        description["discovery_path"] = common_config.spark_discovery.base_discovery_path
+    _put_if_not_none(description, "discovery_group_id", common_config.group_id)
     operation_spec["description"] = {
-        "Spark over YT": {
-            "discovery_path": spark_discovery.base_discovery_path,
-            "cluster_version": config["cluster_version"],
-            "client_version": __version__,
-            "enablers": str(common_config.enablers),
-            "job_types": job_types
-        }
+        "Spark over YT": description
     }
     ytserver_proxy_path = config.get("ytserver_proxy_path")
     if ytserver_proxy_path and common_config.enablers.enable_byop:
@@ -388,13 +401,14 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
     environment = copy.deepcopy(config["environment"])
     environment["YT_PROXY"] = call_get_proxy_address_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
-    environment["SPARK_BASE_DISCOVERY_PATH"] = str(spark_discovery.base_discovery_path)
-    environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())  # COMPAT(alex-shishkin)
+    _put_if_not_none(environment, "SPARK_DISCOVERY_GROUP_ID", common_config.group_id)
+    if common_config.spark_discovery is not None:
+        environment["SPARK_BASE_DISCOVERY_PATH"] = str(common_config.spark_discovery.base_discovery_path)
+        environment["SPARK_DISCOVERY_PATH"] = str(common_config.spark_discovery.discovery())  # COMPAT(alex-shishkin)
     environment["SPARK_HOME"] = "$HOME/{}/spark".format(spark_home)
     environment["SPYT_HOME"] = "$HOME/{}/spyt-package".format(spark_home)
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]  # TODO Rename to SPYT_CLUSTER_VERSION
     environment["SPYT_CLUSTER_VERSION"] = config["cluster_version"]
-    environment["SPARK_YT_CLUSTER_CONF_PATH"] = str(spark_discovery.conf())
     environment["SPARK_YT_SOLOMON_ENABLED"] = str(common_config.enablers.enable_solomon_agent)
     environment["SPARK_YT_IPV6_PREFERENCE_ENABLED"] = \
         str(common_config.enablers.enable_preference_ipv6)  # COMPAT(alex-shishkin)
@@ -424,6 +438,8 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
         common_task_spec["tmpfs_path"] = "tmpfs"
     if common_config.enablers.enable_mtn:
         common_task_spec["network_project"] = common_config.network_project
+    if common_config.group_id:
+        common_task_spec['extra_environment'] = ['discovery_server_addresses']
 
     tvm_enabled = common_config.enablers.enable_mtn and bool(common_config.tvm_id) and bool(common_config.tvm_secret)
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
@@ -433,7 +449,7 @@ def build_spark_operation_spec(spark_discovery: SparkDiscovery, config: dict, cl
 
     common_params = CommonSpecParams(
         spark_home, spark_distributive_tgz, environment["JAVA_HOME"], extra_java_opts,
-        environment, spark_conf_common, common_task_spec, spark_discovery, common_config
+        environment, spark_conf_common, common_task_spec, common_config
     )
     builder = VanillaSpecBuilder()
     if "master" in job_types:

@@ -114,7 +114,7 @@ class CypressDiscoveryService(baseDiscoveryPath: String)(implicit yt: CompoundCl
     registerSimpleService(shsPath, address)
   }
 
-  override def registerLivy(address: HostAndPort): Unit = {
+  override def registerLivy(address: HostAndPort, livyVersion: String): Unit = {
     registerSimpleService(livyPath, address)
   }
 
@@ -164,21 +164,7 @@ class CypressDiscoveryService(baseDiscoveryPath: String)(implicit yt: CompoundCl
     })
   }
 
-  override def waitAddress(timeout: Duration): Option[Address] = {
-    DiscoveryService.waitFor(
-      discoverAddress().toOption.filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
-      timeout,
-      s"spark component address in $discoveryPath"
-    )
-  }
-
-  override def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
-    DiscoveryService.waitFor(
-      DiscoveryService.isAlive(hostPort, 0),
-      timeout,
-      s"address available $hostPort"
-    )
-  }
+  override def toString: String = s"CypressDiscovery[$baseDiscoveryPath]"
 
   private def removeAddress(transaction: Option[String]): Unit = {
     YtWrapper.listDir(discoveryPath)

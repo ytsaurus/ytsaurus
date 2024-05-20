@@ -22,9 +22,17 @@ trait DiscoveryService {
                      masterWrapperEndpoint: HostAndPort,
                      clusterConf: SparkConfYsonable): Unit
 
+  def updateMaster(operationId: String,
+                   address: Address,
+                   clusterVersion: String,
+                   masterWrapperEndpoint: HostAndPort,
+                   clusterConf: SparkConfYsonable): Unit = {}
+
   def registerSHS(address: HostAndPort): Unit
 
-  def registerLivy(address: HostAndPort): Unit
+  def registerLivy(address: HostAndPort, livyVersion: String): Unit
+
+  def updateLivy(address: HostAndPort, livyVersion: String): Unit = {}
 
   def registerWorker(operationId: String): Unit
 
@@ -34,9 +42,13 @@ trait DiscoveryService {
 
   def masterWrapperEndpoint(): Option[HostAndPort]
 
-  def waitAddress(timeout: Duration): Option[Address]
-
-  def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean
+  def waitAddress(timeout: Duration): Option[Address] = {
+    DiscoveryService.waitFor(
+      discoverAddress().toOption.filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
+      timeout,
+      s"spark component address"
+    )
+  }
 
   def operationInfo: Option[OperationInfo]
 }
@@ -84,6 +96,14 @@ object DiscoveryService {
         isAlive(hostPort, retry - 1)
       } else false
     }
+  }
+
+  def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
+    DiscoveryService.waitFor(
+      DiscoveryService.isAlive(hostPort, 0),
+      timeout,
+      s"address available $hostPort"
+    )
   }
 }
 

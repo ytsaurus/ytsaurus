@@ -49,7 +49,7 @@ def main(raw_args=None):
                         default=SparkDefaultArguments.get_params())
     parser.add_argument('--abort-existing', required=False,
                         action='store_true', default=False)
-    parser.add_argument("--spyt-version", "--spark-cluster-version", required=False)
+    parser.add_argument("--spyt-version", required=False)
     parser.add_argument("--worker-log-update-interval",
                         required=False, default=SparkDefaultArguments.SPARK_WORKER_LOG_UPDATE_INTERVAL)
     parser.add_argument("--worker-log-table-ttl", required=False,
@@ -133,6 +133,7 @@ def main(raw_args=None):
     subgroup.add_argument('--livy-driver-memory', required=False, default=SparkDefaultArguments.LIVY_DRIVER_MEMORY)
     subgroup.add_argument('--livy-max-sessions', required=False,
                           default=SparkDefaultArguments.LIVY_MAX_SESSIONS, type=int)
+    parser.add_argument('--group-id', required=False, type=str)
 
     args, unknown_args = parse_args(parser, raw_args=raw_args)
 
@@ -208,7 +209,8 @@ def main(raw_args=None):
                         rpc_job_proxy_thread_pool_size=args.rpc_job_proxy_thread_pool_size,
                         tcp_proxy_range_start=args.tcp_proxy_range_start,
                         tcp_proxy_range_size=args.tcp_proxy_range_size,
-                        enable_stderr_table=args.enable_stderr_table)
+                        enable_stderr_table=args.enable_stderr_table,
+                        group_id=args.group_id)
 
 
 if __name__ == '__main__':

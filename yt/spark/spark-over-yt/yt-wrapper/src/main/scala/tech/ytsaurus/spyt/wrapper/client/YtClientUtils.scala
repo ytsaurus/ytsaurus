@@ -8,9 +8,10 @@ import org.slf4j.LoggerFactory
 import tech.ytsaurus.spyt.HostAndPort
 import tech.ytsaurus.spyt.wrapper.YtJavaConverters._
 import tech.ytsaurus.spyt.wrapper.system.SystemUtils
-import tech.ytsaurus.client.{CompoundClient, DirectYTsaurusClient, DiscoveryMethod, YTsaurusClient, YTsaurusClientConfig, YTsaurusCluster}
+import tech.ytsaurus.client.{CompoundClient, DirectYTsaurusClient, DiscoveryClient, DiscoveryMethod, YTsaurusClient, YTsaurusClientConfig, YTsaurusCluster}
 import tech.ytsaurus.client.bus.DefaultBusConnector
-import tech.ytsaurus.client.rpc.{RpcOptions, YTsaurusClientAuth}
+import tech.ytsaurus.client.discovery.StaticDiscoverer
+import tech.ytsaurus.client.rpc.RpcOptions
 
 import java.net.SocketAddress
 import java.util.concurrent.ThreadFactory
@@ -46,7 +47,7 @@ trait YtClientUtils {
   }
 
   private def createYtClientWrapper(id: String, timeout: Duration, group: MultithreadEventLoopGroup)
-                            (client: (DefaultBusConnector, RpcOptions) => CompoundClient): YtRpcClient = {
+                                   (client: (DefaultBusConnector, RpcOptions) => CompoundClient): YtRpcClient = {
     val connector = new DefaultBusConnector(group, true)
       .setReadTimeout(toJavaDuration(timeout))
       .setWriteTimeout(toJavaDuration(timeout))
@@ -215,6 +216,28 @@ trait YtClientUtils {
     val client = buildYTsaurusClient(connector, cluster, config, rpcOptions)
 
     initYtClient(client)
+  }
+
+  def createDiscoveryClient(): DiscoveryClient = {
+    val connector = new DefaultBusConnector(new NioEventLoopGroup(1, daemonThreadFactory), true)
+      .setReadTimeout(toJavaDuration(1 minute))
+      .setWriteTimeout(toJavaDuration(1 minute))
+
+    try {
+      val rpcOptions = new RpcOptions()
+      rpcOptions.setTimeouts(1 minute)
+      val discoverer = StaticDiscoverer.loadFromEnvironment()
+      val discoveryClient = DiscoveryClient.builder()
+        .setDiscoverer(discoverer)
+        .setOwnBusConnector(connector)
+        .setRpcOptions(rpcOptions)
+        .build();
+      discoveryClient
+    } catch {
+      case e: Throwable =>
+        connector.close()
+        throw e
+    }
   }
 
   implicit class RichRpcOptions(options: RpcOptions) {

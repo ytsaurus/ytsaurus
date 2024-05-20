@@ -26,52 +26,73 @@ object MasterLauncher extends App
   val additionalMetrics: MetricRegistry = new MetricRegistry
   AdditionalMetrics.register(additionalMetrics, "master")
 
-  withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, yt) =>
-    val tcpRouter = TcpProxyService.register("HOST", "WEBUI", "REST", "WRAPPER")(yt)
-    val reverseProxyUrl = tcpRouter.map(x => "http://" + x.getExternalAddress("WEBUI").toString)
-    withService(startMaster(reverseProxyUrl)) { master =>
-      withService(startMasterWrapper(args, master)) { masterWrapper =>
-        withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.port)) {
-          solomonAgent =>
+  withYtClient(ytConfig) { yt =>
+    val masterGroupId = groupId.map(getFullGroupId)
+    withCompoundDiscovery(masterGroupId, masterGroupId, Some(baseDiscoveryPath), Some(yt)) { discoveryService =>
+      log.info("Used discovery service: " + discoveryService.toString)
+      val tcpRouter = TcpProxyService.register("HOST", "WEBUI", "REST", "WRAPPER")(yt)
+      val reverseProxyUrl = tcpRouter.map(x => "http://" + x.getExternalAddress("WEBUI").toString)
+      withService(startMaster(reverseProxyUrl)) { master =>
+        withService(startMasterWrapper(args, master)) { masterWrapper =>
+          withOptionalService(startSolomonAgent(args, "master", master.masterAddress.webUiHostAndPort.port)) {
+            solomonAgent =>
 
-            master.waitAndThrowIfNotAlive(5 minutes)
-            masterWrapper.waitAndThrowIfNotAlive(5 minutes)
+              master.waitAndThrowIfNotAlive(5 minutes)
+              masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
-            val masterAddress = tcpRouter.map { router =>
-              Address(
-                router.getExternalAddress("HOST"),
-                router.getExternalAddress("WEBUI"),
-                router.getExternalAddress("REST")
+              val masterAddress = tcpRouter.map { router =>
+                Address(
+                  router.getExternalAddress("HOST"),
+                  router.getExternalAddress("WEBUI"),
+                  router.getExternalAddress("REST")
+                )
+              }.getOrElse(master.masterAddress)
+              val masterWrapperAddress =
+                tcpRouter.map(_.getExternalAddress("WRAPPER")).getOrElse(masterWrapper.address)
+              log.info("Register master")
+              discoveryService.registerMaster(
+                operationId,
+                masterAddress,
+                clusterVersion,
+                masterWrapperAddress,
+                SparkConfYsonable(sparkSystemProperties)
               )
-            }.getOrElse(master.masterAddress)
-            val masterWrapperAddress =
-              tcpRouter.map(_.getExternalAddress("WRAPPER")).getOrElse(masterWrapper.address)
-            log.info("Register master")
-            discoveryService.registerMaster(
-              operationId,
-              masterAddress,
-              clusterVersion,
-              masterWrapperAddress,
-              SparkConfYsonable(sparkSystemProperties)
-            )
-            log.info("Master registered")
-            tcpRouter.foreach { router =>
-              updateTcpAddress(master.masterAddress.hostAndPort.toString, router.getPort("HOST"))(yt)
-              updateTcpAddress(master.masterAddress.webUiHostAndPort.toString, router.getPort("WEBUI"))(yt)
-              updateTcpAddress(master.masterAddress.restHostAndPort.toString, router.getPort("REST"))(yt)
-              updateTcpAddress(masterWrapper.address.toString, router.getPort("WRAPPER"))(yt)
-              log.info("Tcp proxy port addresses updated")
-            }
+              log.info("Master registered")
+              tcpRouter.foreach { router =>
+                updateTcpAddress(master.masterAddress.hostAndPort.toString, router.getPort("HOST"))(yt)
+                updateTcpAddress(master.masterAddress.webUiHostAndPort.toString, router.getPort("WEBUI"))(yt)
+                updateTcpAddress(master.masterAddress.restHostAndPort.toString, router.getPort("REST"))(yt)
+                updateTcpAddress(masterWrapper.address.toString, router.getPort("WRAPPER"))(yt)
+                log.info("Tcp proxy port addresses updated")
+              }
 
-            autoscalerConf foreach { conf =>
-              AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf, additionalMetrics)
-            }
-            if (solomonAgent.nonEmpty) {
-              AdditionalMetricsSender(sparkSystemProperties, "master", additionalMetrics).start()
-            }
+              autoscalerConf foreach { conf =>
+                AutoScaler.start(AutoScaler.build(conf, discoveryService, yt), conf, additionalMetrics)
+              }
+              if (solomonAgent.nonEmpty) {
+                AdditionalMetricsSender(sparkSystemProperties, "master", additionalMetrics).start()
+              }
 
-            checkPeriodically(master.isAlive(3) && solomonAgent.forall(_.isAlive(3)))
-            log.error("Master is not alive")
+              def isAlive: Boolean = {
+                val isMasterAlive = master.isAlive(3)
+                val isSolomonAlive = solomonAgent.forall(_.isAlive(3))
+
+                val res = isMasterAlive && isSolomonAlive
+                if (res) {
+                  discoveryService.updateMaster(
+                    operationId,
+                    masterAddress,
+                    clusterVersion,
+                    masterWrapperAddress,
+                    SparkConfYsonable(sparkSystemProperties)
+                  )
+                }
+                res
+              }
+
+              checkPeriodically(isAlive)
+              log.error("Master is not alive")
+          }
         }
       }
     }
@@ -81,14 +102,14 @@ object MasterLauncher extends App
 case class MasterLauncherArgs(ytConfig: YtClientConfiguration,
                               baseDiscoveryPath: String,
                               operationId: String,
-                              clusterVersion: String)
+                              groupId: Option[String])
 
 object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
     YtClientConfiguration(args.optional),
     args.optional("base-discovery-path").getOrElse(sys.env("SPARK_BASE_DISCOVERY_PATH")),
     args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID")),
-    args.optional("cluster-version").getOrElse(sys.env("SPYT_CLUSTER_VERSION"))
+    args.optional("discovery-group-id").orElse(sys.env.get("SPARK_DISCOVERY_GROUP_ID")),
   )
 
   def apply(args: Array[String]): MasterLauncherArgs = MasterLauncherArgs(Args(args))

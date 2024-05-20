@@ -10,7 +10,7 @@ import org.apache.spark.deploy.worker.YtWorker
 import tech.ytsaurus.spyt.wrapper.Utils.{parseDuration, ytHostnameOrIpAddress}
 import tech.ytsaurus.spyt.wrapper.YtWrapper
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
-import tech.ytsaurus.spyt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
+import tech.ytsaurus.spyt.wrapper.discovery.{Address, CompoundDiscoveryService, CypressDiscoveryService, DiscoveryService, DiscoveryServerService}
 import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.spyt.HostAndPort
 
@@ -47,6 +47,7 @@ trait SparkLauncher {
 
   private val livyHome: String = new File(env("LIVY_HOME", "./livy")).getAbsolutePath
   private val javaHome: String = new File(env("JAVA_HOME", "/opt/jdk11")).getAbsolutePath
+  val clusterVersion: String = sys.env("SPYT_CLUSTER_VERSION")
 
   private def prepareSparkConf(): Unit = {
     copyToSparkConfIfExists("metrics.properties")
@@ -306,22 +307,73 @@ trait SparkLauncher {
   @tailrec
   final def checkPeriodically(p: => Boolean): Unit = {
     if (p) {
-      Thread.sleep((10 seconds).toMillis)
+      Thread.sleep((20 seconds).toMillis)
       checkPeriodically(p)
     }
   }
 
-  def withDiscovery(ytConfig: YtClientConfiguration, baseDiscoveryPath: String)
-                   (f: (DiscoveryService, CompoundClient) => Unit): Unit = {
+  def withYtClient(ytConfig: YtClientConfiguration)
+                  (f: CompoundClient => Unit): Unit = {
     val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
-      val discoveryService = new CypressDiscoveryService(baseDiscoveryPath)(client.yt)
-      f(discoveryService, client.yt)
+      f(client.yt)
     } finally {
-      log.info("Close yt client")
       client.close()
     }
   }
+
+  def withOptionalYtClient(ytConfig: Option[YtClientConfiguration])
+                          (f: Option[CompoundClient] => Unit): Unit = {
+    if (ytConfig.isDefined) {
+      withYtClient(ytConfig.get) { yt => f(Some(yt)) }
+    } else {
+      f(None)
+    }
+  }
+
+  def withCypressDiscovery(baseDiscoveryPath: String, client: CompoundClient)
+                          (f: DiscoveryService => Unit): Unit = {
+    val service = new CypressDiscoveryService(baseDiscoveryPath)(client)
+    f(service)
+  }
+
+  def withCypressDiscovery(baseDiscoveryPath: Option[String], client: Option[CompoundClient])
+                          (f: Option[DiscoveryService] => Unit): Unit = {
+    if (baseDiscoveryPath.isDefined && client.isDefined) {
+      withCypressDiscovery(baseDiscoveryPath.get, client.get)(x => f(Some(x)))
+    } else {
+      f(None)
+    }
+  }
+
+  def withDiscoveryServer(groupId: Option[String], masterGroupId: Option[String])
+                         (f: Option[DiscoveryService] => Unit): Unit = {
+    if (sys.env.contains("YT_DISCOVERY_ADDRESSES") && groupId.isDefined) {
+      val client = YtWrapper.createDiscoveryClient()
+      try {
+        val service = new DiscoveryServerService(client, groupId.get, masterGroupId)
+        f(Some(service))
+      } finally {
+        log.info("Close discovery client")
+        client.close()
+      }
+    } else {
+      f(None)
+    }
+  }
+
+  def withCompoundDiscovery(groupId: Option[String], masterGroupId: Option[String],
+                            baseDiscoveryPath: Option[String], client: Option[CompoundClient])
+                           (f: DiscoveryService => Unit): Unit = {
+    withCypressDiscovery(baseDiscoveryPath, client) { cypressDiscovery =>
+      withDiscoveryServer(groupId, masterGroupId) { serverDiscovery =>
+        val compoundService = new CompoundDiscoveryService(Seq(cypressDiscovery, serverDiscovery).flatten)
+        f(compoundService)
+      }
+    }
+  }
+
+  def getFullGroupId(groupId: String): String = "/spyt/" + groupId
 
   def withService[T, S <: Service](service: S)(f: S => T): T = {
     try f(service) finally service.stop()

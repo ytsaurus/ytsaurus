@@ -3,16 +3,14 @@ package tech.ytsaurus.spark.launcher
 import com.codahale.metrics.MetricRegistry
 import com.twitter.scalding.Args
 import org.slf4j.LoggerFactory
-import ByopLauncher.ByopConfig
-import Service.LocalService
-import WorkerLogLauncher.WorkerLogConfig
+import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.spark.launcher.ByopLauncher.ByopConfig
+import tech.ytsaurus.spark.launcher.Service.LocalService
+import tech.ytsaurus.spark.launcher.WorkerLogLauncher.WorkerLogConfig
+import tech.ytsaurus.spark.metrics.AdditionalMetrics
 import tech.ytsaurus.spyt.wrapper.Utils.parseDuration
 import tech.ytsaurus.spyt.wrapper.client.YtClientConfiguration
 import tech.ytsaurus.spyt.wrapper.discovery.DiscoveryService
-import tech.ytsaurus.client.CompoundClient
-import tech.ytsaurus.spark.launcher.ByopLauncher.ByopConfig
-import tech.ytsaurus.spark.launcher.WorkerLogLauncher.WorkerLogConfig
-import tech.ytsaurus.spark.metrics.AdditionalMetrics
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -36,28 +34,30 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
   }
 
   withOptionalService(byopConfig.map(startByop)) { byop =>
-    withDiscovery(ytConfig, baseDiscoveryPath) { case (discoveryService, client) =>
-      withOptionalService(startWorkerLogService(client)) { workerLog =>
-        val masterAddress = waitForMaster(waitMasterTimeout, discoveryService)
-        discoveryService.registerWorker(operationId)
+    withYtClient(ytConfig) { yt =>
+      withCypressDiscovery(baseDiscoveryPath, yt) { cypressDiscovery =>
+        withOptionalService(startWorkerLogService(yt)) { workerLog =>
+          val masterAddress = waitForMaster(waitMasterTimeout, cypressDiscovery)
+          cypressDiscovery.registerWorker(operationId)
 
-        log.info(s"Starting worker for master $masterAddress")
-        withService(startWorker(masterAddress, cores, memory)) { worker =>
-          withOptionalService(startSolomonAgent(args, "worker", worker.address.port)) { solomonAgent =>
-            def isAlive: Boolean = {
-              val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
-              val isWorkerAlive = worker.isAlive(3)
-              val isWorkerLogAlive = workerLog.forall(_.isAlive(3))
-              val isRpcProxyAlive = byop.forall(_.isAlive(3))
-              val isSolomonAgentAlive = solomonAgent.forall(_.isAlive(3))
+          log.info(s"Starting worker for master $masterAddress")
+          withService(startWorker(masterAddress, cores, memory)) { worker =>
+            withOptionalService(startSolomonAgent(args, "worker", worker.address.port)) { solomonAgent =>
+              def isAlive: Boolean = {
+                val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
+                val isWorkerAlive = worker.isAlive(3)
+                val isWorkerLogAlive = workerLog.forall(_.isAlive(3))
+                val isRpcProxyAlive = byop.forall(_.isAlive(3))
+                val isSolomonAgentAlive = solomonAgent.forall(_.isAlive(3))
 
-              isMasterAlive && isWorkerAlive && isWorkerLogAlive && isRpcProxyAlive && isSolomonAgentAlive
+                isMasterAlive && isWorkerAlive && isWorkerLogAlive && isRpcProxyAlive && isSolomonAgentAlive
+              }
+
+              if (solomonAgent.nonEmpty) {
+                AdditionalMetricsSender(sparkSystemProperties, "worker", additionalMetrics).start()
+              }
+              checkPeriodically(isAlive)
             }
-
-            if (solomonAgent.nonEmpty) {
-              AdditionalMetricsSender(sparkSystemProperties, "worker", additionalMetrics).start()
-            }
-            checkPeriodically(isAlive)
           }
         }
       }
