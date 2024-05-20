@@ -1156,7 +1156,6 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     const IReshardIterationPtr& reshardIteration,
     const TBundleStatePtr& bundleState)
 {
-    auto descriptorIt = begin;
     bool pickPivotKeys = reshardIteration->IsPickPivotKeysEnabled(bundleState->GetBundle()->Config);
     if (!pickPivotKeys) {
         return {begin, end};
@@ -1169,7 +1168,7 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     std::vector<TReshardDescriptor> descriptors;
     std::vector<TReshardDescriptorIt> descriptorsToPick;
     std::vector<const TTablet*> firstTablets;
-    for (; descriptorIt < end; ++descriptorIt) {
+    for (auto descriptorIt = begin; descriptorIt < end; ++descriptorIt) {
         if (pickPivotKeys) {
             auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptorIt->Tablets[0]);
             auto future = PickReshardPivotKeysIfNeeded(
@@ -1188,18 +1187,18 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
             }
         }
 
-        descriptors.push_back(*descriptorIt);
+        descriptors.emplace_back(std::move(*descriptorIt));
     }
 
     auto responses = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
 
     for (int index = 0; index < std::ssize(descriptorsToPick); ++index) {
+        auto descriptorIt = descriptorsToPick[index];
         auto* firstTablet = firstTablets[index];
         auto* table = firstTablet->Table;
         auto firstTabletIndex = firstTablet->Index;
         auto lastTabletIndex = firstTabletIndex + std::ssize(descriptorIt->Tablets) - 1;
         auto rspOrError = responses[index];
-        descriptorIt = descriptorsToPick[index];
 
         if (!rspOrError.IsOK()) {
             YT_LOG_ERROR(rspOrError,
