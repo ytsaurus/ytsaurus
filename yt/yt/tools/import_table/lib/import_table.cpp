@@ -240,7 +240,7 @@ class TDownloadMapper
 public:
     TDownloadMapper() = default;
 
-    TDownloadMapper(TSourceConfig sourceConfig)
+    explicit TDownloadMapper(TSourceConfig sourceConfig)
         : SourceConfig_(std::move(sourceConfig))
     { }
 
@@ -683,7 +683,7 @@ void ImportParquetFilesFromS3(
 
     auto fileKeys = GetListFilesKeysFromS3(s3Config, accessKeyId, secretAccessKey, prefix);
 
-    YT_LOG_INFO("Successfully received %v file names from s3", fileKeys.size());
+    YT_LOG_INFO("Successfully received %v file names from S3", fileKeys.size());
 
     ImportParquetFilesFromSource(
         proxy,

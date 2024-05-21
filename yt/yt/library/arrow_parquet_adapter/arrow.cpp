@@ -70,7 +70,7 @@ public:
             FilePosition_ = position;
         } else {
             if (position < ReaderPosition_) {
-                return arrow::Status::Invalid(Format("Position %v is less than current reader position: %v", position, ReaderPosition_));
+                return arrow::Status::Invalid(Format("Position %v is less than current reader position %v", position, ReaderPosition_));
             }
             if (position > ReaderPosition_) {
                 auto lenSkip = position - ReaderPosition_;

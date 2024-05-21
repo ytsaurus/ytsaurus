@@ -77,7 +77,7 @@ NTi::TTypePtr GetYTType(const std::shared_ptr<arrow::DataType>& arrowType)
         }
 
         default:
-            THROW_ERROR_EXCEPTION("Unsupported arrow type: %v", arrowType->ToString());
+            THROW_ERROR_EXCEPTION("Unsupported arrow type %Qv", arrowType->ToString());
     }
 }
 

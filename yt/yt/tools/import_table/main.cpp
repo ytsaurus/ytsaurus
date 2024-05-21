@@ -63,13 +63,13 @@ struct TOptsS3
     TOptsS3()
         : TOpts()
     {
-        Opts.AddLongOption("url", "Endpoint url of s3 storage")
+        Opts.AddLongOption("url", "Endpoint URL of S3 storage")
             .StoreResult(&Url)
             .Required();
         Opts.AddLongOption("region", "Region")
             .DefaultValue("")
             .StoreResult(&Region);
-        Opts.AddLongOption("bucket", "Name of bucket in s3")
+        Opts.AddLongOption("bucket", "Name of bucket in S3")
             .StoreResult(&Bucket)
             .Required();
         Opts.AddLongOption("prefix", "Common prefix of target files")
@@ -139,7 +139,7 @@ void ImportFiles(int argc, const char** argv)
     modChooser.AddMode(
         "s3",
         ImportFilesFromS3,
-        "-- import files from s3"
+        "-- import files from S3"
     );
 
     modChooser.Run(argc, argv);
