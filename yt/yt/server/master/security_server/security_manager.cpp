@@ -544,6 +544,8 @@ public:
                 BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND_NO_PROPAGATE(&TSecurityManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
+            multicellManager->SubscribeSecondaryMasterRegisteredAtPrimary(
+                BIND_NO_PROPAGATE(&TSecurityManager::OnSecondaryMasterRegisteredAtPrimary, MakeWeak(this)));
         }
 
         static constexpr int AccountProfilingProducerCount = 10;
@@ -4171,7 +4173,7 @@ private:
         }
 
         if (multicellManager->IsPrimaryMaster()) {
-            const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
+            const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
             for (auto secondaryCellTag : secondaryCellTags) {
                 multicellStatistics[secondaryCellTag];
             }
@@ -4468,6 +4470,16 @@ private:
 
         for (auto* group : groups) {
             replicateMembership(group);
+        }
+    }
+
+    void OnSecondaryMasterRegisteredAtPrimary(TCellTag cellTag)
+    {
+        YT_VERIFY(Bootstrap_->IsPrimaryMaster());
+
+        auto accounts = GetValuesSortedByKey(AccountMap_);
+        for (auto* account : accounts) {
+            account->MulticellStatistics().emplace(cellTag, TAccountStatistics{});
         }
     }
 

@@ -329,7 +329,7 @@ public:
         return RoleMasterCellCounts_[cellRole].load();
     }
 
-    TString GetMasterCellName(NObjectClient::TCellTag cellTag) const override
+    TString GetMasterCellName(TCellTag cellTag) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -338,7 +338,7 @@ public:
         return GetOrCrash(MasterCellNameMap_, cellTag);
     }
 
-    std::optional<NObjectClient::TCellTag> FindMasterCellTagByName(const TString& cellName) const override
+    std::optional<TCellTag> FindMasterCellTagByName(const TString& cellName) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -502,6 +502,7 @@ public:
 
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateKeysToSecondaryMaster);
     DEFINE_SIGNAL_OVERRIDE(void(TCellTag), ReplicateValuesToSecondaryMaster);
+    DEFINE_SIGNAL_OVERRIDE(void(TCellTag), SecondaryMasterRegisteredAtPrimary);
 
 private:
     const TMulticellManagerConfigPtr Config_;
@@ -829,6 +830,8 @@ private:
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
             PostToMaster(response, cellTag, true);
         }
+
+        SecondaryMasterRegisteredAtPrimary_.Fire(cellTag);
     }
 
     void HydraReplicateDynamicallyPropagatedMasterCellTags(NProto::TReqReplicateDynamicallyPropagatedMasterCellTags* request) noexcept
@@ -1401,7 +1404,7 @@ private:
             ConflictingCellRolesAlerts_.begin(),
             ConflictingCellRolesAlerts_.end(),
             std::back_inserter(alerts),
-            [] (const std::pair<NYT::NObjectClient::TCellTag, NYT::TError>& elem) {
+            [] (const std::pair<TCellTag, TError>& elem) {
                 return elem.second;
             });
 
