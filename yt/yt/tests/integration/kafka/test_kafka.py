@@ -4,7 +4,9 @@ from yt_queue_agent_test_base import (
     TestQueueAgentBase, ReplicatedObjectBase)
 
 from yt_commands import (
-    authors, get, create, sync_mount_table, insert_rows, sync_create_cells)
+    authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
+    create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
+    make_ace)
 
 from confluent_kafka import (
     Consumer, TopicPartition)
@@ -15,8 +17,8 @@ import time
 ##################################################################
 
 
-def _get_token(value, config):
-    return "some_token_123", time.time() + 3600
+def _get_token(token, config):
+    return token, time.time() + 3600
 
 
 class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
@@ -55,15 +57,70 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         create("table", path, attributes=attributes)
         sync_mount_table(path)
 
+    def _consume_messages(self, queue_path, consumer_path, token, message_count=3):
+        address = self.Env.get_kafka_proxy_address()
+
+        consumer_config = {
+            "bootstrap.servers": address,
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanisms": "OAUTHBEARER",
+            'oauth_cb': functools.partial(_get_token, token),
+            "client.id": "1234567",
+            "group.id": consumer_path,
+            "debug": "all",
+        }
+        c = Consumer(consumer_config)
+
+        c.assign([TopicPartition(queue_path, 0)])
+
+        none_message_count = 0
+        error_count = 0
+
+        messages = []
+
+        while True:
+            msg = c.poll(1.0)
+
+            if msg is None:
+                none_message_count += 1
+                if none_message_count > 100:
+                    assert False, "Too much none messages"
+                continue
+
+            if msg.error():
+                error_count += 1
+                if error_count > 10:
+                    assert not msg.error()
+                continue
+
+            messages += [msg]
+
+            assert msg.key().decode() == ""
+            # value = yson.loads(msg.value().decode())
+            # assert value["surname"] == f"foo-{message_count}"
+            # assert value["number"] == message_count
+
+            if len(messages) >= message_count:
+                break
+
+        c.close()
+
+        return messages
+
     @authors("nadya73")
     def test_check_cypress(self):
-        assert len(get("//sys/kafka_proxies")) == 1
+        address = self.Env.get_kafka_proxy_address()
+
+        assert len(get("//sys/kafka_proxies/instances")) == 1
+        assert ls("//sys/kafka_proxies/instances")[0] == address
 
     @authors("nadya73")
     def test_basic(self):
-        self._create_cells()
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
 
-        address = self.Env.get_kafka_proxy_address()
+        self._create_cells()
 
         queue_path = "primary://tmp/queue"
         consumer_path = "primary://tmp/consumer"
@@ -77,49 +134,20 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
             {"surname": "foo-2", "number": 2},
         ])
 
-        consumer_config = {
-            "bootstrap.servers": address,
-            "security.protocol": "SASL_PLAINTEXT",  # "PLAINTEXT",
-            "sasl.mechanisms": "OAUTHBEARER",
-            'oauth_cb': functools.partial(_get_token, 123),
-            "client.id": "1234567",
-            "group.id": consumer_path,
-            "log_level": 7,
-            "debug": 'all'
-        }
-        c = Consumer(consumer_config)
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
 
-        c.assign([TopicPartition(queue_path, 0)])
+        with raises_yt_error("permission"):
+            pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        message_count = 0
-        none_message_count = 0
-        error_count = 0
+        with raises_yt_error("permission"):
+            pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-        while True:
-            msg = c.poll(1.0)
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read"]))
 
-            if msg is None:
-                none_message_count += 1
-                if none_message_count > 100:
-                    assert False
-                continue
-
-            if msg.error():
-                error_count += 1
-                if error_count > 10:
-                    assert not msg.error()
-                continue
-
-            assert msg.key().decode() == ""
-            # value = yson.loads(msg.value().decode())
-            # assert value["surname"] == f"foo-{message_count}"
-            # assert value["number"] == message_count
-
-            message_count += 1
-            if message_count >= 3:
-                break
-
-        assert message_count == 3
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3)
+        assert len(messages) == 3
 
     @authors("nadya73")
     def test_unsupported_sasl_mechanism(self):

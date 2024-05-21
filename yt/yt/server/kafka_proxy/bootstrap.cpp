@@ -22,6 +22,8 @@
 
 #include <yt/yt/client/kafka/packet.h>
 
+#include <yt/yt/library/auth_server/authentication_manager.h>
+
 #include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -49,6 +51,8 @@
 namespace NYT::NKafkaProxy {
 
 using namespace NAdmin;
+using namespace NApi;
+using namespace NAuth;
 using namespace NBus;
 using namespace NConcurrency;
 using namespace NCoreDump;
@@ -149,6 +153,8 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
+    NAuth::IAuthenticationManagerPtr AuthenticationManager_;
+
     NConcurrency::IThreadPoolPollerPtr Poller_;
     NConcurrency::IThreadPoolPollerPtr Acceptor_;
 
@@ -183,9 +189,9 @@ private:
 
         {
             TCypressRegistrarOptions options{
-                .RootPath = KafkaProxiesInstancesPath + NNet::BuildServiceAddress(
+                .RootPath = Format("%v/%v", KafkaProxiesInstancesPath, NNet::BuildServiceAddress(
                     NNet::GetLocalHostName(),
-                    Config_->RpcPort),
+                    Config_->Port)),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };
@@ -217,13 +223,20 @@ private:
         Poller_ = CreateThreadPoolPoller(
             DynamicConfigManager_->GetConfig()->PollerThreadCount,
             "KafkaPoller");
+
         Acceptor_ = CreateThreadPoolPoller(
             DynamicConfigManager_->GetConfig()->AcceptorThreadCount,
             "KafkaAcceptor");
 
+        AuthenticationManager_ = CreateAuthenticationManager(
+            Config_->Auth,
+            Poller_,
+            NativeRootClient_);
+
         Server_ = CreateServer(
             Config_,
             NativeConnection_,
+            AuthenticationManager_,
             Poller_,
             Acceptor_);
     }

@@ -42,6 +42,8 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
+    registrar.Parameter("auth", &TThis::Auth)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

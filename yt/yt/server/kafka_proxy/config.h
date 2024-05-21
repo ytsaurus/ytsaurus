@@ -19,6 +19,8 @@ public:
     int Port;
     bool AbortOnUnrecognizedOptions;
 
+    NAuth::TAuthenticationManagerConfigPtr Auth;
+
     int BindRetryCount;
     TDuration BindRetryBackoff;
 

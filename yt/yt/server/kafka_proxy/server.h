@@ -1,5 +1,6 @@
 #pragma once
 
+#include "connection.h"
 #include "public.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -26,14 +27,14 @@ struct IServer
     virtual void Start() = 0;
 
     //! Represents abstract Kafka request handler.
-    using THandler = TCallback<TSharedRef(NKafka::IKafkaProtocolReader*, int)>;
+    using THandler = TCallback<TSharedRef(const TConnectionId&, NKafka::IKafkaProtocolReader*, int)>;
     virtual void RegisterHandler(
         NKafka::ERequestType requestType,
         THandler handler) = 0;
 
     //! Represents Kafka request handler.
     template <class TRequest, class TResponse>
-    using TTypedHandler = TCallback<TResponse(const TRequest&)>;
+    using TTypedHandler = TCallback<TResponse(const TConnectionId&, const TRequest&)>;
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
 };
@@ -45,6 +46,7 @@ DEFINE_REFCOUNTED_TYPE(IServer);
 IServerPtr CreateServer(
     TKafkaProxyConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
+    NAuth::IAuthenticationManagerPtr authenticationManager,
     NConcurrency::IPollerPtr poller,
     NConcurrency::IPollerPtr acceptor);
 

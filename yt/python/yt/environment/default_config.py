@@ -861,6 +861,9 @@ def get_kafka_proxy_config():
     dynamic_config_manager = {
         update_period = 100;
     };
+    auth = {
+        cypress_token_authenticator = {};
+    };
 }
 """)
 

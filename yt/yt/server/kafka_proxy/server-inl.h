@@ -13,12 +13,12 @@ namespace NYT::NKafkaProxy {
 template <class TRequest, class TResponse>
 void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
 {
-    auto typedHandler = [handler] (NKafka::IKafkaProtocolReader* requestReader, int version) -> TSharedRef {
+    auto typedHandler = [handler] (const TConnectionId& connectionId, NKafka::IKafkaProtocolReader* requestReader, int version) -> TSharedRef {
         TRequest typedRequest;
 
         typedRequest.Deserialize(requestReader, version);
 
-        auto typedResponse = handler(typedRequest);
+        auto typedResponse = handler(connectionId, typedRequest);
 
         auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
         typedResponse.Serialize(protocolWriter.get(), version);

@@ -7,12 +7,17 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
 
+#include <yt/yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/yt/client/queue_client/consumer_client.h>
 
 #include <yt/yt/client/kafka/protocol.h>
 #include <yt/yt/client/kafka/error.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/yt/library/auth_server/authentication_manager.h>
+#include <yt/yt/library/auth_server/token_authenticator.h>
 
 #include <yt/yt/core/actions/future.h>
 
@@ -24,16 +29,22 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/connection.h>
 #include <yt/yt/core/net/listener.h>
+#include <yt/yt/core/net/local_address.h>
+
+#include <util/string/split.h>
 
 namespace NYT::NKafkaProxy {
 
 using namespace NApi;
+using namespace NAuth;
 using namespace NConcurrency;
 using namespace NKafka;
 using namespace NNet;
+using namespace NObjectClient;
 using namespace NThreading;
 using namespace NQueueClient;
 using namespace NYPath;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,25 +59,27 @@ public:
     TServer(
         TKafkaProxyConfigPtr config,
         NNative::IConnectionPtr connection,
+        IAuthenticationManagerPtr authenticationManager,
         IPollerPtr poller,
         IPollerPtr acceptor,
         IListenerPtr listener)
         : Config_(std::move(config))
-        , Connection_(std::move(connection))
+        , NativeConnection_(std::move(connection))
+        , AuthenticationManager_(std::move(authenticationManager))
         , Poller_(std::move(poller))
         , Acceptor_(std::move(acceptor))
         , Listener_(std::move(listener))
     {
-        RegisterTypedHandler(BIND(&TServer::DoApiVersions));
-        RegisterTypedHandler(BIND(&TServer::DoMetadata, Connection_, Config_));
-        RegisterTypedHandler(BIND(&TServer::DoFindCoordinator, Config_));
-        RegisterTypedHandler(BIND(&TServer::DoJoinGroup));
-        RegisterTypedHandler(BIND(&TServer::DoSyncGroup));
-        RegisterTypedHandler(BIND(&TServer::DoHeartbeat));
-        RegisterTypedHandler(BIND(&TServer::DoOffsetFetch, Connection_));
-        RegisterTypedHandler(BIND(&TServer::DoFetch, Connection_));
-        RegisterTypedHandler(BIND(&TServer::DoSaslHandshake));
-        RegisterTypedHandler(BIND(&TServer::DoSaslAuthenticate, Connection_));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoApiVersions, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoMetadata, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoFindCoordinator, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoJoinGroup, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSyncGroup, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoHeartbeat, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoOffsetFetch, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoFetch, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslHandshake, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslAuthenticate, Unretained(this)));
     }
 
     void Start() override
@@ -91,8 +104,10 @@ private:
 
     const TKafkaProxyConfigPtr Config_;
 
-    const NNative::IConnectionPtr Connection_;
+    const NNative::IConnectionPtr NativeConnection_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
+
+    IAuthenticationManagerPtr AuthenticationManager_;
 
     IPollerPtr Poller_;
     IPollerPtr Acceptor_;
@@ -107,6 +122,8 @@ private:
         IConnectionPtr Connection;
 
         std::optional<ERequestType> ExpectedNextRequestType = {ERequestType::SaslHandshake};
+
+        std::optional<TString> UserName;
     };
     using TConnectionStatePtr = TIntrusivePtr<TConnectionState>;
 
@@ -166,22 +183,22 @@ private:
         }
     }
 
+    TConnectionStatePtr GetConnectionState(const TConnectionId& connectionId)
+    {
+        auto guard = ReaderGuard(ConnectionMapLock_);
+        auto connectionIt = Connections_.find(connectionId);
+        if (connectionIt == Connections_.end()) {
+            THROW_ERROR_EXCEPTION("Connection %v is not registered",
+                connectionId);
+        }
+        return connectionIt->second;
+    }
+
     void GuardedOnRequest(IConnectionPtr connection, TMessage request)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TConnectionStatePtr connectionState;
-        {
-            auto guard = ReaderGuard(ConnectionMapLock_);
-            auto connectionIt = Connections_.find(connection->GetConnectionId());
-            if (connectionIt == Connections_.end()) {
-                THROW_ERROR_EXCEPTION("Connection %v is not registered",
-                    connection->GetConnectionId());
-            }
-            connectionState = connectionIt->second;
-        }
-
-        auto response = ProcessRequest(connection, request, connectionState);
+        auto response = ProcessRequest(connection, request);
 
         YT_UNUSED_FUTURE(connection->PostMessage(response)
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
@@ -193,8 +210,7 @@ private:
 
     TMessage ProcessRequest(
         const IConnectionPtr& connection,
-        const TMessage& request,
-        const TConnectionStatePtr& connectionState)
+        const TMessage& request)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -203,12 +219,18 @@ private:
                 request.size());
         }
 
+        auto connectionState = GetConnectionState(connection->GetConnectionId());
         auto expectedRequestType = connectionState->ExpectedNextRequestType;
         // For SaslHandshake v0 tokens are sent as opaque packets without wrapping the messages with Kafka protocol headers.
+        // SaslHandshake v1 is not supported for now.
         if (expectedRequestType && *expectedRequestType == ERequestType::SaslAuthenticate) {
-            // TODO(nadya73): check auth bytes and save username etc.
-            connectionState->ExpectedNextRequestType = std::nullopt;
-            return TSharedRefArrayBuilder(1).Finish();
+            auto response = DoSaslAuthenticate(connection->GetConnectionId(), TReqSaslAuthenticate{.AuthBytes = request.ToString()});
+
+            auto builder = TSharedRefArrayBuilder(1);
+            if (response.ErrorCode != NKafka::EErrorCode::None) {
+                builder.Add(TSharedRef::FromString(response.ErrorMessage.value_or("Authentication failed")));
+            }
+            return builder.Finish();
         }
 
         auto reader = CreateKafkaProtocolReader(request[0]);
@@ -228,6 +250,13 @@ private:
             THROW_ERROR_EXCEPTION("Incoming request is %v, but %v was expected", header.RequestType, *expectedRequestType);
         }
 
+        if (header.RequestType != ERequestType::SaslHandshake && header.RequestType != ERequestType::ApiVersions) {
+            // User should be authenticated, just ignore all other requests.
+            if (!connectionState->UserName) {
+                return TSharedRefArrayBuilder(1).Finish();
+            }
+        }
+
         auto responseHeader = [&header]() {
             auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
             TResponseHeader result;
@@ -236,16 +265,16 @@ private:
             return protocolWriter->Finish();
         }();
 
-        if (header.RequestType == ERequestType::SaslHandshake) {
-            connectionState->ExpectedNextRequestType = ERequestType::SaslAuthenticate;
-        }
-
         if (auto handler = Handlers_[header.RequestType]; handler) {
-            auto responseMessage = handler(reader.get(), header.ApiVersion);
+            auto responseMessage = handler(connection->GetConnectionId(), reader.get(), header.ApiVersion);
 
-            YT_LOG_DEBUG("Response sent (HeaderSize: %v, MessageSize: %v)", responseHeader.Size(), responseMessage.Size());
+            YT_LOG_DEBUG("Response sent (RequestType: %v, ConnectionId: %v, HeaderSize: %v, MessageSize: %v)",
+                header.RequestType,
+                connection->GetConnectionId(),
+                responseHeader.Size(),
+                responseMessage.Size());
 
-            TSharedRefArrayBuilder builder(3);
+            TSharedRefArrayBuilder builder(2);
             builder.Add(responseHeader);
             builder.Add(responseMessage);
 
@@ -287,7 +316,7 @@ private:
         return false;
     }
 
-    static TRspApiVersions DoApiVersions(const TReqApiVersions& request)
+    TRspApiVersions DoApiVersions(const TConnectionId& /*connectionId*/, const TReqApiVersions& request)
     {
         YT_LOG_DEBUG("Start to handle ApiVersions request (ClientSoftwareName: %Qv)", request.ClientSoftwareName);
 
@@ -372,11 +401,11 @@ private:
         return response;
     }
 
-    static TRspSaslHandshake DoSaslHandshake(const TReqSaslHandshake& request)
+    TRspSaslHandshake DoSaslHandshake(const TConnectionId& connectionId, const TReqSaslHandshake& request)
     {
         static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
 
-        YT_LOG_DEBUG("Start to handle SaslHandshake request (Mechanism: %v, IsEqual: %v)", request.Mechanism, request.Mechanism == OAuthBearerSaslMechanism);
+        YT_LOG_DEBUG("Start to handle SaslHandshake request (Mechanism: %v)", request.Mechanism);
 
         TRspSaslHandshake response;
         response.Mechanisms = {OAuthBearerSaslMechanism};
@@ -385,26 +414,76 @@ private:
             response.ErrorCode = NKafka::EErrorCode::UnsupportedSaslMechanism;
         }
 
+        auto connectionState = GetConnectionState(connectionId);
+        connectionState->ExpectedNextRequestType = ERequestType::SaslAuthenticate;
+
         return response;
     }
 
-    static TRspSaslAuthenticate DoSaslAuthenticate(NNative::IConnectionPtr /*connection*/, const TReqSaslAuthenticate& /*request*/)
+    TRspSaslAuthenticate DoSaslAuthenticate(const TConnectionId& connectionId, const TReqSaslAuthenticate& request)
     {
+        YT_LOG_DEBUG("Start to handle SaslAuthenticate request");
+
+        auto connectionState = GetConnectionState(connectionId);
+
         TRspSaslAuthenticate response;
 
+        if (connectionState->UserName) {
+            YT_LOG_DEBUG("Client was authenticated before (ConnectionId: %v)", connectionId);
+            return response;
+        }
+
+        auto fillError = [&response](const TString& message) {
+            response.ErrorCode = NKafka::EErrorCode::SaslAuthenticationFailed;
+            response.ErrorMessage = message;
+        };
+
+        TString authBytes = request.AuthBytes;
+        TVector<TString> parts;
+        StringSplitter(authBytes).SplitByString("\x01").Collect(&parts);
+        if (parts.size() < 2) {
+            fillError(Format("Unexpected auth_bytes format, got %v \x01-separated parts", parts.size()));
+            return response;
+        }
+        StringSplitter(parts[1]).SplitByString(" ").Collect(&parts);
+        if (parts.size() < 2) {
+            fillError(Format("Unexpected auth_bytes format, got %v space-separated parts", parts.size()));
+            return response;
+        }
+        auto token = parts[1];
+
+        auto authenticator = AuthenticationManager_->GetTokenAuthenticator();
+        auto authResultOrError = WaitFor(authenticator->Authenticate(TTokenCredentials{.Token = std::move(token)}));
+        if (!authResultOrError.IsOK()) {
+            auto error = TError("Failed to authenticate (ConnectionId: %v)", connectionId) << authResultOrError;
+            YT_LOG_DEBUG(error);
+            fillError(ToString(error));
+            return response;
+        }
+
+        connectionState->UserName = authResultOrError.Value().Login;
+        connectionState->ExpectedNextRequestType = std::nullopt;
+
+        YT_LOG_DEBUG("Authentication successfull (ConnectionId: %v, UserName: %v)", connectionId, *connectionState->UserName);
+
         return response;
     }
 
-    static TRspMetadata DoMetadata(NNative::IConnectionPtr connection, const TKafkaProxyConfigPtr& config, const TReqMetadata& request)
+    TRspMetadata DoMetadata(const TConnectionId& connectionId, const TReqMetadata& request)
     {
         YT_LOG_DEBUG("Start to handle Metadata request (TopicsSize: %v)", request.Topics.size());
+
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong (ConnectionId: %v)", connectionId);
+        }
 
         TRspMetadata response;
         response.Brokers = std::vector<TRspMetadataBroker>{
             TRspMetadataBroker{
                 .NodeId = 0,
-                .Host = "localhost",
-                .Port = config->Port,
+                .Host = NNet::GetLocalHostName(),
+                .Port = Config_->Port,
                 .Rack = "1",
             },
         };
@@ -412,20 +491,33 @@ private:
         response.Topics.reserve(request.Topics.size());
         for (const auto& topic : request.Topics) {
             auto path = TRichYPath::Parse(topic.Topic);
-            auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(path.GetPath()))
+            auto tableInfo = WaitFor(NativeConnection_->GetTableMountCache()->GetTableInfo(path.GetPath()))
                 .ValueOrThrow();
+
+            NSecurityClient::TPermissionKey permissionKey{
+                .Object = FromObjectId(tableInfo->TableId),
+                .User = *userName,
+                .Permission = EPermission::Read,
+            };
+            const auto& permissionCache = NativeConnection_->GetPermissionCache();
+            auto hasPermission =  WaitFor(permissionCache->Get(permissionKey)).IsOK();
 
             TRspMetadataTopic topicResponse{
                 .Name = topic.Topic,
                 .TopicId = topic.TopicId,
             };
-            topicResponse.Partitions.reserve(tableInfo->Tablets.size());
-            for (int tabletIndex = 0; tabletIndex < std::ssize(tableInfo->Tablets); ++tabletIndex) {
-                topicResponse.Partitions.push_back(TRspMetadataTopicPartition{
-                    .PartitionIndex = tabletIndex,
-                    .LeaderId = 0,
-                    .ReplicaNodes = {0},
-                });
+
+            if (!hasPermission) {
+                topicResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
+            } else {
+                topicResponse.Partitions.reserve(tableInfo->Tablets.size());
+                for (int tabletIndex = 0; tabletIndex < std::ssize(tableInfo->Tablets); ++tabletIndex) {
+                    topicResponse.Partitions.push_back(TRspMetadataTopicPartition{
+                        .PartitionIndex = tabletIndex,
+                        .LeaderId = 0,
+                        .ReplicaNodes = {0},
+                    });
+                }
             }
 
             response.Topics.push_back(std::move(topicResponse));
@@ -434,19 +526,19 @@ private:
         return response;
     }
 
-    static TRspFindCoordinator DoFindCoordinator(const TKafkaProxyConfigPtr& config, const TReqFindCoordinator& request)
+    TRspFindCoordinator DoFindCoordinator(const TConnectionId& /*connectionId*/, const TReqFindCoordinator& request)
     {
         YT_LOG_DEBUG("Start to handle FindCoordinator request (Key: %v)", request.Key);
 
         TRspFindCoordinator response;
         response.NodeId = 0;
-        response.Host = "localhost";
-        response.Port = config->Port;
+        response.Host = NNet::GetLocalHostName();
+        response.Port = Config_->Port;
 
         return response;
     }
 
-    static TRspJoinGroup DoJoinGroup(const TReqJoinGroup& request)
+    TRspJoinGroup DoJoinGroup(const TConnectionId& /*connectionId*/, const TReqJoinGroup& request)
     {
         YT_LOG_DEBUG("Start to handle JoinGroup request (GroupId: %Qv, MemberId: %Qv, ProtocolType: %Qv)", request.GroupId, request.MemberId, request.ProtocolType);
 
@@ -459,7 +551,7 @@ private:
         return response;
     }
 
-    static TRspSyncGroup DoSyncGroup(const TReqSyncGroup& request)
+    TRspSyncGroup DoSyncGroup(const TConnectionId& /*connectionId*/, const TReqSyncGroup& request)
     {
         YT_LOG_DEBUG("Start to handle SyncGroup request (GroupId: %v, MemberId: %v)", request.GroupId, request.MemberId);
 
@@ -473,7 +565,7 @@ private:
         return response;
     }
 
-    static TRspHeartbeat DoHeartbeat(const TReqHeartbeat& request)
+    TRspHeartbeat DoHeartbeat(const TConnectionId& /*connectionId*/, const TReqHeartbeat& request)
     {
         YT_LOG_DEBUG("Start to handle Heartbreat request (GroupId: %v, MemberId: %v)", request.GroupId, request.MemberId);
 
@@ -482,16 +574,20 @@ private:
         return response;
     }
 
-    static TRspOffsetFetch DoOffsetFetch(NNative::IConnectionPtr connection, const TReqOffsetFetch& request)
+    TRspOffsetFetch DoOffsetFetch(const TConnectionId& connectionId, const TReqOffsetFetch& request)
     {
         YT_LOG_DEBUG("Start to handle OffsetFetch request (GroupId: %v)", request.GroupId);
+
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong (ConnectionId: %v)", connectionId);
+        }
 
         TRspOffsetFetch response;
         response.Topics.reserve(request.Topics.size());
 
-        // TODO(nadya73): use actual user after authorization support.
-        auto client = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
-        YT_VERIFY(connection->GetClusterName());
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+        YT_VERIFY(NativeConnection_->GetClusterName());
 
         auto path = TRichYPath::Parse(request.GroupId);
         auto consumerClient = CreateConsumerClient(client, path.GetPath());
@@ -504,15 +600,25 @@ private:
 
             // TODO(nadya73): add CollectPartitions in IConsumerClient too.
             auto subConsumerClient = consumerClient->GetSubConsumerClient(client, TCrossClusterReference::FromString(topic.Name));
-            auto partitions = WaitFor(subConsumerClient->CollectPartitions(topic.PartitionIndexes))
-                .ValueOrThrow();
-            for (auto partition : partitions) {
-                topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
-                    // TODO(nadya73): add type check.
-                    .PartitionIndex = static_cast<int32_t>(partition.PartitionIndex),
-                    .CommittedOffset = partition.NextRowIndex,
-                    .ErrorCode = 0,
-                });
+            auto partitionsOrError = WaitFor(subConsumerClient->CollectPartitions(topic.PartitionIndexes));
+
+            if (!partitionsOrError.IsOK()) {
+                YT_LOG_DEBUG("Failed to get partitions: %v", partitionsOrError);
+                for (auto partitionIndex : topic.PartitionIndexes) {
+                    topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
+                        // TODO(nadya73): add type check.
+                        .PartitionIndex = static_cast<int32_t>(partitionIndex),
+                        .ErrorCode = NKafka::EErrorCode::GroupAuthorizationFailed,
+                    });
+                }
+            } else {
+                for (const auto& partition : partitionsOrError.Value()) {
+                    topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
+                        // TODO(nadya73): add type check.
+                        .PartitionIndex = static_cast<int32_t>(partition.PartitionIndex),
+                        .CommittedOffset = partition.NextRowIndex,
+                    });
+                }
             }
 
             response.Topics.push_back(std::move(topicResponse));
@@ -521,15 +627,20 @@ private:
         return response;
     }
 
-    static TRspFetch DoFetch(NNative::IConnectionPtr connection, const TReqFetch& request)
+    TRspFetch DoFetch(const TConnectionId& connectionId, const TReqFetch& request)
     {
         YT_LOG_DEBUG("Start to handle Fetch request (TopicsSize: %v)", request.Topics.size());
         // TODO(nadya73): log requested offsets.
 
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong (ConnectionId: %v)", connectionId);
+        }
+
         TRspFetch response;
         response.Responses.reserve(request.Topics.size());
 
-        auto client = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
 
         for (const auto& topic : request.Topics) {
             TRspFetchResponse topicResponse{
@@ -543,36 +654,42 @@ private:
                     .HighWatermark = 0, // TODO(nadya73): fill it with normal data
                 };
 
-                // TODO(nadya73): use PullConsumer.
-                auto result = WaitFor(client->PullQueue(
+                auto rowsetOrError = WaitFor(client->PullQueue(
                     topic.Topic,
                     partition.FetchOffset,
                     partition.Partition,
-                    TQueueRowBatchReadOptions{.MaxDataWeight = partition.PartitionMaxBytes}))
-                    .ValueOrThrow();
+                    TQueueRowBatchReadOptions{.MaxDataWeight = partition.PartitionMaxBytes}));
 
-                auto rows = result->GetRows();
+                if (!rowsetOrError.IsOK()) {
+                    topicPartitionResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
+                } else {
+                    auto rows = rowsetOrError.Value()->GetRows();
 
-                YT_LOG_DEBUG("Rows were fetched (Count: %v)", rows.size());
+                    YT_LOG_DEBUG("Rows were fetched (ConnectionId: %v, Topic: %v, PartitionIndex: %v, Count: %v)",
+                        connectionId,
+                        topic.Topic,
+                        partition.Partition,
+                        rows.size());
 
-                if (rows.size() > 0) {
-                    topicPartitionResponse.Records = std::vector<TRecord>{};
-                    topicPartitionResponse.Records->reserve(rows.size());
+                    if (rows.size() > 0) {
+                        topicPartitionResponse.Records = std::vector<TRecord>{};
+                        topicPartitionResponse.Records->reserve(rows.size());
 
-                    auto offset = result->GetStartOffset();
+                        auto offset = rowsetOrError.Value()->GetStartOffset();
 
-                    for (const auto& row : rows) {
-                        topicPartitionResponse.Records->push_back(TRecord{
-                            .Offset = offset,
-                            .Message = {
-                                NKafka::TMessage{
-                                    .Key = "",
-                                    // TODO(nadya73): convert it to yson/json.
-                                    .Value = ToString(row),
+                        for (const auto& row : rows) {
+                            topicPartitionResponse.Records->push_back(TRecord{
+                                .Offset = offset,
+                                .Message = {
+                                    NKafka::TMessage{
+                                        .Key = "",
+                                        // TODO(nadya73): convert it to yson/json.
+                                        .Value = ToString(row),
+                                    }
                                 }
-                            }
-                        });
-                        ++offset;
+                            });
+                            ++offset;
+                        }
                     }
                 }
 
@@ -591,6 +708,7 @@ private:
 IServerPtr CreateServer(
     TKafkaProxyConfigPtr config,
     NNative::IConnectionPtr connection,
+    IAuthenticationManagerPtr authenticationManager,
     IPollerPtr poller,
     IPollerPtr acceptor)
 {
@@ -601,6 +719,7 @@ IServerPtr CreateServer(
             return New<TServer>(
                 config,
                 std::move(connection),
+                std::move(authenticationManager),
                 std::move(poller),
                 std::move(acceptor),
                 std::move(listener));
