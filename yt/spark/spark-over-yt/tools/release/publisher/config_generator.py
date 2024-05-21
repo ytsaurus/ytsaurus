@@ -117,6 +117,7 @@ def prepare_launch_config(conf_local_dir: str, client: Client, versions: Version
         launch_config['layer_paths'] = [
             client.resolve_from_root("delta/layer_with_solomon_agent.tar.gz"),
             "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
+            client.resolve_from_root("delta/python/layer_with_python312_focal_yandexyt0141.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python311_focal_yandexyt0131.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python39_focal_yandexyt0131.tar.gz"),
             client.resolve_from_root("delta/python/layer_with_python38_focal_yandexyt0131.tar.gz"),
