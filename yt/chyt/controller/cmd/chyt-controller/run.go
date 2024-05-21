@@ -3,9 +3,11 @@ package main
 import (
 	"github.com/spf13/cobra"
 
+	"go.ytsaurus.tech/yt/chyt/controller/internal/api"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/livy"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 )
 
@@ -54,6 +56,17 @@ func doRun() error {
 			ExtraCommands: jupyt.AllCommands,
 		}
 		cfs["jupyt"] = jupytFactory
+	}
+
+	// SPYT Livy controller is optional.
+
+	if livyConfig, ok := config.Controllers["livy"]; ok {
+		livyFactory := strawberry.ControllerFactory{
+			Ctor:          livy.NewController,
+			Config:        livyConfig,
+			ExtraCommands: []api.CmdDescriptor{},
+		}
+		cfs["livy"] = livyFactory
 	}
 
 	a := app.New(&config, &options, cfs)

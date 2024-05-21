@@ -7,6 +7,7 @@ import (
 	"go.ytsaurus.tech/yt/chyt/controller/internal/app"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/chyt"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/jupyt"
+	"go.ytsaurus.tech/yt/chyt/controller/internal/livy"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
 )
 
@@ -29,6 +30,9 @@ func doInitCluster() error {
 	}
 	if slices.Contains(config.Families, "jupyt") {
 		familyToInitializerFactory["jupyt"] = jupyt.NewClusterInitializer
+	}
+	if slices.Contains(config.Families, "livy") {
+		familyToInitializerFactory["livy"] = livy.NewClusterInitializer
 	}
 
 	clusterInitializer := app.NewClusterInitializer(&config, familyToInitializerFactory)

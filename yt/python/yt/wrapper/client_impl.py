@@ -2618,38 +2618,6 @@ class YtClient(ClientState):
             client=self,
             settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object)
 
-    def start_spark_cluster(
-            self,
-            spark_worker_core_count, spark_worker_memory_limit, spark_worker_count,
-            spark_worker_timeout='5m', operation_alias=None, discovery_path=None, pool=None, spark_worker_tmpfs_limit='150G',
-            spark_master_memory_limit='2G', spark_history_server_memory_limit='8G', dynamic_config_path='//sys/spark/bin/releases/spark-launch-conf',
-            operation_spec=None):
-        """
-        Start Spark Standalone cluster in YT Vanilla Operation. See https://ytsaurus.tech/docs/en/user-guide/data-processing/spyt/overview
-        :param spark_worker_core_count: Number of cores that will be available on Spark worker
-        :param spark_worker_memory_limit: Amount of memory that will be available on Spark worker
-        :param spark_worker_count: Number of Spark workers
-        :param spark_worker_timeout: Worker timeout to wait master start
-        :param operation_alias: Alias for the underlying YT operation
-        :param discovery_path: Cypress path for discovery files and logs, the same path must be used in find_spark_cluster
-        :param pool: Pool for the underlying YT operation
-        :param spark_worker_tmpfs_limit: Limit of tmpfs usage per Spark worker
-        :param spark_master_memory_limit: Memory limit on Spark master
-        :param spark_history_server_memory_limit: Memory limit on Spark History Server
-        :param dynamic_config_path: YT path of dynamic config
-        :param operation_spec: YT Vanilla Operation spec
-        :param client: YtClient
-        :return: running YT Vanilla Operation with Spark Standalone
-
-        """
-        return client_api.start_spark_cluster(
-            spark_worker_core_count, spark_worker_memory_limit, spark_worker_count,
-            client=self,
-            spark_worker_timeout=spark_worker_timeout, operation_alias=operation_alias, discovery_path=discovery_path,
-            pool=pool, spark_worker_tmpfs_limit=spark_worker_tmpfs_limit, spark_master_memory_limit=spark_master_memory_limit,
-            spark_history_server_memory_limit=spark_history_server_memory_limit, dynamic_config_path=dynamic_config_path,
-            operation_spec=operation_spec)
-
     def start_transaction(
             self,
             parent_transaction=None, timeout=None, deadline=None, attributes=None, type='master',

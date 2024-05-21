@@ -39,7 +39,7 @@ try:
     from .sky_share import sky_share  # noqa
 except ImportError:
     pass
-from .spark import start_spark_cluster, find_spark_cluster  # noqa
+from .spark import find_spark_cluster  # noqa
 from .run_command_with_lock import run_command_with_lock  # noqa
 from .admin_commands import (  # noqa
     add_maintenance, remove_maintenance, disable_chunk_locations,

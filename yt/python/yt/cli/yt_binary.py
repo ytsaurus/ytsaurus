@@ -2255,17 +2255,24 @@ def add_dirtable_parser(root_subparsers):
     add_dirtable_parsers(dirtable_subparsers)
 
 
+def add_livy_parser(add_parser):
+    parser = add_parser("livy", pythonic_help="SPYT Livy commands")
+    livy_subparsers = parser.add_subparsers(metavar="livy_command", **SUBPARSER_KWARGS)
+    add_spyt_liyv_subparser = add_subparser(livy_subparsers, params_argument=False)
+    add_strawberry_ctl_parser(add_spyt_liyv_subparser, "livy")
+
+
 def add_spark_parser(root_subparsers):
     # NB: py2 version of argparse library does not support aliases in add_parser.
     # Rewrite it when py2 support is dropped or deprecate a legacy "spark" alias.
     for name in ("spyt", "spark"):
         parser = populate_argument_help(root_subparsers.add_parser(
-            name, description="Spark over YT commands"))
+            name, description="SPYT commands"))
 
         spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
         add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
-        add_start_spark_cluster_parser(add_spark_subparser)
         add_find_spark_cluster_parser(add_spark_subparser)
+        add_livy_parser(add_spark_subparser)
 
 
 @copy_docstring_from(chyt.start_clique)
@@ -2357,40 +2364,6 @@ def add_jupyt_parser(root_subparsers):
 
     add_jupyter_subparser = add_subparser(jupyter_subparsers, params_argument=False)
     add_strawberry_ctl_parser(add_jupyter_subparser, "jupyt")
-
-
-@copy_docstring_from(yt.start_spark_cluster)
-def start_spark_cluster_handler(*args, **kwargs):
-    yt.start_spark_cluster(*args, **kwargs)
-
-
-def add_start_spark_cluster_parser(add_parser):
-    from yt.wrapper.spark import SparkDefaultArguments
-    parser = add_parser("start-cluster", start_spark_cluster_handler,
-                        help="Start Spark Standalone cluster in YT Vanilla Operation")
-    parser.add_argument("--spark-worker-core-count", required=True, type=int,
-                        help="Number of cores that will be available on Spark worker")
-    parser.add_argument("--spark-worker-memory-limit", required=True,
-                        help="Amount of memory that will be available on Spark worker")
-    parser.add_argument("--spark-worker-count", required=True, type=int, help="Number of Spark workers")
-    parser.add_argument("--spark-worker-timeout", default=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
-                        help="Worker timeout to wait master start")
-    parser.add_argument("--operation-alias", help="Alias for the underlying YT operation")
-    parser.add_argument("--discovery-path", help="Cypress path for discovery files and logs, "
-                                                 "the same path must be used in find-spark-cluster. "
-                                                 "SPARK_YT_DISCOVERY_PATH env variable is used by default")
-    parser.add_argument("--pool", help="Pool for the underlying YT operation")
-    parser.add_argument("--spark-worker-tmpfs-limit", default=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
-                        help="Limit of tmpfs usage per Spark worker")
-    parser.add_argument("--spark-master-memory-limit", default=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
-                        help="Memory limit on Spark master")
-    parser.add_argument("--spark-history-server-memory-limit",
-                        default=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
-                        help="Memory limit on Spark History Server")
-    parser.add_argument("--dynamic-config-path", default=SparkDefaultArguments.DYNAMIC_CONFIG_PATH,
-                        help="YT path of dynamic config")
-    add_structured_argument(parser, "--operation-spec", "YT Vanilla Operation spec",
-                            default=SparkDefaultArguments.get_operation_spec())
 
 
 @copy_docstring_from(yt.find_spark_cluster)

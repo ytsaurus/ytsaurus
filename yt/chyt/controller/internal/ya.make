@@ -6,6 +6,7 @@ RECURSE(
     chyt
     httpserver
     jupyt
+    livy
     monitoring
     sleep
     strawberry
