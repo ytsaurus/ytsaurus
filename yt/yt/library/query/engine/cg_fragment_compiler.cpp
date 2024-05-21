@@ -143,6 +143,7 @@ struct TValueTypeLabels
     Constant* OnUint;
     Constant* OnDouble;
     Constant* OnString;
+    Constant* OnAny;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +302,8 @@ TValueTypeLabels CodegenHasherBody(
         builder->CreateBr(gotoNextBB);
     };
 
+    BasicBlock* hashAnyBB = hashStringBB;
+
     builder->SetInsertPoint(gotoHashBB);
 
     Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
@@ -309,6 +312,7 @@ TValueTypeLabels CodegenHasherBody(
     indirectBranch->addDestination(hashInt8ScalarBB);
     indirectBranch->addDestination(hashInt64ScalarBB);
     indirectBranch->addDestination(hashStringBB);
+    indirectBranch->addDestination(hashAnyBB);
 
     return {
         llvm::BlockAddress::get(hashInt8ScalarBB),
@@ -316,6 +320,7 @@ TValueTypeLabels CodegenHasherBody(
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashStringBB),
+        llvm::BlockAddress::get(hashAnyBB),
     };
 }
 
@@ -572,6 +577,67 @@ TValueTypeLabels CodegenLessComparerBody(
             returnBB);
     }
 
+    BasicBlock* cmpAnyBB = nullptr;
+    {
+        cmpAnyBB = builder->CreateBBHere("cmp.any");
+        builder->SetInsertPoint(cmpAnyBB);
+
+        auto lhsValue = TCGValue::LoadFromRowValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
+                lhsValues,
+                indexPhi),
+            EValueType::Any);
+
+        auto rhsValue = TCGValue::LoadFromRowValue(
+            builder,
+            builder->CreateInBoundsGEP(
+                TValueTypeBuilder::Get(builder->getContext()),
+                rhsValues,
+                indexPhi),
+            EValueType::Any);
+
+        Value* lhsIsNull = lhsValue.GetIsNull(builder);
+        Value* rhsIsNull = rhsValue.GetIsNull(builder);
+
+        Value* anyNull = builder->CreateOr(lhsIsNull, rhsIsNull);
+
+        BasicBlock* cmpNullBB = builder->CreateBBHere("cmpNull.any");
+        BasicBlock* cmpDataBB = builder->CreateBBHere("cmpData.any");
+        builder->CreateCondBr(anyNull, cmpNullBB, cmpDataBB);
+
+        builder->SetInsertPoint(cmpNullBB);
+        resultPhi->addIncoming(builder->CreateICmpUGT(lhsIsNull, rhsIsNull), builder->GetInsertBlock());
+        builder->CreateCondBr(builder->CreateAnd(lhsIsNull, rhsIsNull), gotoNextBB, returnBB);
+
+        builder->SetInsertPoint(cmpDataBB);
+
+        Value* lhsLength = lhsValue.GetLength();
+        Value* rhsLength = rhsValue.GetLength();
+
+        Value* lhsData = lhsValue.GetTypedData(builder);
+        Value* rhsData = rhsValue.GetTypedData(builder);
+
+        Value* cmpResult = builder->CreateCall(
+            builder.Module->GetRoutine("CompareYsonValuesHelper"),
+            {
+                lhsData,
+                lhsLength,
+                rhsData,
+                rhsLength,
+            });
+
+        resultPhi->addIncoming(
+            builder->CreateICmpSLE(cmpResult, builder->getInt32(0)),
+            builder->GetInsertBlock());
+
+        builder->CreateCondBr(
+            builder->CreateICmpEQ(cmpResult, builder->getInt32(0)),
+            gotoNextBB,
+            returnBB);
+    }
+
     builder->SetInsertPoint(gotoCmpBB);
 
     Value* offsetPtr = builder->CreateGEP(builder->getInt8PtrTy(), labelsArray, indexPhi);
@@ -582,6 +648,7 @@ TValueTypeLabels CodegenLessComparerBody(
     indirectBranch->addDestination(cmpUintBB);
     indirectBranch->addDestination(cmpDoubleBB);
     indirectBranch->addDestination(cmpStringBB);
+    indirectBranch->addDestination(cmpAnyBB);
 
     return {
         llvm::BlockAddress::get(cmpBooleanBB),
@@ -589,6 +656,7 @@ TValueTypeLabels CodegenLessComparerBody(
         llvm::BlockAddress::get(cmpUintBB),
         llvm::BlockAddress::get(cmpDoubleBB),
         llvm::BlockAddress::get(cmpStringBB),
+        llvm::BlockAddress::get(cmpAnyBB),
     };
 }
 
@@ -729,6 +797,11 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
 
             case EValueType::String: {
                 labels.push_back(valueTypeLabels.OnString);
+                break;
+            }
+
+            case EValueType::Any: {
+                labels.push_back(valueTypeLabels.OnAny);
                 break;
             }
 

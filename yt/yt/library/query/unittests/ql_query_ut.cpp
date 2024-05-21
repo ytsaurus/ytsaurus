@@ -3289,23 +3289,6 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
 
 // TODO(dtorilov): Coordinated tests for totals.
 
-TEST_F(TQueryEvaluateTest, GroupByAny)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    std::vector<TString> source;
-
-    EXPECT_THROW_THAT(
-        Evaluate("x, sum(b) as t FROM [//t] group by to_any(a) as x",
-            split, source,  [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { }),
-        HasSubstr("Type mismatch in expression"));
-
-    SUCCEED();
-}
-
 TEST_F(TQueryEvaluateTest, GroupByAlias)
 {
     auto split = MakeSplit({
@@ -9435,6 +9418,61 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         source,
         ResultMatcher(result));
 
+    SUCCEED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, OrderByAny)
+{
+    auto split = MakeSplit({{"a", EValueType::Any}});
+    auto source = std::vector<TString>{
+        "a=[1;2;3]",
+        "a=[2;4;5]",
+        "a=[2;3;4]",
+        "a=[0]",
+    };
+
+    auto resultSplit = MakeSplit({{"a", EValueType::Any}});
+    auto result = YsonToRows({
+        "a=[0]",
+        "a=[1;2;3]",
+        "a=[2;3;4]",
+        "a=[2;4;5]",
+    }, resultSplit);
+
+    Evaluate("a FROM [//t] order by a limit 4", split, source,  ResultMatcher(result)),
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupByAny)
+{
+    auto split = MakeSplit({{"a", EValueType::Any}});
+    auto source = std::vector<TString>{
+        "a=[1;2;3]",
+        "a=[2;4;5]",
+        "a=[2;3;4]",
+        "a=[0]",
+
+        "a=[2;3;4]",
+        "a=[2;4;5]",
+        "a=[1;2;3]",
+
+        "a=[0]",
+        "a=[0]",
+
+        "a=[1;2;3]",
+    };
+
+    auto resultSplit = MakeSplit({{"a", EValueType::Any}});
+    auto result = YsonToRows({
+        "a=[0]",
+        "a=[1;2;3]",
+        "a=[2;3;4]",
+        "a=[2;4;5]",
+    }, resultSplit);
+
+    Evaluate("a FROM [//t] group by a order by a limit 4", split, source,  ResultMatcher(result)),
     SUCCEED();
 }
 

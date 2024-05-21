@@ -156,12 +156,14 @@ std::vector<TString> ExtractFunctionNames(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTypeSet ComparableTypes({
+auto ComparableTypes = TTypeSet{
     EValueType::Boolean,
     EValueType::Int64,
     EValueType::Uint64,
     EValueType::Double,
-    EValueType::String});
+    EValueType::String,
+    EValueType::Any,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
