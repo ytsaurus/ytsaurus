@@ -294,7 +294,8 @@ public:
             nodeJobs,
             _,
             registrationId,
-            nodeAddress
+            nodeAddress,
+            sequentialId
         ] = nodeInfoIt->second;
 
         //! NB(arkady-e1ppa): const_cast's below are used instead of proper
@@ -453,6 +454,7 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
     , HeartbeatProtoMessageBytes_(NodeHeartbeatProfiler.WithHot().Counter("/proto_message_bytes"))
     , HeartbeatEnqueuedControllerEvents_(NodeHeartbeatProfiler.WithHot().GaugeSummary("/enqueued_controller_events"))
     , HeartbeatCount_(NodeHeartbeatProfiler.WithHot().Counter("/count"))
+    , StaleHeartbeatCount_(NodeHeartbeatProfiler.WithHot().Counter("/stale_count"))
     , ReceivedJobCount_(NodeHeartbeatProfiler.WithHot().Counter("/job_count"))
     , ReceivedUnknownOperationCount_(NodeHeartbeatProfiler.WithHot().Counter("/unknown_operation_count"))
     , ReceivedRunningJobCount_(NodeHeartbeatProfiler.WithHot().Counter("/running_job_count"))
@@ -989,6 +991,21 @@ void TJobTracker::TNodeJobs::ForEachJob(const TFunction& func) const
     }
 }
 
+bool TJobTracker::TNodeInfo::CheckHeartbeatSequentialId(ui64 heartbeatSequentialId)
+{
+    if (heartbeatSequentialId == 0) {
+        LastHeartbeatId = 0;
+        return true;
+    }
+
+    if (heartbeatSequentialId > LastHeartbeatId) {
+        LastHeartbeatId = heartbeatSequentialId;
+        return true;
+    }
+
+    return false;
+}
+
 IInvokerPtr TJobTracker::GetInvoker() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -1078,6 +1095,7 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
             heartbeatProcessingContext.IncarnationId);
     }
 
+    auto* request = &heartbeatProcessingContext.Context->Request();
     auto* response = &heartbeatProcessingContext.Context->Response();
     auto& Logger = heartbeatProcessingContext.Logger;
 
@@ -1086,6 +1104,12 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
     auto& nodeInfo = UpdateOrRegisterNode(
         heartbeatProcessingContext.NodeId,
         heartbeatProcessingContext.NodeAddress);
+
+    if (Config_->CheckNodeHeartbeatSequentialId && request->has_sequential_id()) {
+        if (!nodeInfo.CheckHeartbeatSequentialId(request->sequential_id())) {
+            StaleHeartbeatCount_.Increment();
+        }
+    }
 
     auto& nodeJobs = nodeInfo.Jobs;
 
@@ -1747,21 +1771,16 @@ void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationI
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromJobId(jobInfo.JobId);
-    auto& [
-        nodeJobs,
-        _,
-        registrationId,
-        nodeAddress
-    ] = GetOrRegisterNode(nodeId, jobInfo.NodeAddress);
+    auto& nodeInfo = GetOrRegisterNode(nodeId, jobInfo.NodeAddress);
 
     YT_LOG_DEBUG(
         "Register job (JobId: %v, OperationId: %v, NodeId: %v, NodeAddress: %v)",
         jobInfo.JobId,
         operationId,
         nodeId,
-        nodeAddress);
+        nodeInfo.NodeAddress);
 
-    nodeJobs.AddRunningJobOrCrash(
+    nodeInfo.Jobs.AddRunningJobOrCrash(
         jobInfo.JobId,
         operationId,
         TNoActionRequested());

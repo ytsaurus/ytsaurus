@@ -272,13 +272,13 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
 
     PrepareHeartbeatRequest(nodeId, nodeDescriptor, request, context);
 
-    auto requestFuture = request->Invoke();
     YT_LOG_INFO(
         "Heartbeat sent to agent (AgentAddress: %v, IncarnationId: %v)",
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    auto responseOrError = WaitFor(std::move(requestFuture));
+    OnHeartbeatSent(request);
+    auto responseOrError = WaitFor(std::move(request->Invoke()));
     if (!responseOrError.IsOK()) {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
         YT_LOG_ERROR(
@@ -313,6 +313,13 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
 
     return DoSendHeartbeat();
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnHeartbeatSent(const TReqHeartbeatPtr& req)
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
+    req->set_sequential_id(SequentialHeartbeatId_);
+    ++SequentialHeartbeatId_;
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatRequest(
