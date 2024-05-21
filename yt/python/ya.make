@@ -63,8 +63,6 @@ IF (NOT OPENSOURCE)
 
         # It is actually used only when we build ORM package.
         contrib/prettytable
-
-        experiments
     )
 
     RECURSE_FOR_TESTS(
