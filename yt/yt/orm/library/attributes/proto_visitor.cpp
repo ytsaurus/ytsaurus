@@ -81,7 +81,7 @@ std::unique_ptr<Message> TProtoVisitorBase::MakeMapKeyMessage(
                     "Path entry %v is not convertible to an integer",
                     key);
             }
-            reflection->SetInt32(result.get(), keyFieldDescriptor, value);;
+            reflection->SetInt32(result.get(), keyFieldDescriptor, value);
             break;
         }
         case FieldDescriptor::CppType::CPPTYPE_UINT32: {
