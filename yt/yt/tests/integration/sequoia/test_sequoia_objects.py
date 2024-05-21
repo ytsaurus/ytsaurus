@@ -163,7 +163,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
             profiler = profiler_factory().at_primary_master(get_active_primary_master_leader_address(self))
             total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
-            return total_purgatory_size
+            return total_purgatory_size == 0
 
         set("//sys/@config/chunk_manager/enable_chunk_purgatory", False)
         remove("//tmp/t")
