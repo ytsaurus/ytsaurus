@@ -272,6 +272,7 @@ inline void LogEventImpl(
     const TLogger& logger,
     ELogLevel level,
     ::TSourceLocation sourceLocation,
+    TLoggingAnchor* anchor,
     TSharedRef message)
 {
     auto event = CreateLogEvent(loggingContext, logger, level);
@@ -280,6 +281,7 @@ inline void LogEventImpl(
     event.Family = ELogFamily::PlainText;
     event.SourceFile = sourceLocation.File;
     event.SourceLine = sourceLocation.Line;
+    event.Anchor = anchor;
     logger.Write(std::move(event));
     if (Y_UNLIKELY(event.Level >= ELogLevel::Alert)) {
         OnCriticalLogEvent(logger, event);
