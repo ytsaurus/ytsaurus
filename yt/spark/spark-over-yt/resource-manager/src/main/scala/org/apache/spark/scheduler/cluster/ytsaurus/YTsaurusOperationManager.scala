@@ -323,6 +323,7 @@ private[spark] object YTsaurusOperationManager extends Logging {
       val spytHome = s"$home/spyt-package"
       val sparkClassPath = s"$home/*:$spytHome/conf/:$spytHome/jars/*:$sparkHome/jars/*"
       environment.put("SPARK_HOME", YTree.stringNode(sparkHome))
+      environment.put("PYTHONPATH", YTree.stringNode(s"$spytHome/python"))
       val ytsaurusJavaOptions = ArrayBuffer[String]()
       if (conf.getBoolean("spark.hadoop.yt.preferenceIpv6.enabled", false)) {
         ytsaurusJavaOptions += "-Djava.net.preferIPv6Addresses=true"
