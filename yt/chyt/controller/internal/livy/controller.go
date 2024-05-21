@@ -3,8 +3,9 @@ package livy
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/yt/chyt/controller/internal/strawberry"
