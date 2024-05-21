@@ -458,7 +458,7 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+            multicellManager->PostToSecondaryMasters(*request);
         }
     }
 

@@ -866,7 +866,7 @@ public:
                 // Decommission cell on secondary masters.
                 NTabletServer::NProto::TReqDecommissionTabletCellOnMaster req;
                 ToProto(req.mutable_cell_id(), cell->GetId());
-                multicellManager->PostToMasters(req, multicellManager->GetRegisteredMasterCellTags());
+                multicellManager->PostToSecondaryMasters(req);
 
                 // Decommission cell on node.
                 if (force) {
@@ -955,7 +955,7 @@ public:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+            multicellManager->PostToSecondaryMasters(*request);
         }
     }
 
@@ -2104,7 +2104,7 @@ private:
 
         if (multicellManager->IsPrimaryMaster()) {
             RestartPrerequisiteTransactions(cell, assignedPeers);
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+            multicellManager->PostToSecondaryMasters(*request);
         }
 
         ReconfigureCell(cell);
@@ -2153,7 +2153,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             AbortCellTransactions(cell, revokedPeers);
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+            multicellManager->PostToSecondaryMasters(*request);
         }
 
         ReconfigureCell(cell);
@@ -2227,7 +2227,7 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             RestartAllPrerequisiteTransactions(cell);
 
-            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+            multicellManager->PostToSecondaryMasters(*request);
         }
 
         ReconfigureCell(cell);
@@ -2422,7 +2422,7 @@ private:
         if (peerId) {
             request.set_peer_id(*peerId);
         }
-        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+        multicellManager->PostToSecondaryMasters(request);
 
         YT_LOG_DEBUG("Cell prerequisite transaction started (CellId: %v, PeerId: %v, TransactionId: %v)",
             cell->GetId(),
@@ -2491,7 +2491,7 @@ private:
         if (peerId) {
             request.set_peer_id(*peerId);
         }
-        multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
+        multicellManager->PostToSecondaryMasters(request);
 
         // NB: Make a copy, transaction will die soon.
         auto transactionId = transaction->GetId();

@@ -1623,7 +1623,7 @@ void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
     multicellManager->PostToPrimaryMaster(request);
 }
 
-void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)
+void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(TObject* object)
 {
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -2325,13 +2325,16 @@ void TObjectManager::CheckRemovingObjectRefCounter(TObject* object)
     }
 }
 
-void TObjectManager::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObject* object)
+void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
 {
+    YT_VERIFY(HasMutationContext());
+
     while (true) {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto voteCount = object->GetLifeStageVoteCount();
-        const auto& secondaryCellTags = Bootstrap_->GetMulticellManager()->GetSecondaryCellTags();
-        YT_VERIFY(voteCount <= std::ssize(secondaryCellTags) + 1);
-        if (voteCount < std::ssize(secondaryCellTags) + 1) {
+        auto votingCellCount = std::ssize(multicellManager->GetRegisteredMasterCellTags()) + 1;
+        YT_VERIFY(voteCount <= votingCellCount);
+        if (voteCount < votingCellCount) {
             break;
         }
 

@@ -244,6 +244,8 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
 
         yield
 
+        wait(lambda: len(ls("//sys/accounts/acc_sync_create/@multicell_statistics")) == self.NUM_SECONDARY_MASTER_CELLS + 1)
+
         assert_true_for_secondary_cells(
             self.Env,
             lambda driver: not exists("//sys/accounts/acc_sync_remove", driver=driver),

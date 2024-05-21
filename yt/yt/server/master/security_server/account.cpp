@@ -479,8 +479,8 @@ TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimits(
 {
     const auto& multicellManager = bootstrap->GetMulticellManager();
 
-    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
-    const auto& cellTags = multicellManager->GetSecondaryCellTags();
+    auto selfCellTag = multicellManager->GetCellTag();
+    const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
 
     TViolatedClusterResourceLimits violatedLimits;
     for (auto* account = this; account; account = account->GetParent()) {
@@ -517,8 +517,8 @@ TViolatedClusterResourceLimits TAccount::GetViolatedResourceLimits(
         if (account->IsChunkHostMasterMemoryLimitViolated()) {
             violatedLimits.MasterMemory().ChunkHost = 1;
         }
-        if (account->IsCellMasterMemoryLimitViolated(primaryCellTag)) {
-            violatedLimits.MasterMemory().PerCell[primaryCellTag] = 1;
+        if (account->IsCellMasterMemoryLimitViolated(selfCellTag)) {
+            violatedLimits.MasterMemory().PerCell[selfCellTag] = 1;
         }
         for (auto cellTag : cellTags) {
             if (account->IsCellMasterMemoryLimitViolated(cellTag)) {
@@ -536,8 +536,8 @@ TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
 {
     const auto& multicellManager = bootstrap->GetMulticellManager();
 
-    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
-    const auto& cellTags = multicellManager->GetSecondaryCellTags();
+    auto selfCellTag = multicellManager->GetCellTag();
+    const auto& cellTags = multicellManager->GetRegisteredMasterCellTags();
 
     return AccumulateOverMapObjectSubtree(
         this,
@@ -576,8 +576,8 @@ TViolatedClusterResourceLimits TAccount::GetRecursiveViolatedResourceLimits(
             if (account->IsChunkHostMasterMemoryLimitViolated()) {
                 ++violatedLimits->MasterMemory().ChunkHost;
             }
-            if (account->IsCellMasterMemoryLimitViolated(primaryCellTag)) {
-                ++violatedLimits->MasterMemory().PerCell[primaryCellTag];
+            if (account->IsCellMasterMemoryLimitViolated(selfCellTag)) {
+                ++violatedLimits->MasterMemory().PerCell[selfCellTag];
             }
             for (auto cellTag : cellTags) {
                 if (account->IsCellMasterMemoryLimitViolated(cellTag)) {

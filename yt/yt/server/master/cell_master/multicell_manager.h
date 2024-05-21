@@ -207,6 +207,8 @@ struct IMulticellManager
 
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
     DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), ReplicateValuesToSecondaryMaster);
+    //! Triggers only at primary master when the secondary master is successfully registered.
+    DECLARE_INTERFACE_SIGNAL(void(NObjectClient::TCellTag), SecondaryMasterRegisteredAtPrimary);
 };
 
 DEFINE_REFCOUNTED_TYPE(IMulticellManager)

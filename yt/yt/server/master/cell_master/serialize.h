@@ -238,6 +238,7 @@ DEFINE_ENUM(EMasterReign,
     ((AnyTypedKeysInSortedTables)                                   (2567))  // whatsername
     ((SecondaryIndexPredicate_24_1)                                 (2568))  // sabdenovch
     ((IncreasedMaxKeyColumnInDynamicTableTo128_24_1)                (2569))  // sabdenovch
+    ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

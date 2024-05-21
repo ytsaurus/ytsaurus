@@ -771,10 +771,6 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request owning nodes from all cells.
     auto requestIdsFromCell = [&] (TCellTag cellTag) {
-        if (cellTag == multicellManager->GetCellTag()) {
-            return;
-        }
-
         auto type = TypeFromId(chunkTreeId);
         if (!IsPhysicalChunkType(type)) {
             return;
@@ -791,8 +787,7 @@ TYsonString DoGetMulticellOwningNodes(
         requestFutures.emplace_back(cellTag, req->Invoke());
     };
 
-    requestIdsFromCell(multicellManager->GetPrimaryCellTag());
-    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+    for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
         requestIdsFromCell(cellTag);
     }
 
