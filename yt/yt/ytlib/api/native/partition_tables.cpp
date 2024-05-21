@@ -184,6 +184,9 @@ void TMultiTablePartitioner::BuildPartitions()
         }
 
         if (Options_.MaxPartitionCount && std::ssize(Partitions_.Partitions) >= *Options_.MaxPartitionCount) {
+            // Note: YQL tests check this error message, but they are not run automatically on commits.
+            // If you change the message, please change the tests after deployment.
+            // See eg. https://a.yandex-team.ru/arcadia/commit/9c13476686afd16f47ad22838809d17ebd6b9594
             THROW_ERROR_EXCEPTION("Maximum partition count exceeded")
                 << TErrorAttribute("limit", *Options_.MaxPartitionCount);
         }
