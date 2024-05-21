@@ -898,6 +898,10 @@ std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
             DeserializeFromWireProto(&schemas.emplace_back(), schemaProto);
         }
     } else {
+        if (!dataSourceDirectory) {
+            return schemas;
+        }
+
         for (const auto& dataSource : dataSourceDirectory->DataSources()) {
             schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
         }

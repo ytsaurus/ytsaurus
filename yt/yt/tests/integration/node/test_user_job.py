@@ -7,7 +7,7 @@ from yt_commands import (
     events_on_fs, create, create_pool, create_table,
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
     create_user, make_ace, start_transaction, lock,
-    write_file, read_table,
+    write_file, read_table, remote_copy, get_driver,
     write_table, map, abort_op, run_sleeping_vanilla, sort,
     vanilla, run_test_vanilla, abort_job, get_job_spec,
     list_jobs, get_job, get_job_stderr, get_operation,
@@ -3870,6 +3870,7 @@ class TestPortoFuseDevice(YTEnvSetup):
 
 
 class TestJobInputCache(YTEnvSetup):
+    NUM_TEST_PARTITIONS = 5
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 15
@@ -3914,6 +3915,24 @@ class TestJobInputCache(YTEnvSetup):
     DELTA_NODE_FLAVORS = [["data"] for _ in range(NUM_NODES)]
     DELTA_NODE_FLAVORS[0] = ["exec"]
     DELTA_NODE_FLAVORS[1] = ["data", "exec"]
+
+    NUM_REMOTE_CLUSTERS = 1
+
+    NUM_MASTERS_REMOTE_0 = 1
+    NUM_SCHEDULERS_REMOTE_0 = 0
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+        },
+    }
 
     def _set_config(self):
         update_nodes_dynamic_config({
@@ -3964,10 +3983,7 @@ class TestJobInputCache(YTEnvSetup):
             rows = [{"key": key, "value": "value"}]
             write_table("<append=%true>{}".format(table), rows)
 
-    def _run_job(self, node, sort, retry):
-        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_block_cache/limit".format(node)) == 256 * 1024 * 1024)
-        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_chunk_meta_cache/limit".format(node)) == 256 * 1024 * 1024)
-
+    def _run_job(self, node, sort, retry, cache_disabled):
         hit_compressed_block_cache = self._seed_counter(node, "exec_node/job_input_cache/block_cache/compressed_data/hit_count")
         missed_compressed_block_cache = self._seed_counter(node, "exec_node/job_input_cache/block_cache/compressed_data/missed_count")
 
@@ -3989,6 +4005,20 @@ class TestJobInputCache(YTEnvSetup):
                 "max_failed_job_count": 1,
                 "scheduling_tag_filter": node
             })
+
+        if cache_disabled:
+            wait(lambda: missed_compressed_block_cache.get_delta() == 0)
+            wait(lambda: missed_meta_cache.get_delta() == 0)
+
+            wait(lambda: block_compressed_cache_size.get() == 0)
+            wait(lambda: meta_cache_size.get() == 0)
+
+            wait(lambda: hit_compressed_block_cache.get_delta() == 0)
+            wait(lambda: hit_meta_cache.get_delta() == 0)
+            return
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_block_cache/limit".format(node)) == 256 * 1024 * 1024)
+        wait(lambda: get("//sys/cluster_nodes/{}/@statistics/memory/job_input_chunk_meta_cache/limit".format(node)) == 256 * 1024 * 1024)
 
         if not retry:
             wait(lambda: missed_compressed_block_cache.get_delta() > 0)
@@ -4023,5 +4053,49 @@ class TestJobInputCache(YTEnvSetup):
         ]
 
         for node in nodes_to_run:
-            self._run_job(node, sort=sort, retry=False)
-            self._run_job(node, sort=sort, retry=True)
+            self._run_job(node, sort=sort, retry=False, cache_disabled=False)
+            self._run_job(node, sort=sort, retry=True, cache_disabled=False)
+
+    @authors("don-dron")
+    def test_with_disabled_cache(self):
+        self._fill_table("//tmp/input", 1, "none", "scan", True, "none")
+        self._fill_table("//tmp/output", 1, "none", "scan", True, "none")
+
+        nodes_to_run = [
+            self.find_node_with_flavors(["exec"]),
+            self.find_node_with_flavors(["data", "exec"]),
+        ]
+
+        for node in nodes_to_run:
+            self._run_job(node, sort=True, retry=False, cache_disabled=True)
+            self._run_job(node, sort=True, retry=True, cache_disabled=True)
+
+    @authors("don-dron")
+    def test_disable_for_remote_copy(self):
+        self._set_config()
+
+        remote_driver = get_driver(cluster=self.REMOTE_CLUSTER_NAME)
+
+        create("table", "//tmp/t1", driver=remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=remote_driver)
+
+        create("table", "//tmp/t2")
+
+        node = self.find_node_with_flavors(["exec"])
+
+        block_compressed_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/block_cache/compressed_data/size")
+        meta_cache_size = self._seed_gauge(node, "exec_node/job_input_cache/meta_cache/size")
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "read_via_exec_node": True
+            },
+        )
+
+        assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        wait(lambda: block_compressed_cache_size.get() == 0)
+        wait(lambda: meta_cache_size.get() == 0)
