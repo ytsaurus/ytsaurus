@@ -869,6 +869,8 @@
   "yt/yt/core/net/CMakeLists.txt":"",
   "yt/yt/core/net/mock/CMakeLists.txt":"",
   "yt/yt/core/net/unittests/CMakeLists.txt":"",
+  "yt/yt/core/phoenix/CMakeLists.txt":"",
+  "yt/yt/core/phoenix/unittests/CMakeLists.txt":"",
   "yt/yt/core/profiling/CMakeLists.txt":"",
   "yt/yt/core/profiling/unittests/CMakeLists.txt":"",
   "yt/yt/core/rpc/CMakeLists.txt":"",

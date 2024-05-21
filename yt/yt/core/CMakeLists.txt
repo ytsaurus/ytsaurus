@@ -24,6 +24,7 @@ add_subdirectory(json)
 add_subdirectory(logging)
 add_subdirectory(misc)
 add_subdirectory(net)
+add_subdirectory(phoenix)
 add_subdirectory(profiling)
 add_subdirectory(rpc)
 add_subdirectory(service_discovery)
@@ -229,6 +230,12 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/dns/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/dns/dns_resolver.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/profiling/timing.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/descriptors.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/load.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/schemas.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/type_def.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/phoenix/type_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/authentication_identity.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/authenticator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/balancing_channel.cpp
