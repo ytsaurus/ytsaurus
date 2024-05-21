@@ -15,11 +15,14 @@
 
 namespace NYT::NExecNode {
 
+static auto& Logger = ExecNodeLogger;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxyLogManager::TJobProxyLogManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->ExecNode->JobProxyLogManager)
+    , Enabled_(Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory)
     , Directory_(Config_->Directory)
     , ShardingKeyLength_(Config_->ShardingKeyLength)
     , LogsStoragePeriod_(Config_->LogsStoragePeriod)
@@ -29,19 +32,37 @@ TJobProxyLogManager::TJobProxyLogManager(IBootstrap* bootstrap)
 
 void TJobProxyLogManager::Start()
 {
-    Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(&TJobProxyLogManager::CreateShardingDirectories, MakeStrong(this)));
-    Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(&TJobProxyLogManager::TraverseJobDirectoriesAndScheduleRemovals, MakeStrong(this)));
+    if (!Enabled_) {
+        return;
+    }
+
+    Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
+        [this, this_ = MakeStrong(this)] {
+            YT_LOG_INFO("Starting JobProxyLogManager");
+            CreateShardingDirectories();
+            TraverseJobDirectoriesAndScheduleRemovals();
+        }));
 }
 
 void TJobProxyLogManager::OnJobUnregistered(TJobId jobId)
 {
+    if (!Enabled_) {
+        return;
+    }
+
+    YT_LOG_INFO("Job unregistered %v, log storage period: %v", jobId, LogsStoragePeriod_);
     NConcurrency::TDelayedExecutor::Submit(
-        BIND([this, jobId] {
-            RemoveJobLog(jobId);
-        }),
+        BIND(&TJobProxyLogManager::RemoveJobLog, MakeStrong(this), jobId),
         LogsStoragePeriod_,
         Bootstrap_->GetStorageHeavyInvoker()
     );
+}
+
+TString TJobProxyLogManager::GetShardingKey(TJobId jobId)
+{
+    auto randomPart = RandomPartFromAllocationId(NScheduler::AllocationIdFromJobId(jobId));
+    auto randomPartHex = Format("%016lx", randomPart);
+    return randomPartHex.substr(0, ShardingKeyLength_);
 }
 
 void TJobProxyLogManager::OnDynamicConfigChanged(
@@ -60,6 +81,7 @@ void TJobProxyLogManager::CreateShardingDirectories()
         auto dirName = Format(formatString, i);
 
         auto dirPath = NFS::CombinePaths(Directory_, dirName);
+        YT_LOG_INFO("Creating Directory %v", dirPath);
         NFS::MakeDirRecursive(dirPath);
     }
 }
@@ -103,17 +125,11 @@ void TJobProxyLogManager::TraverseShardingDirectoryAndScheduleRemovals(TInstant 
     }
 }
 
-TString TJobProxyLogManager::GetShardingKey(TJobId jobId)
-{
-    auto randomPart = RandomPartFromAllocationId(NScheduler::AllocationIdFromJobId(jobId));
-    auto randomPartHex = Format("%016lx", randomPart);
-    return randomPartHex.substr(0, ShardingKeyLength_);
-}
-
 void TJobProxyLogManager::RemoveJobLog(TJobId jobId)
 {
     auto shardingKey = GetShardingKey(jobId);
     auto logsPath = NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+    YT_LOG_INFO("Removing JobProxy log, jobId: %v, path: %v", jobId, logsPath);
     NFS::RemoveRecursive(logsPath);
 }
 

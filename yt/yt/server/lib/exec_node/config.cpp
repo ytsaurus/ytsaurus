@@ -922,11 +922,10 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TExecNodeConfig* config) {
-        if (config->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::Simple) {
-            return;
-        }
-        if (config->JobProxyLogManager == nullptr) {
-            THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"job_proxy_log_manager\" to be set");
+        if (config->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::PerJobDirectory &&
+            config->JobProxyLogManager == nullptr)
+        {
+                THROW_ERROR_EXCEPTION("\"per_job_directory\" logging mode requires \"job_proxy_log_manager\" to be set");
         }
     });
 }

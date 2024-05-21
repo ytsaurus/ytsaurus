@@ -797,7 +797,8 @@ public:
     int ShardingKeyLength;
     TDuration LogsStoragePeriod;
 
-    std::optional<int> DirectoryTraversalConcurrency;
+    // Value std::nullopt means unlimited concurrency.
+    std::optional<int> DirectoryTraversalConcurrency; 
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
@@ -813,6 +814,7 @@ class TJobProxyLogManagerDynamicConfig
 {
 public:
     TDuration LogsStoragePeriod;
+    // Value std::nullopt means unlimited concurrency.
     std::optional<int> DirectoryTraversalConcurrency;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerDynamicConfig);

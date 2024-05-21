@@ -993,14 +993,18 @@ def _build_node_configs(node_dirs,
         set_at(
             config,
             "exec_node/job_proxy_log_manager/sharding_key_length",
-            yt_config.job_proxy_logging["sharding_key_length"]
+            yt_config.job_proxy_log_manager["sharding_key_length"]
         )
-        set_at(config, "exec_node/job_proxy_log_manager/logs_storage_period", "60s")
-        if yt_config.job_proxy_log_manager_directory_traversal_concurrency is not None:
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/logs_storage_period",
+            yt_config.job_proxy_log_manager["logs_storage_period"]
+        )
+        if yt_config.job_proxy_log_manager["directory_traversal_concurrency"] is not None:
             set_at(
                 config,
                 "exec_node/job_proxy_log_manager/directory_traversal_concurrency",
-                yt_config.job_proxy_log_manager_directory_traversal_concurrency
+                yt_config.job_proxy_log_manager["directory_traversal_concurrency"]
             )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)

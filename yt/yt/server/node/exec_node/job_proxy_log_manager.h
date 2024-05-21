@@ -27,6 +27,8 @@ private:
 
     TJobProxyLogManagerConfigPtr Config_;
 
+    bool Enabled_;
+
     TString Directory_;
     int ShardingKeyLength_;
     TDuration LogsStoragePeriod_;

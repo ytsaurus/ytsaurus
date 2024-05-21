@@ -202,7 +202,6 @@ def start(master_count=1,
 
     job_proxy_logging = {
         "mode": job_proxy_logging_mode or "simple",
-        "sharding_key_length": 3,
     }
 
     yt_config = LocalYtConfig(
