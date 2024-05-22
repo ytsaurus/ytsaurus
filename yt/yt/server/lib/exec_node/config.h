@@ -172,10 +172,16 @@ class TSlotLocationConfig
     : public TDiskLocationConfig
 {
 public:
+    //! Maximum reported total disk capacity.
     std::optional<i64> DiskQuota;
+
+    //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
     TString MediumName;
+
+    //! Enforce disk space limits using disk quota.
+    bool EnableDiskQuota;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
@@ -274,7 +280,7 @@ class TSlotManagerDynamicConfig
 public:
     bool DisableJobsOnGpuCheckFailure;
 
-    //! Enables disk usage checks in periodic disk resources update.
+    //! Enforce disk space limits in periodic disk resources update.
     bool CheckDiskSpaceLimit;
 
     //! How to distribute cpu resources between 'common' and 'idle' slots.
@@ -637,6 +643,7 @@ public:
 
     TDuration CpuOverdraftTimeout;
 
+    //! Default disk space request.
     i64 MinRequiredDiskSpace;
 
     TDuration MemoryOverdraftTimeout;
