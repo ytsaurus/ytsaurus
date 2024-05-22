@@ -26,6 +26,7 @@ target_sources(yt-core-test_framework PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/fixed_growth_string_output.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/test_memory_tracker.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/test_server_host.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/test_framework/test_proxy_service.cpp
 )
 
 add_global_library_for(yt-core-test_framework.global yt-core-test_framework)

@@ -42,6 +42,7 @@ target_link_options(unittester-ytlib PRIVATE
   -lutil
 )
 target_sources(unittester-ytlib PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/misc/test_connection.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_client_fetcher_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
@@ -56,6 +57,7 @@ target_sources(unittester-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/parallel_reader_memory_manager_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/partitioner_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/permission_cache_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/replication_reader_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/row_merger_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/serialize_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/unittests/sorted_merging_reader_ut.cpp
