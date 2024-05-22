@@ -29,6 +29,8 @@ public:
         TChunkId chunkId,
         const TFuture<TAllyReplicasInfo>& future) = 0;
 
+    virtual void DiscardChunk(TChunkId chunkId) = 0;
+
     virtual void UpdateReplicas(
         TChunkId chunkId,
         const TAllyReplicasInfo& replicas) = 0;
