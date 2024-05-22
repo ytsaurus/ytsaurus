@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: confluent-kafka
-Version: 2.3.0
+Version: 2.4.0
 Summary: Confluent's Python client for Apache Kafka
 Home-page: https://github.com/confluentinc/confluent-kafka-python
 Author: Confluent Inc
