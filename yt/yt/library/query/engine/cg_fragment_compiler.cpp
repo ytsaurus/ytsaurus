@@ -3706,7 +3706,7 @@ std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModul
     if (executionBackend == EExecutionBackend::WebAssembly) {
         module->BuildWebAssembly();
         auto bytecode = module->GetWebAssemblyBytecode();
-        auto compartment = NWebAssembly::CreateBaseImage();
+        auto compartment = NWebAssembly::CreateQueryLanguageImage();
         compartment->AddModule(bytecode);
         compartment->Strip();
         return compartment;

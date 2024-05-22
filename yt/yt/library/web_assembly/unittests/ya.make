@@ -5,9 +5,18 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
-    disable_system_libraries.cpp
     wasm_ut.cpp
 )
+
+IF (OPENSOURCE)
+    SRCS(
+        disable_system_libraries.cpp
+    )
+ELSE()
+    SRCS(
+        enable_system_libraries.cpp
+    )
+ENDIF()
 
 # This flag is required for linking code of bc functions.
 # Note that -rdynamic enabled by default in arcadia build, but we do not want to rely on it.

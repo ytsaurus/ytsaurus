@@ -41,8 +41,8 @@ target_link_options(unittester-web-assembly PRIVATE
   -lutil
 )
 target_sources(unittester-web-assembly PRIVATE
-  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/wasm_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/web_assembly/unittests/disable_system_libraries.cpp
 )
 add_test(
   NAME
