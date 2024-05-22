@@ -292,6 +292,8 @@ private:
         TChunkListId ChunkListId_;
         IChannelPtr UploadMasterChannel_;
 
+        int OpenChunkSessionRetryIndex_ = 0;
+
         struct TNode
             : public TRefCounted
         {
@@ -927,12 +929,23 @@ private:
                                 sessionIndex,
                                 Config_->OpenSessionBackoffTime);
 
+                            OpenChunkSessionRetryIndex_++;
+                            if (OpenChunkSessionRetryIndex_ > Config_->OpenSessionRetryCount) {
+                                promise.TrySet(TError(
+                                    NChunkClient::EErrorCode::MasterCommunicationFailed,
+                                    "Failed to open chunk session, retry count limit exceeded")
+                                    << TErrorAttribute("retry_count", Config_->OpenSessionRetryCount));
+                                return;
+                            }
+
                             TDelayedExecutor::Submit(
                                 BIND(&TImpl::ScheduleAllocateChunkSession, MakeWeak(this), promise, sessionIndex)
                                     .Via(Invoker_),
                                 Config_->OpenSessionBackoffTime);
                             return;
                         }
+
+                        OpenChunkSessionRetryIndex_ = 0;
 
                         // NB: Avoid overwriting EChunkSessionState::Discarded state.
                         if (session->State == EChunkSessionState::Allocating) {

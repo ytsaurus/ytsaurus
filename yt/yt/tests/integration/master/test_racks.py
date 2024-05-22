@@ -311,19 +311,39 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(mapping, chunk_id) <= 1
 
-    @authors("babenko")
+    @authors("babenko", "danilalexeev")
     def test_journals_with_degraded_racks(self):
+        set("//sys/media/default/@config/max_replicas_per_rack", 2)
+
         mapping = {}
         nodes = get_nodes()
         for i in range(len(nodes)):
             mapping[nodes[i]] = "r" + str(i % 2)
         self._set_rack_map(mapping)
 
-        create("journal", "//tmp/j")
+        set("//sys/@config/chunk_manager/force_rack_awareness_for_erasure_parts", True)
+
+        create("journal", "//tmp/j", attributes={
+            "erasure_codec": "isa_lrc_12_2_2",
+            "replication_factor": 1,
+            "read_quorum": 14,
+            "write_quorum": 15,
+        })
+
+        with pytest.raises(YtError, match="retry count limit exceeded"):
+            write_journal("//tmp/j", self.JOURNAL_DATA, journal_writer={
+                "open_session_backoff_time": 100,
+            })
+
+        set("//sys/@config/chunk_manager/force_rack_awareness_for_erasure_parts", False)
+
         write_journal("//tmp/j", self.JOURNAL_DATA)
         wait_until_sealed("//tmp/j")
 
         assert read_journal("//tmp/j") == self.JOURNAL_DATA
+
+        # reset to the initial value
+        set("//sys/media/default/@config/max_replicas_per_rack", 64)
 
     @authors("babenko")
     def test_rack_count_limit(self):
