@@ -193,12 +193,12 @@ class TestExplainQuery(YTEnvSetup):
             ["[2, 1]", "[2, 9, <Max>]"],
             ["[10, 1]", "[10, 9, <Max>]"],
         ]
-        expected_key_trie = (
-            "(key0, {  })\n1:\n  (key1, { [1:9] })\n2:\n  (key1, { [1:9] })\n10:\n  (key1, { [1:9] })"
+        expected_constraints = (
+            "Constraints:\n1:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n2:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n10:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>"
         )
 
         assert response["query"]["ranges"] == expected_ranges
-        assert response["query"]["key_trie"] == expected_key_trie
+        assert response["query"]["constraints"] == expected_constraints
 
     @authors("lexolordan")
     def test_explain_group_by_node(self):

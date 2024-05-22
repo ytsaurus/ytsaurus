@@ -1599,7 +1599,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,
         Connection_,
-        Connection_->GetInvoker(),
         Connection_->GetColumnEvaluatorCache(),
         Connection_->GetQueryEvaluator(),
         ChannelFactory_,
@@ -1714,13 +1713,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     TFuture<IUnversionedRowsetPtr> asyncRowset;
     std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
-    auto statistics = WaitFor(queryExecutor->Execute(
+    auto statistics = queryExecutor->Execute(
         query,
         externalCGInfo,
         dataSource,
         writer,
-        queryOptions))
-        .ValueOrThrow();
+        queryOptions);
 
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();

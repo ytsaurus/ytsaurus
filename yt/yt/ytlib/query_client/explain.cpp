@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueryClient {
@@ -25,13 +27,110 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void GetQueryInfo(
+void GetReadRangesInfo(
+    TFluentMap fluent,
     NApi::NNative::IConnectionPtr connection,
     const TConstQueryPtr query,
     const TDataSource& dataSource,
-    TFluentAny& fluent,
-    bool isSubquery,
     const NApi::TExplainQueryOptions& options)
+{
+    const auto& keyColumns = query->GetKeyColumns();
+    const auto& predicate = query->WhereClause;
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    TConstraintsHolder constraints(keyColumns.size());
+    auto constraintRef = constraints.ExtractFromExpression(
+        predicate,
+        keyColumns,
+        rowBuffer,
+        GetBuiltinConstraintExtractors());
+    fluent.Item("constraints").Value(ToString(constraints, constraintRef));
+
+    TQueryOptions queryOptions;
+    queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
+    queryOptions.VerboseLogging = options.VerboseLogging;
+    queryOptions.NewRangeInference = options.NewRangeInference;
+    queryOptions.MaxSubqueries = options.MaxSubqueries;
+
+    auto Logger = MakeQueryLogger(query);
+
+    auto [inferredDataSource, coordinatedQuery] = InferRanges(
+        connection->GetColumnEvaluatorCache(),
+        query,
+        dataSource,
+        queryOptions,
+        rowBuffer,
+        Logger);
+
+    auto tableId = dataSource.ObjectId;
+
+    auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(NObjectClient::FromObjectId(tableId)))
+        .ValueOrThrow();
+
+    fluent.Item("ranges")
+        .DoListFor(inferredDataSource.Ranges, [&] (auto fluent, auto range) {
+            fluent.Item()
+            .BeginList()
+                .Item().Value(Format("%kv", range.first))
+                .Item().Value(Format("%kv", range.second))
+            .EndList();
+        });
+
+    fluent.Item("keys")
+        .DoListFor(inferredDataSource.Keys, [&] (auto fluent, auto key) {
+            fluent.Item().Value(Format("%kv", key));
+        });
+
+    if (options.VerboseOutput) {
+        auto allSplits = CoordinateDataSources(
+            connection->GetCellDirectory(),
+            connection->GetNetworks(),
+            tableInfo,
+            inferredDataSource,
+            rowBuffer);
+
+        THashMap<TString, std::vector<TDataSource>> groupsByAddress;
+        for (const auto& split : allSplits) {
+            const auto& address = split.second;
+            groupsByAddress[address].push_back(split.first);
+        }
+
+        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
+        for (const auto& group : groupsByAddress) {
+            groupedSplits.emplace_back(group.second, group.first);
+        }
+
+        fluent.Item("grouped_ranges")
+            .DoMapFor(groupedSplits, [&] (auto fluent, auto rangesByNode) {
+                fluent.Item(rangesByNode.second)
+                .DoListFor(rangesByNode.first, [&] (auto fluent, auto ranges) {
+                    fluent.Item()
+                    .BeginList()
+                    .DoFor(ranges.Ranges, [&] (auto fluent, auto range) {
+                        fluent.Item()
+                        .BeginList()
+                            .Item().Value(Format("%kv", range.first))
+                            .Item().Value(Format("%kv", range.second))
+                        .EndList();
+                    }).EndList();
+                });
+            });
+    }
+}
+
+void GetFrontQueryInfo(
+    TFluentMap fluent,
+    const TConstBaseQueryPtr query)
+{
+    fluent
+        .Item("is_ordered_scan").Value(query->IsOrdered())
+        .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
+            fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
+        });
+}
+
+void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query)
 {
     const auto& keyColumns = query->GetKeyColumns();
     const auto& predicate = query->WhereClause;
@@ -45,9 +144,7 @@ void GetQueryInfo(
     }
 
     fluent
-        .BeginMap()
         .Item("where_expression").Value(InferName(predicate, true))
-        .Item("is_ordered_scan").Value(query->IsOrdered())
         .Item("joins").BeginList()
             .DoFor(groupedJoins, [&] (auto fluent, TRange<TConstJoinClausePtr> joinGroup) {
                 fluent.Item().BeginList().
@@ -73,100 +170,9 @@ void GetQueryInfo(
                         .EndMap();
                 }).EndList();
             })
-        .EndList()
-        .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
-            fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
-        })
-        .DoIf(!keyColumns.empty(), [&] (auto fluent) {
-            auto buffer = New<TRowBuffer>();
-            auto trie = ExtractMultipleConstraints(predicate, keyColumns, buffer, GetBuiltinRangeExtractors().Get());
-            fluent.Item("key_trie").Value(ToString(trie));
+        .EndList();
 
-            auto tableId = dataSource.ObjectId;
-            auto ranges = dataSource.Ranges;
-            auto keys = dataSource.Keys;
-
-            TQueryOptions queryOptions;
-            queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
-            queryOptions.VerboseLogging = options.VerboseLogging;
-            queryOptions.NewRangeInference = options.NewRangeInference;
-            queryOptions.MaxSubqueries = options.MaxSubqueries;
-
-            if (query->InferRanges) {
-                auto prunedRanges = GetPrunedRanges(
-                    query,
-                    tableId,
-                    ranges,
-                    buffer,
-                    connection->GetColumnEvaluatorCache(),
-                    GetBuiltinRangeExtractors(),
-                    queryOptions);
-
-                ranges = MakeSharedRange(std::move(prunedRanges), buffer);
-            }
-
-            fluent.Item("ranges")
-                .DoListFor(ranges, [&] (auto fluent, auto range) {
-                    fluent.Item()
-                    .BeginList()
-                        .Item().Value(Format("%kv", range.first))
-                        .Item().Value(Format("%kv", range.second))
-                    .EndList();
-                });
-
-            if (options.VerboseOutput && !isSubquery) {
-                auto Logger = MakeQueryLogger(query);
-
-                auto [allSplits, coordinatedQuery, sortedDataSource] = InferRanges(
-                    connection,
-                    query,
-                    dataSource,
-                    queryOptions,
-                    buffer,
-                    Logger);
-
-                THashMap<TString, std::vector<TDataSource>> groupsByAddress;
-                for (const auto& split : allSplits) {
-                    const auto& address = split.second;
-                    groupsByAddress[address].push_back(split.first);
-                }
-
-                std::vector<std::pair<std::vector<TDataSource>, TString>> groupedSplits;
-                for (const auto& group : groupsByAddress) {
-                    groupedSplits.emplace_back(group.second, group.first);
-                }
-
-                fluent.Item("grouped_ranges")
-                    .DoMapFor(groupedSplits, [&] (auto fluent, auto rangesByNode) {
-                        fluent.Item(rangesByNode.second)
-                        .DoListFor(rangesByNode.first, [&] (auto fluent, auto ranges) {
-                            fluent.Item()
-                            .BeginList()
-                            .DoFor(ranges.Ranges, [&] (auto fluent, auto range) {
-                                fluent.Item()
-                                .BeginList()
-                                    .Item().Value(Format("%kv", range.first))
-                                    .Item().Value(Format("%kv", range.second))
-                                .EndList();
-                            }).EndList();
-                        });
-                    });
-            }
-        })
-        .EndMap();
-}
-
-void GetFrontQueryInfo(
-    const TConstFrontQueryPtr query,
-    TFluentAny& fluent)
-{
-    fluent
-        .BeginMap()
-            .Item("is_ordered_scan").Value(query->IsOrdered())
-            .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
-                fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
-            })
-        .EndMap();
+    GetFrontQueryInfo(fluent, query);
 }
 
 NYson::TYsonString BuildExplainQueryYson(
@@ -182,19 +188,20 @@ NYson::TYsonString BuildExplainQueryYson(
         .BeginMap()
         .Item("udf_registry_path").Value(udfRegistryPath)
         .Item("query")
-        .Do([&] (auto fluent) {
-            GetQueryInfo(connection, query, dataSource, fluent, false, options);
+        .DoMap([&] (auto fluent) {
+            GetQueryInfo(fluent, query);
+            GetReadRangesInfo(fluent, connection, query, dataSource, options);
         })
         .Do([&] (TFluentMap fluent) {
             auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);
             fluent
                 .Item("bottom_query")
-                .Do([&, bottomQuery = bottomQuery] (auto fluent) {
-                    GetQueryInfo(connection, bottomQuery, dataSource, fluent, true, options);
+                .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
+                    GetQueryInfo(fluent, bottomQuery);
                 });
             fluent.Item("front_query")
-                .Do([&, frontQuery = frontQuery] (auto fluent) {
-                    GetFrontQueryInfo(frontQuery, fluent);
+                .DoMap([&, frontQuery = frontQuery] (auto fluent) {
+                    GetFrontQueryInfo(fluent, frontQuery);
                 });
         })
         .EndMap();

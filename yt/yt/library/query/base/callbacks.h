@@ -23,7 +23,7 @@ using TExecuteQueryCallback = std::function<TFuture<void>(
 struct IExecutor
     : public virtual TRefCounted
 {
-    virtual TFuture<TQueryStatistics> Execute(
+    virtual TQueryStatistics Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
