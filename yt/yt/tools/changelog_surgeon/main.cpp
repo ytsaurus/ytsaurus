@@ -52,51 +52,66 @@ bool ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
     return true;
 }
 
-void PerformSurgery(int argc, char** argv)
+i64 DeduceFirstSequenceNumber(const TVector<TString>& changelogFileNames)
 {
-    TOpts opts;
-
-    i64 firstSeqNum = 0;
-    opts.AddCharOption('f', "[inclusive] Start of the range of sequence numbers to be used to build a new changelog")
-        .RequiredArgument("FIRST_SEQUENCE_NUMBER")
-        .Required()
-        .StoreResult(&firstSeqNum);
-
-    i64 lastSeqNum = 0;
-    opts.AddCharOption('t', "[inclusive] End of the range of sequence numbers to be used to build a new changelog")
-        .RequiredArgument("LAST_SEQUENCE_NUMBER")
-        .Required()
-        .StoreResult(&lastSeqNum);
-
-    TString resultingChangelogId;
-    opts.AddCharOption('i', "Desired output changelog name, should be convertible to a number")
-        .RequiredArgument("CHANGELOG_ID")
-        .Required()
-        .StoreResult(&resultingChangelogId);
-
-    TString changelogList;
-    opts.AddCharOption('c', "List of all changelogs that can be used to transplant their entries to the new one")
-        .RequiredArgument("CHANGELOG_LIST")
-        .Required()
-        .StoreResult(&changelogList);
-
-    int maxRecordsPerRead = DefaultMaxRecordsPerRead;
-    opts.AddLongOption("max-records-per-read", "Max number of records to read from a changelog at once")
-        .RequiredArgument("RECORDS_PER_READ")
-        .StoreResult(&maxRecordsPerRead);
-
-    TOptsParseResult parseResult(&opts, argc, argv);
-
-    auto changelogFileNames = StringSplitter(changelogList).Split(' ').ToList<TString>();
+    bool allRecordsEmpty = true;
+    i64 seqNumber = std::numeric_limits<i64>::max();
 
     auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYT::NYTree::INodePtr());
     auto config = New<TFileChangelogConfig>();
 
+    for (const auto& fileName : changelogFileNames) {
+        auto currentChangelog = CreateUnbufferedFileChangelog(
+            ioEngine,
+            /*memoryUsageTracker*/ nullptr,
+            fileName,
+            config);
+        currentChangelog->Open();
+        auto recordCount = currentChangelog->GetRecordCount();
+        if (recordCount == 0) {
+            continue;
+        }
+        allRecordsEmpty = false;
+
+        auto records = currentChangelog->Read(0, 1, std::numeric_limits<i64>::max());
+        if (records.empty()) {
+            THROW_ERROR_EXCEPTION("No records were read from a changelog");
+        }
+        YT_VERIFY(std::ssize(records) == 1);
+
+        NYT::NHydra::NProto::TMutationHeader mutationHeader;
+        TSharedRef mutationData;
+
+        DeserializeMutationRecord(records[0], &mutationHeader, &mutationData);
+
+        seqNumber = std::min(seqNumber, mutationHeader.sequence_number());
+    }
+
+    if (allRecordsEmpty) {
+        THROW_ERROR_EXCEPTION("Error deducing first seqenuce number, all records are empty");
+    }
+
+    YT_LOG_INFO("Deduced first sequence number for a set of changelogs (FirstSequenuceNumber: %v)",
+        seqNumber);
+
+    return seqNumber;
+}
+
+void PerformSurgery(
+    i64 firstSeqNum,
+    i64 lastSeqNum,
+    const TVector<TString>& changelogFileNames,
+    const TString& resultingChangelogId,
+    int maxRecordsPerRead)
+{
     std::vector<TSharedRef> resultingRecords(lastSeqNum - firstSeqNum + 1);
     std::vector<bool> found(lastSeqNum - firstSeqNum + 1);
 
     NYT::NHydra::NProto::TMutationHeader mutationHeader;
     TSharedRef mutationData;
+
+    auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYT::NYTree::INodePtr());
+    auto config = New<TFileChangelogConfig>();
 
     for (const auto& fileName : changelogFileNames) {
         auto currentChangelog = CreateUnbufferedFileChangelog(
@@ -118,8 +133,7 @@ void PerformSurgery(int argc, char** argv)
         while (recordsRead < recordCount) {
             auto changelogRecords = currentChangelog->Read(recordsRead, maxRecordsPerRead, std::numeric_limits<i64>::max());
             if (changelogRecords.size() == 0) {
-                YT_LOG_ERROR("No records were read from a changelog");
-                return;
+                THROW_ERROR_EXCEPTION("No records were read from a changelog");
             }
 
             recordsRead += changelogRecords.size();
@@ -144,18 +158,16 @@ void PerformSurgery(int argc, char** argv)
     i64 resultingId = FromString<i64>(resultingChangelogId);
     for (int i = 0; i < std::ssize(resultingRecords); ++i) {
         if (!found[i]) {
-            YT_LOG_ERROR("Mutation is missing (SequenceNumber: %v)", i + firstSeqNum);
-            return;
+            THROW_ERROR_EXCEPTION("Mutation is missing (SequenceNumber: %v)", i + firstSeqNum);
         }
 
         DeserializeMutationRecord(resultingRecords[i], &mutationHeader, &mutationData);
         if (mutationHeader.prev_random_seed() != prevRandomSeed && i != 0) {
             auto secondMutationHeader = mutationHeader;
             DeserializeMutationRecord(resultingRecords[i - 1], &mutationHeader, &mutationData);
-            YT_LOG_ERROR("Random seeds do not match (FirstMutationHeader: %v, SecondMutationHeader: %v",
+            THROW_ERROR_EXCEPTION("Random seeds do not match (FirstMutationHeader: %v, SecondMutationHeader: %v)",
                 ToString(mutationHeader),
                 ToString(secondMutationHeader));
-            return;
         }
 
         if (mutationHeader.segment_id() != resultingId) {
@@ -186,11 +198,60 @@ void PerformSurgery(int argc, char** argv)
     resultingChangelog->Close();
 }
 
+void Run(int argc, char** argv)
+{
+    TOpts opts;
+
+    std::optional<i64> firstSeqNum;
+    opts.AddCharOption('f', "[inclusive] Start of the range of sequence numbers to be used to build a new changelog")
+        .RequiredArgument("FIRST_SEQUENCE_NUMBER")
+        .Optional()
+        .StoreResult(&firstSeqNum);
+
+    i64 lastSeqNum = 0;
+    opts.AddCharOption('t', "[inclusive] End of the range of sequence numbers to be used to build a new changelog")
+        .RequiredArgument("LAST_SEQUENCE_NUMBER")
+        .Required()
+        .StoreResult(&lastSeqNum);
+
+    TString resultingChangelogId;
+    opts.AddCharOption('i', "Desired output changelog name, should be convertible to a number")
+        .RequiredArgument("CHANGELOG_ID")
+        .Required()
+        .StoreResult(&resultingChangelogId);
+
+    TString changelogList;
+    opts.AddCharOption('c', "List of all changelogs that can be used to transplant their entries to the new one")
+        .RequiredArgument("CHANGELOG_LIST")
+        .Required()
+        .StoreResult(&changelogList);
+
+    int maxRecordsPerRead = DefaultMaxRecordsPerRead;
+    opts.AddLongOption("max-records-per-read", "Max number of records to read from a changelog at once")
+        .RequiredArgument("RECORDS_PER_READ")
+        .StoreResult(&maxRecordsPerRead);
+
+    TOptsParseResult parseResult(&opts, argc, argv);
+
+    auto changelogFileNames = StringSplitter(changelogList).Split(' ').ToList<TString>();
+
+    if (!firstSeqNum) {
+        firstSeqNum = DeduceFirstSequenceNumber(changelogFileNames);
+    }
+
+    PerformSurgery(
+        *firstSeqNum,
+        lastSeqNum,
+        changelogFileNames,
+        resultingChangelogId,
+        maxRecordsPerRead);
+}
+
 } // namespace NYT
 
 int main(int argc, char** argv)
 {
-    NYT::PerformSurgery(argc, argv);
+    NYT::Run(argc, argv);
 
     return 0;
 }
