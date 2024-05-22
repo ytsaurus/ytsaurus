@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 #include "config.h"
+#include "serialize.h"
 #include "snapshot_exporter.h"
 
 #include <yt/yt/server/lib/hydra/dry_run/utils.h>
@@ -17,6 +18,8 @@
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/misc/shutdown.h>
+
+#include <yt/yt/core/yson/writer.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
@@ -77,6 +80,10 @@ public:
             .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
             .SetFlag(&SleepAfterInitialize_)
             .NoArgument();
+        Opts_
+            .AddLongOption("compatibility-info", "Print master binary compatibility info and exit")
+            .SetFlag(&PrintCompatibilityInfo_)
+            .NoArgument();
     }
 
 protected:
@@ -87,11 +94,12 @@ protected:
         auto dumpSnapshot = parseResult.Has("dump-snapshot");
         auto exportSnapshot = parseResult.Has("export-snapshot");
         auto validateSnapshot = parseResult.Has("validate-snapshot");
+        auto printCompatibilityInfo = parseResult.Has("compatibility-info");
         auto replayChangelogs = parseResult.Has("replay-changelogs");
         auto buildSnapshot = parseResult.Has("build-snapshot");
 
-        if (dumpSnapshot + validateSnapshot + exportSnapshot > 1) {
-            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot' and 'export-snapshot' are mutually exclusive");
+        if (dumpSnapshot + validateSnapshot + exportSnapshot + printCompatibilityInfo  > 1) {
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot', 'export-snapshot' and 'compatibility-info' are mutually exclusive");
         }
 
         if ((dumpSnapshot || exportSnapshot) && replayChangelogs) {
@@ -100,6 +108,10 @@ protected:
 
         if (buildSnapshot && !replayChangelogs && !validateSnapshot) {
             THROW_ERROR_EXCEPTION("Option 'build-snapshot' can only be used with 'validate-snapshot' or 'replay-changelog'");
+        }
+
+        if (HandleCompatibilityInfo()) {
+            return;
         }
 
         ConfigureUids();
@@ -202,12 +214,31 @@ protected:
     }
 
 private:
+    bool HandleCompatibilityInfo()
+    {
+        if (!PrintCompatibilityInfo_) {
+            return false;
+        }
+
+        NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
+        auto info = NYTree::BuildYsonStringFluently()
+          .BeginMap()
+              .Item("current_reign").Value(NCellMaster::GetCurrentReign())
+          .EndMap();
+        NYson::Serialize(info, &writer);
+        Cout << Endl;
+
+        return true;
+    }
+
+private:
     TString SnapshotPath_;
     TString ExportSnapshotConfig_;
     std::vector<TString> ChangelogFileNames_;
     TString SnapshotBuildDirectory_;
     bool SkipTvmServiceEnvValidation_ = false;
     bool SleepAfterInitialize_ = false;
+    bool PrintCompatibilityInfo_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
