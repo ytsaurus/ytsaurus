@@ -2944,6 +2944,9 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
     }
 
     if (auto jobProxyFailedError = resultError.FindMatching(NExecNode::EErrorCode::JobProxyFailed)) {
+        if (resultError.FindMatching(EProcessErrorCode::CannotStartProcess)) {
+            return EAbortReason::Other;
+        }
         if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
             auto exitCode = NExecNode::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
             switch (exitCode) {
