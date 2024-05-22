@@ -21,7 +21,7 @@ For any Cypress node, there may be several versions, because the state of the no
 
 These are Cypress nodes of the **file** type designed to store large binary data in the system.
 Files consist of multiple chunks and [are chunk owners](../../../user-guide/storage/chunks.md#attributes).
-Chunks are organized as a special tree-like data structure in which leaves are chunks and intermediate nodes are lists of chunks.
+Chunks are organized as a special tree-like data structure in which leaves are chunks and intermediate nodes are chunklists.
 
 For more information, see [Files](../../../user-guide/storage/files.md).
 
@@ -69,7 +69,7 @@ The internal objects listed in the table:
 | -------------- | ------------------------------------------------------------ |
 | `transaction` | [Transaction](../../../user-guide/storage/transactions.md) |
 | `chunk` | Chunk |
-| `chunk_list` | Chunk list |
+| `chunk_list` | Chunklist |
 | `erasure_chunk` | Erasure-chunk |
 | `account` | Account |
 | `user` | User |
@@ -83,7 +83,7 @@ Each object has a unique **ID** that is a 128-bit number whose format coincides 
 | :---------: | ------------------------------------------------------------ |
 | `a` | [The number of the epoch](https://en.wikipedia.org/wiki/Unix_time) in which the object was created |
 | `b` | The mutation number within the epoch in which the object was created |
-| `c[16..31]` | The master group ID (cell id) is a unique 16-bit number that unambiguously identifies the cluster. This ID can be found in the cluster web interface opposite the master clusters |
+| `c[16..31]` | The master group ID (cell id) is a unique 16-bit number that unambiguously identifies the cluster. This ID can be found in the cluster web interface opposite the master servers |
 | `c[0..15]` | Object type |
 | `d` | Hash is a pseudo-unique random number selected at the time of object creation. |
 
@@ -106,4 +106,3 @@ Some system objects have additional attributes: `inherit_acl`, `acl`, and `owner
 ### Reference counters { #ref_counter }
 
 **Reference counters** are used to track the lifetime of an object. An object lives in the system as long as there are **strong links** to it. The number of strong links can be found in the ref_counter attribute. As soon as this number reaches zero, the object turns into a **zombie** and is subject to removal. It is not removed instantly: there is a special **removal queue** (GC queue) from which zombies are taken in portions of a controlled size and destroyed. The size is set by the internal configuration parameters of the system. Once the object has become a zombie, you can no longer access it, even by explicitly building a path by ID.
-
