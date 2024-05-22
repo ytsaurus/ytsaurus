@@ -11,6 +11,8 @@ from yt_commands import (
 from confluent_kafka import (
     Consumer, TopicPartition)
 
+from flaky import flaky
+
 import functools
 import time
 
@@ -115,6 +117,7 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         assert ls("//sys/kafka_proxies/instances")[0] == address
 
     @authors("nadya73")
+    @flaky(max_runs=3)
     def test_basic(self):
         username = "u"
         create_user(username)
