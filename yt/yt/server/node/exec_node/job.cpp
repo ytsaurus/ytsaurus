@@ -2242,8 +2242,7 @@ void TJob::OnJobProxyFinished(const TError& error)
                 .Via(Invoker_));
     } else {
         if (!error.IsOK()) {
-            Finalize(TError(NExecNode::EErrorCode::JobProxyFailed, "Job proxy failed")
-                << BuildJobProxyError(error));
+            Finalize(BuildJobProxyError(error));
         } else {
             YT_VERIFY(IsFinished());
         }
