@@ -537,7 +537,10 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
 
     config_filename = create_temp_file(prefix="config_dump")
     with open(config_filename, "wb") as fout:
-        Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(get_config(client), fout)
+        config_copy = copy.deepcopy(get_config(client))
+        if "token" in config_copy:
+            del config_copy["token"]
+        Pickler(config.DEFAULT_PICKLING_FRAMEWORK).dump(config_copy, fout)
 
     return list(map(file_argument_builder, [function_filename, config_filename]))
 
