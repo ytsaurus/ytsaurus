@@ -139,7 +139,7 @@ private:
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
         int minCount,
-        bool forceRackAwareness,
+        NChunkClient::ESessionType sessionType,
         std::optional<int> replicationFactorOverride,
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,

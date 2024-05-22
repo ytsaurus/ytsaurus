@@ -531,6 +531,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(256_MB)
         .GreaterThanOrEqual(0);
 
+    registrar.Parameter("force_rack_awareness_for_erasure_parts", &TThis::ForceRackAwarenessForErasureParts)
+        .Default(false);
+
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
         .DefaultCtor([] {
             auto jobThrottler = New<NConcurrency::TThroughputThrottlerConfig>();

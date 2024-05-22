@@ -239,6 +239,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexPredicate_24_1)                                 (2568))  // sabdenovch
     ((IncreasedMaxKeyColumnInDynamicTableTo128_24_1)                (2569))  // sabdenovch
     ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
+    ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

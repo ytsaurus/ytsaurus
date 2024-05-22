@@ -316,7 +316,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         /*replicaIndexes*/ {},
         desiredCount,
         minCount,
-        /*forceRackAwareness*/ sessionType == ESessionType::Replication,
+        sessionType,
         replicationFactorOverride,
         forbiddenNodes,
         allocatedNodes,
@@ -395,7 +395,7 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TChunkReplicaIndexList& replicaIndexes,
     int desiredCount,
     int minCount,
-    bool forceRackAwareness,
+    ESessionType sessionType,
     std::optional<int> replicationFactorOverride,
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
@@ -492,6 +492,9 @@ TNodeList TChunkPlacement::GetWriteTargets(
     if (!hasEnoughTargets()) {
         tryAddAll(/*enableRackAwareness*/ true, /*enableDataCenterAwareness*/ IsDataCenterAware_);
     }
+
+    bool forceRackAwareness = sessionType == ESessionType::Replication ||
+        (IsErasureChunkType(chunk->GetType()) && GetDynamicConfig()->ForceRackAwarenessForErasureParts);
 
     if (!forceRackAwareness) {
         while (!hasEnoughTargets()) {
@@ -737,7 +740,7 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         replicaIndexes,
         desiredCount,
         minCount,
-        sessionType == ESessionType::Replication,
+        sessionType,
         replicationFactorOverride,
         /*forbiddenNodes*/ nullptr,
         /*allocatedNodes*/ nullptr,
