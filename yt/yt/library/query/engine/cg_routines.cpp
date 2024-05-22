@@ -19,6 +19,7 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/table_client/composite_compare.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
@@ -3595,6 +3596,17 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int CompareYsonValuesHelper(const char* lhsOffset, int lhsLength, const char* rhsOffset, int rhsLength)
+{
+    auto* lhs = ConvertPointerFromWasmToHost(lhsOffset, lhsLength);
+    auto* rhs = ConvertPointerFromWasmToHost(rhsOffset, rhsLength);
+    return NYT::NTableClient::CompareYsonValues(
+        TYsonStringBuf(TStringBuf(lhs, lhsLength)),
+        TYsonStringBuf(TStringBuf(rhs, rhsLength)));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
 {
     auto* first = ConvertPointerFromWasmToHost(std::bit_cast<char*>(firstOffset), count);
@@ -3788,6 +3800,7 @@ REGISTER_ROUTINE(YsonLength);
 REGISTER_ROUTINE(LikeOpHelper);
 REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 REGISTER_ROUTINE(DictSumIteration);
+REGISTER_ROUTINE(CompareYsonValuesHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
