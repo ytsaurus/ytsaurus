@@ -1428,6 +1428,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             perform_checks(ignore_instances=(victim,))
 
     @authors("achulkov2", "nadya73")
+    @pytest.mark.timeout(120)
     def test_trimming_with_sharded_objects(self):
         consumer_count = 10
 
