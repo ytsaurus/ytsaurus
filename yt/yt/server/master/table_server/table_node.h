@@ -231,6 +231,9 @@ private:
         NTransactionClient::TTimestamp latestTimestamp) const;
 };
 
+// Think twice before increasing this.
+static_assert(sizeof(TTableNode) == 1016);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableServer

@@ -135,6 +135,9 @@ private:
     void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
 
+// Think twice before increasing this.
+static_assert(sizeof(TTabletOwnerBase) == 904);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

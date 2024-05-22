@@ -91,6 +91,8 @@ struct TChunkDynamicData
     //! chunks. (The two lists are separate.)
     TIntrusiveLinkedListNode<TChunk> LinkedListNode;
 };
+
+// Think twice before increasing this.
 static_assert(sizeof(TChunkDynamicData) == 144);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -527,7 +529,8 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
-static_assert(sizeof(TChunk) == 288, "sizeof(TChunk) != 288");
+// Think twice before increasing this.
+static_assert(sizeof(TChunk) == 288);
 
 ////////////////////////////////////////////////////////////////////////////////
 

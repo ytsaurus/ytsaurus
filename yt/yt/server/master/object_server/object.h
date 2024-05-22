@@ -18,6 +18,9 @@ struct TObjectDynamicData
     : public NHydra::TEntityDynamicDataBase
 { };
 
+// Think twice before increasing this.
+static_assert(sizeof(TObjectDynamicData) == 4);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TEpochContext
@@ -271,6 +274,9 @@ protected:
 
     std::unique_ptr<TAttributeSet> Attributes_;
 };
+
+// Think twice before increasing this.
+static_assert(sizeof(TObject) == 88);
 
 ////////////////////////////////////////////////////////////////////////////////
 

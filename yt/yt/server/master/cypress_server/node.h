@@ -181,6 +181,9 @@ struct TCypressNodeDynamicData
     std::optional<TCypressNodeExpirationMap::iterator> ExpirationTimeoutIterator;
 };
 
+// Think twice before increasing this.
+static_assert(sizeof(TCypressNodeDynamicData) == 48);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a common base for all versioned (aka Cypress) nodes.
@@ -357,6 +360,9 @@ private:
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
+
+// Think twice before increasing this.
+static_assert(sizeof(TCypressNode) == 424);
 
 ////////////////////////////////////////////////////////////////////////////////
 

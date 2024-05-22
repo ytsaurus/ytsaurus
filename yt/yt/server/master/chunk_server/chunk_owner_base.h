@@ -152,6 +152,9 @@ private:
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
+// Think twice before increasing this.
+static_assert(sizeof(TChunkOwnerBase) == 888);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
