@@ -112,6 +112,21 @@ public:
 
     bool ResetUuid;
 
+    //! Limit on the maximum memory used of location reads.
+    i64 ReadMemoryLimit;
+
+    //! Limit on the maximum memory used of location writes.
+    i64 WriteMemoryLimit;
+
+    //! Limit on the maximum IO in bytes used of location reads.
+    i64 PendingReadIOLimit;
+
+    //! Limit on the maximum IO in bytes used of location writes.
+    i64 PendingWriteIOLimit;
+
+    //! Limit on the maximum count of location write sessions.
+    i64 SessionCountLimit;
+
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TChunkLocationConfig);
@@ -134,6 +149,21 @@ public:
     std::optional<TDuration> ThrottleDuration;
 
     std::optional<i64> CoalescedReadMaxGapSize;
+
+    //! Limit on the maximum memory used of location reads.
+    std::optional<i64> ReadMemoryLimit;
+
+    //! Limit on the maximum memory used of location writes.
+    std::optional<i64> WriteMemoryLimit;
+
+    //! Limit on the maximum IO in bytes used of location reads.
+    std::optional<i64> PendingReadIOLimit;
+
+    //! Limit on the maximum IO in bytes used of location writes.
+    std::optional<i64> PendingWriteIOLimit;
+
+    //! Limit on the maximum count of location write sessions.
+    std::optional<i64> SessionCountLimit;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);
 

@@ -56,6 +56,8 @@ struct TLocationPerformanceCounters
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> PendingIOSize;
     TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
 
+    TEnumIndexedArray<EIODirection, TEnumIndexedArray<EIOCategory, std::atomic<i64>>> UsedMemory;
+
     NProfiling::TCounter ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
@@ -103,6 +105,38 @@ struct TLocationPerformanceCounters
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocationMemoryGuard
+{
+public:
+    TLocationMemoryGuard() = default;
+    TLocationMemoryGuard(TLocationMemoryGuard&& other);
+    ~TLocationMemoryGuard();
+
+    void Release();
+
+    TLocationMemoryGuard& operator=(TLocationMemoryGuard&& other);
+
+    explicit operator bool() const;
+
+private:
+    friend class TChunkLocation;
+
+    TLocationMemoryGuard(
+        EIODirection direction,
+        EIOCategory category,
+        i64 size,
+        TChunkLocationPtr owner);
+
+    void MoveFrom(TLocationMemoryGuard&& other);
+
+    EIODirection Direction_;
+    EIOCategory Category_;
+    i64 Size_ = 0;
+    TChunkLocationPtr Owner_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -301,12 +335,29 @@ public:
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor) const;
 
+    //! Returns the number of used memory.
+    i64 GetUsedMemory(
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor) const;
+
+    //! Returns the summary of used memory in given #direction.
+    i64 GetSummaryUsedMemory(EIODirection direction) const;
+
     //! Returns the maximum number of bytes pending for disk IO in given #direction.
     i64 GetMaxPendingIOSize(EIODirection direction) const;
 
-    //! Acquires a lock for the given number of bytes to be read or written.
+    //! Returns the summary  number of bytes pending for disk IO in given #direction.
+    i64 GetSummaryPendingIOSize(EIODirection direction) const;
+
+    //! Acquires a lock IO for the given number of bytes to be read or written.
     TPendingIOGuard AcquirePendingIO(
         TMemoryUsageTrackerGuard memoryGuard,
+        EIODirection direction,
+        const TWorkloadDescriptor& workloadDescriptor,
+        i64 delta);
+
+    //! Acquires a lock memory for the given number of bytes to be read or written.
+    TLocationMemoryGuard AcquireLocationMemory(
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
@@ -378,6 +429,21 @@ public:
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
+    //! Returns limit on the maximum IO in bytes used of location reads.
+    i64 GetPendingReadIOLimit() const;
+
+    //! Returns limit on the maximum IO in bytes used of location writes.
+    i64 GetPendingWriteIOLimit() const;
+
+    //! Returns limit on the maximum memory used of location reads.
+    i64 GetReadMemoryLimit() const;
+
+    //! Returns limit on the maximum memory used of location writes.
+    i64 GetWriteMemoryLimit() const;
+
+    //! Returns limit on the maximum count of location write sessions.
+    i64 GetSessionCountLimit() const;
+
     //! If location does not contain files corresponding to given #chunkId, acquires the lock
     //! and returns a non-null guard. Otherwise, returns a null guard.
     [[nodiscard]]
@@ -438,6 +504,7 @@ protected:
     void ResetLocationStatistic();
 
 private:
+    friend class TLocationMemoryGuard;
     friend class TPendingIOGuard;
     friend class TLockedChunkGuard;
 
@@ -477,6 +544,9 @@ private:
 
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
+
+    void DecreaseUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
+    void UpdateUsedMemory(EIODirection direction, EIOCategory category, i64 delta);
 
     void ValidateWritable();
     void InitializeCellId();

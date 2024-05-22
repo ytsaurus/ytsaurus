@@ -234,6 +234,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     session->SessionPromise.TrySet(std::move(blocks));
     session->PendingIOGuard.Release();
+    session->LocationMemoryGuard.Release();
 }
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
@@ -262,6 +263,7 @@ void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const T
     }
 
     session->PendingIOGuard.Release();
+    session->LocationMemoryGuard.Release();
 }
 
 void TBlobChunkBase::DoReadMeta(
@@ -448,6 +450,10 @@ void TBlobChunkBase::DoReadSession(
         return;
     }
 
+    session->LocationMemoryGuard = Location_->AcquireLocationMemory(
+        EIODirection::Read,
+        session->Options.WorkloadDescriptor,
+        pendingDataSize);
     session->PendingIOGuard = Location_->AcquirePendingIO(
         std::move(memoryGuardOrError.Value()),
         EIODirection::Read,

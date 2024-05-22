@@ -450,6 +450,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 
     // Make all acquisitions in advance to ensure that this error is retriable.
     const auto& memoryTracker = Location_->GetWriteMemoryTracker();
+    std::vector<TLocationMemoryGuard> locationMemoryGuards;
     for (auto& block : blocks) {
         if (memoryTracker->IsExceeded()) {
             Location_->ReportThrottledWrite();
@@ -462,6 +463,10 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
                     << TErrorAttribute("bytes_limit", memoryTracker->GetLimit()));
         }
 
+        locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
+            EIODirection::Write,
+            Options_.WorkloadDescriptor,
+            block.Size()));
         block.Data = TrackMemory(memoryTracker, std::move(block.Data));
     }
 
@@ -476,7 +481,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     }
 
     if (precedingBlockReceivedFutures.empty()) {
-        return DoPerformPutBlocks(startBlockIndex, std::move(blocks), enableCaching);
+        return DoPerformPutBlocks(startBlockIndex, std::move(blocks), std::move(locationMemoryGuards), enableCaching);
     }
 
     return AllSucceeded(precedingBlockReceivedFutures)
@@ -496,6 +501,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
             MakeStrong(this),
             startBlockIndex,
             Passed(std::move(blocks)),
+            Passed(std::move(locationMemoryGuards)),
             enableCaching)
             .AsyncVia(SessionInvoker_));
 }
@@ -503,6 +509,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
 TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     int startBlockIndex,
     std::vector<TBlock> blocks,
+    std::vector<TLocationMemoryGuard> locationMemoryGuards,
     bool enableCaching)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
@@ -594,6 +601,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             break;
         }
 
+        slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
         slot.PendingIOGuard = Location_->AcquirePendingIO(
             {},
             EIODirection::Write,
@@ -669,6 +677,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 
                 slot.State = ESlotState::Released;
                 slot.Block = {};
+                slot.LocationMemoryGuard.Release();
                 slot.MemoryUsageGuard.Release();
             }
         }
@@ -811,6 +820,7 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
             } else {
                 slot.Block = {};
                 slot.MemoryUsageGuard.Release();
+                slot.LocationMemoryGuard.Release();
             }
 
             slot.State = EBlobSessionSlotState::Released;

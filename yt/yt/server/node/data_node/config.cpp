@@ -101,6 +101,16 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(ThrottleDuration, dynamicConfig.ThrottleDuration);
 
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
+
+    UpdateYsonStructField(ReadMemoryLimit, dynamicConfig.ReadMemoryLimit);
+
+    UpdateYsonStructField(WriteMemoryLimit, dynamicConfig.WriteMemoryLimit);
+
+    UpdateYsonStructField(PendingReadIOLimit, dynamicConfig.PendingReadIOLimit);
+
+    UpdateYsonStructField(PendingWriteIOLimit, dynamicConfig.PendingWriteIOLimit);
+
+    UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -116,6 +126,19 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(NIO::EIOEngineType::ThreadPool);
     registrar.Parameter("io_config", &TThis::IOConfig)
         .Optional();
+
+    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
+        .Default(10_GB);
+    registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
+        .Default(10_GB);
+
+    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
+        .Default(10_GB);
+    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
+        .Default(10_GB);
+
+    registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
+        .Default(1000);
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -158,6 +181,19 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
+        .Optional();
+
+    registrar.Parameter("read_memory_limit", &TThis::ReadMemoryLimit)
+        .Optional();
+    registrar.Parameter("write_memory_limit", &TThis::WriteMemoryLimit)
+        .Optional();
+
+    registrar.Parameter("pending_io_read_limit", &TThis::PendingReadIOLimit)
+        .Optional();
+    registrar.Parameter("pending_io_write_limit", &TThis::PendingWriteIOLimit)
+        .Optional();
+
+    registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
 }
 

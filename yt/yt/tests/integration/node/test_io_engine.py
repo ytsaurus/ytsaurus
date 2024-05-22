@@ -238,6 +238,107 @@ class TestIoEngine(YTEnvSetup):
 
         write_table("//tmp/test", ys)
 
+    def _run_throttled(self, delta, is_read, need_throttle):
+        nodes = ls("//sys/cluster_nodes")
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(path)
+
+        update_nodes_dynamic_config(delta)
+        counters = [seed_counter(node, "location/throttled_reads" if is_read else "location/throttled_writes") for node in nodes]
+
+        first_response = read_table("//tmp/test", return_response=True, table_reader={"probe_peer_count": 1}) if is_read else write_table("//tmp/test", [{"key": "x"}], return_response=True)
+        second_response = read_table("//tmp/test", return_response=True, table_reader={"probe_peer_count": 1}) if is_read else write_table("//tmp/test", [{"key": "x"}], return_response=True)
+
+        if need_throttle:
+            wait(lambda: any(counter.get_delta() > 0 for counter in counters))
+        else:
+            wait(lambda: all(counter.get_delta() == 0 for counter in counters))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "read_memory_limit": 10000000,
+                        "write_memory_limit": 10000000,
+                        "pending_io_read_limit": 10000000,
+                        "pending_io_write_limit": 10000000,
+                        "session_count_limit": 10000000,
+                    }
+                }
+            }
+        })
+        first_response.wait()
+        second_response.wait()
+
+    @authors("don-dron")
+    def test_location_limits(self):
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'write_memory_limit': 0,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "pending_io_write_limit": 0,
+                    }
+                }
+            }
+        }, False, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, False, False)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'read_memory_limit': 0,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        'pending_io_read_limit': 0,
+                    }
+                }
+            }
+        }, True, True)
+
+        self._run_throttled({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {}
+                }
+            }
+        }, True, False)
+
     @authors("yuryalekseev")
     def test_rpc_server_queue_bytes_size_limit(self):
         REPLICATION_FACTOR = 1

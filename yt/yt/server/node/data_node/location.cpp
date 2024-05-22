@@ -79,6 +79,10 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
                 return PendingIOSize[direction][category].load();
             });
 
+            r.AddFuncGauge("/used_memory", MakeStrong(this), [this, direction, category] {
+                return UsedMemory[direction][category].load();
+            });
+
             CompletedIOSize[direction][category] = r.Counter("/blob_block_bytes");
         }
     }
@@ -148,6 +152,63 @@ void TLocationPerformanceCounters::ReportThrottledWrite()
 {
     ThrottledWrites.Increment();
     LastWriteThrottleTime = GetCpuInstant();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLocationMemoryGuard::TLocationMemoryGuard(
+    EIODirection direction,
+    EIOCategory category,
+    i64 size,
+    TChunkLocationPtr owner)
+    : Direction_(direction)
+    , Category_(category)
+    , Size_(size)
+    , Owner_(owner)
+{ }
+
+TLocationMemoryGuard::TLocationMemoryGuard(TLocationMemoryGuard&& other)
+{
+    MoveFrom(std::move(other));
+}
+
+void TLocationMemoryGuard::MoveFrom(TLocationMemoryGuard&& other)
+{
+    Direction_ = other.Direction_;
+    Category_ = other.Category_;
+    Size_ = other.Size_;
+    Owner_ = std::move(other.Owner_);
+
+    other.Size_ = 0;
+    other.Owner_.Reset();
+}
+
+TLocationMemoryGuard::~TLocationMemoryGuard()
+{
+    Release();
+}
+
+TLocationMemoryGuard& TLocationMemoryGuard::operator=(TLocationMemoryGuard&& other)
+{
+    if (this != &other) {
+        Release();
+        MoveFrom(std::move(other));
+    }
+    return *this;
+}
+
+void TLocationMemoryGuard::Release()
+{
+    if (Owner_) {
+        Owner_->DecreaseUsedMemory(Direction_, Category_, Size_);
+        Owner_.Reset();
+        Size_ = 0;
+    }
+}
+
+TLocationMemoryGuard::operator bool() const
+{
+    return Owner_.operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,6 +430,46 @@ THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return RuntimeConfig_.AcquireHazard();
+}
+
+i64 TChunkLocation::GetPendingReadIOLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->PendingReadIOLimit;
+}
+
+i64 TChunkLocation::GetPendingWriteIOLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->PendingWriteIOLimit;
+}
+
+i64 TChunkLocation::GetReadMemoryLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->ReadMemoryLimit;
+}
+
+i64 TChunkLocation::GetWriteMemoryLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->WriteMemoryLimit;
+}
+
+i64 TChunkLocation::GetSessionCountLimit() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto config = GetRuntimeConfig();
+    return config->SessionCountLimit;
 }
 
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
@@ -672,6 +773,27 @@ const IMemoryUsageTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
     return WriteMemoryTracker_;
 }
 
+i64 TChunkLocation::GetUsedMemory(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto category = ToIOCategory(workloadDescriptor);
+    return PerformanceCounters_->UsedMemory[direction][category].load();
+}
+
+i64 TChunkLocation::GetSummaryUsedMemory(EIODirection direction) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = 0;
+    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+        result += PerformanceCounters_->UsedMemory[direction][category].load();
+    }
+    return result;
+}
+
 i64 TChunkLocation::GetPendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
@@ -693,6 +815,17 @@ i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
     return result;
 }
 
+i64 TChunkLocation::GetSummaryPendingIOSize(EIODirection direction) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = 0;
+    for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+        result += PerformanceCounters_->PendingIOSize[direction][category].load();
+    }
+    return result;
+}
+
 TPendingIOGuard TChunkLocation::AcquirePendingIO(
     TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
@@ -706,6 +839,23 @@ TPendingIOGuard TChunkLocation::AcquirePendingIO(
     UpdatePendingIOSize(direction, category, delta);
     return TPendingIOGuard(
         std::move(memoryGuard),
+        direction,
+        category,
+        delta,
+        this);
+}
+
+TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
+    EIODirection direction,
+    const TWorkloadDescriptor& workloadDescriptor,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_ASSERT(delta >= 0);
+    auto category = ToIOCategory(workloadDescriptor);
+    UpdateUsedMemory(direction, category, delta);
+    return TLocationMemoryGuard(
         direction,
         category,
         delta,
@@ -761,6 +911,31 @@ void TChunkLocation::UpdatePendingIOSize(
 
     i64 result = PerformanceCounters_->PendingIOSize[direction][category].fetch_add(delta) + delta;
     YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
+        direction,
+        category,
+        result,
+        delta);
+}
+
+void TChunkLocation::DecreaseUsedMemory(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdateUsedMemory(direction, category, -delta);
+}
+
+void TChunkLocation::UpdateUsedMemory(
+    EIODirection direction,
+    EIOCategory category,
+    i64 delta)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    i64 result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
+    YT_LOG_TRACE("Used memory updated (Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
         direction,
         category,
         result,
@@ -1032,6 +1207,8 @@ std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
     bool throttled =
         readQueueSize > GetReadThrottlingLimit() ||
         IOEngine_->IsReadRequestLimitExceeded() ||
+        GetSummaryUsedMemory(EIODirection::Read) >= GetReadMemoryLimit() ||
+        GetSummaryPendingIOSize(EIODirection::Read) >= GetPendingReadIOLimit() ||
         ReadMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledRead();
@@ -1051,6 +1228,8 @@ bool TChunkLocation::CheckWriteThrottling(
     bool throttled =
         GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
         IOEngine_->IsWriteRequestLimitExceeded() ||
+        GetSummaryUsedMemory(EIODirection::Write) >= GetWriteMemoryLimit() ||
+        GetSummaryPendingIOSize(EIODirection::Write) >= GetPendingWriteIOLimit() ||
         WriteMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledWrite();
