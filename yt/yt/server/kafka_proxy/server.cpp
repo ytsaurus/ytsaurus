@@ -121,7 +121,7 @@ private:
 
         IConnectionPtr Connection;
 
-        std::optional<ERequestType> ExpectedNextRequestType = {ERequestType::SaslHandshake};
+        std::optional<ERequestType> ExpectedRequestType = {ERequestType::SaslHandshake};
 
         std::optional<TString> UserName;
     };
@@ -220,7 +220,7 @@ private:
         }
 
         auto connectionState = GetConnectionState(connection->GetConnectionId());
-        auto expectedRequestType = connectionState->ExpectedNextRequestType;
+        auto expectedRequestType = connectionState->ExpectedRequestType;
         // For SaslHandshake v0 tokens are sent as opaque packets without wrapping the messages with Kafka protocol headers.
         // SaslHandshake v1 is not supported for now.
         if (expectedRequestType && *expectedRequestType == ERequestType::SaslAuthenticate) {
@@ -415,7 +415,7 @@ private:
         }
 
         auto connectionState = GetConnectionState(connectionId);
-        connectionState->ExpectedNextRequestType = ERequestType::SaslAuthenticate;
+        connectionState->ExpectedRequestType = ERequestType::SaslAuthenticate;
 
         return response;
     }
@@ -462,7 +462,7 @@ private:
         }
 
         connectionState->UserName = authResultOrError.Value().Login;
-        connectionState->ExpectedNextRequestType = std::nullopt;
+        connectionState->ExpectedRequestType = std::nullopt;
 
         YT_LOG_DEBUG("Authentication successfull (ConnectionId: %v, UserName: %v)", connectionId, *connectionState->UserName);
 
