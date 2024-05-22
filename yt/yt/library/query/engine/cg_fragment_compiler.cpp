@@ -173,10 +173,10 @@ Value* CodegenFingerprint128(const TCGIRBuilderPtr& builder, Value* x, Value* y)
 
 TValueTypeLabels CodegenHasherBody(
     TCGBaseContext& builder,
-    Value* labelsArray,
     Value* values,
     Value* startIndex,
-    Value* finishIndex)
+    Value* finishIndex,
+    Value* labelsArray)
 {
     auto codegenHashCombine = [&] (const TCGIRBuilderPtr& builder, Value* first, Value* second) -> Value* {
         //first ^ (second + 0x9e3779b9 + (second << 6) + (second >> 2));
@@ -272,10 +272,10 @@ TValueTypeLabels CodegenHasherBody(
         builder->CreateBr(gotoNextBB);
     };
 
-    BasicBlock* cmpStringBB = nullptr;
+    BasicBlock* hashStringBB = nullptr;
     {
-        cmpStringBB = builder->CreateBBHere("hashNull");
-        builder->SetInsertPoint(cmpStringBB);
+        hashStringBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashStringBB);
 
         auto valuePtr = builder->CreateInBoundsGEP(
             TValueTypeBuilder::Get(builder->getContext()),
@@ -309,14 +309,14 @@ TValueTypeLabels CodegenHasherBody(
     auto* indirectBranch = builder->CreateIndirectBr(offset);
     indirectBranch->addDestination(hashInt8ScalarBB);
     indirectBranch->addDestination(hashInt64ScalarBB);
-    indirectBranch->addDestination(cmpStringBB);
+    indirectBranch->addDestination(hashStringBB);
 
-    return TValueTypeLabels{
+    return {
         llvm::BlockAddress::get(hashInt8ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
         llvm::BlockAddress::get(hashInt64ScalarBB),
-        llvm::BlockAddress::get(cmpStringBB)
+        llvm::BlockAddress::get(hashStringBB),
     };
 }
 
@@ -324,11 +324,11 @@ TValueTypeLabels CodegenHasherBody(
 
 TValueTypeLabels CodegenLessComparerBody(
     TCGBaseContext& builder,
-    Value* labelsArray,
     Value* lhsValues,
     Value* rhsValues,
     Value* startIndex,
     Value* finishIndex,
+    Value* labelsArray,
     std::function<void(TCGBaseContext& builder)> onEqual,
     std::function<void(TCGBaseContext& builder, Value* result, Value* index)> onNotEqual)
 {
@@ -584,12 +584,12 @@ TValueTypeLabels CodegenLessComparerBody(
     indirectBranch->addDestination(cmpDoubleBB);
     indirectBranch->addDestination(cmpStringBB);
 
-    return TValueTypeLabels{
+    return {
         llvm::BlockAddress::get(cmpBooleanBB),
         llvm::BlockAddress::get(cmpIntBB),
         llvm::BlockAddress::get(cmpUintBB),
         llvm::BlockAddress::get(cmpDoubleBB),
-        llvm::BlockAddress::get(cmpStringBB)
+        llvm::BlockAddress::get(cmpStringBB),
     };
 }
 
@@ -618,24 +618,24 @@ struct TComparerManager
     void GetUniversalComparer(const TCGModulePtr& module)
     {
         if (!UniversalComparer) {
-            UniversalComparer = MakeFunction<i64(char**, TPIValue*, TPIValue*, size_t, size_t)>(
+            UniversalComparer = MakeFunction<i64(TPIValue*, TPIValue*, size_t, size_t, char**)>(
                 module,
                 "UniversalComparerImpl",
             [&] (
                 TCGBaseContext& builder,
-                Value* labelsArray,
                 Value* lhsValues,
                 Value* rhsValues,
                 Value* startIndex,
-                Value* finishIndex
+                Value* finishIndex,
+                Value* labelsArray
             ) {
                 UniversalLabels = CodegenLessComparerBody(
                     builder,
-                    labelsArray,
                     lhsValues,
                     rhsValues,
                     startIndex,
                     finishIndex,
+                    labelsArray,
                     [&] (TCGBaseContext& builder) {
                         builder->CreateRet(builder->getInt64(0));
                     },
@@ -776,19 +776,19 @@ Function* TComparerManager::GetHasher(
     auto emplaced = Hashers.emplace(id, nullptr);
     if (emplaced.second) {
         if (!Hasher) {
-            Hasher = MakeFunction<ui64(char**, TPIValue*, size_t, size_t)>(module, "HasherImpl", [&] (
+            Hasher = MakeFunction<ui64(TPIValue*, size_t, size_t, char**)>(module, "HasherImpl", [&] (
                 TCGBaseContext& builder,
-                Value* labelsArray,
                 Value* values,
                 Value* startIndex,
-                Value* finishIndex
+                Value* finishIndex,
+                Value* labelsArray
             ) {
                 HashLabels = CodegenHasherBody(
                     builder,
-                    labelsArray,
                     values,
                     startIndex,
-                    finishIndex);
+                    finishIndex,
+                    labelsArray);
             });
         }
 
@@ -803,12 +803,12 @@ Function* TComparerManager::GetHasher(
                 result = builder->CreateCall(
                     Hasher,
                     {
+                        row,
+                        builder->getInt64(start),
+                        builder->getInt64(finish),
                         builder->CreatePointerCast(
                             GetLabelsArray(builder, types, HashLabels),
                             TTypeBuilder<char**>::Get(builder->getContext())),
-                        row,
-                        builder->getInt64(start),
-                        builder->getInt64(finish)
                     });
             }
 
@@ -859,13 +859,13 @@ Function* TComparerManager::GetEqComparer(
                 result = builder->CreateCall(
                     UniversalComparer,
                     {
-                        builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLabels),
-                            TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
-                        builder->getInt64(finish)
+                        builder->getInt64(finish),
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, UniversalLabels),
+                            TTypeBuilder<char**>::Get(builder->getContext())),
                     });
                 result = builder->CreateZExt(
                     builder->CreateICmpEQ(result, builder->getInt64(0)),
@@ -919,13 +919,13 @@ Function* TComparerManager::GetLessComparer(
                 result = builder->CreateCall(
                     UniversalComparer,
                     {
-                        builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLabels),
-                            TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
-                        builder->getInt64(finish)
+                        builder->getInt64(finish),
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, UniversalLabels),
+                            TTypeBuilder<char**>::Get(builder->getContext())),
                     });
                 result = builder->CreateZExt(
                     builder->CreateICmpSLT(result, builder->getInt64(0)),
@@ -979,13 +979,13 @@ Function* TComparerManager::GetTernaryComparer(
                 result = builder->CreateCall(
                     UniversalComparer,
                     {
-                        builder->CreatePointerCast(
-                            GetLabelsArray(builder, types, UniversalLabels),
-                            TTypeBuilder<char**>::Get(builder->getContext())),
                         lhsRow,
                         rhsRow,
                         builder->getInt64(start),
-                        builder->getInt64(finish)
+                        builder->getInt64(finish),
+                        builder->CreatePointerCast(
+                            GetLabelsArray(builder, types, UniversalLabels),
+                            TTypeBuilder<char**>::Get(builder->getContext())),
                     });
             }
 
@@ -1044,13 +1044,13 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
         Value* result = builder->CreateCall(
             UniversalComparer,
             {
-                builder->CreatePointerCast(
-                    GetLabelsArray(builder, types, UniversalLabels),
-                    TTypeBuilder<char**>::Get(builder->getContext())),
                 lhsValues,
                 rhsValues,
                 builder->getInt64(0),
-                builder->getInt64(types.size())
+                builder->getInt64(types.size()),
+                builder->CreatePointerCast(
+                    GetLabelsArray(builder, types, UniversalLabels),
+                    TTypeBuilder<char**>::Get(builder->getContext())),
             });
 
         auto* thenBB = builder->CreateBBHere("then");
