@@ -238,29 +238,63 @@ TChunkReaderHostPtr GetChunkReaderHost(const NApi::NNative::IConnectionPtr conne
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TReplicationReaderTest, SimpleReadTest)
+struct TTestCase
 {
-    auto pool = NConcurrency::CreateThreadPool(4, "Worker");
+    int BatchCount = 1;
+    int NodeCount = 3;
+    int BlockCount = 10;
+    int RequestInBatch = 10;
+    int BlockInRequest = 2;
+    bool Sequentially = true;
+    bool EnableChunkProber = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicationReaderTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<TTestCase>
+{ };
+
+TEST_P(TReplicationReaderTest, ReadTest)
+{
+    auto testCase = GetParam();
+
+    auto nodeCount = testCase.NodeCount;
+    auto blockCount = testCase.BlockCount;
+    auto batchCount = testCase.BatchCount;
+    auto requestInBatch = testCase.RequestInBatch;
+    auto sequentially = testCase.Sequentially;
+
+    auto pool = NConcurrency::CreateThreadPool(16, "Worker");
     auto invoker = pool->GetInvoker();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     auto memoryTracker = CreateNodeMemoryTracker(32_MB, {});
 
-    for (int index = 0; index < 3; ++index) {
-        nodeDirectory->AddDescriptor(
-            NNodeTrackerClient::TNodeId(index),
-            NNodeTrackerClient::TNodeDescriptor(Format("local:%v", index)));
-    }
+    THashMap<TString, IServicePtr> addressToService;
 
     auto chunkId = TGuid::Create();
-    auto blocks = CreateBlocks(8);
+    auto blocks = CreateBlocks(blockCount);
 
-    auto service = New<TTestDataNodeService>(invoker);
-    service->SetChunkBlocks(chunkId, blocks);
+    TChunkReplicaWithMediumList replicaList;
+
+    for (int index = 0; index < nodeCount; ++index) {
+        auto address = Format("local:%v", index);
+        nodeDirectory->AddDescriptor(
+            NNodeTrackerClient::TNodeId(index),
+            NNodeTrackerClient::TNodeDescriptor(address));
+
+        auto service = New<TTestDataNodeService>(invoker);
+        addressToService[address] = service;
+        service->SetChunkBlocks(chunkId, blocks);
+
+        replicaList.push_back(TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(index), index, AllMediaIndex));
+    }
 
     auto options = New<TRemoteReaderOptions>();
     options->AllowFetchingSeedsFromMaster = false;
 
-    auto channelFactory = CreateTestChannelFactoryWithDefaultServices(service);
+    auto channelFactory = CreateTestChannelFactory(addressToService, THashMap<TString, IServicePtr>());
     auto connection = NApi::NNative::CreateConnection(
         std::move(channelFactory),
         { "default" },
@@ -270,36 +304,97 @@ TEST(TReplicationReaderTest, SimpleReadTest)
 
     auto readerHost = GetChunkReaderHost(connection);
 
+    auto config = New<TReplicationReaderConfig>();
+    config->UseChunkProber = true;
+
     auto reader = CreateReplicationReader(
-        New<TReplicationReaderConfig>(),
-        options,
-        readerHost,
+        std::move(config),
+        std::move(options),
+        std::move(readerHost),
         chunkId,
-        TChunkReplicaWithMediumList{
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(0), 0, AllMediaIndex),
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(1), 1, AllMediaIndex),
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(2), 2, AllMediaIndex)
-        });
+        std::move(replicaList));
 
-    std::vector<TFuture<std::vector<TBlock>>> futures;
+    TRandomGenerator generator(42);
+    for (int batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+        std::vector<TFuture<std::vector<TBlock>>> futures;
 
-    for (int i = 0; i < 6; i++) {
-        auto future = reader->ReadBlocks({}, {i, i + 1})
-            .Apply(BIND([=] (const std::vector<TBlock>& returnedBlocks) {
-                EXPECT_EQ(2, std::ssize(returnedBlocks));
-                EXPECT_EQ(TBlock(blocks[i]).GetOrComputeChecksum(), returnedBlocks[0].GetOrComputeChecksum());
-                EXPECT_EQ(TBlock(blocks[i + 1]).GetOrComputeChecksum(), returnedBlocks[1].GetOrComputeChecksum());
-                return returnedBlocks;
-            }).AsyncVia(invoker));
-        futures.push_back(std::move(future));
+        int requestSize = std::max(std::max(blockCount / requestInBatch, 1), testCase.BlockInRequest);
+
+        for (int requestIndex = 0; requestIndex < requestInBatch; requestIndex++) {
+            std::vector<int> blockIndexes;
+            int blockInRequestCount = std::max<int>(static_cast<ui64>(generator.Generate<int>()) % requestSize, 1);
+            for (int blockIndex = 0; blockIndex < blockInRequestCount; blockIndex++) {
+                if (sequentially) {
+                    blockIndexes.push_back((requestIndex + blockIndex) % blockCount);
+                } else {
+                    blockIndexes.push_back(static_cast<ui64>(generator.Generate<int>()) % blockCount);
+                }
+            }
+
+            std::sort(blockIndexes.begin(), blockIndexes.end());
+
+            auto future = reader->ReadBlocks({}, blockIndexes)
+                .Apply(BIND([=] (std::vector<int> blockIndexes, const std::vector<TBlock>& returnedBlocks) {
+                    EXPECT_EQ(blockIndexes.size(), returnedBlocks.size());
+                    int index = 0;
+                    for (const auto& block : returnedBlocks) {
+                        EXPECT_EQ(TBlock(blocks[blockIndexes[index]]).GetOrComputeChecksum(), block.GetOrComputeChecksum());
+                        index++;
+                    }
+                    return returnedBlocks;
+                }, Passed(std::move(blockIndexes))).AsyncVia(invoker));
+            futures.push_back(std::move(future));
+        }
+
+        WaitFor(AllSucceeded(std::move(futures)))
+            .ThrowOnError();
     }
-
-    WaitFor(AllSucceeded(std::move(futures)))
-        .ThrowOnError();
 
     pool->Shutdown();
     memoryTracker->ClearTrackers();
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TReplicationReaderTest,
+    TReplicationReaderTest,
+    ::testing::Values(
+        TTestCase{},
+        TTestCase{
+            .BatchCount = 10,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 16,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+        },
+        TTestCase{
+            .BatchCount = 10,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 16,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = false,
+        },
+        TTestCase{
+            .BatchCount = 10,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 16,
+            .BlockInRequest = 16,
+            .Sequentially = false,
+            .EnableChunkProber = true,
+        },
+        TTestCase{
+            .BatchCount = 10,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 16,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = true,
+        }));
 
 ////////////////////////////////////////////////////////////////////////////////
 
