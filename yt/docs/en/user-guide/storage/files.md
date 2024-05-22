@@ -1,1 +1,1 @@
-{% include [Файлы](../../_includes/user-guide/storage/files.md) %}
+{% include [Files](../../_includes/user-guide/storage/files.md) %}

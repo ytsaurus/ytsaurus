@@ -17,24 +17,24 @@ There is another solution that we propose: writing binary data to a single table
 
 ## Usage { #usage }
 
-Files support appends: `write_file` command. This performs a write by adding [chunks](../../../user-guide/storage/chunks.md); therefore, we recommend against performing many small writes.
+Files support appends via the `write_file` [command](../../../api/commands.md#write_file). This performs a write by adding [chunks](../../../user-guide/storage/chunks.md); therefore, we recommend against performing many small writes.
 
-We use the `read_file` command to read files. You can either read an entire file or specify a read range in the form of an offset in bytes. To do this, use the `offset` selector in the [YPath](../../../user-guide/storage/ypath.md) language.
+To read files, use the `read_file` [command](../../../api/commands.md#read_file). You can either read an entire file or specify a read range in the form of an offset in bytes. To do this, use the `offset` selector in the [YPath](../../../user-guide/storage/ypath.md) language.
 Each read requires a request for metadata from the master server, so multiple reads are not recommended.
 
 ### Using in jobs { #usage_in_jobs }
 
-One way to use files is to deliver the same data, such as lookups, for jobs. This causes file chunks to be downloaded into the local cache of every node requesting the file.
+One way to use files is to deliver the same data, such as lookups, for [jobs](../../../user-guide/data-processing/operations/overview.md). This causes file chunks to be downloaded into the local cache of every node requesting the file.
 
-If a file consists of 2 or more chunks, or has `compression_codec` set, the cache rebuilds the original file from the chunks. This file is referred to as an artifact. There are two ways to deliver an artifact into a file in a job `sandbox`, which is a special directory that every job creates:
+If a file consists of multiple chunks or has `compression_codec` set, the cache rebuilds the original file from the [chunks](../../../user-guide/storage/chunks.md). This file is referred to as an artifact. There are two ways to deliver an artifact into a file in a job `sandbox`, which is a special directory that every job creates:
 
 - By default, a [link](../../../user-guide/storage/links.md) to the artifact will be created in the job `sandbox`. This behavior is preferred since it works faster and creates less hard drive IO load.
 
-- If you include the `copy_file` option in the specification, the file will be copied into the `sandbox`. It does not make sense to use this behavior unless you need to mount the entire `sandbox` in [tmpfs](https://en.wikipedia.org/wiki/Tmpfs).
+- If you include the `copy_file` option in the specification, the file will be copied into the `sandbox`. It does not make sense to use this behavior unless you need to mount the entire `sandbox` in [tmpfs](https://{{lang}}.wikipedia.org/wiki/Tmpfs).
 
 If a file's `executable` attribute is set to `true`, it will be executable in the job `sandbox`. By default, the attribute is set to `false`.
 
-You can use the `file_name` attribute to manage the name of a file or link created in the `sandbox`. If this attribute is absent, the Cypress filename is used.
+You can use the `file_name` attribute to manage the name of a file or link created in the `sandbox`. If this attribute is absent, the [Cypress](../../../user-guide/storage/cypress.md) filename is used instead.
 
 ## System attributes { #attributes }
 
