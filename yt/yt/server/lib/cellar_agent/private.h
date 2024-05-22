@@ -10,7 +10,7 @@ namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger CellarAgentLogger("CellarAgent");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, CellarAgentLogger, "CellarAgent");
 inline const NProfiling::TProfiler CellarAgentProfiler("/cellar_agent");
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,14 +23,6 @@ using namespace NYPath;
 
 namespace {
 
-inline const NLogging::TLogger Logger("FilterMatcher");
-
-} // anonymous namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
 class TFilterMatcher
     : public IFilterMatcher
 {

@@ -60,7 +60,7 @@ public:
         , MemoryUsageTracker_(std::move(memoryUsageTracker))
         , FileName_(std::move(fileName))
         , Config_(std::move(config))
-        , Logger(HydraLogger.WithTag("Path: %v", FileName_))
+        , Logger(HydraLogger().WithTag("Path: %v", FileName_))
         , Index_(MakeIndex(MakeIndexFileName()))
     { }
 

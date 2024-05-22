@@ -14,7 +14,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TabletServerLogger("TabletServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TabletServerLogger, "TabletServer");
 inline const NProfiling::TProfiler TabletServerProfiler("/tablet_server");
 
 ////////////////////////////////////////////////////////////////////////////////

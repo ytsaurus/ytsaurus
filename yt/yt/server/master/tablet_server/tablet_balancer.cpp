@@ -42,7 +42,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static constexpr auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -340,7 +340,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void CreateReshardAction(const std::vector<TTablet*>& tablets, int newTabletCount, i64 size)
@@ -371,7 +371,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     int ApplyMoveActions()

@@ -52,7 +52,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////test
 
-static const TLogger Logger("ChunkAutotomizer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ChunkAutotomizer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -363,7 +363,7 @@ public:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void OnJobAborted(const TAutotomyJobPtr& job) override
@@ -877,7 +877,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void OnTransactionFinished(TTransaction* transaction)
@@ -1050,7 +1050,7 @@ private:
         if (unstagedChunkCount > 0) {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 
@@ -1167,7 +1167,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     // This function can be called from two contexts: chunks refresh and a single chunk state change.

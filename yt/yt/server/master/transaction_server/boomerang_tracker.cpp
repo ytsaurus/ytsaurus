@@ -29,7 +29,7 @@ using namespace NRpc;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionServerLogger;
+static constexpr auto& Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,7 +150,7 @@ void TBoomerangTracker::OnCheck()
 
     NProto::TReqRemoveStuckBoomerangWaves request;
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 void TBoomerangTracker::RemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* /*request*/)

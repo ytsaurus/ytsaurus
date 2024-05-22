@@ -24,7 +24,7 @@ using namespace NRpc;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
+static constexpr auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,7 +153,7 @@ void TMutationIdempotizer::OnCheck()
 
     NProto::TReqRemoveExpiredRecentlyAppliedMutationIds request;
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 const TMutationIdempotizerConfigPtr& TMutationIdempotizer::GetDynamicConfig()

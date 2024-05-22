@@ -265,7 +265,7 @@ public:
         , RowIndexId_(rowIndexId)
         , Sampler_(CreateSampler(chunkId, Config_->SamplingRate, Config_->SamplingSeed))
         , VirtualValues_(virtualValues)
-        , Logger(TableClientLogger.WithTag("ChunkReaderId: %v, ChunkId: %v",
+        , Logger(TableClientLogger().WithTag("ChunkReaderId: %v, ChunkId: %v",
             TGuid::Create(),
             chunkId))
     {

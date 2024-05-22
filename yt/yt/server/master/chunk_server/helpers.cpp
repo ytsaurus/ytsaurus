@@ -58,7 +58,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 static const double ChunkListTombstoneRelativeThreshold = 0.5;
 static const double ChunkListTombstoneAbsoluteThreshold = 16;

@@ -23,7 +23,7 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,7 +67,7 @@ private:
         TReqEvictKeptResponses request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void HydraEvictKeptResponses(TReqEvictKeptResponses* /*request*/)

@@ -34,7 +34,7 @@ using namespace NChaosClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChaosNodeLogger;
+static constexpr auto& Logger = ChaosNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +128,7 @@ private:
 
         auto hydraManager = Slot_->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, request);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
 };
 

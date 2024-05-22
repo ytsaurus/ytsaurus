@@ -8,7 +8,7 @@ using namespace NYT;
 using namespace NYT::NLogging;
 using namespace NYT::NConcurrency;
 
-static const TLogger Logger("Stress");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Stress");
 
 int main(int argc, const char *argv[])
 {

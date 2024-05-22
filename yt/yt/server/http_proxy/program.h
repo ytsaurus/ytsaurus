@@ -131,7 +131,7 @@ protected:
 
         if (RemoteClusterProxy_) {
             // Set http proxy cluster connection.
-            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, NHttpProxy::HttpProxyLogger);
+            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, NHttpProxy::HttpProxyLogger());
             config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 

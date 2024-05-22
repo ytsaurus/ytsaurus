@@ -23,7 +23,7 @@ TObjectAttributeCache::TObjectAttributeCache(
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
-        ObjectClientLogger.WithTag("Cache: ObjectAttribute"),
+        ObjectClientLogger().WithTag("Cache: ObjectAttribute"),
         std::move(profiler))
     , AttributeNames_(std::move(attributeNames))
     , Config_(std::move(config))

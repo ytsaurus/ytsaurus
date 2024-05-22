@@ -77,7 +77,7 @@ public:
             bootstrap,
             TChunkServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChunkService,
-            ChunkServerLogger)
+            ChunkServerLogger())
         , ReconfigurationCallback_(CreateReconfigurationCallback(bootstrap))
         , CreateChunkRequestQueueProvider_(New<TPerUserRequestQueueProvider>(
             ReconfigurationCallback_,

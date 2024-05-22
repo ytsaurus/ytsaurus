@@ -10,7 +10,7 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger CellMasterLogger("Master");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, CellMasterLogger, "Master");
 inline const NProfiling::TProfiler CellMasterProfiler("/master");
 
 ////////////////////////////////////////////////////////////////////////////////

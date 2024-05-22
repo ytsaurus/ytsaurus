@@ -53,7 +53,7 @@ public:
         ObjectServiceCache_ = New<TObjectServiceCache>(
             GetConfig()->CachingObjectService,
             GetNullMemoryUsageTracker(),
-            MasterCacheLogger,
+            MasterCacheLogger(),
             MasterCacheProfiler.WithPrefix("/object_service_cache"));
 
         const auto& connection = GetConnection();
@@ -111,7 +111,7 @@ private:
             CreateMasterChannelForCache(GetConnection(), masterCellId),
             ObjectServiceCache_,
             masterCellId,
-            Logger,
+            Logger(),
             MasterCacheProfiler.WithPrefix("/caching_object_service"),
             GetNativeAuthenticator());
 

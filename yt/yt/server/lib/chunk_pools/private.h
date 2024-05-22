@@ -37,8 +37,8 @@ class TNewJobStub;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ChunkPoolLogger("ChunkPool");
-inline const NLogging::TLogger ChunkPoolStructuredLogger("ChunkPool");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolLogger, "ChunkPool");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkPoolStructuredLogger, "ChunkPool");
 
 ////////////////////////////////////////////////////////////////////////////////
 

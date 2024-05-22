@@ -40,7 +40,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(EControlQueue::UserRequest),
             TOperationServiceProxy::GetDescriptor(),
-            SchedulerLogger,
+            SchedulerLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

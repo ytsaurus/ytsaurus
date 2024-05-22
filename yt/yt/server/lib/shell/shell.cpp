@@ -323,7 +323,7 @@ private:
 
     std::optional<TString> Command_;
 
-    NLogging::TLogger Logger = ShellLogger;
+    NLogging::TLogger Logger = ShellLogger();
 
     std::unique_ptr<TPty> Pty_;
 

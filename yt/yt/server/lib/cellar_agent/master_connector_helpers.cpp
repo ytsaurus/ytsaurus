@@ -73,7 +73,7 @@ void UpdateCellarFromHeartbeatResponse(
     const ICellarPtr& cellar,
     const TRspCellarHeartbeat& response)
 {
-    auto Logger = CellarAgentLogger.WithTag("CellarType: %v", cellarType);
+    auto Logger = CellarAgentLogger().WithTag("CellarType: %v", cellarType);
 
     if (!cellar) {
         YT_LOG_WARNING("Processing heartbeat for non-existing cellar, ignored",

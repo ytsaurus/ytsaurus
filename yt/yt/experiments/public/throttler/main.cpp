@@ -10,7 +10,7 @@
 
 namespace NYT {
 
-static inline const NLogging::TLogger Logger("ThrottlerTest");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ThrottlerTest");
 static auto DonePromise = NewPromise<void>();
 
 enum class ERunMode
@@ -66,7 +66,7 @@ void Main(ERunMode mode, double limit, i64 iterCount, i64 iterSize)
     config->Period = TDuration::MilliSeconds(1000);
     auto throttler = NConcurrency::CreateReconfigurableThroughputThrottler(
         std::move(config),
-        Logger);
+        Logger());
 
     // Minus one is because throttler starts out "filled".
     auto timeEstimate = std::max(0.0, double(iterCount) * iterSize / limit - 1);

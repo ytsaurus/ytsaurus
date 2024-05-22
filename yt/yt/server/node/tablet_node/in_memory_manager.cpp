@@ -354,7 +354,7 @@ private:
         auto readSessionId = TReadSessionId::Create();
         auto mode = store->GetInMemoryMode();
 
-        auto Logger = TabletNodeLogger
+        auto Logger = TabletNodeLogger()
             .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
                 tablet->GetLoggingTag(),
                 store->GetId(),
@@ -493,7 +493,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
     auto mode = mountConfig->InMemoryMode;
 
-    auto Logger = TabletNodeLogger
+    auto Logger = TabletNodeLogger()
         .WithTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
             tabletSnapshot->LoggingTag,
             store->GetId(),

@@ -59,7 +59,7 @@ using namespace NChunkClient;
 template <class TChunkOwner>
 TChunkOwnerTypeHandler<TChunkOwner>::TChunkOwnerTypeHandler(NCellMaster::TBootstrap* bootstrap)
     : TBase(bootstrap)
-    , Logger(ChunkServerLogger)
+    , Logger(ChunkServerLogger())
 { }
 
 template <class TChunkOwner>

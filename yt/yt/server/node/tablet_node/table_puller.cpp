@@ -149,7 +149,7 @@ public:
         , ReplicaId_(tablet->GetUpstreamReplicaId())
         , PivotKey_(tablet->GetPivotKey())
         , NextPivotKey_(tablet->GetNextPivotKey())
-        , Logger(TabletNodeLogger
+        , Logger(TabletNodeLogger()
             .WithTag("%v, UpstreamReplicaId: %v",
                 tablet->GetLoggingTag(),
                 ReplicaId_))

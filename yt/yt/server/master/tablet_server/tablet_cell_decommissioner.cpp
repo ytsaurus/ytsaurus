@@ -52,12 +52,12 @@ public:
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->DecommissionThrottler,
             "Decommission",
-            TabletServerLogger,
+            TabletServerLogger(),
             Profiler.WithPrefix("/throttler")))
         , KickOrphansThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->KickOrphansThrottler,
             "KickOrphans",
-            TabletServerLogger,
+            TabletServerLogger(),
             Profiler.WithPrefix("/throttler")))
         , CheckDecommissionTimer_(Profiler.Timer("/check_decommission"))
         , CheckOrphansTimer_(Profiler.Timer("/check_orphans"))
@@ -197,7 +197,7 @@ private:
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 
@@ -231,7 +231,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void RemoveCellIfDecommissioned(const TCellBase* cell)
@@ -271,7 +271,7 @@ private:
             ToProto(request.mutable_tablet_action_ids(), orphans);
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 };

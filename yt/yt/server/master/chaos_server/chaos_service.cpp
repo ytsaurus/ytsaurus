@@ -42,7 +42,7 @@ public:
             bootstrap,
             TChaosMasterServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ChaosService,
-            ChaosServerLogger)
+            ChaosServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncAlienCells)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChaosService))

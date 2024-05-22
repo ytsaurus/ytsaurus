@@ -32,7 +32,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChaosNodeLogger;
+static constexpr auto& Logger = ChaosNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,7 +117,7 @@ private:
 
                 const auto& hydraManager = Slot_->GetHydraManager();
                 auto mutation = CreateMutation(hydraManager, request);
-                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
             }
 
             YT_LOG_DEBUG("Replication card observer finished round (RoundIndex: %v, WillYield: %v)",

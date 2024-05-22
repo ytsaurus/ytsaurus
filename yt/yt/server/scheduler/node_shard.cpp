@@ -163,7 +163,7 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
-    , Logger(NodeShardLogger.WithTag("NodeShardId: %v", Id_))
+    , Logger(NodeShardLogger().WithTag("NodeShardId: %v", Id_))
     , RemoveOutdatedScheduleAllocationEntryExecutor_(New<TPeriodicExecutor>(
         GetInvoker(),
         BIND(&TNodeShard::RemoveOutdatedScheduleAllocationEntries, MakeWeak(this)),
@@ -1718,7 +1718,7 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     auto operationState = FindOperationState(operationId);
 
     if (!allocation) {
-        auto Logger = SchedulerLogger.WithTag(
+        auto Logger = SchedulerLogger().WithTag(
             "Address: %v, AllocationId: %v, OperationId: %v, AllocationState: %v",
             address,
             allocationId,

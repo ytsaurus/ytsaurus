@@ -25,7 +25,7 @@ public:
         : NRpc::TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TControllerAgentTrackerServiceProxy::GetDescriptor(),
-            SchedulerLogger,
+            SchedulerLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

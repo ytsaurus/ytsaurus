@@ -161,7 +161,7 @@ public:
         if (!DeduplicationCache_->Find(deduplicationKey)) {
             DeduplicationCache_->Set(std::move(deduplicationKey), {});
 
-            LogStructuredEventFluently(TabletErrorsLogger, ELogLevel::Info)
+            LogStructuredEventFluently(TabletErrorsLogger(), ELogLevel::Info)
                 .Item("tablet_cell_bundle").Value(*context.TabletCellBundle)
                 .Item("table_id").Value(context.TableId)
                 .Item("tablet_id").Value(context.TabletId)

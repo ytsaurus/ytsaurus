@@ -86,7 +86,7 @@ TAllocation::TAllocation(
     , Bootstrap_(bootstrap)
     , Id_(id)
     , OperationId_(operationId)
-    , Logger(ExecNodeLogger.WithTag(
+    , Logger(ExecNodeLogger().WithTag(
         "AllocationId: %v, OperationId: %v",
         id,
         operationId))

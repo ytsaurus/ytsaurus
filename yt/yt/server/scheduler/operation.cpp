@@ -37,7 +37,7 @@ using NYT::ToProto;
 
 constexpr int MaxAnnotationValueLength = 128;
 
-static const auto& Logger = SchedulerLogger;
+static constexpr auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -503,7 +503,7 @@ std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
 TFuture<void> TOperation::AbortCommonTransactions()
 {
     YT_VERIFY(Transactions_);
-    const auto Logger = SchedulerLogger.WithTag("OperationId", GetId());
+    const auto Logger = SchedulerLogger().WithTag("OperationId", GetId());
     std::vector<TFuture<void>> asyncResults;
     THashSet<ITransactionPtr> abortedTransactions;
     auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {

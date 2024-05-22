@@ -240,7 +240,7 @@ public:
         , ConfigNode_(ConvertToNode(Config_))
         , ControllerConfig_(std::move(controllerConfig))
         , TreeId_(std::move(treeId))
-        , Logger(StrategyLogger.WithTag("TreeId: %v", TreeId_))
+        , Logger(StrategyLogger().WithTag("TreeId: %v", TreeId_))
         , Host_(host)
         , StrategyHost_(strategyHost)
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
@@ -2814,7 +2814,7 @@ private:
 
     void LogOperationsInfo(const TFairShareTreeSnapshotPtr& treeSnapshot) const
     {
-        auto Logger = this->Logger.WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
+        auto Logger = this->Logger().WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
 
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             for (const auto& [operationId, element] : operationIdToElement) {
@@ -2831,7 +2831,7 @@ private:
 
     void LogPoolsInfo(const TFairShareTreeSnapshotPtr& treeSnapshot) const
     {
-        auto Logger = this->Logger.WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
+        auto Logger = this->Logger().WithTag("TreeSnapshotId: %v", treeSnapshot->GetId());
 
         for (const auto& [poolName, element] : treeSnapshot->PoolMap()) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",

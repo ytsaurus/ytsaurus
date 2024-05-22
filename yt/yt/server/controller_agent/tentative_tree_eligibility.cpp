@@ -23,7 +23,7 @@ TTentativeTreeEligibility::TTentativeTreeEligibility(
 TTentativeTreeEligibility::TTentativeTreeEligibility()
     : SampleJobCount_(-1)
     , MaxTentativeTreeJobDurationRatio_(-1.0)
-    , Logger(ControllerAgentLogger)
+    , Logger(ControllerAgentLogger())
 { }
 
 void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)

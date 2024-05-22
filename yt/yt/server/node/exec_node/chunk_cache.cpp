@@ -96,7 +96,7 @@ using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 static const int TableArtifactBufferRowCount = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -403,7 +403,7 @@ public:
             artifactDownloadOptions,
             /*bypassArtifactCache*/ false);
 
-        auto Logger = ExecNodeLogger.WithTag("Key: %v, ReadSessionId: %v",
+        auto Logger = ExecNodeLogger().WithTag("Key: %v, ReadSessionId: %v",
             key,
             chunkReadOptions.ReadSessionId);
 
@@ -630,7 +630,7 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger = Logger.WithTag("ChunkId: %v", chunkId);
+        Logger = Logger().WithTag("ChunkId: %v", chunkId);
 
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");
@@ -970,7 +970,7 @@ private:
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = GetReplicasFromChunkSpec(chunkSpec);
 
-        auto Logger = ExecNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
+        auto Logger = ExecNodeLogger().WithTag("ChunkId: %v, ReadSessionId: %v, Location: %v",
             chunkId,
             chunkReadOptions.ReadSessionId,
             location->GetId());

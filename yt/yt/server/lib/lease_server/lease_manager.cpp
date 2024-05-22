@@ -33,7 +33,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = LeaseManagerLogger;
+static constexpr auto& Logger = LeaseManagerLogger;
 
 class TLeaseManager;
 
@@ -266,7 +266,7 @@ public:
             hydraManager,
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             NLeaseClient::TLeaseServiceProxy::GetDescriptor(),
-            LeaseManagerLogger,
+            LeaseManagerLogger(),
             selfCellId,
             std::move(upstreamSynchronizer),
             std::move(authenticator))

@@ -22,7 +22,7 @@ struct TColumnarStatisticsFetcherOptions
     bool StoreChunkStatistics = false;
     bool AggregatePerTableStatistics = false;
     bool EnableEarlyFinish = false;
-    NLogging::TLogger Logger = TableClientLogger;
+    NLogging::TLogger Logger = TableClientLogger();
 };
 
 //! Fetches columnary statistics for a bunch of table chunks by requesting

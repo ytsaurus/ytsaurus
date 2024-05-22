@@ -190,7 +190,7 @@ private:
     int PendingFlushes_ = 0;
     bool Closed_ = false;
 
-    NLogging::TLogger Logger = TableClientLogger;
+    NLogging::TLogger Logger = TableClientLogger();
 
 
     void OnPeriodicFlush()

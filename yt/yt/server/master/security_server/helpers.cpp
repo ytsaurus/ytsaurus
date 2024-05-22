@@ -114,7 +114,7 @@ TLimit64 GetOptionalLimit64ChildOrThrow(
 
 void LogAcdUpdate(const TString& attribute, const TYPath& path, const TYsonString& value)
 {
-    LogStructuredEventFluently(SecurityServerLogger, ELogLevel::Info)
+    LogStructuredEventFluently(SecurityServerLogger(), ELogLevel::Info)
         .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
         .Item("attribute").Value(attribute)
         .Item("path").Value(path)

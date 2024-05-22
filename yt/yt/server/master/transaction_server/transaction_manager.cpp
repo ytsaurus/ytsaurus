@@ -152,14 +152,14 @@ public:
         , BufferedProducer_(New<TBufferedProducer>())
         , LeaseTracker_(CreateTransactionLeaseTracker(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
-            TransactionServerLogger))
+            TransactionServerLogger()))
     {
         TransactionServerProfiler.AddProducer("", BufferedProducer_);
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
-        Logger = TransactionServerLogger;
+        Logger = TransactionServerLogger();
 
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND_NO_PROPAGATE(&TTransactionManager::HydraStartCypressTransaction, Unretained(this)));

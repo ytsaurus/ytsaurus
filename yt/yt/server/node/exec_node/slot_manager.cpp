@@ -49,7 +49,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +62,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
     , PortoHealthChecker_(New<TPortoHealthChecker>(
         New<TPortoExecutorDynamicConfig>(),
         Bootstrap_->GetControlInvoker(),
-        Logger))
+        Logger()))
     , DisableJobsBackoffStrategy_(DynamicConfig_.Acquire()->DisableJobsBackoffStrategy)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -760,7 +760,7 @@ bool TSlotManager::Disable(TError error)
         !syncResult.IsOK())
     {
         YT_LOG_EVENT(
-            Logger,
+            Logger(),
             dynamicConfig->AbortOnFreeSlotSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
             syncResult,
             "Free slot synchronization failed");
@@ -773,7 +773,7 @@ bool TSlotManager::Disable(TError error)
             .WithTimeout(timeout));
         if (!result.IsOK()) {
             YT_LOG_EVENT(
-                Logger,
+                Logger(),
                 dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
                 result,
                 "Free volume synchronization failed");

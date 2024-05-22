@@ -24,7 +24,7 @@ using namespace NHydra::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static constexpr auto& Logger = DataNodeLogger;
 
 DECLARE_REFCOUNTED_CLASS(TCachedChangelog)
 DECLARE_REFCOUNTED_CLASS(TJournalDispatcher)

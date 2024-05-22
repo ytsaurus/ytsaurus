@@ -170,7 +170,7 @@ TJob::TJob(
     : Id_(jobId)
     , OperationId_(operationId)
     , Bootstrap_(bootstrap)
-    , Logger(ExecNodeLogger.WithTag(
+    , Logger(ExecNodeLogger().WithTag(
         "JobId: %v, OperationId: %v, JobType: %v",
         jobId,
         operationId,

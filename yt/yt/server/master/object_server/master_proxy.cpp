@@ -62,7 +62,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
+static constexpr auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,7 +468,7 @@ private:
         auto& attachments = context->Response().Attachments();
         for (auto objectId : objectIds) {
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
-            auto subcontext = CreateYPathContext(templateRequest, Logger);
+            auto subcontext = CreateYPathContext(templateRequest, Logger());
 
             auto* object = objectManager->FindObject(objectId);
             if (object) {

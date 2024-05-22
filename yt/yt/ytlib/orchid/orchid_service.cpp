@@ -27,7 +27,7 @@ public:
         : TServiceBase(
             invoker,
             TOrchidServiceProxy::GetDescriptor(),
-            OrchidLogger,
+            OrchidLogger(),
             NullRealmId,
             std::move(authenticator))
         , RootService_(CreateRootService(root))

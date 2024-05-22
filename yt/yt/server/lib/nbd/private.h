@@ -9,7 +9,7 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger NbdLogger("Nbd");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, NbdLogger, "Nbd");
 
 inline const NProfiling::TProfiler NbdProfiler("/nbd");
 

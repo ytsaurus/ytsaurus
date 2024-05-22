@@ -78,7 +78,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("Bootstrap");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +86,7 @@ TBootstrap::TBootstrap(TClusterClockConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    WarnForUnrecognizedOptions(Logger(), Config_);
 }
 
 TBootstrap::~TBootstrap() = default;

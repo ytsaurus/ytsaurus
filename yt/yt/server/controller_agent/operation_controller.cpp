@@ -161,7 +161,7 @@ public:
 
     ~TOperationControllerWrapper() override
     {
-        auto Logger = ControllerLogger.WithTag("OperationId: %v", Id_);
+        auto Logger = ControllerLogger().WithTag("OperationId: %v", Id_);
 
         const auto snapshot = GetMemoryUsageSnapshot();
         YT_VERIFY(snapshot);

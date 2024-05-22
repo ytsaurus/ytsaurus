@@ -111,7 +111,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SecurityServerLogger;
+static constexpr auto& Logger = SecurityServerLogger;
 static TFlsSlot<TUser*> AuthenticatedUserSlot;
 
 namespace {
@@ -1595,7 +1595,7 @@ public:
             }
 
             YT_LOG_DEBUG("User created (User: %v)", name);
-            LogStructuredEventFluently(Logger, ELogLevel::Info)
+            LogStructuredEventFluently(Logger(), ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::UserCreated)
                 .Item("name").Value(user->GetName());
         }
@@ -1607,7 +1607,7 @@ public:
         YT_VERIFY(UserNameMap_.erase(user->GetName()) == 1);
         DestroySubject(user);
 
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::UserDestroyed)
             .Item("name").Value(user->GetName());
     }
@@ -1701,7 +1701,7 @@ public:
         auto* group = DoCreateGroup(id, name);
         if (group) {
             YT_LOG_DEBUG("Group created (Group: %v)", name);
-            LogStructuredEventFluently(Logger, ELogLevel::Info)
+            LogStructuredEventFluently(Logger(), ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::GroupCreated)
                 .Item("name").Value(name);
         }
@@ -1727,7 +1727,7 @@ public:
 
         DestroySubject(group);
 
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::GroupDestroyed)
             .Item("name").Value(group->GetName());
     }
@@ -1820,7 +1820,7 @@ public:
         auto id = objectManager->GenerateId(EObjectType::NetworkProject, hintId);
         auto* networkProject = DoCreateNetworkProject(id, name);
         YT_LOG_DEBUG("Network project created (NetworkProject: %v)", name);
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectCreated)
             .Item("name").Value(networkProject->GetName());
         return networkProject;
@@ -1832,7 +1832,7 @@ public:
 
         YT_LOG_DEBUG("Network project destroyed (NetworkProject: %v)",
             networkProject->GetName());
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectDestroyed)
             .Item("name").Value(networkProject->GetName());
     }
@@ -1959,7 +1959,7 @@ public:
         YT_LOG_DEBUG("Proxy role created (Name: %v, ProxyKind: %v)",
             name,
             proxyKind);
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::ProxyRoleCreated)
             .Item("name").Value(name)
             .Item("proxy_kind").Value(proxyKind);
@@ -1977,7 +1977,7 @@ public:
         YT_LOG_DEBUG("Proxy role destroyed (Name: %v, ProxyKind: %v)",
             name,
             proxyKind);
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::ProxyRoleDestroyed)
             .Item("name").Value(name)
             .Item("proxy_kind").Value(proxyKind);
@@ -2019,7 +2019,7 @@ public:
             group->GetName(),
             member->GetName());
 
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::MemberAdded)
             .Item("group_name").Value(group->GetName())
             .Item("member_type").Value(member->GetType())
@@ -2046,7 +2046,7 @@ public:
             group->GetName(),
             member->GetName());
 
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::MemberRemoved)
             .Item("group_name").Value(group->GetName())
             .Item("member_type").Value(member->GetType())
@@ -2072,7 +2072,7 @@ public:
                 YT_ABORT();
         }
 
-        LogStructuredEventFluently(Logger, ELogLevel::Info)
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::SubjectRenamed)
             .Item("subject_type").Value(subject->GetType())
             .Item("old_name").Value(subject->GetName())
@@ -2362,7 +2362,7 @@ public:
                 "check for announces at https://infra.yandex-team.ru before reporting any issues",
                 user->GetName());
         } else {
-            auto event = LogStructuredEventFluently(Logger, ELogLevel::Info)
+            auto event = LogStructuredEventFluently(Logger(), ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::AccessDenied)
                 .Item("user").Value(user->GetName())
                 .Item("permission").Value(permission)
@@ -3148,7 +3148,7 @@ private:
     {
         NProto::TReqRecomputeMembershipClosure request;
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
 
@@ -3479,7 +3479,7 @@ private:
             expectedUsage))
         {
             YT_LOG_EVENT(
-                Logger,
+                Logger(),
                 mismatchLogLevel,
                 "Account usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
@@ -3496,7 +3496,7 @@ private:
             expectedCommittedUsage))
         {
             YT_LOG_EVENT(
-                Logger,
+                Logger(),
                 mismatchLogLevel,
                 "Account committed usage mismatch (Account: %v, SnapshotUsage: %v, RecomputedUsage: %v)",
                 account->GetName(),
@@ -4205,7 +4205,7 @@ private:
 
         if (request.entries_size() > 0) {
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 

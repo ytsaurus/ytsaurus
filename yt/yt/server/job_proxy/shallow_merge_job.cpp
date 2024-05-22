@@ -49,7 +49,7 @@ using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobProxyLogger;
+static constexpr auto& Logger = JobProxyLogger;
 
 constexpr auto ShallowMergeStatisticsUpdatePeriod = TDuration::Seconds(1);
 

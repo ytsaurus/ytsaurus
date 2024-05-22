@@ -330,7 +330,7 @@ class TDistributedElectionManager::TVotingRound
 public:
     explicit TVotingRound(TDistributedElectionManagerPtr owner)
         : Owner_(std::move(owner))
-        , Logger(Owner_->Logger.WithTag("RoundId: %v, VoteEpochId: %v",
+        , Logger(Owner_->Logger().WithTag("RoundId: %v, VoteEpochId: %v",
             TGuid::Create(),
             Owner_->VoteEpochId_))
     { }
@@ -579,7 +579,7 @@ TDistributedElectionManager::TDistributedElectionManager(
     : TServiceBase(
         controlInvoker,
         TElectionServiceProxy::GetDescriptor(),
-        ElectionLogger.WithTag("CellId: %v", cellManager->GetCellId()),
+        ElectionLogger().WithTag("CellId: %v", cellManager->GetCellId()),
         cellManager->GetCellId(),
         std::move(authenticator))
     , Config_(std::move(config))

@@ -74,7 +74,7 @@ namespace {
 TOneShotFluentLogEvent LogStructuredEventFluently(ELogLevel level)
 {
     const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
-    return NLogging::LogStructuredEventFluently(AccessLogger, level)
+    return NLogging::LogStructuredEventFluently(AccessLogger(), level)
         .Item("user").Value(identity.User)
         .DoIf(identity.UserTag != identity.User, [&] (auto fluent) {
             fluent

@@ -43,7 +43,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TChaosNodeServiceProxy::GetDescriptor(),
-            MasterCacheLogger,
+            MasterCacheLogger(),
             NullRealmId,
             std::move(authenticator))
         , Cache_(std::move(cache))

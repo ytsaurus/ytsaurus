@@ -54,7 +54,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static constexpr auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -817,7 +817,7 @@ private:
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             return BIND([=, mutation = std::move(mutation)] {
                 return CreateMutation(hydraManager, mutation)
-                    ->CommitAndLog(Logger);
+                    ->CommitAndLog(Logger());
             })
                 .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
                 .Run();

@@ -52,7 +52,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletBalancerLogger;
+static constexpr auto& Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,9 +65,9 @@ public:
         , ConfigNode_(std::move(configNode))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
-            AbortOnUnrecognizedOptions(Logger, Config_);
+            AbortOnUnrecognizedOptions(Logger(), Config_);
         } else {
-            WarnForUnrecognizedOptions(Logger, Config_);
+            WarnForUnrecognizedOptions(Logger(), Config_);
         }
     }
 

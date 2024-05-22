@@ -14,9 +14,9 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
-inline const NLogging::TLogger QueueAgentShardingManagerLogger("QueueAgentShardingManager");
-inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
 inline const NProfiling::TProfiler QueueAgentProfilerGlobal = NProfiling::TProfiler("/queue_agent").WithGlobal();
 inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent");
 

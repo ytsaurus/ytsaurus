@@ -71,7 +71,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ {},
             /*allocatedAddresses*/ {},
-            ChunkClientLogger);
+            ChunkClientLogger());
     }
 
     YT_VERIFY(targetReplicas.size() == partIndexList.size());

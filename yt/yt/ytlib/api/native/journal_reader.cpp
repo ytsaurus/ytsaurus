@@ -65,7 +65,7 @@ public:
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TJournalReaderConfig>())
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
-        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
             Path_,
             Options_.TransactionId))
         , ReaderInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetReaderInvoker()))

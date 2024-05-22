@@ -32,7 +32,7 @@ public:
             bootstrap,
             TTabletNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::TabletNodeTrackerService,
-            TabletServerLogger)
+            TabletServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));

@@ -509,7 +509,7 @@ private:
         std::vector<TErrorCode> errorCodes(errorCodeSet.begin(), errorCodeSet.end());
         std::sort(errorCodes.begin(), errorCodes.end());
 
-        LogStructuredEventFluently(RpcProxyStructuredLoggerMain, ELogLevel::Info)
+        LogStructuredEventFluently(RpcProxyStructuredLoggerMain(), ELogLevel::Info)
             .Item("request_id").Value(this->GetRequestId())
             .Item("endpoint").Value(this->GetEndpointAttributes())
             .Item("method").Value(this->GetMethod())
@@ -563,7 +563,7 @@ private:
         std::vector<TErrorCode> errorCodes(errorCodeSet.begin(), errorCodeSet.end());
         std::sort(errorCodes.begin(), errorCodes.end());
 
-        LogStructuredEventFluently(RpcProxyStructuredLoggerError, ELogLevel::Info)
+        LogStructuredEventFluently(RpcProxyStructuredLoggerError(), ELogLevel::Info)
             .Item("request_id").Value(this->GetRequestId())
             .Item("endpoint").Value(this->GetEndpointAttributes())
             .Item("method").Value(this->GetMethod())

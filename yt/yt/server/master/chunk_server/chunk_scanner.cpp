@@ -24,7 +24,7 @@ TGlobalChunkScanner::TGlobalChunkScanner(
 TGlobalChunkScanner::TGlobalChunkScanner(bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger.WithTag("Journal: %v", journal))
+        ChunkServerLogger().WithTag("Journal: %v", journal))
 { }
 
 void TGlobalChunkScanner::Start(TGlobalChunkScanDescriptor descriptor)
@@ -168,7 +168,7 @@ TChunkScannerBase::TChunkScannerBase(
     bool journal)
     : TGlobalChunkScanner(
         journal,
-        ChunkServerLogger.WithTag("Kind: %v, Journal: %v",
+        ChunkServerLogger().WithTag("Kind: %v, Journal: %v",
             kind,
             journal)),
     Kind_(kind)

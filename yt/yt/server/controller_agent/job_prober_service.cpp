@@ -36,7 +36,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TJobProberServiceProxy::GetDescriptor(),
-            ControllerAgentLogger,
+            ControllerAgentLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

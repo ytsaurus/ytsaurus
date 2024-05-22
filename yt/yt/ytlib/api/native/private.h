@@ -15,9 +15,9 @@ DECLARE_REFCOUNTED_CLASS(TClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TvmSynchronizerLogger("TvmSynchronizer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TvmSynchronizerLogger, "TvmSynchronizer");
 
-inline const NLogging::TLogger NativeConnectionLogger("NativeConnection");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, NativeConnectionLogger, "NativeConnection");
 
 ////////////////////////////////////////////////////////////////////////////////
 

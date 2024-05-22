@@ -70,7 +70,7 @@ private:
             : Bootstrap_(bootstrap)
             , TabletSlot_(std::move(tabletSlot))
             , Tablet_(tablet)
-            , Logger(TabletNodeLogger.WithTag("TabletId: %v", Tablet_->GetId()))
+            , Logger(TabletNodeLogger().WithTag("TabletId: %v", Tablet_->GetId()))
         { }
 
         void Run()

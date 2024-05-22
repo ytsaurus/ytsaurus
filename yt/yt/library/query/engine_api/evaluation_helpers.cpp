@@ -12,7 +12,7 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NWebAssembly;
 
-static const auto& Logger = QueryClientLogger;
+static constexpr auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

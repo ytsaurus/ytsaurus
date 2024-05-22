@@ -92,7 +92,7 @@ using NControllerAgent::ELayerFilesystem;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString StorageSuffix = "storage";
@@ -139,7 +139,7 @@ IBlockDevicePtr CreateCypressFileBlockDevice(
         std::move(outRpsThrottler),
         std::move(client),
         std::move(invoker),
-        Logger);
+        Logger());
 
     YT_LOG_INFO("Created NBD Cypress file block device (Path: %v, FileSystem: %v, ExportId: %v, ChunkSpecs: %v)",
         artifactKey.data_source().path(),
@@ -440,7 +440,7 @@ public:
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
-        : TDiskLocation(locationConfig, id, ExecNodeLogger)
+        : TDiskLocation(locationConfig, id, ExecNodeLogger())
         , Config_(locationConfig)
         , DynamicConfigManager_(dynamicConfigManager)
         , VolumeExecutor_(std::move(volumeExecutor))
@@ -1847,7 +1847,7 @@ private:
         const auto& client = Bootstrap_->GetClient();
 
         auto tag = TGuid::Create();
-        auto Logger = ExecNodeLogger.WithTag("Tag: %v", tag);
+        auto Logger = ExecNodeLogger().WithTag("Tag: %v", tag);
 
         YT_LOG_INFO("Started updating tmpfs layers");
 

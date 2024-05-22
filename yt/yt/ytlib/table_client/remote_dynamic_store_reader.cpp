@@ -173,7 +173,7 @@ public:
         , Client_(ChunkReaderHost_->Client)
         , NodeDirectory_(Client_->GetNativeConnection()->GetNodeDirectory())
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger().WithTag("ReaderId: %v", TGuid::Create()))
     {
         if (chunkReadOptions.ReadSessionId) {
             ReadSessionId_ = chunkReadOptions.ReadSessionId;
@@ -714,7 +714,7 @@ public:
         , ChunkReadOptions_(chunkReadOptions)
         , ReaderMemoryManagerHolder_(std::move(readerMemoryManagerHolder))
         , ChunkReaderFactory_(chunkReaderFactory)
-        , Logger(TableClientLogger.WithTag("ReaderId: %v", TGuid::Create()))
+        , Logger(TableClientLogger().WithTag("ReaderId: %v", TGuid::Create()))
     {
         if (ChunkReadOptions_.ReadSessionId) {
             ReadSessionId_ = ChunkReadOptions_.ReadSessionId;

@@ -55,7 +55,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
+static constexpr auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +108,7 @@ public:
 
         MediumDirectoryManager_ = New<TMediumDirectoryManager>(
             this,
-            DataNodeLogger);
+            DataNodeLogger());
 
         MediumUpdater_ = New<TMediumUpdater>(
             this,
@@ -163,7 +163,7 @@ public:
                 LegacyRawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
                     std::move(throttlerConfig),
                     ToString(kind),
-                    DataNodeLogger,
+                    DataNodeLogger(),
                     DataNodeProfiler.WithPrefix("/throttlers"));
             }
 
@@ -243,7 +243,7 @@ public:
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),
             ChunkStore_,
-            DataNodeLogger.WithTag("IOMeter"));
+            DataNodeLogger().WithTag("IOMeter"));
         JobController_->Initialize();
 
         DiskManagerProxy_ = CreateDiskManagerProxy(
@@ -254,7 +254,7 @@ public:
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
-            DataNodeLogger);
+            DataNodeLogger());
         LocationManager_ = New<TLocationManager>(
             this,
             ChunkStore_,

@@ -171,7 +171,7 @@ void TNonversionedMapObjectBase<TSelf>::Load(NCellMaster::TLoadContext& context)
 template <class TSelf>
 void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch)
 {
-    static const auto& Logger = ObjectServerLogger;
+    static constexpr auto& Logger = ObjectServerLogger;
     int subtreeSize = 1;
     for (const auto& [_, child] : mapObject->KeyToChild()) {
         RecomputeSubtreeSize(child, validateMatch);

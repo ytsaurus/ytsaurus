@@ -151,7 +151,7 @@ public:
             Format("Factory %v", ThrottlerFactoryIndex_),
             RpcServer_,
             Address_,
-            DiscoveryServerLogger,
+            DiscoveryServerLogger(),
             /*authenticator*/ nullptr);
 
         ThrottlerFactories_.emplace_back(throttlerFactory);

@@ -73,7 +73,7 @@ public:
         , Path_(path)
         , Options_(options)
         , Config_(options.Config ? options.Config : New<TFileWriterConfig>())
-        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
             Path_.GetPath(),
             Options_.TransactionId))
     { }

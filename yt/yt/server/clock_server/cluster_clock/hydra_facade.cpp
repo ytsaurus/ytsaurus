@@ -67,7 +67,7 @@ public:
         ResponseKeeper_ = CreateResponseKeeper(
             Config_->HydraManager->ResponseKeeper,
             GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            ClusterClockLogger,
+            ClusterClockLogger(),
             ClusterClockProfiler);
 
         auto electionManagerThunk = New<TElectionManagerThunk>();

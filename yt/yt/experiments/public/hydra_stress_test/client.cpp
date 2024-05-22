@@ -24,7 +24,7 @@ TClient::TClient(
     : Config_(config)
     , Invoker_(invoker)
     , LivenessChecker_(livenessChecker)
-    , Logger(HydraStressTestLogger.WithTag("ClientId: %v", clientId))
+    , Logger(HydraStressTestLogger().WithTag("ClientId: %v", clientId))
     , ConsistencyChecker_(New<TConsistencyChecker>())
     , Proxy_(peerChannel)
 {

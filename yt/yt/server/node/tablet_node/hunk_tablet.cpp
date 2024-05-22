@@ -23,7 +23,7 @@ THunkTablet::THunkTablet(
     TTabletId tabletId)
     : TObjectBase(tabletId)
     , Host_(std::move(host))
-    , Logger(TabletNodeLogger.WithTag("TabletId: %v", tabletId))
+    , Logger(TabletNodeLogger().WithTag("TabletId: %v", tabletId))
 {
     RenewPromise();
 }

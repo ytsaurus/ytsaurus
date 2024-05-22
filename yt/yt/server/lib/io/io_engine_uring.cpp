@@ -34,7 +34,7 @@ using namespace NProfiling;
 
 #ifdef _linux_
 
-static const auto& Logger = IOLogger;
+static constexpr auto& Logger = IOLogger;
 
 static constexpr int UringEngineNotificationCount = 2;
 static constexpr int MaxUringConcurrentRequestsPerThread = 128;

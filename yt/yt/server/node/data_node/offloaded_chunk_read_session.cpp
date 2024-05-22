@@ -76,7 +76,7 @@ public:
         , EnableHashChunkIndex_(enableHashChunkIndex)
         , UseDirectIO_(useDirectIO)
         , CodecId_(codecId)
-        , Logger(DataNodeLogger.WithTag("ChunkId: %v, ReadSessionId: %v",
+        , Logger(DataNodeLogger().WithTag("ChunkId: %v, ReadSessionId: %v",
             ChunkId_,
             readSessionId))
     {

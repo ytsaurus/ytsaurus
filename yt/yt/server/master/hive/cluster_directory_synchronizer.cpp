@@ -51,7 +51,7 @@ public:
             TPeriodicExecutorOptions{
                 .Period = config->SyncPeriod,
             },
-            HiveServerLogger)
+            HiveServerLogger())
         , Bootstrap_(bootstrap)
         , ObjectManager_(Bootstrap_->GetObjectManager())
         , MulticellManager_(Bootstrap_->GetMulticellManager())

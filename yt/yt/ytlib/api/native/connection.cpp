@@ -170,7 +170,7 @@ public:
             TGuid::Create(),
             StaticConfig_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(StaticConfig_))
-        , Logger(ApiLogger.WithRawTag(LoggingTag_))
+        , Logger(ApiLogger().WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
@@ -1087,7 +1087,7 @@ private:
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
-                static const auto& Logger = TvmSynchronizerLogger;
+                static constexpr auto& Logger = TvmSynchronizerLogger;
 
                 NNative::TConnectionDynamicConfigPtr config;
                 try {

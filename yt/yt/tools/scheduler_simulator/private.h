@@ -17,7 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TSimulatorOperationController)
 DECLARE_REFCOUNTED_CLASS(TSimulatorNodeWorker)
 DECLARE_REFCOUNTED_CLASS(TSimulatorNodeShard)
 
-inline const NLogging::TLogger SchedulerSimulatorLogger("Simulator");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SchedulerSimulatorLogger, "Simulator");
 
 // TODO: move to another place.
 template <typename K, typename V>

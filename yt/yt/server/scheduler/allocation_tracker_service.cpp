@@ -22,7 +22,7 @@ public:
         : TServiceBase(
             GetSyncInvoker(),
             TAllocationTrackerServiceProxy::GetDescriptor(),
-            SchedulerLogger)
+            SchedulerLogger())
         , Bootstrap_(bootstrap)
     {
         RegisterMethod(

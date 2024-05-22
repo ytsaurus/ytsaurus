@@ -90,7 +90,6 @@ public:
         , PodDescriptor_(podDescriptor)
         , PodSpec_(std::move(podSpec))
         , PollPeriod_(pollPeriod)
-        , Logger(NCri::Logger)
     {
         // Just for symmetry with sibling classes.
         AddArgument(Path_);
@@ -134,7 +133,7 @@ private:
     const TCriPodSpecPtr PodSpec_;
     const TDuration PollPeriod_;
 
-    NLogging::TLogger Logger;
+    NLogging::TLogger Logger = NCri::Logger();
 
     TCriDescriptor ContainerDescriptor_;
 

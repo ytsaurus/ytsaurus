@@ -23,7 +23,7 @@ using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NYson;
 
-static const auto& Logger = TableServerLogger;
+static constexpr auto& Logger = TableServerLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 

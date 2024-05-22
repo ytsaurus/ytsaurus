@@ -92,7 +92,7 @@ using namespace NAdmin;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = HttpProxyLogger;
+static constexpr auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,9 +101,9 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     , ConfigNode_(std::move(configNode))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 
     // TODO(gepardo): Pass native authenticator here.
@@ -132,7 +132,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     DiskChangeChecker_ = New<TDiskChangeChecker>(
         DiskInfoProvider_,
         GetControlInvoker(),
-        Logger);
+        Logger());
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
@@ -143,7 +143,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Connection_,
         Config_->ClusterConnectionDynamicConfigPolicy,
         ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
-        Logger);
+        Logger());
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
     // Force-start node directory synchronizer.

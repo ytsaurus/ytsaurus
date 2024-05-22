@@ -489,7 +489,7 @@ protected:
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
-        chunkPoolOptions.Logger = Logger.WithTag("Name: Root");
+        chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         return chunkPoolOptions;
     }
 

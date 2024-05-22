@@ -36,7 +36,7 @@ TFileChangelogIndex::TFileChangelogIndex(
     , FileName_(std::move(fileName))
     , Config_(std::move(config))
     , WorkloadCategory_(workloadCategory)
-    , Logger(HydraLogger.WithTag("Path: %v", FileName_))
+    , Logger(HydraLogger().WithTag("Path: %v", FileName_))
     , MemoryUsageTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(memoryUsageTracker, 0))
 { }
 

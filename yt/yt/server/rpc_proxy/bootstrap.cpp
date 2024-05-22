@@ -103,7 +103,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcProxyLogger;
+static constexpr auto& Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,9 +115,9 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 
     if (!Config_->ClusterConnection) {
@@ -148,7 +148,7 @@ void TBootstrap::DoRun()
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         *Config_->MemoryLimits->Total,
         /*limits*/ {},
-        Logger,
+        Logger(),
         RpcProxyProfiler.WithPrefix("/memory_usage"));
 
     ReconfigureMemoryLimits(Config_->MemoryLimits);
@@ -233,7 +233,7 @@ void TBootstrap::DoRun()
     DiskChangeChecker_ = New<TDiskChangeChecker>(
         DiskInfoProvider_,
         GetControlInvoker(),
-        Logger);
+        Logger());
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
@@ -281,7 +281,7 @@ void TBootstrap::DoRun()
     auto securityManager = CreateSecurityManager(
         Config_->ApiService->SecurityManager,
         Connection_,
-        Logger);
+        Logger());
 
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
@@ -294,7 +294,7 @@ void TBootstrap::DoRun()
             AccessChecker_,
             securityManager,
             TraceSampler_,
-            RpcProxyLogger,
+            RpcProxyLogger(),
             RpcProxyProfiler,
             MemoryUsageTracker_);
     };
@@ -358,7 +358,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateRestartService(
         restartManager,
         GetControlInvoker(),
-        RpcProxyLogger,
+        RpcProxyLogger(),
         NativeAuthenticator_));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);

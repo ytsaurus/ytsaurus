@@ -51,7 +51,7 @@ TBlockFetcher::TBlockFetcher(
     , MemoryManagerHolder_(std::move(memoryManagerHolder))
     , Codec_(NCompression::GetCodec(codecId))
     , ChunkReadOptions_(chunkReadOptions)
-    , Logger(ChunkClientLogger)
+    , Logger(ChunkClientLogger())
     , Chunks_(chunkReaders.size())
 {
     YT_VERIFY(!chunkReaders.empty());

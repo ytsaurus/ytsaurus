@@ -2695,7 +2695,7 @@ void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperat
         New<TFairShareTreeAllocationSchedulerOperationSharedState>(
             StrategyHost_,
             element->Spec()->UpdatePreemptibleAllocationsListLoggingPeriod,
-            Logger.WithTag("OperationId: %v", operationId)));
+            Logger().WithTag("OperationId: %v", operationId)));
 }
 
 void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOperationElement* element)

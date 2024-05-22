@@ -43,9 +43,9 @@ public:
         , RequestHandler_(std::move(requestHandler))
         , FailHandler_(std::move(failHandler))
         , PacketEncoder_(GetZookeeperPacketTranscoderFactory()->CreateEncoder(
-            ZookeeperProxyLogger))
+            ZookeeperProxyLogger()))
         , PacketDecoder_(GetZookeeperPacketTranscoderFactory()->CreateDecoder(
-            ZookeeperProxyLogger,
+            ZookeeperProxyLogger(),
             /*verifyChecksum*/ false))
     { }
 

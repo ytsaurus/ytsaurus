@@ -36,7 +36,7 @@ public:
             bootstrap,
             TTransactionServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::TransactionService,
-            TransactionServerLogger)
+            TransactionServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetHeavy(true));

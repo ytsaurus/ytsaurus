@@ -138,7 +138,7 @@ TBundleState::TBundleState(
     NApi::NNative::IClientPtr client,
     IInvokerPtr invoker)
     : Bundle_(New<TTabletCellBundle>(name))
-    , Logger(TabletBalancerLogger.WithTag("BundleName: %v", name))
+    , Logger(TabletBalancerLogger().WithTag("BundleName: %v", name))
     , Profiler_(TabletBalancerProfiler.WithTag("tablet_cell_bundle", name))
     , Client_(client)
     , Invoker_(invoker)

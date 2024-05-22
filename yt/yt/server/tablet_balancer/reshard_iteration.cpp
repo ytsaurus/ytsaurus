@@ -20,7 +20,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletBalancerLogger;
+static constexpr auto& Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,7 +152,7 @@ public:
                 Passed(std::move(tablets)),
                 DynamicConfig_->MinDesiredTabletSize,
                 IsPickPivotKeysEnabled(table->Bundle->Config),
-                Logger)
+                Logger())
             .AsyncVia(invoker)
             .Run();
     }
@@ -216,7 +216,7 @@ public:
                 .Metric = DynamicConfig_->DefaultParameterizedMetric,
             }.MergeWith(groupConfig->Parameterized),
             GroupName_,
-            Logger);
+            Logger());
     }
 
     std::vector<TTablePtr> GetTablesToReshard(const TTabletCellBundlePtr& bundle) override

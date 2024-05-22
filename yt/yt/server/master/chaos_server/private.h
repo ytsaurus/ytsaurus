@@ -10,7 +10,7 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ChaosServerLogger("ChaosServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ChaosServerLogger, "ChaosServer");
 inline const NProfiling::TProfiler ChaosServerProfiler("/chaos_server");
 
 ////////////////////////////////////////////////////////////////////////////////

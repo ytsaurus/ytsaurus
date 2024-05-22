@@ -27,7 +27,7 @@ struct TControllerAgentDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ExecNodeLogger("ExecNode");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ExecNodeLogger, "ExecNode");
 inline const NProfiling::TProfiler ExecNodeProfiler("/exec_node");
 
 inline const NLogging::TLogger JobInputCacheLogger("JobInputCache");

@@ -76,7 +76,7 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
             Format("ChaosSnap:%v", slotIndex)))
-        , Logger(ChaosNodeLogger)
+        , Logger(ChaosNodeLogger())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 

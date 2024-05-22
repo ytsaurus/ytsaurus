@@ -63,7 +63,7 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
+static constexpr auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1724,7 +1724,7 @@ public:
         , ChunkFragmentReader_(std::move(chunkFragmentReader))
         , DictionaryCompressionFactory_(std::move(dictionaryCompressionFactory))
         , Options_(std::move(options))
-        , Logger(TableClientLogger.WithTag("ReadSessionId: %v",
+        , Logger(TableClientLogger().WithTag("ReadSessionId: %v",
             Options_.ReadSessionId))
     { }
 

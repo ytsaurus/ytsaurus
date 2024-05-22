@@ -30,7 +30,7 @@ public:
             bootstrap,
             TCellarNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::CellarNodeTrackerService,
-            CellServerLogger)
+            CellServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));

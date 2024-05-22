@@ -38,7 +38,7 @@ using NTableClient::TTableSchemaPtr;
 using NTableClient::TChunkColumnMapping;
 using NTableClient::TChunkColumnMappingPtr;
 
-static const auto& Logger = NTableClient::TableClientLogger;
+static constexpr auto& Logger = NTableClient::TableClientLogger;
 
 ///////////////////////////////////////////////////////////////////////////////
 

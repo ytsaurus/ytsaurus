@@ -64,7 +64,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryClientLogger;
+static constexpr auto& Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,7 +262,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
                 nodeDirectory,
                 10000,
                 std::nullopt,
-                Logger,
+                Logger(),
                 &result[resultIndex].Chunks);
 
             if (result[resultIndex].Chunks.empty()) {
@@ -389,7 +389,7 @@ public:
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
             config,
-            QueryClientLogger.WithTag("Cache: CypressFunctionRegistry"))
+            QueryClientLogger().WithTag("Cache: CypressFunctionRegistry"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }

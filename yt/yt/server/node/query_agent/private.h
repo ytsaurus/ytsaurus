@@ -10,7 +10,7 @@ namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger QueryAgentLogger("QueryAgent");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueryAgentLogger, "QueryAgent");
 inline const NProfiling::TProfiler QueryAgentProfiler("/query_agent");
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -133,7 +133,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellServerLogger;
+static constexpr auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1509,7 +1509,7 @@ private:
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, TReqUpdateTabletCellHealthStatistics())
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
 
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
@@ -1702,7 +1702,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto cellarType = FromProto<ECellarType>(request->type());
-        auto Logger = CellServerLogger.WithTag("CellarType: %v", cellarType);
+        auto Logger = CellServerLogger().WithTag("CellarType: %v", cellarType);
 
         // Various request helpers.
         auto requestCreateSlot = [&] (const TCellBase* cell) {

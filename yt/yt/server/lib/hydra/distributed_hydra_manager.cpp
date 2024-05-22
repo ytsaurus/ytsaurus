@@ -175,11 +175,11 @@ public:
         , ChangelogStoreFactory_(std::move(changelogStoreFactory))
         , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
-        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger))
+        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger()))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)).WithSparse())
-        , Logger(HydraLogger.WithTag("CellId: %v", cellId))
+        , Logger(HydraLogger().WithTag("CellId: %v", cellId))
         , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
         , DecoratedAutomaton_(New<TDecoratedAutomaton>(
             Config_,
@@ -679,7 +679,7 @@ private:
                 owner,
                 invoker,
                 descriptor,
-                HydraLogger.WithTag("CellId: %v", cellId),
+                HydraLogger().WithTag("CellId: %v", cellId),
                 cellId,
                 CreateHydraManagerUpstreamSynchronizer(owner),
                 std::move(authenticator))

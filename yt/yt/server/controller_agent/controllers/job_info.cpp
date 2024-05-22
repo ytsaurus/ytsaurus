@@ -55,7 +55,7 @@ TJoblet::TJoblet(
 
 TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished)
 {
-    const auto Logger = ControllerLogger.WithTag("JobId: %v", JobId);
+    const auto Logger = ControllerLogger().WithTag("JobId: %v", JobId);
 
     if (!jobSummary.Statistics) {
         // Return empty delta if job has no statistics.

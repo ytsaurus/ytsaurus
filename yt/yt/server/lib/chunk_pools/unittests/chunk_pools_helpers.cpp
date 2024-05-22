@@ -26,7 +26,7 @@ TLogger GetTestLogger()
     const auto* testInfo =
         testing::UnitTest::GetInstance()->current_test_info();
 
-    return ChunkPoolLogger
+    return ChunkPoolLogger()
         .WithTag("OperationId: %v, Name: %v::%v", TGuid::Create(), testInfo->name(), testInfo->test_suite_name())
         .WithMinLevel(ELogLevel::Trace);
 }

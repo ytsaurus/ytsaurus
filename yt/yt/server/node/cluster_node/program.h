@@ -253,7 +253,7 @@ protected:
 
         if (RemoteClusterProxy_) {
             // Set controller agent cluster connection.
-            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, ClusterNodeLogger);
+            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, ClusterNodeLogger());
             config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 

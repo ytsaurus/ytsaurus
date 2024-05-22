@@ -24,7 +24,7 @@ using NObjectServer::TCellTag;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -184,7 +184,7 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         } else {
             multicellManager->PostToPrimaryMaster(request, /*reliable*/ false);
         }

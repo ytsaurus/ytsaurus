@@ -30,7 +30,7 @@ void LogNodeState(
         return;
     }
 
-    LogStructuredEventFluently(NodeTrackerServerStructuredLogger, ELogLevel::Info)
+    LogStructuredEventFluently(NodeTrackerServerStructuredLogger(), ELogLevel::Info)
         .Item("node_id").Value(node->GetId())
         .Item("node_address").Value(node->GetDefaultAddress())
         .Item("node_state").Value(node->GetAggregatedState());

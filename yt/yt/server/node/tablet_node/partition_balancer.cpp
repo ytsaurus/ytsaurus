@@ -70,7 +70,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +84,7 @@ public:
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
         , ThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
-            Logger))
+            Logger()))
     { }
 
 private:
@@ -427,7 +427,7 @@ private:
 
         tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionMerge();
 
-        auto Logger = TabletNodeLogger;
+        auto Logger = TabletNodeLogger();
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
             partition->GetTablet()->GetLoggingTag(),
             slot->GetCellId(),
@@ -453,7 +453,7 @@ private:
         request.set_partition_count(lastPartitionIndex - firstPartitionIndex + 1);
 
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
         return true;
     }
 
@@ -698,7 +698,7 @@ private:
         const ITabletSlotPtr& slot,
         TPartition* partition)
     {
-        return TabletNodeLogger.WithTag("%v, CellId: %v, PartitionId: %v",
+        return TabletNodeLogger().WithTag("%v, CellId: %v, PartitionId: %v",
             partition->GetTablet()->GetLoggingTag(),
             slot->GetCellId(),
             partition->GetId());

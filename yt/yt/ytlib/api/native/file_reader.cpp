@@ -71,7 +71,7 @@ public:
             .ReadSessionId = TReadSessionId::Create(),
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
         }
-        , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+        , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
             Options_.TransactionId,
             ChunkReadOptions_.ReadSessionId))

@@ -66,7 +66,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 static const auto RegisterRetryPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1124,7 +1124,7 @@ private:
 
         NProto::TReqStartSecondaryMasterRegistration request;
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void OnCellStatisticsGossip()
@@ -1142,7 +1142,7 @@ private:
         if (IsPrimaryMaster()) {
             // Persist statistics locally.
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), localRequest)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
 
             // Send statistics to secondary cells.
             auto allCellTags = GetRegisteredMasterCellTags();
@@ -1177,7 +1177,7 @@ private:
     {
         NProto::TReqSyncHiveClocksAtMasters request;
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     NProto::TReqSetCellStatistics GetTransientLocalCellStatistics()

@@ -8,7 +8,7 @@ namespace NYT::NShell {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ShellLogger("Shell");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ShellLogger, "Shell");
 
 extern const TString ShellToolDirectory;
 extern const TString ShellToolPath;

@@ -41,7 +41,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("ReplicatedTableTracker");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ReplicatedTableTracker");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,7 +205,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            Logger.WithTag("Cache: ClusterLivenessCheck"))
+            Logger().WithTag("Cache: ClusterLivenessCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -249,7 +249,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            Logger.WithTag("Cache: ClusterIncomingReplicationCheck"))
+            Logger().WithTag("Cache: ClusterIncomingReplicationCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -301,7 +301,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            Logger.WithTag("Cache: ClusterSafeModeCheck"))
+            Logger().WithTag("Cache: ClusterSafeModeCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -347,7 +347,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            Logger.WithTag("Cache: HydraReadOnlyCheck"))
+            Logger().WithTag("Cache: HydraReadOnlyCheck"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 
@@ -426,7 +426,7 @@ public:
         TClusterClientCachePtr clusterClientCache)
         : TAsyncExpiringCache(
             std::move(config),
-            Logger.WithTag("Cache: BundleHealth"))
+            Logger().WithTag("Cache: BundleHealth"))
         , ClusterClientCache_(std::move(clusterClientCache))
     { }
 

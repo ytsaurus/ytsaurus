@@ -74,7 +74,7 @@ using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -857,7 +857,7 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        auto Logger = NExecNode::Logger.WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
+        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
 
         ToProto(request->mutable_controller_agent_incarnation_id(), agentDescriptor.IncarnationId);
 
@@ -1076,7 +1076,7 @@ private:
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
-        auto Logger = NExecNode::Logger.WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
+        auto Logger = NExecNode::Logger().WithTag("ControllerAgentDescriptor: %v", agentDescriptor);
 
         for (const auto& protoJobToStore : response->jobs_to_store()) {
             auto jobToStore = FromProto<NControllerAgent::TJobToStore>(protoJobToStore);

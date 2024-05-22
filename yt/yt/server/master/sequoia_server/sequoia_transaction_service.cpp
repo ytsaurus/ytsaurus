@@ -27,7 +27,7 @@ public:
             bootstrap,
             TSequoiaTransactionServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::Default,
-            SequoiaServerLogger)
+            SequoiaServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetHeavy(true));

@@ -62,7 +62,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = MasterCacheLogger;
+static constexpr auto& Logger = MasterCacheLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,9 +74,9 @@ public:
         : Config_(std::move(config))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
-            AbortOnUnrecognizedOptions(Logger, Config_);
+            AbortOnUnrecognizedOptions(Logger(), Config_);
         } else {
-            WarnForUnrecognizedOptions(Logger, Config_);
+            WarnForUnrecognizedOptions(Logger(), Config_);
         }
     }
 
@@ -228,7 +228,7 @@ private:
         RpcServer_->RegisterService(CreateRestartService(
             restartManager,
             GetControlInvoker(),
-            MasterCacheLogger,
+            MasterCacheLogger(),
             NativeAuthenticator_));
 
         DiskManagerProxy_ = CreateDiskManagerProxy(Config_->DiskManagerProxy);
@@ -238,7 +238,7 @@ private:
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
-            Logger);
+            Logger());
 
         if (Config_->ExposeConfigInOrchid) {
             SetNodeByYPath(

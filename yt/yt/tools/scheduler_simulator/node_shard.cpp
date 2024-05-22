@@ -68,7 +68,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , Config_(std::move(config))
     , SchedulerConfig_(std::move(schedulerConfig))
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", Id_)))
-    , Logger(SchedulerSimulatorLogger.WithTag("NodeShardId: %v", Id_))
+    , Logger(SchedulerSimulatorLogger().WithTag("NodeShardId: %v", Id_))
     , MediumDirectory_(CreateDefaultMediumDirectory())
 {
     if (Config_->RemoteEventLog) {

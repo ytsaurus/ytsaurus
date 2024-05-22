@@ -33,7 +33,7 @@ public:
             bootstrap,
             TCellTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::CellTrackerService,
-            CellServerLogger)
+            CellServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReassignPeers)
             .SetHeavy(true));

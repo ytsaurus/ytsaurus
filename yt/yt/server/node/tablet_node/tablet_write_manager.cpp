@@ -41,7 +41,7 @@ public:
         : Tablet_(tablet)
         , Context_(tabletContext)
         , Host_(Context_->GetTabletWriteManagerHost().Get())
-        , Logger(TabletNodeLogger.WithTag("TabletId: %v", Tablet_->GetId()))
+        , Logger(TabletNodeLogger().WithTag("TabletId: %v", Tablet_->GetId()))
     {
         // May be null in unittests.
         if (const auto& memoryUsageTracker = Context_->GetNodeMemoryUsageTracker()) {

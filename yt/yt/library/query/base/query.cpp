@@ -804,7 +804,7 @@ std::vector<size_t> GetJoinGroups(
 
 NLogging::TLogger MakeQueryLogger(TGuid queryId)
 {
-    return QueryClientLogger.WithTag("FragmentId: %v", queryId);
+    return QueryClientLogger().WithTag("FragmentId: %v", queryId);
 }
 
 NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query)

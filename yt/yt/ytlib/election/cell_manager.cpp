@@ -31,7 +31,7 @@ TCellManager::TCellManager(
     , VotingPeerCount_(Config_->CountVotingPeers())
     , QuorumPeerCount_(VotingPeerCount_ / 2 + 1)
     , TotalPeerCount_(Config_->Peers.size())
-    , Logger(ElectionLogger.WithTag("CellId: %v, SelfPeerId: %v",
+    , Logger(ElectionLogger().WithTag("CellId: %v, SelfPeerId: %v",
         Config_->CellId,
         selfId))
 {

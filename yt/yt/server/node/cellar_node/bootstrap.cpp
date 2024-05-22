@@ -41,8 +41,8 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellarNodeLogger;
-static inline const NLogging::TLogger DryRunLogger("DryRun");
+static constexpr auto& Logger = CellarNodeLogger;
+YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -185,7 +185,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1976,7 +1976,7 @@ public:
 
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             YT_UNUSED_FUTURE(nodeTracker->CreateUpdateNodeResourcesMutation(request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 
@@ -2087,7 +2087,7 @@ public:
 
         auto mutation = CreateRescheduleChunkListRequisitionTraversalsMutation(request);
         mutation->SetAllowLeaderForwarding(true);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
 
     void ScheduleChunkRequisitionUpdate(TChunk* chunk)
@@ -5663,7 +5663,7 @@ private:
                 request.chunk_list_ids_size());
 
             YT_UNUSED_FUTURE(CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
 
         SequoiaReplicaRemovalExecutor_ = New<TPeriodicExecutor>(
@@ -6006,7 +6006,7 @@ private:
         chunk->AddReplica(chunkLocationWithReplicaInfo, medium, approved);
 
         YT_LOG_EVENT(
-            Logger,
+            Logger(),
             reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
             replica.GetPtr()->GetId(),
@@ -6078,7 +6078,7 @@ private:
         }
 
         YT_LOG_EVENT(
-            Logger,
+            Logger(),
             reason == ERemoveReplicaReason::NodeDisposed ||
             reason == ERemoveReplicaReason::ChunkDestroyed
             ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,

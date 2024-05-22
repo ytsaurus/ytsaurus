@@ -69,7 +69,7 @@ TChaosAutomatonPart::TChaosAutomatonPart(
     YT_VERIFY(Slot_);
     YT_VERIFY(Bootstrap_);
 
-    Logger = ChaosNodeLogger
+    Logger = ChaosNodeLogger()
         .WithTag("CellId: %v", Slot_->GetCellId());
 }
 

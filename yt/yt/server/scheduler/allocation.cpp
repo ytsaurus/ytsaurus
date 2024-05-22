@@ -58,7 +58,7 @@ bool TAllocation::IsRevived() const
 
 NLogging::TLogger TAllocation::CreateLogger()
 {
-    return SchedulerLogger.WithTag("AllocationId: %v, OperationId: %v, Address: %v",
+    return SchedulerLogger().WithTag("AllocationId: %v, OperationId: %v, Address: %v",
         Id_,
         OperationId_,
         Node_ ? Node_->GetDefaultAddress() : "<unknown>");

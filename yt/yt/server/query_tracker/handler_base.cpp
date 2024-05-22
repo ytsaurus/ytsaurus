@@ -131,7 +131,7 @@ TQueryHandlerBase::TQueryHandlerBase(
     , User_(activeQuery.User)
     , Engine_(activeQuery.Engine)
     , SettingsNode_(ConvertToNode(activeQuery.Settings))
-    , Logger(NQueryTracker::Logger.WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
+    , Logger(NQueryTracker::Logger().WithTag("QueryId: %v, Engine: %v", activeQuery.Key.QueryId, activeQuery.Engine))
     , ProgressWriter_(New<TPeriodicExecutor>(ControlInvoker_, BIND(&TQueryHandlerBase::TryWriteProgress, MakeWeak(this)), Config_->QueryProgressWritePeriod))
 {
     YT_LOG_INFO("Query handler instantiated");

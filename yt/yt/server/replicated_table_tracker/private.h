@@ -8,7 +8,7 @@ namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ReplicatedTableTrackerLogger("StandaloneRtt");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ReplicatedTableTrackerLogger, "StandaloneRtt");
 inline const NProfiling::TProfiler ReplicatedTableTrackerProfiler("/standalone_rtt");
 
 ////////////////////////////////////////////////////////////////////////////////

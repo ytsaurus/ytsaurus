@@ -87,7 +87,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     , SharedSchedulerStrategy_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
-    , Logger(SchedulerSimulatorLogger.WithTag("ControlThread"))
+    , Logger(SchedulerSimulatorLogger().WithTag("ControlThread"))
 {
     for (const auto& operation : operations) {
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));

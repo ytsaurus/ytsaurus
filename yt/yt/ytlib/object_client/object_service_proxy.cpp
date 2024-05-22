@@ -23,7 +23,7 @@ using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectClientLogger;
+static constexpr auto& Logger = ObjectClientLogger;
 
 static const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
 

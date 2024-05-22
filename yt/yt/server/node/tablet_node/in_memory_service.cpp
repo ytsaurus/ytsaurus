@@ -35,7 +35,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTabletClient;
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -152,7 +152,7 @@ public:
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
-            TabletNodeLogger,
+            TabletNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

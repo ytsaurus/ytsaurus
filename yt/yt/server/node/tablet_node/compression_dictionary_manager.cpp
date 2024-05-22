@@ -43,7 +43,7 @@ public:
             ->ValueDictionaryCompression->PolicyProbationSamplesSize)
         , MaxAcceptableCompressionRatio_(tabletSnapshot->Settings.MountConfig
             ->ValueDictionaryCompression->MaxAcceptableCompressionRatio)
-        , Logger(TabletNodeLogger.WithTag("%v",
+        , Logger(TabletNodeLogger().WithTag("%v",
             tabletSnapshot->LoggingTag))
         , RowDictionaryCompressors_(std::move(rowDictionaryCompressors))
     { }
@@ -268,7 +268,7 @@ public:
         return NTableClient::CreateDictionaryDecompressionSession(
             MakeWeak(this),
             tabletSnapshot->Settings.HunkReaderConfig,
-            TabletNodeLogger.WithTag("%v",
+            TabletNodeLogger().WithTag("%v",
                 tabletSnapshot->LoggingTag));
     }
 
@@ -578,7 +578,7 @@ private:
         TCookie cookie,
         EDictionaryCompressionPolicy policy)
     {
-        auto Logger = TabletNodeLogger.WithTag("%v",
+        auto Logger = TabletNodeLogger().WithTag("%v",
             tabletSnapshot->LoggingTag);
 
         auto chunkReaderHost = New<TChunkReaderHost>(

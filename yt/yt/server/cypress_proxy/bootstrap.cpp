@@ -63,7 +63,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressProxyLogger;
+static constexpr auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,9 +75,9 @@ public:
         : Config_(std::move(config))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
-            AbortOnUnrecognizedOptions(Logger, Config_);
+            AbortOnUnrecognizedOptions(Logger(), Config_);
         } else {
-            WarnForUnrecognizedOptions(Logger, Config_);
+            WarnForUnrecognizedOptions(Logger(), Config_);
         }
     }
 
@@ -201,7 +201,7 @@ private:
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
-        SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger);
+        SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger());
 
         // If Sequoia is local it's safe to create the client right now.
         const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;

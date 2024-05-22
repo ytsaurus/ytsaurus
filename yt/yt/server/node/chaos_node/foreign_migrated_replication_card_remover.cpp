@@ -34,7 +34,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChaosNodeLogger;
+static constexpr auto& Logger = ChaosNodeLogger;
 
 static constexpr int MigratedReplicatedCardTtlRemoveBatchSize = 128;
 
@@ -116,7 +116,7 @@ private:
         }
 
         auto mutation = CreateMutation(HydraManager_, req);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
 };
 

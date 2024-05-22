@@ -45,7 +45,7 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellServerLogger;
+static constexpr auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,7 +300,7 @@ void TCellTrackerImpl::ScanCellarCells(ECellarType cellarType)
     WaitForCommit_ = true;
 
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog((Logger())));
 }
 
 void TCellTrackerImpl::OnCellPeersReassigned()
@@ -402,7 +402,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, int newLeadin
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)

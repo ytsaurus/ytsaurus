@@ -204,7 +204,7 @@ public:
                 DefaultQLExecutionPoolName,
                 DefaultQLExecutionTag),
             TQueryServiceProxy::GetDescriptor(),
-            QueryAgentLogger,
+            QueryAgentLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Config_(config)

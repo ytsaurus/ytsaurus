@@ -95,7 +95,7 @@ TFileChunkWriter::TFileChunkWriter(
     IChunkWriterPtr chunkWriter,
     const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
-    : Logger(FileClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
+    : Logger(FileClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
     , Config_(config)
     , EncodingChunkWriter_(New<TEncodingChunkWriter>(
         config,

@@ -752,7 +752,7 @@ public:
             slot->GetCellId());
 
         if (ScanForCompactions_) {
-            const auto& Logger = TabletNodeLogger
+            const auto& Logger = TabletNodeLogger()
                 .WithTag("CellId: %v, TaskKind: Compaction", slot->GetCellId());
 
             std::vector<std::unique_ptr<TTask>> tasks;
@@ -779,7 +779,7 @@ public:
         }
 
         if (ScanForPartitioning_) {
-            const auto& Logger = TabletNodeLogger
+            const auto& Logger = TabletNodeLogger()
                 .WithTag("CellId: %v, TaskKind: Partitioning", slot->GetCellId());
 
             std::vector<std::unique_ptr<TTask>> tasks;
@@ -1373,7 +1373,7 @@ private:
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)
         };
 
-        auto Logger = TabletNodeLogger
+        auto Logger = TabletNodeLogger()
             .WithTag("%v, ReadSessionId: %v",
                 task->TabletLoggingTag,
                 chunkReadOptions.ReadSessionId);
@@ -1753,7 +1753,7 @@ private:
             .MemoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TabletBackground)
         };
 
-        auto Logger = TabletNodeLogger
+        auto Logger = TabletNodeLogger()
             .WithTag("%v, ReadSessionId: %v",
                 task->TabletLoggingTag,
                 chunkReadOptions.ReadSessionId);

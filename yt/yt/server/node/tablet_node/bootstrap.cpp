@@ -79,7 +79,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 static const TString BusXferThreadPoolName = "BusXfer";
 static const TString CompressionThreadPoolName = "Compression";
@@ -101,7 +101,7 @@ public:
         IInvokerPtr invoker)
         : TAsyncExpiringCache(
             std::move(config),
-            TabletNodeLogger.WithTag("Cache: PoolWeight"))
+            TabletNodeLogger().WithTag("Cache: PoolWeight"))
         , Client_(std::move(client))
         , Invoker_(std::move(invoker))
     { }
@@ -253,7 +253,7 @@ public:
                 LegacyRawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
                     std::move(throttlerConfig),
                     ToString(kind),
-                    TabletNodeLogger,
+                    TabletNodeLogger(),
                     TabletNodeProfiler.WithPrefix("/throttlers"));
             }
 
@@ -320,7 +320,7 @@ public:
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
-            TabletNodeLogger);
+            TabletNodeLogger());
 
         SlotManager_->Initialize();
         MasterConnector_->Initialize();

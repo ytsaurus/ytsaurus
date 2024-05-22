@@ -27,7 +27,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
+static constexpr auto& Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -523,7 +523,7 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
         objectIds);
 
     auto asyncResult = CreateMutation(hydraManager, request)
-        ->CommitAndLog(Logger);
+        ->CommitAndLog(Logger());
     Y_UNUSED(WaitFor(asyncResult));
 }
 

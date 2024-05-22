@@ -29,7 +29,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChaosNodeLogger;
+static constexpr auto& Logger = ChaosNodeLogger;
 
 static constexpr int MigratedReplicatedCardRemoveBatchSize = 128;
 

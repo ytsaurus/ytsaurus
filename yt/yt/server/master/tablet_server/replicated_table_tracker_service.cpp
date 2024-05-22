@@ -32,7 +32,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TReplicatedTableTrackerServiceProxy::GetDescriptor(),
-            TabletServerLogger,
+            TabletServerLogger(),
             bootstrap->GetMulticellManager()->GetCellId(),
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

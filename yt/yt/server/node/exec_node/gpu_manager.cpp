@@ -46,7 +46,7 @@ using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -389,7 +389,7 @@ void TGpuManager::OnFetchDriverLayerInfo()
             DriverLayerPath_,
             DriverLayerRevision_,
             Bootstrap_->GetExecNodeBootstrap(),
-            Logger);
+            Logger());
 
         if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {
             YT_VERIFY(fetchedArtifactKey.ArtifactKey);

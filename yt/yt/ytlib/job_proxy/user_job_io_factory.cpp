@@ -332,7 +332,7 @@ public:
             std::move(localHostName),
             std::move(outBandwidthThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
-        , Logger(JobProxyClientLogger)
+        , Logger(JobProxyClientLogger())
         , Buffer_(New<TRowBuffer>())
     {
         TUserJobIOFactoryBase::Initialize();

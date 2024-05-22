@@ -86,7 +86,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ControllerAgentLogger;
+static constexpr auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -257,7 +257,7 @@ public:
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
-            ControllerAgentLogger))
+            ControllerAgentLogger()))
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
@@ -1050,7 +1050,7 @@ public:
             permission,
             GetOperationOrThrow(operationId)->GetAcl(),
             Bootstrap_->GetClient(),
-            Logger);
+            Logger());
     }
 
     std::optional<TJobMonitoringDescriptor> TryAcquireJobMonitoringDescriptor(TOperationId operationId)
@@ -1334,13 +1334,13 @@ private:
             IncarnationId_);
 
         OperationEventsOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerOperationEvent>>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerOperations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationResponsesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerScheduleAllocationResponse>>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerScheduleAllocationResponses, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_responses"),
@@ -1348,26 +1348,26 @@ private:
             /*supportTracing*/ true);
 
         RunningAllocationStatisticsUpdatesOutbox_ = New<TMessageQueueOutbox<TAgentToSchedulerRunningAllocationStatistics>>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: AgentToSchedulerRunningAllocationStatistics, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
         AbortedAllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentAbortedAllocations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
             JobEventsInvoker_);
         OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentOperations, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "operation_events"),
             CancelableControlInvoker_);
         ScheduleAllocationRequestsInbox_ = std::make_unique<TMessageQueueInbox>(
-            ControllerAgentLogger.WithTag(
+            ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentScheduleAllocationRequests, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "schedule_job_requests"),

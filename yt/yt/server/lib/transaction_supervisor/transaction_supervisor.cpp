@@ -104,7 +104,7 @@ public:
         , SelfClockClusterTag_(selfClockClusterTag)
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
-        , Logger(TransactionSupervisorLogger.WithTag("CellId: %v", SelfCellId_))
+        , Logger(TransactionSupervisorLogger().WithTag("CellId: %v", SelfCellId_))
         , Authenticator_(std::move(authenticator))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
@@ -795,7 +795,7 @@ private:
                 owner->HydraManager_,
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
                 descriptor,
-                TransactionSupervisorLogger,
+                TransactionSupervisorLogger(),
                 owner->SelfCellId_,
                 CreateHydraManagerUpstreamSynchronizer(owner->HydraManager_),
                 owner->Authenticator_)

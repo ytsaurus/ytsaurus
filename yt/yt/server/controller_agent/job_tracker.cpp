@@ -29,7 +29,7 @@
 
 namespace NYT::NControllerAgent {
 
-static const NLogging::TLogger Logger("JobTracker");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobTracker");
 static const auto JobTrackerProfiler = ControllerAgentProfiler.WithPrefix("/job_tracker");
 static const auto NodeHeartbeatProfiler = JobTrackerProfiler.WithPrefix("/node_heartbeat");
 
@@ -547,7 +547,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             "ProcessHeartbeat",
             operationId);
 
-        auto jobSummary = ParseJobSummary(&job, Logger);
+        auto jobSummary = ParseJobSummary(&job, Logger());
         groupedJobSummaries[operationId].push_back(std::move(jobSummary));
     }
 
@@ -563,7 +563,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
     THeartbeatProcessingContext heartbeatProcessingContext{
         .Context = context,
-        .Logger = NControllerAgent::Logger.WithTag(
+        .Logger = NControllerAgent::Logger().WithTag(
             "NodeId: %v, NodeAddress: %v",
             nodeId,
             nodeDescriptor.GetDefaultAddress()),
@@ -620,7 +620,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         NControllerAgent::EErrorCode::AgentDisconnected,
         "Controller agent disconnected");
 
-    auto Logger = NControllerAgent::Logger.WithTag(
+    auto Logger = NControllerAgent::Logger().WithTag(
         "NodeId: %v, NodeAddress: %v, OperationId: %v, AllocationId: %v",
         nodeId,
         nodeDescriptor.GetDefaultAddress(),
@@ -1200,7 +1200,7 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
             "ProcessJobSummaries",
             operationId);
 
-        auto Logger = heartbeatProcessingLogger.WithTag(
+        auto Logger = heartbeatProcessingLogger().WithTag(
             "OperationId: %v",
             operationId);
 
@@ -1245,7 +1245,7 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
                 continue;
             }
 
-            auto Logger = operationLogger.WithTag(
+            auto Logger = operationLogger().WithTag(
                 "JobId: %v",
                 jobId);
 
@@ -2430,7 +2430,7 @@ void TJobTracker::OnAllocationsAborted(
         return;
     }
 
-    auto Logger = NControllerAgent::Logger.WithTag("OperationId: %v", operationId);
+    auto Logger = NControllerAgent::Logger().WithTag("OperationId: %v", operationId);
 
     auto logOperationIsNotRunningEvent = [&] (const auto& operationStatus) {
         YT_LOG_INFO(

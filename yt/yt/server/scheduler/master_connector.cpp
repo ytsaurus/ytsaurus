@@ -78,7 +78,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("MasterConnector");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterConnector");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -716,7 +716,7 @@ private:
             BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
-            Logger);
+            Logger());
 
         CommonWatchersExecutor_ = New<TPeriodicExecutor>(
             GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),

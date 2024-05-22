@@ -133,7 +133,7 @@ private:
     {
         auto tabletId = tablet->GetId();
 
-        auto Logger = TabletNodeLogger
+        auto Logger = TabletNodeLogger()
             .WithTag("%v", tablet->GetLoggingTag());
 
         try {

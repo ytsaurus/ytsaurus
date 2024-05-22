@@ -347,7 +347,7 @@ private:
         const auto* tablet = partition->GetTablet();
         auto mountConfig = tablet->GetMountConfig();
 
-        auto Logger = NLsm::Logger.WithTag("%v, PartitionId: %v, Eden: %v",
+        auto Logger = NLsm::Logger().WithTag("%v, PartitionId: %v, Eden: %v",
             tablet->GetLoggingTag(),
             partition->GetId(),
             partition->IsEden());

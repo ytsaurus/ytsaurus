@@ -34,7 +34,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
+static constexpr auto& Logger = TableClientLogger;
 
 static const int SortBucketSize = 10000;
 static const int RowsBetweenAtomicUpdate = 10000;

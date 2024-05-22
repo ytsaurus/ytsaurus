@@ -235,8 +235,8 @@ using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("Bootstrap");
-static inline const NLogging::TLogger DryRunLogger("DryRun");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -246,9 +246,9 @@ TBootstrap::TBootstrap(TCellMasterConfigPtr config)
     : Config_(std::move(config))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 
@@ -771,7 +771,7 @@ void TBootstrap::DoInitialize()
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
-    SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger);
+    SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger());
 
     // If Sequoia is local it's safe to create the client right now.
     const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
@@ -797,7 +797,7 @@ void TBootstrap::DoInitialize()
         ChannelFactory_,
         ClusterConnection_->GetClusterDirectory(),
         networks,
-        Logger);
+        Logger());
 
     YT_VERIFY(CellDirectory_->ReconfigureCell(Config_->PrimaryMaster));
     for (const auto& cellConfig : Config_->SecondaryMasters) {

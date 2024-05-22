@@ -84,7 +84,7 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
-        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger))
+        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger()))
         , Profiler_(TProfiler())
         , Logger(TLogger("DryRun"))
         , CellManager_(std::move(cellManager))
@@ -96,7 +96,7 @@ public:
             ControlInvoker_,
             SnapshotStore_,
             StateHashChecker_,
-            HydraLogger,
+            HydraLogger(),
             Profiler_))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);

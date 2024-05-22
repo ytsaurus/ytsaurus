@@ -41,7 +41,7 @@ public:
             bootstrap,
             TMasterTabletServiceProxy::GetDescriptor(),
             NCellMaster::EAutomatonThreadQueue::TabletService,
-            TabletServerLogger)
+            TabletServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableBalancingAttributes)
             .SetHeavy(true));

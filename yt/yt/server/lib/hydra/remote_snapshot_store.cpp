@@ -62,7 +62,7 @@ public:
         , SecondaryPath_(std::move(secondaryPath))
         , Client_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
-        , Logger(HydraLogger.WithTag(
+        , Logger(HydraLogger().WithTag(
             "PrimaryPath: %v, SecondaryPath: %v",
             PrimaryPath_,
             SecondaryPath_))
@@ -106,7 +106,7 @@ private:
         TReader(TRemoteSnapshotStorePtr store, int snapshotId)
             : Store_(store)
             , SnapshotId_(snapshotId)
-            , Logger(HydraLogger.WithTag("PrimaryPath: %v, SecondaryPath: %v",
+            , Logger(HydraLogger().WithTag("PrimaryPath: %v, SecondaryPath: %v",
                 Store_->PrimaryPath_,
                 Store_->SecondaryPath_))
         { }
@@ -237,7 +237,7 @@ private:
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Meta_(meta)
-            , Logger(HydraLogger.WithTag("PrimaryPath: %v, SecondaryPath: %v",
+            , Logger(HydraLogger().WithTag("PrimaryPath: %v, SecondaryPath: %v",
                 Store_->PrimaryPath_,
                 Store_->SecondaryPath_))
         { }

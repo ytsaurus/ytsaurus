@@ -68,7 +68,7 @@ public:
         , NodeTag_(nodeTag)
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
         , NumaNodeAffinity_(numaNodeAffinity)
-        , Logger(SlotLogger.WithTag("SlotIndex: %v", SlotIndex_))
+        , Logger(SlotLogger().WithTag("SlotIndex: %v", SlotIndex_))
     {
         Location_->IncreaseSessionCount();
         if (diskRequest.disk_space() > 0) {

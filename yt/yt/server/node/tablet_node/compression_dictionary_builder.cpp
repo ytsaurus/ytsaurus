@@ -57,7 +57,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -94,7 +94,7 @@ public:
         , StoreIds_(std::move(storeIds))
         , StoreWeights_(std::move(storeWeights))
         , SemaphoreGuard_(std::move(semaphoreGuard))
-        , Logger(TabletNodeLogger
+        , Logger(TabletNodeLogger()
             .WithTag("Policy: %v", Policy_)
             .WithTag("CellId: %v", Slot_->GetCellId())
             .WithTag("%v", tablet->GetLoggingTag()))

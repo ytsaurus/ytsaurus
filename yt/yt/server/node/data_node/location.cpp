@@ -277,7 +277,7 @@ TChunkLocation::TChunkLocation(
     : TDiskLocation(
         config,
         std::move(id),
-        DataNodeLogger)
+        DataNodeLogger())
     , DynamicConfigManager_(std::move(dynamicConfigManager))
     , ChunkStore_(std::move(chunkStore))
     , ChunkContext_(std::move(chunkContext))
@@ -317,11 +317,11 @@ TChunkLocation::TChunkLocation(
         StaticConfig_->IOConfig,
         Id_,
         Profiler_,
-        DataNodeLogger.WithTag("LocationId: %v", Id_));
+        DataNodeLogger().WithTag("LocationId: %v", Id_));
     IOEngineModel_ = CreateIOModelInterceptor(
         Id_,
         DynamicIOEngine_,
-        DataNodeLogger.WithTag("IOModel: %v", Id_));
+        DataNodeLogger().WithTag("IOModel: %v", Id_));
     IOEngine_ = IOEngineModel_;
 
     auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
@@ -343,7 +343,7 @@ TChunkLocation::TChunkLocation(
         ChunkContext_->DataNodeConfig->DiskHealthChecker,
         GetPath(),
         GetAuxPoolInvoker(),
-        DataNodeLogger,
+        DataNodeLogger(),
         Profiler_);
 
     ChunkStoreHost_->SubscribePopulateAlerts(

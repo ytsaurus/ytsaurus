@@ -118,7 +118,7 @@ public:
     {
         VERIFY_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
 
-        Logger = TabletNodeLogger.WithTag("CellId: %v", host->GetCellId());
+        Logger = TabletNodeLogger().WithTag("CellId: %v", host->GetCellId());
 
         YT_LOG_INFO("Set transaction manager clock cluster tag (ClockClusterTag: %v)",
             ClockClusterTag_);

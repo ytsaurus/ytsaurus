@@ -14,7 +14,7 @@ struct IBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ClusterDiscoveryServerLogger("DiscoveryServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ClusterDiscoveryServerLogger, "DiscoveryServer");
 inline const NProfiling::TProfiler ClusterDiscoveryServerProfiler("/discovery_server");
 
 ////////////////////////////////////////////////////////////////////////////////

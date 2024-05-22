@@ -31,7 +31,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             NCellarClient::TTabletCellServiceProxy::GetDescriptor(),
-            TabletNodeLogger,
+            TabletNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

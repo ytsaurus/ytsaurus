@@ -142,7 +142,7 @@ TMasterJobBase::TMasterJobBase(
     , JobId_(jobId)
     , JobSpec_(jobSpec)
     , JobTrackerAddress_(std::move(jobTrackerAddress))
-    , Logger(DataNodeLogger.WithTag(
+    , Logger(DataNodeLogger().WithTag(
         "JobId: %v, JobType: %v",
         jobId,
         CheckedEnumCast<EJobType>(jobSpec.type())))

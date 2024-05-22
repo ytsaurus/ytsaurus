@@ -1236,7 +1236,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
 // and an operation is in both Cypress and archive.
 TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& oldOptions)
 {
-    auto Logger = this->Logger.WithTag("Command: ListOperations");
+    auto Logger = this->Logger().WithTag("Command: ListOperations");
 
     auto options = oldOptions;
 

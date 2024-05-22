@@ -54,7 +54,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -248,7 +248,7 @@ private:
                 tabletSnapshot->TableSchema,
                 tabletSnapshot->Settings.MountConfig,
                 EWorkloadCategory::SystemTabletReplication,
-                Logger);
+                Logger());
             auto startRowIndex = logParser->ComputeStartRowIndex(
                 tabletSnapshot,
                 trimTimestamp,
@@ -296,7 +296,7 @@ private:
         hydraRequest.set_mount_revision(tablet->GetMountRevision());
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
         YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void TrimStores(
@@ -306,7 +306,7 @@ private:
     {
         auto tabletId = tablet->GetId();
 
-        auto Logger = TabletNodeLogger
+        auto Logger = TabletNodeLogger()
             .WithTag("%v", tablet->GetLoggingTag());
 
         try {

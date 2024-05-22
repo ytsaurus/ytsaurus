@@ -111,7 +111,7 @@ protected:
         , SecondaryPath_(std::move(secondaryPath))
         , Client_(std::move(client))
         , StorageState_(storageState)
-        , Logger(HydraLogger.WithTag("PrimaryPath: %v, SecondaryPath: %v, StorageState: %v",
+        , Logger(HydraLogger().WithTag("PrimaryPath: %v, SecondaryPath: %v, StorageState: %v",
             PrimaryPath_,
             SecondaryPath_,
             StorageState_))
@@ -545,7 +545,7 @@ private:
             , Meta_(std::move(meta))
             , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
             , Owner_(std::move(owner))
-            , Logger(Owner_->Logger.WithTag("ChangelogId: %v", id))
+            , Logger(Owner_->Logger().WithTag("ChangelogId: %v", id))
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
         { }

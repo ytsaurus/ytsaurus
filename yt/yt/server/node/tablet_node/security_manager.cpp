@@ -23,7 +23,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +78,7 @@ public:
         NCellarNode::IBootstrap* bootstrap)
         : TAsyncExpiringCache(
             std::move(config),
-            TabletNodeLogger.WithTag("Cache: ResourceLimits"))
+            TabletNodeLogger().WithTag("Cache: ResourceLimits"))
         , Bootstrap_(bootstrap)
     { }
 

@@ -55,7 +55,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueueAgentLogger;
+static constexpr auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -287,7 +287,7 @@ void TQueueAgent::Pass()
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
 
-    auto Logger = QueueAgentLogger.WithTag("PassIndex: %v", PassIndex_);
+    auto Logger = QueueAgentLogger().WithTag("PassIndex: %v", PassIndex_);
 
     // Collect queue and consumer rows.
 

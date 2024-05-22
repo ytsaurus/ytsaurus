@@ -79,7 +79,7 @@ public:
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),
-            TabletNodeLogger,
+            TabletNodeLogger(),
             slot->GetCellId(),
             CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
             bootstrap->GetNativeAuthenticator())

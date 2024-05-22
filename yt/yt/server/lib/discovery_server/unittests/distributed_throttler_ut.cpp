@@ -154,7 +154,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger,
+            DiscoveryServerLogger(),
             /*authenticator*/ nullptr);
         factories.push_back(factory);
 
@@ -255,7 +255,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger,
+            DiscoveryServerLogger(),
             /*authenticator*/ nullptr);
         factories.push_back(factory);
 

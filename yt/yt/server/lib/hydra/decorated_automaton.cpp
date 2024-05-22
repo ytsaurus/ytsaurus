@@ -267,7 +267,7 @@ public:
         , Timestamp_(Owner_->Timestamp_)
         , SelfPeerId_(owner->GetEpochContext()->CellManager->GetSelfPeerId())
     {
-        Logger = Owner_->Logger.WithTag("SnapshotId: %v", SnapshotId_);
+        Logger = Owner_->Logger().WithTag("SnapshotId: %v", SnapshotId_);
     }
 
     ~TSnapshotBuilderBase()

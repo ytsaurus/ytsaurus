@@ -10,7 +10,7 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TableServerLogger("TableServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TableServerLogger, "TableServer");
 inline const NProfiling::TProfiler TableServerProfiler("/table_server");
 
 ////////////////////////////////////////////////////////////////////////////////

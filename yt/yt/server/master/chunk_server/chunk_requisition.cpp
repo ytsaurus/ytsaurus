@@ -24,7 +24,7 @@ using namespace NYTree;
 using NYT::ToProto;
 using NYT::FromProto;
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

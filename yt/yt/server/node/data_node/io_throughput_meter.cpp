@@ -465,7 +465,7 @@ public:
                 ChunkStore_,
                 location,
                 Invoker_,
-                Logger.WithTag("Location:%v", location->GetId()));
+                Logger().WithTag("Location:%v", location->GetId()));
         }
 
         ProbesExecutor_->Start();

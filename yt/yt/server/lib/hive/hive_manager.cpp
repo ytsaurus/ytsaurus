@@ -130,7 +130,7 @@ public:
             hydraManager,
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
-            HiveServerLogger,
+            HiveServerLogger(),
             selfCellId,
             std::move(upstreamSynchronizer),
             std::move(authenticator))

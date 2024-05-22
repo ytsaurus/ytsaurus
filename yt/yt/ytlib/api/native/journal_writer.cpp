@@ -143,7 +143,7 @@ private:
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
             , Counters_(options.Counters)
-            , Logger(ApiLogger.WithTag("Path: %v, TransactionId: %v",
+            , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
                 Path_,
                 Options_.TransactionId))
         {

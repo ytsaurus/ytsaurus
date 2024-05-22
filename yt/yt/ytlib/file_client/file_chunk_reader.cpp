@@ -215,7 +215,7 @@ private:
     TFuture<void> ReadyEvent_;
     bool BlockFetched_ = true;
 
-    NLogging::TLogger Logger = FileClientLogger;
+    NLogging::TLogger Logger = FileClientLogger();
 
     TFuture<TBlock> CurrentBlock_;
 

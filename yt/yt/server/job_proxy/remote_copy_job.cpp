@@ -76,7 +76,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = JobProxyLogger;
+static constexpr auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -352,7 +352,7 @@ private:
             writerOptions,
             transactionId,
             NullChunkListId,
-            Logger);
+            Logger());
     }
 
     void CopyChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
@@ -441,7 +441,7 @@ private:
             /*preferredHostName*/ std::nullopt,
             /*forbiddenAddresses*/ {},
             /*allocatedAddresses*/ {},
-            Logger);
+            Logger());
 
         auto writers = CreateAllErasurePartWriters(
             WriterConfig_,
@@ -620,7 +620,7 @@ private:
             callbackContext->ErasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
-            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex, Logger = Logger] (const TError& error) {
+            copyFuture.Subscribe(BIND([callbackContext, erasureCodec, partIndex] (const TError& error) {
                 if (error.IsOK()) {
                     callbackContext->ErasedPartSet.reset(partIndex);
                     if (erasureCodec->CanRepair(callbackContext->ErasedPartSet)) {

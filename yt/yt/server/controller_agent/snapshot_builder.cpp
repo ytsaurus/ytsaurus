@@ -74,7 +74,7 @@ TSnapshotBuilder::TSnapshotBuilder(
     YT_VERIFY(Client_);
     YT_VERIFY(IOInvoker_);
 
-    Logger = ControllerAgentLogger;
+    Logger = ControllerAgentLogger();
 }
 
 TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& controllers)

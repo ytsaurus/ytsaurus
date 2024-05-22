@@ -38,7 +38,7 @@ public:
             Config_->UpdatePeriod))
         , RootPath_(Options_.RootPath)
         , OrchidPath_(RootPath_ + "/orchid")
-        , Logger(CypressRegistrarLogger.WithTag("RootPath: %v", RootPath_))
+        , Logger(CypressRegistrarLogger().WithTag("RootPath: %v", RootPath_))
     {
         try {
             if (Options_.RootPath.empty()) {

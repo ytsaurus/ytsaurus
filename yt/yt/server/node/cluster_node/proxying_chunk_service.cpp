@@ -56,7 +56,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
-            ClusterNodeLogger.WithTag("CellTag: %v", CellTagFromId(cellId)),
+            ClusterNodeLogger().WithTag("CellTag: %v", CellTagFromId(cellId)),
             cellId,
             std::move(authenticator))
         , ServiceConfig_(std::move(serviceConfig))

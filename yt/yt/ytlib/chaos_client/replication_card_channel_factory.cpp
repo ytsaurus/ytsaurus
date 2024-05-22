@@ -57,7 +57,7 @@ public:
             .EndMap()))
         , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Replication card channel is not available")
             << TErrorAttribute("endpoint", EndpointDescription_))
-        , Logger(ChaosClientLogger
+        , Logger(ChaosClientLogger()
             .WithTag("ProviderId: %v, ReplicationCardId: %v",
                 TGuid::Create(),
                 replicationCardId))

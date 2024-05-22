@@ -32,7 +32,7 @@ public:
         : TServiceBase(
             bootstrap->GetJobInvoker(),
             TJobProberServiceProxy::GetDescriptor(),
-            ExecNodeLogger,
+            ExecNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

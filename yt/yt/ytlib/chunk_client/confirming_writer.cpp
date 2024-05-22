@@ -73,7 +73,7 @@ public:
         , TrafficMeter_(std::move(trafficMeter))
         , TargetReplicas_(std::move(targetReplicas))
         , SessionId_(sessionId)
-        , Logger(ChunkClientLogger.WithTag("TransactionId: %v", TransactionId_))
+        , Logger(ChunkClientLogger().WithTag("TransactionId: %v", TransactionId_))
     {
         Config_->UploadReplicationFactor = std::min(
             Config_->UploadReplicationFactor,

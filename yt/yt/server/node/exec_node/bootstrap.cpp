@@ -68,7 +68,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ExecNodeLogger;
+static constexpr auto& Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +132,7 @@ public:
                 RawThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
                     std::move(config),
                     ToString(kind),
-                    ExecNodeLogger,
+                    ExecNodeLogger(),
                     ExecNodeProfiler.WithPrefix("/throttlers"));
 
                 auto throttler = IThroughputThrottlerPtr(RawThrottlers_[kind]);
@@ -175,7 +175,7 @@ public:
         DiskChangeChecker_ = New<TDiskChangeChecker>(
             DiskInfoProvider_,
             GetControlInvoker(),
-            ExecNodeLogger);
+            ExecNodeLogger());
 
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.

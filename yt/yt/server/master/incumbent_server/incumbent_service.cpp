@@ -28,7 +28,7 @@ public:
             bootstrap,
             TIncumbentServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::IncumbentManager,
-            IncumbentServerLogger)
+            IncumbentServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }

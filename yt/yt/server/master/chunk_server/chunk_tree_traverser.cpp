@@ -1443,7 +1443,7 @@ public:
         , Comparator_(std::move(comparator))
         , TestingOptions_(std::move(testingOptions))
         , RootHunkChunkList_(chunkLists[EChunkListContentType::Hunk])
-        , Logger(ChunkServerLogger.WithTag("RootId: %v", chunkLists[EChunkListContentType::Main]->GetId()))
+        , Logger(ChunkServerLogger().WithTag("RootId: %v", chunkLists[EChunkListContentType::Main]->GetId()))
     {
         YT_LOG_DEBUG("Chunk tree traversal started (LowerLimit: %v, UpperLimit: %v, EnforceBounds: %v)",
             lowerLimit,

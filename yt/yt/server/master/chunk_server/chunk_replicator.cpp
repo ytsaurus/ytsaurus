@@ -97,7 +97,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3238,7 +3238,7 @@ void TChunkReplicator::OnScheduleChunkRequisitionUpdatesFlush()
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateScheduleChunkRequisitionUpdatesMutation(request);
         mutation->SetAllowLeaderForwarding(true);
-        auto rspOrError = WaitFor(mutation->CommitAndLog(Logger));
+        auto rspOrError = WaitFor(mutation->CommitAndLog(Logger()));
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError,
                 "Failed to schedule chunk requisition update flush");
@@ -3335,7 +3335,7 @@ void TChunkReplicator::OnRequisitionUpdate()
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto mutation = chunkManager->CreateUpdateChunkRequisitionMutation(request);
         mutation->SetAllowLeaderForwarding(true);
-        auto rspOrError = WaitFor(mutation->CommitAndLog(Logger));
+        auto rspOrError = WaitFor(mutation->CommitAndLog(Logger()));
         if (!rspOrError.IsOK()) {
             YT_LOG_WARNING(rspOrError,
                 "Failed to update chunk requisition; Scheduling global scan");
@@ -3521,7 +3521,7 @@ void TChunkReplicator::OnFinishedRequisitionTraverseFlush()
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     auto mutation = chunkManager->CreateConfirmChunkListsRequisitionTraverseFinishedMutation(request);
     mutation->SetAllowLeaderForwarding(true);
-    auto rspOrError = WaitFor(mutation->CommitAndLog(Logger));
+    auto rspOrError = WaitFor(mutation->CommitAndLog(Logger()));
     if (!rspOrError.IsOK()) {
         YT_LOG_WARNING(rspOrError,
             "Failed to flush finished requisition traverse");
@@ -3623,7 +3623,7 @@ void TChunkReplicator::FlushEndorsementQueue()
     // NB: This code can be executed either on leader or follower.
     mutation->SetAllowLeaderForwarding(true);
     auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
-    YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger)
+    YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger())
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
             if (!error.IsOK()) {
                 YT_LOG_WARNING(error,

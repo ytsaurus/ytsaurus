@@ -26,7 +26,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger JobProberLogger("JobProber");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProberLogger, "JobProber");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +38,7 @@ public:
         : TServiceBase(
             controlInvoker,
             TJobProberServiceProxy::GetDescriptor(),
-            JobProberLogger)
+            JobProberLogger())
         , JobProxy_(jobProxy)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));

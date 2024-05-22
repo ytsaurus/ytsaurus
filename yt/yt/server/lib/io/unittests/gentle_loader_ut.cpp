@@ -20,7 +20,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("GentleLoadTest");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "GentleLoadTest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -298,7 +298,7 @@ protected:
             ioEngine,
             New<TRandomFileProviderMock>(),
             ActionQueue_->GetInvoker(),
-            Logger);
+            Logger());
 
         auto queue = std::make_shared<TNonblockingQueue<i64>>();
 
@@ -431,7 +431,7 @@ void ExecuteWriteSkipProbabilityTest(const std::vector<TSkipTestStep>& steps)
     auto config = New<TGentleLoaderConfig>();
     config->LoadAdjustingInterval = TDuration::MicroSeconds(100);
     auto engine = New<TIOEngineMock>(TIOEngineMockConfig{.ThreadsCount = 1});
-    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger);
+    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger());
 
     for (const auto& step : steps) {
         loadAdjuster->ShouldSkipWrite(step.Synthetic);
@@ -451,7 +451,7 @@ void ExecuteReadSkipProbabilityTest(const std::vector<TSkipTestStep>& steps)
     auto config = New<TGentleLoaderConfig>();
     config->LoadAdjustingInterval = TDuration::MicroSeconds(100);
     auto engine = New<TIOEngineMock>(TIOEngineMockConfig{.ThreadsCount = 1});
-    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger);
+    auto loadAdjuster = CreateLoadAdjuster(config, engine, Logger());
 
     for (const auto& step : steps) {
         loadAdjuster->ShouldSkipRead(step.Synthetic);

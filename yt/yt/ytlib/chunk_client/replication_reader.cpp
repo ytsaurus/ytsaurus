@@ -163,7 +163,7 @@ public:
         , RpsThrottler_(chunkReaderHost->RpsThrottler)
         , MediumThrottler_(chunkReaderHost->MediumThrottler)
         , Networks_(Client_->GetNativeConnection()->GetNetworks())
-        , Logger(ChunkClientLogger.WithTag("ChunkId: %v",
+        , Logger(ChunkClientLogger().WithTag("ChunkId: %v",
             ChunkId_))
         , InitialSeeds_(std::move(seedReplicas))
     {
@@ -522,7 +522,7 @@ protected:
         , RpsThrottler_(std::move(rpsThrottler))
         , MediumThrottler_(std::move(mediumThrottler))
         , CombinedDataByteThrottler_(CreateCombinedDataByteThrottler())
-        , Logger(ChunkClientLogger.WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
+        , Logger(ChunkClientLogger().WithTag("SessionId: %v, ReadSessionId: %v, ChunkId: %v",
             TGuid::Create(),
             SessionOptions_.ReadSessionId,
             ChunkId_))

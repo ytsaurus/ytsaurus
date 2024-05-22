@@ -73,7 +73,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Options_(std::move(options))
         , Config_(std::move(config))
         , Schema_(std::move(schema))

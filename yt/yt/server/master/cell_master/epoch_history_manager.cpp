@@ -27,7 +27,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +113,7 @@ private:
         TReqStoreMutationTime request;
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

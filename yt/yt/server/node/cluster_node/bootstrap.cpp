@@ -228,7 +228,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("Bootstrap");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -804,7 +804,7 @@ private:
         NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
             /*limits*/ {},
-            Logger,
+            Logger(),
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
 
         BufferedProducer_ = New<TBufferedProducer>();
@@ -823,14 +823,14 @@ private:
             Config_->InThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             InThrottler_ = New<TFairThrottler>(
                 Config_->InThrottler,
-                ClusterNodeLogger.WithTag("Direction: %v", "In"),
+                ClusterNodeLogger().WithTag("Direction: %v", "In"),
                 ClusterNodeProfiler.WithPrefix("/in_throttler"));
             DefaultInThrottler_ = GetInThrottler("default");
 
             Config_->OutThrottler->TotalLimit = GetNetworkThrottlerLimit(nullptr, {});
             OutThrottler_ = New<TFairThrottler>(
                 Config_->OutThrottler,
-                ClusterNodeLogger.WithTag("Direction: %v", "Out"),
+                ClusterNodeLogger().WithTag("Direction: %v", "Out"),
                 ClusterNodeProfiler.WithPrefix("/out_throttler"));
             DefaultOutThrottler_ = GetOutThrottler("default");
         } else {
@@ -841,14 +841,14 @@ private:
             LegacyRawTotalInThrottler_ = CreateNamedReconfigurableThroughputThrottler(
                 getThrottlerConfig(EDataNodeThrottlerKind::TotalIn),
                 "TotalIn",
-                ClusterNodeLogger,
+                ClusterNodeLogger(),
                 ClusterNodeProfiler.WithPrefix("/throttlers"));
             LegacyTotalInThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalInThrottler_);
 
             LegacyRawTotalOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
                 getThrottlerConfig(EDataNodeThrottlerKind::TotalOut),
                 "TotalOut",
-                ClusterNodeLogger,
+                ClusterNodeLogger(),
                 ClusterNodeProfiler.WithPrefix("/throttlers"));
             LegacyTotalOutThrottler_ = IThroughputThrottlerPtr(LegacyRawTotalOutThrottler_);
         }
@@ -856,21 +856,21 @@ private:
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             New<NConcurrency::TThroughputThrottlerConfig>(),
             "UserJobContainerCreation",
-            ClusterNodeLogger,
+            ClusterNodeLogger(),
             ClusterNodeProfiler.WithPrefix("/user_job_container_creation_throttler"));
         UserJobContainerCreationThrottler_ = IThroughputThrottlerPtr(RawUserJobContainerCreationThrottler_);
 
         RawReadRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->ReadRpsOutThrottler,
             "ReadRpsOut",
-            ClusterNodeLogger,
+            ClusterNodeLogger(),
             ClusterNodeProfiler.WithPrefix("/out_read_rps_throttler"));
         ReadRpsOutThrottler_ = IThroughputThrottlerPtr(RawReadRpsOutThrottler_);
 
         RawAnnounceChunkReplicaRpsOutThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler,
             "AnnounceChunkReplicaRpsOut",
-            ClusterNodeLogger,
+            ClusterNodeLogger(),
             ClusterNodeProfiler.WithPrefix("/out_announce_chunk_replica_rps_throttler"));
         AnnounceChunkReplicaRpsOutThrottler_ = IThroughputThrottlerPtr(RawAnnounceChunkReplicaRpsOutThrottler_);
 
@@ -965,13 +965,13 @@ private:
         RpcServer_->RegisterService(CreateRestartService(
             RestartManager_,
             GetControlInvoker(),
-            ClusterNodeLogger,
+            ClusterNodeLogger(),
             NativeAuthenticator_));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,
             NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::MasterCache),
-            Logger,
+            Logger(),
             ClusterNodeProfiler.WithPrefix("/object_service_cache"));
 
         InitCachingObjectService(PrimaryMaster_->CellId);
@@ -1060,7 +1060,7 @@ private:
                     NFS::CombinePaths(NFs::CurrentWorkingDirectory(), "test_containers"),
                     New<TPortoExecutorDynamicConfig>(),
                     ContainerDevicesCheckerQueue_->GetInvoker(),
-                    Logger);
+                    Logger());
             }
         }
     #endif
@@ -1507,7 +1507,7 @@ private:
             CreateMasterChannelForCache(GetConnection(), cellId),
             ObjectServiceCache_,
             cellId,
-            Logger,
+            Logger(),
             ClusterNodeProfiler.WithPrefix("/caching_object_service"),
             NativeAuthenticator_);
         EmplaceOrCrash(CachingObjectServices_, CellTagFromId(cellId), cachingObjectService);

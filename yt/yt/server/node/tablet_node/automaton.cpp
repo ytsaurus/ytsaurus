@@ -65,7 +65,7 @@ TTabletAutomatonPart::TTabletAutomatonPart(
         std::move(automatonInvoker))
     , MutationForwarder_(std::move(mutationForwarder))
 {
-    Logger = TabletNodeLogger.WithTag("CellId: %v", cellId);
+    Logger = TabletNodeLogger().WithTag("CellId: %v", cellId);
 }
 
 bool TTabletAutomatonPart::ValidateSnapshotVersion(int version)

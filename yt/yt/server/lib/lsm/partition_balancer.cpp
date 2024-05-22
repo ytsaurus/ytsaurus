@@ -346,7 +346,7 @@ private:
     static NLogging::TLogger BuildLogger(TPartition* partition)
     {
         auto* tablet = partition->GetTablet();
-        return Logger.WithTag("%v, CellId: %v, PartitionId: %v",
+        return Logger().WithTag("%v, CellId: %v, PartitionId: %v",
             tablet->GetLoggingTag(),
             tablet->GetCellId(),
             partition->GetId());

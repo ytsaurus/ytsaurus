@@ -26,7 +26,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressServerLogger;
+static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -480,7 +480,7 @@ protected:
             auto req = TYPathProxy::Set("/@" + renamedKey.Unintern());
             req->set_value(value.ToString());
             req->set_force(force);
-            auto context = CreateYPathContext(req->Serialize(), Logger);
+            auto context = CreateYPathContext(req->Serialize(), Logger());
             auto typedContext = New<TCtxSet>(context, NRpc::THandlerInvocationOptions());
             YT_VERIFY(typedContext->DeserializeRequest());
 
@@ -518,7 +518,7 @@ protected:
 
         auto forwardToParent = [&] (TInternedAttributeKey renamedKey) {
             auto req = TYPathProxy::Remove("/@" + renamedKey.Unintern());
-            auto context = CreateYPathContext(req->Serialize(), Logger);
+            auto context = CreateYPathContext(req->Serialize(), Logger());
             auto typedContext = New<TCtxRemove>(context, NRpc::THandlerInvocationOptions());
             YT_VERIFY(typedContext->DeserializeRequest());
 

@@ -37,7 +37,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -167,7 +167,7 @@ private:
             HeavyInvoker_,
             /*chunkScraper*/ nullptr,
             Client_,
-            Logger);
+            Logger());
 
         for (auto&& chunk : inputChunks) {
             sizeFetcher->AddChunk(std::move(chunk));

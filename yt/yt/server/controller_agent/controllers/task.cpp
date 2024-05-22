@@ -68,7 +68,7 @@ using std::placeholders::_2;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTask::TTask()
-    : Logger(ControllerLogger)
+    : Logger(ControllerLogger())
     , CachedPendingJobCount_{.DefaultCount = -1}
     , CachedTotalJobCount_(-1)
 { }

@@ -123,38 +123,38 @@ void TControllerAgent::SetIncarnationTransaction(NApi::ITransactionPtr transacti
     IncarnationTransaction_ = std::move(transaction);
 
     OperationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
-        SchedulerLogger.WithTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: AgentToSchedulerOperations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
         GetCancelableHeartbeatInvoker());
     RunningAllocationStatisticsUpdatesInbox_ = std::make_unique<TMessageQueueInbox>(
-        SchedulerLogger.WithTag("Kind: AgentToSchedulerRunningAllocationStatisticsUpdates, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: AgentToSchedulerRunningAllocationStatisticsUpdates, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "running_allocation_statistics_updates"),
         MessageOffloadInvoker_);
     ScheduleAllocationResponsesInbox_ = std::make_unique<TMessageQueueInbox>(
-        SchedulerLogger.WithTag("Kind: AgentToSchedulerScheduleAllocationResponses, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: AgentToSchedulerScheduleAllocationResponses, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "schedule_allocation_responses"),
         MessageOffloadInvoker_);
     AbortedAllocationEventsOutbox_ = New<TMessageQueueOutbox<TAbortedAllocationSummary>>(
-        SchedulerLogger.WithTag("Kind: SchedulerToAgentAbortedAllocations, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: SchedulerToAgentAbortedAllocations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "aborted_allocation_events"),
         MessageOffloadInvoker_);
 
     OperationEventsOutbox_ = New<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>(
-        SchedulerLogger.WithTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: SchedulerToAgentOperations, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "operation_events"),
         MessageOffloadInvoker_);
     ScheduleAllocationRequestsOutbox_ = New<TMessageQueueOutbox<TScheduleAllocationRequestPtr>>(
-        SchedulerLogger.WithTag("Kind: SchedulerToAgentScheduleAllocationRequests, AgentId: %v, IncarnationId: %v",
+        SchedulerLogger().WithTag("Kind: SchedulerToAgentScheduleAllocationRequests, AgentId: %v, IncarnationId: %v",
             Id_,
             GetIncarnationId()),
         SchedulerProfiler.WithTag("queue", "schedule_allocation_requests"),

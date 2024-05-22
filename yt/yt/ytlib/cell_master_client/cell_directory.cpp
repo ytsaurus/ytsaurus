@@ -467,7 +467,7 @@ private:
             CellChannelMap_[cellTag][EMasterChannelKind::Cache],
             Cache_,
             config->CellId,
-            ObjectClientLogger,
+            ObjectClientLogger(),
             /*profiler*/ {},
             /*authenticator*/ nullptr);
         EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);

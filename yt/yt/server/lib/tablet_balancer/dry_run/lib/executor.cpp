@@ -30,7 +30,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("TabletBalancer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TabletBalancer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +101,7 @@ std::vector<TReshardDescriptor> ReshardBundleParameterized(
         /*performanceCountersTableSchema*/ nullptr,
         config,
         group,
-        Logger);
+        Logger());
 
     std::vector<TReshardDescriptor> descriptors;
     for (const auto& [id, table] : bundle->Tables) {
@@ -148,7 +148,7 @@ std::vector<TReshardDescriptor> ReshardBundle(const TTabletCellBundlePtr& bundle
             std::move(tablets),
             /*minDesiredTabletSize*/ 0,
             /*pickPivotKeys*/ true,
-            Logger);
+            Logger());
 
         descriptors.insert(descriptors.end(), tableDescriptors.begin(), tableDescriptors.end());
     }
@@ -197,7 +197,7 @@ TTabletActionBatch Balance(
                     bundle,
                     /*movableTables*/ std::nullopt,
                     /*ignoreTableWiseConfig*/ false,
-                    Logger)
+                    Logger())
                 };
         }
 
@@ -216,7 +216,7 @@ TTabletActionBatch Balance(
                     config,
                     group,
                     /*metricTracker*/ nullptr,
-                    Logger)
+                    Logger())
                 };
         }
 
@@ -233,7 +233,7 @@ TTabletActionBatch Balance(
                 .MoveDescriptors = ReassignOrdinaryTablets(
                     bundle,
                     /*movableTables*/ std::nullopt,
-                    Logger)
+                    Logger())
                 };
         }
     }

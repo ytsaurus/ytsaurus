@@ -54,7 +54,7 @@ public:
         : NRpc::TServiceBase(
             bootstrap->GetJobInvoker(),
             TSupervisorServiceProxy::GetDescriptor(),
-            ExecNodeLogger,
+            ExecNodeLogger(),
             NRpc::NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

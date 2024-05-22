@@ -87,7 +87,7 @@ using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueueAgentLogger;
+static constexpr auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,9 +97,9 @@ TBootstrap::TBootstrap(TQueueAgentServerConfigPtr config, INodePtr configNode)
     , DynamicConfig_(New<TQueueAgentServerDynamicConfig>())
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 
@@ -179,7 +179,7 @@ void TBootstrap::DoRun()
 
     DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
 
-    AlertManager_ = CreateAlertManager(QueueAgentLogger, TProfiler{}, ControlInvoker_);
+    AlertManager_ = CreateAlertManager(QueueAgentLogger(), TProfiler{}, ControlInvoker_);
 
     QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
         ControlInvoker_,

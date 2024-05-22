@@ -95,7 +95,7 @@ public:
         : TServiceBase(
             workerInvoker,
             GetDescriptor(),
-            RpcProxyLogger)
+            RpcProxyLogger())
         , Config_(std::move(config))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , Connection_(std::move(connection))

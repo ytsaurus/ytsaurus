@@ -37,7 +37,7 @@ public:
             .BeginMap()
                 .Item("cell_tag").Value(cellTag)
             .EndMap()))
-        , Logger(ChaosClientLogger
+        , Logger(ChaosClientLogger()
             .WithTag("ProviderId: %v, CellTag: %v",
                 TGuid::Create(),
                 cellTag))

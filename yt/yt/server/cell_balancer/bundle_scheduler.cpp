@@ -18,7 +18,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = BundleControllerLogger;
+static constexpr auto& Logger = BundleControllerLogger;
 static const TString DefaultDataCenterName = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2438,8 +2438,8 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
     input.DatacenterDisrupted = GetDataCenterDisruptedState(input);
     input.BundleToShortName = MapBundlesToShortNames(input);
 
-    TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger);
-    TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator(BundleControllerLogger);
+    TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger());
+    TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator(BundleControllerLogger());
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController) {

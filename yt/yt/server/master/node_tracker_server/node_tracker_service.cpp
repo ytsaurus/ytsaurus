@@ -45,7 +45,7 @@ public:
             bootstrap,
             TNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::NodeTrackerService,
-            NodeTrackerServerLogger)
+            NodeTrackerServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterNode)
             .SetHeavy(true));

@@ -28,7 +28,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
-            TransactionServerLogger,
+            TransactionServerLogger(),
             NullRealmId,
             std::move(authenticator))
         , Provider_(std::move(provider))

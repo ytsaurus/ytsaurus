@@ -67,7 +67,7 @@ TSlotLocation::TSlotLocation(
     IJobDirectoryManagerPtr jobDirectoryManager,
     int slotCount,
     std::function<int(int)> slotIndexToUserId)
-    : TDiskLocation(config, id, ExecNodeLogger)
+    : TDiskLocation(config, id, ExecNodeLogger())
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SlotManagerStaticConfig_(Bootstrap_->GetConfig()->ExecNode->SlotManager)

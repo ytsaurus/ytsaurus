@@ -10,7 +10,7 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger HiveServerLogger("HiveServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, HiveServerLogger, "HiveServer");
 inline const NProfiling::TProfiler HiveServerProfiler("/hive");
 
 ////////////////////////////////////////////////////////////////////////////////

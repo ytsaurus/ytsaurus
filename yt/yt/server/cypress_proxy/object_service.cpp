@@ -35,7 +35,7 @@ public:
         : TServiceBase(
             /*invoker*/ nullptr,
             TObjectServiceProxy::GetDescriptor(),
-            CypressProxyLogger,
+            CypressProxyLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
@@ -268,7 +268,7 @@ private:
                     sequoiaService,
                     subrequest.RequestMessage,
                     client,
-                    CypressProxyLogger);
+                    CypressProxyLogger());
                 auto rsp = WaitFor(rspFuture)
                     .ValueOrThrow();
                 if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {

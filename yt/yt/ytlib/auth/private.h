@@ -8,8 +8,8 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TvmBridgeLogger("TvmBridge");
-inline const NLogging::TLogger NativeAuthLogger("NativeAuth");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TvmBridgeLogger, "TvmBridge");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, NativeAuthLogger, "NativeAuth");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,7 +25,7 @@ using namespace NConcurrency;
 using namespace NRpc;
 using namespace NProfiling;
 
-static const auto& Logger = P2PLogger;
+static constexpr auto& Logger = P2PLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

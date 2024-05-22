@@ -51,7 +51,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellServerLogger;
+static constexpr auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -611,7 +611,7 @@ private:
             request.acls_update_info_size() != 0)
         {
             auto future = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger);
+                ->CommitAndLog(Logger());
             Y_UNUSED(WaitFor(future));
         }
     }
@@ -685,7 +685,7 @@ private:
 
         if (!request.entries().empty()) {
             auto future = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger);
+                ->CommitAndLog(Logger());
             WaitFor(future)
                 .ThrowOnError();
         }

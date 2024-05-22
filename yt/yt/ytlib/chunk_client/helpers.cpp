@@ -685,7 +685,7 @@ IChunkReaderPtr CreateRemoteReader(
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
-    auto Logger = ChunkClientLogger.WithTag("ChunkId: %v", chunkId);
+    auto Logger = ChunkClientLogger().WithTag("ChunkId: %v", chunkId);
 
     auto optionsPerChunk = New<TRemoteReaderOptions>();
     optionsPerChunk->AllowFetchingSeedsFromMaster = options->AllowFetchingSeedsFromMaster;

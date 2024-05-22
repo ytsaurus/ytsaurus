@@ -174,7 +174,7 @@ TAutoMergeTask::TAutoMergeTask(
         options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
         options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;
         options.MinTeleportChunkSize = chunkSizeThreshold;
-        options.Logger = Logger.WithTag("Name: %v(%v)", GetTitle(), poolIndex);
+        options.Logger = Logger().WithTag("Name: %v(%v)", GetTitle(), poolIndex);
 
         auto unorderedPool = CreateUnorderedChunkPool(
             std::move(options),

@@ -2306,7 +2306,7 @@ protected:
             options.MaxTotalSliceCount = Config->MaxTotalSliceCount;
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
-            options.Logger = Logger.WithTag("Name: RootPartition");
+            options.Logger = Logger().WithTag("Name: RootPartition");
 
             RootPartitionPool = CreateOrderedChunkPool(
                 std::move(options),
@@ -2316,7 +2316,7 @@ protected:
             options.RowBuffer = RowBuffer;
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
-            options.Logger = Logger.WithTag("Name: RootPartition");
+            options.Logger = Logger().WithTag("Name: RootPartition");
 
             RootPartitionPool = CreateUnorderedChunkPool(
                 std::move(options),
@@ -2368,7 +2368,7 @@ protected:
         TUnorderedChunkPoolOptions options;
         options.RowBuffer = RowBuffer;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
-        options.Logger = Logger.WithTag("Name: SimpleSort");
+        options.Logger = Logger().WithTag("Name: SimpleSort");
 
         SimpleSortPool = CreateUnorderedChunkPool(
             std::move(options),
@@ -3006,7 +3006,7 @@ protected:
             Spec,
             Options,
             GetOutputTablePaths().size());
-        chunkPoolOptions.Logger = Logger.WithTag("Name: %v", name);
+        chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
 
         if (Spec->UseNewSortedPool) {
             YT_LOG_DEBUG("Creating new sorted pool");

@@ -51,7 +51,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger CoreWatcherLogger("CoreWatcher");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, CoreWatcherLogger, "CoreWatcher");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,7 +116,7 @@ TCoreWatcher::TCoreWatcher(
     , Transaction_(transaction)
     , ChunkList_(chunkList)
     , SchemaId_(schemaId)
-    , Logger(CoreWatcherLogger.WithTag("JobId: %v", JobHost_->GetJobId()))
+    , Logger(CoreWatcherLogger().WithTag("JobId: %v", JobHost_->GetJobId()))
 {
     PeriodicExecutor_->Start();
 }
@@ -257,7 +257,7 @@ void TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
 {
     VERIFY_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger.WithTag("CoreName: %v, CoreIndex: %v",
+    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
         coreName,
         coreIndex);
 
@@ -361,7 +361,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
 {
     VERIFY_INVOKER_AFFINITY(IOInvoker_);
 
-    auto Logger = this->Logger.WithTag("CoreName: %v, CoreIndex: %v",
+    auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
         coreName,
         coreIndex);
 

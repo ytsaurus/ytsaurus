@@ -67,7 +67,7 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -632,7 +632,7 @@ private:
 
                     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
                     YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-                        ->CommitAndLog(Logger));
+                        ->CommitAndLog(Logger()));
                 }
 
                 // Probably next seal attempt will succeed and will happen before autotomy end.

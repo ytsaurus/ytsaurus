@@ -44,7 +44,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletBalancerLogger;
+static constexpr auto& Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -761,7 +761,7 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
             bundleState->GetBundle(),
             /*movableTables*/ std::nullopt,
             /*ignoreTableWiseConfig*/ false,
-            Logger)
+            Logger())
         .AsyncVia(WorkerPool_->GetInvoker())
         .Run())
         .ValueOrThrow();
@@ -821,7 +821,7 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
             ReassignOrdinaryTablets,
             bundleState->GetBundle(),
             /*movableTables*/ std::nullopt,
-            Logger)
+            Logger())
         .AsyncVia(WorkerPool_->GetInvoker())
         .Run())
         .ValueOrThrow();
@@ -894,7 +894,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
             }.MergeWith(groupConfig->Parameterized),
             groupName,
             metricTracker,
-            Logger)
+            Logger())
         .AsyncVia(WorkerPool_->GetInvoker())
         .Run())
         .ValueOrThrow();
@@ -1365,7 +1365,7 @@ TFuture<std::vector<TLegacyOwningKey>> TTabletBalancer::PickReshardPivotKeysIfNe
         table->Path,
         descriptor->TabletCount,
         options,
-        Logger,
+        Logger(),
         enableVerboseLogging || table->TableConfig->EnableVerboseLogging)
         .AsyncVia(PivotPickerPool_->GetInvoker())
         .Run();

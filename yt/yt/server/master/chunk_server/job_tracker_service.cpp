@@ -54,7 +54,7 @@ public:
             bootstrap,
             TJobTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::JobTrackerService,
-            ChunkServerLogger)
+            ChunkServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));

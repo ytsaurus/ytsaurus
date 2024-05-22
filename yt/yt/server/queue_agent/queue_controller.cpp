@@ -251,7 +251,7 @@ private:
         auto params = TCollectPartitionRowInfoParams{
             .HasCumulativeDataWeightColumn = true,
         };
-        auto result = WaitFor(NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger))
+        auto result = WaitFor(NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger()))
             .ValueOrThrow();
 
         for (const auto& [tabletIndex, tabletInfo] : result) {
@@ -305,7 +305,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
+        , Logger(QueueAgentLogger().WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),

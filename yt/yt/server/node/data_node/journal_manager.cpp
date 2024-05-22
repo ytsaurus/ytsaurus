@@ -934,7 +934,7 @@ public:
         INodeMemoryTrackerPtr nodeMemoryTracker)
         : Location_(std::move(location))
         , ChunkContext_(std::move(chunkContext))
-        , Logger(DataNodeLogger.WithTag("LocationId: %v", Location_->GetId()))
+        , Logger(DataNodeLogger().WithTag("LocationId: %v", Location_->GetId()))
         , Config_(config)
     {
         auto journalIndexMemoryTracker = nodeMemoryTracker

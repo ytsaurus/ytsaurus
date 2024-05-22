@@ -9,7 +9,7 @@ namespace NYT::NAuth {
 
 using namespace NConcurrency;
 
-static const auto& Logger = AuthLogger;
+static constexpr auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,7 +27,7 @@ public:
         NProfiling::TProfiler profiler)
         : TAsyncExpiringCache(
             config->Cache,
-            AuthLogger.WithTag("Cache: SecretVault"),
+            AuthLogger().WithTag("Cache: SecretVault"),
             std::move(profiler))
         , Underlying_(std::move(underlying))
     { }

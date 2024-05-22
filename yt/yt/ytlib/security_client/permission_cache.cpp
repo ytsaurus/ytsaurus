@@ -99,7 +99,7 @@ TPermissionCache::TPermissionCache(
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(
         config,
-        SecurityClientLogger.WithTag("Cache: Permission"),
+        SecurityClientLogger().WithTag("Cache: Permission"),
         std::move(profiler))
     , Config_(std::move(config))
     , Connection_(std::move(connection))

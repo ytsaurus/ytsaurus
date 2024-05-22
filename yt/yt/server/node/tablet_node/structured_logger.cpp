@@ -45,7 +45,7 @@ class TStructuredLogger
 public:
     explicit TStructuredLogger(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Logger_(LsmLogger)
+        , Logger_(LsmLogger())
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         Config_ = dynamicConfigManager->GetConfig()->TabletNode;

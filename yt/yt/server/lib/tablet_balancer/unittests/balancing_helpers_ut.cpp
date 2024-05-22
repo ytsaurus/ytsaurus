@@ -34,7 +34,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("BalancingHelpersUnittest");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "BalancingHelpersUnittest");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +177,7 @@ TEST_P(TTestReassignInMemoryTablets, SimpleWithSameTablets)
         bundle,
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
-        Logger);
+        Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
@@ -246,7 +246,7 @@ TEST_P(TTestReassignOrdinaryTablets, Simple)
     auto descriptors = ReassignOrdinaryTablets(
         bundle,
         /*movableTables*/ std::nullopt,
-        Logger);
+        Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
@@ -359,7 +359,7 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
             table->Tablets,
             /*minDesiredTabletSize*/ 0,
             /*pickPivotKeys*/ true,
-            Logger);
+            Logger());
 
         for (const auto& descriptor : descriptors) {
             EXPECT_NE(expectedDescriptorsIt, expected.end());
@@ -419,7 +419,7 @@ TEST_P(TTestReassignInMemoryTabletsUniform, Simple)
         bundle,
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
-        Logger);
+        Logger());
 
     i64 totalSize = 0;
     THashMap<TTabletCellId, i64> cellSizes;
@@ -491,7 +491,7 @@ TEST_P(TTestReassignOrdinaryTabletsUniform, Simple)
     auto descriptors = ReassignOrdinaryTablets(
         bundle,
         /*movableTables*/ std::nullopt,
-        Logger);
+        Logger());
 
     i64 totalSize = 0;
     THashMap<TTabletCellId, i64> cellSizes;
@@ -578,7 +578,7 @@ TEST_P(TTestReassignTabletsParameterized, ViaMemorySize)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         /*metricTracker*/ nullptr,
-        Logger);
+        Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
@@ -772,7 +772,7 @@ TEST_P(TTestReassignTabletsParameterizedErrors, BalancingError)
             }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
             group,
             /*metricTracker*/ nullptr,
-            Logger),
+            Logger()),
         ToString(std::get<1>(params)));
 }
 
@@ -821,7 +821,7 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
         }.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
         /*metricTracker*/ nullptr,
-        Logger);
+        Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
 
@@ -1035,7 +1035,7 @@ TEST_P(TTestMergeSplitTabletsParameterized, ViaMemorySize)
         /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
-        Logger);
+        Logger());
 
     auto expected = ConvertTo<std::vector<TTestReshardDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
 
@@ -1236,7 +1236,7 @@ TEST_P(TTestMergeSplitTabletsParameterizedErrors, BalancingError)
         /*performanceCountersTableSchema*/ nullptr,
         TParameterizedResharderConfig{}.MergeWith(GetOrCrash(bundle->Config->Groups, group)->Parameterized),
         group,
-        Logger);
+        Logger());
 
     EXPECT_THROW_WITH_SUBSTRING(
         resharder->BuildTableActionDescriptors(table),

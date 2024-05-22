@@ -14,7 +14,7 @@ struct IBootstrap;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TimestampProviderLogger("TimestampProvider");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TimestampProviderLogger, "TimestampProvider");
 inline const NProfiling::TProfiler TimestampProviderProfiler("/timestamp_provider");
 
 ////////////////////////////////////////////////////////////////////////////////

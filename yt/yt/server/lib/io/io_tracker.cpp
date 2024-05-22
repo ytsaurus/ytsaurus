@@ -388,16 +388,16 @@ public:
         , Invoker_(ActionQueue_->GetInvoker())
         , PeriodQuant_(config->PeriodQuant)
         , PathAggregateTags_(config->PathAggregateTags)
-        , RawSink_(StructuredIORawLogger, config->Enable && config->EnableRaw)
+        , RawSink_(StructuredIORawLogger(), config->Enable && config->EnableRaw)
         , AggregateSink_(
-            StructuredIOAggregateLogger,
+            StructuredIOAggregateLogger(),
             config->Enable && config->EnableAggr,
             config->AggregationSizeLimit,
             config->AggregationPeriod,
             /*tagFilter*/ [] (const auto& event) { return TAggregateTagsKey{ .InlineTags = event.AggregatingTags }; },
             Profiler_)
         , PathAggregateSink_(
-            StructuredIOPathAggregateLogger,
+            StructuredIOPathAggregateLogger(),
             config->Enable && config->EnablePath,
             config->AggregationSizeLimit,
             config->AggregationPeriod,

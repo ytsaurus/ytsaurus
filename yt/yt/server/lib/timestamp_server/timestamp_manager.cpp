@@ -56,7 +56,7 @@ public:
             // Ignored, method handlers use TimestampInvoker_.
             GetSyncInvoker(),
             TTimestampServiceProxy::GetDescriptor(),
-            TimestampServerLogger,
+            TimestampServerLogger(),
             NullRealmId,
             std::move(authenticator))
         , TCompositeAutomatonPart(

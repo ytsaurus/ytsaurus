@@ -40,7 +40,7 @@ TChunkReaderBase::TChunkReaderBase(
     , ChunkReadOptions_(chunkReadOptions)
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
     , FinishGuard_(TraceContext_)
-    , Logger(TableClientLogger.WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
+    , Logger(TableClientLogger().WithTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
     if (memoryManagerHolder) {
         MemoryManagerHolder_ = memoryManagerHolder;

@@ -108,7 +108,7 @@ public:
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
         , MountConfig_(tablet->GetSettings().MountConfig)
-        , Logger(TabletNodeLogger.WithTag("%v, ReplicaId: %v",
+        , Logger(TabletNodeLogger().WithTag("%v, ReplicaId: %v",
             tablet->GetLoggingTag(),
             ReplicaId_))
         , ReplicationLogParser_(CreateReplicationLogParser(TableSchema_, MountConfig_, workloadCategory, Logger))

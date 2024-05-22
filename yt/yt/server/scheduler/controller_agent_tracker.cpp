@@ -49,7 +49,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
+static constexpr auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,7 +101,7 @@ void ProcessScheduleAllocationMailboxes(
     auto* request = &context->Request();
     auto* response = &context->Response();
 
-    const auto Logger = SchedulerLogger
+    const auto Logger = SchedulerLogger()
         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
 
     YT_LOG_DEBUG("Processing schedule allocation mailboxes");
@@ -134,7 +134,7 @@ void ProcessScheduleAllocationResponses(
     std::vector<std::vector<const NProto::TScheduleAllocationResponse*>> groupedScheduleAllocationResponses,
     const IInvokerPtr& dtorInvoker)
 {
-    auto Logger = SchedulerLogger
+    auto Logger = SchedulerLogger()
         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
     YT_LOG_DEBUG("Processing schedule allocation responses");
@@ -218,7 +218,7 @@ public:
         , ResponseKeeper_(CreateResponseKeeper(
             Config_->ResponseKeeper,
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
-            SchedulerLogger,
+            SchedulerLogger(),
             SchedulerProfiler))
     { }
 
@@ -927,7 +927,7 @@ public:
         auto groupedAllocationUpdates = RunInMessageOffloadInvoker(
             agent,
             [agent, nodeManager, request, response, context, config{Config_}] {
-                const auto Logger = SchedulerLogger
+                const auto Logger = SchedulerLogger()
                     .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
 
                 YT_LOG_DEBUG("Group running allocation updates by node shards");
@@ -982,7 +982,7 @@ public:
 
         if (request->exec_nodes_requested()) {
             RunInMessageOffloadInvoker(agent, [scheduler, context, request, response] {
-                    const auto Logger = SchedulerLogger
+                    const auto Logger = SchedulerLogger()
                         .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), request->agent_id());
                     YT_LOG_DEBUG("Filling exec node descriptors");
                     response->Attachments().push_back(scheduler->GetCachedProtoExecNodeDescriptors());
@@ -998,7 +998,7 @@ public:
                 groupedAllocationUpdates = std::move(groupedAllocationUpdates),
                 dtorInvoker = MessageOffloadThreadPool_->GetInvoker()
             ] {
-                const auto Logger = SchedulerLogger
+                const auto Logger = SchedulerLogger()
                     .WithTag("RequestId: %v, IncarnationId: %v", context->GetRequestId(), context->Request().agent_id());
 
                 YT_LOG_DEBUG("Processing allocation events");
@@ -1009,7 +1009,7 @@ public:
                             context,
                             nodeShard = nodeShards[shardId],
                             protoUpdates = std::move(groupedAllocationUpdates[shardId]),
-                            Logger = SchedulerLogger
+                            Logger = SchedulerLogger()
                         ] {
                             std::vector<TNodeShard::TRunningAllocationStatisticsUpdate> runningAllocationStatisticsUpdates;
                             runningAllocationStatisticsUpdates.reserve(std::size(protoUpdates.RunningAllocationStatisticsUpdates));

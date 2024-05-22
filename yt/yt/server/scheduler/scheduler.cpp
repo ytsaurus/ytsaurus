@@ -116,7 +116,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SchedulerLogger;
+static constexpr auto& Logger = SchedulerLogger;
 
 static const TString UnknownTreeId = "<unknown>";
 
@@ -169,7 +169,7 @@ public:
         , OperationServiceResponseKeeper_(CreateResponseKeeper(
             Config_->OperationServiceResponseKeeper,
             GetControlInvoker(EControlQueue::UserRequest),
-            SchedulerLogger,
+            SchedulerLogger(),
             SchedulerProfiler))
         , NodeManager_(New<TNodeManager>(Config_, this, Bootstrap_))
         , ExperimentsAssigner_(Config_->Experiments)
@@ -559,7 +559,7 @@ public:
                 permissions,
                 operation->GetRuntimeParameters()->Acl,
                 GetClient(),
-                Logger);
+                Logger());
         });
 
         return doValidateOperationAccess

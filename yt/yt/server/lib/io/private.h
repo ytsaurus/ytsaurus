@@ -8,10 +8,10 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger IOLogger("IO");
-inline const NLogging::TLogger StructuredIORawLogger("IORaw");
-inline const NLogging::TLogger StructuredIOAggregateLogger("IOAggregate");
-inline const NLogging::TLogger StructuredIOPathAggregateLogger("IOPathAggr");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, IOLogger, "IO");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, StructuredIORawLogger, "IORaw");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, StructuredIOAggregateLogger, "IOAggregate");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, StructuredIOPathAggregateLogger, "IOPathAggr");
 
 ////////////////////////////////////////////////////////////////////////////////
 

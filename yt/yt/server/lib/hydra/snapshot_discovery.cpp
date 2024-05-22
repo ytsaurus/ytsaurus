@@ -26,7 +26,7 @@ public:
         , CellManager_(std::move(cellManager))
         , MaxSnapshotId_(maxSnapshotId)
         , ExactId_(exactId)
-        , Logger(HydraLogger.WithTag("CellId: %v, SelfPeerId: %v",
+        , Logger(HydraLogger().WithTag("CellId: %v, SelfPeerId: %v",
             CellManager_->GetCellId(),
             CellManager_->GetSelfPeerId()))
     {

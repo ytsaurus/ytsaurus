@@ -33,7 +33,7 @@ public:
         NRpc::IChannelFactoryPtr channelFactory)
         : ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , AddressPool_(New<TServerAddressPool>(
-            DiscoveryClientLogger,
+            DiscoveryClientLogger(),
             connectionConfig))
         , ConnectionConfig_(std::move(connectionConfig))
         , ClientConfig_(std::move(clientConfig))

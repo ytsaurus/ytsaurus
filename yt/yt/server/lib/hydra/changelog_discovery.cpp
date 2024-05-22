@@ -30,7 +30,7 @@ public:
         , CellManager_(std::move(cellManager))
         , ChangelogId_(changelogId)
         , MinRecordCount_(minRecordCount)
-        , Logger(HydraLogger.WithTag("ChangelogId: %v, CellId: %v",
+        , Logger(HydraLogger().WithTag("ChangelogId: %v, CellId: %v",
             ChangelogId_,
             CellManager_->GetCellId()))
     {
@@ -153,7 +153,7 @@ public:
         : Config_(config)
         , CellManager_(cellManager)
         , ChangelogId_(changelogId)
-        , Logger(HydraLogger.WithTag("ChangelogId: %v, CellId: %v",
+        , Logger(HydraLogger().WithTag("ChangelogId: %v, CellId: %v",
             ChangelogId_,
             CellManager_->GetCellId()))
     {
@@ -322,7 +322,7 @@ private:
     const NElection::TCellManagerPtr CellManager_;
     const TPromise<std::pair<int, int>> Promise_ = NewPromise<std::pair<int, int>>();
 
-    const NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger = HydraLogger();
 
     int ChangelogId_ = 0;
     int Term_ = 0;

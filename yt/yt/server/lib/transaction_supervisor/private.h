@@ -18,7 +18,7 @@ class TAbort;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TransactionSupervisorLogger("TransactionSupervisor");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TransactionSupervisorLogger, "TransactionSupervisor");
 inline const NProfiling::TProfiler TransactionSupervisorProfiler("/transaction_supervisor");
 
 ////////////////////////////////////////////////////////////////////////////////

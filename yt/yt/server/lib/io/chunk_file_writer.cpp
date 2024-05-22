@@ -32,7 +32,7 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
-static const auto& Logger = IOLogger;
+static constexpr auto& Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

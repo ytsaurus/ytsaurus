@@ -49,7 +49,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     const NYPath::TRichYPath& richPath,
     const TLocateSkynetShareOptions& options)
 {
-    auto Logger = ApiLogger.WithTag("Path: %v", richPath.GetPath());
+    auto Logger = ApiLogger().WithTag("Path: %v", richPath.GetPath());
 
     TGetUserObjectBasicAttributesOptions getAttributesOptions;
     getAttributesOptions.ReadFrom = EMasterChannelKind::Cache;
@@ -60,7 +60,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         client,
         {&userObject},
         NullTransactionId,
-        ChunkClientLogger,
+        ChunkClientLogger(),
         EPermission::Read,
         getAttributesOptions);
 

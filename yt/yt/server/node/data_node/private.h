@@ -12,11 +12,11 @@ constexpr auto SessionIdAllocationTag = "session_id";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger DataNodeLogger("DataNode");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, DataNodeLogger, "DataNode");
 inline const NProfiling::TProfiler DataNodeProfiler("/data_node");
 inline const NProfiling::TProfiler LocationProfiler("/location");
 
-inline const NLogging::TLogger P2PLogger("P2P");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, P2PLogger, "P2P");
 inline const NProfiling::TProfiler P2PProfiler = DataNodeProfiler.WithPrefix("/p2p");
 
 inline const TString CellIdFileName("cell_id");

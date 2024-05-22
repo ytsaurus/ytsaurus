@@ -272,7 +272,7 @@ public:
         return ::NYT::NTableClient::CreateDictionaryDecompressionSession(
             MakeWeak(this),
             ReaderConfig_,
-            TableClientLogger);
+            TableClientLogger());
     }
 
     TFuture<THashMap<TChunkId, TRowDictionaryDecompressor>> GetDecompressors(
@@ -295,7 +295,7 @@ public:
                 chunkReadOptions,
                 NameTable_,
                 ChunkFragmentReader_,
-                TableClientLogger));
+                TableClientLogger()));
         }
 
         return AllSucceeded(std::move(digestedDictionaryFutures)).Apply(BIND(

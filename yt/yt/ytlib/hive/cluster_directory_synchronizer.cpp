@@ -35,7 +35,7 @@ public:
             TPeriodicExecutorOptions{
                 .Period = config->SyncPeriod,
             },
-            HiveClientLogger)
+            HiveClientLogger())
         , Config_(std::move(config))
         , DirectoryConnection_(std::move(directoryConnection))
         , ClusterDirectory_(std::move(clusterDirectory))

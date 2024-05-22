@@ -179,7 +179,7 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
 {
     const auto& path = options.RichPath.GetPath();
 
-    auto Logger = TableClientLogger.WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+    auto Logger = TableClientLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
         path,
         options.TransactionId,
         options.ReadSessionId);

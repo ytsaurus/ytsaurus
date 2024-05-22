@@ -51,7 +51,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger.WithTag("ChunkReincarnator");
+static const auto& Logger = ChunkServerLogger().WithTag("ChunkReincarnator");
 inline constexpr int SampleChunkIdCount = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1330,7 +1330,7 @@ private:
             }
 
             YT_UNUSED_FUTURE(CreateMutation(hydraManager, replaceChunksMutation)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 
@@ -1585,7 +1585,7 @@ private:
         YT_UNUSED_FUTURE(CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
             NProto::TReqUpdateChunkReincarnatorTransactions())
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void OnChunkScan()
@@ -1771,7 +1771,7 @@ private:
                 ToProto(request.add_subrequests()->mutable_old_chunk_id(), chunkId);
             }
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
 
             YT_LOG_DEBUG(
                 "Chunk reincarnation scheduled (ChunkCount: %v, ChunkIds: %v)",
@@ -1797,7 +1797,7 @@ private:
             YT_UNUSED_FUTURE(CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
                 mutationRequest)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
 
             YT_LOG_DEBUG(
                 "Exported chunk reincarnation check scheduled (ChunkIdsCount: %v, ChunkIds: %v)",
@@ -2078,7 +2078,7 @@ private:
         }
 
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void HydraUpdateChunkReincarnatorTransactions(

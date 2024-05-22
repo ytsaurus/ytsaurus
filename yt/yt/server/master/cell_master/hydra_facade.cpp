@@ -69,7 +69,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,7 +111,7 @@ public:
         TransactionTrackerQueue_ = New<TActionQueue>("TxTracker");
 
         ResponseKeeper_ = CreatePersistentResponseKeeper(
-            NObjectServer::ObjectServerLogger,
+            NObjectServer::ObjectServerLogger(),
             NObjectServer::ObjectServerProfiler);
 
         auto electionManagerThunk = New<TElectionManagerThunk>();

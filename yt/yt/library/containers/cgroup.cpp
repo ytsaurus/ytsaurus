@@ -23,7 +23,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ContainersLogger;
+static constexpr auto& Logger = ContainersLogger;
 static const TString CGroupRootPath("/sys/fs/cgroup");
 #ifdef _linux_
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;

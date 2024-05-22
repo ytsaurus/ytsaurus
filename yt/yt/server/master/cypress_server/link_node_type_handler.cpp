@@ -30,7 +30,7 @@ using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 
-static const auto& Logger = CypressServerLogger;
+static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

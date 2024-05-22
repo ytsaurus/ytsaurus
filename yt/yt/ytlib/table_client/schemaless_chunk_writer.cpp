@@ -146,7 +146,7 @@ public:
         TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
-        : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
+        : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
         , ChunkNameTable_(nameTable ? std::move(nameTable) : TNameTable::FromSchemaStable(*Schema_))
@@ -2037,7 +2037,7 @@ public:
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
-        , Logger(TableClientLogger.WithTag("Path: %v, TransactionId: %v",
+        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_))
     {

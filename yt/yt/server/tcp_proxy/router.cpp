@@ -22,7 +22,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TcpProxyLogger;
+static constexpr auto& Logger = TcpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +48,7 @@ public:
         , Config_(Bootstrap_->GetConfig()->Router)
         , Poller_(Bootstrap_->GetPoller())
         , Acceptor_(Bootstrap_->GetAcceptor())
-        , Dialer_(CreateDialer(Config_->Dialer, Poller_, Logger))
+        , Dialer_(CreateDialer(Config_->Dialer, Poller_, Logger()))
     { }
 
     void Start() override

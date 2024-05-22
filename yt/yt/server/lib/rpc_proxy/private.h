@@ -12,8 +12,8 @@ constexpr auto RpcProxyRpcAllocationTag = "rpc";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger RpcProxyStructuredLoggerMain("RpcProxyStructuredMain");
-inline const NLogging::TLogger RpcProxyStructuredLoggerError("RpcProxyStructuredError");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerMain, "RpcProxyStructuredMain");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyStructuredLoggerError, "RpcProxyStructuredError");
 
 ////////////////////////////////////////////////////////////////////////////////
 

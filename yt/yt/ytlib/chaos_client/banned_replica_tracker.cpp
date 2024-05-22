@@ -188,7 +188,7 @@ public:
             return result->GetValue();
         }
 
-        auto tracker = CreateBannedReplicaTracker(Logger.WithTag("TableId: %v", tableId));
+        auto tracker = CreateBannedReplicaTracker(Logger().WithTag("TableId: %v", tableId));
         TryInsert(New<TBannedReplicaTrackerCacheValue>(tableId, tracker));
 
         return tracker;

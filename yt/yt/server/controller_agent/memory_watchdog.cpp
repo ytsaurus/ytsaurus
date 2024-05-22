@@ -19,7 +19,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger MemoryWatchdogLogger("MemoryWatchdog");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, MemoryWatchdogLogger, "MemoryWatchdog");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ TMemoryWatchdog::TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TBootstrap* bo
         Bootstrap_->GetControlInvoker(),
         BIND(&TMemoryWatchdog::DoCheckMemoryUsage, MakeWeak(this)),
         Config_->MemoryUsageCheckPeriod))
-    , Logger(MemoryWatchdogLogger)
+    , Logger(MemoryWatchdogLogger())
 {
     MemoryCheckExecutor_->Start();
 }

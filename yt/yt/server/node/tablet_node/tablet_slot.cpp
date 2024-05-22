@@ -303,7 +303,7 @@ public:
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
             Format("TabletSnap/%v", slotIndex)))
-        , Logger(TabletNodeLogger)
+        , Logger(TabletNodeLogger())
         , SlotIndex_(slotIndex)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
@@ -898,7 +898,7 @@ private:
 
     NLogging::TLogger GetLogger() const
     {
-        return TabletNodeLogger.WithTag("CellId: %v, PeerId: %v",
+        return TabletNodeLogger().WithTag("CellId: %v, PeerId: %v",
             Occupant_->GetCellId(),
             Occupant_->GetPeerId());
     }

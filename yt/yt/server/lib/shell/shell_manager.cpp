@@ -293,7 +293,7 @@ private:
 
     int NextShellIndex_ = 1;
 
-    const NLogging::TLogger Logger = ShellLogger;
+    const NLogging::TLogger Logger = ShellLogger();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

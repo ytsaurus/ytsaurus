@@ -80,7 +80,7 @@ using NCypressServer::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableServerLogger;
+static constexpr auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,7 +127,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TableManager)
         , StatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
-            TableServerLogger,
+            TableServerLogger(),
             TableServerProfiler.WithPrefix("/table_statistics_gossip_throttler")))
     {
         RegisterLoader(
@@ -1483,7 +1483,7 @@ private:
         request.set_node_count(nodeCount);
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         YT_UNUSED_FUTURE(CreateMutation(hydraManager, request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void HydraSendTableStatisticsUpdates(NTableServer::NProto::TReqSendTableStatisticsUpdates* request)

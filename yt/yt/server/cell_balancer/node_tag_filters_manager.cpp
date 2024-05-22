@@ -9,7 +9,7 @@ namespace NYT::NCellBalancer {
 
 ///////////////////////////////////////////////////////////////
 
-static const auto& Logger = BundleControllerLogger;
+static constexpr auto& Logger = BundleControllerLogger;
 static constexpr bool LeaveNodesDecommissioned = true;
 static constexpr bool DoNotLeaveNodesDecommissioned = false;
 

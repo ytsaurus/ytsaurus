@@ -19,7 +19,7 @@ class TSequoiaReplicaInfo;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ChunkServerLogger("ChunkServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ChunkServerLogger, "ChunkServer");
 inline const NProfiling::TProfiler ChunkServerProfiler("/chunk_server");
 inline const NProfiling::TProfiler ChunkServerHistogramProfiler("/chunk_server/histograms");
 

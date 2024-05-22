@@ -32,7 +32,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TAdminServiceProxy::GetDescriptor(),
-            AdminLogger,
+            AdminLogger(),
             NullRealmId,
             std::move(authenticator))
         , CoreDumper_(std::move(coreDumper))

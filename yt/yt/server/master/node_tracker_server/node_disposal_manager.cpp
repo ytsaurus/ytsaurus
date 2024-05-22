@@ -39,7 +39,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = NodeTrackerServerLogger;
+static constexpr auto& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +91,7 @@ public:
                 // Even if acquiring semaphore failed, we still have to commit mutation.
                 YT_LOG_ALERT_UNLESS(guardOrError.IsOK(), guardOrError, "Failed to acquire node disposal semaphore");
 
-                Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger)));
+                Y_UNUSED(WaitFor(mutation->CommitAndLog(Logger())));
             })
             .Via(EpochAutomatonInvoker_));
     }
@@ -230,7 +230,7 @@ private:
             request,
             &TNodeDisposalManager::HydraFinishNodeDisposal,
             this);
-        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
     }
 
     void NodeDisposalTick()
@@ -322,7 +322,7 @@ private:
             this);
 
         if (sequoiaRequest->removed_chunks_size() == 0) {
-            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
             return;
         }
 
@@ -341,7 +341,7 @@ private:
                     return;
                 }
 
-                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
+                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
             }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
     }
 

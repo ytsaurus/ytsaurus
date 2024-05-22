@@ -87,7 +87,7 @@ public:
             BIND(&TMemberClient::OnHeartbeat, MakeWeak(this)),
             clientConfig->HeartbeatPeriod))
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(DiscoveryClientLogger.WithTag("GroupId: %v, MemberId: %v",
+        , Logger(DiscoveryClientLogger().WithTag("GroupId: %v, MemberId: %v",
             GroupId_,
             Id_))
         , AddressPool_(New<TServerAddressPool>(

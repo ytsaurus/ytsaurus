@@ -20,7 +20,7 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
     , Options_(options)
     , ReaderFactories_(std::move(readerFactories))
     , MultiReaderMemoryManager_(std::move(multiReaderMemoryManager))
-    , Logger(ChunkClientLogger.WithTag("MultiReaderId: %v", Id_))
+    , Logger(ChunkClientLogger().WithTag("MultiReaderId: %v", Id_))
     , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {

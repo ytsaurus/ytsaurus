@@ -10,8 +10,8 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger SecurityServerLogger("SecurityServer");
-inline const NLogging::TLogger AccessLogger("Access");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SecurityServerLogger, "SecurityServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, AccessLogger, "Access");
 inline const NProfiling::TProfiler SecurityProfiler("/security");
 
 ////////////////////////////////////////////////////////////////////////////////

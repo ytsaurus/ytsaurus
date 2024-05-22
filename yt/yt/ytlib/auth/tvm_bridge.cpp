@@ -25,7 +25,7 @@ public:
         TTvmBridgeConfigPtr config)
         : Invoker_(std::move(invoker))
         , Config_(std::move(config))
-        , Logger(TvmBridgeLogger)
+        , Logger(TvmBridgeLogger())
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TTvmBridge::RefreshTickets, MakeWeak(this)),

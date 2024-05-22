@@ -51,7 +51,7 @@ static const TString RootFSBinaryDirectory("/ext_bin/");
 static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 #endif
 
-static inline const NLogging::TLogger Logger("JobProxyEnvironment");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
 

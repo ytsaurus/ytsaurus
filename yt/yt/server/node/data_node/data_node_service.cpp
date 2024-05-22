@@ -166,7 +166,7 @@ public:
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
-            DataNodeLogger,
+            DataNodeLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Config_(config)

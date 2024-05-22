@@ -30,7 +30,7 @@ using namespace NNodeTrackerServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellServerLogger;
+static constexpr auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,7 +81,7 @@ public:
     {
         YT_VERIFY(node->IsCellarNode());
 
-        auto Logger = CellServerLogger
+        auto Logger = CellServerLogger()
             .WithTag("NodeId: %v", node->GetId())
             .WithTag("Address: %v", node->GetDefaultAddress());
 

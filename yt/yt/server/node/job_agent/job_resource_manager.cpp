@@ -52,7 +52,7 @@ using NNodeTrackerClient::NProto::TDiskResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger Logger("JobResourceManager");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "JobResourceManager");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1428,7 +1428,7 @@ TResourceHolder::TResourceHolder(
     const TJobResources& resources)
     : ResourcesConsumerType(resourceConsumerType)
     , Id_(id)
-    , Logger(NJobAgent::Logger.WithTag("ResourceHolderId: %v", id))
+    , Logger(NJobAgent::Logger().WithTag("ResourceHolderId: %v", id))
     , ResourceManagerImpl_(static_cast<TJobResourceManager::TImpl*>(jobResourceManager))
     , BaseResourceUsage_(resources)
     , AdditionalResourceUsage_(ZeroJobResources())
@@ -1761,7 +1761,7 @@ TResourceHolder::TAcquiredResources::TAcquiredResources(
 TResourceHolder::TAcquiredResources::~TAcquiredResources()
 {
     if (!std::empty(Ports)) {
-        JobResourceManagerImpl_->ReleasePorts(NJobAgent::Logger, Ports);
+        JobResourceManagerImpl_->ReleasePorts(NJobAgent::Logger(), Ports);
     }
 }
 

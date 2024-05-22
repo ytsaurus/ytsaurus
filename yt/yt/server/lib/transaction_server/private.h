@@ -10,7 +10,7 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TransactionServerLogger("TransactionServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TransactionServerLogger, "TransactionServer");
 inline const NProfiling::TProfiler TransactionServerProfiler("/transaction_server");
 
 ////////////////////////////////////////////////////////////////////////////////

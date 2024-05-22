@@ -25,7 +25,7 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = SecurityServerLogger;
+static constexpr auto& Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +120,7 @@ private:
 
             auto mutation = CreateMutation(hydraManager, request);
             mutation->SetAllowLeaderForwarding(true);
-            auto asyncMutationResult = mutation->CommitAndLog(Logger).AsVoid();
+            auto asyncMutationResult = mutation->CommitAndLog(Logger()).AsVoid();
 
             Reset();
 

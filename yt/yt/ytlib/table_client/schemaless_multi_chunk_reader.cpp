@@ -89,7 +89,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
+static constexpr auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1032,7 +1032,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         THROW_ERROR_EXCEPTION("Block sampling is not yet supported for sorted dynamic tables");
     }
 
-    auto Logger = TableClientLogger;
+    auto Logger = TableClientLogger();
     if (chunkReadOptions.ReadSessionId) {
         Logger.AddTag("ReadSessionId: %v", chunkReadOptions.ReadSessionId);
     }

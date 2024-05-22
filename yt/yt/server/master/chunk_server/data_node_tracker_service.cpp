@@ -32,7 +32,7 @@ public:
             bootstrap,
             TDataNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::DataNodeTrackerService,
-            ChunkServerLogger)
+            ChunkServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavy(true));

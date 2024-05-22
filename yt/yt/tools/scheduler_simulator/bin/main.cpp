@@ -292,7 +292,7 @@ protected:
 private:
     bool AllowDebugMode_ = false;
 
-    TLogger Logger = SchedulerSimulatorLogger;
+    TLogger Logger = SchedulerSimulatorLogger();
 
 
     void RunSimulation(const TSchedulerSimulatorConfigPtr& config)

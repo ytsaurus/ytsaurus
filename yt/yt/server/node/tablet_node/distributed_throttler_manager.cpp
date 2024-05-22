@@ -23,7 +23,7 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletNodeLogger;
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +124,7 @@ private:
             MemberId_,
             Bootstrap_->GetRpcServer(),
             BuildServiceAddress(GetLocalHostName(), Bootstrap_->GetConfig()->RpcPort),
-            TabletNodeLogger,
+            TabletNodeLogger(),
             Bootstrap_->GetNativeAuthenticator(),
             profiler);
     }

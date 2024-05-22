@@ -32,7 +32,7 @@ public:
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Default),
             TCoordinatorServiceProxy::GetDescriptor(),
-            ChaosNodeLogger,
+            ChaosNodeLogger(),
             slot->GetCellId(),
             CreateHydraManagerUpstreamSynchronizer(slot->GetHydraManager()),
             std::move(authenticator))

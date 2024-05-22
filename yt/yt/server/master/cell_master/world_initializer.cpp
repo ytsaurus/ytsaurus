@@ -76,7 +76,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellMasterLogger;
+static constexpr auto& Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1104,7 +1104,7 @@ private:
         return NYTree::ExecuteVerb(
             service,
             request,
-            ObjectServerLogger,
+            ObjectServerLogger(),
             NLogging::ELogLevel::Debug);
     }
 

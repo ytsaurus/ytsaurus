@@ -569,7 +569,7 @@ protected:
     {
         return New<TFairShareTreeAllocationScheduler>(
             /*treeId*/ "default",
-            StrategyLogger,
+            StrategyLogger(),
             std::move(host),
             FairShareTreeHostMock_.Get(),
             strategyHost,
@@ -589,7 +589,7 @@ protected:
             FairShareTreeElementHostMock_.Get(),
             TreeConfig_,
             "default",
-            SchedulerLogger);
+            SchedulerLogger());
     }
 
     TSchedulerPoolElementPtr CreateTestPool(ISchedulerStrategyHost* strategyHost, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
@@ -603,7 +603,7 @@ protected:
             /*defaultConfigured*/ true,
             TreeConfig_,
             "default",
-            SchedulerLogger);
+            SchedulerLogger());
     }
 
     TPoolConfigPtr CreateSimplePoolConfig(double strongGuaranteeCpu = 0.0, double weight = 1.0)
@@ -664,7 +664,7 @@ protected:
             FairShareTreeElementHostMock_.Get(),
             operation,
             "default",
-            SchedulerLogger);
+            SchedulerLogger());
 
         operationElement->AttachParent(parent, SlotIndex_++);
         parent->EnableChild(operationElement);
@@ -844,7 +844,7 @@ protected:
             /*schedulingInfoLoggingEnabled*/ true,
             strategyHost,
             /*scheduleAllocationsDeadlineReachedCounter*/ NProfiling::TCounter{},
-            SchedulerLogger);
+            SchedulerLogger());
 
         return TScheduleAllocationsContextWithDependencies{
             .SchedulingContext = std::move(schedulingContext),

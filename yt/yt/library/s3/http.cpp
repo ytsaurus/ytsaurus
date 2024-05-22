@@ -234,11 +234,11 @@ public:
             ? CreateSslContext()->CreateDialer(
                 config->Dialer,
                 std::move(poller),
-                S3Logger)
+                S3Logger())
             : CreateDialer(
                 config->Dialer,
                 std::move(poller),
-                S3Logger))
+                S3Logger()))
         , Invoker_(std::move(invoker))
     { }
 

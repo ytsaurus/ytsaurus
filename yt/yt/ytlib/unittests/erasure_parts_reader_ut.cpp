@@ -235,7 +235,7 @@ void ExecTest(TTestCase testCase)
         codec,
         chunkReadersList,
         testCase.RequestedPartIndices,
-        NChunkClient::ChunkClientLogger);
+        NChunkClient::ChunkClientLogger());
 
     auto readStart = Now();
     auto rowParts = reader->ReadRows(

@@ -70,7 +70,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -247,7 +247,7 @@ public:
         TEphemeralObjectPtr<TChunkOwnerBase> node,
         i64 configVersion,
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
-        : Logger(ChunkServerLogger.WithTag("NodeId: %v, AccountId: %v", node->GetId(), node->Account()->GetId()))
+        : Logger(ChunkServerLogger().WithTag("NodeId: %v, AccountId: %v", node->GetId(), node->Account()->GetId()))
         , Bootstrap_(bootstrap)
         , Node_(std::move(node))
         , NodeId_(Node_->GetId())
@@ -1045,7 +1045,7 @@ void TChunkMerger::StartMergeTransaction()
 
     NProto::TReqStartMergeTransaction request;
     YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
@@ -1208,7 +1208,7 @@ void TChunkMerger::ScheduleReplaceChunks(
     ToProto(request.mutable_chunk_list_id(), parentChunkListId);
 
     YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 void TChunkMerger::RegisterJobAwaitingChunkCreation(
@@ -1316,7 +1316,7 @@ void TChunkMerger::FinalizeSessions()
     }
 
     YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 bool TChunkMerger::CanAdvanceNodeInMergePipeline()
@@ -1469,7 +1469,7 @@ void TChunkMerger::CreateChunks()
     }
 
     YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), createChunksReq)
-        ->CommitAndLog(Logger));
+        ->CommitAndLog(Logger()));
 }
 
 bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMergeJobInfo& jobInfo)
@@ -1888,7 +1888,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         chunkListId,
         accountId);
 
-    TChunkReplacer chunkReplacer(ChunkReplacerCallbacks_, Logger);
+    TChunkReplacer chunkReplacer(ChunkReplacerCallbacks_, Logger());
     if (!chunkReplacer.FindChunkList(rootChunkList, chunkListId)) {
         YT_LOG_DEBUG(
             "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v, AccountId: %v)",

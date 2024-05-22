@@ -88,7 +88,7 @@ using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ControllerAgentLogger;
+static constexpr auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,9 +97,9 @@ TBootstrap::TBootstrap(TControllerAgentBootstrapConfigPtr config, INodePtr confi
     , ConfigNode_(std::move(configNode))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 

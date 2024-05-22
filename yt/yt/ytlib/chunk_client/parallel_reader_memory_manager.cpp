@@ -49,7 +49,7 @@ public:
             BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
             Options_.ProfilingPeriod))
         , Id_(TGuid::Create())
-        , Logger(ReaderMemoryManagerLogger.WithTag("ManagerId: %v", Id_))
+        , Logger(ReaderMemoryManagerLogger().WithTag("ManagerId: %v", Id_))
     {
         if (Options_.EnableProfiling) {
             ProfilingExecutor_->Start();

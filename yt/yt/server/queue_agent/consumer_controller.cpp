@@ -176,7 +176,7 @@ private:
         TCrossClusterReference queueRef,
         TQueueSnapshotConstPtr queueSnapshot)
     {
-        auto Logger = this->Logger.WithTag("Queue: %v", queueRef);
+        auto Logger = this->Logger().WithTag("Queue: %v", queueRef);
 
         YT_LOG_DEBUG("Building subconsumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
         auto logFinally = Finally([&] {
@@ -394,7 +394,7 @@ private:
             .HasCumulativeDataWeightColumn = true,
         };
 
-        auto result = WaitFor(NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger))
+        auto result = WaitFor(NQueueClient::CollectPartitionRowInfos(clientContext.Path, clientContext.Client, tabletAndRowIndices, params, Logger()))
             .ValueOrThrow();
 
         for (const auto& [tabletIndex, partitionInfo] : result) {
@@ -431,7 +431,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
+        , Logger(QueueAgentLogger().WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),

@@ -59,7 +59,7 @@ TOperationControllerImpl::TOperationControllerImpl(
     , Config_(std::move(config))
     , OperationId_(operation->GetId())
     , PreemptionMode_(operation->Spec()->PreemptionMode)
-    , Logger(SchedulerLogger.WithTag("OperationId: %v", OperationId_))
+    , Logger(SchedulerLogger().WithTag("OperationId: %v", OperationId_))
     , ControllerRuntimeData_(New<TControllerRuntimeData>())
 { }
 

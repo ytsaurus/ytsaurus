@@ -21,7 +21,7 @@ namespace NYT::NContainers {
 
 using namespace NProfiling;
 
-static const auto& Logger = ContainersLogger;
+static constexpr auto& Logger = ContainersLogger;
 
 #ifdef _linux_
 

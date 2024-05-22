@@ -25,7 +25,7 @@ using namespace NGpu;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = NJobAgent::JobAgentServerLogger;
+static constexpr auto& Logger = NJobAgent::JobAgentServerLogger;
 
 static const TString DevNvidiaPath("/dev/nvidia");
 static const TString DevPath("/dev");

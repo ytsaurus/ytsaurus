@@ -224,7 +224,7 @@ TOperationControllerBase::TOperationControllerBase(
     , SecureVault(operation->GetSecureVault())
     , UserTransactionId(operation->GetUserTransactionId())
     , Logger([&] {
-        auto logger = ControllerLogger;
+        auto logger = ControllerLogger();
         logger = logger.WithTag("OperationId: %v", OperationId);
         if (spec->EnableTraceLogging) {
             logger = logger.WithMinLevel(ELogLevel::Trace);
@@ -2286,7 +2286,7 @@ void TOperationControllerBase::BuildFeatureYson(TFluentAny fluent) const
 
 void TOperationControllerBase::CommitFeatures()
 {
-    LogStructuredEventFluently(ControllerFeatureStructuredLogger, NLogging::ELogLevel::Info)
+    LogStructuredEventFluently(ControllerFeatureStructuredLogger(), NLogging::ELogLevel::Info)
         .Item("operation_id").Value(ToString(GetOperationId()))
         .Item("start_time").Value(StartTime_)
         .Item("finish_time").Value(FinishTime_)
@@ -3871,11 +3871,11 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogConsumer_.get();
 }
 
-const TLogger* TOperationControllerBase::GetEventLogger()
+const NLogging::TLogger* TOperationControllerBase::GetEventLogger()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return &ControllerEventLogger;
+    return &ControllerEventLogger();
 }
 
 void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
@@ -6754,7 +6754,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
             Client,
             MakeUserObjectList(files),
             InputTransactions->GetNativeInputTransactionId(),
-            Logger.WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
+            Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
                 .PopulateSecurityTags = true

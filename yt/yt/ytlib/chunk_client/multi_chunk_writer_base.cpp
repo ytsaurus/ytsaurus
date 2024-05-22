@@ -54,7 +54,7 @@ TNontemplateMultiChunkWriterBase::TNontemplateMultiChunkWriterBase(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
-    : Logger(ChunkClientLogger)
+    : Logger(ChunkClientLogger())
     , SchemaId_(schemaId)
     , Client_(client)
     , Config_(config)

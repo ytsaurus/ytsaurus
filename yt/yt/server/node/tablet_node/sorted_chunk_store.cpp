@@ -923,7 +923,7 @@ private:
                 produceAllVersions,
                 chunk->BlockCache_,
                 /*testingOptions*/ std::nullopt,
-                TabletNodeLogger);
+                TabletNodeLogger());
 
             MaybeWrapUnderlyingReader(
                 chunk,

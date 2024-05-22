@@ -1272,7 +1272,7 @@ private:
             : Transaction_(transaction)
             , UpstreamReplicaId_(upstreamReplicaId)
             , ReplicationCard_(std::move(replicationCard))
-            , Logger(transaction->Logger.WithTag("Path: %v", path))
+            , Logger(transaction->Logger().WithTag("Path: %v", path))
         {
             const auto& tableMountCache = transaction->Client_->GetTableMountCache();
             auto tableInfoFuture = tableMountCache->GetTableInfo(path);

@@ -118,7 +118,7 @@ protected:
         StartDiagnosticDump(config);
 
         if (RemoteClusterProxy_) {
-            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, RpcProxyLogger);
+            auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, RpcProxyLogger());
             config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 

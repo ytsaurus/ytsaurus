@@ -26,7 +26,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueueAgentShardingManagerLogger;
+static constexpr auto& Logger = QueueAgentShardingManagerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,7 +170,7 @@ private:
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgentShardingManager"));
 
-        auto Logger = QueueAgentShardingManagerLogger.WithTag("PassIndex: %v", PassIndex_);
+        auto Logger = QueueAgentShardingManagerLogger().WithTag("PassIndex: %v", PassIndex_);
 
         YT_LOG_INFO("Pass started");
         auto logFinally = Finally([&] {

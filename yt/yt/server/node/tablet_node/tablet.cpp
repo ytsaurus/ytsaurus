@@ -674,7 +674,7 @@ TTablet::TTablet(
     , Context_(context)
     , LockManager_(New<TLockManager>())
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
-    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger().WithTag("TabletId: %v", Id_))
     , Settings_(TTableSettings::CreateNew())
 { }
 
@@ -714,7 +714,7 @@ TTablet::TTablet(
     , IdGenerator_(idGenerator)
     , LockManager_(New<TLockManager>())
     , HunkLockManager_(CreateHunkLockManager(this, Context_))
-    , Logger(TabletNodeLogger.WithTag("TabletId: %v", Id_))
+    , Logger(TabletNodeLogger().WithTag("TabletId: %v", Id_))
     , Settings_(std::move(settings))
     , Eden_(std::make_unique<TPartition>(
         this,

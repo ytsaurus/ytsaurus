@@ -42,8 +42,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger QueueBenchmarkLogger("QueueBenchmark");
-static const auto& Logger = QueueBenchmarkLogger;
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueBenchmarkLogger, "QueueBenchmark");
+static constexpr auto& Logger = QueueBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

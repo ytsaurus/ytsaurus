@@ -20,7 +20,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("TestMain");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TestMain");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +45,7 @@ public:
         : TServiceBase(
             invoker,
             TTestProxy::GetDescriptor(),
-            NGrpcTest::Logger)
+            NGrpcTest::Logger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(TestCall)
             .SetQueueSizeLimit(10000000));

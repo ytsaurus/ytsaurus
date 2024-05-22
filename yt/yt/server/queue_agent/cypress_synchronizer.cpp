@@ -27,7 +27,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressSynchronizerLogger;
+static constexpr auto& Logger = CypressSynchronizerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -798,7 +798,7 @@ public:
                 DynamicState_,
                 ClientDirectory_,
                 AlertCollector_,
-                Logger.WithTag("PassIndex: %v", PassIndex_))
+                Logger().WithTag("PassIndex: %v", PassIndex_))
                 .Build();
             PassError_ = TError();
         } catch (const std::exception& ex) {

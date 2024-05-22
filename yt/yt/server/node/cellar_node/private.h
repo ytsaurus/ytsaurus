@@ -10,7 +10,7 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger CellarNodeLogger("CellarNode");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, CellarNodeLogger, "CellarNode");
 inline const NProfiling::TProfiler CellarNodeProfiler("/cellar_node");
 
 ////////////////////////////////////////////////////////////////////////////////

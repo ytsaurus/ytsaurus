@@ -116,7 +116,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = NodeTrackerServerLogger;
+static constexpr auto& Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2168,7 +2168,7 @@ private:
 
         TReqSendNodeStates request;
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     void HydraSendNodeStates(NProto::TReqSendNodeStates* /*mutationRequest*/)
@@ -2275,7 +2275,7 @@ private:
 
         if (request.node_ids_size() != 0) {
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
     }
 

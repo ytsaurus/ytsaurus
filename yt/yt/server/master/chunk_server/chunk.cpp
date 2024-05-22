@@ -44,7 +44,7 @@ using NYT::FromProto;
 
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

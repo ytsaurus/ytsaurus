@@ -25,7 +25,7 @@ void PipeConnectionReaderToWriter(
     IConnectionWriterPtr writer,
     TConnectionId connectionId)
 {
-    auto Logger = TcpProxyLogger.WithTag("ConnectionId: %v", connectionId);
+    auto Logger = TcpProxyLogger().WithTag("ConnectionId: %v", connectionId);
 
     auto closeGuard = Finally([&] {
         // Fire and forget.
@@ -62,7 +62,7 @@ void HandleConnection(
     IInvokerPtr invoker)
 {
     auto connectionId = TGuid::Create();
-    auto Logger = TcpProxyLogger.WithTag("ConnectionId: %v", connectionId);
+    auto Logger = TcpProxyLogger().WithTag("ConnectionId: %v", connectionId);
 
     YT_LOG_DEBUG("Connection accepted (SourceAddress: %v, DestinationAddress: %v)",
         sourceConnection->RemoteAddress(),

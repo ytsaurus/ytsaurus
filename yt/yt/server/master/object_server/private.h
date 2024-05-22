@@ -10,7 +10,7 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger ObjectServerLogger("ObjectServer");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ObjectServerLogger, "ObjectServer");
 inline const NProfiling::TProfiler ObjectServerProfiler("/object_server");
 
 ////////////////////////////////////////////////////////////////////////////////

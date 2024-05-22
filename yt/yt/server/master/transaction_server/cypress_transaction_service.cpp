@@ -39,7 +39,7 @@ public:
             bootstrap,
             TCypressTransactionServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::CypressTransactionService,
-            TransactionServerLogger)
+            TransactionServerLogger())
         , TrackerInvoker_(bootstrap->GetHydraFacade()->GetTransactionTrackerInvoker())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)

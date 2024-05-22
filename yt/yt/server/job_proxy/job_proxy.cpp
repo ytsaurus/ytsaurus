@@ -179,14 +179,14 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
-    , Logger(JobProxyLogger.WithTag("OperationId: %v, JobId: %v",
+    , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 

@@ -164,7 +164,7 @@ public:
 private:
     static std::atomic<int> NbdServerCount_;
 
-    const NLogging::TLogger Logger = NbdLogger
+    const NLogging::TLogger Logger = NbdLogger()
         .WithTag("ServerId: %v", TGuid::Create());
 
     const TNbdServerConfigPtr Config_;
@@ -385,7 +385,7 @@ private:
 
             Device_ = Server_->GetDeviceOrThrow(name);
 
-            Logger = Logger.WithTag("DeviceName: %v", name);
+            Logger = Logger().WithTag("DeviceName: %v", name);
 
             auto flags =
                 ETransmissionFlags::NBD_FLAG_HAS_FLAGS |

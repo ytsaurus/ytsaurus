@@ -110,7 +110,7 @@ using TYPath = NYPath::TYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ObjectServerLogger;
+static constexpr auto& Logger = ObjectServerLogger;
 static const IObjectTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1948,7 +1948,7 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto context = CreateYPathContext(
         std::move(requestMessage),
-        ObjectServerLogger,
+        ObjectServerLogger(),
         NLogging::ELogLevel::Debug);
 
     auto identity = ParseAuthenticationIdentityFromProto(*request);
@@ -1982,7 +1982,7 @@ TFuture<void> TObjectManager::DestroyObjects(std::vector<TObjectId> objectIds)
     futures.reserve(2);
     if (!nonSequoiaRequest.object_ids().empty()) {
         futures.push_back(CreateDestroyObjectsMutation(nonSequoiaRequest)
-            ->CommitAndLog(Logger)
+            ->CommitAndLog(Logger())
             .AsVoid());
     }
     if (!sequoiaRequest->object_ids().empty()) {

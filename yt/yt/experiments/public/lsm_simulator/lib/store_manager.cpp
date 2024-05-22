@@ -269,7 +269,7 @@ TPartition* TStoreManager::FindPartition(TStore* store) const
 
 void TStoreManager::StartCompaction(TCompactionRequest request)
 {
-    auto Logger = NTesting::Logger.WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
+    auto Logger = NTesting::Logger().WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
         YT_LOG_INFO("Cannot compact partition since partition is missing");
@@ -397,7 +397,7 @@ void TStoreManager::FinishCompaction(
 
 void TStoreManager::StartPartitioning(TCompactionRequest request)
 {
-    auto Logger = NTesting::Logger.WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
+    auto Logger = NTesting::Logger().WithTag("PartitionId: %v, Reason: %v", request.PartitionId, request.Reason);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     YT_VERIFY(partition->IsEden());
     if (!partition) {
@@ -578,7 +578,7 @@ void TStoreManager::RotateStore(TRotateStoreRequest request)
 
 void TStoreManager::StartSplitPartition(TSplitPartitionRequest request)
 {
-    auto Logger = NTesting::Logger.WithTag("PartitionId: %v", request.PartitionId);
+    auto Logger = NTesting::Logger().WithTag("PartitionId: %v", request.PartitionId);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
         YT_LOG_INFO("Cannot split partition since partition is missing");
@@ -614,7 +614,7 @@ void TStoreManager::FinishSplitPartition(
     TSplitPartitionRequest request,
     std::vector<TNativeKey> pivots)
 {
-    auto Logger = NTesting::Logger.WithTag("PartitionId: %v", request.PartitionId);
+    auto Logger = NTesting::Logger().WithTag("PartitionId: %v", request.PartitionId);
     auto* partition = Tablet_->FindPartition(request.PartitionId);
     if (!partition) {
         YT_LOG_INFO("Cannot split partition since partition is missing");
@@ -673,7 +673,7 @@ void TStoreManager::FinishSplitPartition(
 
 void TStoreManager::MergePartitions(TMergePartitionsRequest request)
 {
-    auto Logger = NTesting::Logger.WithTag("PartitionIds: %v", request.PartitionIds);
+    auto Logger = NTesting::Logger().WithTag("PartitionIds: %v", request.PartitionIds);
 
     // Validation.
     {

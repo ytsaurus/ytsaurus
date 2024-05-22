@@ -18,7 +18,7 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     int nodeShardCount)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
-    , Logger(StrategyLogger.WithTag("OperationId: %v", OperationId_))
+    , Logger(StrategyLogger().WithTag("OperationId: %v", OperationId_))
     , Config_(config)
     , NodeShardCount_(nodeShardCount)
     , ScheduleAllocationControllerThrottlingBackoff_(

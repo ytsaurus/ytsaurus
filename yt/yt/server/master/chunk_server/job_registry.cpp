@@ -32,7 +32,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -303,7 +303,7 @@ private:
     {
         return CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
-            ChunkServerLogger,
+            ChunkServerLogger(),
             ChunkServerProfiler.WithPrefix("/job_throttler"));
     }
 
@@ -314,7 +314,7 @@ private:
             if (IsMasterJobType(jobType)) {
                 auto throttler = CreateReconfigurableThroughputThrottler(
                     New<TThroughputThrottlerConfig>(),
-                    ChunkServerLogger,
+                    ChunkServerLogger(),
                     ChunkServerProfiler.WithPrefix(Format("/per_type_job_throttler/%lv", jobType)));
                 EmplaceOrCrash(throttlers, jobType, std::move(throttler));
             }

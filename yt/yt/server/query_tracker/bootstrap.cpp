@@ -83,7 +83,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryTrackerLogger;
+static constexpr auto& Logger = QueryTrackerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,9 +92,9 @@ TBootstrap::TBootstrap(TQueryTrackerServerConfigPtr config, INodePtr configNode)
     , ConfigNode_(std::move(configNode))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 
@@ -136,7 +136,7 @@ void TBootstrap::DoRun()
         NativeConnection_,
         NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectory,
         /*staticClusterConnectionNode*/ nullptr,
-        Logger);
+        Logger());
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
 
@@ -152,7 +152,7 @@ void TBootstrap::DoRun()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    AlertManager_ = CreateAlertManager(QueryTrackerLogger, TProfiler{}, ControlInvoker_);
+    AlertManager_ = CreateAlertManager(QueryTrackerLogger(), TProfiler{}, ControlInvoker_);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);

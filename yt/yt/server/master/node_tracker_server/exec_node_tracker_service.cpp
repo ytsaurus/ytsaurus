@@ -30,7 +30,7 @@ public:
             bootstrap,
             TExecNodeTrackerServiceProxy::GetDescriptor(),
             EAutomatonThreadQueue::ExecNodeTrackerService,
-            NodeTrackerServerLogger)
+            NodeTrackerServerLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat)
             .SetHeavy(true));

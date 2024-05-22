@@ -54,7 +54,7 @@ TStoreManagerBase::TStoreManagerBase(
     , InMemoryManager_(std::move(inMemoryManager))
     , Client_(std::move(client))
     , StructuredLogger_(tablet->GetStructuredLogger())
-    , Logger(TabletNodeLogger)
+    , Logger(TabletNodeLogger())
 {
     YT_VERIFY(StructuredLogger_);
 

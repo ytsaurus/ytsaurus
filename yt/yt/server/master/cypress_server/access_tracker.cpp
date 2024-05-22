@@ -34,7 +34,7 @@ using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CypressServerLogger;
+static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +179,7 @@ void TAccessTracker::OnFlush()
 
         auto mutation = CreateMutation(hydraManager, request);
         mutation->SetAllowLeaderForwarding(true);
-        auto asyncResult = mutation->CommitAndLog(Logger).AsVoid();
+        auto asyncResult = mutation->CommitAndLog(Logger()).AsVoid();
         asyncResults.push_back(std::move(asyncResult));
     }
 
@@ -196,7 +196,7 @@ void TAccessTracker::OnFlush()
 
         auto mutation = CreateMutation(hydraManager, request);
         mutation->SetAllowLeaderForwarding(true);
-        auto asyncResult = mutation->CommitAndLog(Logger).AsVoid();
+        auto asyncResult = mutation->CommitAndLog(Logger()).AsVoid();
         asyncResults.push_back(std::move(asyncResult));
     }
 

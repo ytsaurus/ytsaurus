@@ -164,13 +164,13 @@ public:
             NObjectClient::TObjectServiceProxy::GetDescriptor(),
             // Execute method is being handled in RPC thread pool anyway.
             EAutomatonThreadQueue::ObjectService,
-            ObjectServerLogger)
+            ObjectServerLogger())
         , Config_(std::move(config))
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
         , Cache_(New<TObjectServiceCache>(
             Config_->MasterCache,
             GetNullMemoryUsageTracker(),
-            ObjectServerLogger,
+            ObjectServerLogger(),
             ObjectServerProfiler.WithPrefix("/object_service_cache")))
         , ProcessSessionsExecutor_(New<TPeriodicExecutor>(
             AutomatonInvoker_,
@@ -561,7 +561,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    const NLogging::TLogger& Logger = ObjectServerLogger;
+    const NLogging::TLogger& Logger = ObjectServerLogger();
 
 
     void GuardedRunRpc()
@@ -957,7 +957,7 @@ private:
 
         subrequest->RpcContext = CreateYPathContext(
             subrequest->RequestMessage,
-            ObjectServerLogger,
+            ObjectServerLogger(),
             NLogging::ELogLevel::Debug);
 
         if (mutating) {

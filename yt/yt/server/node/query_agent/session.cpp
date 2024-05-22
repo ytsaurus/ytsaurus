@@ -31,7 +31,7 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueryAgentLogger;
+static constexpr auto& Logger = QueryAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +133,7 @@ public:
             desiredUncompressedBlockSize,
             schema,
             false,
-            QueryAgentLogger);
+            QueryAgentLogger());
 
         bool ready = true;
         int rowCount = 0;

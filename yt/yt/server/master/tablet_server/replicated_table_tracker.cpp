@@ -84,7 +84,7 @@ using namespace NReplicatedTableTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TabletServerLogger;
+static constexpr auto& Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,7 +163,7 @@ public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            TabletServerLogger.WithTag("Cache: BundleHealth"))
+            TabletServerLogger().WithTag("Cache: BundleHealth"))
     { }
 
 protected:
@@ -191,7 +191,7 @@ public:
     explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
         : TAsyncExpiringCache(
             std::move(config),
-            TabletServerLogger.WithTag("Cache: ClusterLivenessCheck"))
+            TabletServerLogger().WithTag("Cache: ClusterLivenessCheck"))
     { }
 
 protected:

@@ -41,7 +41,7 @@
 
 namespace NYT::NHttpProxy {
 
-static const auto& Logger = HttpProxyLogger;
+static constexpr auto& Logger = HttpProxyLogger;
 
 using namespace NApi;
 using namespace NConcurrency;

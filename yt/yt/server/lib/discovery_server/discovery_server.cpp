@@ -43,7 +43,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TDiscoveryClientServiceProxy::GetDescriptor(),
-            DiscoveryServerLogger,
+            DiscoveryServerLogger(),
             NullRealmId,
             std::move(authenticator))
         , RpcServer_(std::move(rpcServer))
@@ -176,7 +176,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TDiscoveryServerServiceProxy::GetDescriptor(),
-            DiscoveryServerLogger,
+            DiscoveryServerLogger(),
             NullRealmId,
             std::move(authenticator))
         , RpcServer_(std::move(rpcServer))
@@ -241,7 +241,7 @@ public:
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , Logger(DiscoveryServerLogger.WithTag("SelfAddress: %v", SelfAddress_))
+        , Logger(DiscoveryServerLogger().WithTag("SelfAddress: %v", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(gossipInvoker),

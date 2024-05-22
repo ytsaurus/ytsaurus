@@ -10,7 +10,7 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const NLogging::TLogger TabletNodeLogger("TabletNode");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, TabletNodeLogger, "TabletNode");
 inline const NProfiling::TProfiler TabletNodeProfiler("/tablet_node");
 
 ////////////////////////////////////////////////////////////////////////////////

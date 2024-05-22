@@ -39,7 +39,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TBundleControllerServiceProxy::GetDescriptor(),
-            NCellBalancer::BundleControllerLogger,
+            NCellBalancer::BundleControllerLogger(),
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)

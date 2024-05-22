@@ -36,7 +36,7 @@ TBlobTableWriter::TBlobTableWriter(
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
-    , Logger(TableClientLogger.WithTag("TransactionId: %v, ChunkListId: %v",
+    , Logger(TableClientLogger().WithTag("TransactionId: %v, ChunkListId: %v",
         transactionId,
         chunkListId))
 {

@@ -53,7 +53,7 @@ public:
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicationCardId_(replicationCardId)
         , Connection_(std::move(localConnection))
-        , Logger(TabletNodeLogger
+        , Logger(TabletNodeLogger()
             .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
                 replicationCardId))

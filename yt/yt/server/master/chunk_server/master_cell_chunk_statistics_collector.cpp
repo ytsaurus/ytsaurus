@@ -25,7 +25,7 @@ using namespace NProto;
 
 using NYT::ToProto;
 
-static const auto& Logger = ChunkServerLogger;
+static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,7 +138,7 @@ protected:
             YT_UNUSED_FUTURE(CreateMutation(
                 Bootstrap_->GetHydraFacade()->GetHydraManager(),
                 TReqRecalculateMasterCellChunkStatistics{})
-                ->CommitAndLog(Logger));
+                ->CommitAndLog(Logger()));
         }
 
         // NB: It is important to start executor only after ScheduleScan() is
@@ -310,7 +310,7 @@ private:
         mutationRequest.set_last_batch(!ChunkScanner_.HasUnscannedChunk());
 
         YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), mutationRequest)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
 
         YT_LOG_DEBUG("Master cell chunk statistics updated (GlobalScanFinished: %v)",
             !ChunkScanner_.HasUnscannedChunk());

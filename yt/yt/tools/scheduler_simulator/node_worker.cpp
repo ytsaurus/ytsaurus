@@ -23,7 +23,7 @@ TSimulatorNodeWorker::TSimulatorNodeWorker(
     , Events_(events)
     , JobAndOperationCounter_(jobAndOperationCounter)
     , Invoker_(CreateSerializedInvoker(std::move(commonNodeWorkerInvoker)))
-    , Logger(SchedulerSimulatorLogger.WithTag("NodeWorkerId: %v", Id_))
+    , Logger(SchedulerSimulatorLogger().WithTag("NodeWorkerId: %v", Id_))
     , NodeShards_(nodeShards)
 { }
 

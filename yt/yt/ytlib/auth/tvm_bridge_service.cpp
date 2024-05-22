@@ -26,7 +26,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TTvmBridgeServiceProxy::GetDescriptor(),
-            TvmBridgeLogger,
+            TvmBridgeLogger(),
             NullRealmId,
             std::move(authenticator))
         , TvmService_(std::move(tvmService))

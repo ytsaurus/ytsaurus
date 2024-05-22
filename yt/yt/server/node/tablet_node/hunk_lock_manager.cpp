@@ -99,7 +99,7 @@ public:
         ITabletContext* context)
         : Tablet_(tablet)
         , Context_(context)
-        , Logger(TabletNodeLogger.WithTag("LockerTabletId: %v", tablet->GetId()))
+        , Logger(TabletNodeLogger().WithTag("LockerTabletId: %v", tablet->GetId()))
     { }
 
     void Initialize() override

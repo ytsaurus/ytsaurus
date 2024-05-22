@@ -9,7 +9,7 @@
 
 namespace NYT::NScheduler {
 
-static const auto& Logger = SchedulerLogger;
+static constexpr auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

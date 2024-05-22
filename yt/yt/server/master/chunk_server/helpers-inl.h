@@ -91,7 +91,7 @@ void AlertAndThrowOnInvalidLocationIndex(
     auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
 
     if (chunkInfo.location_index() >= locationDirectorySize) {
-        static const auto& Logger = ChunkServerLogger;
+        static constexpr auto& Logger = ChunkServerLogger;
         YT_LOG_ALERT(
             "Data node reported %v heartbeat with invalid location index "
             "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",

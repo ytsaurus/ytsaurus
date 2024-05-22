@@ -39,7 +39,7 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
         Invoker_,
         BIND(&TDynamicConfigManagerBase<TConfig>::DoUpdateConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
-    , Logger(DynamicConfigLogger.WithTag("DynamicConfigManagerName: %v", Options_.Name))
+    , Logger(DynamicConfigLogger().WithTag("DynamicConfigManagerName: %v", Options_.Name))
     , AppliedConfigNode_(BaseConfigNode_->AsMap())
 {
     AppliedConfig_ = New<TConfig>();

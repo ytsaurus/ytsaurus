@@ -26,8 +26,8 @@ using namespace NRpc::NBus;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger RpcBenchmarkLogger("RpcBenchmark");
-static const auto& Logger = RpcBenchmarkLogger;
+YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcBenchmarkLogger, "RpcBenchmark");
+static constexpr auto& Logger = RpcBenchmarkLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +50,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TEchoProxy::GetDescriptor(),
-            RpcBenchmarkLogger)
+            RpcBenchmarkLogger())
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Echo)
             .SetQueueSizeLimit(100'000'000));
