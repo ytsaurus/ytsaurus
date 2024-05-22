@@ -16,6 +16,10 @@
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -226,6 +230,10 @@ void TStoreManagerBase::RemoveStore(IStorePtr store)
     store->SetStoreState(EStoreState::Removed);
     StructuredLogger_->OnStoreStateChanged(store);
     Tablet_->RemoveStore(store);
+
+    if (store->IsChunk()) {
+        Client_->GetNativeConnection()->GetChunkReplicaCache()->DiscardChunk(store->AsChunk()->GetChunkId());
+    }
 }
 
 void TStoreManagerBase::BackoffStoreRemoval(IStorePtr store)

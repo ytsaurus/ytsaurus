@@ -247,10 +247,26 @@ public:
             if (entry.Future == future) {
                 entryGuard.Release();
                 Entries_.erase(it);
-                YT_LOG_DEBUG("Chunk replicas discarded (ChunkId: %v)",
+                YT_LOG_DEBUG("Chunk replicas discarded from replica cache (ChunkId: %v)",
                     chunkId);
                 DiscardsCounter_.Increment();
             }
+        }
+
+        CacheSizeGauge_.Update(Entries_.size());
+    }
+
+    void DiscardChunk(TChunkId chunkId) override
+    {
+        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+
+        auto mapGuard = WriterGuard(EntriesLock_);
+        auto it = Entries_.find(chunkId);
+        if (it != Entries_.end()) {
+            Entries_.erase(it);
+            YT_LOG_DEBUG("Chunk discarded from replica cache (ChunkId: %v)",
+                chunkId);
+            DiscardsCounter_.Increment();
         }
 
         CacheSizeGauge_.Update(Entries_.size());
