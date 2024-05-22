@@ -316,6 +316,10 @@ ru:
       to: /user-guide/dynamic-tables/resharding.md
       type: redirect
 
+    - from: /description/dynamic_tables/tablet-balancing.md
+      to: /user-guide/dynamic-tables/tablet-balancing.md
+      type: redirect
+
     - from: /description/dynamic_tables/sorted_dynamic_tables.md
       to: /user-guide/dynamic-tables/sorted-dynamic-tables.md
       type: redirect

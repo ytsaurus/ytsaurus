@@ -44,7 +44,7 @@
 Отдельные атрибуты динамической таблицы влияют на её поведение. В частности, с помощью отдельных атрибутов можно:
 - [настраивать фоновую компактификацию](../../../user-guide/dynamic-tables/compaction.md#attributes);
 - [устанавливать TTL](../../../user-guide/dynamic-tables/sorted-dynamic-tables.md#remove_old_data) — время жизни отдельных значений;
-- [управлять автоматическим шардированием](../../../user-guide/dynamic-tables/resharding.md#auto).
+- [управлять автоматическим шардированием](../../../user-guide/dynamic-tables/tablet-balancing.md).
 
 ## Ограничения  { #limitations }
 

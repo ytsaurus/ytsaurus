@@ -128,6 +128,8 @@ items:
           href: user-guide/dynamic-tables/transactions.md
         - name: Шардирование
           href: user-guide/dynamic-tables/resharding.md
+        - name: Автоматическое шардирование и балансировка таблиц
+          href: user-guide/dynamic-tables/tablet-balancing.md
         - name: Фоновая компактификация
           href: user-guide/dynamic-tables/compaction.md
         - name: MapReduce по динамическим таблицам
