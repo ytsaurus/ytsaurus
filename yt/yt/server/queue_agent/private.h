@@ -35,6 +35,7 @@ YT_DEFINE_ERROR_ENUM(
 
     ((QueueAgentQueueControllerStaticExportFailed)                (3035))
     ((QueueAgentQueueControllerTrimFailed)                        (3036))
+    ((QueueAgentQueueControllerStaticExportMisconfiguration)      (3037))
 
     ((QueueAgentShardingManagerPassFailed)                        (3050))
 );
@@ -125,6 +126,11 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 
 inline const TString NoneQueueAgentStage = "none";
 inline const TString NoneObjectType = "none";
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgress)
+DECLARE_REFCOUNTED_CLASS(TQueueExportProgress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
