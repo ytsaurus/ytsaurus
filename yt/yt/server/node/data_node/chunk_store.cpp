@@ -732,6 +732,10 @@ bool TChunkStore::CanStartNewSession(
         return false;
     }
 
+    if (location->GetSessionCount() >= location->GetSessionCountLimit()) {
+        return false;
+    }
+
     return true;
 }
 

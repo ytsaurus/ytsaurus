@@ -55,6 +55,8 @@ private:
         // This guard accounts memory usage before the block was written.
         TPendingIOGuard PendingIOGuard;
 
+        TLocationMemoryGuard LocationMemoryGuard;
+
         // This guard accounts memory usage after the block was written, but before block release.
         TMemoryUsageTrackerGuard MemoryUsageGuard;
     };
@@ -77,6 +79,7 @@ private:
     TFuture<NIO::TIOCounters> DoPerformPutBlocks(
         int startBlockIndex,
         std::vector<NChunkClient::TBlock> blocks,
+        std::vector<TLocationMemoryGuard> locationMemoryGuards,
         bool enableCaching);
     void OnBlocksWritten(
         int beginBlockIndex,
