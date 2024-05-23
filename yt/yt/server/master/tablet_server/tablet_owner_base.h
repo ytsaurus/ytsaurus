@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
+#include <yt/yt/server/lib/misc/assert_sizeof.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,7 +138,7 @@ private:
 };
 
 // Think twice before increasing this.
-static_assert(sizeof(TTabletOwnerBase) == 904);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 904);
 
 ////////////////////////////////////////////////////////////////////////////////
 

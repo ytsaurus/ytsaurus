@@ -16,6 +16,8 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
+#include <yt/yt/server/lib/misc/assert_sizeof.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -232,7 +234,7 @@ private:
 };
 
 // Think twice before increasing this.
-static_assert(sizeof(TTableNode) == 1016);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 1016);
 
 ////////////////////////////////////////////////////////////////////////////////
 

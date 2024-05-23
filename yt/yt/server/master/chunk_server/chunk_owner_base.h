@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_merger_traversal_info.h>
 
+#include <yt/yt/server/lib/misc/assert_sizeof.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -153,7 +155,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
 
 // Think twice before increasing this.
-static_assert(sizeof(TChunkOwnerBase) == 888);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkOwnerBase, 888);
 
 ////////////////////////////////////////////////////////////////////////////////
 

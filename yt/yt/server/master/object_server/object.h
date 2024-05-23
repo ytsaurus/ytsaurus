@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
+#include <yt/yt/server/lib/misc/assert_sizeof.h>
+
 #include <yt/yt/core/misc/pool_allocator.h>
 
 namespace NYT::NObjectServer {
@@ -19,7 +21,7 @@ struct TObjectDynamicData
 { };
 
 // Think twice before increasing this.
-static_assert(sizeof(TObjectDynamicData) == 4);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TObjectDynamicData, 4);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,7 +278,7 @@ protected:
 };
 
 // Think twice before increasing this.
-static_assert(sizeof(TObject) == 88);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TObject, 88);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/chunk_server/immutable_chunk_meta.h>
 
+#include <yt/yt/server/lib/misc/assert_sizeof.h>
+
 #include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
@@ -93,7 +95,7 @@ struct TChunkDynamicData
 };
 
 // Think twice before increasing this.
-static_assert(sizeof(TChunkDynamicData) == 144);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunkDynamicData, 144);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -530,7 +532,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 // Think twice before increasing this.
-static_assert(sizeof(TChunk) == 288);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 288);
 
 ////////////////////////////////////////////////////////////////////////////////
 
