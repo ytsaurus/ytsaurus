@@ -40,14 +40,11 @@ TYPathBase<Absolute, TUnderlying>::TYPathBase(const TString& path)
 template <bool Absolute, class TUnderlying>
 TString TYPathBase<Absolute, TUnderlying>::GetBaseName() const
 {
+    if (!Absolute && Path_.empty()) {
+        return TString{};
+    }
     auto offset = FindLastSegment();
     return NSequoiaClient::ToStringLiteral(TString(Path_.begin() + offset + 1, Path_.end()));
-}
-
-template <bool Absolute, class TUnderlying>
-bool TYPathBase<Absolute, TUnderlying>::IsEmpty() const
-{
-    return Path_.empty();
 }
 
 template <bool Absolute, class TUnderlying>
@@ -98,8 +95,27 @@ void TYPathBase<Absolute, TUnderlying>::Validate() const
 {
     for (auto ch : Path_) {
         if (IsForbiddenYPathSymbol(ch)) {
-            THROW_ERROR_EXCEPTION("Path contains forbidden symbol %Qv",
-                ch);
+            THROW_ERROR_EXCEPTION("Path contains forbidden symbol %Qv", ch);
+        }
+    }
+
+    if (Absolute) {
+        if (Path_.empty()) {
+            THROW_ERROR_EXCEPTION("YPath cannot be empty");
+        }
+
+        if (!(Path_.StartsWith("//") ||
+            Path_.StartsWith(NObjectClient::ObjectIdPathPrefix) ||
+            Path_ == "/"))
+        {
+            THROW_ERROR_EXCEPTION("Path %Qv does not start with a valid root-designator", Path_);
+        }
+    } else if (!Path_.empty()) {
+        NYPath::TTokenizer tokenizer(Path_);
+        tokenizer.Advance();
+        tokenizer.Skip(NYPath::ETokenType::Ampersand);
+        if (tokenizer.GetType() != NYPath::ETokenType::EndOfStream) {
+            tokenizer.Expect(NYPath::ETokenType::Slash);
         }
     }
 }
@@ -122,6 +138,12 @@ ptrdiff_t TYPathBase<Absolute, TUnderlying>::FindLastSegment() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
+bool TYPathBaseImpl<false, TUnderlying>::IsEmpty() const
+{
+    return TBase::Path_.empty();
+}
+
+template <class TUnderlying>
 TYPathBuf TYPathBaseImpl<false, TUnderlying>::GetDirPath() const
 {
     return TYPathBuf(TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
@@ -131,17 +153,6 @@ template <class TUnderlying>
 typename TYPathBaseImpl<false, TUnderlying>::TSegmentView TYPathBaseImpl<false, TUnderlying>::AsSegments() const
 {
     return TSegmentView(this);
-}
-
-template <class TUnderlying>
-void TYPathBaseImpl<false, TUnderlying>::Validate() const
-{
-    NYPath::TTokenizer tokenizer(TBase::Path_);
-    tokenizer.Advance();
-    tokenizer.Skip(NYPath::ETokenType::Ampersand);
-    tokenizer.Expect(NYPath::ETokenType::Slash);
-
-    TBase::Validate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,8 +170,6 @@ TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const
     NYPath::TTokenizer tokenizer(TBase::Path_);
     tokenizer.Advance();
     switch (tokenizer.GetType()) {
-        case NYPath::ETokenType::EndOfStream:
-            THROW_ERROR_EXCEPTION("YPath cannot be empty");
         case NYPath::ETokenType::Slash:
             return {TSlashRootDesignatorTag{}, TYPathBuf(tokenizer.GetSuffix())};
         case NYPath::ETokenType::Literal: {
@@ -183,20 +192,6 @@ TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const
             tokenizer.ThrowUnexpected();
     }
     Y_UNREACHABLE();
-}
-
-template <class TUnderlying>
-void TYPathBaseImpl<true, TUnderlying>::Validate() const
-{
-    if (TBase::Path_.StartsWith("//") ||
-        TBase::Path_.StartsWith(NObjectClient::ObjectIdPathPrefix) ||
-        TBase::Path_ == "/")
-    {
-        THROW_ERROR_EXCEPTION("YPath has no root designator")
-            << TErrorAttribute("path", TBase::Path_);
-    }
-
-    TBase::Validate();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

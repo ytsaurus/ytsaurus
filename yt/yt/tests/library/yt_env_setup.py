@@ -673,9 +673,10 @@ class YTEnvSetup(object):
             raise
 
     @classmethod
-    def _setup_cluster_configuration(cls, index, clusters):
+    def _setup_cluster_configuration(cls, index, clusters, driver=None):
         cluster_name = cls.get_cluster_name(index)
-        driver = yt_commands.get_driver(cluster=cluster_name)
+
+        driver = driver or yt_commands.get_driver(cluster=cluster_name)
         if driver is None:
             return
 
@@ -688,6 +689,17 @@ class YTEnvSetup(object):
         responses = yt_commands.execute_batch(requests, driver=driver)
         for response in responses:
             yt_commands.raise_batch_error(response)
+
+    @classmethod
+    def _on_sequoia_started(cls, cluster_index, driver=None):
+        clusters = {}
+        for instance in cls.combined_envs:
+            clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
+
+        cls._setup_cluster_configuration(cluster_index, clusters, driver=driver)
+        if cls.get_param("USE_SEQUOIA", cluster_index):
+            cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
+            cls._setup_sequoia_tables(cluster_index)
 
     @classmethod
     def start_envs(cls):
@@ -733,10 +745,12 @@ class YTEnvSetup(object):
         for env in cls.ground_envs:
             env.start()
 
-        cls.Env.start(on_masters_started_func=cls.on_masters_started)
+        cls.Env.start(
+            on_sequoia_started_func=lambda driver: cls._on_sequoia_started(cluster_index=0, driver=driver),
+            on_masters_started_func=cls.on_masters_started)
 
-        for env in cls.remote_envs:
-            env.start()
+        for index, env in enumerate(cls.remote_envs):
+            env.start(on_sequoia_started_func=lambda driver: cls._on_sequoia_started(cluster_index=index + 1, driver=driver))
 
         yt_commands.wait_drivers()
 
@@ -746,16 +760,6 @@ class YTEnvSetup(object):
             liveness_checker.start()
             cls.liveness_checkers.append(liveness_checker)
 
-        if len(cls.Env.configs["master"]) > 0:
-            clusters = {}
-            for instance in cls.combined_envs:
-                clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
-
-            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                cls._setup_cluster_configuration(cluster_index, clusters)
-                if cls.USE_SEQUOIA:
-                    cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
-
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
             sleep(1.0)
@@ -763,11 +767,6 @@ class YTEnvSetup(object):
         if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 11})
-
-        if cls.USE_SEQUOIA:
-            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                if cls.get_param("USE_SEQUOIA", cluster_index):
-                    cls.setup_sequoia_tables(cluster_index)
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -804,7 +803,7 @@ class YTEnvSetup(object):
             yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz", "rb").read())
 
     @classmethod
-    def setup_sequoia_tables(cls, cluster_index):
+    def _setup_sequoia_tables(cls, cluster_index):
         ground_driver = yt_sequoia_helpers.get_ground_driver(cluster=cls.get_cluster_name(cluster_index))
         if ground_driver is None:
             return

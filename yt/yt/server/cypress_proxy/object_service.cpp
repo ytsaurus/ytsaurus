@@ -112,11 +112,7 @@ private:
     {
         TSharedRefArray RequestMessage;
 
-        // Whether resolve cache predicted that request affects Sequoia.
-        bool PredictedSequoia = false;
-        // Whether master said that request affects Sequoia.
-        bool ForcedSequoia = false;
-        // Whether Sequoia said that request does not affect Sequoia.
+        // Whether Sequoia said that request should be handled by master.
         bool ForcedNonSequoia = false;
     };
     std::vector<TSubrequest> Subrequests_;
@@ -124,10 +120,9 @@ private:
     void GuardedRun()
     {
         ParseSubrequests();
-        PredictSequoia();
-        InvokeMasterRequests(/*firstRun*/ true);
+        PredictNonSequoia();
         InvokeSequoiaRequests();
-        InvokeMasterRequests(/*firstRun*/ false);
+        InvokeMasterRequests();
         Reply();
     }
 
@@ -151,40 +146,37 @@ private:
         }
     }
 
-    bool PredictSequoiaForSubrequest(const TSubrequest& subrequest)
+    bool PredictNonSequoiaForSubrequest(const TSubrequest& subrequest)
     {
-        // If this is a rootstock creation request - don't bother master with it.
         auto context = CreateSequoiaContext(subrequest.RequestMessage, /*transaction*/ nullptr);
-        if (IsCreateRootstockRequest(context)) {
+        auto method = context->GetMethod();
+
+        //! Such requests already contain the information about target cell inside the TReqExecute message.
+        if (method == "Fetch" ||
+            method == "BeginUpload" ||
+            method == "GetUploadParams" ||
+            method == "EndUpload")
+        {
             return true;
         }
-        // TODO(h0pless): Do something more smart when resolve cache will be implemented.
+
         return false;
     }
 
-    void PredictSequoia()
+    void PredictNonSequoia()
     {
         for (auto& subrequest : Subrequests_) {
-            subrequest.PredictedSequoia = PredictSequoiaForSubrequest(subrequest);
+            subrequest.ForcedNonSequoia = PredictNonSequoiaForSubrequest(subrequest);
         }
     }
 
-    // This function is called twice.
-    // During the first run, requests that are predicted to be non-Sequoia
-    // are sent to master.
-    // During the second run, requests that were rejected by Sequoia are
-    // send to master.
-    void InvokeMasterRequests(bool firstRun)
+    void InvokeMasterRequests()
     {
         const auto& request = RpcContext_->Request();
 
-        auto subrequestFilter = firstRun
-            ? [] (const TSubrequest& subrequest) { return !subrequest.PredictedSequoia; }
-            : [] (const TSubrequest& subrequest) { return subrequest.ForcedNonSequoia; };
-
         std::vector<int> subrequestIndices;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
-            if (subrequestFilter(Subrequests_[index])) {
+            if (Subrequests_[index].ForcedNonSequoia) {
                 subrequestIndices.push_back(index);
             }
         }
@@ -230,24 +222,17 @@ private:
         auto& response = RpcContext_->Response();
 
         int currentPartIndex = 0;
-        for (const auto& subresponseInfo : rsp->subresponses()) {
-            auto partCount = subresponseInfo.part_count();
-            TSharedRefArrayBuilder subresponseMessageBuilder(partCount);
+        for (const auto& subresponse : rsp->subresponses()) {
+            auto partCount = subresponse.part_count();
             auto partsRange = TRange<TSharedRef>(
                 rsp->Attachments().begin() + currentPartIndex,
                 rsp->Attachments().begin() + currentPartIndex + partCount);
             currentPartIndex += partCount;
-            for (const auto& part : partsRange) {
-                subresponseMessageBuilder.Add(part);
-            }
-            auto subresponseMessage = subresponseMessageBuilder.Finish();
-            if (CheckSubresponseError(subresponseMessage, NObjectClient::EErrorCode::RequestInvolvesSequoia)) {
-                auto index = subresponseInfo.index();
-                Subrequests_[index].ForcedSequoia = true;
-                continue;
-            }
 
-            response.add_subresponses()->CopyFrom(subresponseInfo);
+            auto* subresponseInfo = response.add_subresponses();
+            auto index = subrequestIndices[subresponse.index()];
+            subresponseInfo->set_index(index);
+            subresponseInfo->set_part_count(partCount);
             response.Attachments().insert(
                 response.Attachments().end(),
                 partsRange.begin(),
@@ -262,28 +247,30 @@ private:
 
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
-            if (subrequest.PredictedSequoia || subrequest.ForcedSequoia) {
-                const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
-                auto rspFuture = ExecuteVerb(
-                    sequoiaService,
-                    subrequest.RequestMessage,
-                    client,
-                    CypressProxyLogger());
-                auto rsp = WaitFor(rspFuture)
-                    .ValueOrThrow();
-                if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
-                    Subrequests_[index].ForcedNonSequoia = true;
-                    continue;
-                }
-
-                auto* subresponseInfo = response.add_subresponses();
-                subresponseInfo->set_index(index);
-                subresponseInfo->set_part_count(rsp.size());
-                response.Attachments().insert(
-                    response.Attachments().end(),
-                    rsp.Begin(),
-                    rsp.End());
+            if (subrequest.ForcedNonSequoia) {
+                continue;
             }
+
+            const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
+            auto rspFuture = ExecuteVerb(
+                sequoiaService,
+                subrequest.RequestMessage,
+                client,
+                CypressProxyLogger());
+            auto rsp = WaitFor(rspFuture)
+                .ValueOrThrow();
+            if (CheckSubresponseError(rsp, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
+                subrequest.ForcedNonSequoia = true;
+                continue;
+            }
+
+            auto* subresponseInfo = response.add_subresponses();
+            subresponseInfo->set_index(index);
+            subresponseInfo->set_part_count(rsp.size());
+            response.Attachments().insert(
+                response.Attachments().end(),
+                rsp.Begin(),
+                rsp.End());
         }
     }
 

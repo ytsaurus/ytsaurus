@@ -81,7 +81,11 @@ class TestCypress(YTEnvSetup):
             set("a", 20)
 
         # path starting with single /
-        with raises_yt_error("Expected \"slash\" in YPath but found \"literal\""):
+        if self.USE_SEQUOIA:
+            error_message = "Path \"/a\" does not start with a valid root-designator"
+        else:
+            error_message = "Expected \"slash\" in YPath but found \"literal\""
+        with raises_yt_error(error_message):
             set("/a", 20)
 
         # empty path

@@ -21,15 +21,12 @@ template <bool Absolute, class TUnderlying>
 class TYPathBase
 {
 public:
-    TYPathBase() = default;
     explicit TYPathBase(TStringBuf path);
     explicit TYPathBase(const char* path);
     explicit TYPathBase(const TString& path);
 
     //! Returns the last path segment.
     TString GetBaseName() const;
-
-    [[nodiscard]] bool IsEmpty() const;
 
     //! Returns formatted path with escaping of special characters.
     TString ToString() const;
@@ -49,7 +46,7 @@ public:
 protected:
     TUnderlying Path_;
 
-    virtual void Validate() const;
+    void Validate() const;
     ptrdiff_t FindLastSegment() const;
 };
 
@@ -63,6 +60,10 @@ class TYPathBaseImpl<false, TUnderlying>
     : public TYPathBase<false, TUnderlying>
 {
 public:
+    TYPathBaseImpl() = default;
+
+    [[nodiscard]] bool IsEmpty() const;
+
     using TBase = TYPathBase<false, TUnderlying>;
 
     using TBase::TBase;
@@ -73,9 +74,6 @@ public:
     //! Allows iteration over path segments, omitting directory separators.
     class TSegmentView;
     TSegmentView AsSegments() const;
-
-private:
-    void Validate() const override final;
 };
 
 template <class TUnderlying>
@@ -93,9 +91,6 @@ public:
     //! Returns the root designator, throws if path does not contain any.
     //! Validates GUID in case of object root designator.
     std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const;
-
-private:
-    void Validate() const override final;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

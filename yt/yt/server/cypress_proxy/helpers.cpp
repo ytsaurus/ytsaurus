@@ -100,7 +100,7 @@ TFuture<TSharedRefArray> ExecuteVerb(
     TIntrusivePtr<TSequoiaServiceContext> context;
     try {
         auto transaction = WaitFor(StartCypressProxyTransaction(client))
-            .ValueOrThrow();;
+            .ValueOrThrow();
 
         context = CreateSequoiaContext(
             requestMessage,

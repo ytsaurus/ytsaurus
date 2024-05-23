@@ -462,7 +462,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
             type);
     }
 
-    TYPath unresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
     if (unresolvedSuffixTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -564,7 +564,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Invalid number of additional paths");
     }
 
-    TAbsoluteYPathBuf originalSourcePath(ypathExt.additional_paths(0));
+    auto originalSourcePath = TAbsoluteYPathBuf(ypathExt.additional_paths(0));
     auto options = FromProto<TCopyOptions>(*request);
 
     // These are handled on cypress proxy and are not needed on master.
@@ -642,7 +642,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
     }
 
     // Validate there are no duplicate or missing destination nodes.
-    TYPath unresolvedDestinationSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedDestinationSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
     if (destinationSuffixDirectoryTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -824,9 +824,10 @@ private:
 
         void OnMyBeginMap() override
         {
+            YT_ASSERT(ParentPath_);
             auto nodeId = CreateNode(EObjectType::SequoiaMapNode);
             AddNode(nodeId, true);
-            ParentPath_.Append(ChildKey_);
+            ParentPath_->Append(ChildKey_);
         }
 
         void OnMyKeyedItem(TStringBuf key) override
@@ -836,7 +837,7 @@ private:
 
         void OnMyEndMap() override
         {
-            ParentPath_ = TAbsoluteYPath(ParentPath_.GetDirPath());
+            *ParentPath_ = TAbsoluteYPath(ParentPath_->GetDirPath());
             NodeStack_.pop();
         }
 
@@ -848,14 +849,15 @@ private:
     private:
         const TMapLikeNodeProxy* Owner_;
         TString ChildKey_;
-        TAbsoluteYPath ParentPath_;
+        std::optional<TAbsoluteYPath> ParentPath_;
         TNodeId ResultNodeId_;
         std::stack<std::pair<TString, TNodeId>> NodeStack_;
 
         TNodeId CreateNode(EObjectType type)
         {
+            YT_ASSERT(ParentPath_);
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
-            NCypressProxy::CreateNode(type, nodeId, YPathJoin(ParentPath_, ChildKey_), Owner_->Transaction_);
+            NCypressProxy::CreateNode(type, nodeId, YPathJoin(*ParentPath_, ChildKey_), Owner_->Transaction_);
             return nodeId;
         }
 
@@ -1207,7 +1209,7 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
         limit,
         attributeFilter);
 
-    TYPath unresolvedSuffix(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
     if (auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
         !unresolvedSuffixTokens.empty())
     {
@@ -1238,53 +1240,6 @@ DEFINE_YPATH_SERVICE_METHOD(TMapLikeNodeProxy, List)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkOwnerNodeSequoiaProxy
-    : public TNodeProxyBase
-{
-public:
-    using TNodeProxyBase::TNodeProxyBase;
-
-private:
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, BeginUpload);
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
-    DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, GetUploadParams);
-
-    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
-    {
-        DISPATCH_YPATH_SERVICE_METHOD(BeginUpload);
-        DISPATCH_YPATH_SERVICE_METHOD(EndUpload);
-        DISPATCH_YPATH_SERVICE_METHOD(GetUploadParams);
-
-        return TNodeProxyBase::DoInvoke(context);
-    }
-};
-
-DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, BeginUpload)
-{
-    context->SetRequestInfo();
-    auto newRequest = TChunkOwnerYPathProxy::BeginUpload();
-    newRequest->CopyFrom(*request);
-    ForwardRequest(std::move(newRequest), response, context);
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, EndUpload)
-{
-    context->SetRequestInfo();
-    auto newRequest = TChunkOwnerYPathProxy::EndUpload();
-    newRequest->CopyFrom(*request);
-    ForwardRequest(std::move(newRequest), response, context);
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeSequoiaProxy, GetUploadParams)
-{
-    context->SetRequestInfo();
-    auto newRequest = TChunkOwnerYPathProxy::GetUploadParams();
-    newRequest->CopyFrom(*request);
-    ForwardRequest(std::move(newRequest), response, context);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 ISequoiaServicePtr CreateNodeProxy(
     IBootstrap* bootstrap,
     ISequoiaTransactionPtr transaction,
@@ -1296,8 +1251,6 @@ ISequoiaServicePtr CreateNodeProxy(
 
     if (IsSequoiaCompositeNodeType(type)) {
         return New<TMapLikeNodeProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
-    } else if (IsChunkOwnerType(type)) {
-        return New<TChunkOwnerNodeSequoiaProxy>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     } else {
         return New<TNodeProxyBase>(bootstrap, id, std::move(resolvedPath), std::move(transaction));
     }
