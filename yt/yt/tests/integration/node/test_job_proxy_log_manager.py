@@ -2,10 +2,33 @@ from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
 from yt_commands import (
     run_test_vanilla, with_breakpoint, wait_breakpoint, authors, release_breakpoint,
-    update_nodes_dynamic_config)
+    update_nodes_dynamic_config, wait, update)
 
 import os.path
-import time
+
+BASE_NODE_CONFIG = {
+    "exec_node": {
+        "job_controller": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+        "job_proxy": {
+            "job_proxy_logging": {
+                "mode": "per_job_directory",
+            },
+        },
+    },
+    "job_resource_manager": {
+        "resource_limits": {
+            "user_slots": 5,
+            "cpu": 5,
+            "memory": 5 * 1024 ** 3,
+        }
+    },
+}
 
 
 class TestJobProxyLogManagerBase(YTEnvSetup):
@@ -30,32 +53,16 @@ class TestJobProxyLogManagerBase(YTEnvSetup):
 
 
 class TestJobProxyLogManager(TestJobProxyLogManagerBase):
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-            "job_proxy": {
-                "job_proxy_logging": {
-                    "mode": "per_job_directory",
+    DELTA_NODE_CONFIG = update(
+        BASE_NODE_CONFIG,
+        {
+            "exec_node": {
+                "job_proxy_log_manager": {
+                    "logs_storage_period": "1s",
                 },
             },
-            "job_proxy_log_manager": {
-                "logs_storage_period": "1s",
-            },
-        },
-        "job_resource_manager": {
-            "resource_limits": {
-                "user_slots": 5,
-                "cpu": 5,
-                "memory": 5 * 1024 ** 3,
-            }
-        },
-    }
+        }
+    )
 
     @authors("tagirhamitov")
     def test_removing_logs(self):
@@ -71,10 +78,8 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
         for job_id in job_ids:
             assert self.job_proxy_log_exists(job_id)
 
-        time.sleep(1.2)
-
         for job_id in job_ids:
-            assert not self.job_proxy_log_exists(job_id)
+            wait(lambda: not self.job_proxy_log_exists(job_id))
 
     @authors("tagirhamitov")
     def test_removing_logs_on_start(self):
@@ -91,41 +96,14 @@ class TestJobProxyLogManager(TestJobProxyLogManagerBase):
             assert self.job_proxy_log_exists(job_id)
 
         with Restarter(self.Env, NODES_SERVICE):
-            time.sleep(1.2)
-
-        time.sleep(0.2)
+            pass
 
         for job_id in job_ids:
-            assert not self.job_proxy_log_exists(job_id)
+            wait(lambda: not self.job_proxy_log_exists(job_id))
 
 
 class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
-    DELTA_NODE_CONFIG = {
-        "exec_node": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 5,
-                    "cpu": 5,
-                    "memory": 5 * 1024 ** 3,
-                }
-            },
-            "job_proxy": {
-                "job_proxy_logging": {
-                    "mode": "per_job_directory",
-                },
-            },
-            "job_proxy_log_manager": {
-                "logs_storage_period": "60s",
-            },
-        },
-        "job_resource_manager": {
-            "resource_limits": {
-                "user_slots": 5,
-                "cpu": 5,
-                "memory": 5 * 1024 ** 3,
-            }
-        },
-    }
+    DELTA_NODE_CONFIG = BASE_NODE_CONFIG
 
     @authors("tagirhamitov")
     def test_dynamic_config(self):
@@ -153,7 +131,5 @@ class TestJobProxyLogManagerDynamicConfig(TestJobProxyLogManagerBase):
 
         assert self.job_proxy_log_exists(job_id_2)
 
-        time.sleep(1.2)
-
+        wait(lambda: not self.job_proxy_log_exists(job_id_2))
         assert self.job_proxy_log_exists(job_id_1)
-        assert not self.job_proxy_log_exists(job_id_2)
