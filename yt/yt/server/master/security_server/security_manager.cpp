@@ -549,7 +549,6 @@ public:
                 BIND_NO_PROPAGATE(&TSecurityManager::OnSecondaryMasterRegisteredAtPrimary, MakeWeak(this)));
         }
 
-        static constexpr int AccountProfilingProducerCount = 10;
         AccountProfilingProducers_.reserve(AccountProfilingProducerCount);
         for (auto i = 0; i < AccountProfilingProducerCount; ++i) {
             auto& producer = AccountProfilingProducers_.emplace_back(New<TBufferedProducer>());
@@ -576,7 +575,6 @@ public:
         }
 
         std::vector<TSensorBuffer> buffers(std::ssize(AccountProfilingProducers_));
-        auto bufferIndex = -1;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto [accountId, account] : Accounts()) {
@@ -590,7 +588,10 @@ public:
                 continue;
             }
 
-            bufferIndex = ++bufferIndex % std::ssize(buffers);
+            // NB: account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
+            // to report outdated values. The worst part is that outdated and current values will get added up.
+            // On the other note, the distribution is not quite uniform, but it does not matter here.
+            auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
             auto& buffer = buffers[bufferIndex];
 
             TWithTagGuard accountTag(&buffer, "account", account->GetName());

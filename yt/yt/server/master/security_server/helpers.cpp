@@ -143,6 +143,11 @@ int GetAccountShardIndex(TAccountId accountId)
     return GetShardIndex<AccountShardCount>(accountId);
 }
 
+int GetAccountProfilingBucketIndex(TAccountId accountId)
+{
+    return (EntropyFromId(accountId) / AccountShardCount) % AccountProfilingProducerCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
