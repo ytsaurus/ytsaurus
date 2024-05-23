@@ -9,10 +9,9 @@ TRow WidenKeySuccessor(TRow key, size_t prefix, const TRowBufferPtr& rowBuffer, 
     auto wideKey = rowBuffer->AllocateUnversioned(prefix + 1);
 
     for (ui32 index = 0; index < prefix; ++index) {
-        wideKey[index] = key[index];
-        if (captureValues) {
-            wideKey[index] = rowBuffer->CaptureValue(wideKey[index]);
-        }
+        wideKey[index] = captureValues
+            ? rowBuffer->CaptureValue(key[index])
+            : key[index];
     }
 
     wideKey[prefix] = MakeUnversionedSentinelValue(EValueType::Max);

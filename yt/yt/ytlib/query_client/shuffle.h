@@ -16,8 +16,7 @@ struct TShufflePart
 
 THashMap<TString, TShufflePart> Shuffle(
     const TShuffleNavigator& shuffleNavigator,
-    TRange<TRow> rows,
-    int prefixHint);
+    TRange<TRow> rows);
 
 ////////////////////////////////////////////////////////////////////////////////
 
