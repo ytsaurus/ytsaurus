@@ -278,15 +278,15 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     TFetchInputTablesStatistics fetchStatistics;
 
     auto chunkSliceSizeFetcher = New<TChunkSliceSizeFetcher>(
-        Config->Fetcher,
+        Host_->GetConfig()->Fetcher,
         InputNodeDirectory_,
-        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
         /*chunkScraper*/ CreateFetcherChunkScraper(),
-        InputClient,
+        Client_,
         Logger);
 
-    if (auto error = Host_->GetUseChunkSliceStatisticsError(); Spec_->UseChunkSliceStatistics && !error.IsOK()) {
-        SetOperationAlert(EOperationAlertType::UseChunkSliceStatisticsDisabled, error);
+    if (auto error = Host_->GetUseChunkSliceStatisticsError(); Host_->GetSpec()->UseChunkSliceStatistics && !error.IsOK()) {
+        Host_->SetOperationAlert(EOperationAlertType::UseChunkSliceStatisticsDisabled, error);
         chunkSliceSizeFetcher = nullptr;
     }
 
@@ -343,7 +343,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             }
             RegisterInputChunk(table->Chunks.back());
 
-            bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+            bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
 
             // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
             // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
@@ -353,7 +353,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 chunkSliceSizeFetcher &&
                 !table->IsVersioned() &&
                 !inputChunk->IsCompleteChunk() &&
-                Spec_->UseChunkSliceStatistics;
+                Host_->GetSpec()->UseChunkSliceStatistics;
             if (willFetchChunkSliceStatistics) {
                 YT_VERIFY(!inputChunk->IsFile());
 
@@ -371,7 +371,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             if (!shouldSkipChunkInFetchers &&
                 !willFetchChunkSliceStatistics &&
                 hasColumnSelectors &&
-                Spec_->InputTableColumnarStatistics->Enabled.value_or(Config->UseColumnarStatisticsDefault))
+                Host_->GetSpec()->InputTableColumnarStatistics->Enabled.value_or(Host_->GetConfig()->UseColumnarStatisticsDefault))
             {
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
@@ -402,7 +402,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
     if (chunkSliceSizeFetcher && chunkSliceSizeFetcher->GetChunkCount() > 0) {
         YT_LOG_INFO("Fetching input chunk slice statistics for input tables (ChunkCount: %v)",
             chunkSliceSizeFetcher->GetChunkCount());
-        chunkSliceSizeFetcher->SetCancelableContext(GetCancelableContext());
+        chunkSliceSizeFetcher->SetCancelableContext(Host_->GetCancelableContext());
         WaitFor(chunkSliceSizeFetcher->Fetch())
             .ThrowOnError();
         YT_LOG_INFO("Input chunk slice statistics fetched");

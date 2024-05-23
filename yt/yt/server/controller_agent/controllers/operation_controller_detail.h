@@ -733,7 +733,7 @@ protected:
     bool TryInitAutoMerge(int outputChunkCountEstimate);
 
     //! If fetching chunk slice statistics is not possible for the operation, returns an error with a reason.
-    virtual TError GetUseChunkSliceStatisticsError() const;
+    TError GetUseChunkSliceStatisticsError() const override;
 
     //! Return stream descriptors adjusted according to existing auto-merge tasks.
     std::vector<TOutputStreamDescriptorPtr> GetAutoMergeStreamDescriptors();
