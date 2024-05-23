@@ -851,7 +851,7 @@ private:
             });
 
             subreaderCreators.push_back([=, this, groupedSplit = std::move(groupedSplit)] {
-                size_t rangesCount = std::accumulate(
+                size_t rangeCount = std::accumulate(
                     groupedSplit.begin(),
                     groupedSplit.end(),
                     0,
@@ -860,7 +860,7 @@ private:
                     });
                 YT_LOG_DEBUG("Generating reader for %v splits from %v ranges",
                     groupedSplit.size(),
-                    rangesCount);
+                    rangeCount);
 
                 LogSplits(groupedSplit);
 
@@ -994,7 +994,7 @@ private:
             }
         }
 
-        size_t rangesCount = 0;
+        size_t rangeCount = 0;
         size_t keysCount = 0;
         for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
@@ -1002,7 +1002,7 @@ private:
 
             auto pushRanges = [&] {
                 if (!rowRanges.empty()) {
-                    rangesCount += rowRanges.size();
+                    rangeCount += rowRanges.size();
                     classifiedDataSources.push_back(TDataSource{
                         .ObjectId = source.ObjectId,
                         .CellId = source.CellId,
@@ -1058,8 +1058,8 @@ private:
             pushKeys();
         }
 
-        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)",
-            rangesCount,
+        YT_LOG_DEBUG("Splitting ranges (RangeCount: %v, KeyCount: %v)",
+            rangeCount,
             keysCount);
 
         return classifiedDataSources;

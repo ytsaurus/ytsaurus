@@ -36,7 +36,7 @@ private:
     struct TSchemafulRowsetWriterBufferTag
     { };
 
-    TPromise<TSharedRange<NTableClient::TUnversionedRow>> Result_ = NewPromise<TSharedRange<NTableClient::TUnversionedRow>>();
+    const TPromise<TSharedRange<NTableClient::TUnversionedRow>> Result_ = NewPromise<TSharedRange<NTableClient::TUnversionedRow>>();
     const NTableClient::TRowBufferPtr RowBuffer_;
     std::vector<NTableClient::TUnversionedRow> Rows_;
 };
