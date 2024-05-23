@@ -311,7 +311,7 @@ class TestRacks(YTEnvSetup):
 
         assert self._get_max_replicas_per_rack(mapping, chunk_id) <= 1
 
-    @authors("babenko", "danilalexeev")
+    @authors("danilalexeev")
     def test_journals_with_degraded_racks(self):
         set("//sys/media/default/@config/max_replicas_per_rack", 2)
 
@@ -334,6 +334,8 @@ class TestRacks(YTEnvSetup):
             write_journal("//tmp/j", self.JOURNAL_DATA, journal_writer={
                 "open_session_backoff_time": 100,
             })
+
+        wait_until_sealed("//tmp/j")
 
         set("//sys/@config/chunk_manager/force_rack_awareness_for_erasure_parts", False)
 
