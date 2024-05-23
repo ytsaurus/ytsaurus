@@ -3666,13 +3666,19 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareYsonValuesHelper(const char* lhsOffset, int lhsLength, const char* rhsOffset, int rhsLength)
+int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
 {
     auto* lhs = ConvertPointerFromWasmToHost(lhsOffset, lhsLength);
     auto* rhs = ConvertPointerFromWasmToHost(rhsOffset, rhsLength);
     return NYT::NTableClient::CompareYsonValues(
         TYsonStringBuf(TStringBuf(lhs, lhsLength)),
         TYsonStringBuf(TStringBuf(rhs, rhsLength)));
+}
+
+ui64 HashYsonValueHelper(const char* dataOffset, ui32 length)
+{
+    auto* data = ConvertPointerFromWasmToHost(dataOffset, length);
+    return NYT::NTableClient::CompositeFarmHash(TYsonStringBuf(TStringBuf(data, length)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3872,6 +3878,7 @@ REGISTER_ROUTINE(LikeOpHelper);
 REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 REGISTER_ROUTINE(DictSumIteration);
 REGISTER_ROUTINE(CompareYsonValuesHelper);
+REGISTER_ROUTINE(HashYsonValueHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
