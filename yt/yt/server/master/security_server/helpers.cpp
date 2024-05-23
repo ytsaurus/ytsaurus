@@ -145,7 +145,7 @@ int GetAccountShardIndex(TAccountId accountId)
 
 int GetAccountProfilingBucketIndex(TAccountId accountId)
 {
-    return (EntropyFromId(accountId) / AccountShardCount) % AccountProfilingProducerCount;
+    return (HashFromId(accountId) / AccountShardCount) % AccountProfilingProducerCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
