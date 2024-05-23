@@ -198,7 +198,6 @@ public:
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
         bool produceAllVersions,
-        const TSharedRange<TRowRange>& singletonClippingRange,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         IInvokerPtr sessionInvoker,
         TKeyFilterStatisticsPtr keyFilterStatistics)
@@ -217,7 +216,6 @@ public:
             schemaIdMapping)
         , KeyFilterStatistics_(std::move(keyFilterStatistics))
         , Ranges_(std::move(ranges))
-        , ClippingRange_(singletonClippingRange)
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
 
@@ -323,7 +321,6 @@ private:
     TKeyFilterStatisticsPtr KeyFilterStatistics_;
     std::vector<size_t> BlockIndexes_;
     TSharedRange<TRowRange> Ranges_;
-    TSharedRange<TRowRange> ClippingRange_;
     int NextBlockIndex_ = 0;
     int RangeIndex_ = 0;
     bool IsLastRangeEmpty_ = true;
@@ -340,21 +337,11 @@ private:
 
     const TLegacyKey& GetRangeLowerKey(int rangeIndex) const
     {
-        if (rangeIndex == 0 && ClippingRange_) {
-            if (const auto& clippingLowerBound = ClippingRange_.Front().first) {
-                return std::max(clippingLowerBound, Ranges_[rangeIndex].first);
-            }
-        }
         return Ranges_[rangeIndex].first;
     }
 
     const TLegacyKey& GetRangeUpperKey(int rangeIndex) const
     {
-        if (rangeIndex + 1 == std::ssize(Ranges_) && ClippingRange_) {
-            if (const auto& clippingUpperBound = ClippingRange_.Front().second) {
-                return std::min(clippingUpperBound, Ranges_[rangeIndex].second);
-            }
-        }
         return Ranges_[rangeIndex].second;
     }
 
@@ -1695,31 +1682,18 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TSharedRange<TRowRange>& singletonClippingRange,
     const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
     IInvokerPtr sessionInvoker,
     TKeyFilterStatisticsPtr keyFilterStatistics)
 {
     const auto& blockCache = chunkState->BlockCache;
 
-    auto getCappedBounds = [&ranges, &singletonClippingRange] {
+    auto getCappedBounds = [&ranges] {
         TLegacyKey lowerBound = ranges.Front().first;
         TLegacyKey upperBound = ranges.Back().second;
 
-        YT_VERIFY(singletonClippingRange.Size() <= 1);
-        if (singletonClippingRange.Size() > 0) {
-            TLegacyKey clippedLowerBound = singletonClippingRange.Front().first;
-            TLegacyKey clippedUpperBound = singletonClippingRange.Front().second;
-            if (clippedLowerBound && clippedLowerBound > lowerBound) {
-                lowerBound = clippedLowerBound;
-            }
-            if (clippedUpperBound && clippedUpperBound < upperBound) {
-                upperBound = clippedUpperBound;
-            }
-        }
-
         TCompactVector<TRowRange, 1> cappedBounds(1, TRowRange(lowerBound, upperBound));
-        return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), singletonClippingRange.GetHolder());
+        return MakeSharedRange(std::move(cappedBounds), ranges.GetHolder(), ranges.GetHolder());
     };
 
     if (chunkState->OverrideTimestamp && timestamp < chunkState->OverrideTimestamp) {
@@ -1751,7 +1725,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     schemaIdMapping,
                     timestamp,
                     produceAllVersions,
-                    singletonClippingRange,
                     memoryManagerHolder,
                     sessionInvoker,
                     std::move(keyFilterStatistics));
@@ -1909,7 +1882,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         columnFilter,
         timestamp,
         produceAllVersions,
-        {},
         memoryManagerHolder,
         sessionInvoker,
         std::move(keyFilterStatistics));

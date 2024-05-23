@@ -33,7 +33,6 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TSharedRange<TRowRange>& singletonClippingRange = {},
     const NChunkClient::TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder = nullptr,
     IInvokerPtr sessionInvoker = nullptr,
     TKeyFilterStatisticsPtr keyFilterStatistics = nullptr);
