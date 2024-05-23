@@ -2880,6 +2880,9 @@ private:
     TEventTimer CheckPermissionTimer_;
     TEventTimer AclIterationTimer_;
 
+    TEventTimer CheckPermissionTimer_;
+    TEventTimer AclIterationTimer_;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
