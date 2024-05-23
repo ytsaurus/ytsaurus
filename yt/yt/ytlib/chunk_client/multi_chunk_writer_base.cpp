@@ -219,16 +219,18 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
     }
 
     if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
-        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v)",
-            CurrentSession_.TemplateWriter->GetMetaSize());
+        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v, MaxMetaSize: %v)",
+            CurrentSession_.TemplateWriter->GetMetaSize(),
+            Config_->MaxMetaSize);
 
         SwitchSession();
         return true;
     }
 
     if (CurrentSession_.TemplateWriter->GetDataWeight() > Config_->DesiredChunkWeight) {
-        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v)",
-            CurrentSession_.TemplateWriter->GetDataWeight());
+        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v, DesiredChunkWeight: %v)",
+            CurrentSession_.TemplateWriter->GetDataWeight(),
+            Config_->DesiredChunkWeight);
 
         SwitchSession();
         return true;
