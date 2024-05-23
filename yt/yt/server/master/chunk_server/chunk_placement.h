@@ -13,6 +13,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <util/generic/map.h>
+#include <util/random/fast.h>
 
 #include <optional>
 
@@ -107,16 +108,72 @@ public:
 
 private:
     class TTargetCollector;
+    class TAllocationSession;
+
+    class TNodeToLoadFactorMap
+    {
+    public:
+        friend class TAllocationSession;
+
+        TNodeToLoadFactorMap();
+
+        void InsertNodeOrCrash(TNodeId nodeId, double loadFactor);
+        void RemoveNode(TNodeId nodeId);
+        bool Contains(TNodeId nodeId) const;
+        [[nodiscard]] bool Empty() const;
+        ui64 Size() const;
+
+        //NB: Here we can rely on the fact that allocation sessions cannot overlap and not use any synchronization primitives.
+        TAllocationSession StartAllocationSession(ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
+
+    private:
+        //NB: This may change the order of the elements in Values_!
+        TNodeId PickRandomNode(ui32 nodesChecked);
+        void SwapNodes(ui32 firstIndex, ui32 secondIndex);
+
+        std::vector<std::pair<TNodeId, double>> Values_;
+        THashMap<TNodeId, i64> NodeToIndex_;
+        TReallyFastRng32 Rng_;
+    };
+
+    class TAllocationSession
+    {
+    public:
+        friend class TNodeToLoadFactorMap;
+
+        //! Picks a random node using the power of two choices.
+        // Does not return the node more than once within the current session.
+        [[nodiscard]] TNodeId PickRandomNode();
+
+        //! Allocation session is considered unsuccessful iff the amount of attempts to pick a node
+        // exceedes the corresponding limit.
+        bool HasFailed() const;
+
+    private:
+        TAllocationSession(
+            TNodeToLoadFactorMap* associatedMap,
+            ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation);
+
+        TNodeToLoadFactorMap* AssociatedMap_;
+        ui32 NodesToCheckBeforeFailing_;
+        ui32 NodesChecked_ = 0;
+    };
+
 
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkManagerConfigPtr Config_;
     const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
-    using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
-
+    using TNodeToLoadFactorMaps = THashMap<const TDomesticMedium*, TNodeToLoadFactorMap>;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
+    TNodeToLoadFactorMaps MediumToNodeToLoadFactor_;
+
+    // COMPAT(h0pless): Remove this when power of two choices will prove to be working.
+    using TLoadFactorToNodeMaps = THashMap<const TDomesticMedium*, TLoadFactorToNodeMap>;
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
+    bool EnableTwoRandomChoicesWriteTargetAllocation_ = false;
+    int NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = 0;
     bool IsDataCenterAware_ = false;
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;

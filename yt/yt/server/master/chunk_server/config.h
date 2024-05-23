@@ -666,6 +666,9 @@ public:
     //! Forces rack awareness for erasure parts during write targets allocation.
     bool ForceRackAwarenessForErasureParts;
 
+    bool EnableTwoRandomChoicesWriteTargetAllocation;
+    int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
