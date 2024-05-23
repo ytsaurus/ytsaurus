@@ -117,7 +117,13 @@ void GetQueryInfo(
             if (options.VerboseOutput && !isSubquery) {
                 auto Logger = MakeQueryLogger(query);
 
-                auto allSplits = InferRanges(connection, query, dataSource, queryOptions, buffer, Logger);
+                auto [allSplits, coordinatedQuery, sortedDataSource] = InferRanges(
+                    connection,
+                    query,
+                    dataSource,
+                    queryOptions,
+                    buffer,
+                    Logger);
 
                 THashMap<TString, std::vector<TDataSource>> groupsByAddress;
                 for (const auto& split : allSplits) {
@@ -180,24 +186,15 @@ NYson::TYsonString BuildExplainQueryYson(
             GetQueryInfo(connection, query, dataSource, fluent, false, options);
         })
         .Do([&] (TFluentMap fluent) {
-            auto refiner = [] (TConstExpressionPtr expr, const TKeyColumns& /*keyColumns*/) {
-                return expr;
-            };
-
-            const auto& coordinatedQuery = CoordinateQuery(query, {refiner});
+            auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);
             fluent
-                .Item("subqueries")
-                .BeginMap()
-                    .DoFor(coordinatedQuery.second, [&] (auto fluent, const auto& subquery) {
-                        fluent.Item(ToString(subquery->Id))
-                            .Do([&] (auto fluent) {
-                                GetQueryInfo(connection, subquery, dataSource, fluent, true, options);
-                            });
-                    })
-                .EndMap();
-            fluent.Item("top_query")
-                .Do([&] (auto fluent) {
-                    GetFrontQueryInfo(coordinatedQuery.first, fluent);
+                .Item("bottom_query")
+                .Do([&, bottomQuery = bottomQuery] (auto fluent) {
+                    GetQueryInfo(connection, bottomQuery, dataSource, fluent, true, options);
+                });
+            fluent.Item("front_query")
+                .Do([&, frontQuery = frontQuery] (auto fluent) {
+                    GetFrontQueryInfo(frontQuery, fluent);
                 });
         })
         .EndMap();
