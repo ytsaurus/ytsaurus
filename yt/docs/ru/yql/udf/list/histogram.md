@@ -1,2 +1,2 @@
--{% include[x](_includes/histogram.md) %}
+{% include[x](_includes/histogram.md) %}
 
