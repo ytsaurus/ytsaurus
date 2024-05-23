@@ -15,8 +15,6 @@
 
 namespace NYT::NExecNode {
 
-static auto& Logger = ExecNodeLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobProxyLogManager::TJobProxyLogManager(IBootstrap* bootstrap)
@@ -38,7 +36,6 @@ void TJobProxyLogManager::Start()
 
     Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND(
         [this, this_ = MakeStrong(this)] {
-            YT_LOG_INFO("Starting JobProxyLogManager");
             CreateShardingDirectories();
             TraverseJobDirectoriesAndScheduleRemovals();
         }));
@@ -50,7 +47,6 @@ void TJobProxyLogManager::OnJobUnregistered(TJobId jobId)
         return;
     }
 
-    YT_LOG_INFO("Job unregistered %v, log storage period: %v", jobId, LogsStoragePeriod_);
     NConcurrency::TDelayedExecutor::Submit(
         BIND(&TJobProxyLogManager::RemoveJobLog, MakeStrong(this), jobId),
         LogsStoragePeriod_,
@@ -81,7 +77,6 @@ void TJobProxyLogManager::CreateShardingDirectories()
         auto dirName = Format(formatString, i);
 
         auto dirPath = NFS::CombinePaths(Directory_, dirName);
-        YT_LOG_INFO("Creating Directory %v", dirPath);
         NFS::MakeDirRecursive(dirPath);
     }
 }
@@ -129,7 +124,6 @@ void TJobProxyLogManager::RemoveJobLog(TJobId jobId)
 {
     auto shardingKey = GetShardingKey(jobId);
     auto logsPath = NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
-    YT_LOG_INFO("Removing JobProxy log, jobId: %v, path: %v", jobId, logsPath);
     NFS::RemoveRecursive(logsPath);
 }
 
