@@ -17,6 +17,10 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ExecNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobProxyLogManager::TJobProxyLogManager(IBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->ExecNode->JobProxyLogManager)
@@ -124,6 +128,7 @@ void TJobProxyLogManager::RemoveJobLog(TJobId jobId)
 {
     auto shardingKey = GetShardingKey(jobId);
     auto logsPath = NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+    YT_LOG_INFO("Removing job directory (Path: %v)", logsPath);
     NFS::RemoveRecursive(logsPath);
 }
 
