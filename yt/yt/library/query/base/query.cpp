@@ -1518,7 +1518,12 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
+void ToProto(
+    NProto::TDataSource* serialized,
+    const TDataSource& original,
+    TRange<NTableClient::TLogicalTypePtr> schema,
+    bool lookupSupported,
+    size_t keyWidth)
 {
     ToProto(serialized->mutable_object_id(), original.ObjectId);
     ToProto(serialized->mutable_cell_id(), original.CellId);
@@ -1533,7 +1538,7 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
 
     if (original.Keys) {
         std::vector<TColumnSchema> columns;
-        for (auto type : original.Schema) {
+        for (auto type : schema) {
             columns.emplace_back("", type);
         }
 
@@ -1543,8 +1548,10 @@ void ToProto(NProto::TDataSource* serialized, const TDataSource& original)
         keysWriter->WriteSchemafulRowset(original.Keys);
         ToProto(serialized->mutable_keys(), MergeRefsToString(keysWriter->Finish()));
     }
-    serialized->set_lookup_supported(original.LookupSupported);
-    serialized->set_key_width(original.KeyWidth);
+
+    // COMPAT(lukyan)
+    serialized->set_lookup_supported(lookupSupported);
+    serialized->set_key_width(keyWidth);
 }
 
 void FromProto(
@@ -1580,8 +1587,6 @@ void FromProto(
         auto schemaData = keysReader->GetSchemaData(schema, NTableClient::TColumnFilter());
         original->Keys = keysReader->ReadSchemafulRowset(schemaData, true);
     }
-    original->LookupSupported = serialized.lookup_supported();
-    original->KeyWidth = serialized.key_width();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

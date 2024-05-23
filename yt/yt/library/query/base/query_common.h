@@ -22,12 +22,8 @@ using NTransactionClient::TReadTimestampRange;
 struct TDataSplit
 {
     TGuid ObjectId;
-    TGuid CellId;
 
     TTableSchemaPtr TableSchema;
-
-    TLegacyOwningKey LowerBound = NTableClient::MinKey();
-    TLegacyOwningKey UpperBound = NTableClient::MaxKey();
 
     NHydra::TRevision MountRevision;
 };
@@ -140,15 +136,8 @@ struct TDataSource
 
     NHydra::TRevision MountRevision;
 
-    std::vector<NTableClient::TLogicalTypePtr> Schema;
-
     TSharedRange<TRowRange> Ranges;
     TSharedRange<TRow> Keys;
-
-    //! If |true|, these ranges could be reclassified into a set of discrete lookup keys.
-    bool LookupSupported = true;
-
-    size_t KeyWidth = 0;
 };
 
 struct TQueryBaseOptions

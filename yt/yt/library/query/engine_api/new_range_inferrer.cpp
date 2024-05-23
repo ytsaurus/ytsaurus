@@ -94,7 +94,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             if (referenceExpr && constantExpr) {
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
                 if (keyPartIndex >= 0) {
-                    auto value = TValue(constantExpr->Value);
+                    auto value = rowBuffer->CaptureValue(constantExpr->Value);
                     switch (opcode) {
                         case EBinaryOp::Equal:
                             return Interval(
@@ -154,7 +154,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             keyColumns,
             rowBuffer);
     } else if (const auto* inExpr = expr->As<TInExpression>()) {
-        TRange<TRow> values = inExpr->Values;
+        auto values = rowBuffer->CaptureRows(inExpr->Values);
         auto rowCount = std::ssize(values);
 
         auto keyMapping = BuildKeyMapping(keyColumns, inExpr->Arguments);
@@ -167,13 +167,10 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             }
         }
 
-        std::vector<TRow> sortedValues;
         if (!orderedMapping) {
-            sortedValues = values.ToVector();
-            std::sort(sortedValues.begin(), sortedValues.end(), [&] (TRow lhs, TRow rhs) {
+            std::sort(values.begin(), values.end(), [&] (TRow lhs, TRow rhs) {
                 return CompareRowUsingMapping(lhs, rhs, keyMapping) < 0;
             });
-            values = sortedValues;
         }
 
         std::vector<int> commonKeyPrefixes(1, 0);
@@ -266,8 +263,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         for (int rowIndex = 0; rowIndex < std::ssize(betweenExpr->Ranges); ++rowIndex) {
             auto literalRange = betweenExpr->Ranges[rowIndex];
 
-            auto lower = literalRange.first;
-            auto upper = literalRange.second;
+            auto lower = rowBuffer->CaptureRow(literalRange.first);
+            auto upper = rowBuffer->CaptureRow(literalRange.second);
 
             size_t equalPrefix = 0;
             while (equalPrefix < lower.GetCount() &&
@@ -398,7 +395,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
 
         return rangeConstraints.front();
     } else if (const auto* literalExpr = expr->As<TLiteralExpression>()) {
-        TValue value = literalExpr->Value;
+        TValue value = rowBuffer->CaptureValue(literalExpr->Value);
         if (value.Type == EValueType::Boolean) {
             return value.Data.Boolean ? TConstraintRef::Universal() : TConstraintRef::Empty();
         }
@@ -409,7 +406,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_WEAK TRangeInferrer CreateNewRangeInferrer(
+Y_WEAK TSharedRange<TRowRange> CreateNewRangeInferrer(
     TConstExpressionPtr /*predicate*/,
     const TTableSchemaPtr& /*schema*/,
     const TKeyColumns& /*keyColumns*/,

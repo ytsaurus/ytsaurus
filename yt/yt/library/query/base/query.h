@@ -1262,7 +1262,12 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
-void ToProto(NProto::TDataSource* serialized, const TDataSource& original);
+void ToProto(
+    NProto::TDataSource* serialized,
+    const TDataSource& original,
+    TRange<NTableClient::TLogicalTypePtr> schema,
+    bool lookupSupported,
+    size_t keyWidth);
 void FromProto(
     TDataSource* original,
     const NProto::TDataSource& serialized,

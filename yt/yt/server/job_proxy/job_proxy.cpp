@@ -1511,12 +1511,12 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
             // Still we would like to treat such a job as interrupted, otherwise it may lead to an infinite sequence
             // of jobs being aborted by splitter instead of interrupts.
 
-            ToProto(
+            NChunkClient::ToProto(
                 jobResultExt->mutable_unread_chunk_specs(),
                 jobResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
                 jobResultExt->mutable_virtual_row_index_per_unread_data_slice(),
                 interruptDescriptor.UnreadDataSliceDescriptors);
-            ToProto(
+            NChunkClient::ToProto(
                 jobResultExt->mutable_read_chunk_specs(),
                 jobResultExt->mutable_chunk_spec_count_per_read_data_slice(),
                 jobResultExt->mutable_virtual_row_index_per_read_data_slice(),

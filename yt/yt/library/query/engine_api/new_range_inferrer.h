@@ -5,8 +5,6 @@
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query.h>
 
-#include <functional>
-
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,11 +18,7 @@ DEFINE_REFCOUNTED_TYPE(TConstraintExtractorMap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRangeInferrer = std::function<std::vector<TMutableRowRange>(
-    const TRowRange& keyRange,
-    const TRowBufferPtr& rowBuffer)>;
-
-TRangeInferrer CreateNewRangeInferrer(
+TSharedRange<TRowRange> CreateNewRangeInferrer(
     TConstExpressionPtr predicate,
     const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,

@@ -37,8 +37,6 @@ THashMap<TString, TShufflePart> Shuffle(
         auto dataSource = TDataSource{
             .ObjectId = TRowsetId::Create(),
             .Ranges = MakeSharedRange(std::move(rowsetKeyBounds)),
-            .LookupSupported = true,
-            .KeyWidth = static_cast<size_t>(shuffleNavigator.PrefixHint),
         };
 
         shuffle[destination] = {

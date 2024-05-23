@@ -1176,10 +1176,10 @@ protected:
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
 
-        MergeFrom(RangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
+        MergeFrom(RangeExtractorMap_.Get(), *GetBuiltinRangeExtractors());
     }
 
-    void Coordinate(const TString& source, const TDataSplits& dataSplits, size_t subqueriesCount)
+    void Coordinate(const TString& source, size_t subqueriesCount)
     {
         auto fragment = PreparePlanFragment(
             &PrepareMock_,
@@ -1187,11 +1187,6 @@ protected:
 
         auto buffer = New<TRowBuffer>();
         TRowRanges sources;
-        for (const auto& split : dataSplits) {
-            sources.emplace_back(
-                buffer->CaptureRow(split.LowerBound),
-                buffer->CaptureRow(split.UpperBound));
-        }
 
         auto rowBuffer = New<TRowBuffer>();
 
@@ -1205,7 +1200,7 @@ protected:
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
-            RangeExtractorMap,
+            RangeExtractorMap_,
             options);
 
         EXPECT_EQ(prunedRanges.size(), subqueriesCount);
@@ -1214,56 +1209,34 @@ protected:
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
     IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    TRangeExtractorMapPtr RangeExtractorMap = New<TRangeExtractorMap>();
+    TRangeExtractorMapPtr RangeExtractorMap_ = New<TRangeExtractorMap>();
 };
 
 TEST_F(TQueryCoordinateTest, EmptySplit)
 {
-    TDataSplits emptySplits;
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t]", emptySplits, 0);
+        Coordinate("k from [//t] where false", 0);
     });
 }
 
 TEST_F(TQueryCoordinateTest, SingleSplit)
 {
-    TDataSplits singleSplit;
-    singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t]", singleSplit, 1);
+        Coordinate("k from [//t]", 1);
     });
 }
 
 TEST_F(TQueryCoordinateTest, UsesKeyToPruneSplits)
 {
-    TDataSplits splits;
-
-    splits.emplace_back(MakeSimpleSplit("//t", 1));
-    splits.back().LowerBound = YsonToKey("0;0;0");
-    splits.back().UpperBound = YsonToKey("1;0;0");
-
-    splits.emplace_back(MakeSimpleSplit("//t", 2));
-    splits.back().LowerBound = YsonToKey("1;0;0");
-    splits.back().UpperBound = YsonToKey("2;0;0");
-
-    splits.emplace_back(MakeSimpleSplit("//t", 3));
-    splits.back().LowerBound = YsonToKey("2;0;0");
-    splits.back().UpperBound = YsonToKey("3;0;0");
-
     EXPECT_NO_THROW({
-        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3", splits, 1);
+        Coordinate("a from [//t] where k = 1 and l = 2 and m = 3", 1);
     });
 }
 
 TEST_F(TQueryCoordinateTest, SimpleIn)
 {
-    TDataSplits singleSplit;
-    singleSplit.emplace_back(MakeSimpleSplit("//t", 1));
-
     EXPECT_NO_THROW({
-        Coordinate("k from [//t] where k in (1u, 2.0, 3)", singleSplit, 3);
+        Coordinate("k from [//t] where k in (1u, 2.0, 3)", 3);
     });
 }
 
