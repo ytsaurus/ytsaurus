@@ -194,7 +194,9 @@ class TestExplainQuery(YTEnvSetup):
             ["[10, 1]", "[10, 9, <Max>]"],
         ]
         expected_constraints = (
-            "Constraints:\n1:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n2:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n10:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>"
+            "Constraints:\n1:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n"
+            "2:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>\n"
+            "10:\n. 1: <universe>\n. (1 .. 9): <universe>\n. 9: <universe>"
         )
 
         assert response["query"]["ranges"] == expected_ranges
