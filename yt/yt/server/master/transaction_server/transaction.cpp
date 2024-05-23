@@ -244,10 +244,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 
     // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring ||
-        (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring_24_1 &&
-         context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring_24_1) {
         Load(context, AuthenticationIdentity_.User);
         Load(context, AuthenticationIdentity_.UserTag);
     }
