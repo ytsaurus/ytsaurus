@@ -113,6 +113,9 @@ public:
     //! Cached |GetAccountShardIndex(id)| for efficient access.
     DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);
 
+    //! Cached bucket index to make profiling slightly faster.
+    DEFINE_BYVAL_RO_PROPERTY(i8, ProfilingBucketIndex);
+
 public:
     using TNonversionedMapObjectBase<TAccount>::TNonversionedMapObjectBase;
     TAccount(TAccountId id, bool isRoot = false);

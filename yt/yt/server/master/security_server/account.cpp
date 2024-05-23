@@ -219,6 +219,7 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
     , MergeJobThrottler_(CreateReconfigurableThroughputThrottler(TThroughputThrottlerConfig::Create(0)))
     , ShardIndex_(GetAccountShardIndex(id))
+    , ProfilingBucketIndex_(GetAccountProfilingBucketIndex(id))
     , ChunkMergerNodeTraversals_(id)
 { }
 
