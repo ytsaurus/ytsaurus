@@ -396,66 +396,6 @@ INSTANTIATE_TEST_SUITE_P(
             .EnableChunkProber = true,
         }));
 
-TEST(TReplicationReaderFailTest, TestWrongAttachmentCountException)
-{
-    GTEST_FLAG_SET(death_test_style, "threadsafe");
-    auto pool = NConcurrency::CreateThreadPool(4, "Worker");
-    auto invoker = pool->GetInvoker();
-    auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    auto memoryTracker = CreateNodeMemoryTracker(32_MB, {});
-
-    for (int index = 0; index < 3; ++index) {
-        nodeDirectory->AddDescriptor(
-            NNodeTrackerClient::TNodeId(index),
-            NNodeTrackerClient::TNodeDescriptor(Format("local:%v", index)));
-    }
-
-    auto chunkId = TGuid::Create();
-    auto blocks = CreateBlocks(8);
-
-    auto service = New<TTestDataNodeService>(invoker);
-    service->SetPartitialResponse(true);
-    service->SetChunkBlocks(chunkId, blocks);
-
-    auto options = New<TRemoteReaderOptions>();
-    options->AllowFetchingSeedsFromMaster = false;
-
-    auto channelFactory = CreateTestChannelFactoryWithDefaultServices(service);
-    auto connection = NApi::NNative::CreateConnection(
-        std::move(channelFactory),
-        { "default" },
-        std::move(nodeDirectory),
-        invoker,
-        memoryTracker);
-
-    auto readerHost = GetChunkReaderHost(connection);
-
-    auto config = New<TReplicationReaderConfig>();
-    config->PassCount = 3;
-    config->RetryCount = 2;
-    config->RetryTimeout = TDuration::MilliSeconds(10);
-
-    auto reader = CreateReplicationReader(
-        config,
-        options,
-        readerHost,
-        chunkId,
-        TChunkReplicaWithMediumList{
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(0), 0, AllMediaIndex),
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(1), 1, AllMediaIndex),
-            TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(2), 2, AllMediaIndex)
-        });
-
-    EXPECT_EXIT(WaitFor(reader->ReadBlocks({}, {0, 1}))
-        .ThrowOnError(),
-        [] (int /*exitStatus*/) {
-            return true;
-        },
-        ".*Wrong attachment count.*");
-    pool->Shutdown();
-    memoryTracker->ClearTrackers();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

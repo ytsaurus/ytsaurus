@@ -2259,14 +2259,6 @@ private:
             std::memory_order::relaxed);
         reader->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
 
-        if (rsp->Attachments().size() != 0 && rsp->Attachments().size() != blockIndexes.size()) {
-            YT_LOG_FATAL(
-                "Wrong attachment count (Address: %v, ExpectedAttachmentCount: %v, ResultAttachmentCount: %v)",
-                respondedPeer.Address,
-                blockIndexes.size(),
-                rsp->Attachments().size());
-        }
-
         auto probeResult = ParseProbeResponse(rsp);
 
         UpdatePeerBlockMap(respondedPeer, probeResult);
