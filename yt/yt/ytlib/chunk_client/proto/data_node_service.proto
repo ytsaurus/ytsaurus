@@ -429,7 +429,7 @@ message TReqGetChunkSliceDataWeights
     repeated TChunkSlice chunk_requests = 1;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     // Name table for mapping column ids to column names across the whole request.
-    // Required if any column filters are set.
+    // Required if any column filter is set.
     optional NYT.NTableClient.NProto.TNameTableExt name_table = 5;
 }
 
