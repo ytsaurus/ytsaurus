@@ -45,7 +45,7 @@ Writing is performed in a similar way:
 ## Chunk format { #optimize_for }
 
 There are two chunk formats in {{product-name}}: row-by-row and column-by-column.
-The chunk format is set by the `optimize_for` parameter. For row-by-row format, `optimize_for` has the `lookup` value, for column-by-column format — the `scan` value.
+The chunk format is determined by the `optimize_for` parameter. For row-by-row format, `optimize_for` has the `lookup` value, for column-by-column format — the `scan` value.
 
 ### Row-by-row format: optimize_for=lookup { #lines }
 
@@ -81,10 +81,21 @@ CLI
 yt merge --mode ordered --src //tmp/table --dst //tmp/table --spec '{force_transform = %true}'
 ```
 
+For **dynamic tables**, this is solved by forced compaction. Before using it, make sure to read the article on [Background compaction](../../../user-guide/dynamic-tables/compaction.md#forced_compaction).
+
+Example of running the operation via the CLI:
+
+```bash
+yt set //tmp/table/@forced_compaction_revision 1
+```
+
+In addition, for columnar **dynamic tables**, note the `group` attribute in the column schema. If your use case involves frequent lookups of table rows without column filtering, it is a good idea to set the same group for all columns. For more information about groups, see the documentation page on [table schemas](../../../user-guide/storage/static-schema.md#schema_overview).
+
+
 ## Chunk owners { #attributes }
 
 Cypress nodes consisting of chunks — tables, files, and logs — are called chunk owners.
-A set of chunks belonging to the chunk owners is organized as a tree-like data structure. The structure leaves are chunks and the intermediate nodes are chunk lists (`chunk_list`).
+A set of chunks belonging to the chunk owners is organized as a tree-like data structure. The leaves in this structure are chunks, and the intermediate nodes are chunk lists (`chunk_list`).
 
 Besides the attributes inherent to all Cypress nodes, chunk owners have the following additional attributes:
 
@@ -93,7 +104,7 @@ Besides the attributes inherent to all Cypress nodes, chunk owners have the foll
 | `chunk_list_id` | `Guid` | Root chunk list ID. | Yes |
 | `chunk_ids` | `array<Guid>` | List of IDs of all chunks. |
 | `chunk_count` | `int` | Number of chunks. |
-| `compression_statistics` | `CompressionStatistics` | Statistics on the types of used [compression codecs](../../../user-guide/storage/compression.md) and data sizes. | Yes |
+| `compression_statistics` | `CompressionStatistics` | Statistics on data sizes and the types of [compression codecs](../../../user-guide/storage/compression.md) used. | Yes |
 | `erasure_statistics` | `ErasureStatistics` | Statistics on the types of used [erasure codecs](../../../user-guide/storage/replication.md) and data sizes. | Yes |
 | `optimize_for_statistics` | `OptimizeForStatistics` | Statistics on the types of used [chunk types](#optimize_for) (`optimize_for`). | Yes |
 | `multicell_statistics` | `MulticellStatistics` | Statistics on the distribution of chunks on master servers. | Yes |
@@ -112,7 +123,7 @@ Besides the attributes inherent to all Cypress nodes, chunk owners have the foll
 
 The {{product-name}} system divides chunks into two types: vital and non-vital. By default, data in the system is vital (the `vital` attribute is `true`) and its loss is a serious incident. Data loss can occur due to failure of cluster nodes.
 
-Non-vital data is data whose loss is not critical. {{product-name}} cluster settings are such that inaccessibility of non-vital chunks does not trigger monitorings and exploitation intervention. Typical examples of non-vital data are intermediate results of operations: the scheduler will notice losses and perform recomputation of stderr jobs. For non-vital data, the `vital` attribute is `false`.
+Non-vital data is data whose loss is not critical. {{product-name}} cluster settings are such that inaccessibility of non-vital chunks does not trigger monitorings and exploitation intervention. Typical examples of non-vital data are intermediate results of operations: the scheduler will notice losses and perform recomputation. For non-vital data, the `vital` attribute is `false`.
 
 {% note info "Note" %}
 

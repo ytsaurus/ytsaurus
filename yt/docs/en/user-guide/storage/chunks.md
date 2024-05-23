@@ -1,1 +1,1 @@
-{% include [Чанки](../../_includes/user-guide/storage/chunks.md) %}
+{% include [Chunks](../../_includes/user-guide/storage/chunks.md) %}
