@@ -2169,6 +2169,23 @@ class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
     }
 
 
+class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
+        }
+    }
+
+
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -2194,5 +2211,22 @@ class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatSharde
             "transaction_manager": {
                 "use_cypress_transaction_service": True,
             }
+        }
+    }
+
+
+class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }

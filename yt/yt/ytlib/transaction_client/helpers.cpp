@@ -101,7 +101,7 @@ TTransactionId MakeExternalizedTransactionId(
     return MakeId(
         externalizedType,
         externalizingCellTag,
-        CounterFromId(originalId) & ~SequoiaCounterMask,
+        CounterFromId(originalId),
         (HashFromId(originalId) & (0xffff)) | static_cast<ui32>(nativeCellTag.Underlying()) << 16);
 }
 

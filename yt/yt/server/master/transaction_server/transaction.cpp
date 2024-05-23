@@ -179,6 +179,8 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, AccountResourceUsageLeases_);
     Save(context, IsSequoiaTransaction_);
     Save(context, SequoiaWriteSet_);
+    Save(context, AuthenticationIdentity_.User);
+    Save(context, AuthenticationIdentity_.UserTag);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -239,6 +241,15 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
         context.GetVersion() < EMasterReign::SaneTxActionAbortFix)
     {
         Load(context, PreparedActionCount_);
+    }
+
+    // COMPAT(kvk1920)
+    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring ||
+        (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring_24_1 &&
+         context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
+    {
+        Load(context, AuthenticationIdentity_.User);
+        Load(context, AuthenticationIdentity_.UserTag);
     }
 }
 

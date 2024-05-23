@@ -241,7 +241,6 @@ public:
         : SequoiaTransaction_(std::move(sequoiaTransaction))
         , Invoker_(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         , CellTags_(std::move(cellTags))
-
     {
         CollectAndTopologicallySortAllAncestors(std::move(transactions));
     }
@@ -251,20 +250,20 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        YT_VERIFY(!InnermosTTransaction_.empty());
+        YT_VERIFY(!InnermostTransactions_.empty());
 
         int currentGroupStart = 0;
-        for (int i = 1; i < std::ssize(InnermosTTransaction_); ++i) {
-            const auto& previous = CellTagFromId(InnermosTTransaction_[i - 1]->Key.TransactionId);
-            const auto& current = CellTagFromId(InnermosTTransaction_[i]->Key.TransactionId);
+        for (int i = 1; i < std::ssize(InnermostTransactions_); ++i) {
+            const auto& previous = CellTagFromId(InnermostTransactions_[i - 1]->Key.TransactionId);
+            const auto& current = CellTagFromId(InnermostTransactions_[i]->Key.TransactionId);
             if (previous != current) {
-                callback(TRange(InnermosTTransaction_).Slice(currentGroupStart, i));
+                callback(TRange(InnermostTransactions_).Slice(currentGroupStart, i));
                 currentGroupStart = i;
             }
         }
 
-        callback(TRange(InnermosTTransaction_)
-                    .Slice(currentGroupStart, InnermosTTransaction_.size()));
+        callback(TRange(InnermostTransactions_)
+            .Slice(currentGroupStart, InnermostTransactions_.size()));
     }
 
     TFuture<void> Run()
@@ -282,7 +281,7 @@ private:
     const ISequoiaTransactionPtr SequoiaTransaction_;
     const IInvokerPtr Invoker_;
     const TTransactionReplicationDestinationCellTagList CellTags_;
-    std::vector<std::optional<NRecords::TTransaction>> InnermosTTransaction_;
+    std::vector<std::optional<NRecords::TTransaction>> InnermostTransactions_;
     std::vector<TTransactionId> AncestorIds_;
 
     struct TFetchedInfo
@@ -305,7 +304,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto totalTransactionCount = AncestorIds_.size() + InnermosTTransaction_.size();
+        auto totalTransactionCount = AncestorIds_.size() + InnermostTransactions_.size();
 
         auto cellCount = std::ssize(CellTags_);
         // See comment in |TFetchedInfo|.
@@ -351,7 +350,7 @@ private:
         };
 
         replicateTransactions(ancestors, ancestorReplicas);
-        replicateTransactions(InnermosTTransaction_, transactionReplicas);
+        replicateTransactions(InnermostTransactions_, transactionReplicas);
 
         replicator.Run();
     }
@@ -396,12 +395,12 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto keys = ToTransactionKeys(AncestorIds_);
-
         // Fast path.
-        if (keys.empty()) {
+        if (AncestorIds_.empty()) {
             return std::nullopt;
         }
+
+        auto keys = ToTransactionKeys(AncestorIds_);
 
         return SequoiaTransaction_->LookupRows(keys);
     }
@@ -410,7 +409,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto totalTransactionCount = AncestorIds_.size() + InnermosTTransaction_.size();
+        auto totalTransactionCount = AncestorIds_.size() + InnermostTransactions_.size();
         std::vector<NRecords::TTransactionReplicaKey> keys(
             totalTransactionCount * CellTags_.size());
         for (int cellTagIndex = 0; cellTagIndex < std::ssize(CellTags_); ++cellTagIndex) {
@@ -430,8 +429,8 @@ private:
 
             auto transactionsOffset = ancestorsOffset + AncestorIds_.size();
             std::transform(
-                InnermosTTransaction_.begin(),
-                InnermosTTransaction_.end(),
+                InnermostTransactions_.begin(),
+                InnermostTransactions_.end(),
                 keys.begin() + transactionsOffset,
                 [=] (const std::optional<NRecords::TTransaction>& record) {
                     return NRecords::TTransactionReplicaKey{
@@ -482,13 +481,13 @@ private:
         // TODO(kvk1920): optimize.
         // #transactions may contain some ancestors, but we throw them away and
         // fetch again. We could avoid some lookups here. (Of course, it is
-        // unlikely to be a bottleneck since lookup are done in parallel.
+        // unlikely to be a bottleneck since lookups are done in parallel.
         // Rather, it's all about lookup latency).
 
-        // Since transactions are instantiated in order they are presented here
-        // we have to sort them topologically: every ancestor of transaction "T"
-        // must take a place somewhere before transaction "T". This is the
-        // reason for this instead of just
+        // Since transactions are instantiated in the order they are presented
+        // here we have to sort them topologically: every ancestor of
+        // transaction "T" must take a place somewhere before transaction "T".
+        // This is the reason for this instead of just
         // |std::vector(allAncestors.begin(), allAncestors.end())|.
         AncestorIds_.reserve(allAncestors.size());
         for (const auto& record : transactions) {
@@ -501,7 +500,7 @@ private:
                 }
             }
         }
-        InnermosTTransaction_ = std::move(transactions);
+        InnermostTransactions_ = std::move(transactions);
     }
 };
 
@@ -573,6 +572,8 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        YT_VERIFY(!SequoiaTransaction_);
+
         SequoiaTransaction_ = std::move(sequoiaTransaction);
 
         return ApplyAndCommitSequoiaTransaction()
@@ -593,12 +594,12 @@ private:
         }
 
         if (auto error = result.FindMatching(NSequoiaClient::EErrorCode::SequoiaTableCorrupted)) {
+            // NB: consider disabling Cypress tx mirroring by setting
+            // //sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia to false.
+            // Ensure that you actually know what are you doing.
             YT_LOG_ALERT(
                 *error,
-                "Failed to %v Cypress transaction on Sequoia; "
-                "consider disabling Cypress transactions mirroring by setting "
-                "//sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia"
-                "to false",
+                "Failed to %v Cypress transaction on Sequoia",
                 Description_);
         }
 
@@ -724,6 +725,8 @@ private:
 
         auto attributes = FromProto(Request_.attributes());
         auto attributeKeys = attributes->ListKeys();
+        // Only those attributes which are necessary for tx replication are
+        // stored in Sequoia table.
         for (const auto& attributeName : attributeKeys) {
             if (attributeName != "operation_type" &&
                 attributeName != "operation_id" &&
@@ -1281,8 +1284,7 @@ private:
         return SequoiaTransaction_->SelectRows<NRecords::TTransactionReplica>(
             BuildSelectByTransactionIds(transactions, [] (const auto& pair) {
                 return pair.first;
-            })
-        );
+            }));
     }
 };
 
@@ -1375,12 +1377,8 @@ public:
             transactionId,
             std::move(authenticationIdentity))
         , CommitTimestamp_(commitTimestamp)
-    {
-        if (!prerequisiteTransactionIds.empty()) {
-            // TODO(kvk1920): support prerequisite transactions in commit-tx.
-            THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported in Sequoia yet");
-        }
-    }
+        , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
+    { }
 
 protected:
     bool CheckTargetTransaction(const std::optional<NRecords::TTransaction>& record) override
@@ -1413,7 +1411,7 @@ protected:
             MakeTransactionActionData(BuildCommitCypressTransactionRequest(
                 TransactionId_,
                 CommitTimestamp_,
-                {},
+                PrerequisiteTransactionIds_,
                 AuthenticationIdentity_)));
 
         CommitTransactionOnParticipants(replicas);
@@ -1421,6 +1419,7 @@ protected:
 
 private:
     const TTimestamp CommitTimestamp_;
+    const std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
     void CommitTransactionOnParticipants(TRange<NRecords::TTransactionReplica> replicas)
     {
@@ -1528,8 +1527,8 @@ private:
                 YT_VERIFY(!group.empty());
 
                 auto coordinatorCellTag = CellTagFromId(group.Front()->Key.TransactionId);
-                NProto::TReqMarkCypressTransactionsReplicatedToCell action;
-                action.set_destination_cell_tag(ToProto<int>(Bootstrap_->GetCellTag()));
+                NProto::TReqMarkCypressTransactionsReplicatedToCells action;
+                action.add_destination_cell_tags(ToProto<int>(Bootstrap_->GetCellTag()));
                 action.mutable_transaction_ids()->Reserve(group.size());
 
                 for (const auto& transaction : group) {

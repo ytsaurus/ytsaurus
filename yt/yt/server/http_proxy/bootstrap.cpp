@@ -136,7 +136,6 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    connectionOptions.RetrySequoiaErrors = false;
     Connection_ = CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     SetupClusterConnectionDynamicConfigUpdate(

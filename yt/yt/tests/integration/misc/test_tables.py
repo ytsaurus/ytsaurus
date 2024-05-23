@@ -1052,8 +1052,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/t", tx=tx) == [{"a": "b"}]
         t2_id = copy("//tmp/t", "//tmp/t2", tx=tx)
         wait(
-            lambda: sorted(get("#%s/@owning_nodes" % chunk_id))
-            == sorted(
+            lambda: sorted(get(f"#{chunk_id}/@owning_nodes")) == sorted(
                 [
                     "#" + t2_id,
                     "//tmp/t",
@@ -1069,7 +1068,7 @@ class TestTables(YTEnvSetup):
 
         remove("//tmp/t")
         assert read_table("//tmp/t2") == [{"a": "b"}]
-        assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/t2"]
+        assert get(f"#{chunk_id}/@owning_nodes") == ["//tmp/t2"]
 
         remove("//tmp/t2")
 
@@ -3139,6 +3138,23 @@ class TestTablesShardedTxCTxS(TestTablesShardedTx):
             "transaction_manager": {
                 "use_cypress_transaction_service": True,
             }
+        }
+    }
+
+
+class TestTablesMirroredTx(TestTablesShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }
 

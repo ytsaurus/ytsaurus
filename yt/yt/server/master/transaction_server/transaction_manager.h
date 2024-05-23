@@ -43,22 +43,29 @@ struct ITransactionManager
 
     virtual void Initialize() = 0;
 
-    virtual TTransaction* StartTransaction(
-        TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
+    virtual TTransaction* StartSystemTransaction(
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
-        std::optional<TInstant> deadline,
-        const std::optional<TString>& title,
+        const TString& title,
         const NYTree::IAttributeDictionary& attributes,
-        bool isCypressTransaction,
         TTransactionId hintId = NullTransactionId) = 0;
+
+    //! Starts Cypress transaction which is not mirrored to Sequoia.
+    /*!
+     *  NB: such transaction should be finished with either
+     *  CommitMasterTransaction() or AbortMasterTransaction().
+     */
+    virtual TTransaction* StartNonMirroredCypressTransaction(
+        const NObjectClient::TCellTagList& replicatedToCellTags,
+        const TString& title) = 0;
+
     virtual void CommitMasterTransaction(
         TTransaction* transaction,
         const NTransactionSupervisor::TTransactionCommitOptions& options) = 0;
     virtual void AbortMasterTransaction(
         TTransaction* transaction,
         const NTransactionSupervisor::TTransactionAbortOptions& options) = 0;
+
     virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,

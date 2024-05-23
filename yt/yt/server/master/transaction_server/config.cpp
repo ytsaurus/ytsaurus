@@ -47,18 +47,20 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(DefaultProfilingPeriod);
     registrar.Parameter("check_transaction_is_compatible_with_method", &TThis::CheckTransactionIsCompatibleWithMethod)
         .Default(true);
+    registrar.Parameter("alert_transaction_is_not_compatible_with_method", &TThis::AlertTransactionIsNotCompatibleWithMethod)
+        .Default(false);
 
     THashMap<EObjectType, THashSet<TString>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
         "EndUpload",
         "Get",
-        "GetUploadParams"
+        "GetUploadParams",
     };
     defaultWhitelist[EObjectType::UploadNestedTransaction] = defaultWhitelist[EObjectType::UploadTransaction];
     defaultWhitelist[EObjectType::SystemTransaction] = {
         "Create",
-        "Get"
+        "Get",
     };
     defaultWhitelist[EObjectType::SystemNestedTransaction] = defaultWhitelist[EObjectType::SystemTransaction];
 

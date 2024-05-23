@@ -199,7 +199,7 @@ void TTransactionReplicationSessionBase::InitReplicationRequestCellTags()
         RemoteTransactionIds_.begin(),
         RemoteTransactionIds_.end(),
         std::back_inserter(ReplicationRequestCellTags_),
-        &CellTagFromId);
+        CellTagFromId);
     SortUnique(ReplicationRequestCellTags_);
 }
 
@@ -609,7 +609,9 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
         request->set_boomerang_mutation_data(ToString(Mutation_->GetData()));
     }
 
-    YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(), "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, TransactionIds: %v, BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v)",
+    YT_LOG_DEBUG_UNLESS(ReplicationRequests_.empty(),
+        "Requesting remote transaction replication (InitiatorRequest: %v, RequestIds: %v, "
+        "TransactionIds: %v, BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v)",
         InitiatorRequest_,
         requestIds,
         RemoteTransactionIds_,

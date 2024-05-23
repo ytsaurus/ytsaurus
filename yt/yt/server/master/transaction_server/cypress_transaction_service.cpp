@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/lib/transaction_server/private.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -57,6 +59,13 @@ public:
 private:
     const IInvokerPtr TrackerInvoker_;
 
+    void SyncWithSequoiaTransactions()
+    {
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
+            .ThrowOnError();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NCypressTransactionClient::NProto, StartTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
@@ -77,6 +86,8 @@ private:
             replicateToCellTags,
             timeout,
             deadline);
+
+        SyncWithSequoiaTransactions();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->StartCypressTransaction(context);
@@ -107,6 +118,8 @@ private:
             }
         }
 
+        SyncWithSequoiaTransactions();
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->CommitCypressTransaction(context);
     }
@@ -129,6 +142,8 @@ private:
                 return;
             }
         }
+
+        SyncWithSequoiaTransactions();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortCypressTransaction(context);

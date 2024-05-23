@@ -5,6 +5,13 @@ types:
     table_group: transaction_tables
     type_name: TDependentTransaction
     fields:
+      - cpp_name: TransactionIdHash
+        cpp_type: ui64
+        column_name: transaction_id_hash
+        column_type: Uint64
+        sort_order: Ascending
+        expression: farm_hash(transaction_id)
+
       - cpp_name: TransactionId
         cpp_type: NCypressClient::TTransactionId
         column_name: transaction_id

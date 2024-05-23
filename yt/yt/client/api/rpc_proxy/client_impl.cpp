@@ -1946,7 +1946,7 @@ TFuture<void> TClient::SuspendChaosCells(
     auto req = proxy.SuspendChaosCells();
     ToProto(req->mutable_cell_ids(), cellIds);
 
-    return req->Invoke().As<void>();
+    return req->Invoke().AsVoid();
 }
 
 TFuture<void> TClient::ResumeChaosCells(
@@ -1958,21 +1958,31 @@ TFuture<void> TClient::ResumeChaosCells(
     auto req = proxy.ResumeChaosCells();
     ToProto(req->mutable_cell_ids(), cellIds);
 
-    return req->Invoke().As<void>();
+    return req->Invoke().AsVoid();
 }
 
 TFuture<void> TClient::SuspendTabletCells(
-    const std::vector<TCellId>& /*cellIds*/,
+    const std::vector<TCellId>& cellIds,
     const TSuspendTabletCellsOptions& /*options*/)
 {
-    ThrowUnimplemented("SuspendTabletCells");
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.SuspendTabletCells();
+    ToProto(req->mutable_cell_ids(), cellIds);
+
+    return req->Invoke().AsVoid();
 }
 
 TFuture<void> TClient::ResumeTabletCells(
-    const std::vector<TCellId>& /*cellIds*/,
+    const std::vector<TCellId>& cellIds,
     const TResumeTabletCellsOptions& /*options*/)
 {
-    ThrowUnimplemented("ResumeTabletCells");
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ResumeTabletCells();
+    ToProto(req->mutable_cell_ids(), cellIds);
+
+    return req->Invoke().AsVoid();
 }
 
 TFuture<TDisableChunkLocationsResult> TClient::DisableChunkLocations(

@@ -22,15 +22,6 @@ from time import sleep
 ##################################################################
 
 
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestMasterTransactionsInSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
-
-
 def with_portals_dir(func):
     def wrapper(func, self, *args, **kwargs):
         if not self.ENABLE_TMP_PORTAL:
@@ -134,6 +125,7 @@ class TestMasterTransactions(YTEnvSetup):
 
     @authors("h0pless")
     def test_transaction_method_whitelist(self):
+        set("//sys/@config/transaction_manager/alert_transaction_is_not_compatible_with_method", False)
         set("//sys/@config/transaction_manager/transaction_type_to_method_whitelist/transaction", [])
         tx = start_transaction()
         with pytest.raises(YtError, match="Method .* is not supported for type"):
@@ -535,12 +527,11 @@ class TestMasterTransactions(YTEnvSetup):
             remove("//tmp/t3", prerequisite_transaction_ids=[bad_tx])
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_prerequisite_transactions_on_commit(self):
         tx_a = start_transaction()
         tx_b = start_transaction()
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             commit_transaction(tx_b, prerequisite_transaction_ids=["a-b-c-d"])
 
         # Failing to commit a transaction with prerequisites provokes its abort.
@@ -718,15 +709,15 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     }
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_prerequisite_transactions_on_commit2(self):
         # Currently there's no way to force particular transaction
         # coordinator cell (which is by design, BTW). So this test
         # will sometimes succeed trivially. But it definitely must
         # NOT be flaky!
-        tx_a = start_transaction()
-        tx_b = start_transaction()
-        commit_transaction(tx_a, prerequisite_transaction_ids=[tx_b])
+        for _ in range(4):
+            tx_a = start_transaction()
+            tx_b = start_transaction()
+            commit_transaction(tx_a, prerequisite_transaction_ids=[tx_b])
 
     def _create_portal_to_cell(self, cell_tag):
         portal_path = "//portals/p{}".format(cell_tag)
@@ -896,14 +887,21 @@ class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
     }
 
 
-class TestMasterTransactionsInSequoia(TestMasterTransactionsCTxS):
+class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
     NUM_CYPRESS_PROXIES = 1
-    NUM_TEST_PARTITIONS = 10
-    # NB: Sequoia is too slow in debug build.
-    CLASS_TEST_LIMIT = 2400
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
+        }
+    }
 
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):

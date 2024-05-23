@@ -3,6 +3,10 @@
 #include "config.h"
 #include "snapshot.h"
 
+#include <yt/yt/ytlib/hydra/config.h>
+
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/connection.h>
@@ -10,10 +14,9 @@
 #include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/ypath/rich.h>
+#include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
-#include <yt/yt/ytlib/hydra/config.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -66,8 +69,7 @@ public:
             "PrimaryPath: %v, SecondaryPath: %v",
             PrimaryPath_,
             SecondaryPath_))
-    {
-    }
+    { }
 
     ISnapshotReaderPtr CreateReader(int snapshotId) override
     {

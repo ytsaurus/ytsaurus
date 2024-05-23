@@ -240,6 +240,7 @@ DEFINE_ENUM(EMasterReign,
     ((IncreasedMaxKeyColumnInDynamicTableTo128_24_1)                (2569))  // sabdenovch
     ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
     ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
+    ((FixCypressTransactionMirroring_24_1)                          (2572))  // kvk1920
     // 24.2 starts here.
 );
 

@@ -77,16 +77,13 @@ private:
             THROW_ERROR_EXCEPTION("Transaction %v already exists", transactionId);
         }
 
-        auto* transaction = transactionManager->StartTransaction(
-            /*parent*/ nullptr,
-            /*prerequisiteTransactions*/ {},
+        auto* transaction = transactionManager->StartSystemTransaction(
             /*replicatedToCellTags*/ {},
             timeout,
-            /*deadline*/ std::nullopt,
             title,
             *attributes,
-            /*isCypressTransaction*/ false,
             transactionId);
+
         transaction->SetIsSequoiaTransaction(true);
         transaction->SequoiaWriteSet().CopyFrom(request->write_set());
 

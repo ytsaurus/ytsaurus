@@ -63,8 +63,6 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <type_traits>
-
 namespace NYT::NCypressServer {
 
 using namespace NYTree;
@@ -87,6 +85,10 @@ using namespace NCypressClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+static const auto Logger = CypressServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
 
 bool IsAccessLoggedMethod(const TString& method) {
     static const THashSet<TString> methodsForAccessLog = {
@@ -874,6 +876,13 @@ void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(c
     auto transactionType = TypeFromId(Transaction_->GetId());
     auto it = typeToWhitelist.find(transactionType);
     if (it != typeToWhitelist.end() && !it->second.contains(method)) {
+        YT_LOG_ALERT_IF(
+            transactionManagerConfig->AlertTransactionIsNotCompatibleWithMethod,
+            "Attempted to call a method not supported by type "
+            "(Method: %v, Type: %v, TransactionId: %v)",
+            method,
+            transactionType,
+            TypeFromId(Transaction_->GetId()));
         THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qlv",
             method,
             transactionType)
@@ -1509,6 +1518,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
             IsSystemTransactionType(TypeFromId(transactionId)) &&
             type != EObjectType::ChaosReplicatedTable)
         {
+            YT_LOG_ALERT_IF(
+                transactionManagerConfig->AlertTransactionIsNotCompatibleWithMethod,
+                "Attempted to create an object of type not supported by type "
+                "(ObjectType: %v, Type: %v, TransactionId: %v)",
+                type,
+                TypeFromId(transactionId),
+                transactionId);
             THROW_ERROR_EXCEPTION("Cannot create type %Qlv using system transaction", type)
                 << TErrorAttribute("transaction_id", transactionId);
         }

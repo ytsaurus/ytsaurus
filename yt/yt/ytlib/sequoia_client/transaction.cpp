@@ -267,11 +267,17 @@ public:
 
         auto guard = Guard(Lock_);
 
+        auto entropy = RandomGenerator_->Generate<ui32>();
+        // TODO(kvk1920): exacly the same code exists in |TObjectManager|. Think
+        // about moving it into more general place.
+        if (objectType == EObjectType::Transaction || objectType == EObjectType::NestedTransaction) {
+            entropy &= 0xffff;
+        }
         auto id = MakeSequoiaId(
             objectType,
             cellTag,
             Transaction_->GetStartTimestamp(),
-            RandomGenerator_->Generate<ui32>());
+            entropy);
         if (sequoia) {
             YT_ASSERT(IsSequoiaId(id));
         } else {

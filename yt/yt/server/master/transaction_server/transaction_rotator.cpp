@@ -58,15 +58,11 @@ void TTransactionRotator::Rotate()
 
     PreviousTransaction_ = std::move(Transaction_);
 
-    Transaction_.Assign(transactionManager->StartTransaction(
-        /*parent*/ nullptr,
-        /*prerequisiteTransactions*/ {},
+    Transaction_.Assign(transactionManager->StartSystemTransaction(
         /*replicatedToCellTags*/ {},
         /*timeout*/ std::nullopt,
-        /*deadline*/ std::nullopt,
         TransactionTitle_,
-        EmptyAttributes(),
-        /*isCypressTransaction*/ true));
+        EmptyAttributes()));
 }
 
 TTransactionId TTransactionRotator::TransactionIdFromPtr(const TTransactionWeakPtr& ptr)

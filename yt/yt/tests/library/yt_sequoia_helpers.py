@@ -59,7 +59,7 @@ def select_paths_from_ground(*, fetch_sys_dir=False, **kwargs):
 
 def clear_table_in_ground(descriptor: TableDescriptor, **kwargs):
     _use_ground_driver(kwargs)
-    keys = [c["name"] for c in descriptor.schema if "sort_order" in c]
+    keys = [c["name"] for c in descriptor.schema if "sort_order" in c and "expression" not in c]
     rows = select_rows_from_ground(", ".join(keys) + f" from [{descriptor.get_default_path()}]")
     delete_rows(descriptor.get_default_path(), rows, **kwargs)
 
@@ -142,25 +142,27 @@ def lookup_cypress_transaction(transaction_id):
 
 
 def select_cypress_transaction_replicas(transaction_id):
-    return [
+    return sorted([
         record["cell_tag"] for record in
-        select_rows_from_ground(f"cell_tag from [{DESCRIPTORS.transaction_replicas.get_default_path()}] "
-                                f"where transaction_id = \"{transaction_id}\"")
-    ]
+        select_rows_from_ground(
+            f"cell_tag from [{DESCRIPTORS.transaction_replicas.get_default_path()}] "
+            f"where transaction_id = \"{transaction_id}\"")
+    ])
 
 
 def select_cypress_transaction_descendants(ancestor_id):
-    return [
+    return sorted([
         record["descendant_id"] for record in
-        select_rows_from_ground(f"descendant_id from [{DESCRIPTORS.transaction_descendants.get_default_path()}] "
-                                f"where transaction_id = \"{ancestor_id}\"")
-    ]
+        select_rows_from_ground(
+            f"descendant_id from [{DESCRIPTORS.transaction_descendants.get_default_path()}] "
+            f"where transaction_id = \"{ancestor_id}\"")
+    ])
 
 
 def select_cypress_transaction_prerequisites(transaction_id):
-    return [
+    return sorted([
         record["transaction_id"] for record in
         select_rows_from_ground(
             f"transaction_id from [{DESCRIPTORS.dependent_transactions.get_default_path()}] "
             f"where dependent_transaction_id = \"{transaction_id}\"")
-    ]
+    ])
