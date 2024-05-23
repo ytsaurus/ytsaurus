@@ -80,7 +80,7 @@ void TDictionaryConfig::Register(TRegistrar registrar)
 void TSystemLogConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("engine", &TThis::Engine)
-        .Default("ENGINE = Buffer('system', 'query_log_older', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
+        .Default("ENGINE = SystemLogTableExporter");
     registrar.Parameter("flush_interval_milliseconds", &TThis::FlushIntervalMilliseconds)
         .Default(100);
 }

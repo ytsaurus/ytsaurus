@@ -2,12 +2,11 @@
 
 #include "block_input_stream.h"
 #include "config.h"
+#include "granule_min_max_filter.h"
 #include "prewhere_block_input_stream.h"
 #include "query_context.h"
-#include "subquery_spec.h"
-#include "query_registry.h"
 #include "storage_base.h"
-#include "granule_min_max_filter.h"
+#include "subquery_spec.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 

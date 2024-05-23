@@ -8,12 +8,12 @@
 #include "health_checker.h"
 #include "invoker_liveness_checker.h"
 #include "memory_watchdog.h"
-#include "poco_config.h"
 #include "query_context.h"
 #include "query_registry.h"
 #include "statistics_reporter.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
+#include "storage_system_log_table_exporter.h"
 #include "table_functions.h"
 #include "user_defined_sql_objects_storage.h"
 #include "yt_database.h"
@@ -128,6 +128,7 @@ public:
         , FetcherThreadPool_(CreateThreadPool(Config_->FetcherThreadCount, "Fetcher"))
         , FetcherInvoker_(FetcherThreadPool_->GetInvoker())
         , ClickHouseFetcherInvoker_(CreateClickHouseInvoker(FetcherInvoker_))
+        , SystemLogTableExporterActionQueue_(New<TActionQueue>("SystemLogTableExporter"))
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
     {
         InitializeClients();
@@ -677,12 +678,13 @@ private:
     TQueryRegistryPtr QueryRegistry_;
     TPeriodicExecutorPtr GossipExecutor_;
     TInvokerLivenessCheckerPtr ControlInvokerChecker_;
-    NConcurrency::IThreadPoolPtr WorkerThreadPool_;
+    IThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
     IInvokerPtr ClickHouseWorkerInvoker_;
-    NConcurrency::IThreadPoolPtr FetcherThreadPool_;
+    IThreadPoolPtr FetcherThreadPool_;
     IInvokerPtr FetcherInvoker_;
     IInvokerPtr ClickHouseFetcherInvoker_;
+    TActionQueuePtr SystemLogTableExporterActionQueue_;
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
@@ -955,6 +957,10 @@ private:
         RegisterTableFunctions();
         RegisterTableDictionarySource(Owner_);
         RegisterStorageDistributor();
+        RegisterStorageSystemLogTableExporter(
+            Config_->SystemLogTableExporters,
+            GetRootClient(),
+            SystemLogTableExporterActionQueue_->GetInvoker());
         RegisterDataTypeBoolean();
     }
 };

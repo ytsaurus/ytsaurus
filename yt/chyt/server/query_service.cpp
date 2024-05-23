@@ -62,10 +62,8 @@ public:
         , Host_(host)
         , User_(user)
         , QueryId_(queryId)
-        , CompositeSettings_(New<TCompositeSettings>())
-    {
-        CompositeSettings_->ConvertUnsupportedTypesToString = true;
-    }
+        , CompositeSettings_(TCompositeSettings::Create(/*convertUnsupportedTypesToString*/ true))
+    { }
 
     TErrorOr<TRowset> Execute()
     {

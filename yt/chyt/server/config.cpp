@@ -10,6 +10,13 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString)
+{
+    auto settings = New<TCompositeSettings>();
+    settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
+    return settings;
+}
+
 void TCompositeSettings::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_yson_format", &TThis::DefaultYsonFormat)
@@ -417,27 +424,6 @@ void TClickHouseTableConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueryLogConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("additional_tables", &TThis::AdditionalTables)
-        .DefaultCtor([] {
-            return std::vector({
-                TClickHouseTableConfig::Create(
-                    "system",
-                    "query_log_older",
-                    // NB: By default system.query_log flushes its data to system.query_log_older every 30m (1800s).
-                    // query_log_older should then guarantee that flushed data stays in memory for some fixed time.
-                    // It's done by setting flush period to 29m (1740s), which is lower that query_log flush period.
-                    // It guarantees that the query_log_older table will be empty during a query_log flush.
-                    // A flush period is counted from "first_writte_time", so writing to an empty Buffer table guarantees
-                    // that data will stay there at least for a specified period of time.
-                    "ENGINE = Buffer('', '', 1, 1, 1740, 1000000000000, 1000000000000, 1000000000000, 1000000000000)"),
-            });
-        });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
@@ -454,6 +440,36 @@ void TUserDefinedSqlObjectsStorageConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("No path is set for SQL UDF storage");
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSystemLogTableExporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_in_progress_data_size", &TThis::MaxInProgressDataSize)
+        .Default(10_MB);
+
+    registrar.Parameter("max_bytes_to_keep", &TThis::MaxBytesToKeep)
+        .Default(10_MB);
+    registrar.Parameter("max_rows_to_keep", &TThis::MaxRowsToKeep)
+        .Default(100'000);
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->Enabled = false;
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSystemLogTableExportersConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cypress_root_directory", &TThis::CypressRootDirectory)
+        .Default();
+
+    registrar.Parameter("tables", &TThis::Tables)
+        .Default();
+    registrar.Parameter("default", &TThis::Default)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -562,10 +578,10 @@ void TYtConfig::Register(TRegistrar registrar)
     registrar.Parameter("query_sampling", &TThis::QuerySampling)
         .DefaultNew();
 
-    registrar.Parameter("query_log", &TThis::QueryLog)
+    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
         .DefaultNew();
 
-    registrar.Parameter("user_defined_sql_objects_storage", &TThis::UserDefinedSqlObjectsStorage)
+    registrar.Parameter("system_log_table_exporters", &TThis::SystemLogTableExporters)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {

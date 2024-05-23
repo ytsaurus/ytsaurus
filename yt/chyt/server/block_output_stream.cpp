@@ -40,18 +40,15 @@ public:
         const TCompositeSettingsPtr& compositeSettings,
         std::function<void()> onFinished,
         const TLogger& logger)
-        : NameTable_(New<TNameTable>())
+        : NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))
         , DataTypes_(std::move(dataTypes))
+        , ColumnIndexToId_(GetColumnIndexToId(NameTable_, Schema_->GetColumnNames()))
         , CompositeSettings_(std::move(compositeSettings))
         , OnFinished_(std::move(onFinished))
     {
         HeaderBlock_ = ToHeaderBlock(*Schema_, New<TCompositeSettings>());
-
-        for (const auto& column : Schema_->Columns()) {
-            PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
-        }
     }
 
     DB::Block getHeader() const override
@@ -63,7 +60,7 @@ public:
     {
         YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", block.rows(), block.columns(), block.bytes());
 
-        auto rowRange = ToRowRange(block, DataTypes_, PositionToId_, CompositeSettings_);
+        auto rowRange = ToRowRange(block, DataTypes_, ColumnIndexToId_, CompositeSettings_);
 
         DoWriteRows(std::move(rowRange));
     }
@@ -84,7 +81,7 @@ protected:
 private:
     TTableSchemaPtr Schema_;
     std::vector<DB::DataTypePtr> DataTypes_;
-    std::vector<int> PositionToId_;
+    std::vector<int> ColumnIndexToId_;
     DB::Block HeaderBlock_;
     TCompositeSettingsPtr CompositeSettings_;
     std::function<void()> OnFinished_;

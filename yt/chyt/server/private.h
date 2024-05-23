@@ -73,6 +73,8 @@ DECLARE_REFCOUNTED_CLASS(TPocoInvalidCertificateHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TPocoOpenSslConfigEntry)
 DECLARE_REFCOUNTED_CLASS(TPocoOpenSslConfig)
 DECLARE_REFCOUNTED_CLASS(TUserDefinedSqlObjectsStorageConfig)
+DECLARE_REFCOUNTED_CLASS(TSystemLogTableExporterConfig)
+DECLARE_REFCOUNTED_CLASS(TSystemLogTableExportersConfig)
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
 DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry)
@@ -102,7 +104,6 @@ DECLARE_REFCOUNTED_CLASS(TInvokerLivenessCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryRegistryConfig)
 DECLARE_REFCOUNTED_CLASS(TQuerySamplingConfig)
 DECLARE_REFCOUNTED_CLASS(TClickHouseTableConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryLogConfig)
 DECLARE_REFCOUNTED_CLASS(TSerializableSpanContext)
 DECLARE_REFCOUNTED_CLASS(TSecondaryQueryHeader)
 DECLARE_REFCOUNTED_CLASS(TInvokerLivenessChecker)
@@ -283,6 +284,7 @@ class IColumn;
 using ColumnPtr = COW<IColumn>::Ptr;
 using MutableColumnPtr = COW<IColumn>::MutablePtr;
 
+class StorageFactory;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory& factory);

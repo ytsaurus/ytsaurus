@@ -4,7 +4,6 @@
 #include "clickhouse_singletons.h"
 #include "config_repository.h"
 #include "config.h"
-#include "format.h"
 #include "helpers.h"
 #include "host.h"
 #include "http_handler.h"
@@ -265,7 +264,7 @@ private:
 
         YT_LOG_DEBUG("Initializing system logs");
 
-        PrepareSystemLogTables();
+        PrepareQueryLog();
         ServerContext_->initializeSystemLogs();
 
         YT_LOG_DEBUG("System logs initialized");
@@ -334,44 +333,29 @@ private:
         YT_LOG_INFO("Finished warming up");
     }
 
-    void PrepareSystemLogTables()
+     void PrepareQueryLog()
     {
-        auto queryLogConfig = Host_->GetConfig()->QueryLog;
-
-        YT_LOG_DEBUG("Preparing tables for query log (AdditionalTableCount: %v)", queryLogConfig->AdditionalTables.size());
-
-        auto queryLogTables = queryLogConfig->AdditionalTables;
-
-        // In ClickHouse system.query_log is created after the first query has been executed.
+        // In ClickHouse system.query_log is created after the first query has been flushed to the table.
         // It leads to an error if the first query is 'select * from system.query_log'.
-        // To eliminate this, we explicitly create system.query_log among our own addition query log tables during startup.
-        queryLogTables.push_back(TClickHouseTableConfig::Create("system", "query_log", Config_->QueryLog->Engine));
+        // To eliminate this, we explicitly create system.query_log during startup.
 
-        for (const auto& table : queryLogTables) {
-            YT_LOG_DEBUG("Preparing query log table (Database: %v, Name: %v, Engine: %v)",
-                table->Database,
-                table->Name,
-                table->Engine);
+        YT_LOG_DEBUG("Preparing query log table (Engine: %v)", Config_->QueryLog->Engine);
 
-            // NB: settings.query_settings contains bool/size_t fields with no default initialization.
-            // {} here is to force a value (i.e. zero) initialization instead of a default initialization.
-            DB::SystemLogSettings settings{};
-            settings.engine = table->Engine;
-            settings.queue_settings.database = table->Database;
-            settings.queue_settings.table = table->Name;
+        // NB: settings.query_settings contains bool/size_t fields with no default initialization.
+        // {} here is to force a value (i.e. zero) initialization instead of a default initialization.
+        DB::SystemLogSettings settings{};
+        settings.engine = Config_->QueryLog->Engine;
+        settings.queue_settings.database = "system";
+        settings.queue_settings.table = "query_log";
 
-            // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
-            auto queryLog = std::make_shared<DB::QueryLog>(ServerContext_, settings);
+        // NB: This is not a real QueryLog, it is needed only to create a table with proper query log structure.
+        auto queryLog = std::make_shared<DB::QueryLog>(ServerContext_, settings);
 
-            // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
-            auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
-            systemLog->prepareTable();
-            YT_LOG_DEBUG("Query log table prepared (Database: %v, Name: %v)",
-                table->Database,
-                table->Name);
-        }
+        // prepareTable is public in ISystemLog interface, but is overwritten as private in QueryLog.
+        auto* systemLog = static_cast<DB::ISystemLog*>(queryLog.get());
+        systemLog->prepareTable();
 
-        YT_LOG_DEBUG("Tables for query log prepared");
+        YT_LOG_DEBUG("Query log table prepared");
     }
 
     void SetupServers()

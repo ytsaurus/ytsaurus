@@ -59,6 +59,10 @@ void ToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue*
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<int> GetColumnIndexToId(const NTableClient::TNameTablePtr& nameTable, const std::vector<TString>& columnNames);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DB::Block ToBlock(
     const NTableClient::IUnversionedRowBatchPtr& batch,
     const NTableClient::TTableSchema& readSchema,

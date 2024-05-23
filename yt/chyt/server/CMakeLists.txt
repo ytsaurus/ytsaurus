@@ -103,6 +103,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_distributor.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_subquery.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_clique.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_system_log_table_exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storages_yt_nodes.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/subquery.cpp

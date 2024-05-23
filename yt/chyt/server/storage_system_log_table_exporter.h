@@ -2,17 +2,16 @@
 
 #include "private.h"
 
-#include "subquery_spec.h"
-
-#include <Storages/IStorage_fwd.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageSubquery(
-    TQueryContext* queryContext,
-    TSubquerySpec subquerySpec);
+void RegisterStorageSystemLogTableExporter(
+    const TSystemLogTableExportersConfigPtr& config,
+    const NApi::NNative::IClientPtr& client,
+    const IInvokerPtr& invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

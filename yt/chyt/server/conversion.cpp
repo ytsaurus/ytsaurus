@@ -5,8 +5,9 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <library/cpp/iterator/functools.h>
 
@@ -110,11 +111,15 @@ TTableSchema ToTableSchema(const DB::ColumnsDescription& columns, const TKeyColu
             THROW_ERROR_EXCEPTION("Column %Qv is specified as key column but is missing",
                 keyColumnName);
         }
+        auto columnKind = columns.get(keyColumnName).default_desc.kind;
+        if (columnKind != DB::ColumnDefaultKind::Default) {
+            THROW_ERROR_EXCEPTION("Key column %Qv is not ordinary, actual column kind is %v", toString(columnKind));
+        }
         columnOrder.emplace_back(keyColumnName);
         usedColumns.emplace(keyColumnName);
     }
 
-    for (const auto& column : columns) {
+    for (const auto& column : columns.getAllPhysical()) {
         if (usedColumns.emplace(column.name).second) {
             columnOrder.emplace_back(column.name);
         }
@@ -203,6 +208,20 @@ std::vector<DB::Field> UnversionedRowToFields(
     }
 
     return fields;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<int> GetColumnIndexToId(const TNameTablePtr& nameTable, const std::vector<TString>& columnNames)
+{
+    std::vector<int> columnIndexToId;
+    columnIndexToId.reserve(columnNames.size());
+
+    for (const auto& columnName : columnNames) {
+        columnIndexToId.push_back(nameTable->GetIdOrThrow(columnName));
+    }
+
+    return columnIndexToId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
