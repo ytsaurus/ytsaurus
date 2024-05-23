@@ -104,7 +104,10 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
     auto resourceLimits = jobResourceManager->GetResourceLimits();
-    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includePending*/ true);
+    auto resourceUsage = jobResourceManager->GetResourceUsage({
+        NJobAgent::EResourcesState::Pending,
+        NJobAgent::EResourcesState::Acquired,
+    });
     bool hasPendingResourceHolders = jobResourceManager->GetPendingResourceHolderCount() > 0;
 
     auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);

@@ -567,7 +567,18 @@ void TJob::Terminate(EJobState finalState, TError error)
     switch (JobPhase_) {
         case EJobPhase::Created:
             doTerminate();
-            Cleanup();
+            // NB(arkady-e1ppa): We can have
+            // job controller methods forbidding
+            // context switch in the callstack.
+            // Thus we do cleanup asynchronously.
+            GetInvoker()
+                ->Invoke(BIND([this, this_ = MakeStrong(this)] {
+                    // NB(arkady-e1ppa): We don't do plain cleanup
+                    // here because due to async nature of this call
+                    // some could beat us to it.
+                    HandleFinishingPhase();
+                }));
+
             break;
 
         case EJobPhase::PreparingNodeDirectory:
@@ -1575,6 +1586,14 @@ void TJob::OnEvictedFromAllocation()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     Allocation_.Reset();
+    // NB(arkady-e1ppa): In some cases job can
+    // be finished (and also enter cleanup phase)
+    // before it is evicted from the allocation.
+    // In such a case ResourceHolder_ would be
+    // already reset.
+    if (ResourceHolder_) {
+        ResourceHolder_->PrepareResourcesRelease();
+    }
 }
 
 bool TJob::IsJobProxyCompleted() const noexcept

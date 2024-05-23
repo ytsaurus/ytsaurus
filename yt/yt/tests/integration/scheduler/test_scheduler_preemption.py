@@ -1103,9 +1103,16 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         )
         wait_breakpoint()
 
+        def get_cpu():
+            common_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager".format(nodes[1])
+            try:
+                return get(common_path + "/acquired_resources/cpu")
+            except YtResponseError:
+                return get(common_path + "/resource_usage/cpu")
+
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/cpu".format(nodes[1])) == 2.0)
+        wait(lambda: get_cpu() == 2.0)
 
         # TODO(ignat): add check that jobs are not preemptible.
 
@@ -1157,11 +1164,16 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             out="//tmp/t_out2",
         )
 
+        def get_user_slots():
+            common_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager".format(nodes[1])
+            try:
+                return get(common_path + "/acquired_resources/user_slots")
+            except YtResponseError:
+                return get(common_path + "/resource_usage/user_slots")
+
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-        wait(
-            lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/user_slots".format(nodes[1])) == 2
-        )
+        wait(lambda: get_user_slots() == 2)
 
         # TODO(ignat): add check that jobs are not preemptible.
 
