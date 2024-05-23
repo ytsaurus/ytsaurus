@@ -1239,7 +1239,10 @@ private:
         const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
 
         *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
-        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage(/*includePending*/ true));
+        *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage({
+            NJobAgent::EResourcesState::Pending,
+            NJobAgent::EResourcesState::Acquired,
+        }));
 
         *request->mutable_disk_resources() = JobResourceManager_->GetDiskResources();
 
@@ -1656,7 +1659,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto usage = JobResourceManager_->GetResourceUsage(/*includePending*/ false);
+        auto usage = JobResourceManager_->GetResourceUsage({
+            NJobAgent::EResourcesState::Acquired,
+                NJobAgent::EResourcesState::Releasing
+        });
         const auto limits = JobResourceManager_->GetResourceLimits();
         auto schedulerJobs = GetRunningJobsSortedByStartTime();
 
@@ -1675,7 +1681,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto usage = JobResourceManager_->GetResourceUsage(/*includePending*/ false);
+        auto usage = JobResourceManager_->GetResourceUsage({
+            NJobAgent::EResourcesState::Acquired,
+            NJobAgent::EResourcesState::Releasing,
+        });
         auto limits = JobResourceManager_->GetResourceLimits();
 
         bool preemptMemoryOverdraft = false;

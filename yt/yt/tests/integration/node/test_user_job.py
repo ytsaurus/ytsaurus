@@ -28,7 +28,7 @@ from yt_helpers import profiler_factory
 import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
 from yt.test_helpers import are_almost_equal
-from yt.common import update, YtError
+from yt.common import update, YtError, YtResponseError
 
 from yt.wrapper.common import generate_uuid
 
@@ -3653,8 +3653,15 @@ class TestSlotManagerResurrect(YTEnvSetup):
 
         time.sleep(5)
 
+        def get_user_slots():
+            common_path = "//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager".format(nodes[0])
+            try:
+                return get(common_path + "/acquired_resources/user_slots")
+            except YtResponseError:
+                return get(common_path + "/resource_usage/user_slots")
+
         wait(lambda: are_almost_equal(get("//sys/scheduler/orchid/scheduler/cluster/resource_usage/cpu"), 0))
-        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_usage/user_slots".format(nodes[0])) == 0)
+        wait(lambda: get_user_slots() == 0)
 
         update_nodes_dynamic_config({
             "exec_node": {

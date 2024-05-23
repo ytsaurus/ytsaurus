@@ -18,6 +18,15 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EResourcesState,
+    ((Pending)     (0))
+    ((Acquired)    (1))
+    ((Releasing)   (2))
+    ((Released)    (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EResourcesConsumerType,
     ((MasterJob)             (0))
     ((SchedulerAllocation)   (1))
@@ -46,7 +55,7 @@ public:
     virtual double GetCpuToVCpuFactor() const = 0;
 
     //! Returns resource usage of running jobs.
-    virtual NClusterNode::TJobResources GetResourceUsage(bool includePending = false) const = 0;
+    virtual NClusterNode::TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const = 0;
 
     //! Compares new usage with resource limits. Detects resource overdraft.
     virtual bool CheckMemoryOverdraft(const NClusterNode::TJobResources& delta) = 0;
@@ -92,14 +101,6 @@ protected:
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobResourceManager)
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EResourcesState,
-    ((Pending)   (0))
-    ((Acquired)  (1))
-    ((Released)  (2))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +179,8 @@ public:
     TResourceOwnerPtr GetOwner() const noexcept;
     void ResetOwner(const TResourceOwnerPtr& owner);
 
+    void PrepareResourcesRelease() noexcept;
+
 private:
     const TGuid Id_;
 
@@ -214,7 +217,7 @@ private:
 
     void ReleaseAdditionalResources();
 
-    NClusterNode::TJobResources CumulativeResourceUsage() const noexcept;
+    NClusterNode::TJobResources TotalResourceUsage() const noexcept;
 
     struct TResourceHolderInfo
     {
