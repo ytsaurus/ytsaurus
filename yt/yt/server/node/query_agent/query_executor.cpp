@@ -534,7 +534,6 @@ private:
         auto remoteExecutor = CreateQueryExecutor(
             MemoryChunkProvider_,
             client->GetNativeConnection(),
-            Invoker_,
             ColumnEvaluatorCache_,
             Evaluator_,
             client->GetChannelFactory(),
@@ -694,12 +693,16 @@ private:
 
                         auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
 
-                        auto asyncResult = remoteExecutor->Execute(
+                        auto asyncResult = BIND(
+                            &IExecutor::Execute,
+                            remoteExecutor,
                             subquery,
                             ExternalCGInfo_,
                             std::move(dataSource),
                             writer,
-                            remoteOptions);
+                            remoteOptions)
+                            .AsyncVia(Invoker_)
+                            .Run();
 
                         asyncResult.Subscribe(BIND([writer] (const TErrorOr<TQueryStatistics>& error) {
                             if (!error.IsOK()) {
@@ -742,12 +745,16 @@ private:
 
                             auto pipe = New<NTableClient::TSchemafulPipe>(MemoryChunkProvider_);
 
-                            auto asyncResult = remoteExecutor->Execute(
+                            auto asyncResult = BIND(
+                                &IExecutor::Execute,
+                                remoteExecutor,
                                 foreignQuery,
                                 ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
-                                remoteOptions);
+                                remoteOptions)
+                                .AsyncVia(Invoker_)
+                                .Run();
 
                             asyncResult.Subscribe(BIND([pipe] (const TErrorOr<TQueryStatistics>& error) {
                                 if (!error.IsOK()) {

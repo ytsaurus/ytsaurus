@@ -224,8 +224,8 @@ void LogInitialDataSources(
     }
 }
 
-TInferRangesResult InferRanges(
-    NApi::NNative::IConnectionPtr connection,
+std::pair<TDataSource, TConstQueryPtr> InferRanges(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
     TConstQueryPtr query,
     const TDataSource& dataSource,
     const TQueryOptions& options,
@@ -245,7 +245,7 @@ TInferRangesResult InferRanges(
             tableId,
             ranges,
             rowBuffer,
-            connection->GetColumnEvaluatorCache(),
+            columnEvaluatorCache,
             GetBuiltinRangeExtractors(),
             options);
 
@@ -267,27 +267,13 @@ TInferRangesResult InferRanges(
         resultQuery = query;
     }
 
-    auto tableInfo = WaitFor(connection->GetTableMountCache()->GetTableInfo(FromObjectId(tableId)))
-        .ValueOrThrow();
-
-    ValidateTableInfo(tableInfo, query->Schema.Original);
-
     TDataSource inferredDataSource{
         .ObjectId = tableId,
         .Ranges = ranges,
         .Keys = keys
     };
 
-    LogInitialDataSources(tableInfo, inferredDataSource, options.VerboseLogging, Logger);
-
-    auto dataSources = CoordinateDataSources(
-        connection->GetCellDirectory(),
-        connection->GetNetworks(),
-        tableInfo,
-        inferredDataSource,
-        rowBuffer);
-
-    return {std::move(dataSources), std::move(resultQuery), tableInfo->IsSorted()};
+    return {inferredDataSource, resultQuery};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -402,21 +388,19 @@ public:
     TQueryExecutor(
         IMemoryChunkProviderPtr memoryChunkProvider,
         NNative::IConnectionPtr connection,
-        IInvokerPtr invoker,
         IColumnEvaluatorCachePtr columnEvaluatorCache,
         IEvaluatorPtr evaluator,
         INodeChannelFactoryPtr nodeChannelFactory,
         TFunctionImplCachePtr functionImplCache)
         : MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Connection_(std::move(connection))
-        , Invoker_(std::move(invoker))
         , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
         , Evaluator_(std::move(evaluator))
         , NodeChannelFactory_(std::move(nodeChannelFactory))
         , FunctionImplCache_(std::move(functionImplCache))
     { }
 
-    TFuture<TQueryStatistics> Execute(
+    TQueryStatistics Execute(
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
@@ -424,14 +408,99 @@ public:
         const TQueryOptions& options) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
-        return BIND(&TQueryExecutor::DoExecute, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run(
-                std::move(query),
-                std::move(externalCGInfo),
-                std::move(dataSource),
-                options,
-                std::move(writer));
+
+        auto Logger = MakeQueryLogger(query);
+
+        auto rowBuffer = New<TRowBuffer>(
+            TQueryExecutorRowBufferTag{},
+            MemoryChunkProvider_);
+
+        auto [inferredDataSource, coordinatedQuery] = InferRanges(
+            Connection_->GetColumnEvaluatorCache(),
+            query,
+            dataSource,
+            options,
+            rowBuffer,
+            Logger);
+
+        auto tableId = dataSource.ObjectId;
+
+        auto tableInfo = WaitFor(Connection_->GetTableMountCache()->GetTableInfo(FromObjectId(tableId)))
+            .ValueOrThrow();
+
+        ValidateTableInfo(tableInfo, query->Schema.Original);
+
+        LogInitialDataSources(tableInfo, dataSource, options.VerboseLogging, Logger);
+
+        auto allSplits = CoordinateDataSources(
+            Connection_->GetCellDirectory(),
+            Connection_->GetNetworks(),
+            tableInfo,
+            inferredDataSource,
+            rowBuffer);
+
+        bool sortedDataSource = tableInfo->IsSorted();
+
+        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
+
+        if (coordinatedQuery->IsOrdered()) {
+            // Splits are ordered by tablet bounds.
+            YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
+
+            for (const auto& [dataSource, address] : allSplits) {
+                groupedDataSplits.emplace_back(std::vector<TDataSource>{dataSource}, address);
+            }
+        } else {
+            size_t minKeyWidth = std::numeric_limits<size_t>::max();
+            for (const auto& [split, address] : allSplits) {
+                for (const auto& range : split.Ranges) {
+                    minKeyWidth = std::min({
+                        minKeyWidth,
+                        GetSignificantWidth(range.first),
+                        GetSignificantWidth(range.second)});
+                }
+
+                for (const auto& key : split.Keys) {
+                    minKeyWidth = std::min(
+                        minKeyWidth,
+                        static_cast<size_t>(key.GetCount()));
+                }
+            }
+
+            if (minKeyWidth == 0) {
+                if (!options.AllowFullScan) {
+                    THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
+                        "the query is inefficient, consider rewriting it");
+                } else {
+                    YT_LOG_DEBUG("Executing query with full scan");
+                }
+            }
+
+            YT_LOG_DEBUG("Regrouping %v splits into groups",
+                allSplits.size());
+
+            THashMap<TString, std::vector<TDataSource>> groupsByAddress;
+            for (const auto& split : allSplits) {
+                const auto& address = split.second;
+                groupsByAddress[address].push_back(split.first);
+            }
+
+            for (const auto& group : groupsByAddress) {
+                groupedDataSplits.emplace_back(group.second, group.first);
+            }
+
+            YT_LOG_DEBUG("Regrouped %v splits into %v groups",
+                allSplits.size(),
+                groupsByAddress.size());
+        }
+
+        return DoCoordinateAndExecute(
+            coordinatedQuery,
+            externalCGInfo,
+            options,
+            writer,
+            sortedDataSource,
+            std::move(groupedDataSplits));
     }
 
 private:
@@ -520,89 +589,6 @@ private:
                     MemoryChunkProvider_,
                     options);
             });
-    }
-
-    TQueryStatistics DoExecute(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        TDataSource dataSource,
-        const TQueryOptions& options,
-        IUnversionedRowsetWriterPtr writer)
-    {
-        auto Logger = MakeQueryLogger(query);
-
-        auto rowBuffer = New<TRowBuffer>(
-            TQueryExecutorRowBufferTag{},
-            MemoryChunkProvider_);
-
-        auto [allSplits, coordinatedQuery, sortedDataSource] = InferRanges(
-            Connection_,
-            query,
-            dataSource,
-            options,
-            rowBuffer,
-            Logger);
-
-        std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
-
-        if (coordinatedQuery->IsOrdered()) {
-            // Splits are ordered by tablet bounds.
-            YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
-
-            for (const auto& [dataSource, address] : allSplits) {
-                groupedDataSplits.emplace_back(std::vector<TDataSource>{dataSource}, address);
-            }
-        } else {
-            size_t minKeyWidth = std::numeric_limits<size_t>::max();
-            for (const auto& [split, address] : allSplits) {
-                for (const auto& range : split.Ranges) {
-                    minKeyWidth = std::min({
-                        minKeyWidth,
-                        GetSignificantWidth(range.first),
-                        GetSignificantWidth(range.second)});
-                }
-
-                for (const auto& key : split.Keys) {
-                    minKeyWidth = std::min(
-                        minKeyWidth,
-                        static_cast<size_t>(key.GetCount()));
-                }
-            }
-
-            if (minKeyWidth == 0) {
-                if (!options.AllowFullScan) {
-                    THROW_ERROR_EXCEPTION("Primary table key is not used in the where clause (full scan); "
-                        "the query is inefficient, consider rewriting it");
-                } else {
-                    YT_LOG_DEBUG("Executing query with full scan");
-                }
-            }
-
-            YT_LOG_DEBUG("Regrouping %v splits into groups",
-                allSplits.size());
-
-            THashMap<TString, std::vector<TDataSource>> groupsByAddress;
-            for (const auto& split : allSplits) {
-                const auto& address = split.second;
-                groupsByAddress[address].push_back(split.first);
-            }
-
-            for (const auto& group : groupsByAddress) {
-                groupedDataSplits.emplace_back(group.second, group.first);
-            }
-
-            YT_LOG_DEBUG("Regrouped %v splits into %v groups",
-                allSplits.size(),
-                groupsByAddress.size());
-        }
-
-        return DoCoordinateAndExecute(
-            coordinatedQuery,
-            externalCGInfo,
-            options,
-            writer,
-            sortedDataSource,
-            std::move(groupedDataSplits));
     }
 
     std::pair<ISchemafulUnversionedReaderPtr, TFuture<TQueryStatistics>> Delegate(
@@ -700,7 +686,6 @@ DEFINE_REFCOUNTED_TYPE(TQueryExecutor)
 IExecutorPtr CreateQueryExecutor(
     IMemoryChunkProviderPtr memoryChunkProvider,
     NNative::IConnectionPtr connection,
-    IInvokerPtr invoker,
     IColumnEvaluatorCachePtr columnEvaluatorCache,
     IEvaluatorPtr evaluator,
     INodeChannelFactoryPtr nodeChannelFactory,
@@ -709,7 +694,6 @@ IExecutorPtr CreateQueryExecutor(
     return New<TQueryExecutor>(
         std::move(memoryChunkProvider),
         std::move(connection),
-        std::move(invoker),
         std::move(columnEvaluatorCache),
         std::move(evaluator),
         std::move(nodeChannelFactory),
