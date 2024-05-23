@@ -894,6 +894,7 @@ private:
                 PrimaryPath_,
                 SecondaryPath_));
         options.Attributes = std::move(attributes);
+
         return WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
     }

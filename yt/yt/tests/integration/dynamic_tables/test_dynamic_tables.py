@@ -1366,24 +1366,19 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         custom_area = create_area("custom", cell_bundle="custom", cellar_type="tablet", node_tag_filter="b")
 
         nodes = list(get("//sys/cluster_nodes"))
-        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["a"])
-        set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["b"])
+        set(f"//sys/cluster_nodes/{nodes[0]}/@user_tags", ["a"])
+        set(f"//sys/cluster_nodes/{nodes[1]}/@user_tags", ["b"])
 
         cell = sync_create_cells(1, tablet_cell_bundle="custom")[0]
-        assert get("#{0}/@area".format(cell)) == "default"
-        assert get("#{0}/@area_id".format(cell)) == default_area
-        assert get("#{0}/@peers/0/address".format(cell)) == nodes[0]
+        assert get(f"#{cell}/@area") == "default"
+        assert get(f"#{cell}/@area_id") == default_area
+        assert get(f"#{cell}/@peers/0/address") == nodes[0]
 
-        set("#{0}/@area".format(cell), "custom")
-        assert get("#{0}/@area".format(cell)) == "custom"
-        assert get("#{0}/@area_id".format(cell)) == custom_area
+        set(f"#{cell}/@area", "custom")
+        assert get(f"#{cell}/@area") == "custom"
+        assert get(f"#{cell}/@area_id") == custom_area
 
-        def _check():
-            try:
-                return get("#{0}/@peers/0/address".format(cell)) == nodes[1]
-            except YtError:
-                return False
-        wait(_check)
+        wait(lambda: get(f"#{cell}/@peers/0/address") == nodes[1], ignore_exceptions=True)
 
     def _test_cell_bundle_distribution(self, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
@@ -3610,6 +3605,30 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
         "10": {"roles": ["cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator"]},
     }
+
+
+class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    def setup_method(self, method):
+        super(TestDynamicTablesShardedTx, self).setup_method(method)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
 
 
 class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):

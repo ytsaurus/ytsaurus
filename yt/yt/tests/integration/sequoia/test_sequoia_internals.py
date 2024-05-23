@@ -821,6 +821,8 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         for table in DESCRIPTORS.get_group("transaction_tables"):
             records = select_rows_from_ground(f"* from [{table.get_default_path()}]")
             if table.name == "transactions":
+                assert len(records) == 1
+                del records[0]["transaction_id_hash"]
                 assert records == [
                     {"transaction_id": t7, "ancestor_ids": [], "attributes": {}, "prerequisite_transaction_ids": []},
                 ]

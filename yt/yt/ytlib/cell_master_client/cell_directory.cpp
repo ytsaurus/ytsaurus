@@ -523,9 +523,7 @@ private:
         const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
-            if (options.RetrySequoiaErrors &&
-                error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError)
-            {
+            if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
                 return true;
             }
 

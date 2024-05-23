@@ -90,7 +90,7 @@ class TestCypress(YTEnvSetup):
 
         # empty token in path
         # TODO(h0pless): Maybe make sure the error doesn't change.
-        if self.USE_SEQUOIA:
+        if self.ENABLE_TMP_ROOTSTOCK:
             error_message = "Expected \"literal\" in YPath but found \"slash\" token \"/\""
         else:
             error_message = "Unexpected \"slash\" token \"/\" in YPath"
@@ -556,7 +556,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_simple6a(self):
-        error_message = "Scion cannot be cloned" if self.USE_SEQUOIA else "Cannot copy or move a node to itself"
+        error_message = "Scion cannot be cloned" if self.ENABLE_TMP_ROOTSTOCK else "Cannot copy or move a node to itself"
         with raises_yt_error(error_message):
             copy("//tmp", "//tmp/a")
 
@@ -716,7 +716,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_copy_unexisting_path(self):
-        if self.USE_SEQUOIA:
+        if self.ENABLE_TMP_ROOTSTOCK:
             error_message = "Scion cannot be cloned"
         else:
             error_message = "Node //tmp has no child with key \"x\""
@@ -1017,7 +1017,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_move_force4(self):
-        error_message = "//tmp is not a local object" if self.USE_SEQUOIA else "Node / cannot be replaced"
+        error_message = "//tmp is not a local object" if self.ENABLE_TMP_ROOTSTOCK else "Node / cannot be replaced"
         with raises_yt_error(error_message):
             copy("//tmp", "/", force=True)
 
@@ -1275,7 +1275,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_create_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
-        existing_type = "sequoia_map_node" if self.USE_SEQUOIA else "map_node"
+        existing_type = "sequoia_map_node" if self.ENABLE_TMP_ROOTSTOCK else "map_node"
         with raises_yt_error(f"//tmp/a/b already exists and has type \"{existing_type}\" while node of \"table\" type is about to be created"):
             create("table", "//tmp/a/b", ignore_existing=True)
 
@@ -4171,6 +4171,23 @@ class TestCypressShardedTxCTxS(TestCypressShardedTx):
             "transaction_manager": {
                 "use_cypress_transaction_service": True,
             }
+        }
+    }
+
+
+class TestCypressMirroredTx(TestCypressShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
         }
     }
 

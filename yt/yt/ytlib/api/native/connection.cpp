@@ -1017,10 +1017,8 @@ private:
         channel = CreateRetryingChannel(
             config,
             std::move(channel),
-            BIND([retrySequoiaErrors = Options_.RetrySequoiaErrors] (const TError& error) {
-                if (retrySequoiaErrors &&
-                    error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError)
-                {
+            BIND([] (const TError& error) {
+                if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
                     return true;
                 }
 

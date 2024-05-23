@@ -2265,16 +2265,13 @@ private:
             foreignCells.push_back(cellTag);
         }
 
+        // NB: the only purpose of this transaction is to export chunks.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->StartTransaction(
-            nullptr,
-            /*prerequisiteTransactions*/ {},
+        auto* transaction = transactionManager->StartSystemTransaction(
             /*replicatedToCellTags*/ foreignCells,
             config->MulticellReincarnationTransactionTimeout,
-            /*deadline*/ std::nullopt,
             "Multicell chunk reincarnation",
-            EmptyAttributes(),
-            /*isCypressTransaction*/ false);
+            EmptyAttributes());
 
         for (const auto& [cellTag, chunks] : perCellReincarnationInfo) {
             const auto& [oldChunks, newChunks] = chunks;

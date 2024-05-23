@@ -2402,15 +2402,9 @@ private:
             : Format("Prerequisite for cell %v", cell->GetId());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto* transaction = transactionManager->StartTransaction(
-            /*parent*/ nullptr,
-            /*prerequisiteTransactions*/ {},
+        auto* transaction = transactionManager->StartNonMirroredCypressTransaction(
             secondaryCellTags,
-            /*timeout*/ std::nullopt,
-            /*deadline*/ std::nullopt,
-            title,
-            EmptyAttributes(),
-            /*isCypressTransaction*/ true);
+            title);
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction(peerId));
         EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, peerId));

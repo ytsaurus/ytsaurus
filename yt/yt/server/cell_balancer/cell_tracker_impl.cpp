@@ -323,7 +323,6 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
         return;
     }
 
-
     // Try to assign missing peers.
     for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (ClusterStateProvider_->IsAlienPeer(cell, peerId)) {

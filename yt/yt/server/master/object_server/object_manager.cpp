@@ -909,7 +909,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 
     auto* hydraContext = GetCurrentHydraContext();
     auto version = hydraContext->GetVersion();
-    auto hash = hydraContext->RandomGenerator()->Generate<ui32>();
+    auto entropy = hydraContext->RandomGenerator()->Generate<ui32>();
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = multicellManager->GetCellTag();
@@ -918,10 +918,10 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
     // externalized transaction ids.
     // NB: System transactions are not externalizeable.
     if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
-        hash &= 0xffff;
+        entropy &= 0xffff;
     }
 
-    auto result = MakeRegularId(type, cellTag, version, hash);
+    auto result = MakeRegularId(type, cellTag, version, entropy);
 
     if (auto* mutationContext = TryGetCurrentMutationContext()) {
         mutationContext->CombineStateHash(result);

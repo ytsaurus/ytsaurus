@@ -156,7 +156,6 @@ void TBootstrap::DoRun()
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
-    connectionOptions.RetrySequoiaErrors = false;
     Connection_ = NApi::NNative::CreateConnection(
         Config_->ClusterConnection,
         std::move(connectionOptions),

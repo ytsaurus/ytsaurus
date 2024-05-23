@@ -59,11 +59,11 @@
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
+#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
-
-#include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/client/hive/timestamp_map.h>
 
@@ -264,11 +264,11 @@ public:
         });
 
         // Replicate Cypress Tx
-        // Coordinator: TReqMarkCypressTransactionsReplicatedToCell, commit
-        // Participant: TReqMaterializeCypressTransactionReplicas, commit
-        // NB: Since there is no permission checking nor any validation on tx
-        // replication we can do everything in tx action's commit.
-        RegisterTransactionActionHandlers<NProto::TReqMarkCypressTransactionsReplicatedToCell>({
+        // Coordinator: TReqMarkCypressTransactionsReplicatedToCell, prepare
+        // Participant: TReqMaterializeCypressTransactionReplicas, prepare
+        // NB: since there is no permission checking nor any validation on tx
+        // replication we could do everything in tx action's commit.
+        RegisterTransactionActionHandlers<NProto::TReqMarkCypressTransactionsReplicatedToCells>({
             .Commit = BIND_NO_PROPAGATE(
                 &TTransactionManager::HydraCommitMarkCypressTransactionsReplicatedToCell,
                 Unretained(this)),
@@ -285,6 +285,41 @@ public:
         return TransactionPresenceCache_;
     }
 
+    TTransaction* StartSystemTransaction(
+        const TCellTagList& replicatedToCellTags,
+        std::optional<TDuration> timeout,
+        const TString& title,
+        const IAttributeDictionary& attributes,
+        TTransactionId hintId = NullTransactionId) override
+    {
+        return StartTransaction(
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
+            replicatedToCellTags,
+            /*timeout*/ timeout,
+            /*deadline*/ std::nullopt,
+            title,
+            attributes,
+            /*isCypressTransaction*/ false,
+            hintId);
+    }
+
+    TTransaction* StartNonMirroredCypressTransaction(
+        const TCellTagList& replicatedToCellTags,
+        const TString& title) override
+    {
+        return StartTransaction(
+            /*parent*/ nullptr,
+            /*prerequisiteTransactions*/ {},
+            replicatedToCellTags,
+            /*timeout*/ std::nullopt,
+            /*deadline*/ std::nullopt,
+            title,
+            EmptyAttributes(),
+            /*isCypressTransaction*/ true);
+    }
+
+
     TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
@@ -294,7 +329,7 @@ public:
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
         bool isCypressTransaction,
-        TTransactionId hintId = NullTransactionId) override
+        TTransactionId hintId = NullTransactionId)
     {
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
@@ -330,7 +365,7 @@ public:
             /*deadline*/ std::nullopt,
             title,
             EmptyAttributes(),
-            /*isCypressTransaction*/ true,
+            /*isCypressTransaction*/ false,
             hintId);
     }
 
@@ -418,16 +453,23 @@ public:
         bool enableDedicatedTypesForSystemTransactions = dynamicConfig->EnableDedicatedTypesForSystemTransactions;
 
         EObjectType transactionObjectType;
-        if (!isCypressTransaction && enableDedicatedTypesForSystemTransactions) {
-            transactionObjectType = parent ? EObjectType::SystemNestedTransaction : EObjectType::SystemTransaction;
+        if (upload) {
+            transactionObjectType = parent
+                ? EObjectType::UploadNestedTransaction
+                : EObjectType::UploadTransaction;
+        } else if (!isCypressTransaction && enableDedicatedTypesForSystemTransactions) {
+            transactionObjectType = parent
+                ? EObjectType::SystemNestedTransaction
+                : EObjectType::SystemTransaction;
         } else {
-            transactionObjectType = upload
-                ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
-                : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
+            transactionObjectType = parent
+                ? EObjectType::NestedTransaction
+                : EObjectType::Transaction;
         }
 
         // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
-        if (enableDedicatedTypesForSystemTransactions && parent) {
+        // NB: upload transaction can be nested to both system and Cypress transaction.
+        if (enableDedicatedTypesForSystemTransactions && parent && !IsUploadTransactionType(transactionObjectType)) {
             auto parentType = TypeFromId(parent->GetId());
 
             if (IsSystemTransactionType(transactionObjectType) && !IsSystemTransactionType(parentType)) {
@@ -542,7 +584,7 @@ public:
             if (upload) {
                 transaction->ReplicatedToCellTags() = replicatedToCellTags;
             } else if (IsMirroringToSequoiaEnabled() && IsMirroredToSequoia(transactionId)) {
-                RememberTransactionReplicas(transaction, replicatedToCellTags);
+                MarkTransactionReplicated(transaction, replicatedToCellTags);
             } else {
                 ReplicateTransaction(transaction, replicatedToCellTags);
             }
@@ -577,7 +619,7 @@ public:
         return transaction;
     }
 
-    void RememberTransactionReplicas(TTransaction* transaction, TCellTagList replicateToCellTags)
+    void MarkTransactionReplicated(TTransaction* transaction, TCellTagList replicateToCellTags)
     {
         for (; transaction; transaction = transaction->GetParent()) {
             bool alreadyReplicated = true;
@@ -597,6 +639,11 @@ public:
         TTransaction* transaction,
         const TTransactionCommitOptions& options) override
     {
+        YT_LOG_ALERT_IF(
+            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            "Attempt to commit Cypress transaction in non-Sequoia way (TransactionId: %v)",
+            transaction->GetId());
+
         CommitTransaction(transaction, options);
     }
 
@@ -758,11 +805,10 @@ public:
         TTransaction* transaction,
         const TTransactionAbortOptions& options) override
     {
-        // TODO(kvk1920): since mirrorring transactions to Sequoia prevents
-        // their synchronous abort inside master mutations check all places
-        // where AbortMasterTransaction() is used and consider use system tx
-        // instead of Cypress one. After that add YT_VERIFY here that tx is not
-        // Cypress.
+        YT_LOG_ALERT_IF(
+            transaction->GetIsCypressTransaction() && IsSequoiaId(transaction->GetId()),
+            "Attempt to abort mirrored Cypress transaction in non-Sequoia way (TransactionId: %v)",
+            transaction->GetId());
 
         AbortTransaction(
             transaction,
@@ -833,7 +879,7 @@ public:
                 .Force = true,
             };
 
-            // NB: It's not necessary to replicated every nested transaction's
+            // NB: it's not necessary to replicate every nested transaction's
             // abort since it will be aborted during ancestor's abort anyway.
             AbortTransaction(
                 nestedTransaction,
@@ -1384,17 +1430,77 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
+    bool UsesNonMirroredTransactions(const TCtxStartCypressTransactionPtr& context)
+    {
+        std::optional<TTransactionId> mirroredSample, nonMirroredSample;
+
+        auto onCypressTransaction = [&] (TTransactionId transactionId) {
+            YT_ASSERT(IsCypressTransactionType(TypeFromId(transactionId)));
+
+            if (IsMirroredToSequoia(transactionId)) {
+                mirroredSample = transactionId;
+            } else {
+                nonMirroredSample = transactionId;
+            }
+        };
+
+        for (const auto& protoId : context->Request().prerequisite_transaction_ids()) {
+            auto transactionId = FromProto<TTransactionId>(protoId);
+            if (IsSystemTransactionType(TypeFromId(transactionId))) {
+                YT_LOG_ALERT("Attempt to use system transaction as a prerequisite for Cypress one "
+                    "(SystemTransactionId: %v)",
+                    transactionId);
+                THROW_ERROR_EXCEPTION("System transactions cannot be prerequisites for Cypress ones")
+                    << TErrorAttribute("system_transaction_id", transactionId);
+            } else {
+                onCypressTransaction(transactionId);
+            }
+        }
+
+        auto parentId = FromProto<TTransactionId>(context->Request().parent_id());
+        if (parentId) {
+            if (IsSystemTransactionType(TypeFromId(parentId))) {
+                YT_LOG_ALERT("Attempt to use system transaction as parent for Cypress one "
+                    "(SystemTransactionId: %v)",
+                    parentId);
+                THROW_ERROR_EXCEPTION("System transactions cannot be parent for Cypress ones")
+                    << TErrorAttribute("system_transaction_id", parentId);
+            } else {
+                onCypressTransaction(parentId);
+            }
+        }
+
+        if (mirroredSample && nonMirroredSample) {
+            YT_LOG_ALERT(
+                "Attempt to start Cypress transaction which depends on both mirrored and "
+                "non-mirrored transaction (MirroredTransactionId: %v, "
+                "NonMirroredTransactionId: %v, Title: %v)",
+                *mirroredSample,
+                *nonMirroredSample,
+                YT_PROTO_OPTIONAL(context->Request(), title));
+            THROW_ERROR_EXCEPTION(
+                "Cypress transaction cannot depend on both mirrored and non-mirrored "
+                "transactions at the same time")
+                << TErrorAttribute("mirrored_transaction_id", *mirroredSample)
+                << TErrorAttribute("non_mirrored_transaction_id", *nonMirroredSample);
+        }
+
+        return nonMirroredSample.has_value();
+    }
+
     void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto parentId = FromProto<TTransactionId>(context->Request().parent_id());
-
         if (IsMirroringToSequoiaEnabled()) {
-            if (!parentId || IsMirroredToSequoia(parentId)) {
+            if (!UsesNonMirroredTransactions(context)) {
                 StartCypressTransactionInSequoiaAndReply(Bootstrap_, context);
                 return;
             }
+
+            YT_LOG_WARNING(
+                "Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is "
+                "started");
         }
 
         auto hydraRequest = BuildStartCypressTransactionRequest(
@@ -1417,6 +1523,9 @@ public:
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
+        // TODO(kvk1920): optimize.
+        // For mirrorred transactions it's enough to lock some rows in
+        // "transactions" Sequoia table. Replication isn't necessary here.
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
             auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -2033,6 +2142,10 @@ private:
 
         if (GetDynamicConfig()->ForbidTransactionActionsForCypressTransactions) {
             if (transaction->GetIsCypressTransaction() && !request->actions().empty()) {
+                YT_LOG_ALERT(
+                    "Transaction is Cypress but has actions (TransactionId: %v, TransactionActionCount: %v)",
+                    transaction->GetId(),
+                    request->actions_size());
                 THROW_ERROR_EXCEPTION("Cypress transactions cannot have transaction actions");
             }
         }
@@ -2252,22 +2365,33 @@ private:
 
     void HydraCommitMarkCypressTransactionsReplicatedToCell(
         TTransaction* /*sequoiaTransaction*/,
-        NProto::TReqMarkCypressTransactionsReplicatedToCell* request,
+        NProto::TReqMarkCypressTransactionsReplicatedToCells* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        // TODO(kvk1920): consider using late prepare here. Note that there can
-        // be txs from different coordinators so we cannot always do
-        // coordinator-related actions in late prepare. But we can achieve this
-        // by using one Sequoia tx per coordinator.
-
-        auto destinationCellTag = FromProto<TCellTag>(request->destination_cell_tag());
+        auto destinationCellTags = FromProto<TCellTagList>(request->destination_cell_tags());
 
         for (const auto& protoId : request->transaction_ids()) {
             auto transactionId = FromProto<TTransactionId>(protoId);
             if (auto* transaction = FindTransaction(transactionId)) {
-                RememberTransactionReplicas(transaction, {destinationCellTag});
+                MarkTransactionReplicated(transaction, destinationCellTags);
             }
         }
+    }
+
+    void MaterializeCypressTransactionReplica(NProto::TReqStartForeignTransaction* request)
+    {
+        YT_VERIFY(HasMutationContext());
+
+        auto transactionId = FromProto<TTransactionId>(request->id());
+        if (auto* transaction = FindTransaction(transactionId)) {
+            THROW_ERROR_EXCEPTION_IF(transaction->GetPersistentState() != ETransactionState::Active,
+                "Transaction already exists but is not active");
+
+            // Concurrent tx replication should not lead to lock conflict.
+            return;
+        }
+
+        HydraStartForeignTransaction(request);
     }
 
     void HydraCommitMaterializeCypressTransactionReplicas(
@@ -2277,9 +2401,13 @@ private:
     {
         for (auto& subrequest : *request->mutable_transactions()) {
             try {
-                HydraStartForeignTransaction(&subrequest);
+                MaterializeCypressTransactionReplica(&subrequest);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT(ex, "Failed to replicate Cypress transactions");
+                YT_LOG_ALERT(
+                    ex,
+                    "Failed to prepare Cypress transaction replica materialization "
+                    "(TransactionId: %v)",
+                    FromProto<TTransactionId>(subrequest.id()));
             }
         }
     }
@@ -3164,7 +3292,7 @@ private:
     // not used.
     static bool IsMirroredToSequoia(TTransactionId transactionId)
     {
-        return IsSequoiaId(transactionId) && IsCypressTransactionType(TypeFromId(transactionId));
+        return IsCypressTransactionType(TypeFromId(transactionId)) && IsSequoiaId(transactionId);
     }
 };
 

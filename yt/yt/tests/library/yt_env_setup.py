@@ -1555,9 +1555,12 @@ class YTEnvSetup(object):
 
         if self.USE_SEQUOIA:
             dynamic_master_config["sequoia_manager"]["enable"] = True
-            dynamic_master_config["sequoia_manager"]["fetch_chunk_meta_from_sequoia"] = True
             if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
                 dynamic_master_config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
+
+        # COMPAT(kvk1920)
+        if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
+            dynamic_master_config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
 
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")

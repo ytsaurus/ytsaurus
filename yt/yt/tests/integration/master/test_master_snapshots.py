@@ -831,5 +831,23 @@ class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
     }
 
 
+@authors("kvk1920")
+class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
+        }
+    }
+
+
 class TestMastersPersistentReadOnlyMulticell(TestMastersPersistentReadOnly):
     NUM_SECONDARY_MASTER_CELLS = 2

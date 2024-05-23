@@ -1376,6 +1376,34 @@ class TestBackupsShardedTx(TestBackups):
         assert_items_equal(select_rows("* from [//tmp/res2]"), [{"key": 2, "value": "b"}])
 
 
+@authors("kvk1920")
+class TestBackupsMirroredTx(TestBackupsShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
+        }
+    }
+
+
 @authors("ifsmirnov")
 class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1387,6 +1415,34 @@ class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["transaction_coordinator"]},
+    }
+
+
+@authors("kvk1920")
+class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+    NUM_CYPRESS_PROXIES = 1
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "transaction_manager": {
+            "forbid_transaction_actions_for_cypress_transactions": True,
+        }
     }
 
 

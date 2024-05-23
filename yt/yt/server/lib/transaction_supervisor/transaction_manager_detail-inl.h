@@ -26,6 +26,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     const TTransactionPrepareOptions& options,
     bool requireLegacyBehavior)
 {
+    // We don't need to run abort tx actions for transient prepare.
     auto rememberPreparedTransactionActionCount = !requireLegacyBehavior && options.Persistent;
 
     // |PreparedActionCount| should never be |nullopt| after update to current

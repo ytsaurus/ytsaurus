@@ -19,7 +19,6 @@ from datetime import datetime
 
 
 class TestMaintenanceTracker(YTEnvSetup):
-    NUM_MASTERS = 1
     NUM_NODES = 3
     TEST_MAINTENANCE_FLAGS = True
     NUM_RPC_PROXIES = 2

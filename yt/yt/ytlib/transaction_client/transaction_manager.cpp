@@ -70,9 +70,7 @@ class TTransactionManager::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        IConnectionPtr connection,
-        const TString& user);
+    TImpl(IConnectionPtr connection, const TString& user);
 
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
@@ -100,7 +98,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashSet<TTransaction::TImpl*> AliveTransactions_;
-
 
     static TRetryChecker GetCommitRetryChecker()
     {
@@ -948,7 +945,10 @@ private:
 
         auto connection = TryLockConnection()
             .ValueOrThrow();
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        auto channel = connection->GetMasterChannelOrThrow(
+            EMasterChannelKind::Leader,
+            CoordinatorMasterCellTag_);
+
         TCypressTransactionServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();
 
@@ -1689,9 +1689,7 @@ DELEGATE_SIGNAL(TTransaction, ITransaction::TAbortedHandlerSignature, Aborted, *
 TTransactionManager::TTransactionManager(
     IConnectionPtr connection,
     const TString& user)
-    : Impl_(New<TImpl>(
-        std::move(connection),
-        user))
+    : Impl_(New<TImpl>(std::move(connection), user))
 { }
 
 TTransactionManager::~TTransactionManager()

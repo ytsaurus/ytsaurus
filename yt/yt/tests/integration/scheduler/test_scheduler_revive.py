@@ -790,6 +790,8 @@ class OperationReviveBase(YTEnvSetup):
     @flaky(max_runs=3)
     @pytest.mark.parametrize("mode", ["simple", "cypress_tx_action", "system_tx_action"])  # COMPAT(kvk1920)
     def test_completing(self, mode):
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA and mode == "cypress_tx_action":
+            pytest.skip("Cypress transactions in Sequoia don't support transaction actions")
         update_controller_agent_config(
             "set_committed_attribute_via_transaction_action",
             mode == "cypress_tx_action")
@@ -1029,6 +1031,22 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
         job_count = spec.pop("job_count", 1)
         spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
         return vanilla(spec=spec, **kwargs)
+
+
+class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
 
 
 ################################################################################

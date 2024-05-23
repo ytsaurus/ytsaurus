@@ -11,7 +11,7 @@ from yt_commands import (
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
-    set_node_banned, update_inplace)
+    set_node_banned, update_inplace, update_controller_agent_config)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
@@ -145,6 +145,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
     @authors("ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
+    @pytest.mark.timeout(150)
     def test_big_input(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -2247,11 +2248,6 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     }
 
 
-class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsShardedTx):
-    USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
-
-
 class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -2263,6 +2259,23 @@ class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
             }
         }
     }
+
+
+class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = False
+
+    def setup_method(self, method):
+        super(TestSchedulerMapCommandsShardedTxCTxS, self).setup_method(method)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
+        update_controller_agent_config(
+            "set_committed_attribute_via_transaction_action",
+            False,
+            wait_for_orchid=False)
+        update_controller_agent_config(
+            "commit_operation_cypress_node_changes_via_system_transaction",
+            True)
 
 
 ##################################################################
