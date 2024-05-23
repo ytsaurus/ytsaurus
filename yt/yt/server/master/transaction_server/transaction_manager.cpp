@@ -2460,7 +2460,10 @@ private:
 
             transaction->SetTransactionLeasesState(ETransactionLeasesState::Revoking);
 
-            auto leaseCellIds = transaction->LeaseCellIds();
+            auto leaseCellIds = std::vector(
+                transaction->LeaseCellIds().begin(),
+                transaction->LeaseCellIds().end());
+            Sort(leaseCellIds);
             for (auto cellId : leaseCellIds) {
                 NLeaseServer::NProto::TReqRevokeLease message;
                 ToProto(message.mutable_lease_id(), transaction->GetId());
