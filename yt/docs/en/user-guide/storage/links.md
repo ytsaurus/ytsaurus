@@ -1,1 +1,1 @@
-{% include [ССылки](../../_includes/user-guide/storage/links.md) %}
+{% include [Links](../../_includes/user-guide/storage/links.md) %}
