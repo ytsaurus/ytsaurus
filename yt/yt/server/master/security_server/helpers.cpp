@@ -143,6 +143,11 @@ int GetAccountShardIndex(TAccountId accountId)
     return TDirectObjectIdHash()(accountId) % AccountShardCount;
 }
 
+int GetAccountProfilingBucketIndex(TAccountId accountId)
+{
+    return (HashFromId(accountId) / AccountShardCount) % AccountProfilingProducerCount;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

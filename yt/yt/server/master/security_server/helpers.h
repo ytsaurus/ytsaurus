@@ -63,6 +63,8 @@ void ValidateSuperuserOnAttributeModification(
 
 int GetAccountShardIndex(TAccountId accountId);
 
+int GetAccountProfilingBucketIndex(TAccountId accountId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

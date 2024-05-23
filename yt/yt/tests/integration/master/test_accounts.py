@@ -4634,6 +4634,25 @@ class TestAccountsProfiling(YTEnvSetup):
         assert (values == []) != should_report
 
     @authors("h0pless")
+    def test_account_profiling_buckets(self):
+        set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", False)
+        set("//sys/@config/security_manager/accounts_profiling_period", 1)
+
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+        sleep(1.5)
+        gauge = leader_profiler.gauge("accounts/node_count_limit", fixed_tags={"account": "sys"})
+        gauge_value = gauge.get()
+
+        create_account("industrial_chimney_lover")
+        sleep(1.5)
+        assert gauge_value == gauge.get()
+
+        create_account("industrial_furnace_hater")
+        sleep(1.5)
+        assert gauge_value == gauge.get()
+
+    @authors("h0pless")
     def test_accounts_profiling(self):
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", True)
         set("//sys/@config/security_manager/accounts_profiling_period", 1)
