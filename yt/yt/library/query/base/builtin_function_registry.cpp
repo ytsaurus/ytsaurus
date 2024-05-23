@@ -360,6 +360,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterFunction(
+        "yson_string_to_any",
+        std::vector<TType>{TUnionType{EValueType::String}},
+        EValueType::Any,
+        "yson_string_to_any",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterFunction(
         "list_contains",
         std::vector<TType>{
             EValueType::Any,

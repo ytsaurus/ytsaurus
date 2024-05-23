@@ -3595,6 +3595,12 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
     return CompareYsonValuesHelper(lhsData, lhsLength, rhsData, rhsLength);
 }
 
+void ValidateYsonHelper(const char* offset, ui32 length)
+{
+    auto* data = ConvertPointerFromWasmToHost(offset, length);
+    ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit=*/ 256);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count) // NOLINT
@@ -3793,6 +3799,7 @@ REGISTER_ROUTINE(DictSumIteration);
 REGISTER_ROUTINE(CompareYsonValuesHelper);
 REGISTER_ROUTINE(HashYsonValueHelper);
 REGISTER_ROUTINE(CompareAny);
+REGISTER_ROUTINE(ValidateYsonHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
