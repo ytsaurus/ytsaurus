@@ -20,8 +20,10 @@ target_link_libraries(yt-library-formats PUBLIC
   yt-client-formats
   client-arrow-fbs
   yt-library-column_converters
+  libs-apache-arrow
 )
 target_sources(yt-library-formats PRIVATE
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/arrow_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/arrow_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/dsv_parser.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/formats/dsv_writer.cpp

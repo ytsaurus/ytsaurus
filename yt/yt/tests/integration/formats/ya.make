@@ -18,6 +18,7 @@ TEST_SRCS(
 
 PEERDIR(
     contrib/python/pyarrow
+    contrib/python/pandas
 )
 
 END()

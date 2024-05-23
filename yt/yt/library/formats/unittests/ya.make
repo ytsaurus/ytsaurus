@@ -7,6 +7,7 @@ ALLOCATOR(YT)
 PROTO_NAMESPACE(yt)
 
 SRCS(
+    arrow_parser_ut.cpp
     arrow_writer_ut.cpp
     dsv_parser_ut.cpp
     dsv_writer_ut.cpp
