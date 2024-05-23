@@ -6624,6 +6624,8 @@ TEST_F(TQueryEvaluateTest, CompareAny)
         "a=1.0;b=1.0;",
         "a=x;b=y;",
         "a=x;b=x;",
+        "a=[1;2;3];b=[1;2;3];",
+        "a=[1;2;3];b=[1;3;4];",
     };
 
     auto resultSplit = MakeSplit({
@@ -6646,6 +6648,8 @@ TEST_F(TQueryEvaluateTest, CompareAny)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
     }, resultSplit);
 
     Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6 FROM [//t]",
