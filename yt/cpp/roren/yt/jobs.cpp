@@ -591,6 +591,338 @@ REGISTER_RAW_JOB(TStatefulKvReduce);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStateDecodingParDo
+    : public IRawParDo
+{
+public:
+    TStateDecodingParDo() = default;
+
+    TStateDecodingParDo(const TYtStateVtable& stateVtable)
+        : StateVtable_(stateVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TStateDecodingParDo.Input", MakeRowVtable<TNode>())};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TStateDecodingParDo.Output", StateVtable_.StateTKVvtable)};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
+        Output_ = outputs[0];
+        StateHolder_.Reset(StateVtable_.StateTKVvtable);
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const TNode*>(rows);
+        for (int i = 0; i < count; ++i, ++curRow) {
+            StateVtable_.LoadState(StateHolder_, *curRow);
+
+            Output_->AddRaw(StateHolder_.GetData(), 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TStateDecodingParDo>();
+        };
+    }
+
+private:
+    TYtStateVtable StateVtable_;
+
+    IRawOutputPtr Output_;
+    TRawRowHolder StateHolder_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(StateVtable_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStateEncodingParDo
+    : public IRawParDo
+{
+public:
+    TStateEncodingParDo() = default;
+
+    TStateEncodingParDo(const TYtStateVtable& stateVtable)
+        : StateVtable_(stateVtable)
+    { }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {TDynamicTypeTag("TStateEncodingParDo.Input", StateVtable_.StateTKVvtable)};
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return {TDynamicTypeTag("TStateEncodingParDo.Output", MakeRowVtable<TNode>())};
+    }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
+        Output_ = outputs[0];
+        if (!KeyCoder_) {
+            KeyCoder_ = StateVtable_.StateTKVvtable.KeyVtableFactory().RawCoderFactory();
+            ValueCoder_ = StateVtable_.StateTKVvtable.ValueVtableFactory().RawCoderFactory();
+        }
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        const auto* curRow = static_cast<const std::byte*>(rows);
+        TRawRowHolder rowHolder;
+        for (int i = 0; i < count; ++i, curRow += StateVtable_.StateTKVvtable.DataSize) {
+            KeyBuffer_.clear();
+            ValueBuffer_.clear();
+            {
+                auto keyOut = TStringOutput(KeyBuffer_);
+                auto valueOut = TStringOutput(ValueBuffer_);
+                KeyCoder_->EncodeRow(&keyOut, GetKeyOfKv(StateVtable_.StateTKVvtable, curRow));
+                ValueCoder_->EncodeRow(&valueOut, GetValueOfKv(StateVtable_.StateTKVvtable, curRow));
+            }
+            ResultNode_["key"] = KeyBuffer_;
+            ResultNode_["value"] = ValueBuffer_;
+            Output_->AddRaw(&ResultNode_, 1);
+        }
+    }
+
+    void Finish() override
+    { }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static const TFnAttributes fnAttributes;
+        return fnAttributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TStateEncodingParDo>();
+        };
+    }
+
+private:
+    TYtStateVtable StateVtable_;
+
+    IRawOutputPtr Output_;
+    IRawCoderPtr KeyCoder_;
+    IRawCoderPtr ValueCoder_;
+    TNode ResultNode_;
+    TString KeyBuffer_;
+    TString ValueBuffer_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(StateVtable_);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStatefulParDoReducerImpulseReadNode
+    : public IRawParDo
+{
+private:
+    class TRawStateStore
+        : public IRawStateStore
+    {
+    public:
+        TRawStateStore() = default;
+
+        void SetState(TRawRowHolder& stateHolder)
+        {
+            RawState_ = stateHolder.GetData();
+        }
+
+        void* GetStateRaw(const void* key) final
+        {
+            Y_UNUSED(key);
+            return RawState_;
+        }
+
+    protected:
+        void* RawState_ = nullptr;
+    };
+
+    using TRawStateStorePtr = ::TIntrusivePtr<TRawStateStore>;
+
+    void StatefulProcessOneGroup(
+        const IRawStatefulParDoPtr& statefulParDo,
+        const TRawStateStorePtr& rawStateStore,
+        const TYtStateVtable& stateVtable,
+        const std::unique_ptr<::NYson::TYsonWriter>& stateYsonWriter,
+        const IYtNotSerializableJobInputPtr& input,
+        const std::vector<TRowVtable>& inVtables,
+        const IRawOutputPtr& output)
+    {
+        TRowVtable keyVtable;
+        TRawRowHolder keyHolder;
+
+        // TODO(whatsername): deque?
+        std::deque<std::vector<TRawRowHolder>> values;
+        values.resize(std::ssize(inVtables));
+
+        // Read all values for the key
+        while (const void* raw = input->NextRaw()) {
+            auto inputIndex = input->GetInputIndex();
+            Y_ENSURE(inputIndex < std::ssize(inVtables), "Input index must be less than input tags count");
+            const auto& inputVtable = inVtables[inputIndex];
+
+            if (!IsDefined(keyVtable)) {
+                keyVtable = inputVtable.KeyVtableFactory();
+                keyHolder = TRawRowHolder{keyVtable};
+                keyHolder.CopyFrom(reinterpret_cast<const char*>(raw) + inputVtable.KeyOffset);
+            }
+
+            values[inputIndex].emplace_back(inputVtable);
+            values[inputIndex].back().CopyFrom(raw);
+        }
+
+        Y_ABORT_UNLESS(IsDefined(keyVtable));
+
+        TRawRowHolder stateTKV;
+        TRawRowHolder state;
+        // Check if we have state for the key
+        if (values[0].empty()) {
+            stateTKV = TRawRowHolder(InVtables_[0]);
+            state = stateVtable.StateFromKey(keyHolder.GetData());
+        } else {
+            Y_ABORT_UNLESS(values[0].size() == 1);
+            stateTKV = std::move(values[0][0]);
+            state = stateVtable.StateFromTKV(stateTKV.GetData());
+        }
+        values.pop_front();
+
+        rawStateStore->SetState(state);
+        for (const auto& rawRowHolder : values[0]) {
+            statefulParDo->Do(rawRowHolder.GetData(), 1);
+        }
+
+        stateVtable.SaveState(*stateYsonWriter, state.GetData(), stateTKV.GetData());
+
+        output->Close();
+    }
+
+public:
+    TStatefulParDoReducerImpulseReadNode() = default;
+
+    TStatefulParDoReducerImpulseReadNode(IRawStatefulParDoPtr rawStatefulParDo, const TYtStateVtable& stateVtable)
+        : RawStatefulParDo_(std::move(rawStatefulParDo))
+        , StateVtable_(stateVtable)
+    { }
+
+    void Start(const IExecutionContextPtr& context, const std::vector<IRawOutputPtr>& outputs) override
+    {
+        Y_ABORT_UNLESS(context->GetExecutorName() == "yt");
+        Y_ABORT_UNLESS(outputs.size() == 1);
+        Processed_ = false;
+
+        Output_ = outputs[0];
+        RawStateStore_ = ::MakeIntrusive<TRawStateStore>();
+
+        RawStatefulParDo_->Start(context, RawStateStore_, outputs);
+
+        InVtables_.push_back(StateVtable_.StateTKVvtable);
+        for (const auto& inputTag : RawStatefulParDo_->GetInputTags()) {
+            InVtables_.push_back(inputTag.GetRowVtable());
+        }
+
+        // TODO(whatsername): Something more elegant?
+        StateStream_ = std::make_unique<TFileOutput>(Duplicate(GetOutputFD(0)));
+        StateYsonWriter_ = std::make_unique<::NYson::TYsonWriter>(
+            StateStream_.get(),
+            ::NYson::EYsonFormat::Binary,
+            ::NYson::EYsonType::ListFragment
+        );
+    }
+
+    void Do(const void* rows, int count) override
+    {
+        Y_ABORT_UNLESS(count == 1);
+        Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
+        Y_ABORT_UNLESS(!Processed_);
+        Processed_ = true;
+
+        auto rangesReader = CreateRangesNodeTableReader(&Cin);
+
+        for (; rangesReader->IsValid(); rangesReader->Next()) {
+            auto range = &rangesReader->GetRange();
+            auto input = CreateSplitKvJobNodeInput(InVtables_, range);
+            StatefulProcessOneGroup(RawStatefulParDo_, RawStateStore_, StateVtable_, StateYsonWriter_, input, InVtables_, Output_);
+        }
+    }
+
+    void Finish() override
+    {
+        RawStatefulParDo_->Finish();
+
+        StateYsonWriter_.reset();
+        StateStream_->Finish();
+        StateStream_.reset();
+    }
+
+    const TFnAttributes& GetFnAttributes() const override
+    {
+        static TFnAttributes attributes;
+        return attributes;
+    }
+
+    TDefaultFactoryFunc GetDefaultFactory() const override
+    {
+        return [] () -> IRawParDoPtr {
+            return ::MakeIntrusive<TStatefulParDoReducerImpulseReadNode>();
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetInputTags() const override
+    {
+        return {
+            {"input", MakeRowVtable<int>()}
+        };
+    }
+
+    std::vector<TDynamicTypeTag> GetOutputTags() const override
+    {
+        return RawStatefulParDo_->GetOutputTags();
+    }
+
+private:
+    IRawStatefulParDoPtr RawStatefulParDo_;
+    TYtStateVtable StateVtable_;
+
+    Y_SAVELOAD_DEFINE_OVERRIDE(RawStatefulParDo_, StateVtable_);
+
+    bool Processed_ = false;
+
+    IRawOutputPtr Output_;
+    TRawStateStorePtr RawStateStore_;
+
+    std::vector<TRowVtable> InVtables_;
+
+    std::unique_ptr<TFileOutput> StateStream_;
+    std::unique_ptr<::NYson::TYsonWriter> StateYsonWriter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCoGbkImpulseReadNodeParDo
     : public IRawParDo
 {
@@ -617,7 +949,6 @@ public:
         Y_ABORT_UNLESS(*static_cast<const int*>(rows) == 0);
         Y_ABORT_UNLESS(!Processed_);
         Processed_ = true;
-
 
         auto rangesReader = CreateRangesNodeTableReader(&Cin);
 
@@ -954,6 +1285,21 @@ IRawJobPtr CreateStatefulKvReduce(
     const TYtStateVtable& stateVtable)
 {
     return ::MakeIntrusive<TStatefulKvReduce>(rawComputation, inVtables, outputs, stateVtable);
+}
+
+IRawParDoPtr CreateStateDecodingParDo(const TYtStateVtable& stateVtable)
+{
+    return ::MakeIntrusive<TStateDecodingParDo>(stateVtable);
+}
+
+IRawParDoPtr CreateStateEncodingParDo(const TYtStateVtable& stateVtable)
+{
+    return ::MakeIntrusive<TStateEncodingParDo>(stateVtable);
+}
+
+IRawParDoPtr CreateStatefulParDoReducerImpulseReadNode(IRawStatefulParDoPtr rawStatefulParDo, const TYtStateVtable& stateVtable)
+{
+    return ::MakeIntrusive<TStatefulParDoReducerImpulseReadNode>(std::move(rawStatefulParDo), stateVtable);
 }
 
 IRawJobPtr CreateCombineCombiner(
