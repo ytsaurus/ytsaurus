@@ -106,7 +106,7 @@ private:
         using TDirectSparseReader = TSparseVersionedSegmentReader<TDirectSparseVersionedFloatingPointValueExtractor<T>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto dense = meta.HasExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
+        auto dense = meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
 
         if (dense) {
             return DoCreateSegmentReader<TDirectDenseReader>(meta);
@@ -120,7 +120,7 @@ private:
 
 template <typename T>
 std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -139,7 +139,7 @@ class TUnversionedFloatingPointValueExtractor
 public:
     TUnversionedFloatingPointValueExtractor(
         TRef data,
-        const TSegmentMeta& /*meta*/)
+        const NProto::TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = this->InitValueReader(data.Begin());
@@ -214,7 +214,7 @@ private:
 
 template <typename T>
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,

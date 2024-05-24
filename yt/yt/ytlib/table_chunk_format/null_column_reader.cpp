@@ -21,7 +21,7 @@ class TNullValueExtractor
 public:
     TNullValueExtractor(
         TRef /*data*/,
-        const TSegmentMeta& /*meta*/)
+        const NProto::TSegmentMeta& /*meta*/)
     { }
 
     void ExtractValue(TUnversionedValue* value, i64 /*valueIndex*/, int id, EValueFlags flags) const
@@ -205,7 +205,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,

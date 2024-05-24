@@ -8,6 +8,18 @@
 
 namespace NYT::NTableChunkFormat {
 
+using NYT::FromProto;
+using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define ITERATE_SEGMENT_META_EXTENSIONS(XX) \
+    XX(timestamp_segment_meta,       TimestampSegmentMeta) \
+    XX(integer_segment_meta,         IntegerSegmentMeta) \
+    XX(string_segment_meta,          StringSegmentMeta) \
+    XX(dense_versioned_segment_meta, DenseVersionedSegmentMeta) \
+    XX(schemaless_segment_meta,      SchemalessSegmentMeta)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TValue>

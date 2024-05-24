@@ -388,6 +388,7 @@ SRCS(
     table_chunk_format/column_reader.cpp
     table_chunk_format/column_writer_detail.cpp
     table_chunk_format/column_writer.cpp
+    table_chunk_format/column_meta.cpp
     table_chunk_format/data_block_writer.cpp
     table_chunk_format/floating_point_column_reader.cpp
     table_chunk_format/floating_point_column_writer.cpp
@@ -663,4 +664,5 @@ RECURSE_FOR_TESTS(
     table_client/unittests
     tablet_client/unittests
     queue_client/unittests
+    table_chunk_format/unittests
 )

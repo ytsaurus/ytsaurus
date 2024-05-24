@@ -10,11 +10,11 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TTimestampSegmentReader::TTimestampSegmentReader(
-    const TSegmentMeta& meta,
+    const NProto::TSegmentMeta& meta,
     const char* data,
     TTimestamp timestamp)
     : Meta_(meta)
-    , TimestampMeta_(Meta_.GetExtension(TTimestampSegmentMeta::timestamp_segment_meta))
+    , TimestampMeta_(Meta_.GetExtension(NProto::TTimestampSegmentMeta::timestamp_segment_meta))
     , Timestamp_(timestamp)
 {
     SegmentStartRowIndex_ = Meta_.chunk_row_count() - Meta_.row_count();
@@ -172,7 +172,7 @@ ui32 TTimestampSegmentReader::GetLowerWriteIndex(i64 rowIndex) const
 ////////////////////////////////////////////////////////////////////////////////
 
 TTimestampReaderBase::TTimestampReaderBase(
-    const TColumnMeta& meta,
+    const NProto::TColumnMeta& meta,
     TTimestamp timestamp)
     : TColumnReaderBase(meta)
     , Timestamp_(timestamp)

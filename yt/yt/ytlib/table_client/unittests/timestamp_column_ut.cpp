@@ -32,7 +32,7 @@ class TTimestampColumnTest
 protected:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
     TSharedRef Data_;
-    TColumnMeta ColumnMeta_;
+    NTableChunkFormat::NProto::TColumnMeta ColumnMeta_;
 
     std::vector<TVersionedRow> CreateSegment1()
     {

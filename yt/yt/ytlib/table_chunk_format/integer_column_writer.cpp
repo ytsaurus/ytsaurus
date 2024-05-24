@@ -199,7 +199,7 @@ private:
         TSegmentInfo segmentInfo;
         segmentInfo.SegmentMeta.set_version(0);
 
-        auto* meta = segmentInfo.SegmentMeta.MutableExtension(TIntegerSegmentMeta::integer_segment_meta);
+        auto* meta = segmentInfo.SegmentMeta.MutableExtension(NProto::TIntegerSegmentMeta::integer_segment_meta);
         meta->set_min_value(MinValue_);
 
         constexpr EValueType ValueType = std::is_same_v<ui64, TValue> ? EValueType::Uint64 : EValueType::Int64;
@@ -490,7 +490,7 @@ private:
         segmentInfo.SegmentMeta.set_version(0);
         segmentInfo.SegmentMeta.set_row_count(Values_.size());
 
-        auto* meta = segmentInfo.SegmentMeta.MutableExtension(TIntegerSegmentMeta::integer_segment_meta);
+        auto* meta = segmentInfo.SegmentMeta.MutableExtension(NProto::TIntegerSegmentMeta::integer_segment_meta);
         meta->set_min_value(MinValue_);
 
         switch (type) {

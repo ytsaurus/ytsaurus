@@ -33,13 +33,13 @@ template <EValueType ValueType, bool Scan>
 class TIntegerValueExtractorBase
 {
 protected:
-    const TIntegerSegmentMeta& Meta_;
+    const NProto::TIntegerSegmentMeta& Meta_;
 
     using TValueReader = TBitPackedUnsignedVectorReader<ui64, Scan>;
     TValueReader ValueReader_;
 
-    explicit TIntegerValueExtractorBase(const TSegmentMeta& meta)
-        : Meta_(meta.GetExtension(TIntegerSegmentMeta::integer_segment_meta))
+    explicit TIntegerValueExtractorBase(const NProto::TSegmentMeta& meta)
+        : Meta_(meta.GetExtension(NProto::TIntegerSegmentMeta::integer_segment_meta))
     { }
 
     void SetValue(TUnversionedValue* value, i64 valueIndex, int id, EValueFlags flags) const
@@ -136,7 +136,7 @@ class TDirectDenseVersionedIntegerValueExtractor
 public:
     TDirectDenseVersionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
@@ -158,7 +158,7 @@ class TDictionaryDenseVersionedIntegerValueExtractor
 public:
     TDictionaryDenseVersionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
@@ -180,7 +180,7 @@ class TDirectSparseVersionedIntegerValueExtractor
 public:
     TDirectSparseVersionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
@@ -202,7 +202,7 @@ class TDictionarySparseVersionedIntegerValueExtractor
 public:
     TDictionarySparseVersionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
@@ -260,7 +260,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedInt64ColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -271,7 +271,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedInt64ColumnReader(
 }
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedUint64ColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -290,7 +290,7 @@ class TDirectDenseUnversionedIntegerValueExtractor
 public:
     TDirectDenseUnversionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -341,7 +341,7 @@ class TDictionaryDenseUnversionedIntegerValueExtractor
 public:
     TDictionaryDenseUnversionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -396,7 +396,7 @@ class TDirectRleUnversionedIntegerValueExtractor
 public:
     TDirectRleUnversionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -458,7 +458,7 @@ class TDictionaryRleUnversionedIntegerValueExtractor
 public:
     TDictionaryRleUnversionedIntegerValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
@@ -610,7 +610,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedInt64ColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,
@@ -625,7 +625,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedInt64ColumnReader(
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedUint64ColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,

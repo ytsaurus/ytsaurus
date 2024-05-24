@@ -60,7 +60,7 @@ class TDenseVersionedBooleanValueExtractor
 public:
     TDenseVersionedBooleanValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
     {
@@ -80,7 +80,7 @@ class TSparseVersionedBooleanValueExtractor
 public:
     TSparseVersionedBooleanValueExtractor(
         TRef data,
-        const TSegmentMeta& /*meta*/,
+        const NProto::TSegmentMeta& /*meta*/,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
     {
@@ -106,7 +106,7 @@ private:
         using TDirectSparseReader = TSparseVersionedSegmentReader<TSparseVersionedBooleanValueExtractor>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto dense = meta.HasExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
+        auto dense = meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
 
         if (dense) {
             return DoCreateSegmentReader<TDirectDenseReader>(meta);
@@ -119,7 +119,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedBooleanColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -137,7 +137,7 @@ class TUnversionedBooleanValueExtractor
 public:
     TUnversionedBooleanValueExtractor(
         TRef data,
-        const TSegmentMeta& /*meta*/)
+        const NProto::TSegmentMeta& /*meta*/)
     {
         const char* ptr = data.Begin();
         ptr = InitValueReader(ptr);
@@ -203,7 +203,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedBooleanColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,

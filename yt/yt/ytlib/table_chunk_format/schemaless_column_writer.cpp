@@ -99,7 +99,7 @@ private:
         auto data = DataBuffer_->Finish();
         segmentInfo.Data.insert(segmentInfo.Data.end(), data.begin(), data.end());
 
-        auto* schemalessSegmentMeta = segmentInfo.SegmentMeta.MutableExtension(TSchemalessSegmentMeta::schemaless_segment_meta);
+        auto* schemalessSegmentMeta = segmentInfo.SegmentMeta.MutableExtension(NProto::TSchemalessSegmentMeta::schemaless_segment_meta);
         schemalessSegmentMeta->set_expected_bytes_per_row(expectedBytesPerRow);
 
         TColumnWriterBase::DumpSegment(&segmentInfo, {});

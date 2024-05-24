@@ -19,6 +19,7 @@ add_subdirectory(distributed_throttler)
 add_subdirectory(misc)
 add_subdirectory(query_tracker_client)
 add_subdirectory(queue_client)
+add_subdirectory(table_chunk_format)
 add_subdirectory(table_client)
 add_subdirectory(tablet_client)
 add_subdirectory(unittests)
@@ -1554,6 +1555,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/column_meta.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/data_block_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_chunk_format/floating_point_column_writer.cpp
