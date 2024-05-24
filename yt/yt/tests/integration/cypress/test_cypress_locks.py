@@ -1599,6 +1599,36 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
     ENABLE_TMP_ROOTSTOCK = False
     NUM_CYPRESS_PROXIES = 1
 
+    DELTA_DRIVER_CONFIG = {
+        "logging": {
+            "suppressed_messages": [
+                "Retrieving TVM service ticket",
+                "Polling peer",
+                "Waiting for bus to become ready",
+                "Created bus",
+                "Bus has become ready",
+                "Request is dropped because channel is terminated",
+                "Sleeping before peer polling",
+                "Failed to poll peer",
+            ],
+        },
+    }
+
+    DELTA_RPC_DRIVER_CONFIG = {
+        "logging": {
+            "suppressed_messages": [
+                "Retrieving TVM service ticket",
+                "Polling peer",
+                "Waiting for bus to become ready",
+                "Created bus",
+                "Bus has become ready",
+                "Request is dropped because channel is terminated",
+                "Sleeping before peer polling",
+                "Failed to poll peer",
+            ],
+        },
+    }
+
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
     }
@@ -1606,5 +1636,14 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
-        }
+        },
+        "cell_master": {
+            "logging": {
+                "suppressed_messages": [
+                    "Retrieving TVM service ticket",
+                    "Parsing service ticket",
+                    "ChaosMasterService.Discover",
+                ],
+            },
+        },
     }
