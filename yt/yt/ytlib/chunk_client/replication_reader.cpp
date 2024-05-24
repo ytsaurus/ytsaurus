@@ -1430,7 +1430,7 @@ private:
     {
         if (lhs.Peer.MediumPriority < rhs.Peer.MediumPriority) {
             return -1;
-        } if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
+        } else if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
             return +1;
         }
 
