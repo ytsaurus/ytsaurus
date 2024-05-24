@@ -53,6 +53,7 @@ target_sources(unittester-ytlib-table-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/string_column_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/timestamp_column_ut.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_index_read_controller_ut.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/table_client/unittests/chunk_meta_extensions_ut.cpp
 )
 add_test(
   NAME

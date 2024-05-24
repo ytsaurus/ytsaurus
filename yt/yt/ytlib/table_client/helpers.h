@@ -7,6 +7,7 @@
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/column_sort_schema.h>
+#include <yt/yt/client/table_client/chunk_meta_extensions.h>
 #include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/row_batch.h>
 
@@ -224,6 +225,40 @@ void FromProto(
     TColumnarStatistics* statistics,
     const NProto::TColumnarStatisticsExt& protoStatisticsExt,
     i64 chunkRowCount);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(
+    NProto::TBoundaryKeysExt* protoBoundaryKeysExt,
+    const TBoundaryKeysExtension& boundaryKeys);
+
+void FromProto(
+    TBoundaryKeysExtension* boundaryKeys,
+    const NProto::TBoundaryKeysExt& protoBoundaryKeysExt);
+
+void ToProto(
+    NProto::TColumnMetaExt* protoColumnMetaExt,
+    const TColumnMetaExtension& columnMetaExtension);
+
+void FromProto(
+    TColumnMetaExtension* columnMetaExtension,
+    const NProto::TColumnMetaExt& protoColumnMetaExt);
+
+void ToProto(
+    NProto::TKeyColumnsExt* protoKeyColumnsExt,
+    const TKeyColumnsExtension& keyColumns);
+
+void FromProto(
+    TKeyColumnsExtension* keyColumns,
+    const NProto::TKeyColumnsExt& protoKeyColumnsExt);
+
+void ToProto(
+    NProto::TSamplesExt* protoSamplesExtension,
+    const TSamplesExtension& samplesExtension);
+
+void FromProto(
+    TSamplesExtension* samplesExtension,
+    const NProto::TSamplesExt& protoSamplesExtension);
 
 ////////////////////////////////////////////////////////////////////////////////
 

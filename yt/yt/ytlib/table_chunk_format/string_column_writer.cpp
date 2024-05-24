@@ -189,7 +189,7 @@ protected:
         // 3. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
 
-        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
+        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(NProto::TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
         rawBlobMeta->ExpectedLength = expectedLength;
     }
@@ -216,7 +216,7 @@ protected:
         // 3. Direct data.
         segmentInfo->Data.insert(segmentInfo->Data.end(), directData.begin(), directData.end());
 
-        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
+        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(NProto::TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
         rawBlobMeta->ExpectedLength = expectedLength;
     }
@@ -505,7 +505,7 @@ private:
         // 4. String data.
         segmentInfo->Data.push_back(stringData);
 
-        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
+        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(NProto::TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
         rawBlobMeta->ExpectedLength = expectedLength;
     }
@@ -560,7 +560,7 @@ private:
         // 4. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
 
-        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(TStringSegmentMeta::string_segment_meta);
+        auto* stringSegmentMeta = segmentInfo->SegmentMeta.MutableExtension(NProto::TStringSegmentMeta::string_segment_meta);
         stringSegmentMeta->set_expected_length(expectedLength);
         rawBlobMeta->ExpectedLength = expectedLength;
     }

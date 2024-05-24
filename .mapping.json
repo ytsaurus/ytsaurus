@@ -1158,6 +1158,8 @@
   "yt/yt/ytlib/query_tracker_client/CMakeLists.txt":"",
   "yt/yt/ytlib/queue_client/CMakeLists.txt":"",
   "yt/yt/ytlib/queue_client/unittests/CMakeLists.txt":"",
+  "yt/yt/ytlib/table_chunk_format/CMakeLists.txt":"",
+  "yt/yt/ytlib/table_chunk_format/unittests/CMakeLists.txt":"",
   "yt/yt/ytlib/table_client/CMakeLists.txt":"",
   "yt/yt/ytlib/table_client/unittests/CMakeLists.txt":"",
   "yt/yt/ytlib/tablet_client/CMakeLists.txt":"",

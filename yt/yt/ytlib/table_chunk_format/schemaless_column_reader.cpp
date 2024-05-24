@@ -17,7 +17,7 @@ class TSchemalessSegmentReader
 public:
     TSchemalessSegmentReader(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         const std::vector<int>& chunkToReaderIdMapping)
         : Meta_(meta)
         , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
@@ -33,7 +33,7 @@ public:
 
         Data_ = ptr;
 
-        const auto& metaExt = Meta_.GetExtension(TSchemalessSegmentMeta::schemaless_segment_meta);
+        const auto& metaExt = Meta_.GetExtension(NProto::TSchemalessSegmentMeta::schemaless_segment_meta);
         ExpectedBytesPerRow_ = metaExt.expected_bytes_per_row();
     }
 
@@ -116,7 +116,7 @@ class TSchemalessColumnReader
 {
 public:
     TSchemalessColumnReader(
-        const TColumnMeta& meta,
+        const NProto::TColumnMeta& meta,
         const std::vector<int>& chunkToReaderIdMapping)
         : TColumnReaderBase(meta)
         , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
@@ -161,7 +161,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<ISchemalessColumnReader> CreateSchemalessColumnReader(
-    const TColumnMeta& meta,
+    const NProto::TColumnMeta& meta,
     const std::vector<int>& chunkToReaderIdMapping)
 {
     return std::make_unique<TSchemalessColumnReader>(

@@ -188,7 +188,7 @@ i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowInde
         columnMeta.segments().begin(),
         columnMeta.segments().end(),
         rowIndex,
-        [](const TSegmentMeta& segmentMeta, i64 index) {
+        [] (const NTableChunkFormat::NProto::TSegmentMeta& segmentMeta, i64 index) {
             return segmentMeta.chunk_row_count() < index + 1;
         });
     return std::distance(columnMeta.segments().begin(), it);

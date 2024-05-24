@@ -11,7 +11,10 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/ytlib/table_chunk_format/column_meta.h>
+
 #include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -62,7 +65,7 @@ public:
         MiscExt_.set_shared_to_skynet(Options_->EnableSkynetSharing);
         if (Options_->TableSchema)  {
             MiscExt_.set_sorted(Options_->TableSchema->IsSorted());
-            TableSchemaExt_ = ToProto<TTableSchemaExt>(Options_->TableSchema);
+            TableSchema_ = *Options_->TableSchema;
             SchemaComparator_ = Options_->TableSchema->ToComparator();
         }
     }
@@ -172,16 +175,16 @@ private:
     TDataBlockMetaExt BlockMetaExt_;
     TNameTableExt NameTableExt_;
 
-    std::optional<TBoundaryKeysExt> BoundaryKeysExt_;
-    std::optional<TColumnMetaExt> ColumnMetaExt_;
-    std::optional<TTableSchemaExt> TableSchemaExt_;
-    std::optional<TKeyColumnsExt> KeyColumnsExt_;
+    std::optional<TBoundaryKeysExtension> BoundaryKeys_;
+    std::optional<TColumnMetaExtension> ColumnMeta_;
+    std::optional<TTableSchema> TableSchema_;
+    std::optional<TKeyColumnsExtension> KeyColumns_;
 
-    std::optional<TSamplesExt> SamplesExt_;
+    std::optional<TSamplesExtension> SamplesExt_;
     std::optional<TColumnarStatistics> ColumnarStatistics_;
 
-    template <typename T>
-    static bool ExtensionEquals(const std::optional<T>& lhs, const std::optional<T>& rhs);
+    template <typename TParsedExtension, typename TProtobufExtension>
+    std::optional<TParsedExtension> ParseOptionalProto(const std::optional<TProtobufExtension>& protobufStruct);
 
     void AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId);
     void AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId);
@@ -223,7 +226,8 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             chunkId);
     }
 
-    if (!ExtensionEquals(TableSchemaExt_, FindProtoExtension<TTableSchemaExt>(meta->extensions()))) {
+    auto tableSchema = ParseOptionalProto<TTableSchema>(FindProtoExtension<TTableSchemaExt>(meta->extensions()));
+    if (TableSchema_ != tableSchema) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::IncompatibleChunkMetas,
             "Chunks %v schema is different from output chunk schema",
@@ -231,7 +235,7 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     }
 
     if (MiscExt_.sorted()) {
-        auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(meta->extensions());
+        auto boundaryKeysExt = ParseOptionalProto<TBoundaryKeysExtension>(FindProtoExtension<TBoundaryKeysExt>(meta->extensions()));
         if (!boundaryKeysExt) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncompatibleChunkMetas,
@@ -239,19 +243,19 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
                 chunkId);
         }
 
-        if (!BoundaryKeysExt_) {
+        if (!BoundaryKeys_) {
             // First meta.
-            BoundaryKeysExt_ = boundaryKeysExt;
+            BoundaryKeys_ = boundaryKeysExt;
         } else {
-            auto currentMinRow = NYT::FromProto<TLegacyOwningKey>(boundaryKeysExt->min());
-            auto previousMaxRow = NYT::FromProto<TLegacyOwningKey>(BoundaryKeysExt_->max());
+            auto currentMinRow = NYT::FromProto<TLegacyOwningKey>(boundaryKeysExt->Min);
+            auto previousMaxRow = NYT::FromProto<TLegacyOwningKey>(BoundaryKeys_->Max);
             YT_VERIFY(SchemaComparator_.CompareKeys(TKey::FromRow(previousMaxRow), TKey::FromRow(currentMinRow)) <= 0);
-            BoundaryKeysExt_->set_max(boundaryKeysExt->max());
+            BoundaryKeys_->Max = boundaryKeysExt->Max;
         }
     }
 
     if (NYT::FromProto<EChunkType>(meta->type()) == EChunkType::Table) {
-        auto samplesExt = FindProtoExtension<TSamplesExt>(meta->extensions());
+        auto samplesExt = ParseOptionalProto<TSamplesExtension>(FindProtoExtension<TSamplesExt>(meta->extensions()));
         if (!samplesExt) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncompatibleChunkMetas,
@@ -262,12 +266,8 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
             // First meta.
             SamplesExt_ = samplesExt;
         } else {
-            for (auto entry : samplesExt->entries()) {
-                SamplesExt_->add_entries(entry);
-            }
-            for (auto weight : samplesExt->weights()) {
-                SamplesExt_->add_weights(weight);
-            }
+            SamplesExt_->Entries.insert(SamplesExt_->Entries.end(), samplesExt->Entries.begin(), samplesExt->Entries.end());
+            SamplesExt_->Weights.insert(SamplesExt_->Weights.end(), samplesExt->Weights.begin(), samplesExt->Weights.end());
         }
 
         auto columnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta->extensions());
@@ -366,15 +366,14 @@ void TMetaAggregatingWriter::AbsorbMeta(const TDeferredChunkMetaPtr& meta, TChun
     }
 }
 
-template <typename T>
-bool TMetaAggregatingWriter::ExtensionEquals(const std::optional<T>& lhs, const std::optional<T>& rhs) {
-    if (lhs.has_value() != rhs.has_value()) {
-        return false;
+template <typename TParsedExtension, typename TProtobufExtension>
+std::optional<TParsedExtension> TMetaAggregatingWriter::ParseOptionalProto(const std::optional<TProtobufExtension>& protobufStruct)
+{
+    std::optional<TParsedExtension> result;
+    if (protobufStruct.has_value()) {
+        result = NYT::FromProto<TParsedExtension>(*protobufStruct);
     }
-    if (!lhs.has_value()) {
-        return true;
-    }
-    return google::protobuf::util::MessageDifferencer::Equals(*lhs, *rhs);
+    return result;
 }
 
 void TMetaAggregatingWriter::AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId /*chunkId*/)
@@ -384,8 +383,8 @@ void TMetaAggregatingWriter::AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, 
 
     NameTableExt_ = GetProtoExtension<TNameTableExt>(meta->extensions());
 
-    ColumnMetaExt_ = FindProtoExtension<TColumnMetaExt>(meta->extensions());
-    KeyColumnsExt_ = FindProtoExtension<TKeyColumnsExt>(meta->extensions());
+    ColumnMeta_ = ParseOptionalProto<TColumnMetaExtension>(FindProtoExtension<TColumnMetaExt>(meta->extensions()));
+    KeyColumns_ = ParseOptionalProto<TKeyColumnsExtension>(FindProtoExtension<TKeyColumnsExt>(meta->extensions()));
 }
 
 void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId)
@@ -419,7 +418,8 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
             chunkId);
     }
 
-    if (!ExtensionEquals(KeyColumnsExt_, FindProtoExtension<TKeyColumnsExt>(meta->extensions()))) {
+    auto keyColumns = ParseOptionalProto<TKeyColumnsExtension>(FindProtoExtension<TKeyColumnsExt>(meta->extensions()));
+    if (keyColumns != KeyColumns_) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::IncompatibleChunkMetas,
             "Key columns differ in chunks %v and %v",
@@ -427,16 +427,16 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
             chunkId);
     }
 
-    auto columnMetaExt = FindProtoExtension<TColumnMetaExt>(meta->extensions());
-    if (columnMetaExt.has_value() != ColumnMetaExt_.has_value()) {
+    auto columnMeta = ParseOptionalProto<TColumnMetaExtension>(FindProtoExtension<TColumnMetaExt>(meta->extensions()));
+    if (columnMeta.has_value() != ColumnMeta_.has_value()) {
         THROW_ERROR_EXCEPTION(
             EErrorCode::IncompatibleChunkMetas,
             "Column metas differ in chunks %v and %v",
             FirstChunkId_,
             chunkId);
     }
-    if (columnMetaExt) {
-        if (columnMetaExt->columns_size() != ColumnMetaExt_->columns_size()) {
+    if (columnMeta) {
+        if (ssize(columnMeta->Columns) != ssize(ColumnMeta_->Columns)) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::IncompatibleChunkMetas,
                 "Columns size differ in chunks %v and %v",
@@ -444,13 +444,12 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
                 chunkId);
         }
 
-        for (int i = 0; i < columnMetaExt->columns_size(); ++i) {
-            const auto& column = columnMetaExt->columns(i);
-            auto* resultColumn = ColumnMetaExt_->mutable_columns(i);
+        for (int i = 0; i < ssize(columnMeta->Columns); ++i) {
+            const auto& column = columnMeta->Columns[i];
+            auto& resultColumn = ColumnMeta_->Columns[i];
 
             auto getLastSegmentRowCount = [&] () -> i64 {
-                auto segmentsSize = resultColumn->segments_size();
-                if (segmentsSize == 0) {
+                if (resultColumn.Segments.empty()) {
                     YT_LOG_ALERT(
                         "Previous chunk has no segment (ColumnIndex: %v, FirstChunkId: %v, CurrentChunkId: %v)",
                         i,
@@ -458,16 +457,16 @@ void TMetaAggregatingWriter::AbsorbAnotherMeta(const TDeferredChunkMetaPtr& meta
                         chunkId);
                     return 0;
                 }
-                const auto& lastSegment = resultColumn->segments(segmentsSize - 1);
-                return lastSegment.chunk_row_count();
+                const auto& lastSegment = resultColumn.Segments.back();
+                return lastSegment.ChunkRowCount;
             };
             auto lastSegmentRowCount = getLastSegmentRowCount();
 
-            for (const auto& segment : column.segments()) {
-                auto* newSegment = resultColumn->add_segments();
-                ToProto(newSegment, segment);
-                newSegment->set_chunk_row_count(lastSegmentRowCount + newSegment->chunk_row_count());
-                newSegment->set_block_index(BlockIndex_ + newSegment->block_index());
+            for (const auto& segment : column.Segments) {
+                auto newSegment = segment;
+                newSegment.ChunkRowCount += lastSegmentRowCount;
+                newSegment.BlockIndex += BlockIndex_;
+                resultColumn.Segments.emplace_back(std::move(newSegment));
             }
         }
     }
@@ -480,20 +479,20 @@ void TMetaAggregatingWriter::FinalizeMeta()
 
     SetProtoExtension(ChunkMeta_->mutable_extensions(), BlockMetaExt_);
     SetProtoExtension(ChunkMeta_->mutable_extensions(), NameTableExt_);
-    if (ColumnMetaExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *ColumnMetaExt_);
+    if (ColumnMeta_) {
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnMetaExt>(*ColumnMeta_));
     }
-    if (TableSchemaExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *TableSchemaExt_);
+    if (TableSchema_) {
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TTableSchemaExt>(*TableSchema_));
     }
-    if (KeyColumnsExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *KeyColumnsExt_);
+    if (KeyColumns_) {
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TKeyColumnsExt>(*KeyColumns_));
     }
-    if (BoundaryKeysExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *BoundaryKeysExt_);
+    if (BoundaryKeys_) {
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TBoundaryKeysExt>(*BoundaryKeys_));
     }
     if (SamplesExt_) {
-        SetProtoExtension(ChunkMeta_->mutable_extensions(), *SamplesExt_);
+        SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TSamplesExt>(*SamplesExt_));
     }
     if (ColumnarStatistics_) {
         SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
@@ -522,8 +521,8 @@ void TMetaAggregatingWriter::FinalizeMeta()
     if (MaxTimestamp_ != NullTimestamp) {
         MiscExt_.set_max_timestamp(MaxTimestamp_);
     }
-    if (TableSchemaExt_) {
-        MiscExt_.set_unique_keys(TableSchemaExt_->unique_keys());
+    if (TableSchema_) {
+        MiscExt_.set_unique_keys(TableSchema_->GetUniqueKeys());
     }
     SetProtoExtension(ChunkMeta_->mutable_extensions(), MiscExt_);
 

@@ -11,7 +11,7 @@ using namespace NTableClient;
 
 TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     TRef data,
-    const TSegmentMeta& meta,
+    const NProto::TSegmentMeta& meta,
     int columnIndex,
     int columnId,
     EValueType valueType,
@@ -68,9 +68,9 @@ const char* TVersionedValueExtractorBase::InitTimestampIndexReader(const char* p
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDenseVersionedValueExtractorBase::TDenseVersionedValueExtractorBase(const TSegmentMeta& meta, bool aggregate)
+TDenseVersionedValueExtractorBase::TDenseVersionedValueExtractorBase(const NProto::TSegmentMeta& meta, bool aggregate)
     : TVersionedValueExtractorBase(aggregate)
-    , DenseVersionedMeta_(meta.GetExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta))
+    , DenseVersionedMeta_(meta.GetExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta))
 { }
 
 std::pair<ui32, ui32> TDenseVersionedValueExtractorBase::GetValueIndexRange(i64 segmentRowIndex, ui32 lowerTimestampIndex)
@@ -393,7 +393,7 @@ void TUnversionedColumnReaderBase::CreateCurrentSegmentReader()
 ////////////////////////////////////////////////////////////////////////////////
 
 TVersionedColumnReaderBase::TVersionedColumnReaderBase(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
     : TColumnReaderBase(columnMeta)

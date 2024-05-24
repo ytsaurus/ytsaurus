@@ -31,8 +31,8 @@ protected:
     TOffsetsReader OffsetReader_;
     TRef StringData_;
 
-    explicit TStringValueExtractorBase(const TSegmentMeta& segmentMeta)
-        : StringMeta_(segmentMeta.GetExtension(TStringSegmentMeta::string_segment_meta))
+    explicit TStringValueExtractorBase(const NProto::TSegmentMeta& segmentMeta)
+        : StringMeta_(segmentMeta.GetExtension(NProto::TStringSegmentMeta::string_segment_meta))
     { }
 
     ui32 GetOffset(i64 offsetIndex) const
@@ -179,7 +179,7 @@ class TDirectDenseVersionedStringValueExtractor
 public:
     TDirectDenseVersionedStringValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
@@ -204,7 +204,7 @@ class TDictionaryDenseVersionedStringValueExtractor
 public:
     TDictionaryDenseVersionedStringValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TDenseVersionedValueExtractorBase(meta, aggregate)
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
@@ -226,7 +226,7 @@ class TDirectSparseVersionedStringValueExtractor
 public:
     TDirectSparseVersionedStringValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
@@ -248,7 +248,7 @@ class TDictionarySparseVersionedStringValueExtractor
 public:
     TDictionarySparseVersionedStringValueExtractor(
         TRef data,
-        const TSegmentMeta& meta,
+        const NProto::TSegmentMeta& meta,
         bool aggregate)
         : TSparseVersionedValueExtractorBase(aggregate)
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
@@ -270,7 +270,7 @@ class TDirectRleStringUnversionedValueExtractor
 public:
     TDirectRleStringUnversionedValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDirectStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
@@ -336,7 +336,7 @@ class TDictionaryRleStringUnversionedValueExtractor
 public:
     TDictionaryRleStringUnversionedValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TDictionaryStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
@@ -403,7 +403,7 @@ class TDictionaryDenseStringUnversionedValueExtractor
 public:
     TDictionaryDenseStringUnversionedValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TBase(meta)
     {
         const char* ptr = data.Begin();
@@ -459,7 +459,7 @@ class TDirectDenseStringUnversionedValueExtractor
 public:
     TDirectDenseStringUnversionedValueExtractor(
         TRef data,
-        const TSegmentMeta& meta)
+        const NProto::TSegmentMeta& meta)
         : TBase(meta)
     {
         const char* ptr = data.Begin();
@@ -547,7 +547,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedStringColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -558,7 +558,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedStringColumnReader(
 }
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedAnyColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -569,7 +569,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedAnyColumnReader(
 }
 
 std::unique_ptr<IVersionedColumnReader> CreateVersionedCompositeColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
@@ -603,7 +603,7 @@ public:
         i64 lowerRowIndex,
         i64 upperRowIndex) override
     {
-        const auto& stringMeta = CurrentSegmentMeta().GetExtension(TStringSegmentMeta::string_segment_meta);
+        const auto& stringMeta = CurrentSegmentMeta().GetExtension(NProto::TStringSegmentMeta::string_segment_meta);
         return std::max<i64>(1, stringMeta.expected_length()) * (upperRowIndex - lowerRowIndex);
     }
 
@@ -682,7 +682,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,
@@ -697,7 +697,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,
@@ -712,7 +712,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
-    const TColumnMeta& columnMeta,
+    const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,

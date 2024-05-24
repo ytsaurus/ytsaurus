@@ -59,7 +59,7 @@ TSharedRef TColumnWriterBase::FinishBlock(int blockIndex)
     return mergedMeta;
 }
 
-const TColumnMeta& TColumnWriterBase::ColumnMeta() const
+const NProto::TColumnMeta& TColumnWriterBase::ColumnMeta() const
 {
     return ColumnMeta_;
 }
@@ -76,7 +76,7 @@ void TColumnWriterBase::DumpSegment(TSegmentInfo* segmentInfo, TSharedRef inBloc
 
     // This is a rough estimate, we don't account extensions, varint coding, etc.
     // We don't want to pay for the ByteSize call.
-    MetaSize_ += sizeof(TSegmentMeta);
+    MetaSize_ += sizeof(NProto::TSegmentMeta);
 
     CurrentBlockSegments_.push_back(segmentInfo->SegmentMeta);
     BlockWriter_->WriteSegment(MakeRange(segmentInfo->Data));
@@ -191,7 +191,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo, NC
     segmentInfo->Dense = denseSize <= sparseSize;
 
     if (segmentInfo->Dense) {
-        auto* denseMeta = segmentInfo->SegmentMeta.MutableExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
+        auto* denseMeta = segmentInfo->SegmentMeta.MutableExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
         denseMeta->set_expected_values_per_row(expectedValuesPerRow);
 
         rawIndexMeta->ExpectedPerRow = expectedValuesPerRow;
