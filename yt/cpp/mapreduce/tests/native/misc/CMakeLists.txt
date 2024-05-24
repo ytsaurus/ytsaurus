@@ -59,6 +59,7 @@ target_sources(yt-cpp-mapreduce-tests-native-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/protobuf_format_derivation.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/protobuf_table_io.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/raw_io.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/redirect_stdout_to_stderr_spec_flag.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/retry_config_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/schema.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/tests/native/misc/security_client.cpp

@@ -21,6 +21,7 @@ SRCS(
     protobuf_format_derivation.cpp
     protobuf_table_io.cpp
     raw_io.cpp
+    redirect_stdout_to_stderr_spec_flag.cpp
     retry_config_provider.cpp
     schema.cpp
     security_client.cpp

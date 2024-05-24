@@ -6,6 +6,7 @@
 #include <yt/cpp/roren/interface/private/raw_transform.h>
 
 #include <yt/cpp/mapreduce/interface/common.h>
+#include <yt/cpp/mapreduce/interface/helpers.h>
 #include <yt/cpp/mapreduce/interface/serialize.h>
 
 namespace NRoren::NPrivate {
@@ -244,7 +245,7 @@ IRawParDoPtr CreateWriteNodeParDo(ssize_t tableIndex);
 
 inline int GetOutputFD(size_t output)
 {
-    return output * 3 + 1;
+    return output * 3 + NYT::GetJobFirstOutputTableFD();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

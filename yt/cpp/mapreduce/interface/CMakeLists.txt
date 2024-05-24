@@ -109,6 +109,7 @@ target_sources(cpp-mapreduce-interface PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/cypress.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/errors.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/format.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_counters.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/job_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/interface/io.cpp

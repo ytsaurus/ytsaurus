@@ -17,7 +17,7 @@ IF (NOT OPENSOURCE)
         portals
         proto_lib
         remote_copy
-        remote_copy/recipe  
+        remote_copy/recipe
         server_yt_name_conflicts
     )
 ENDIF()
