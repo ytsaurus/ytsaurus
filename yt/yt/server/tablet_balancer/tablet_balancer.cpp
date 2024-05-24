@@ -220,7 +220,8 @@ private:
         TReshardDescriptorIt begin,
         TReshardDescriptorIt end,
         const IReshardIterationPtr& reshardIteration,
-        const TBundleStatePtr& bundleState);
+        const TBundleStatePtr& bundleState,
+        TGlobalGroupTag groupTag);
 
     TTableParameterizedMetricTrackerPtr GetParameterizedMetricTracker(const TGlobalGroupTag& groupTag);
 };
@@ -1109,7 +1110,8 @@ void TTabletBalancer::ExecuteReshardIteration(
             beginIt,
             endIt,
             reshardIteration,
-            bundleState);
+            bundleState,
+            groupTag);
 
         for (const auto& descriptor : limitedDescriptors) {
             auto firstTablet = GetOrCrash(bundleState->Tablets(), descriptor.Tablets[0]);
@@ -1154,7 +1156,8 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
     TReshardDescriptorIt begin,
     TReshardDescriptorIt end,
     const IReshardIterationPtr& reshardIteration,
-    const TBundleStatePtr& bundleState)
+    const TBundleStatePtr& bundleState,
+    TGlobalGroupTag groupTag)
 {
     bool pickPivotKeys = reshardIteration->IsPickPivotKeysEnabled(bundleState->GetBundle()->Config);
     if (!pickPivotKeys) {
@@ -1190,7 +1193,16 @@ std::vector<TReshardDescriptor> TTabletBalancer::PickPivotsForDescriptors(
         descriptors.emplace_back(std::move(*descriptorIt));
     }
 
+    YT_LOG_DEBUG("Pick pivot keys started (BundleName: %v, Group: %v, DescriptorsToPickCount: %v)",
+        groupTag.first,
+        groupTag.second,
+        std::ssize(descriptorsToPick));
+
     auto responses = WaitFor(AllSet(std::move(futures))).ValueOrThrow();
+
+    YT_LOG_DEBUG("Pick pivot keys finished (BundleName: %v, Group: %v)",
+        groupTag.first,
+        groupTag.second);
 
     for (int index = 0; index < std::ssize(descriptorsToPick); ++index) {
         auto descriptorIt = descriptorsToPick[index];
