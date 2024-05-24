@@ -1,1 +1,1 @@
-{% include [Транзакции](../../_includes/user-guide/dynamic-tables/transactions.md) %}
+{% include [Transactions](../../_includes/user-guide/dynamic-tables/transactions.md) %}

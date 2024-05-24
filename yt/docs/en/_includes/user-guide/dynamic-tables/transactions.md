@@ -1,7 +1,6 @@
 # Multi-versioning and transactions of dynamic tables
 
-This section describes transactions as they apply to dynamic tables.
-The transactional model of static tables is described in the Transactions of static tables section.
+This section describes transactions as they apply to dynamic tables. The transactional model of static tables is described in the [Transactions](../../../user-guide/storage/transactions.md) section.
 
 Transactions are divided into master transactions and tablet transactions. Master transactions enable you to perform operations on the master meta-information. Tablet transactions enable you only to write data to dynamic tables.
 
