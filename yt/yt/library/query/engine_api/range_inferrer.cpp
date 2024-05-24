@@ -23,7 +23,7 @@ TKeyTriePtr ExtractMultipleConstraints(
             return IntersectKeyTrie(
                 ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, rangeExtractors),
                 ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, rangeExtractors));
-        } if (opcode == EBinaryOp::Or) {
+        } else if (opcode == EBinaryOp::Or) {
             return UniteKeyTrie(
                 ExtractMultipleConstraints(lhsExpr, keyColumns, rowBuffer, rangeExtractors),
                 ExtractMultipleConstraints(rhsExpr, keyColumns, rowBuffer, rangeExtractors));
