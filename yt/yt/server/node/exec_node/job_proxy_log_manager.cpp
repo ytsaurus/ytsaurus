@@ -60,7 +60,8 @@ void TJobProxyLogManager::OnJobUnregistered(TJobId jobId)
 
 TString TJobProxyLogManager::GetShardingKey(TJobId jobId)
 {
-    auto randomPart = RandomPartFromAllocationId(NScheduler::AllocationIdFromJobId(jobId));
+    auto randomPart = NScheduler::RandomPartFromAllocationId(
+        NScheduler::AllocationIdFromJobId(jobId));
     auto randomPartHex = Format("%016lx", randomPart);
     return randomPartHex.substr(0, ShardingKeyLength_);
 }
