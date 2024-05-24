@@ -30,7 +30,7 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("read_idle_timeout", &TThis::ReadIdleTimeout)
         .Default(TDuration::Minutes(5));
 
-    registrar.Parameter("write_idle_timeout", &TThis::ReadIdleTimeout)
+    registrar.Parameter("write_idle_timeout", &TThis::WriteIdleTimeout)
         .Default(TDuration::Minutes(5));
 
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)

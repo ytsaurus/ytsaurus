@@ -230,6 +230,11 @@ private:
             if (response.ErrorCode != NKafka::EErrorCode::None) {
                 builder.Add(TSharedRef::FromString(response.ErrorMessage.value_or("Authentication failed")));
             }
+
+            YT_LOG_DEBUG("Response sent (RequestType: %v, ConnectionId: %v)",
+                ERequestType::SaslAuthenticate,
+                connection->GetConnectionId());
+
             return builder.Finish();
         }
 
