@@ -52,9 +52,13 @@ public:
     void createTable(
         const DB::ContextPtr /*context*/,
         const std::string& /*name*/,
-        const DB::StoragePtr& /*table*/,
+        const DB::StoragePtr& table,
         const DB::ASTPtr& /*query*/) override
     {
+        if (table->getName() != "StorageDistributor") {
+            THROW_ERROR_EXCEPTION("Table engine %Qv may not be stored in YT database: only YtTable engine is supported",
+                table->getName());
+        }
         // Table already created, nothing to do here.
     }
 

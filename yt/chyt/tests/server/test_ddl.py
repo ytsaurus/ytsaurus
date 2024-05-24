@@ -101,3 +101,9 @@ class TestClickHouseDdl(ClickHouseTestBase):
             assert clique.make_query('select * from "//tmp/t"') == []
 
             clique.make_query('truncate table if exists "//tmp/s"')
+
+    @authors("dakovalkov")
+    def test_create_table_unsupported_engine(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('create table "//tmp/t_unsupported" (a String) engine Memory')
