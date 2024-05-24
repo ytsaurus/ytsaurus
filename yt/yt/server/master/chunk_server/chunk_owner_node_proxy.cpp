@@ -144,36 +144,19 @@ void CanonizeCellTags(TCellTagList* cellTags)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildChunkSpec(
-    TChunk* chunk,
+void PopulateChunkSpecWithReplicas(
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
-    std::optional<i64> rowIndex,
-    std::optional<int> tabletIndex,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
-    const TChunkViewModifier* modifier,
     bool fetchParityReplicas,
-    bool fetchAllMetaExtensions,
-    const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
-    if (rowIndex) {
-        chunkSpec->set_table_row_index(*rowIndex);
-    }
+    TNodePtrWithReplicaAndMediumIndexList replicas;
+    replicas.reserve(chunkReplicas.size());
 
-    if (tabletIndex) {
-        chunkSpec->set_tablet_index(*tabletIndex);
-    }
-
-    auto erasureCodecId = chunk->GetErasureCodec();
+    auto erasureCodecId = FromProto<NErasure::ECodec>(chunkSpec->erasure_codec());
     auto firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
-
-    TNodePtrWithReplicaAndMediumIndexList replicas;
-    replicas.reserve(chunkReplicas.size());
 
     auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
@@ -191,6 +174,30 @@ void BuildChunkSpec(
 
     ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
+}
+
+void BuildRepliclessChunkSpec(
+    TChunk* chunk,
+    std::optional<i64> rowIndex,
+    std::optional<int> tabletIndex,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    const TChunkViewModifier* modifier,
+    bool fetchAllMetaExtensions,
+    const THashSet<int>& extensionTags,
+    TBootstrap* bootstrap,
+    NChunkClient::NProto::TChunkSpec* chunkSpec)
+{
+    if (rowIndex) {
+        chunkSpec->set_table_row_index(*rowIndex);
+    }
+
+    if (tabletIndex) {
+        chunkSpec->set_tablet_index(*tabletIndex);
+    }
+
+    auto erasureCodecId = chunk->GetErasureCodec();
+
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
     chunkSpec->set_striped_erasure(chunk->GetStripedErasure());
@@ -248,6 +255,39 @@ void BuildChunkSpec(
             chunkSpec->set_max_clip_timestamp(maxClipTimestamp);
         }
     }
+}
+
+void BuildChunkSpec(
+    TChunk* chunk,
+    const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
+    std::optional<i64> rowIndex,
+    std::optional<int> tabletIndex,
+    const TReadLimit& lowerLimit,
+    const TReadLimit& upperLimit,
+    const TChunkViewModifier* modifier,
+    bool fetchParityReplicas,
+    bool fetchAllMetaExtensions,
+    const THashSet<int>& extensionTags,
+    NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
+    TBootstrap* bootstrap,
+    NChunkClient::NProto::TChunkSpec* chunkSpec)
+{
+    BuildRepliclessChunkSpec(
+        chunk,
+        rowIndex,
+        tabletIndex,
+        lowerLimit,
+        upperLimit,
+        modifier,
+        fetchAllMetaExtensions,
+        extensionTags,
+        bootstrap,
+        chunkSpec);
+    PopulateChunkSpecWithReplicas(
+        chunkReplicas,
+        fetchParityReplicas,
+        nodeDirectoryBuilder,
+        chunkSpec);
 }
 
 void BuildDynamicStoreSpec(
@@ -372,6 +412,8 @@ private:
     TFetchContext FetchContext_;
     const TComparator Comparator_;
 
+    std::vector<TEphemeralObjectPtr<TChunk>> Chunks_;
+
     int CurrentRangeIndex_ = 0;
 
     THashSet<int> ExtensionTags_;
@@ -393,6 +435,44 @@ private:
             FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
             FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
             Comparator_);
+    }
+
+    bool PopulateReplicas()
+    {
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        // This is context switch, chunks may die.
+        auto replicas = chunkManager->GetChunkReplicas(Chunks_);
+        for (const auto& chunk : Chunks_) {
+            if (!IsObjectAlive(chunk)) {
+                ReplyError(TError("Chunk %v died during replica fetch",
+                    chunk->GetId()));
+                return false;
+            }
+        }
+
+        for (auto& chunkSpec : *RpcContext_->Response().mutable_chunks()) {
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            auto it = replicas.find(chunkId);
+            if (it == replicas.end()) {
+                continue;
+            }
+
+            const auto& chunkReplicasOrError = it->second;
+            if (!chunkReplicasOrError.IsOK()) {
+                ReplyError(chunkReplicasOrError);
+                return false;
+            }
+
+            const auto& replicas = chunkReplicasOrError.Value();
+            PopulateChunkSpecWithReplicas(
+                replicas,
+                FetchContext_.FetchParityReplicas,
+                &NodeDirectoryBuilder_,
+                &chunkSpec);
+        }
+
+        return true;
     }
 
     void ReplySuccess()
@@ -426,8 +506,6 @@ private:
         Bootstrap_->VerifyPersistentStateRead();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-
         const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
         if (RpcContext_->Response().chunks_size() >= dynamicConfig->MaxChunksPerFetch) {
             ReplyError(TError("Attempt to fetch too many chunks in a single request")
@@ -441,36 +519,18 @@ private:
             return false;
         }
 
-        auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
-        // This is context switch, chunk may die.
-        auto replicasOrError = chunkManager->GetChunkReplicas(ephemeralChunk);
-        if (!replicasOrError.IsOK()) {
-            ReplyError(replicasOrError);
-            return false;
-        }
-
-        if (!IsObjectAlive(ephemeralChunk)) {
-            ReplyError(TError("Chunk %v died during replica fetch",
-                ephemeralChunk->GetId()));
-            return false;
-        }
-
-        const auto& replicas = replicasOrError.Value();
-
+        Chunks_.push_back(TEphemeralObjectPtr<TChunk>(chunk));
         auto* chunkSpec = RpcContext_->Response().add_chunks();
 
-        BuildChunkSpec(
+        BuildRepliclessChunkSpec(
             chunk,
-            replicas,
             rowIndex,
             tabletIndex,
             lowerLimit,
             upperLimit,
             modifier,
-            FetchContext_.FetchParityReplicas,
             RpcContext_->Request().fetch_all_meta_extensions(),
             ExtensionTags_,
-            &NodeDirectoryBuilder_,
             Bootstrap_,
             chunkSpec);
         chunkSpec->set_range_index(CurrentRangeIndex_);
@@ -565,7 +625,9 @@ private:
 
         ++CurrentRangeIndex_;
         if (CurrentRangeIndex_ == std::ssize(FetchContext_.Ranges)) {
-            ReplySuccess();
+            if (PopulateReplicas()) {
+                ReplySuccess();
+            }
         } else {
             TraverseCurrentRange();
         }
