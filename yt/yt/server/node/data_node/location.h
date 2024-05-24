@@ -464,6 +464,10 @@ private:
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 
+    bool EnableUncategorizedThrottler_;
+    NConcurrency::IReconfigurableThroughputThrottlerPtr ReconfigurableUncategorizedThrottler_;
+    NConcurrency::IThroughputThrottlerPtr UncategorizedThrottler_;
+
     NIO::IDynamicIOEnginePtr DynamicIOEngine_;
     NIO::IIOEngineWorkloadModelPtr IOEngineModel_;
     NIO::IIOEnginePtr IOEngine_;

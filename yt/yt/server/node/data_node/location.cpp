@@ -338,6 +338,12 @@ TChunkLocation::TChunkLocation(
     UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler(
         "UnlimitedOutThrottler",
         diskThrottlerProfiler);
+    EnableUncategorizedThrottler_ = StaticConfig_->EnableUncategorizedThrottler;
+    UncategorizedThrottler_ = ReconfigurableUncategorizedThrottler_ = CreateNamedReconfigurableThroughputThrottler(
+            StaticConfig_->UncategorizedThrottler,
+            "uncategorized",
+            Logger,
+            diskThrottlerProfiler);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         ChunkContext_->DataNodeConfig->DiskHealthChecker,
@@ -381,6 +387,10 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
         ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
+    }
+    EnableUncategorizedThrottler_ = config->EnableUncategorizedThrottler;
+    if (EnableUncategorizedThrottler_) {
+        ReconfigurableUncategorizedThrottler_->Reconfigure(config->UncategorizedThrottler);
     }
 
     RuntimeConfig_.Store(std::move(config));
@@ -912,7 +922,11 @@ const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDes
             return Throttlers_[EChunkLocationThrottlerKind::TabletStoreFlushIn];
 
         default:
-            return UnlimitedInThrottler_;
+            if (EnableUncategorizedThrottler_) {
+                return UncategorizedThrottler_;
+            } else {
+                return UnlimitedInThrottler_;
+            }
     }
 }
 
@@ -941,7 +955,11 @@ const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDe
             return Throttlers_[EChunkLocationThrottlerKind::TabletRecoveryOut];
 
         default:
-            return UnlimitedOutThrottler_;
+            if (EnableUncategorizedThrottler_) {
+                return UncategorizedThrottler_;
+            } else {
+                return UnlimitedOutThrottler_;
+            }
     }
 }
 
