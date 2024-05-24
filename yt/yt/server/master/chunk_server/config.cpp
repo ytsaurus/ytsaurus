@@ -676,6 +676,14 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("schemaless_end_upload_preserves_table_schema", &TThis::SchemalessEndUploadPreservesTableSchema)
         .Default(true);
 
+    registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+        .Default(32)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

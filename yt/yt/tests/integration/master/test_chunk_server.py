@@ -3,10 +3,11 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
-    read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
-    multicell_sleep, update_nodes_dynamic_config, switch_leader, set_node_banned, add_maintenance, remove_maintenance,
-    set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
-    get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle)
+    read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
+    switch_leader, set_node_banned, add_maintenance, remove_maintenance, set_node_decommissioned, execute_command,
+    is_active_primary_master_leader, is_active_primary_master_follower, get_active_primary_master_leader_address,
+    get_active_primary_master_follower_address, create_tablet_cell_bundle)
 
 from yt_helpers import profiler_factory
 
@@ -16,6 +17,8 @@ import yt.yson as yson
 
 import pytest
 from flaky import flaky
+
+from collections import defaultdict
 
 import json
 import os
@@ -481,7 +484,7 @@ class TestChunkServer(YTEnvSetup):
 
         # Make sure that all replication queues are filled with some chunks that
         # cannot be placed safely.
-        create("table", "//tmp/t2", attributes={"erasure_codec": "reed_solomon_6_3"})
+        create("table", "//tmp/t2", attributes={"erasure_codec": "isa_reed_solomon_6_3"})
         chunk_count = 30
         for _ in range(chunk_count):
             write_table("<append=%true>//tmp/t2", {"a": "b"})
@@ -491,6 +494,67 @@ class TestChunkServer(YTEnvSetup):
         # Replication should still work.
         set("//tmp/t1/@replication_factor", 4)
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
+
+
+##################################################################
+
+
+def _find_median(series):
+    sorted_series = sorted(series)
+    series_size = len(sorted_series)
+
+    if series_size == 1:
+        return series[0]
+
+    return sorted_series[series_size // 2]
+
+
+def _find_median_absolute_deviation(series):
+    median = _find_median(series)
+    absolute_deviations = []
+
+    for point in series:
+        absolute_deviations.append(abs(point - median))
+
+    absolute_deviations.sort()
+    return _find_median(absolute_deviations)
+
+
+class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+
+    @authors("h0pless")
+    def test_power_of_two_choices_write_target_allocation(self):
+        set("//sys/@config/chunk_manager/enable_two_random_choices_write_target_allocation", True)
+        set("//sys/@config/chunk_manager/nodes_to_check_before_giving_up_on_write_target_allocation", 8)
+
+        for i in range(10):
+            create("table", f"//tmp/table{i}")
+
+        for i in range(200):
+            write_table(f"<append=%true>//tmp/table{i % 10}", [{"hi": i}])
+
+        sleep(1.0)
+        node_to_replica_count = defaultdict(int)
+        for i in range(10):
+            chunk_ids = get(f"//tmp/table{i}/@chunk_ids")
+
+            for chunk_id in chunk_ids:
+                stored_replicas = get(f"#{chunk_id}/@stored_replicas")
+
+                for node in stored_replicas:
+                    node_to_replica_count[f"{node}"] += 1
+
+        mad = _find_median_absolute_deviation(node_to_replica_count.values())
+        assert mad <= 10
+
+
+##################################################################
+
+
+class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWriteTargetAllocation):
+    NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ##################################################################
@@ -714,6 +778,24 @@ class TestChunkServerMulticell(TestChunkServer):
                     assert get("{0}/@native_cell_tag".format(changelog_path)) == expected_cell_tag
                 for chunk_id in get("{0}/@chunk_ids".format(changelog_path)):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
+
+
+##################################################################
+
+class TestChunkServerTwoChoicesAllocation(TestChunkServer):
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "enable_two_random_choices_write_target_allocation": True,
+        }
+    }
+
+
+class TestTwoRandomChoicesWriteTargetAllocationChunkServerMulticell(TestChunkServerMulticell):
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "enable_two_random_choices_write_target_allocation": True,
+        }
+    }
 
 
 ##################################################################

@@ -214,6 +214,7 @@ public:
     using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
     using TLoadFactorIterators = TMediumMap<TLoadFactorIterator>;
 
+    // COMPAT(h0pless): Remove when power of two choices will prove to be working.
     DEFINE_BYREF_RW_PROPERTY(TLoadFactorIterators, LoadFactorIterators);
     TLoadFactorIterator GetLoadFactorIterator(int mediumIndex) const;
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);

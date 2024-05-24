@@ -3,7 +3,6 @@
 #include "chunk.h"
 #include "chunk_manager.h"
 #include "config.h"
-#include "job.h"
 #include "chunk_location.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -18,7 +17,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <util/random/random.h>
+#include <util/random/fast.h>
 
 #include <array>
 
@@ -34,6 +33,107 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkPlacement::TNodeToLoadFactorMap::TNodeToLoadFactorMap()
+    : Rng_(TReallyFastRng32(TInstant::Now().MicroSeconds()))
+{ }
+
+void TChunkPlacement::TNodeToLoadFactorMap::InsertNodeOrCrash(TNodeId nodeId, double loadFactor)
+{
+    auto lastPosition = Values_.size();
+    Values_.emplace_back(nodeId, loadFactor);
+    EmplaceOrCrash(NodeToIndex_, nodeId, lastPosition);
+}
+
+void TChunkPlacement::TNodeToLoadFactorMap::RemoveNode(TNodeId nodeId)
+{
+    auto nodeIt = GetIteratorOrCrash(NodeToIndex_, nodeId);
+    auto nodeIndex = nodeIt->second;
+    auto lastNodeIndex = Values_.size() - 1;
+
+    auto nodeToRemoveIt = Values_.begin() + nodeIndex;
+    auto lastNodeIt = Values_.begin() + lastNodeIndex;
+
+    NodeToIndex_[lastNodeIt->first] = nodeIndex;
+    std::iter_swap(nodeToRemoveIt, lastNodeIt);
+
+    NodeToIndex_.erase(nodeIt);
+    Values_.pop_back();
+}
+
+bool TChunkPlacement::TNodeToLoadFactorMap::Contains(TNodeId nodeId) const
+{
+    return NodeToIndex_.find(nodeId) != NodeToIndex_.end();
+}
+
+bool TChunkPlacement::TNodeToLoadFactorMap::Empty() const
+{
+    YT_VERIFY(NodeToIndex_.size() == Values_.size());
+    return Values_.empty();
+}
+
+ui64 TChunkPlacement::TNodeToLoadFactorMap::Size() const
+{
+    YT_VERIFY(NodeToIndex_.size() == Values_.size());
+    return Values_.size();
+}
+
+TNodeId TChunkPlacement::TNodeToLoadFactorMap::PickRandomNode(ui32 nodesChecked)
+{
+    // NB: It's ok if the same node is picked twice.
+    // The chance of having the worst outcome in such case is 1 / 2(n^2), which is not noticeable on big clusters,
+    // and small clusters already have to iterate over the whole vector to guarantee that chunk can be placed.
+    auto firstPickIndex = Rng_.Uniform(nodesChecked, Values_.size());
+    auto secondPickIndex = Rng_.Uniform(nodesChecked, Values_.size());
+
+    const auto& firstPick = Values_[firstPickIndex];
+    const auto& secondPick = Values_[secondPickIndex];
+    auto resultingPickIndex = firstPick.second < secondPick.second
+        ? firstPickIndex
+        : secondPickIndex;
+    auto resultingNodeId = Values_[resultingPickIndex].first;
+
+    SwapNodes(nodesChecked, resultingPickIndex);
+    return resultingNodeId;
+}
+
+void TChunkPlacement::TNodeToLoadFactorMap::SwapNodes(ui32 firstIndex, ui32 secondIndex)
+{
+    auto firstElemIt = Values_.begin() + firstIndex;
+    auto secondElemIt = Values_.begin() + secondIndex;
+
+    NodeToIndex_[firstElemIt->first] = secondIndex;
+    NodeToIndex_[secondElemIt->first] = firstIndex;
+
+    std::iter_swap(firstElemIt, secondElemIt);
+}
+
+TChunkPlacement::TAllocationSession TChunkPlacement::TNodeToLoadFactorMap::StartAllocationSession(ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+{
+    return TAllocationSession(
+        this,
+        std::min<ui32>(nodesToCheckBeforeGivingUpOnWriteTargetAllocation, Values_.size()));
+}
+
+TChunkPlacement::TAllocationSession::TAllocationSession(
+    TNodeToLoadFactorMap* associatedMap,
+    ui32 nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+    : AssociatedMap_(associatedMap)
+    , NodesToCheckBeforeFailing_(nodesToCheckBeforeGivingUpOnWriteTargetAllocation)
+{ }
+
+bool TChunkPlacement::TAllocationSession::HasFailed() const
+{
+    return NodesChecked_ >= NodesToCheckBeforeFailing_;
+}
+
+TNodeId TChunkPlacement::TAllocationSession::PickRandomNode()
+{
+    YT_ASSERT(!HasFailed());
+    return AssociatedMap_->PickRandomNode(NodesChecked_++);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,6 +321,10 @@ TChunkPlacement::TChunkPlacement(
 
 void TChunkPlacement::Clear()
 {
+    MediumToNodeToLoadFactor_.clear();
+    EnableTwoRandomChoicesWriteTargetAllocation_ = false;
+    NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = 0;
+
     MediumToLoadFactorToNode_.clear();
     IsDataCenterAware_ = false;
     StorageDataCenters_.clear();
@@ -244,6 +348,8 @@ void TChunkPlacement::Initialize()
 void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     IsDataCenterAware_ = GetDynamicConfig()->UseDataCenterAwareReplicator;
+    EnableTwoRandomChoicesWriteTargetAllocation_ = GetDynamicConfig()->EnableTwoRandomChoicesWriteTargetAllocation;
+    NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = GetDynamicConfig()->NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
     RecomputeDataCenterSets();
 }
@@ -284,6 +390,10 @@ void TChunkPlacement::OnNodeDisposed(TNode* node)
 {
     for (const auto& item : node->LoadFactorIterators()) {
         YT_VERIFY(!item.second);
+    }
+
+    for (const auto& [_, nodeToLoadFactorMap] : MediumToNodeToLoadFactor_) {
+        YT_VERIFY(!nodeToLoadFactorMap.Contains(node->GetId()));
     }
 }
 
@@ -363,6 +473,8 @@ void TChunkPlacement::InsertToLoadFactorMaps(TNode* node)
 
         auto it = MediumToLoadFactorToNode_[domesticMedium].emplace(*loadFactor, node);
         node->SetLoadFactorIterator(mediumIndex, it);
+
+        MediumToNodeToLoadFactor_[domesticMedium].InsertNodeOrCrash(node->GetId(), *loadFactor);
     }
 }
 
@@ -384,6 +496,20 @@ void TChunkPlacement::RemoveFromLoadFactorMaps(TNode* node)
 
         if (factorMap.empty()) {
             MediumToLoadFactorToNode_.erase(mediumToFactorMapIter);
+        }
+    }
+
+    for (auto it = MediumToNodeToLoadFactor_.begin(); it != MediumToNodeToLoadFactor_.end(); ) {
+        auto& nodeToLoadFactorMap = it->second;
+
+        if (nodeToLoadFactorMap.Contains(node->GetId())) {
+            nodeToLoadFactorMap.RemoveNode(node->GetId());
+        }
+
+        if (nodeToLoadFactorMap.Empty()) {
+            MediumToNodeToLoadFactor_.erase(it++);
+        } else {
+            ++it;
         }
     }
 }
@@ -428,13 +554,22 @@ TNodeList TChunkPlacement::GetWriteTargets(
     }
 
     const TLoadFactorToNodeMap* loadFactorToNodeMap = nullptr;
+    TNodeToLoadFactorMap* nodeToLoadFactorMap = nullptr;
 
-    if (auto it = MediumToLoadFactorToNode_.find(medium);
-        it == MediumToLoadFactorToNode_.end())
-    {
-        return TNodeList();
+    if (EnableTwoRandomChoicesWriteTargetAllocation_) {
+        auto it = MediumToNodeToLoadFactor_.find(medium);
+        if (it == MediumToNodeToLoadFactor_.end()) {
+            return TNodeList();
+        } else {
+            nodeToLoadFactorMap = &it->second;
+        }
     } else {
-        loadFactorToNodeMap = &it->second;
+        auto it = MediumToLoadFactorToNode_.find(medium);
+        if (it == MediumToLoadFactorToNode_.end()) {
+            return TNodeList();
+        } else {
+            loadFactorToNodeMap = &it->second;
+        }
     }
 
     TTargetCollector collector(
@@ -465,19 +600,34 @@ TNodeList TChunkPlacement::GetWriteTargets(
         return std::ssize(collector.GetAddedNodes()) == desiredCount;
     };
 
-    auto loadFactorToNodeIterator = loadFactorToNodeMap->begin();
+    TLoadFactorToNodeMap::const_iterator loadFactorToNodeIterator;
+    if (!EnableTwoRandomChoicesWriteTargetAllocation_) {
+        loadFactorToNodeIterator = loadFactorToNodeMap->begin();
+    }
+
+    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
     auto tryAddAll = [&] (bool enableRackAwareness, bool enableDataCenterAwareness) {
         YT_VERIFY(!hasEnoughTargets());
 
         bool hasProgress = false;
-        if (loadFactorToNodeIterator == loadFactorToNodeMap->end()) {
-            loadFactorToNodeIterator = loadFactorToNodeMap->begin();
-        }
+        if (EnableTwoRandomChoicesWriteTargetAllocation_) {
+            auto allocationSession = nodeToLoadFactorMap->StartAllocationSession(NodesToCheckBeforeGivingUpOnWriteTargetAllocation_);
+            while (!allocationSession.HasFailed() && !hasEnoughTargets()) {
+                auto nodeId = allocationSession.PickRandomNode();
+                auto* node = nodeTracker->GetNode(nodeId);
+                hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
+            }
+            return hasProgress;
+        } else {
+            if (loadFactorToNodeIterator == loadFactorToNodeMap->end()) {
+                loadFactorToNodeIterator = loadFactorToNodeMap->begin();
+            }
 
-        for ( ; !hasEnoughTargets() && loadFactorToNodeIterator != loadFactorToNodeMap->end(); ++loadFactorToNodeIterator) {
-            auto* node = loadFactorToNodeIterator->second;
-            hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
+            for ( ; !hasEnoughTargets() && loadFactorToNodeIterator != loadFactorToNodeMap->end(); ++loadFactorToNodeIterator) {
+                auto* node = loadFactorToNodeIterator->second;
+                hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
+            }
         }
         return hasProgress;
     };
