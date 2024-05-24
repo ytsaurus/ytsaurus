@@ -30,9 +30,9 @@ public class DefaultBusConnector implements BusConnector {
     private DefaultBusChannelMetricsHolder metricsHolder;
 
     public DefaultBusConnector() {
-        this(new NioEventLoopGroup(
-                1,
-                new DefaultThreadFactory(DefaultBusConnector.class, true, Thread.NORM_PRIORITY)
+        this(
+                new NioEventLoopGroup(1,
+                        new DefaultThreadFactory(DefaultBusConnector.class, true, Thread.NORM_PRIORITY)
                 ),
                 true
         );
