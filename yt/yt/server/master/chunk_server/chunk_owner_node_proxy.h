@@ -15,6 +15,7 @@ namespace NYT::NChunkServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildChunkSpec(
+    NCellMaster::TBootstrap* bootstrap,
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
@@ -26,15 +27,14 @@ void BuildChunkSpec(
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    NCellMaster::TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec);
 
 void BuildDynamicStoreSpec(
+    NCellMaster::TBootstrap* bootstrap,
     const TDynamicStore* dynamicStore,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    NCellMaster::TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
