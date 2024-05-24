@@ -599,6 +599,12 @@ GENERATE_YT_RECORD(
     scheduler/records/job_spec.yaml
 )
 
+GENERATE_YT_RECORD(
+    queue_client/records/queue_producer_session.yaml
+    OUTPUT_INCLUDES
+    yt/yt/core/yson/string.h
+)
+
 ADDINCL(
     contrib/libs/sparsehash/src
 )

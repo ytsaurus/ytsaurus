@@ -55,6 +55,9 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
 {%- if field.lock %}
                 .SetLock("{{field.lock}}")
 {%- endif %}
+{%- if field.required is not none %}
+                .SetRequired({{"true" if field.required else "false"}})
+{%- endif %}
             ,
 {%- endfor %}
         }))

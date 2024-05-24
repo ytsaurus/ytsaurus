@@ -3,7 +3,7 @@
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
-#include <yt/yt/client/queue_client/producer_client.h>
+#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
 
 namespace NYT::NQueueClient {
 
@@ -35,7 +35,7 @@ TNodeId CreateProducerNode(
         auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
 
         attributes->Set("dynamic", true);
-        attributes->Set("schema", GetProducerSchema());
+        attributes->Set("schema", NRecords::TQueueProducerSessionDescriptor::Get()->GetSchema());
 
         auto createNodeOptions = options;
         createNodeOptions.Attributes = std::move(attributes);

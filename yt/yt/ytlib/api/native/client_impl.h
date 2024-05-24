@@ -308,6 +308,21 @@ public: \
         const TListQueueConsumerRegistrationsOptions& options = {}),
         (queuePath, consumerPath, options))
 
+    IMPLEMENT_METHOD(TCreateQueueProducerSessionResult, CreateQueueProducerSession, (
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TString& sessionId,
+        const std::optional<NYson::TYsonString>& userMeta,
+        const TCreateQueueProducerSessionOptions& options = {}),
+        (producerPath, queuePath, sessionId, userMeta, options));
+
+    IMPLEMENT_METHOD(void, RemoveQueueProducerSession, (
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TString& sessionId,
+        const TRemoveQueueProducerSessionOptions& options = {}),
+        (producerPath, queuePath, sessionId, options));
+
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,

@@ -717,6 +717,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -4293,6 +4295,75 @@ private:
                 }
 
                 context->SetResponseInfo("Registrations: %v", registrations.size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CreateQueueProducerSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto producerPath = FromProto<TRichYPath>(request->producer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+        auto sessionId = FromProto<TString>(request->session_id());
+        std::optional<NYson::TYsonString> userMeta;
+        if (request->has_user_meta()) {
+            userMeta = TYsonString(FromProto<TString>(request->user_meta()));
+        }
+
+        TCreateQueueProducerSessionOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("ProducerPath: %v", producerPath);
+        context->SetRequestInfo("QueuePath: %v", queuePath);
+        context->SetRequestInfo("SessionId: %v", sessionId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->CreateQueueProducerSession(
+                    producerPath,
+                    queuePath,
+                    sessionId,
+                    userMeta,
+                    options);
+            },
+            [=] (const auto& context, const TCreateQueueProducerSessionResult& result) {
+                auto* response = &context->Response();
+
+                response->set_sequence_number(result.SequenceNumber);
+                response->set_epoch(result.Epoch);
+                if (result.UserMeta) {
+                    ToProto(response->mutable_user_meta(), result.UserMeta->AsStringBuf());
+                }
+
+                context->SetResponseInfo("SequenceNumber: %v", result.SequenceNumber);
+                context->SetResponseInfo("Epoch: %v", result.Epoch);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveQueueProducerSession)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto producerPath = FromProto<TRichYPath>(request->producer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+        auto sessionId = FromProto<TString>(request->session_id());
+
+        TRemoveQueueProducerSessionOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("ProducerPath: %v", producerPath);
+        context->SetRequestInfo("QueuePath: %v", queuePath);
+        context->SetRequestInfo("SessionId: %v", sessionId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->RemoveQueueProducerSession(
+                    producerPath,
+                    queuePath,
+                    sessionId,
+                    options);
             });
     }
 

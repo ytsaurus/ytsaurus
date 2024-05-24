@@ -1220,6 +1220,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/admin_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/admin/proto/restart_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/api/native/proto/transaction_actions.pb.h
@@ -1663,6 +1664,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_profile.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.record.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.cpp
 )
 
 add_custom_command(
@@ -2061,6 +2063,31 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/scheduler/records/job_spec.record.cpp
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.cpp
+  --output-include
+  yt/yt/core/yson/string.h
 )
 
 target_proto_addincls(yt-yt-ytlib

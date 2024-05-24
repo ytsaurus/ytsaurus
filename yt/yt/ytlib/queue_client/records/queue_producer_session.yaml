@@ -1,0 +1,49 @@
+namespace: NYT::NQueueClient::NRecords
+
+types:
+  - type_name: TQueueProducerSession
+    fields:
+      - cpp_name: QueueCluster
+        cpp_type: TString
+        column_name: queue_cluster
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: QueuePath
+        cpp_type: TString
+        column_name: queue_path
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: SessionId
+        cpp_type: TString
+        column_name: session_id
+        column_type: String
+        sort_order: Ascending
+        required: True
+
+      - cpp_name: SequenceNumber
+        cpp_type: ui64
+        column_name: sequence_number
+        column_type: Uint64
+        required: True
+
+      - cpp_name: Epoch
+        cpp_type: ui64
+        column_name: epoch
+        column_type: Uint64
+        required: True
+
+      - cpp_name: UserMeta
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: user_meta
+        column_type: Any
+        required: False
+
+      - cpp_name: SystemMeta
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: system_meta
+        column_type: Any
+        required: False

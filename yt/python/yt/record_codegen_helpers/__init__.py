@@ -9,6 +9,7 @@ class Field:
     cpp_type: str
     column_name: str
     column_type: str
+    required: Optional[bool]
     sort_order: Optional[str]
     lock: Optional[str]
     aggregate: Optional[str]
