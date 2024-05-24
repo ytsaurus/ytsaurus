@@ -430,6 +430,7 @@ private:
                         .ValueOrThrow();
 
                     BuildChunkSpec(
+                        Bootstrap_,
                         chunk,
                         replicas,
                         rowIndex,
@@ -441,7 +442,6 @@ private:
                         request->fetch_all_meta_extensions(),
                         extensionTags,
                         &nodeDirectoryBuilder,
-                        Bootstrap_,
                         spec);
 
 

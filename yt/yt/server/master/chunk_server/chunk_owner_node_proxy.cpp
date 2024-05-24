@@ -137,10 +137,6 @@ void CanonizeCellTags(TCellTagList* cellTags)
         cellTags->end());
 }
 
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 void PopulateChunkSpecWithReplicas(
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
     bool fetchParityReplicas,
@@ -173,7 +169,8 @@ void PopulateChunkSpecWithReplicas(
     ToProto(chunkSpec->mutable_replicas(), replicas);
 }
 
-void BuildRepliclessChunkSpec(
+void BuildReplicalessChunkSpec(
+    TBootstrap* bootstrap,
     TChunk* chunk,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
@@ -182,7 +179,6 @@ void BuildRepliclessChunkSpec(
     const TChunkViewModifier* modifier,
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,
-    TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
     if (rowIndex) {
@@ -254,7 +250,12 @@ void BuildRepliclessChunkSpec(
     }
 }
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void BuildChunkSpec(
+    TBootstrap* bootstrap,
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
     std::optional<i64> rowIndex,
@@ -266,10 +267,10 @@ void BuildChunkSpec(
     bool fetchAllMetaExtensions,
     const THashSet<int>& extensionTags,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
-    BuildRepliclessChunkSpec(
+    BuildReplicalessChunkSpec(
+        bootstrap,
         chunk,
         rowIndex,
         tabletIndex,
@@ -278,7 +279,6 @@ void BuildChunkSpec(
         modifier,
         fetchAllMetaExtensions,
         extensionTags,
-        bootstrap,
         chunkSpec);
     PopulateChunkSpecWithReplicas(
         chunkReplicas,
@@ -288,12 +288,12 @@ void BuildChunkSpec(
 }
 
 void BuildDynamicStoreSpec(
+    TBootstrap* bootstrap,
     const TDynamicStore* dynamicStore,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
     const auto& tabletManager = bootstrap->GetTabletManager();
@@ -485,7 +485,8 @@ private:
         Chunks_.push_back(TEphemeralObjectPtr<TChunk>(chunk));
         auto* chunkSpec = RpcContext_->Response().add_chunks();
 
-        BuildRepliclessChunkSpec(
+        BuildReplicalessChunkSpec(
+            Bootstrap_,
             chunk,
             rowIndex,
             tabletIndex,
@@ -494,7 +495,6 @@ private:
             modifier,
             RpcContext_->Request().fetch_all_meta_extensions(),
             ExtensionTags_,
-            Bootstrap_,
             chunkSpec);
         chunkSpec->set_range_index(CurrentRangeIndex_);
 
@@ -561,12 +561,12 @@ private:
         } else {
             auto* chunkSpec = RpcContext_->Response().add_chunks();
             BuildDynamicStoreSpec(
+                Bootstrap_,
                 dynamicStore,
                 tabletIndex,
                 lowerLimit,
                 upperLimit,
                 &NodeDirectoryBuilder_,
-                Bootstrap_,
                 chunkSpec);
             chunkSpec->set_range_index(CurrentRangeIndex_);
         }
