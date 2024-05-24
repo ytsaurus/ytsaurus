@@ -6,6 +6,8 @@
 #include "environment.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
+#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
+
 #include <yt/yt/server/lib/job_proxy/job_probe.h>
 
 #include <yt/yt/library/containers/porto_resource_tracker.h>
@@ -144,6 +146,8 @@ private:
     TDuration RefCountedTrackerLogPeriod_;
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
+
+    THashMap<NChunkClient::TChunkId, NExecNode::TRefCountedChunkSpecPtr> ChunkIdToOriginalSpec_;
 
     TAtomicIntrusivePtr<IJob> Job_;
 

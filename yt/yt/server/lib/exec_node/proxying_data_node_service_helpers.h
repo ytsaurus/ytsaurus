@@ -20,7 +20,11 @@ THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ModifyChunkSpecForJobI
     EJobType jobType,
     NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
-void PatchProxiedChunkSpecs(NControllerAgent::NProto::TJobSpec* jobSpecProto);
+THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(NControllerAgent::NProto::TJobSpec* jobSpecProto);
+
+void PatchInterruptDescriptor(
+    const THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
+    NChunkClient::TInterruptDescriptor& interruptDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

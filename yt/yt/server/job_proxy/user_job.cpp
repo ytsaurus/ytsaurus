@@ -756,20 +756,6 @@ private:
         return result;
     }
 
-    // COMPAT(ignat)
-    void SaveErrorChunkId(TJobResultExt* jobResultExt)
-    {
-        if (!ErrorOutput_) {
-            return;
-        }
-
-        auto errorChunkId = ErrorOutput_->GetChunkId();
-        if (errorChunkId) {
-            ToProto(jobResultExt->mutable_stderr_chunk_id(), errorChunkId);
-            YT_LOG_INFO("Stderr chunk generated (ChunkId: %v)", errorChunkId);
-        }
-    }
-
     void DumpFailContexts(TJobResultExt* jobResultExt)
     {
         auto contexts = WaitFor(UserJobReadController_->GetInputContext())

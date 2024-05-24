@@ -1,6 +1,8 @@
 #include "proxying_data_node_service_helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+
 #include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/client/table_client/public.h>
@@ -129,6 +131,29 @@ void ModifyChunkSpecReplicas(
     ToProto(tableSpec->mutable_proxied_chunk_specs(), proxiedChunkSpecs);
 }
 
+void PatchInterruptDescriptor(
+    const THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
+    NChunkClient::TInterruptDescriptor& interruptDescriptor)
+{
+    auto updateChunkSpecsInDescriptorToOriginal = [&] (std::vector<TDataSliceDescriptor>& descriptors) {
+        for (auto& descriptor : descriptors) {
+            for (auto& chunkSpec : descriptor.ChunkSpecs) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                if (auto originalSpecIt = chunkIdToOriginalSpec.find(chunkId)) {
+                    auto originalSpec = originalSpecIt->second;
+
+                    chunkSpec.mutable_chunk_id()->CopyFrom(originalSpec->chunk_id());
+                    chunkSpec.set_erasure_codec(originalSpec->erasure_codec());
+                    chunkSpec.mutable_replicas()->CopyFrom(originalSpec->replicas());
+                }
+            }
+        }
+    };
+
+    updateChunkSpecsInDescriptorToOriginal(interruptDescriptor.UnreadDataSliceDescriptors);
+    updateChunkSpecsInDescriptorToOriginal(interruptDescriptor.ReadDataSliceDescriptors);
+}
+
 THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ModifyChunkSpecForJobInputCache(
     NNodeTrackerClient::TNodeId nodeId,
     EJobType jobType,
@@ -153,8 +178,9 @@ THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ModifyChunkSpecForJobI
     return chunkSpecs;
 }
 
-void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
+THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
 {
+    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec;
     auto* jobSpecExt = jobSpecProto->MutableExtension(TJobSpecExt::job_spec_ext);
 
     auto patchTableSpec = [&] (auto* tableSpec) {
@@ -180,6 +206,7 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
                 // For unpatched chunks, must explicitly set use_proxying_data_node_service = false.
                 newChunkSpec.set_use_proxying_data_node_service(false);
                 newChunkSpecs.push_back(newChunkSpec);
+                chunkIdToOriginalSpec.emplace(chunkId, New<TRefCountedChunkSpec>(chunkSpec));
             } else {
                 const auto& proxiedChunkSpec = proxiedChunkSpecIt->second;
 
@@ -190,6 +217,7 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
                 newChunkSpec.mutable_chunk_id()->CopyFrom(proxiedChunkSpec.chunk_id());
                 newChunkSpec.set_erasure_codec(proxiedChunkSpec.erasure_codec());
                 newChunkSpec.mutable_replicas()->CopyFrom(proxiedChunkSpec.replicas());
+                chunkIdToOriginalSpec.emplace(proxiedChunkId, New<TRefCountedChunkSpec>(chunkSpec));
 
                 YT_LOG_INFO(
                     "Modify chunk spec for job input cache ("
@@ -219,6 +247,8 @@ void PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
 
     patchTableSpecs(jobSpecExt->mutable_input_table_specs());
     patchTableSpecs(jobSpecExt->mutable_foreign_input_table_specs());
+
+    return chunkIdToOriginalSpec;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

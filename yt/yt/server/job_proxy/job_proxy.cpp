@@ -13,7 +13,6 @@
 #include "shallow_merge_job.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
-#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
@@ -456,7 +455,7 @@ void TJobProxy::RetrieveJobSpec()
     }
 
     auto jobSpec = rsp->job_spec();
-    PatchProxiedChunkSpecs(&jobSpec);
+    ChunkIdToOriginalSpec_ = PatchProxiedChunkSpecs(&jobSpec);
     JobSpecHelper_ = MaybePatchDataSourceDirectory(std::move(jobSpec));
 
     const auto& resourceUsage = rsp->resource_usage();
@@ -1495,13 +1494,18 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
     // For erasure chunks, replace part id with whole chunk id.
     auto* jobResultExt = jobResult->MutableExtension(TJobResultExt::job_result_ext);
     for (auto chunkId : failedChunkIds) {
-        auto actualChunkId = IsErasureChunkPartId(chunkId)
-            ? ErasureChunkIdFromPartId(chunkId)
-            : chunkId;
+        auto originalSpecIt = ChunkIdToOriginalSpec_.find(chunkId);
+        auto originalChunkId = originalSpecIt.IsEnd()
+            ? chunkId
+            : FromProto<TChunkId>(originalSpecIt->second->chunk_id());
+        auto actualChunkId = IsErasureChunkPartId(originalChunkId)
+            ? ErasureChunkIdFromPartId(originalChunkId)
+            : originalChunkId;
         ToProto(jobResultExt->add_failed_chunk_ids(), actualChunkId);
     }
 
     auto interruptDescriptor = job->GetInterruptDescriptor();
+    PatchInterruptDescriptor(ChunkIdToOriginalSpec_, interruptDescriptor);
 
     if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
         auto inputStatistics = job->GetStatistics().TotalInputStatistics.DataStatistics;
