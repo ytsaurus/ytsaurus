@@ -190,7 +190,13 @@ void TSlotManager::Start()
             FreeSlots_.push(slotIndex);
         }
 
-        YT_UNUSED_FUTURE(InitializeEnvironment());
+        InitializeEnvironment().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
+            auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
+
+            if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+                PortoHealthChecker_->Start();
+            }
+        }));
     })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run());
@@ -198,12 +204,6 @@ void TSlotManager::Start()
     YT_LOG_FATAL_IF(!IsJobEnvironmentResurrectionEnabled() &&
         !initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
     YT_LOG_ERROR_IF(!initializeResult.IsOK(), initializeResult, "First slot manager initialization failed");
-
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
-
-    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-        PortoHealthChecker_->Start();
-    }
 }
 
 TFuture<void> TSlotManager::InitializeEnvironment()
@@ -213,12 +213,10 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     auto expected = ESlotManagerState::Disabled;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
-        auto error = TError(
-            "Slot manager expects other state (Expected: %v, Actual: %v)",
-            ESlotManagerState::Disabled,
+        YT_LOG_DEBUG(
+            "Slot manager is already in %v state. Skipping InitializeEnvironment",
             expected);
-        YT_LOG_WARNING(error);
-        return MakeFuture(error);
+        return VoidFuture;
     }
 
     YT_LOG_INFO("Slot manager sync initialization started (SlotCount: %v)",
@@ -666,8 +664,8 @@ void TSlotManager::ForceInitialize()
     auto expected = ESlotManagerState::Disabled;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
-        YT_LOG_WARNING("Slot manager expects other state (Expected: %v, Actual: %v)",
-            ESlotManagerState::Disabled,
+        YT_LOG_DEBUG(
+            "Slot manager is already in %v state. Skipping ForceInitialize",
             expected);
     } else {
         State_.store(ESlotManagerState::Initialized);
@@ -730,9 +728,8 @@ bool TSlotManager::Disable(TError error)
     auto expected = ESlotManagerState::Initialized;
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Disabling)) {
-        YT_LOG_WARNING(
-            "Slot manager expects other state (Expected: %v, Actual: %v)",
-            ESlotManagerState::Initialized,
+        YT_LOG_DEBUG(
+            "Slot manager is already in %v state. Skipping Disable",
             expected);
         return false;
     }
