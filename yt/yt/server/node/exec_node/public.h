@@ -39,9 +39,8 @@ struct TUserSandboxOptions
     std::vector<TTmpfsVolume> TmpfsVolumes;
     std::optional<i64> InodeLimit;
     std::optional<i64> DiskSpaceLimit;
-    bool HasRootFSQuota = false;
-    bool EnableDiskQuota = false;
     bool EnableArtifactBinds = false;
+    bool EnableRootVolumeDiskQuota = false;
     int UserId = 0;
 
     TCallback<void(const TError&)> DiskOverdraftCallback;

@@ -172,10 +172,16 @@ class TSlotLocationConfig
     : public TDiskLocationConfig
 {
 public:
+    //! Maximum reported total disk capacity.
     std::optional<i64> DiskQuota;
+
+    //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
     TString MediumName;
+
+    //! Enforce disk space limits using disk quota.
+    bool EnableDiskQuota;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
