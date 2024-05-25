@@ -18,6 +18,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
+import io.netty.util.concurrent.DefaultThreadFactory;
 
 public class DefaultBusConnector implements BusConnector {
     private final EventLoopGroup group;
@@ -29,7 +30,12 @@ public class DefaultBusConnector implements BusConnector {
     private DefaultBusChannelMetricsHolder metricsHolder;
 
     public DefaultBusConnector() {
-        this(new NioEventLoopGroup(1), true);
+        this(
+                new NioEventLoopGroup(1,
+                        new DefaultThreadFactory(DefaultBusConnector.class, true, Thread.NORM_PRIORITY)
+                ),
+                true
+        );
     }
 
     public DefaultBusConnector(EventLoopGroup group) {
