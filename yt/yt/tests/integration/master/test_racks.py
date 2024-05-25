@@ -290,7 +290,9 @@ class TestRacks(YTEnvSetup):
     @authors("babenko")
     def test_journal_move_to_safe_place(self):
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.JOURNAL_DATA)
+        write_journal("//tmp/j", self.JOURNAL_DATA, journal_writer={
+            "enable_chunk_preallocation": False,
+        })
         wait_until_sealed("//tmp/j")
 
         chunk_id = get_singular_chunk_id("//tmp/j")
