@@ -2,8 +2,6 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, get_driver, get_supported_features
 
-import yt.yson as yson
-
 import builtins
 
 import pytest
@@ -115,11 +113,3 @@ class TestGetFeatures(YTEnvSetup):
             description = features["operation_statistics_descriptions"][desc_name]
             assert "description" in description
             assert "unit" in description
-
-    @authors("aleksandr.gaev")
-    def test_user_tokens_with_metadata_feature(self):
-        driver = get_driver(api_version=4)
-        features = get_supported_features(driver=driver)
-
-        assert "user_tokens_metadata" in features
-        assert features["user_tokens_metadata"] == yson.YsonBoolean(True)

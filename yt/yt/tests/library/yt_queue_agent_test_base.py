@@ -366,17 +366,16 @@ class TestQueueAgentBase(YTEnvSetup):
 
         return schema, queue_id
 
-    @staticmethod
-    def _create_consumer(path, mount=True, without_meta=False, driver=None, **kwargs):
+    def _create_consumer(self, path, mount=True, without_meta=False, **kwargs):
         attributes = {
             "dynamic": True,
             "schema": init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META if without_meta else init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
             "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
-        create("table", path, driver=driver, attributes=attributes)
+        create("table", path, attributes=attributes)
         if mount:
-            sync_mount_table(path, driver=driver)
+            sync_mount_table(path)
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False, without_meta=False, **kwargs):
         self._create_consumer(consumer_path, **kwargs)

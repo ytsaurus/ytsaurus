@@ -262,9 +262,6 @@ public:
     //! will be sent in heartbeats to the controller agent.
     bool EnableStderrAndCoreLivePreview;
 
-    //! Forward variables from job proxy environment to user job.
-    bool ForwardAllEnvironmentVariables;
-
     std::optional<double> ContainerCpuLimit;
 
     std::optional<i64> SlotContainerMemoryLimit;

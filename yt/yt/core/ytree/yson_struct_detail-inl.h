@@ -20,58 +20,20 @@ namespace NPrivate {
 template <class T>
 concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStructBase, T> || std::is_base_of_v<TYsonSerializableLite, T>;
 
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
+// TODO(shakurov): get rid of this once concept support makes it into the standard
+// library implementation. Use equality-comparability instead.
+template <class T>
+concept SupportsDontSerializeDefaultImpl =
+    std::is_arithmetic_v<T> ||
+    std::is_same_v<T, TString> ||
+    std::is_same_v<T, TDuration> ||
+    std::is_same_v<T, TGuid> ||
+    std::is_same_v<T, std::optional<std::vector<TString>>> ||
+    std::is_same_v<T, THashSet<TString>>;
 
 template <class T>
-concept CTupleLike = requires {
-    std::tuple_size<T>{};
-};
-
-template <class T>
-concept CContainerLike = requires {
-    typename T::value_type;
-};
-
-template <class T>
-struct TEqualityComparableHelper
-{
-    constexpr static bool Value = std::equality_comparable<T>;
-};
-
-template <class T, size_t... I>
-constexpr bool IsSequenceEqualityComparable(std::index_sequence<I...> /*sequence*/)
-{
-    return (TEqualityComparableHelper<typename std::tuple_element<I, T>::type>::Value && ...);
-}
-
-template <CTupleLike T>
-struct TEqualityComparableHelper<T>
-{
-    constexpr static bool Value = IsSequenceEqualityComparable<T>(std::make_index_sequence<std::tuple_size<T>::value>());
-};
-
-template <CContainerLike T>
-struct TEqualityComparableHelper<T>
-{
-    constexpr static bool Value = TEqualityComparableHelper<typename T::value_type>::Value;
-};
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(h0pless): Get rid of this once containers will have constraints for equality operator.
-// Once this will be the case, it should be safe to use std::equality_comparable here instead.
-template <class T>
-concept CRecursivelyEqualityComparable = NDetail::TEqualityComparableHelper<T>::Value;
-
-template <class T>
-concept CSupportsDontSerializeDefault =
-    CRecursivelyEqualityComparable<typename TWrapperTraits<T>::TRecursiveUnwrapped>;
+concept SupportsDontSerializeDefault =
+    SupportsDontSerializeDefaultImpl<typename TWrapperTraits<T>::TRecursiveUnwrapped>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -780,7 +742,7 @@ template <class TValue>
 bool TYsonStructParameter<TValue>::CanOmitValue(const TYsonStructBase* self) const
 {
     const auto& value = FieldAccessor_->GetValue(self);
-    if constexpr (NPrivate::CSupportsDontSerializeDefault<TValue>) {
+    if constexpr (NPrivate::SupportsDontSerializeDefault<TValue>) {
         if (!SerializeDefault_ && value == (*DefaultCtor_)()) {
             return true;
         }
@@ -852,7 +814,7 @@ TYsonStructParameter<TValue>& TYsonStructParameter<TValue>::DontSerializeDefault
     // We should check for equality-comparability here but it is rather hard
     // to do the deep validation.
     static_assert(
-        NPrivate::CSupportsDontSerializeDefault<TValue>,
+        NPrivate::SupportsDontSerializeDefault<TValue>,
         "DontSerializeDefault requires |Parameter| to be TString, TDuration, an arithmetic type or an optional of those");
 
     SerializeDefault_ = false;

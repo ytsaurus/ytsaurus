@@ -147,11 +147,11 @@ void TSlotLocation::DoInitialize()
     YT_LOG_INFO("Location initialization complete");
 }
 
-void TSlotLocation::DoRepair()
+void TSlotLocation::DoRepair(bool force)
 {
     auto changeStateResult = ChangeState(NDataNode::ELocationState::Enabling, ELocationState::Disabled);
 
-    if (!changeStateResult) {
+    if (!changeStateResult && !force) {
         YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
         return;
     }
@@ -894,9 +894,9 @@ void TSlotLocation::OnArtifactPreparationFailed(
     }
 }
 
-TFuture<void> TSlotLocation::Repair()
+TFuture<void> TSlotLocation::Repair(bool force)
 {
-    return BIND(&TSlotLocation::DoRepair, MakeStrong(this))
+    return BIND(&TSlotLocation::DoRepair, MakeStrong(this), force)
         .AsyncVia(HeavyInvoker_)
         .Run();
 }

@@ -83,14 +83,14 @@ private:
         if (slotManager->HasFatalAlert()) {
             // In case of fatal alert every slot can be in inconsistent state and must be forcefully repaired.
             for (auto& location : locations) {
-                repairFutures.push_back(location->Repair());
+                repairFutures.push_back(location->Repair(/*force*/ true));
             }
         } else {
             for (auto& location : locations) {
                 if (!requestLocationIds.contains(location->GetId())) {
                     continue;
                 }
-                repairFutures.push_back(location->Repair());
+                repairFutures.push_back(location->Repair(/*force*/ false));
             }
         }
 

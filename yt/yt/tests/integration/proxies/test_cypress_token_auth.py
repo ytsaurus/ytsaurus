@@ -20,9 +20,9 @@ class TestCypressTokenAuth(YTEnvSetup):
             "enable_authentication": True,
             "cypress_token_authenticator": {
                 "cache": {
-                    "cache_ttl": "5s",
-                    "optimistic_cache_ttl": "1m",
-                    "error_ttl": "1s",
+                    "cache_ttl": 100,
+                    "optimistic_cache_ttl": 100,
+                    "error_ttl": 100,
                 },
             },
         },
@@ -60,12 +60,4 @@ class TestCypressTokenAuth(YTEnvSetup):
         revoke_token("u", t_hash)
         assert get("//sys/cypress_tokens/@count") == 0
 
-        wait(lambda: self._check_deny(t))
-
-    @authors("aleksandr.gaev")
-    def test_revoke_token(self):
-        create_user("u")
-        t, t_hash = issue_token("u")
-        self._check_allow(t)  # Activate cache.
-        revoke_token("u", t_hash)
         wait(lambda: self._check_deny(t))

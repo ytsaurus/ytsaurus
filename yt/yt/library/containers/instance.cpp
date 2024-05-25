@@ -117,12 +117,10 @@ static const std::function<i64(const TString&)> GetStatByKeyExtractor(const TStr
 }
 
 const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
-    {EStatField::CpuBurstUsage, {"cpu_burst_usage", LongExtractor}},
     {EStatField::CpuUsage, {"cpu_usage", LongExtractor}},
     {EStatField::CpuSystemUsage, {"cpu_usage_system", LongExtractor}},
     {EStatField::CpuWait, {"cpu_wait", LongExtractor}},
     {EStatField::CpuThrottled, {"cpu_throttled", LongExtractor}},
-    {EStatField::CpuCfsThrottled, {"cpu.stat", GetStatByKeyExtractor("h_throttled_time")}},
     {EStatField::ThreadCount, {"thread_count", LongExtractor}},
     {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
     {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},

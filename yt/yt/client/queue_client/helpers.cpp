@@ -17,7 +17,7 @@ using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>> CollectPartitionRowInfos(
+THashMap<int, THashMap<i64, TPartitionRowInfo>> CollectPartitionRowInfos(
     const TYPath& path,
     const IClientPtr& client,
     const std::vector<std::pair<int, i64>>& tabletAndRowIndices,
@@ -27,7 +27,7 @@ TFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>> CollectPartitionRowInfo
     const auto& Logger = logger;
 
     if (tabletAndRowIndices.empty()) {
-        return MakeFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>>({});
+        return {};
     }
 
     TStringBuilder queryBuilder;
@@ -70,28 +70,28 @@ TFuture<THashMap<int, THashMap<i64, TPartitionRowInfo>>> CollectPartitionRowInfo
 
     TSelectRowsOptions options;
     options.ReplicaConsistency = EReplicaConsistency::Sync;
-    return client->SelectRows(query, options)
-        .Apply(BIND([expectedRowSize, cumulativeDataWeightColumnId, timestampColumnId] (const TSelectRowsResult& selectResult) {
-            THashMap<int, THashMap<i64, TPartitionRowInfo>> result;
+    auto selectResult = WaitFor(client->SelectRows(query, options))
+        .ValueOrThrow();
 
-            for (auto row : selectResult.Rowset->GetRows()) {
-                YT_VERIFY(static_cast<int>(row.GetCount()) == expectedRowSize);
+    THashMap<int, THashMap<i64, TPartitionRowInfo>> result;
 
-                auto tabletIndex = FromUnversionedValue<int>(row[0]);
-                auto rowIndex = FromUnversionedValue<i64>(row[1]);
+    for (auto row : selectResult.Rowset->GetRows()) {
+        YT_VERIFY(static_cast<int>(row.GetCount()) == expectedRowSize);
 
-                result[tabletIndex].emplace(rowIndex, TPartitionRowInfo{
-                    .CumulativeDataWeight = cumulativeDataWeightColumnId
-                        ? FromUnversionedValue<std::optional<i64>>(row[*cumulativeDataWeightColumnId])
-                        : std::nullopt,
-                    .Timestamp = timestampColumnId
-                        ? FromUnversionedValue<std::optional<TTimestamp>>(row[*timestampColumnId])
-                        : std::nullopt,
-                });
-            }
+        auto tabletIndex = FromUnversionedValue<int>(row[0]);
+        auto rowIndex = FromUnversionedValue<i64>(row[1]);
 
-            return result;
-        }));
+        result[tabletIndex].emplace(rowIndex, TPartitionRowInfo{
+            .CumulativeDataWeight = cumulativeDataWeightColumnId
+                ? FromUnversionedValue<std::optional<i64>>(row[*cumulativeDataWeightColumnId])
+                : std::nullopt,
+            .Timestamp = timestampColumnId
+                ? FromUnversionedValue<std::optional<TTimestamp>>(row[*timestampColumnId])
+                : std::nullopt,
+        });
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

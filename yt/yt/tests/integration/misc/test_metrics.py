@@ -113,13 +113,11 @@ class TestPortoMetrics(MetricsTestBase):
         wait(check_role_updated)
 
         gauges = [
-            "porto/cpu/burst",
             "porto/cpu/user",
             "porto/cpu/total",
             "porto/cpu/system",
             "porto/cpu/wait",
             "porto/cpu/throttled",
-            "porto/cpu/cfs_throttled",
             "porto/cpu/guarantee",
             "porto/cpu/limit",
             "porto/cpu/thread_count",
@@ -157,10 +155,8 @@ class TestPortoMetrics(MetricsTestBase):
         ]
 
         may_be_empty = [
-            "porto/cpu/burst",
             "porto/cpu/wait",
             "porto/cpu/throttled",
-            "porto/cpu/cfs_throttled",
             "porto/cpu/guarantee",
             "porto/memory/major_page_faults",
             "porto/memory/memory_guarantee",

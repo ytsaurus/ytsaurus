@@ -594,7 +594,6 @@ private:
 
     TFuture<void> ProcessFinished_;
     std::vector<TString> Environment_;
-    THashMap<TString, ssize_t> EnvironmentIndex_;
 
     std::optional<TExecutorInfo> ExecutorInfo_;
 
@@ -1145,7 +1144,7 @@ private:
                 auto pipe = CreateNamedPipe();
 
                 auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
-                SetEnvironment(Format("YT_%v_PROFILER_PATH=%v", to_upper(typeStr), Host_->AdjustPath(pipe->GetPath())));
+                Environment_.push_back(Format("YT_%v_PROFILER_PATH=%v", to_upper(typeStr), Host_->AdjustPath(pipe->GetPath())));
 
                 ProfilePipeReader_ = PrepareOutputPipeReader(
                     std::move(pipe),
@@ -1161,24 +1160,6 @@ private:
         YT_LOG_INFO("Pipes initialized");
     }
 
-    void SetEnvironment(const TString& variable)
-    {
-        if (auto sep = variable.find('='); sep != TString::npos) {
-            const auto name = variable.substr(0, sep);
-            if (auto index = EnvironmentIndex_.FindPtr(name)) {
-                Environment_[*index] = variable;
-            } else {
-                Environment_.push_back(variable);
-                EnvironmentIndex_[name] = Environment_.size() - 1;
-            }
-        } else {
-            // Without "=" works as unset.
-            if (auto index = EnvironmentIndex_.FindPtr(variable)) {
-                Environment_[*index] = "";
-            }
-        }
-    }
-
     void PrepareEnvironment()
     {
         TPatternFormatter formatter;
@@ -1186,42 +1167,33 @@ private:
             "SandboxPath",
             CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
-        if (Config_->ForwardAllEnvironmentVariables) {
-            auto env = GetEnviron();
-            for (const auto& variable : env) {
-                SetEnvironment(variable);
-            }
-        }
-
         if (UserJobSpec_.has_network_project_id()) {
-            SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
+            Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
         }
 
-        SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+        Environment_.push_back(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            SetEnvironment(formatter.Format(UserJobSpec_.environment(i)));
+            Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
         }
 
         if (Config_->TestRootFS && Config_->RootPath) {
-            SetEnvironment(Format("YT_ROOT_FS=%v", *Config_->RootPath));
+            Environment_.push_back(Format("YT_ROOT_FS=%v", *Config_->RootPath));
         }
 
         for (int index = 0; index < std::ssize(Ports_); ++index) {
-            SetEnvironment(Format("YT_PORT_%v=%v", index, Ports_[index]));
+            Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
         }
 
         if (auto jobProfilerSpec = JobProfiler_->GetUserJobProfilerSpec()) {
             auto spec = ConvertToYsonString(jobProfilerSpec, EYsonFormat::Text);
-            SetEnvironment(Format("YT_JOB_PROFILER_SPEC=%v", spec));
+            Environment_.push_back(Format("YT_JOB_PROFILER_SPEC=%v", spec));
 
             YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
-        for (const auto& variable : environment) {
-            SetEnvironment(variable);
-        }
+        Environment_.insert(Environment_.end(), environment.begin(), environment.end());
     }
 
     void AddCustomStatistics(const INodePtr& sample)
@@ -1445,13 +1417,7 @@ private:
         }
 
         executorConfig->Pipes = PipeConfigs_;
-
-        executorConfig->Environment.reserve(Environment_.size());
-        for (const auto& variable : Environment_) {
-            if (variable) {
-                executorConfig->Environment.push_back(variable);
-            }
-        }
+        executorConfig->Environment = Environment_;
 
         {
             auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
@@ -1679,21 +1645,14 @@ private:
             return;
         }
 
-        auto validBlockStats = [] (const std::optional<TJobEnvironmentBlockIOStatistics>& blockStats) {
-            return
-                blockStats &&
-                blockStats->IOOps.has_value() &&
-                blockStats->IOReadOps.has_value();
-        };
-
-        if (validBlockStats(blockIOStats)) {
+        if (blockIOStats) {
             if (UserJobSpec_.has_iops_threshold() &&
-                blockIOStats->IOOps.value() > static_cast<i64>(UserJobSpec_.iops_threshold()) &&
+                blockIOStats->IOOps > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
                 !Woodpecker_)
             {
                 YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                    blockIOStats->IOReadOps.value(),
-                    blockIOStats->IOOps.value(),
+                    blockIOStats->IOReadOps,
+                    blockIOStats->IOOps,
                     UserJobSpec_.iops_threshold());
                 Woodpecker_ = true;
 

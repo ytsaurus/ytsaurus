@@ -532,7 +532,6 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
         lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
         upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
     }
-    upperRowIndex = std::max(lowerRowIndex, upperRowIndex);
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
     if (rowCount == 0) {

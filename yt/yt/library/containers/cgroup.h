@@ -116,13 +116,11 @@ public:
 
     struct TStatistics
     {
-        TErrorOr<TDuration> BurstUsageTime;
         TErrorOr<TDuration> TotalUsageTime;
         TErrorOr<TDuration> UserUsageTime;
         TErrorOr<TDuration> SystemUsageTime;
         TErrorOr<TDuration> WaitTime;
         TErrorOr<TDuration> ThrottledTime;
-        TErrorOr<TDuration> CfsThrottledTime;
 
         TErrorOr<ui64> ThreadCount;
         TErrorOr<ui64> ContextSwitches;

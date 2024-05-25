@@ -41,8 +41,7 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("poll_replicated_objects", &TThis::PollReplicatedObjects)
         .Default(false);
-    registrar.Parameter("write_replicated_table_mapping", &TThis::WriteReplicatedTableMapping)
-        .Alias("write_registration_table_mapping")
+    registrar.Parameter("write_registration_table_mapping", &TThis::WriteReplicatedTableMapping)
         .Default(false);
     registrar.Parameter("chaos_replicated_table_queue_agent_stage", &TThis::ChaosReplicatedTableQueueAgentStage)
         .Default(NQueueClient::ProductionStage);

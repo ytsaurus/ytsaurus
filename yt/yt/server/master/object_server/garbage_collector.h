@@ -124,7 +124,6 @@ private:
 
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
-    std::optional<TDuration> GetEffectiveGCSweepPeriod();
 };
 
 DEFINE_REFCOUNTED_TYPE(TGarbageCollector)

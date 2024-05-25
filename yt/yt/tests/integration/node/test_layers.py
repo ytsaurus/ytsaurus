@@ -13,11 +13,9 @@ from yt_helpers import profiler_factory
 import pytest
 
 import os
-import re
 import time
 import tempfile
 
-from builtins import set as Set
 from collections import Counter
 
 
@@ -635,66 +633,6 @@ class TestCriDockerImage(TestLayersBase):
 
         with raises_yt_error('Porto layers are not supported in CRI job environment'):
             self.run_map(layer_paths=["//tmp/empty_layer"])
-
-    @authors("khlebnikov")
-    @pytest.mark.timeout(180)
-    def test_environment_variables(self):
-        self.create_tables()
-        map(
-            in_=self.INPUT_TABLE,
-            out=self.OUTPUT_TABLE,
-            spec={
-                "mapper": {
-                    "command": 'printenv | sed -E \'s#"#\\\\"#g;s#([^=]*)=(.*)#{name="\\1"; value="\\2";};#\'',
-                    "environment": {
-                        "MY_VARIABLE_A": "MY_VALUE_A",
-                        "MY_VARIABLE_B": "MY_VALUE_B",
-                    },
-                },
-                "secure_vault": {
-                    "MY_SECRET_A": "SECRET_VALUE_A",
-                    "MY_SECRET_B": "SECRET_VALUE_B",
-                },
-                "max_failed_job_count": 1,
-            },
-        )
-        output = read_table(self.OUTPUT_TABLE)
-        env = {row["name"]: row["value"] for row in output}
-        assert len(output) == len(env)
-
-        guid_regex = r'^[0-9a-fA-F]{1,8}-[0-9a-fA-F]{1,8}-[0-9a-fA-F]{1,8}-[0-9a-fA-F]{1,8}$'
-        is_guid = lambda x: re.match(guid_regex, x) is not None  # noqa
-        expected = {
-            # set by job environment
-            "USER": lambda x: re.match(r'^[a-z][-a-z0-9]*$', x) is not None,
-            "LOGNAME": lambda x: x == env["USER"],
-            # set by ytserver-exec
-            "SHELL": lambda x: x == "/bin/bash",
-            # set by docker image
-            "PATH": lambda x: Set(x.split(':')).issuperset({"/bin", "/usr/bin", "/usr/local/bin"}),
-            # set by default docker image
-            "PYTHON_VERSION": lambda x: x,
-            # set by bash
-            "PWD": lambda x: x == env["HOME"],
-            # set by controller agent to $(SandboxPath) and expanded by job proxy
-            "HOME": lambda x: x[0] == "/",
-            "TMPDIR": lambda x: x == env["HOME"],
-            # set by controller agent
-            "YT_OPERATION_ID": is_guid,
-            "YT_JOB_ID": is_guid,
-            "YT_JOB_INDEX": lambda x: x == "0",
-            "YT_TASK_JOB_INDEX": lambda x: x == "0",
-            "YT_JOB_COOKIE": lambda x: x == "0",
-            # set by operation spec
-            "MY_VARIABLE_A": lambda x: x == "MY_VALUE_A",
-            "MY_VARIABLE_B": lambda x: x == "MY_VALUE_B",
-            "YT_SECURE_VAULT_MY_SECRET_A": lambda x: x == "SECRET_VALUE_A",
-            "YT_SECURE_VAULT_MY_SECRET_B": lambda x: x == "SECRET_VALUE_B",
-            "YT_SECURE_VAULT": lambda x: x == '{"MY_SECRET_A"="SECRET_VALUE_A";"MY_SECRET_B"="SECRET_VALUE_B";}',
-        }
-        for name, test in expected.items():
-            assert name in env
-            assert test(env[name]), "Failed test for {}={}".format(name, env[name])
 
 
 @authors("psushin")

@@ -535,20 +535,12 @@ private:
             tabletAndRowIndices.push_back({partitionIndex, offset - 1});
         }
 
-        auto partitionRowInfosOrError = WaitFor(CollectPartitionRowInfos(
+        auto partitionRowInfos = CollectPartitionRowInfos(
             QueueRef_->Path,
             QueueClusterClient_,
             std::move(tabletAndRowIndices),
             params,
-            Logger));
-
-        if (!partitionRowInfosOrError.IsOK()) {
-            YT_LOG_DEBUG(partitionRowInfosOrError, "Failed to get partition row infos (Path: %v)",
-                QueueRef_->Path);
-            return {};
-        }
-
-        auto partitionRowInfos = std::move(partitionRowInfosOrError).Value();
+            Logger);
 
         auto partitionIt = partitionRowInfos.find(partitionIndex);
         if (partitionIt == partitionRowInfos.end()) {

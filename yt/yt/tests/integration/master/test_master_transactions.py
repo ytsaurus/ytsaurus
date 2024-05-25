@@ -4,8 +4,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
-    get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error)
+    get_transactions, get_topmost_transactions, gc_collect, get_driver)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import datetime_to_string, YtError
@@ -18,34 +17,6 @@ from datetime import datetime, timedelta
 import builtins
 
 ##################################################################
-
-
-# NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
-# slow in this case.
-class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
-    NUM_MASTERS = 3
-    NUM_NODES = 0
-
-    DELTA_MASTER_CONFIG = {
-        "hydra_manager": {
-            "invariants_check_probability": None,
-        }
-    }
-
-    @authors("kvk1920")
-    def test_abort_square(self):
-        set("//sys/accounts/tmp/@resource_limits/node_count", 10000000)
-        create("map_node", "//tmp/tree1")
-        subtree = {str(i): {} for i in range(10000)}
-        for i in range(20):
-            set(f"//tmp/tree1/{i}", subtree, force=True)
-        tx1 = start_transaction()
-        tx2 = start_transaction(tx=tx1)
-        with raises_yt_error("its descendants already have"):
-            copy("//tmp/tree1", "//tmp/tree2", tx=tx2)
-        abort_transaction(tx1)
-        gc_collect()
-        assert not exists(f"#{tx1}")
 
 
 class TestMasterTransactions(YTEnvSetup):

@@ -43,7 +43,7 @@ void TGarbageCollector::Start()
     SweepExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::GarbageCollector),
         BIND(&TGarbageCollector::OnSweep, MakeWeak(this)),
-        GetEffectiveGCSweepPeriod());
+        GetDynamicConfig()->GCSweepPeriod);
     SweepExecutor_->Start();
 
     YT_VERIFY(!ObjectRemovalCellsSyncExecutor_);
@@ -564,15 +564,8 @@ const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()
 
 void TGarbageCollector::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
-    SweepExecutor_->SetPeriod(GetEffectiveGCSweepPeriod());
+    SweepExecutor_->SetPeriod(GetDynamicConfig()->GCSweepPeriod);
     ObjectRemovalCellsSyncExecutor_->SetPeriod(GetDynamicConfig()->ObjectRemovalCellsSyncPeriod);
-}
-
-std::optional<TDuration> TGarbageCollector::GetEffectiveGCSweepPeriod()
-{
-    return GetDynamicConfig()->EnableGC
-        ? std::make_optional(GetDynamicConfig()->GCSweepPeriod)
-        : std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

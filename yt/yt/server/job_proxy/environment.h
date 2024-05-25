@@ -22,25 +22,18 @@ namespace NYT::NJobProxy {
 
 struct TJobEnvironmentCpuStatistics
 {
-    std::optional<TDuration> BurstUsageTime;
-    std::optional<TDuration> UserUsageTime;
-    std::optional<TDuration> SystemUsageTime;
-    std::optional<TDuration> WaitTime;
-    std::optional<TDuration> ThrottledTime;
-    std::optional<TDuration> CfsThrottledTime;
-    std::optional<i64> ContextSwitchesDelta;
-    std::optional<i64> PeakThreadCount;
+    TDuration UserUsageTime;
+    TDuration SystemUsageTime;
+    TDuration WaitTime;
+    TDuration ThrottledTime;
+    ui64 ContextSwitchesDelta = 0;
+    ui64 PeakThreadCount = 0;
 };
 
 void Serialize(const TJobEnvironmentCpuStatistics& statistics, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB(arkady-e1ppa): All fields are used in memory_tracker
-// and thus must be present (unlike block io stats for example)
-// thus no optionals.
-// TODO(arkady-e1ppa): Maybe use ValueOrDefault in
-// ExtractJobEnvironmentMemoryStatistics?
 struct TJobEnvironmentMemoryStatistics
 {
     ui64 ResidentAnon = 0;
@@ -55,12 +48,12 @@ void Serialize(const TJobEnvironmentMemoryStatistics& statistics, NYson::IYsonCo
 
 struct TJobEnvironmentBlockIOStatistics
 {
-    std::optional<i64> IOReadByte;
-    std::optional<i64> IOWriteByte;
+    ui64 IOReadByte = 0;
+    ui64 IOWriteByte = 0;
 
-    std::optional<i64> IOReadOps;
-    std::optional<i64> IOWriteOps;
-    std::optional<i64> IOOps;
+    ui64 IOReadOps = 0;
+    ui64 IOWriteOps = 0;
+    ui64 IOOps = 0;
 };
 
 void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -69,13 +62,13 @@ void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonC
 
 struct TJobEnvironmentNetworkStatistics
 {
-    std::optional<i64> TxBytes;
-    std::optional<i64> TxPackets;
-    std::optional<i64> TxDrops;
+    ui64 TxBytes = 0;
+    ui64 TxPackets = 0;
+    ui64 TxDrops = 0;
 
-    std::optional<i64> RxBytes;
-    std::optional<i64> RxPackets;
-    std::optional<i64> RxDrops;
+    ui64 RxBytes = 0;
+    ui64 RxPackets = 0;
+    ui64 RxDrops = 0;
 };
 
 void Serialize(const TJobEnvironmentNetworkStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -169,9 +162,9 @@ struct IJobProxyEnvironment
     // TODO(gritukan, khlebnikov): For now job proxy and user job are run in the same cgroup
     // in CRI environment. This means that their statistics are indisguishable. Remove these methods
     // when separate container for job proxy is implemented.
-    virtual std::optional<TJobEnvironmentBlockIOStatistics> GetJobBlockIOStatistics() const noexcept = 0;
-    virtual std::optional<TJobEnvironmentMemoryStatistics> GetJobMemoryStatistics() const noexcept = 0;
-    virtual std::optional<TJobEnvironmentCpuStatistics> GetJobCpuStatistics() const noexcept = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentMemoryStatistics>> GetJobMemoryStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentBlockIOStatistics>> GetJobBlockIOStatistics() const = 0;
+    virtual TErrorOr<std::optional<TJobEnvironmentCpuStatistics>> GetJobCpuStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)

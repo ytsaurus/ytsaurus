@@ -25,9 +25,7 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
         Controller_->AttachToLivePreview(chunkListId, table->LivePreviewTableId);
     }
 
-    if (Controller_->GetOutputLivePreviewVertexDescriptor() == TDataFlowGraph::SinkDescriptor) {
-        Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
-    }
+    Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
 
     table->OutputChunkTreeIds.emplace_back(key, chunkListId);
     table->ChunkCount += stripe->GetStatistics().ChunkCount;

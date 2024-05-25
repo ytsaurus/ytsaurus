@@ -60,6 +60,7 @@ TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
         Options_.MaxPartitionCount,
         Options_.AdjustDataWeightPerPartition);
 
+    ValidatePaths();
     InitializeChunkPool();
     CollectInput();
     BuildPartitions();
@@ -383,7 +384,7 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         auto& inputChunk = inputChunks[chunkIndex];
 
         // Rows in ordered dynamic stores go after rows in static stores of the ordered dynamic table.
-        auto& lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
+        i64 lowerRowIndex = maxStaticStoreUpperRowIndexForTablet[inputChunk->GetTabletIndex()];
 
         if (!inputChunk->LowerLimit()) {
             inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>();
@@ -396,8 +397,25 @@ void TMultiTablePartitioner::FixLimitsInOrderedDynamicStore(
         }
         if (!inputChunk->UpperLimit()->HasRowIndex()) {
             YT_VERIFY(inputChunk->GetTotalRowCount() >= 0);
-            lowerRowIndex += inputChunk->GetTotalRowCount();
-            inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex);
+            inputChunk->UpperLimit()->SetRowIndex(lowerRowIndex + inputChunk->GetTotalRowCount());
+        }
+    }
+}
+
+void TMultiTablePartitioner::ValidatePaths() {
+    for (const auto& path : Paths_) {
+        for (const auto& range : path.GetRanges()) {
+            const auto& lowerLimit = range.LowerLimit();
+            const auto& upperLimit = range.UpperLimit();
+
+            if ((lowerLimit.HasRowIndex() && upperLimit.HasRowIndex() && lowerLimit.GetRowIndex() > upperLimit.GetRowIndex()) ||
+                (lowerLimit.HasLegacyKey() && upperLimit.HasLegacyKey() && lowerLimit.GetLegacyKey() > upperLimit.GetLegacyKey()))
+            {
+                THROW_ERROR_EXCEPTION("Lower limit should be less than or equal to upper limit")
+                    << TErrorAttribute("path", path)
+                    << TErrorAttribute("lower_limit", lowerLimit)
+                    << TErrorAttribute("upper_limit", upperLimit);
+            }
         }
     }
 }

@@ -373,7 +373,6 @@ private:
 
         JobProxyConfigTemplate_->DoNotSetUserId = GetConfig()->ExecNode->DoNotSetUserId;
         JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->CheckUserJobMemoryLimit;
-        JobProxyConfigTemplate_->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->ForwardAllEnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
             JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();

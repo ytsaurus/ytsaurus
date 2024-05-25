@@ -879,17 +879,7 @@ TJobResult TJobProxy::RunJob()
 
         OnSpawned();
     } catch (const std::exception& ex) {
-        auto isSupervisorProxyTimeoutError = [] (const TError& error) {
-            auto serviceAttribute = error.Attributes().Find<std::optional<TString>>("service");
-            return error.GetCode() == NYT::EErrorCode::Timeout &&
-                serviceAttribute == TSupervisorServiceProxy::GetDescriptor().ServiceName;
-        };
-
         YT_LOG_ERROR(ex, "Failed to prepare job proxy");
-        auto error = TError(ex);
-        if (error.FindMatching(isSupervisorProxyTimeoutError)) {
-            Abort(EJobProxyExitCode::SupervisorCommunicationFailed);
-        }
         Abort(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
@@ -1043,27 +1033,35 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
         }
 
-        // NB(arkady-e1ppa): GetXx methods are noexcept
-        // AddSample methods can only throw if path is incorrect.
-        // This is impossible for a hardcoded path.
-        // If you happen to change path, don't forget to
-        // change it here as well and make it compatible.
-        RunNoExcept([&] {
-            auto jobCpuStatistics = environment->GetJobCpuStatistics();
+        try {
+            auto jobCpuStatistics = environment->GetJobCpuStatistics()
+                .ValueOrThrow();
             if (jobCpuStatistics) {
                 statistics.AddSample("/job/cpu", *jobCpuStatistics);
             }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job CPU statistics from job proxy environment");
+        }
 
-            auto jobMemoryStatistics = environment->GetJobMemoryStatistics();
+        try {
+            auto jobMemoryStatistics = environment->GetJobMemoryStatistics()
+                .ValueOrThrow();
             if (jobMemoryStatistics) {
                 statistics.AddSample("/job/memory", *jobMemoryStatistics);
             }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job memory statistics from job proxy environment");
+        }
 
-            auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics();
+        try {
+            auto jobBlockIOStatistics = environment->GetJobBlockIOStatistics()
+                .ValueOrThrow();
             if (jobBlockIOStatistics) {
                 statistics.AddSample("/job/block_io", *jobBlockIOStatistics);
             }
-        });
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unable to get job block IO statistics from job proxy environment");
+        }
     }
 
     if (JobProxyMaxMemoryUsage_ > 0) {
@@ -1598,29 +1596,20 @@ TDuration TJobProxy::GetSpentCpuTime() const
 {
     auto result = TDuration::Zero();
 
-    auto validCpuStatistics = [] (const auto& cpuStats) {
-        return
-            cpuStats &&
-            cpuStats->SystemUsageTime.has_value() &&
-            cpuStats->UserUsageTime.has_value();
-    };
-
     if (auto job = FindJob()) {
-        auto userJobCpu = job->GetUserJobCpuStatistics();
-        if (validCpuStatistics(userJobCpu)) {
-            result += userJobCpu->SystemUsageTime.value() +
-                userJobCpu->UserUsageTime.value();
+        if (auto userJobCpu = job->GetUserJobCpuStatistics()) {
+            result += userJobCpu->SystemUsageTime +
+                userJobCpu->UserUsageTime;
         }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
-
         auto jobProxyCpu = environment->GetCpuStatistics()
             .ValueOrThrow();
 
-        if (validCpuStatistics(jobProxyCpu)) {
-            result += jobProxyCpu->SystemUsageTime.value() +
-                jobProxyCpu->UserUsageTime.value();
+        if (jobProxyCpu) {
+            result += jobProxyCpu->SystemUsageTime +
+                jobProxyCpu->UserUsageTime;
         } else {
             YT_LOG_WARNING("Cannot get cpu statistics from job environment");
         }

@@ -99,6 +99,20 @@ def filter_cmd(cmd):
             skip = False
 
 
+def walk(p):
+    for a, b, c in os.walk(p):
+        for x in c:
+            yield os.path.join(a, x)
+
+
+def find_header(p, h):
+    for x in walk(p):
+        if x.endswith(h):
+            return os.path.dirname(x)
+
+    raise Exception('can not find inc dir')
+
+
 def main():
     args, clang_cmd = parse_args()
     if '/wrapcc.py' in str(clang_cmd):

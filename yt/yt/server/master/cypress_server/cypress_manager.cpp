@@ -1906,20 +1906,22 @@ public:
     {
         YT_VERIFY(transaction);
 
-        auto nodeId = trunkNode->GetId();
         auto result = ELockMode::Snapshot;
         for (auto* nestedTransaction : transaction->NestedTransactions()) {
-            auto branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
-            if (!branchedNode) {
-                continue;
-            }
-            auto lockMode = branchedNode->GetLockMode();
-            if (result < lockMode) {
-                result = lockMode;
+            for (auto* branchedNode : nestedTransaction->BranchedNodes()) {
+                if (branchedNode->GetTrunkNode() == trunkNode) {
+                    auto lockMode = branchedNode->GetLockMode();
+                    YT_VERIFY(lockMode != ELockMode::None);
 
-                if (result == ELockMode::Exclusive) {
-                    // As strong as it gets.
-                    return result;
+                    if (result < lockMode) {
+                        result = lockMode;
+
+                        if (result == ELockMode::Exclusive) {
+                            // As strong as it gets.
+                            return result;
+                        }
+                    }
+
                 }
             }
         }
@@ -1984,7 +1986,8 @@ public:
             DestroyBranchedNode(transaction, node);
 
             auto& branchedNodes = transaction->BranchedNodes();
-            branchedNodes.EraseOrCrash(node);
+            auto it = std::remove(branchedNodes.begin(), branchedNodes.end(), node);
+            branchedNodes.erase(it, branchedNodes.end());
 
             unbranchedNodes.insert(node);
 
@@ -2049,30 +2052,20 @@ public:
             // as its originator. We must update these references to avoid dangling pointers.
             auto* newOriginatorTransaction = newOriginator->GetTransaction();
 
-            // NB: locks are released later and don't reference branches
-            // directly. So it's safe to consult them even after unbranching.
-            const auto& lockingState = trunkNode->LockingState();
-
             VisitTransactionTree(
                 newOriginatorTransaction
                     ? newOriginatorTransaction
                     : transaction->GetTopmostTransaction(),
                 [&] (TTransaction* t) {
-                    // This check can be replaced by checking lock mode of the branch
-                    // instead (see YT_VERIFY below). But profiling showed that this
-                    // is significantly faster (in some scenarios, at least).
-                    if (lockingState.HasSnapshotLock(t)) {
-                        // NB: this won't find unbranched nodes.
-                        auto* branchedNode = FindNode(TVersionedNodeId(
-                            trunkNode->GetId(),
-                            t->GetId()));
+                    // Locks are released later, so be sure to skip the node we've already unbranched.
+                    if (t == transaction) {
+                        return;
+                    }
 
-                        if (branchedNode) {
-                            YT_VERIFY(branchedNode->GetLockMode() == ELockMode::Snapshot);
-                            auto* branchedNodeOriginator = branchedNode->GetOriginator();
-                            if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
-                                branchedNode->SetOriginator(newOriginator);
-                            }
+                    for (auto* branchedNode : t->BranchedNodes()) {
+                        auto* branchedNodeOriginator = branchedNode->GetOriginator();
+                        if (unbranchedNodes.count(branchedNodeOriginator) != 0) {
+                            branchedNode->SetOriginator(newOriginator);
                         }
                     }
                 });
@@ -2080,7 +2073,7 @@ public:
     }
 
     //! Traverses a transaction tree. The root transaction does not have to be topmost.
-    template <std::invocable<TTransaction*> F>
+    template <class F>
     void VisitTransactionTree(TTransaction* rootTransaction, F&& processTransaction)
     {
         // BFS queue.
@@ -4071,7 +4064,7 @@ private:
         YT_VERIFY(branchedNode->GetLockMode() == request.Mode);
 
         // Register the branched node with the transaction.
-        transaction->BranchedNodes().InsertOrCrash(branchedNode);
+        transaction->BranchedNodes().push_back(branchedNode);
 
         // The branched node holds an implicit reference to its trunk.
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4129,29 +4122,32 @@ private:
         for (auto* node : transaction->BranchedNodes()) {
             MergeNode(transaction, node);
         }
-        transaction->BranchedNodes().Clear();
+        transaction->BranchedNodes().clear();
     }
 
     //! Unbranches all nodes branched by #transaction and updates their version trees.
     void RemoveBranchedNodes(TTransaction* transaction)
     {
-        if (transaction->BranchedNodes().Size() != std::ssize(transaction->LockedNodes())) {
+        if (transaction->BranchedNodes().size() != transaction->LockedNodes().size()) {
             YT_LOG_ALERT("Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
                 transaction->GetId(),
-                transaction->BranchedNodes().Size(),
+                transaction->BranchedNodes().size(),
                 transaction->LockedNodes().size());
         }
 
         auto& branchedNodes = transaction->BranchedNodes();
-        while (!branchedNodes.Empty()) {
-            auto* branchedNode = branchedNodes.GetAnyNode();
+        // The reverse order is for efficient removal.
+        while (!branchedNodes.empty()) {
+            auto* branchedNode = branchedNodes.back();
             RemoveOrUpdateNodesOnLockModeChange(
                 branchedNode->GetTrunkNode(),
                 transaction,
                 branchedNode->GetLockMode(),
                 ELockMode::None);
         }
+        YT_VERIFY(branchedNodes.empty());
     }
+
 
     TCypressNode* DoCloneNode(
         TCypressNode* sourceNode,

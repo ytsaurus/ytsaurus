@@ -5,7 +5,6 @@
 #endif
 
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -49,8 +48,6 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
                     entry->Updating = false;
 
                     if (transientError) {
-                        const auto& Logger = AuthLogger;
-                        YT_LOG_DEBUG(value, "Skipping transient error while updating authentication cache entry");
                         return;
                     }
 

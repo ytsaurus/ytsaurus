@@ -57,8 +57,7 @@ private:
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 YT_LOG_DEBUG(rspOrError, "Token is missing in Cypress (TokenHash: %v)",
                     tokenHash);
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials,
-                    "Token is missing in Cypress")
+                THROW_ERROR_EXCEPTION("Token is missing in Cypress")
                     << TErrorAttribute("token_hash", tokenHash)
                     << rspOrError;
             } else {

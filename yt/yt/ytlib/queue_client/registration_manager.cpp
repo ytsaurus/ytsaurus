@@ -95,14 +95,6 @@ void HandleTableMountInfoError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString NormalizeClusterName(TStringBuf clusterName)
-{
-    clusterName.ChopSuffix(".yt.yandex.net");
-    return TString(clusterName);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,7 +138,7 @@ void TQueueConsumerRegistrationManager::StopSync() const
     YT_UNUSED_FUTURE(ConfigurationRefreshExecutor_->Stop());
 }
 
-TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistrationManager::GetRegistrationOrThrow(
+TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistrationManager::GetRegistration(
     TRichYPath queue,
     TRichYPath consumer)
 {
@@ -159,9 +151,6 @@ TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
         RefreshCache();
     }
 
-    auto rawQueue = queue;
-    auto rawConsumer = consumer;
-
     Resolve(config, &queue, &consumer, /*throwOnFailure*/ true);
 
     TGetRegistrationResult result{.ResolvedQueue = queue, .ResolvedConsumer = consumer};
@@ -170,16 +159,9 @@ TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
 
     if (auto it = Registrations_.find(std::pair{queue, consumer}); it != Registrations_.end()) {
         result.Registration = it->second;
-        return result;
     }
 
-    THROW_ERROR_EXCEPTION(
-        NYT::NSecurityClient::EErrorCode::AuthorizationError,
-        "Consumer %v is not registered for queue %v",
-        queue,
-        consumer)
-        << TErrorAttribute("raw_queue", rawQueue)
-        << TErrorAttribute("raw_consumer", rawConsumer);
+    return result;
 }
 
 TRichYPath TQueueConsumerRegistrationManager::ResolveObjectPhysicalPath(
@@ -238,30 +220,38 @@ void TQueueConsumerRegistrationManager::Resolve(
         THROW_ERROR_EXCEPTION("Error perform path resolution for queue and consumer due to expired connection");
     }
 
-    auto pathResolver = [&](NYPath::TRichYPath* path) {
-        auto tableMountInfoOrError = WaitFor(GetTableMountInfo(*path, connection));
-        HandleTableMountInfoError(*path, tableMountInfoOrError, throwOnFailure, Logger);
-
-        if (!path->GetCluster()) {
-            path->SetCluster(*ClusterName_);
-        }
-        path->SetCluster(NormalizeClusterName(*path->GetCluster()));
-
-        if (config->ResolveSymlinks && tableMountInfoOrError.IsOK()) {
-            *path = ResolveObjectPhysicalPath(*path, tableMountInfoOrError.Value());
-        }
-
-        if (config->ResolveReplicas && tableMountInfoOrError.IsOK()) {
-            *path = ResolveReplica(*path, tableMountInfoOrError.Value(), throwOnFailure);
-        }
-    };
-
     if (queuePath) {
-        pathResolver(queuePath);
+        auto queueTableMountInfoOrError = WaitFor(GetTableMountInfo(*queuePath, connection));
+        HandleTableMountInfoError(*queuePath, queueTableMountInfoOrError, throwOnFailure, Logger);
+
+        if (!queuePath->GetCluster()) {
+            queuePath->SetCluster(*ClusterName_);
+        }
+
+        if (config->ResolveSymlinks && queueTableMountInfoOrError.IsOK()) {
+            *queuePath = ResolveObjectPhysicalPath(*queuePath, queueTableMountInfoOrError.Value());
+        }
+
+        if (config->ResolveReplicas && queueTableMountInfoOrError.IsOK()) {
+            *queuePath = ResolveReplica(*queuePath, queueTableMountInfoOrError.Value(), throwOnFailure);
+        }
     }
 
     if (consumerPath) {
-        pathResolver(consumerPath);
+        auto consumerTableMountInfoOrError = WaitFor(GetTableMountInfo(*consumerPath, connection));
+        HandleTableMountInfoError(*consumerPath, consumerTableMountInfoOrError, throwOnFailure, Logger);
+
+        if (!consumerPath->GetCluster()) {
+            consumerPath->SetCluster(*ClusterName_);
+        }
+
+        if (config->ResolveSymlinks && consumerTableMountInfoOrError.IsOK()) {
+            *consumerPath = ResolveObjectPhysicalPath(*consumerPath, consumerTableMountInfoOrError.Value());
+        }
+
+        if (config->ResolveReplicas && consumerTableMountInfoOrError.IsOK()) {
+            *consumerPath = ResolveReplica(*consumerPath, consumerTableMountInfoOrError.Value(), throwOnFailure);
+        }
     }
 }
 
@@ -369,10 +359,9 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YT_LOG_DEBUG("Refreshing queue consumer registration cache");
+
     auto config = GetDynamicConfig();
-
-    YT_LOG_DEBUG("Refreshing queue consumer registration cache (StateReadPath: %v)", config->StateReadPath);
-
     auto registrations = FetchStateRowsOrThrow<TConsumerRegistrationTable>(
         config->StateReadPath,
         config->User);
@@ -392,10 +381,9 @@ void TQueueConsumerRegistrationManager::GuardedRefreshReplicationTableMappingCac
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    YT_LOG_DEBUG("Refreshing queue consumer replication table mapping cache");
+
     auto config = GetDynamicConfig();
-
-    YT_LOG_DEBUG("Refreshing queue consumer replication table mapping cache (ReplicatedTableMappingReadPath: %v)", config->ReplicatedTableMappingReadPath);
-
     auto replicatedTableMapping = FetchStateRowsOrThrow<TReplicatedTableMappingTable>(
         config->ReplicatedTableMappingReadPath,
         config->User);
