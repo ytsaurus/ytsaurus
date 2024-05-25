@@ -24,6 +24,14 @@ void TCriExecutorConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("cpu_period", &TThis::CpuPeriod)
         .Default(TDuration::MilliSeconds(100));
+
+    registrar.Parameter("retry_error_prefixes", &TThis::RetryErrorPrefixes)
+        .Default({
+            // https://github.com/containerd/containerd/pull/9565
+            "server is not initialized yet",
+            // https://github.com/containerd/containerd/issues/9160
+            "failed to create containerd task: failed to create shim task: OCI runtime create failed: runc create failed: unable to create new parent process: namespace path: lstat /proc/0/ns/ipc: no such file or directory: unknown",
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
