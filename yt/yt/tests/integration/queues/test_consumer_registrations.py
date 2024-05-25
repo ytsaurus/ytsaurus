@@ -1255,6 +1255,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
         register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
 
         set(f"{consumer_replicated_table}/@abc", True)
+        set(f"{queue_replicated_table}/@abc", True)
         # Wait for registration table mapping to be filled.
         CypressSynchronizerOrchid().wait_fresh_pass()
 

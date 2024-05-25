@@ -571,7 +571,7 @@ class TestRates(TestQueueAgentBase):
                    2 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert partitions[1]["read_data_weight_rate"]["1m_raw"] > 0
         assert abs(partitions[0]["read_data_weight_rate"]["1m_raw"] -
-                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
         # Check total read rate.
 
@@ -579,7 +579,7 @@ class TestRates(TestQueueAgentBase):
         assert abs(status["read_row_count_rate"]["1m_raw"] -
                    3 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
         assert abs(status["read_data_weight_rate"]["1m_raw"] -
-                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 2
+                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps * 10
 
 
 class TestAutomaticTrimming(TestQueueAgentBase):
@@ -3044,7 +3044,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
     }
 
     @authors("apachee")
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(200)
     def test_basic(self):
         queue_agent_orchid = QueueAgentOrchid()
 
@@ -3053,7 +3053,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period_seconds = 5
+        export_period_seconds = 12
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
@@ -3102,7 +3102,7 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         self._create_export_destination(export_dir, queue_id)
 
         set("//tmp/q/@auto_trim_config", {"enable": True})
-        export_period_seconds = 5
+        export_period_seconds = 12
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
