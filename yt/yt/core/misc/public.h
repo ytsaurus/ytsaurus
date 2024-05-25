@@ -162,6 +162,7 @@ DEFINE_ENUM(EProcessErrorCode,
     ((NonZeroExitCode)    (10000))
     ((Signal)             (10001))
     ((CannotResolveBinary)(10002))
+    ((CannotStartProcess) (10003))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
