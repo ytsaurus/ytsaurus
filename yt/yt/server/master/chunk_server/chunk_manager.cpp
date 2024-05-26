@@ -5941,12 +5941,10 @@ private:
                 auto replicaIndex = replica.ReplicaIndex;
                 if (auto* chunk = FindChunk(chunkId)) {
                     TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
-                    // Weird but OK.
-                    if (location->RemoveReplica(replica)) {
-                        YT_LOG_DEBUG("Location had a destroyed Sequoia chunk replica (LocationUuid: %v, ChunkId: %v)",
-                            locationUuid,
-                            chunkId);
-                    }
+                    auto approved = location->RemoveReplica(replica);
+
+                    TChunkLocationPtrWithReplicaIndex locationWithIndex(location, replicaIndex);
+                    chunk->RemoveReplica(locationWithIndex, approved);
                 }
 
                 auto nodeState = node->GetLocalState();
