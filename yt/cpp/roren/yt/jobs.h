@@ -24,10 +24,6 @@ IRawParDoPtr CreateCoGbkImpulseReadNodeParDo(
 IRawParDoPtr CreateCombineCombinerImpulseReadNodeParDo(IRawCombinePtr rawCombine);
 IRawParDoPtr CreateCombineReducerImpulseReadNodeParDo(IRawCombinePtr rawCombine);
 
-IRawParDoPtr CreateStateDecodingParDo(const TYtStateVtable& stateVtable);
-IRawParDoPtr CreateStateEncodingParDo(const TYtStateVtable& stateVtable);
-IRawParDoPtr CreateStatefulParDoReducerImpulseReadNode(IRawStatefulParDoPtr rawStatefulParDo, const TYtStateVtable& stateVtable);
-
 NYT::IRawJobPtr CreateParDoMap(
     const IRawParDoPtr& rawParDo,
     const IYtJobInputPtr& input,
