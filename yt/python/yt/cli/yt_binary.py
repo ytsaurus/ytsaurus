@@ -1704,8 +1704,8 @@ def add_ping_tx_parser(add_parser):
     transaction_args(parser)
 
 
-@copy_docstring_from(yt.lock)
 def lock(**kwargs):
+    """Tries to lock the path. Do not forget about global `--tx` option"""
     lock_id = yt.lock(**kwargs)
     if lock_id is not None:
         print(lock_id)

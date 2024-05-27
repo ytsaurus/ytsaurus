@@ -851,28 +851,8 @@ sys     1m40.660s
 **A:** На то есть две причины:
 Входной поток нужно разбить на строки. В JSON это можно сделать просто, поделив его по `\n`, в формате YSON это делается намного сложнее. Поскольку эта операция однопоточная, она является слабым местом и вся запись блокируется ей.
 
+
 ### Работа с транзакциями и локами { #transaction_commands }
-
-- [start_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.start_transaction) — создать новую транзакцию с заданным таймаутом (в мс);
-
-- [abort_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.abort_transaction) — прервать транзакцию с данным ID;
-
-- [commit_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.commit_transaction) — закоммитить транзакцию с данным ID;
-
-- [ping_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.ping_transaction) — выполнить пинг транзакции для продления срока жизни.
-
-
-Эти функции дают исключение [YtResponseError](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.errors.YtResponseError) с `.is_resolve_error() == True` в случае, если транзакция не найдена.
-
-- [lock](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.lock) — берет лок на указанный узел под текущей транзакцией, записанной в `TRANSACTION_ID`. В случае waitable лока и указанного `wait_for` ждет взятия лока в течение `wait_for` миллисекунд. Если дождаться не удалось — возвращает исключение.
-
-- [unlock](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.unlock) — снимает с указанного узла все [явные](../../../user-guide/storage/transactions.md#implicit_locks) локи, взятые текущей транзакцией (записанной в `TRANSACTION_ID`), — как уже взятые, так и ожидающие в очереди. Если локов нет, не имеет эффекта. Если разблокировка невозможна (потому что заблокированная версия узла содержит изменения по сравнению с оригинальной версией), возвращает исключение.
-
-  {% note info "Примечание" %}
-
-  Завершение транзакции (как успешное, так и нет) снимает все взятые ею блокировки; `unlock` нужен лишь в тех случаях, когда необходимо разблокировать узел, не завершая транзакции.
-
-  {% endnote %}
 
 - [Transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.transaction.Transaction) — **однопоточный** класс-обертка, для создания, коммита или аборта транзакций. Поддерживает синтаксис контекстного менеджера (`with` statement), то есть в случае успешного выхода из scope транзакция коммитится, а иначе прерывается. Все команды в scope запускаются под указанной транзакцией. Поддерживается возможность создавать вложенные scope'ы. Параметр `ping` (по умолчанию равен `True`) в конструкторе отвечает за запуск пингующего треда. При отсутствии пинга операция будет принудительно отменена по истечении таймаута.
 
@@ -902,6 +882,31 @@ with yt.Transaction():
    3. `interrupt_main`: бросить исключение `KeyboardInterrupt` в главном треде
    4. `send_signal`: послать процессу сигнал `SIGUSR1`.
    5. `terminate_process`: прибить процесс
+
+
+Транзакциями можно управлять и на более низком уровне (в отличии от контекстного менеджера `Transaction` такие транзакции не прорастают автоматически в команды):
+
+- [start_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.start_transaction) — создать новую транзакцию с заданным таймаутом (в мс);
+
+- [abort_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.abort_transaction) — прервать транзакцию с данным ID;
+
+- [commit_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.commit_transaction) — закоммитить транзакцию с данным ID;
+
+- [ping_transaction](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.ping_transaction) — выполнить пинг транзакции для продления срока жизни.
+
+
+Эти функции дают исключение [YtResponseError](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.errors.YtResponseError) с `.is_resolve_error() == True` в случае, если транзакция не найдена.
+
+- [lock](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.lock) — берет лок на указанный узел под текущей транзакцией. В случае waitable лока и указанного `wait_for` ждет взятия лока в течение `wait_for` миллисекунд. Если дождаться не удалось — возвращает исключение.
+
+- [unlock](https://pydoc.ytsaurus.tech/yt.wrapper.html#yt.wrapper.client_impl.YtClient.unlock) — снимает с указанного узла все [явные](../../../user-guide/storage/transactions.md#implicit_locks) локи, взятые текущей транзакцией. Как уже взятые, так и ожидающие в очереди. Если локов нет, не имеет эффекта. Если разблокировка невозможна (потому что заблокированная версия узла содержит изменения по сравнению с оригинальной версией), возвращает исключение.
+
+  {% note info "Примечание" %}
+
+  Завершение транзакции (как успешное, так и нет) снимает все взятые ею блокировки; `unlock` нужен лишь в тех случаях, когда необходимо разблокировать узел, не завершая транзакции.
+
+  {% endnote %}
+
 
 ### Запуск операций { #run_operation_commands }
 
