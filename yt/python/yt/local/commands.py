@@ -204,6 +204,12 @@ def start(master_count=1,
         "mode": job_proxy_logging_mode or "simple",
     }
 
+    job_proxy_log_manager = {
+        "sharding_key_length": 3,
+        "logs_storage_period": "7d",
+        "directory_traversal_concurrency": None,
+    }
+
     yt_config = LocalYtConfig(
         master_count=master_count,
         clock_count=clock_count,
@@ -263,7 +269,8 @@ def start(master_count=1,
         meta_files_suffix=meta_files_suffix,
         wait_tablet_cell_initialization=wait_tablet_cell_initialization,
         init_operations_archive=init_operations_archive,
-        job_proxy_logging=job_proxy_logging)
+        job_proxy_logging=job_proxy_logging,
+        job_proxy_log_manager=job_proxy_log_manager)
 
     environment = YTInstance(
         sandbox_path,

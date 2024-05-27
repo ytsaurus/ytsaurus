@@ -46,12 +46,12 @@ class LocalYtConfig(object):
     job_proxy_logging = attr.ib(factory=lambda: {
         "mode": "simple",
     })
-    default_docker_image = "docker.io/library/python:2.7-slim"
     job_proxy_log_manager = attr.ib(factory=lambda: {
         "sharding_key_length": 1,
         "logs_storage_period": "7d",
         "directory_traversal_concurrency": None,
     })
+    default_docker_image = "docker.io/library/python:2.7-slim"
 
     """Feature flags"""
     enable_master_cache = attr.ib(False)
