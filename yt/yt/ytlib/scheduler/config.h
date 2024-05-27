@@ -1868,8 +1868,6 @@ public:
     //! remote master caches.
     bool UseRemoteMasterCaches;
 
-    bool RestrictDestinationYPathAttributes;
-
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 
     static void Register(TRegistrar registrar);

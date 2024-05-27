@@ -568,8 +568,6 @@ print(op.id)
             # NB: controller creates appropriate object
             copy_and_assert_attributes(file, file, create_on_cluster=True)
 
-            copy_and_assert_attributes(table, "<user_attribute=42>" + table, create_on_cluster=False)
-            copy_and_assert_attributes(table, "<user_attribute=42>" + table, create_on_cluster=True)
             with pytest.raises(yt.YtError):
                 copy_and_assert_attributes(
                     table,
