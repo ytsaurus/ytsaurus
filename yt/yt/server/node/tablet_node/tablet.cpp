@@ -1010,10 +1010,7 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, BackupMetadata_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
-        TabletWriteManager_->Load(context);
-    }
+    TabletWriteManager_->Load(context);
 
     Load(context, LastDiscardStoresRevision_);
     // COMPAT(ifsmirnov)
@@ -1152,13 +1149,6 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Settings_.MountConfig);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < ETabletReign::MountConfigExperiments) {
-        RawSettings_.Provided.MountConfigNode = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        if (Load<bool>(context)) {
-            RawSettings_.Provided.ExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        }
-    }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
     Load(context, *Settings_.StoreWriterConfig);
@@ -1166,41 +1156,25 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *Settings_.HunkWriterConfig);
     Load(context, *Settings_.HunkWriterOptions);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::MountConfigExperiments) {
-        auto& providedSettings = RawSettings_.Provided;
+    auto& providedSettings = RawSettings_.Provided;
 
-        providedSettings.MountConfigNode = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        if (Load<bool>(context)) {
-            providedSettings.ExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-        }
-
-        RawSettings_.CreateNewProvidedConfigs();
-        Load(context, *providedSettings.StoreReaderConfig);
-        Load(context, *providedSettings.HunkReaderConfig);
-        Load(context, *providedSettings.StoreWriterConfig);
-        Load(context, *providedSettings.StoreWriterOptions);
-        Load(context, *providedSettings.HunkWriterConfig);
-        Load(context, *providedSettings.HunkWriterOptions);
-
-        RawSettings_.GlobalPatch = New<TTableConfigPatch>();
-        Load(context, *RawSettings_.GlobalPatch);
-        RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
-            Load<TYsonString>(context));
-    } else {
-        auto& providedSettings = RawSettings_.Provided;
-
-        // MountConfigNode and ExtraMountConfig should be already filled above.
-
-        providedSettings.StoreReaderConfig = Settings_.StoreReaderConfig;
-        providedSettings.HunkReaderConfig = Settings_.HunkReaderConfig;
-        providedSettings.StoreWriterConfig = Settings_.StoreWriterConfig;
-        providedSettings.StoreWriterOptions = Settings_.StoreWriterOptions;
-        providedSettings.HunkWriterConfig = Settings_.HunkWriterConfig;
-        providedSettings.HunkWriterOptions = Settings_.HunkWriterOptions;
-
-        RawSettings_.GlobalPatch = New<TTableConfigPatch>();
+    providedSettings.MountConfigNode = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    if (Load<bool>(context)) {
+        providedSettings.ExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
     }
+
+    RawSettings_.CreateNewProvidedConfigs();
+    Load(context, *providedSettings.StoreReaderConfig);
+    Load(context, *providedSettings.HunkReaderConfig);
+    Load(context, *providedSettings.StoreWriterConfig);
+    Load(context, *providedSettings.StoreWriterOptions);
+    Load(context, *providedSettings.HunkWriterConfig);
+    Load(context, *providedSettings.HunkWriterOptions);
+
+    RawSettings_.GlobalPatch = New<TTableConfigPatch>();
+    Load(context, *RawSettings_.GlobalPatch);
+    RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
+        Load<TYsonString>(context));
 
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
@@ -1233,10 +1207,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
         }
     }
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ETabletReign::TabletWriteManager) {
-        TabletWriteManager_->AsyncLoad(context);
-    }
+    TabletWriteManager_->AsyncLoad(context);
 }
 
 void TTablet::Clear()

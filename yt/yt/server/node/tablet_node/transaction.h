@@ -115,8 +115,6 @@ public:
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
 
-    void AsyncLoad(TLoadContext& context);
-
     TFuture<void> GetFinished() const;
     void SetFinished();
     void ResetFinished();

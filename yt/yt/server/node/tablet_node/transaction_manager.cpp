@@ -129,10 +129,6 @@ public:
         RegisterLoader(
             "TransactionManager.Values",
             BIND_NO_PROPAGATE(&TTransactionManager::LoadValues, Unretained(this)));
-        // COMPAT(gritukan)
-        RegisterLoader(
-            "TransactionManager.Async",
-            BIND_NO_PROPAGATE(&TTransactionManager::LoadAsync, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
@@ -997,24 +993,6 @@ private:
         Load(context, Decommission_);
         Load(context, Removing_);
     }
-
-    void LoadAsync(TLoadContext& context)
-    {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        SERIALIZATION_DUMP_WRITE(context, "transactions[%v]", PersistentTransactionMap_.size());
-        SERIALIZATION_DUMP_INDENT(context) {
-            for (int index = 0; index < std::ssize(PersistentTransactionMap_); ++index) {
-                auto transactionId = Load<TTransactionId>(context);
-                SERIALIZATION_DUMP_WRITE(context, "%v =>", transactionId);
-                SERIALIZATION_DUMP_INDENT(context) {
-                    auto* transaction = GetPersistentTransaction(transactionId);
-                    transaction->AsyncLoad(context);
-                }
-            }
-        }
-    }
-
 
     void Clear() override
     {

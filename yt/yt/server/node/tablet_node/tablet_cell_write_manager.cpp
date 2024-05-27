@@ -414,13 +414,6 @@ public:
         const auto& transactionManager = Host_->GetTransactionManager();
         auto transactions = transactionManager->GetTransactions();
 
-        // COMPAT(gritukan)
-        if (transactionManager->GetSnapshotReign() < ETabletReign::ReworkTabletLocks) {
-            const auto& transactionManager = Host_->GetTransactionManager();
-            // If this fails, you forgot to suspend tablet cells before update.
-            YT_VERIFY(transactionManager->IsDecommissioned());
-        }
-
         for (auto* transaction : transactions) {
             YT_VERIFY(GetTransientAffectedTablets(transaction).empty());
             for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
