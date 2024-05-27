@@ -140,8 +140,8 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
 
     if (!IsJobSchedulingDisabled()) {
         YT_LOG_INFO(
-            "Porto health check failed, disable slot manager (Error: %v)",
-            result);
+            result,
+            "Porto health check failed, disable slot manager");
 
         YT_VERIFY(Bootstrap_->IsExecNode());
 
@@ -1253,7 +1253,9 @@ ESlotManagerAlertType DeduceAlertType(const TError& error, std::optional<ESlotMa
         return ESlotManagerAlertType::PortoFailure;
     }
 
-    YT_LOG_WARNING("Unexpected alert error, mark alert as unclassified (Error %v)", error);
+    YT_LOG_WARNING(
+        error,
+        "Unexpected alert error, mark alert as unclassified");
 
     return ESlotManagerAlertType::NotClassified;
 }
