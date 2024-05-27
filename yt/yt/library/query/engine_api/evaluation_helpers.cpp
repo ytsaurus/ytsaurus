@@ -273,7 +273,7 @@ void TCGQueryInstance::Run(
     TRange<TPIValue> literalValues,
     TRange<void*> opaqueData,
     TRange<size_t> opaqueDataSizes,
-    TExecutionContext* context)
+    TExecutionContext* context) const
 {
     Callback_(literalValues, opaqueData, opaqueDataSizes, context, Compartment_.get());
 }
@@ -309,7 +309,7 @@ void TCGExpressionInstance::Run(
     TRange<size_t> opaqueDataSizes,
     TValue* result,
     TRange<TValue> inputRow,
-    const TRowBufferPtr& buffer)
+    const TRowBufferPtr& buffer) const
 {
     Callback_(literalValues, opaqueData, opaqueDataSizes, result, inputRow, buffer, Compartment_.get());
 }
@@ -349,22 +349,22 @@ TCGAggregateInstance::TCGAggregateInstance(
     , Compartment_(std::move(compartment))
 { }
 
-void TCGAggregateInstance::RunInit(const TRowBufferPtr& buffer, TValue* state)
+void TCGAggregateInstance::RunInit(const TRowBufferPtr& buffer, TValue* state) const
 {
     Callbacks_.Init(buffer, state, Compartment_.get());
 }
 
-void TCGAggregateInstance::RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments)
+void TCGAggregateInstance::RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments) const
 {
     Callbacks_.Update(buffer, state, arguments, Compartment_.get());
 }
 
-void TCGAggregateInstance::RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
+void TCGAggregateInstance::RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState) const
 {
     Callbacks_.Merge(buffer, firstState, secondState, Compartment_.get());
 }
 
-void TCGAggregateInstance::RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState)
+void TCGAggregateInstance::RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState) const
 {
     Callbacks_.Finalize(buffer, firstState, secondState, Compartment_.get());
 }

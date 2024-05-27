@@ -145,7 +145,7 @@ void ValidateIndexSchema(
                     firstTableValueColumnInIndex = tableColumn;
                 } else {
                     THROW_ERROR_EXCEPTION_IF(firstTableValueColumnInIndex->Lock() != tableColumn->Lock(),
-                        "All indexed table columns must have same lock group, found %v and %v",
+                        "All indexed table columns must have same lock group, found %Qv and %Qv",
                         firstTableValueColumnInIndex->Lock(),
                         tableColumn->Lock());
                 }
@@ -239,7 +239,7 @@ void ValidateColumnsAreInIndexLockGroup(
         const auto& tableColumn = tableSchema.GetColumn(column);
 
         THROW_ERROR_EXCEPTION_IF(tableColumn.Lock() != firstTableValueColumnInIndex->Lock(),
-            "Columns %Qv and %Qv belong to different lock groups: %v and %v",
+            "Columns %Qv and %Qv belong to different lock groups: %Qv and %Qv",
             tableColumn.Name(),
             firstTableValueColumnInIndex->Name(),
             tableColumn.Lock(),

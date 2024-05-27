@@ -366,7 +366,7 @@ public:
         TRange<TPIValue> literalValues,
         TRange<void*> opaqueData,
         TRange<size_t> opaqueDataSizes,
-        TExecutionContext* context);
+        TExecutionContext* context) const;
 
 private:
     const TCGQueryCallback Callback_;
@@ -403,7 +403,7 @@ public:
         TRange<size_t> opaqueDataSizes,
         TValue* result,
         TRange<TValue> inputRow,
-        const TRowBufferPtr& buffer);
+        const TRowBufferPtr& buffer) const;
 
     operator bool() const;
 
@@ -440,10 +440,10 @@ public:
         TCGAggregateCallbacks callbacks,
         std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> compartment);
 
-    void RunInit(const TRowBufferPtr& buffer, TValue* state);
-    void RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments);
-    void RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState);
-    void RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState);
+    void RunInit(const TRowBufferPtr& buffer, TValue* state) const;
+    void RunUpdate(const TRowBufferPtr& buffer, TValue* state, TRange<TValue> arguments) const;
+    void RunMerge(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState) const;
+    void RunFinalize(const TRowBufferPtr& buffer, TValue* firstState, const TValue* secondState) const;
 
 private:
     TCGAggregateCallbacks Callbacks_;

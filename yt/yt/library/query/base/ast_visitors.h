@@ -433,7 +433,7 @@ public:
     void OnReference(const TReferenceExpression* referenceExpr);
 
 private:
-    TColumnSet* Storage_;
+    TColumnSet* const Storage_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

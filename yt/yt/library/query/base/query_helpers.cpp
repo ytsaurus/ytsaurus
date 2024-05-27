@@ -638,5 +638,16 @@ TConstExpressionPtr TSelfifyRewriter::OnReference(const TReferenceExpression* re
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReferenceHarvester::TReferenceHarvester(TColumnSet* storage)
+    : Storage_(storage)
+{ }
+
+void TReferenceHarvester::OnReference(const TReferenceExpression* referenceExpr)
+{
+    Storage_->insert(referenceExpr->ColumnName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
 

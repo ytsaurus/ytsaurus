@@ -25,7 +25,7 @@ public:
 
 private:
     TCGExpressionImage Image_;
-    mutable TCGExpressionInstance Instance_;
+    TCGExpressionInstance Instance_;
     TCGVariables Variables_;
 
     TExpressionEvaluator(TCGExpressionImage image, TCGVariables variables);

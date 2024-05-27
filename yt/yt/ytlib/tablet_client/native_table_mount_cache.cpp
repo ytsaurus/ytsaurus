@@ -402,9 +402,7 @@ private:
                 TIndexInfo indexInfo{
                     .TableId = FromProto<TObjectId>(protoIndexInfo.index_table_id()),
                     .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
-                    .Predicate = protoIndexInfo.has_predicate()
-                        ? std::make_optional(FromProto<TString>(protoIndexInfo.predicate()))
-                        : std::nullopt,
+                    .Predicate = YT_PROTO_OPTIONAL(protoIndexInfo, predicate),
                 };
                 tableInfo->Indices.push_back(indexInfo);
             }

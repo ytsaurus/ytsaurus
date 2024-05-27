@@ -93,17 +93,12 @@ class TReferenceHarvester
     : public TVisitor<TReferenceHarvester>
 {
 public:
-    explicit TReferenceHarvester(TColumnSet* storage)
-        : Storage_(storage)
-    { }
+    explicit TReferenceHarvester(TColumnSet* storage);
 
-    void OnReference(const TReferenceExpression* referenceExpr)
-    {
-        Storage_->insert(referenceExpr->ColumnName);
-    }
+    void OnReference(const TReferenceExpression* referenceExpr);
 
 private:
-    TColumnSet* Storage_;
+    TColumnSet* const Storage_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
