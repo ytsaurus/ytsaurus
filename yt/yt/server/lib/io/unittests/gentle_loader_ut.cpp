@@ -239,12 +239,12 @@ public:
         return EDirectIOPolicy::Never;
     }
 
-    bool IsReadRequestLimitExceeded() const override
+    bool IsReadInFlightRequestLimitExceeded() const override
     {
         return false;
     }
 
-    bool IsWriteRequestLimitExceeded() const override
+    bool IsWriteInFlightRequestLimitExceeded() const override
     {
         return false;
     }

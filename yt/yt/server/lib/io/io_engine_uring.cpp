@@ -1690,7 +1690,7 @@ public:
             auto uringRequest = std::make_unique<TWriteUringRequest>();
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->WriteRequest = std::move(slice);
-            uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Write);
+            uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Write);
 
             futures.push_back(uringRequest->Promise.ToFuture());
             uringRequests.push_back(std::move(uringRequest));
@@ -1757,7 +1757,7 @@ private:
         uringRequest->ReadSubrequests.reserve(combinedRequests.size());
         uringRequest->ReadSubrequestStates.reserve(combinedRequests.size());
         uringRequest->PendingReadSubrequestIndexes.reserve(combinedRequests.size());
-        uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Read);
+        uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read);
 
         for (int index = 0; index < std::ssize(combinedRequests); ++index) {
             const auto& ioRequest = combinedRequests[index].ReadRequest;
@@ -1811,7 +1811,7 @@ private:
                 uringRequest->ReadSubrequests.reserve(1);
                 uringRequest->ReadSubrequestStates.reserve(1);
                 uringRequest->PendingReadSubrequestIndexes.reserve(1);
-                uringRequest->RequestCounterGuard = CreateRequestCounterGuard(EIOEngineRequestType::Read);
+                uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read);
 
                 paddedBytes += GetPaddedSize(
                     slice.Request.Offset,

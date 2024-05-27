@@ -180,8 +180,8 @@ struct IIOEngine
     virtual i64 GetTotalWrittenBytes() const = 0;
     virtual EDirectIOPolicy UseDirectIOForReads() const = 0;
 
-    virtual bool IsReadRequestLimitExceeded() const = 0;
-    virtual bool IsWriteRequestLimitExceeded() const = 0;
+    virtual bool IsReadInFlightRequestLimitExceeded() const = 0;
+    virtual bool IsWriteInFlightRequestLimitExceeded() const = 0;
 
     // Extension methods.
     TFuture<TSharedRef> ReadAll(

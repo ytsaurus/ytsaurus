@@ -294,12 +294,12 @@ EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
     return Config_.Acquire()->UseDirectIOForReads;
 }
 
-bool TIOEngineBase::IsReadRequestLimitExceeded() const
+bool TIOEngineBase::IsReadInFlightRequestLimitExceeded() const
 {
     return InFlightReadRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->ReadRequestLimit;
 }
 
-bool TIOEngineBase::IsWriteRequestLimitExceeded() const
+bool TIOEngineBase::IsWriteInFlightRequestLimitExceeded() const
 {
     return InFlightWriteRequestCount_.load(std::memory_order_relaxed) >= Config_.Acquire()->WriteRequestLimit;
 }
@@ -467,7 +467,7 @@ void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
     }
 }
 
-TRequestCounterGuard TIOEngineBase::CreateRequestCounterGuard(EIOEngineRequestType requestType)
+TRequestCounterGuard TIOEngineBase::CreateInFlightRequestGuard(EIOEngineRequestType requestType)
 {
     return TRequestCounterGuard(MakeStrong(this), requestType);
 }

@@ -318,7 +318,7 @@ public:
                     TWallTimer(),
                     category,
                     sessionId,
-                    Passed(CreateRequestCounterGuard(EIOEngineRequestType::Read)))
+                    Passed(CreateInFlightRequestGuard(EIOEngineRequestType::Read)))
                     .AsyncVia(invoker)
                     .Run();
                 futures.push_back(std::move(future));
@@ -350,7 +350,7 @@ public:
                 MakeStrong(this),
                 std::move(slice),
                 TWallTimer(),
-                Passed(CreateRequestCounterGuard(EIOEngineRequestType::Write)))
+                Passed(CreateInFlightRequestGuard(EIOEngineRequestType::Write)))
                 .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
                 .Run();
             futures.push_back(std::move(future));
@@ -451,7 +451,7 @@ private:
     {
         YT_VERIFY(std::ssize(buffer) == request.Size);
 
-        auto guard = std::move(requestCounterGuard);
+        Y_UNUSED(requestCounterGuard);
 
         const auto readWaitTime = timer.GetElapsedTime();
         AddReadWaitTimeSample(readWaitTime);
