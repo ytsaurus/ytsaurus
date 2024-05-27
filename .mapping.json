@@ -991,6 +991,7 @@
   "yt/yt/library/quantile_digest/CMakeLists.txt":"",
   "yt/yt/library/query/CMakeLists.txt":"",
   "yt/yt/library/query/base/CMakeLists.txt":"",
+  "yt/yt/library/query/distributed/CMakeLists.txt":"",
   "yt/yt/library/query/engine/CMakeLists.txt":"",
   "yt/yt/library/query/engine_api/CMakeLists.txt":"",
   "yt/yt/library/query/misc/CMakeLists.txt":"",

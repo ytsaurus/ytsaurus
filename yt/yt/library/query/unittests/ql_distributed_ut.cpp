@@ -1,7 +1,7 @@
-#include <yt/yt/ytlib/query_client/join_tree.h>
-#include <yt/yt/ytlib/query_client/shuffle.h>
-
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/library/query/distributed/join_tree.h>
+#include <yt/yt/library/query/distributed/shuffle.h>
 
 #include <yt/yt/library/query/unittests/ql_helpers.h>
 

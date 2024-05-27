@@ -59,7 +59,6 @@ target_sources(unittester-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_fragment_read_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_meta_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/chunk_slice_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/distributed_query_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/encoding_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/erasure_parts_reader_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/unittests/job_resources_ut.cpp

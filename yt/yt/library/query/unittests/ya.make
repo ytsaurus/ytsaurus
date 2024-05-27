@@ -7,6 +7,7 @@ ALLOCATOR(TCMALLOC)
 SRCS(
     ast_ut.cpp
     ql_computed_columns_ut.cpp
+    ql_distributed_ut.cpp
     ql_expressions_ut.cpp
     ql_helpers.cpp
     ql_misc_ut.cpp
@@ -38,6 +39,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)
 PEERDIR(
     yt/yt/build
     yt/yt/core/test_framework
+    yt/yt/library/query/distributed
     yt/yt/library/query/engine
     yt/yt/library/query/engine_api
     yt/yt/library/query/unittests/udf

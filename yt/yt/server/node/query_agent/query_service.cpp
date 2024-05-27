@@ -50,6 +50,8 @@
 
 #include <yt/yt/library/query/base/query.h>
 
+#include <yt/yt/library/query/distributed/public.h>
+
 #include <yt/yt/library/query/engine_api/evaluator.h>
 
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>

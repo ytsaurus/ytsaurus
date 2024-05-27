@@ -34,6 +34,7 @@ target_link_libraries(unittester-query PUBLIC
   cpp-testing-gtest_main
   yt-yt-build
   yt-core-test_framework
+  library-query-distributed
   library-query-engine
   library-query-engine_api
   query-unittests-udf
@@ -56,6 +57,7 @@ target_link_options(unittester-query PRIVATE
 target_sources(unittester-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ast_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_computed_columns_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_distributed_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_expressions_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/ql_misc_ut.cpp

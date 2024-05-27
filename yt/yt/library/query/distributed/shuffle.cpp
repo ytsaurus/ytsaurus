@@ -1,5 +1,4 @@
 #include "shuffle.h"
-#include "public.h"
 
 namespace NYT::NQueryClient {
 
@@ -34,10 +33,9 @@ THashMap<TString, TShufflePart> Shuffle(
             continue;
         }
 
-        auto dataSource = TDataSource{
-            .ObjectId = TRowsetId::Create(),
-            .Ranges = MakeSharedRange(std::move(rowsetKeyBounds)),
-        };
+        TDataSource dataSource;
+        dataSource.ObjectId = TGuid::Create();
+        dataSource.Ranges = MakeSharedRange(std::move(rowsetKeyBounds));
 
         shuffle[destination] = {
             .DataSource = std::move(dataSource),

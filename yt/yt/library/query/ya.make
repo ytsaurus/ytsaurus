@@ -1,6 +1,7 @@
 RECURSE(
     misc
     base
+    distributed
     engine_api
     engine
     row_comparer

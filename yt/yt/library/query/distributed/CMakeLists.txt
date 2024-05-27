@@ -12,12 +12,27 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(base)
-add_subdirectory(distributed)
-add_subdirectory(engine)
-add_subdirectory(engine_api)
-add_subdirectory(misc)
-add_subdirectory(proto)
-add_subdirectory(row_comparer)
-add_subdirectory(row_comparer_api)
-add_subdirectory(unittests)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(library-query-distributed)
+
+target_compile_options(library-query-distributed PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_include_directories(library-query-distributed PUBLIC
+  ${PROJECT_BINARY_DIR}/yt
+)
+
+target_link_libraries(library-query-distributed PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  library-query-base
+)
+
+target_sources(library-query-distributed PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/distributed/join_tree.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/distributed/shuffle.cpp
+)
+

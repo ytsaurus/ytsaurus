@@ -1,12 +1,12 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/library/query/base/query.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IJoinTreeNode)
 
 struct IJoinTreeNode
     : public TRefCounted
@@ -21,8 +21,6 @@ struct IJoinTreeNode
 DEFINE_REFCOUNTED_TYPE(IJoinTreeNode)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IJoinTree)
 
 struct IJoinTree
     : public TRefCounted

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/query_client/public.h>
 
+#include <yt/yt/library/query/distributed/public.h>
+
 #include <yt/yt/client/table_client/unversioned_reader.h>
 
 #include <yt/yt/core/concurrency/public.h>
