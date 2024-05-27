@@ -50,6 +50,7 @@ target_sources(yt-server-query_tracker PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_discovery.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/query_tracker/yql_engine.cpp
 )

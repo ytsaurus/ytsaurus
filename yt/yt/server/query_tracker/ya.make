@@ -11,6 +11,7 @@ SRCS(
     query_tracker.cpp
     mock_engine.cpp
     ql_engine.cpp
+    spyt_discovery.cpp
     spyt_engine.cpp
     yql_engine.cpp
 )

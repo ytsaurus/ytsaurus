@@ -2,8 +2,10 @@
 
 #include "config.h"
 #include "handler_base.h"
+#include "spyt_discovery.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/discovery_client/config.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/core/http/client.h>
@@ -16,6 +18,8 @@
 #include <yt/yt/core/json/json_writer.h>
 #include <yt/yt/core/json/json_parser.h>
 
+#include <yt/yt/core/rpc/bus/channel.h>
+#include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/public.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
@@ -28,6 +32,8 @@ namespace NYT::NQueryTracker {
 using namespace NQueryTrackerClient;
 using namespace NApi;
 using namespace NYPath;
+using namespace NRpc;
+using namespace NRpc::NBus;
 using namespace NYTree;
 using namespace NConcurrency;
 
@@ -41,6 +47,8 @@ public:
 
     std::optional<TYPath> DiscoveryPath;
 
+    std::optional<TString> DiscoveryGroup;
+
     std::optional<TString> SparkConf;
 
     bool SessionReuse;
@@ -52,6 +60,8 @@ public:
         registrar.Parameter("cluster", &TThis::Cluster)
             .Default();
         registrar.Parameter("discovery_path", &TThis::DiscoveryPath)
+            .Default();
+        registrar.Parameter("discovery_group", &TThis::DiscoveryGroup)
             .Default();
         registrar.Parameter("spark_conf", &TThis::SparkConf)
             .Default();
@@ -95,50 +105,6 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TSpytDiscovery
-    : public TRefCounted
-{
-public:
-    TSpytDiscovery(NApi::IClientPtr queryClient, TYPath discoveryPath)
-        : QueryClient_(std::move(queryClient))
-        , DiscoveryPath_(std::move(discoveryPath))
-    { }
-
-    std::vector<TString> GetModuleValues(const TString& modulePath) const
-    {
-        auto rawResult = WaitFor(QueryClient_->ListNode(modulePath))
-            .ValueOrThrow();
-        return ConvertTo<std::vector<TString>>(rawResult);
-    }
-
-    std::optional<TString> GetModuleValue(const TString& moduleName) const
-    {
-        auto modulePath = Format("%v/discovery/%v", DiscoveryPath_, ToYPathLiteral(moduleName));
-        auto moduleExists = WaitFor(QueryClient_->NodeExists(modulePath))
-            .ValueOrThrow();
-        if (!moduleExists) {
-            return std::nullopt;
-        }
-        auto listResult = GetModuleValues(modulePath);
-        if (listResult.size() > 1) {
-            THROW_ERROR_EXCEPTION(
-                "Invalid discovery directory for %v: at most 1 value expected, found %v",
-                moduleName,
-                listResult.size());
-        }
-        return listResult.size() == 1 ? std::optional(listResult[0]) : std::nullopt;
-    }
-
-private:
-    const NApi::IClientPtr QueryClient_;
-    const TYPath DiscoveryPath_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSpytDiscovery)
-DECLARE_REFCOUNTED_CLASS(TSpytDiscovery)
-
-///////////////////////////////////////////////////////////////////////////////
-
 class TSpytQueryHandler
     : public TQueryHandlerBase
 {
@@ -147,6 +113,7 @@ public:
         const NApi::IClientPtr& stateClient,
         const NYPath::TYPath& stateRoot,
         const TSpytEngineConfigPtr& config,
+        const IChannelFactoryPtr& channelFactory,
         const NQueryTrackerClient::NRecords::TActiveQuery& activeQuery,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory,
         const IInvokerPtr& controlInvoker)
@@ -156,7 +123,7 @@ public:
         , Cluster_(Settings_->Cluster.value_or(Config_->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
         , QueryClient_(NativeConnection_->CreateNativeClient(TClientOptions{.User = activeQuery.User}))
-        , HttpClient_(CreateClient(Config_->HttpClient, NBus::TTcpDispatcher::Get()->GetXferPoller()))
+        , HttpClient_(CreateClient(Config_->HttpClient, NYT::NBus::TTcpDispatcher::Get()->GetXferPoller()))
         , Headers_(New<NHttp::THeaders>())
         , RefreshTokenExecutor_(New<TPeriodicExecutor>(GetCurrentInvoker(), BIND(&TSpytQueryHandler::RefreshToken, MakeWeak(this)), Config_->RefreshTokenPeriod))
         , SessionReuse_(Settings_->SessionReuse)
@@ -165,17 +132,17 @@ public:
             THROW_ERROR_EXCEPTION("'cluster' setting is not specified");
         }
         auto discoveryPath = Settings_->DiscoveryPath.value_or(Config_->DefaultDiscoveryPath);
-        if (discoveryPath.Empty()) {
-            THROW_ERROR_EXCEPTION("'discovery_path' setting is not specified");
+        auto discoveryGroup = Settings_->DiscoveryGroup.value_or(Config_->DefaultDiscoveryGroup);
+        if (!discoveryPath.Empty()) {
+            YT_LOG_DEBUG("Discovery path will be used (Path: %v)", discoveryPath);
+            Discovery_ = CreateDiscoveryV1(QueryClient_, discoveryPath);
+        } else if (!discoveryGroup.Empty()) {
+            YT_LOG_DEBUG("Discovery group will be used (Group: %v)", discoveryGroup);
+            Discovery_ = CreateDiscoveryV2(NativeConnection_, discoveryGroup, channelFactory, Logger);
+        } else {
+            THROW_ERROR_EXCEPTION("Either 'discovery_path' or 'discovery_group' setting must be specified");
         }
         Headers_->Add("Content-Type", "application/json");
-        Discovery_ = New<TSpytDiscovery>(QueryClient_, discoveryPath);
-        auto clusterVersionOptional = Discovery_->GetModuleValue("version");
-        if (!clusterVersionOptional) {
-            THROW_ERROR_EXCEPTION(
-                "Cluster version was not found in discovery path. Make sure that SPYT cluster is running");
-        }
-        ClusterVersion_ = *clusterVersionOptional;
     }
 
     void Start() override
@@ -215,8 +182,7 @@ private:
     const NHttp::THeadersPtr Headers_;
     const TPeriodicExecutorPtr RefreshTokenExecutor_;
     const bool SessionReuse_;
-    TSpytDiscoveryPtr Discovery_;
-    TString ClusterVersion_;
+    ISpytDiscoveryPtr Discovery_;
     TFuture<TSharedRef> AsyncQueryResult_;
     TString SessionUrl_;
     TString StatementUrl_;
@@ -298,18 +264,18 @@ private:
         return state;
     }
 
-    TString GetReleaseMode() const
+    TString GetReleaseMode(const TString& version) const
     {
-        if (ClusterVersion_.Contains("SNAPSHOT")) {
+        if (version.Contains("SNAPSHOT")) {
             return "snapshots";
         } else {
             return "releases";
         }
     }
 
-    TString GetSpytFile(const TString& filename) const
+    TString GetSpytFile(const TString& version, const TString& filename) const
     {
-        return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(), ClusterVersion_, filename);
+        return Format("yt:/%v/spyt/%v/%v/%v", Config_->SpytHome, GetReleaseMode(version), version, filename);
     }
 
     TString SerializeYsonToJson(const INodePtr& ysonNode) const
@@ -331,20 +297,19 @@ private:
                 THROW_ERROR_EXCEPTION("Providing credentials is forbidden");
             }
         }
-        auto versionInsert = sparkConf.emplace("spark.yt.version", ClusterVersion_).second;
-        if (!versionInsert) {
-            THROW_ERROR_EXCEPTION("Don't use 'spark.yt.version'. Use 'client_version' setting instead");
-        }
-        // COMPAT(alex-shishkin): Cluster >= 1.76.0 doesn't require client jars.
-        if (TSpytVersion(ClusterVersion_) < TSpytVersion("1.76.0")) {
-            auto jarsInsert = sparkConf.emplace("spark.yt.jars", GetSpytFile("spark-yt-data-source.jar")).second;
+        // COMPAT(alex-shishkin): Cluster >= 1.78.0 doesn't require client files.
+        auto clusterVersion = Discovery_->GetVersion();
+        if (clusterVersion && TSpytVersion(*clusterVersion) < TSpytVersion("1.78.0")) {
+            sparkConf["spark.yt.version"] = *clusterVersion;
+            auto extraJar = GetSpytFile(*clusterVersion, "spark-yt-data-source.jar");
+            auto jarsInsert = sparkConf.emplace("spark.yt.jars", extraJar).second;
             if (!jarsInsert) {
                 THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.jars' is forbidden");
             }
-        }
-        auto pyFilesInsert = sparkConf.emplace("spark.yt.pyFiles", GetSpytFile("spyt.zip")).second;
-        if (!pyFilesInsert) {
-            THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.pyFiles' is forbidden");
+            auto pyFilesInsert = sparkConf.emplace("spark.yt.pyFiles", GetSpytFile(*clusterVersion, "spyt.zip")).second;
+            if (!pyFilesInsert) {
+                THROW_ERROR_EXCEPTION("Configuration of 'spark.yt.pyFiles' is forbidden");
+            }
         }
         // Dirty hack for absent scheme.
         sparkConf.emplace("spark.hadoop.fs.null.impl", "tech.ytsaurus.spyt.fs.YtTableFileSystem");
@@ -500,11 +465,11 @@ private:
 
     TString GetLivyServerUrl() const
     {
-        YT_LOG_DEBUG("Listing livy discovery path");
-        auto livyUrlOptional = Discovery_->GetModuleValue("livy");
+        YT_LOG_DEBUG("Listing livy discovery");
+        auto livyUrlOptional = Discovery_->GetLivyUrl();
         if (!livyUrlOptional) {
             THROW_ERROR_EXCEPTION(
-                "Livy address was not found in discovery path. SPYT cluster must be started with '--enable-livy' option");
+                "Livy address was not found in discovery. SPYT cluster must be started with '--enable-livy' option");
         }
         auto livyUrl = "http://" + *livyUrlOptional;
         YT_LOG_DEBUG("Livy server url received (Url: %v)", livyUrl);
@@ -542,8 +507,8 @@ private:
 
     void UpdateMasterWebUIUrl()
     {
-        YT_LOG_DEBUG("Listing webui discovery path");
-        auto url = Discovery_->GetModuleValue("webui");
+        YT_LOG_DEBUG("Listing webui discovery");
+        auto url = Discovery_->GetMasterWebUIUrl();
         YT_LOG_DEBUG("Master webui url received (Url: %v)", url);
         if (url) {
             MasterWebUI_ = "http://" + *url;
@@ -660,6 +625,7 @@ public:
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("SpytEngineControl"))
         , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
+        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -668,6 +634,7 @@ public:
             StateClient_,
             StateRoot_,
             Config_,
+            ChannelFactory_,
             activeQuery,
             ClusterDirectory_,
             ControlQueue_->GetInvoker());
@@ -684,6 +651,7 @@ private:
     const TActionQueuePtr ControlQueue_;
     TSpytEngineConfigPtr Config_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
+    const IChannelFactoryPtr ChannelFactory_;
 };
 
 IQueryEnginePtr CreateSpytEngine(IClientPtr stateClient, TYPath stateRoot)

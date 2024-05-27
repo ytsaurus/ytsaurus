@@ -90,6 +90,7 @@ class TSpytEngineConfig
 public:
     TString DefaultCluster;
     NYPath::TYPath DefaultDiscoveryPath;
+    NYPath::TYPath DefaultDiscoveryGroup;
     NYPath::TYPath SpytHome;
     NHttp::TClientConfigPtr HttpClient;
     TDuration StatusPollPeriod;
