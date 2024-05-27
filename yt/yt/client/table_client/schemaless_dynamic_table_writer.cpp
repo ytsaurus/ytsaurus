@@ -1,5 +1,4 @@
 #include "schemaless_dynamic_table_writer.h"
-#include "private.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -18,7 +17,7 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableClientLogger;
+static auto Logger = NLogging::TLogger("SchemalessDynamicTableWriter");
 
 ////////////////////////////////////////////////////////////////////////////////
 

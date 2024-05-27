@@ -448,7 +448,6 @@ SRCS(
     table_client/schemaless_buffered_table_writer.cpp
     table_client/schemaless_chunk_reader.cpp
     table_client/schemaless_chunk_writer.cpp
-    table_client/schemaless_dynamic_table_writer.cpp
     table_client/schemaless_multi_chunk_reader.cpp
     table_client/skynet_column_evaluator.cpp
     table_client/slice_boundary_key.cpp
