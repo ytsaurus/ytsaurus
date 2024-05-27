@@ -468,14 +468,13 @@ void ValidateCompressionCodec(
 
 void ValidateErasureCodec(
     const NYson::TYsonString& value,
-    const std::optional<THashSet<NErasure::ECodec>>& forbiddenCodecIds)
+    const THashSet<NErasure::ECodec>& forbiddenCodecIds)
 {
     auto codecId = ConvertTo<NErasure::ECodec>(value);
-    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecIds.has_value() && forbiddenCodecIds->contains(codecId)) {
+    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecIds.contains(codecId)) {
         THROW_ERROR_EXCEPTION("Erasure codec %Qv is forbidden", codecId);
     }
 }
-
 
 TRichClusterResources GetNodeResourceUsage(const TCypressNode* node)
 {

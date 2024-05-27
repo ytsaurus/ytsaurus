@@ -264,6 +264,7 @@ DEFINE_ENUM(EMasterReign,
     ((IncreasedMaxKeyColumnInDynamicTableTo128)                     (2618))  // sabdenovch
     ((FixCypressTransactionMirroring)                               (2619))  // kvk1920
     ((QueueProducers)                                               (2620))  // apachee
+    ((AddForbiddenErasureCodecsOption)                              (2621))  // abogutskiy
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

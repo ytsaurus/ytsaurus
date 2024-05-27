@@ -123,7 +123,7 @@ void ValidateCompressionCodec(
 
 void ValidateErasureCodec(
     const NYson::TYsonString& value,
-    const std::optional<THashSet<NErasure::ECodec>>& forbiddenCodecIds);
+    const THashSet<NErasure::ECodec>& forbiddenCodecIds);
 
 NSecurityServer::TRichClusterResources GetNodeResourceUsage(const TCypressNode* node);
 
