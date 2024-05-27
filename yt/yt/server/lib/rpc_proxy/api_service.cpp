@@ -3902,6 +3902,10 @@ private:
             options.NewRangeInference = request->new_range_inference();
         }
 
+        if (request->has_syntax_version()) {
+            options.SyntaxVersion = request->syntax_version();
+        }
+
         context->SetRequestInfo("Query: %v, Timestamp: %v",
             query,
             options.Timestamp);
