@@ -422,17 +422,23 @@ public:
 
     TFuture<TPeerResponsePtr> ProbeBlockSet(const TProbeRequest& request)
     {
+        if (!ReaderConfig_->UseChunkProber) {
+            auto batch = BuildProbeBatchForRequest(request);
+            return ExecuteProbeBlockSet(batch);
+        }
+
         auto guard = Guard(Lock_);
         auto& state = States_[request.Address];
 
-        if (state.Current.IsSet) {
-            if (CurrentRequestIsContainingBlocks(state, request.BlockIndexes)) {
+        YT_VERIFY(state.Current.RequestIsInitialized || !state.Next.RequestIsInitialized);
+
+        if (state.Current.RequestIsInitialized) {
+            if (CurrentBatchContainsBlocks(state, request.BlockIndexes)) {
                 return state.Current.GetRequestResultFuture();
             } else {
-                return SubscribeToNextRequest(request, state.Next);
+                AddBlocks(request, state.Next);
+                return state.Next.GetRequestResultFuture();
             }
-        } else if (!state.Current.IsSet && state.Next.IsSet) {
-            YT_ABORT();
         } else {
             state.Current = ExecuteNewRequest(request);
             auto result = state.Current.GetRequestResultFuture();
@@ -449,12 +455,12 @@ private:
         NHydra::TRevision Revision;
         IInvokerPtr Invoker;
 
-        bool IsSet = false;
-        TPromise<TPeerResponsePtr> Request;
+        bool RequestIsInitialized = false;
+        TPromise<TPeerResponsePtr> RequestResult;
 
         TFuture<TPeerResponsePtr> GetRequestResultFuture()
         {
-            return Request.ToFuture();
+            return RequestResult.ToFuture();
         }
     };
 
@@ -473,6 +479,23 @@ private:
 
     THashMap<TString, TProbeNodeState> States_;
 
+    TProbeBatch BuildProbeBatchForRequest(const TProbeRequest& request)
+    {
+        TProbeBatch batch;
+        batch.RequestIsInitialized = true;
+        batch.Channel = request.Channel;
+        batch.Revision = request.Revision;
+        batch.RequestResult = NewPromise<TPeerResponsePtr>();
+        batch.WorkloadDescriptor = request.WorkloadDescriptor;
+        batch.Invoker = request.Invoker;
+
+        for (auto index : request.BlockIndexes) {
+            batch.BlockIds.insert(index);
+        }
+
+        return batch;
+    }
+
     TProbeBatch ExecuteNewRequest(const TProbeRequest& request)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
@@ -483,26 +506,17 @@ private:
             MakeShrunkFormattableView(request.BlockIndexes, TDefaultFormatter(), 3),
             request.BlockIndexes.size());
 
-        TProbeBatch batch;
-        batch.IsSet = true;
-        batch.Channel = request.Channel;
-        batch.Revision = request.Revision;
-        batch.Request = NewPromise<TPeerResponsePtr>();
-        batch.WorkloadDescriptor = request.WorkloadDescriptor;
-        batch.Invoker = request.Invoker;
-
-        for (auto index : request.BlockIndexes) {
-            batch.BlockIds.insert(index);
-        }
+        auto batch = BuildProbeBatchForRequest(request);
 
         auto requestFuture = ExecuteProbeBlockSet(batch);
-        batch.Request.SetFrom(requestFuture);
-        requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), request.Address, batch.Invoker));
+        batch.RequestResult.SetFrom(requestFuture);
+        requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), request.Address)
+            .Via(batch.Invoker));
 
         return batch;
     }
 
-    TFuture<TPeerResponsePtr> SubscribeToNextRequest(
+    void AddBlocks(
         const TProbeRequest& request,
         TProbeBatch& nextBatch)
     {
@@ -519,47 +533,17 @@ private:
         nextBatch.WorkloadDescriptor = request.WorkloadDescriptor;
         nextBatch.Invoker = request.Invoker;
 
-        if (!nextBatch.IsSet) {
-            nextBatch.Request = NewPromise<TPeerResponsePtr>();
-            nextBatch.IsSet = true;
+        if (!nextBatch.RequestIsInitialized) {
+            nextBatch.RequestResult = NewPromise<TPeerResponsePtr>();
+            nextBatch.RequestIsInitialized = true;
         }
 
         for (auto index : request.BlockIndexes) {
             nextBatch.BlockIds.insert(index);
         }
-
-        return nextBatch.GetRequestResultFuture();
     }
 
-    TProbeBatch StartNextRequest(
-        const TString& address,
-        const TProbeBatch& queuedBatch)
-    {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
-
-        YT_LOG_DEBUG(
-            "Start next probing request (Address: %v, BlockIds: %v, BlockCount: %v)",
-            address,
-            MakeShrunkFormattableView(queuedBatch.BlockIds, TDefaultFormatter(), 3),
-            queuedBatch.BlockIds.size());
-
-        TProbeBatch nextBatch;
-        nextBatch.Channel = std::move(queuedBatch.Channel);
-        nextBatch.IsSet = queuedBatch.IsSet;
-        nextBatch.Request = std::move(queuedBatch.Request);
-        nextBatch.BlockIds = std::move(queuedBatch.BlockIds);
-        nextBatch.Revision = queuedBatch.Revision;
-        nextBatch.WorkloadDescriptor = queuedBatch.WorkloadDescriptor;
-        nextBatch.Invoker = queuedBatch.Invoker;
-
-        auto requestFuture = ExecuteProbeBlockSet(nextBatch);
-        nextBatch.Request.SetFrom(requestFuture);
-        requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), std::move(address), nextBatch.Invoker));
-
-        return nextBatch;
-    }
-
-    bool CurrentRequestIsContainingBlocks(const TProbeNodeState& probeNodeState, const std::vector<int>& blockIndexes)
+    bool CurrentBatchContainsBlocks(const TProbeNodeState& probeNodeState, const std::vector<int>& blockIndexes)
     {
         VERIFY_SPINLOCK_AFFINITY(Lock_);
 
@@ -574,8 +558,6 @@ private:
 
     TFuture<TPeerResponsePtr> ExecuteProbeBlockSet(TProbeBatch& queuedBatch)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
-
         TDataNodeServiceProxy proxy(queuedBatch.Channel);
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
@@ -592,28 +574,30 @@ private:
 
     void OnProbeBlockSetFinished(
         TString address,
-        IInvokerPtr invoker,
         const TError& /*error*/)
     {
-        YT_UNUSED_FUTURE(BIND(
-            [
-            address = address,
-            this,
-            this_ = MakeStrong(this)
-            ] {
-            auto guard = Guard(Lock_);
-            auto& state = States_[address];
+        auto guard = Guard(Lock_);
+        auto& state = States_[address];
 
-            if (state.Next.IsSet) {
-                state.Current = StartNextRequest(address, state.Next);
-            } else {
-                state.Current = {};
-            }
+        if (state.Next.RequestIsInitialized) {
+            state.Current = std::move(state.Next);
+            auto& nextBatch = state.Current;
 
-            state.Next = {};
-        })
-        .AsyncVia(invoker)
-        .Run());
+            YT_LOG_DEBUG(
+                "Start next probing request (Address: %v, BlockIds: %v, BlockCount: %v)",
+                address,
+                MakeShrunkFormattableView(nextBatch.BlockIds, TDefaultFormatter(), 3),
+                nextBatch.BlockIds.size());
+
+            auto requestFuture = ExecuteProbeBlockSet(nextBatch);
+            nextBatch.RequestResult.SetFrom(requestFuture);
+            requestFuture.Subscribe(BIND(&TChunkProber::OnProbeBlockSetFinished, MakeStrong(this), std::move(address))
+                .Via(nextBatch.Invoker));
+        } else {
+            state.Current = {};
+        }
+
+        state.Next = {};
     }
 };
 
@@ -1636,31 +1620,15 @@ private:
         const TPeer& peer,
         std::vector<int> blockIndexes)
     {
-        TFuture<TDataNodeServiceProxy::TRspProbeBlockSetPtr> probeBlockSetResponseFuture;
-
-        if (ReaderConfig_->UseChunkProber) {
-            probeBlockSetResponseFuture = ChunkProber_->ProbeBlockSet(
-                TChunkProber::TProbeRequest{
-                    .Address = address,
-                    .Channel = channel,
-                    .BlockIndexes = blockIndexes,
-                    .WorkloadDescriptor = WorkloadDescriptor_,
-                    .Revision = SeedReplicas_.Revision,
-                    .Invoker = SessionInvoker_,
-                });
-        } else {
-            TDataNodeServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
-
-            auto req = proxy.ProbeBlockSet();
-            SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
-            req->SetResponseHeavy(true);
-            ToProto(req->mutable_chunk_id(), ChunkId_);
-            ToProto(req->mutable_block_indexes(), blockIndexes);
-            req->SetAcknowledgementTimeout(std::nullopt);
-            req->set_ally_replicas_revision(SeedReplicas_.Revision);
-            probeBlockSetResponseFuture = req->Invoke();
-        }
+        auto probeBlockSetResponseFuture = ChunkProber_->ProbeBlockSet(
+            TChunkProber::TProbeRequest{
+                .Address = address,
+                .Channel = channel,
+                .BlockIndexes = blockIndexes,
+                .WorkloadDescriptor = WorkloadDescriptor_,
+                .Revision = SeedReplicas_.Revision,
+                .Invoker = SessionInvoker_,
+            });
 
         if (peer.NodeSuspicionMarkTime) {
             return probeBlockSetResponseFuture.Apply(BIND(

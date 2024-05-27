@@ -340,14 +340,14 @@ public:
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor) const;
 
-    //! Returns the summary of used memory in given #direction.
-    i64 GetSummaryUsedMemory(EIODirection direction) const;
+    //! Returns total amount of used memory in given #direction.
+    i64 GetUsedMemory(EIODirection direction) const;
 
     //! Returns the maximum number of bytes pending for disk IO in given #direction.
     i64 GetMaxPendingIOSize(EIODirection direction) const;
 
-    //! Returns the summary  number of bytes pending for disk IO in given #direction.
-    i64 GetSummaryPendingIOSize(EIODirection direction) const;
+    //! Returns total amount of of bytes pending for disk IO in given #direction.
+    i64 GetPendingIOSize(EIODirection direction) const;
 
     //! Acquires a lock IO for the given number of bytes to be read or written.
     TPendingIOGuard AcquirePendingIO(

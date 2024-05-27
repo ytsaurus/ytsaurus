@@ -783,7 +783,7 @@ i64 TChunkLocation::GetUsedMemory(
     return PerformanceCounters_->UsedMemory[direction][category].load();
 }
 
-i64 TChunkLocation::GetSummaryUsedMemory(EIODirection direction) const
+i64 TChunkLocation::GetUsedMemory(EIODirection direction) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -815,7 +815,7 @@ i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
     return result;
 }
 
-i64 TChunkLocation::GetSummaryPendingIOSize(EIODirection direction) const
+i64 TChunkLocation::GetPendingIOSize(EIODirection direction) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1207,8 +1207,8 @@ std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
     bool throttled =
         readQueueSize > GetReadThrottlingLimit() ||
         IOEngine_->IsReadRequestLimitExceeded() ||
-        GetSummaryUsedMemory(EIODirection::Read) >= GetReadMemoryLimit() ||
-        GetSummaryPendingIOSize(EIODirection::Read) >= GetPendingReadIOLimit() ||
+        GetUsedMemory(EIODirection::Read) >= GetReadMemoryLimit() ||
+        GetPendingIOSize(EIODirection::Read) >= GetPendingReadIOLimit() ||
         ReadMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledRead();
@@ -1228,8 +1228,8 @@ bool TChunkLocation::CheckWriteThrottling(
     bool throttled =
         GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
         IOEngine_->IsWriteRequestLimitExceeded() ||
-        GetSummaryUsedMemory(EIODirection::Write) >= GetWriteMemoryLimit() ||
-        GetSummaryPendingIOSize(EIODirection::Write) >= GetPendingWriteIOLimit() ||
+        GetUsedMemory(EIODirection::Write) >= GetWriteMemoryLimit() ||
+        GetPendingIOSize(EIODirection::Write) >= GetPendingWriteIOLimit() ||
         WriteMemoryTracker_->IsExceeded();
     if (throttled && incrementCounter) {
         ReportThrottledWrite();

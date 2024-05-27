@@ -150,16 +150,16 @@ public:
 
     std::optional<i64> CoalescedReadMaxGapSize;
 
-    //! Limit on the maximum memory used of location reads.
+    //! Limit on the maximum memory used by location reads.
     std::optional<i64> ReadMemoryLimit;
 
-    //! Limit on the maximum memory used of location writes.
+    //! Limit on the maximum memory used by location writes.
     std::optional<i64> WriteMemoryLimit;
 
-    //! Limit on the maximum IO in bytes used of location reads.
+    //! Limit on the maximum IO in bytes used by location reads.
     std::optional<i64> PendingReadIOLimit;
 
-    //! Limit on the maximum IO in bytes used of location writes.
+    //! Limit on the maximum IO in bytes used by location writes.
     std::optional<i64> PendingWriteIOLimit;
 
     //! Limit on the maximum count of location write sessions.
