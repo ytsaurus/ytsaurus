@@ -251,7 +251,12 @@ public:
     void Initialize() override
     {
         ControlActionQueue_ = New<TActionQueue>("Control");
+
         JobActionQueue_ = New<TActionQueue>("Job");
+        JobInvoker_ = CreateWatchdogInvoker(
+            JobActionQueue_->GetInvoker(),
+            ClusterNodeLogger(),
+            TDuration::MilliSeconds(500));
 
         BIND(&TBootstrap::DoInitialize, this)
             .AsyncVia(GetControlInvoker())
@@ -366,7 +371,7 @@ public:
 
     const IInvokerPtr& GetJobInvoker() const override
     {
-        return JobActionQueue_->GetInvoker();
+        return JobInvoker_;
     }
 
     const IInvokerPtr& GetMasterConnectionInvoker() const override
@@ -655,6 +660,7 @@ private:
 
     TActionQueuePtr ControlActionQueue_;
     TActionQueuePtr JobActionQueue_;
+    IInvokerPtr JobInvoker_;
     IThreadPoolPtr ConnectionThreadPool_;
     IThreadPoolPtr StorageLightThreadPool_;
     IThreadPoolPtr StorageHeavyThreadPool_;
