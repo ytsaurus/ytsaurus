@@ -137,9 +137,15 @@ private:
 
             context->SetRequestInfo();
 
-            const auto& user = context->RequestHeader().user();
+            const auto& header = context->RequestHeader();
+            const auto& user = header.user();
 
             auto proxyRequest = CreateRequest();
+            if (header.has_logical_request_weight()) {
+                auto logicalWeight = header.logical_request_weight();
+                proxyRequest->Header().set_logical_request_weight(logicalWeight);
+            }
+
             GenerateMutationId(proxyRequest);
             proxyRequest->SetUser(user);
             proxyRequest->SetTimeout(owner->ConnectionConfig_->RpcTimeout);
