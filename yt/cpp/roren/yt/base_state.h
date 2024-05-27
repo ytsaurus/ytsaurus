@@ -19,7 +19,7 @@ struct TYtStateVtable
     using TLoadState = void (*)(TRawRowHolder& row, const NYT::TNode&);  // NYT::TNode->TStateTKV
     using TSaveState = void (*)(::NYson::TYsonWriter& writer, void* rawState, const void* rawTKV); // TState -> Cout
     using TStateFromKey = TRawRowHolder (*)(const void* rawKey); // TState::TKey -> TState
-    using TStateFromTKV = TRawRowHolder (*)(const void* rawTKV); // TVK<TState::TKey, TState::TValue> -> TState
+    using TStateFromTKV = TRawRowHolder (*)(const void* rawTKV); // TKV<TState::TKey, TState::TValue> -> TState
 
     TRowVtable StateTKVvtable;
     TLoadState LoadState = nullptr;

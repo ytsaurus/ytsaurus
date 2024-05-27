@@ -33,6 +33,11 @@ struct TSortOutputConnector
     bool operator==(const TSortOutputConnector& other) const = default;
 };
 
+struct TStatefulConnector
+{
+    bool operator==(const TStatefulConnector& other) const = default;
+};
+
 struct TMapperOutputConnector
 {
     // Index of a mapper inside operation
@@ -49,7 +54,7 @@ struct TReducerOutputConnector
     bool operator==(const TReducerOutputConnector& other) const = default;
 };
 
-using TOperationConnector = std::variant<TMergeOutputConnector, TSortOutputConnector, TMapperOutputConnector, TReducerOutputConnector>;
+using TOperationConnector = std::variant<TMergeOutputConnector, TSortOutputConnector, TStatefulConnector, TMapperOutputConnector, TReducerOutputConnector>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,6 +73,9 @@ struct THash<NRoren::NPrivate::TOperationConnector>
             } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
                 // Carefuly and randomly generated number.
                 return 400756313;
+            } else if constexpr (std::is_same_v<TType, TStatefulConnector>) {
+                // Carefuly and randomly generated number.
+                return 13376942010;
             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                 auto val = std::tuple{0, connector.MapperIndex, connector.NodeId};
                 return THash<decltype(val)>()(val);
@@ -496,6 +504,8 @@ public:
                 Y_ABORT("Cannot resolve operation connector for TMergeOutputConnector");
             } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
                 Y_ABORT("Cannot resolve operation connector for TSortOutputConnector");
+            } else if constexpr (std::is_same_v<TType, TStatefulConnector>) {
+                Y_ABORT("Cannot resolve operation connector for TStatefulConnector");
             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>){
                 Y_ABORT_UNLESS(connector.MapperIndex >= 0);
                 Y_ABORT_UNLESS(connector.MapperIndex < std::ssize(MapperBuilderList_));
@@ -804,6 +814,8 @@ public:
                 return ToString("Merge");
             } else if constexpr (std::is_same_v<TSortOutputConnector, TType>) {
                 return ToString("Sort");
+            } else if constexpr (std::is_same_v<TStatefulConnector, TType>) {
+                return ToString("Stateful");
             } else if constexpr (std::is_same_v<TMapperOutputConnector, TType>) {
                 return ToString("Map.") + ToString(connector.MapperIndex) + "." + ToString(connector.NodeId);
             } else if constexpr (std::is_same_v<TReducerOutputConnector, TType>) {
@@ -1018,7 +1030,7 @@ public:
         return {operation.get(), std::move(outputIdList)};
     }
 
-    std::pair<TOperationNode*,TTableNode*> CreateIdentityMapOperation(
+    void CreateIdentityMapOperation(
         std::vector<TTableNode*> inputs,
         TString firstName,
         TRowVtable outputVtable,
@@ -1028,51 +1040,34 @@ public:
         Operations.push_back(operation);
         LinkWithInputs(std::move(inputs), operation.get());
 
-        auto table = std::make_shared<TOutputTableNode>(
-            std::move(outputVtable),
-            rawYtWrite);
-        Tables.push_back(table);
-        table->OutputOf = {.Operation = operation.get(), .Connector = {}};
-        operation->OutputTables[TMapperOutputConnector{}] = table.get();
-
-        return {operation.get(), table.get()};
+        auto table = CreateOutputTable(operation.get(), TMapperOutputConnector{}, std::move(outputVtable), rawYtWrite);
+        Y_UNUSED(table);
     }
 
-    std::pair<TSortOperationNode*, TOperationNode*> CreateSortOperation(
+    void CreateSortOperation(
         std::vector<TTableNode*> inputs,
         const TString& originalFirstName,
         const TString& temporaryDirectory,
         TRowVtable outputVtable,
-        IRawYtSortedWrite* rawYtSortedWrite)
+        IRawYtSortedWritePtr rawYtSortedWrite)
     {
         auto mapFirstName = originalFirstName + "_Write";
-        auto operation = TMapOperationNode::MakeShared(mapFirstName, THashSet<TString>{mapFirstName});
-        Operations.push_back(operation);
-        LinkWithInputs(std::move(inputs), operation.get());
+        auto mapOperation = TMapOperationNode::MakeShared(mapFirstName, THashSet<TString>{mapFirstName});
 
-        auto intermediateTable = std::make_shared<TTypedIntermediateTableNode>(
-            std::move(outputVtable),
-            temporaryDirectory,
-            rawYtSortedWrite);
-        Tables.push_back(intermediateTable);
-        intermediateTable->OutputOf = {.Operation = operation.get(), .Connector = {}};
-        operation->OutputTables[TMapperOutputConnector{}] = intermediateTable.get();
+        Operations.push_back(mapOperation);
+        LinkWithInputs(std::move(inputs), mapOperation.get());
+
+        auto intermediateTable = CreateTypedIntermediateTable(mapOperation.get(), TMapperOutputConnector{}, outputVtable, temporaryDirectory, rawYtSortedWrite);
 
         auto sortFirstName = originalFirstName;
         auto sortOperation = TSortOperationNode::MakeShared(sortFirstName, THashSet<TString>{sortFirstName});
-        sortOperation->Write_ = rawYtSortedWrite;
+        sortOperation->Write_ = rawYtSortedWrite.Get();
 
         Operations.push_back(sortOperation);
-        LinkWithInputs({intermediateTable.get()}, sortOperation.get());
+        LinkWithInputs({intermediateTable}, sortOperation.get());
 
-        auto table = std::make_shared<TOutputTableNode>(
-            std::move(outputVtable),
-            rawYtSortedWrite);
-        Tables.push_back(table);
-        table->OutputOf = {.Operation = sortOperation.get(), .Connector = {}};
-        sortOperation->OutputTables[TSortOutputConnector{}] = table.get();
-
-        return {sortOperation.get(), operation.get()};
+        auto table = CreateOutputTable(sortOperation.get(), TSortOutputConnector{}, outputVtable, rawYtSortedWrite);
+        Y_UNUSED(table);
     }
 
     TMapReduceOperationNode* CreateMapReduceOperation(std::vector<TTableNode*> inputs, const TString& firstName)
@@ -1206,7 +1201,48 @@ public:
         return {mapReduceOperation, nodeId};
     }
 
-    TInputTableNode* CreateInputTable(TRowVtable vtable, const IRawYtReadPtr& rawYtRead)
+    std::pair<TMapReduceOperationNode*, TParDoTreeBuilder::TPCollectionNodeId> CreateStatefulParDoMapReduceOperation(
+        std::vector<TTableNode*> inputs,
+        TString firstName,
+        const IRawStatefulParDoPtr& rawStatefulParDo,
+        const TYtStateVtable* stateVtable,
+        bool useProtoFormat)
+    {
+        Y_ABORT_UNLESS(!useProtoFormat, "StatefulParDo MapReduce doesn't support proto format for intermediate tables");
+
+        auto operation = TMapReduceOperationNode::MakeShared(firstName, THashSet<TString>{}, inputs.size());
+
+        for (ssize_t inputIndex = 0; inputIndex < std::ssize(inputs); ++inputIndex) {
+            TTableNode* table = inputs[inputIndex];
+
+            IRawParDoPtr encodingParDo =
+                inputIndex == 0
+                ? CreateStateEncodingParDo(*stateVtable)
+                : CreateEncodingKeyValueNodeParDo(table->Vtable);
+
+            std::vector<IRawParDoPtr> parDoList = {
+                encodingParDo,
+                MakeRawParDo(::MakeIntrusive<TAddTableIndexDoFn>(inputIndex)),
+                CreateWriteNodeParDo(0)
+            };
+            operation->MapperBuilderList_[inputIndex].AddParDoChainVerifyNoOutput(
+                TParDoTreeBuilder::RootNodeId,
+                parDoList
+            );
+        }
+
+        auto nodeId = operation->ReducerBuilder_.AddParDoVerifySingleOutput(
+            CreateStatefulParDoReducerImpulseReadNode(rawStatefulParDo, *stateVtable),
+            TParDoTreeBuilder::RootNodeId
+        );
+
+        Operations.push_back(operation);
+        LinkWithInputs(std::move(inputs), operation.get());
+
+        return {operation.get(), nodeId};
+    }
+
+    TInputTableNode* CreateInputTable(TRowVtable vtable, IRawYtReadPtr rawYtRead)
     {
         auto table = std::make_shared<TInputTableNode>(std::move(vtable), rawYtRead);
         Tables.push_back(table);
@@ -1233,6 +1269,22 @@ public:
         bool useProtoFormat)
     {
         auto table = std::make_shared<TIntermediateTableNode>(std::move(vtable), std::move(temporaryDirectory), useProtoFormat);
+        Tables.push_back(table);
+        LinkOperationOutput(operation, connector, table.get());
+        return table.get();
+    }
+
+    TTypedIntermediateTableNode* CreateTypedIntermediateTable(
+        TOperationNode* operation,
+        TOperationConnector connector,
+        TRowVtable vtable,
+        TString temporaryDirectory,
+        IRawYtWritePtr rawYtWrite)
+    {
+        auto table = std::make_shared<TTypedIntermediateTableNode>(
+            std::move(vtable),
+            std::move(temporaryDirectory),
+            rawYtWrite);
         Tables.push_back(table);
         LinkOperationOutput(operation, connector, table.get());
         return table.get();
@@ -1918,6 +1970,8 @@ private:
                                 return TMergeOutputConnector{};
                             } else if constexpr (std::is_same_v<TType, TSortOutputConnector>) {
                                 return TSortOutputConnector{};
+                            } else if constexpr (std::is_same_v<TType, TStatefulConnector>) {
+                                return TStatefulConnector{};
                             } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                                 auto it = mapperConnectorMap.find(std::pair{connector.MapperIndex, connector.NodeId});
                                 if (it == mapperConnectorMap.end()) {
@@ -2155,9 +2209,55 @@ public:
                 RegisterPCollection(sinkPCollection, outputTable);
                 break;
             }
+            case ERawTransformType::StatefulParDo: {
+                const TYtStateVtable* stateVtable = NPrivate::GetAttribute(*transformNode->GetPStateNode(), YtStateVtableTag);
+                const TString* stateInPath = NPrivate::GetAttribute(*transformNode->GetPStateNode(), YtStateInPathTag);
+                const TString* stateOutPath = NPrivate::GetAttribute(*transformNode->GetPStateNode(), YtStateOutPathTag);
+                Y_ABORT_UNLESS(stateVtable);
+                Y_ABORT_UNLESS(stateInPath);
+                Y_ABORT_UNLESS(stateOutPath);
+
+                const auto* sourcePCollection = VerifiedGetSingleSource(transformNode);
+                auto* inputTable = GetPCollectionImage(sourcePCollection);
+
+                auto stateRawYtRead = MakeYtNodeInput(*stateInPath);
+                NPrivate::SetAttribute(*stateRawYtRead, DecodingParDoTag, CreateStateDecodingParDo(*stateVtable));
+                auto inputStateTable = PlainGraph_->CreateInputTable(
+                    stateVtable->StateTKVvtable,
+                    stateRawYtRead
+                );
+
+                Y_ABORT_UNLESS(!transformNode->GetName().empty());
+                const auto& [statefulMapReduceOperation, outputNodeId] = PlainGraph_->CreateStatefulParDoMapReduceOperation(
+                    {inputStateTable, inputTable},
+                    transformNode->GetName(),
+                    rawTransform->AsRawStatefulParDo(),
+                    stateVtable,
+                    Config_->GetEnableProtoFormatForIntermediates()
+                );
+
+                auto outputStateTable = PlainGraph_->CreateOutputTable(
+                    statefulMapReduceOperation,
+                    TStatefulConnector{},
+                    stateVtable->StateTKVvtable,
+                    MakeYtNodeWrite(*stateOutPath, NYT::TTableSchema{}.Strict(false))
+                );
+                Y_UNUSED(outputStateTable);
+
+                Y_ABORT_UNLESS(transformNode->GetSinkCount() == 1);
+                const auto* pCollection = transformNode->GetSink(0).Get();
+                auto* outputTable = PlainGraph_->CreateIntermediateTable(
+                    statefulMapReduceOperation,
+                    TReducerOutputConnector{outputNodeId},
+                    pCollection->GetRowVtable(),
+                    Config_->GetWorkingDir(),
+                    Config_->GetEnableProtoFormatForIntermediates()
+                );
+                RegisterPCollection(pCollection, outputTable);
+                break;
+            }
             case ERawTransformType::StatefulTimerParDo:
             case ERawTransformType::CombineGlobally:
-            case ERawTransformType::StatefulParDo:
                 Y_ABORT("Not implemented yet");
         }
     }
@@ -2543,9 +2643,21 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             ssize_t reducerOutputIndex = 0;
             std::vector<TTableNode*> mapperOutputs;
             std::vector<TTableNode*> reducerOutputs;
-            for (const auto& item : mapReduceOperation->OutputTables) {
-                const auto& connector = item.first;
-                const auto& outputTable = item.second;
+            for (const auto& tableInfo : mapReduceOperation->OutputTables) {
+                const auto& connector = tableInfo.first;
+                const auto& outputTable = tableInfo.second;
+                std::visit([&] (const auto& connector) {
+                    using TType = std::decay_t<decltype(connector)>;
+                    if constexpr (std::is_same_v<TType, TStatefulConnector>) {
+                        spec.AddOutput(outputTable->GetPath());
+                        reducerOutputs.emplace_back(outputTable);
+                        ++reducerOutputIndex;
+                    }
+                }, connector);
+            }
+            for (const auto& tableInfo : mapReduceOperation->OutputTables) {
+                const auto& connector = tableInfo.first;
+                const auto& outputTable = tableInfo.second;
                 materializeIfIntermediateTable(outputTable);
                 std::visit([&] (const auto& connector) {
                     using TType = std::decay_t<decltype(connector)>;
@@ -2553,6 +2665,8 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
                         Y_ABORT("Unexpected TMergeOutputConnector inside MapReduce operation");
                     } else if constexpr(std::is_same_v<TType, TSortOutputConnector>) {
                         Y_ABORT("Unexpected TSortOutputConnector inside MapReduce operation");
+                    } else if constexpr (std::is_same_v<TType, TStatefulConnector>) {
+                        // StatefulConnector processed beforehand
                     } else if constexpr (std::is_same_v<TType, TMapperOutputConnector>) {
                         tmpMapperBuilderList[connector.MapperIndex].AddParDoChainVerifyNoOutput(
                             connector.NodeId,
