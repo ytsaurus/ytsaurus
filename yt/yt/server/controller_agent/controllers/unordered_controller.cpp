@@ -533,6 +533,11 @@ protected:
     {
         return UnorderedTask_->GetVertexDescriptor();
     }
+
+    TError GetUseChunkSliceStatisticsError() const override
+    {
+        return TError();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TUnorderedTask);

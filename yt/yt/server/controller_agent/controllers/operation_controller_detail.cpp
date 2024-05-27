@@ -70,6 +70,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
@@ -7343,6 +7344,11 @@ void TOperationControllerBase::InferInputRanges()
 TError TOperationControllerBase::GetAutoMergeError() const
 {
     return TError("Automatic output merge is not supported for %lv operations", OperationType);
+}
+
+TError TOperationControllerBase::GetUseChunkSliceStatisticsError() const
+{
+    return TError("Fetching chunk slice statistics is not supported for %lv operations", OperationType);
 }
 
 void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResult* result)

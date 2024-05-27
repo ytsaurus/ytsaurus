@@ -213,6 +213,11 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     if (context.GetVersion() >= 300303) {
         Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
     }
+
+    // COMPAT(achulkov2): This is ESnpashotVersion::ChunkSliceStatistics.
+    if (context.GetVersion() >= 301505) {
+        Persist(context, BlockSelectivityFactor_);
+    }
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -280,6 +285,11 @@ i64 TInputChunk::GetRowCount() const
     return rowCount;
 }
 
+double TInputChunk::GetSelectivityFactor() const
+{
+    return GetBlockSelectivityFactor().value_or(GetColumnSelectivityFactor());
+}
+
 i64 TInputChunk::GetDataWeight() const
 {
     if (IsFile()) {
@@ -287,35 +297,41 @@ i64 TInputChunk::GetDataWeight() const
         //             so let's define file's data weight as its uncompressed size.
         return TotalUncompressedDataSize_;
     }
-    auto rowCount = GetRowCount();
-    auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
-    return std::max<i64>(std::ceil(TotalDataWeight_ * ColumnSelectivityFactor_ * rowSelectivityFactor), rowCount);
+
+    return ApplySelectivityFactors(TotalDataWeight_, /*applyColumnarSelectivityToNonColumnarFormats*/ true);
 }
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
-    return ApplySelectivityFactors(TotalUncompressedDataSize_);
+    return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
 }
 
 i64 TInputChunk::GetCompressedDataSize() const
 {
-    return ApplySelectivityFactors(CompressedDataSize_);
+    return ApplySelectivityFactors(CompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
 }
 
-i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
+i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelectivityToNonColumnarFormats) const
 {
     auto rowCount = GetRowCount();
-    auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
-    i64 result;
-    if (ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
-        ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
-    {
-        result = std::ceil(dataSize * ColumnSelectivityFactor_ * rowSelectivityFactor);
+
+    auto result = dataSize;
+
+    if (BlockSelectivityFactor_) {
+        result = std::ceil(*BlockSelectivityFactor_ * result);
     } else {
-        result = std::ceil(dataSize * rowSelectivityFactor);
+        auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
+        result = std::ceil(rowSelectivityFactor * result);
+
+        if (applyColumnarSelectivityToNonColumnarFormats ||
+            ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
+            ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
+        {
+            result = std::ceil(ColumnSelectivityFactor_ * result);
+        }
     }
-    result = std::max<i64>(result, rowCount);
-    return std::max<i64>(result, 1);
+
+    return std::max<i64>({result, rowCount, 1});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

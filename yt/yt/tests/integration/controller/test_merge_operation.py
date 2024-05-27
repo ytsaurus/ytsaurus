@@ -11,13 +11,15 @@ from yt_commands import (
 from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type)
 
-from yt_helpers import skip_if_no_descending, skip_if_renaming_disabled
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
 import pytest
+import string
+import random
 
 from time import sleep
 
@@ -2347,6 +2349,136 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t") == rows
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_chunk_slice_statistics(self, merge_mode):
+        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": "lookup",
+            "schema": [
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "//tmp/t",
+            [{"a": f"x{i:02d}", "b": "y" * 100} for i in range(50)],
+            table_writer={"block_size": 100}
+        )
+
+        create("table", "//tmp/d")
+
+        op = merge(
+            in_=[f"//tmp/t[x{i:02d}:x{i + 1:02d}]" for i in range(50)],
+            out="//tmp/d",
+            spec={
+                "data_size_per_job": 5000,
+                "force_transform": True,
+                "use_chunk_slice_statistics": True,
+                # NB: In sorted mode this behavior is facilitated by TChunkSliceFetcher and not by the option above.
+                "mode": merge_mode,
+            }
+        )
+
+        op.track()
+
+        if merge_mode == "sorted":
+            assert "use_chunk_slice_statistics_disabled" in op.get_alerts()
+        else:
+            assert "use_chunk_slice_statistics_disabled" not in op.get_alerts()
+
+        assert get("//tmp/d/@chunk_count") < 5
+
+    @authors("achulkov2")
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
+    def test_chunk_slice_statistics_underestimation(self, merge_mode):
+        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": "lookup",
+            "schema": [
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+                {"name": "c", "type": "string"},
+            ],
+        })
+
+        row_count = 50
+        slice_row_count = 5
+
+        write_table(
+            "//tmp/t",
+            [{"a": f"x{i:02d}", "b": "y" * 100, "c": "z"} for i in range(row_count)],
+            table_writer={"block_size": 100}
+        )
+
+        create("table", "//tmp/d")
+
+        op = merge(
+            in_=[f"//tmp/t{{a, b}}[x{i:02d}:x{i + slice_row_count:02d}]" for i in range(0, row_count, slice_row_count)],
+            out="//tmp/d",
+            spec={
+                "data_size_per_job": 400,
+                "force_transform": True,
+                "use_chunk_slice_statistics": True,
+                # NB: In sorted mode this behavior is facilitated by TChunkSliceFetcher and not by the option above.
+                "mode": merge_mode,
+            }
+        )
+
+        op.track()
+
+        # We check for >= because TChunkSliceFetcher can make smaller slices.
+        assert get("//tmp/d/@chunk_count") >= row_count // slice_row_count
+
+    @authors("achulkov2")
+    # TODO(achulkov2): Add sorted mode to check once columns are supported by TChunkSliceFetcher.
+    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
+    def test_chunk_slice_statistics_work_as_columnar_statistics(self, merge_mode):
+        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
+
+        create("table", "//tmp/t", attributes={
+            "optimize_for": "scan",
+            "schema": [
+                {"name": "a", "type": "string", "sort_order": "ascending"},
+                {"name": "b", "type": "string"},
+            ],
+        })
+
+        write_table(
+            "//tmp/t",
+            [{"a": f"x{i:02d}", "b": "".join(random.choices(string.ascii_lowercase, k=300))} for i in range(10)],
+            table_writer={"block_size": 10}
+        )
+
+        create("table", "//tmp/d")
+
+        op = merge(
+            in_=[f"//tmp/t{{a}}[x{i:02d}:x{i + 1:02d}]" for i in range(0, 10)],
+            out="//tmp/d",
+            spec={
+                "data_size_per_job": 200,
+                "force_transform": True,
+                "use_chunk_slice_statistics": True,
+                "mode": merge_mode,
+            }
+        )
+
+        op.track()
+
+        assert get("//tmp/d/@chunk_count") == 1
+
+    @authors("achulkov2")
+    def test_plain_run_produces_no_alerts(self):
+        self._prepare_tables()
+
+        op = merge(mode="unordered", in_=[self.t1, self.t2], out="//tmp/t_out")
+        op.track()
+
+        assert not op.get_alerts()
 
 ##################################################################
 

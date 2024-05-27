@@ -9,6 +9,7 @@
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -406,15 +407,63 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<THashSet<int>> GetBlockFilter(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const std::optional<std::vector<TColumnStableName>>& columnStableNames)
+{
+    if (columnStableNames) {
+        TNameTablePtr nameTable;
+        if (auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions())) {
+            nameTable = FromProto<TNameTablePtr>(*nameTableExt);
+        } else if (auto schemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions())) {
+            nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(*schemaExt));
+        } else {
+            return {};
+        }
+
+        THashSet<int> blockFilter;
+
+        auto columnMetaExt = FindProtoExtension<TColumnMetaExt>(chunkMeta.extensions());
+
+        if (!columnMetaExt) {
+            return {};
+        }
+
+        for (const auto& columName : *columnStableNames) {
+            if (auto columnId = nameTable->FindId(columName.Underlying())) {
+                YT_VERIFY(*columnId < columnMetaExt->columns_size());
+                auto columnMeta = columnMetaExt->columns(*columnId);
+                for (const auto& segment : columnMeta.segments()) {
+                    blockFilter.insert(segment.block_index());
+                }
+            }
+        }
+
+        return blockFilter;
+    }
+
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
 i64 GetChunkSliceDataWeight(
     const NChunkClient::NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
-    const NChunkClient::NProto::TChunkMeta& chunkMeta)
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    const std::optional<std::vector<TColumnStableName>>& columnStableNames)
 {
     auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
     auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
 
     i64 chunkDataWeight = miscExt.data_weight();
     i64 chunkUncompressedSize = miscExt.uncompressed_data_size();
+    i64 chunkRowCount = miscExt.row_count();
 
     auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
     switch (chunkFormat) {
@@ -440,6 +489,8 @@ i64 GetChunkSliceDataWeight(
         chunkComparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
     }
 
+    auto blockFilter = GetBlockFilter(chunkMeta, columnStableNames);
+
     TOwningKeyBound chunkLowerBound;
     TOwningKeyBound chunkUpperBound;
     YT_VERIFY(FindBoundaryKeyBounds(chunkMeta, &chunkLowerBound, &chunkUpperBound));
@@ -463,6 +514,9 @@ i64 GetChunkSliceDataWeight(
     sliceLowerBound = ShortenKeyBound(sliceLowerBound, chunkComparator.GetLength());
     sliceUpperBound = ShortenKeyBound(sliceUpperBound, chunkComparator.GetLength());
 
+    auto sliceStartRowIndex = sliceLowerLimit.GetRowIndex().value_or(0);
+    auto sliceEndRowIndex = sliceUpperLimit.GetRowIndex().value_or(chunkRowCount);
+
     i64 sliceUncompressedSize = 0;
 
     auto blockMetaExt = GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions());
@@ -471,16 +525,33 @@ i64 GetChunkSliceDataWeight(
         const auto& block = blockMetaExt.data_blocks(blockIndex);
         YT_VERIFY(block.block_index() == blockIndex);
 
+        // We can skip blocks which do not contain any of the requested columns.
+        if (blockFilter && !blockFilter->contains(blockIndex)) {
+            continue;
+        }
+
         auto blockLastKeyRow = FromProto<TUnversionedOwningRow>(block.last_key());
         auto blockLastKey = TKey::FromRowUnchecked(blockLastKeyRow);
 
-        // Block is completely to the left of the slice.
+        // Block is completely to the left of the slice by key bound.
         if (!chunkComparator.TestKey(blockLastKey, sliceLowerBound)) {
             continue;
         }
 
-        // Block is partially to the right of the slice.
+        // Block is completely to the left of the slice by row index.
+        if (block.chunk_row_count() <= sliceStartRowIndex) {
+            continue;
+        }
+
+        // Block is partially to the right of the slice by key bound.
+        // We can break here, since in all current layouts blocks in sorted tables are sorted by last_key.
         if (!chunkComparator.TestKey(blockLastKey, sliceUpperBound)) {
+            break;
+        }
+
+        // Block is partially to the right of the slice by row index.
+        // We can break here, since in all current layouts chunk_row_counts are monotonous.
+        if (block.chunk_row_count() > sliceEndRowIndex) {
             break;
         }
 

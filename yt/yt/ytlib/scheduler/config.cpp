@@ -720,6 +720,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("use_columnar_statistics", &TThis::UseColumnarStatistics)
         .Default(false);
+    registrar.Parameter("use_chunk_slice_statistics", &TThis::UseChunkSliceStatistics)
+        .Default(false);
 
     registrar.Parameter("ban_nodes_with_failed_jobs", &TThis::BanNodesWithFailedJobs)
         .Default(false);

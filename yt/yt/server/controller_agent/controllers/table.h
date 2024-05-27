@@ -77,6 +77,7 @@ struct TInputTable
 
     bool IsForeign() const;
     bool IsPrimary() const;
+    bool IsVersioned() const;
     bool UseReadViaExecNode() const;
 
     //! Returns true unless teleportation is forbidden by some table options,

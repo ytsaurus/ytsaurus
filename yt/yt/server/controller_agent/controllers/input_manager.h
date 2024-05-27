@@ -32,6 +32,9 @@ public:
     virtual void ValidateInputTablesTypes() const = 0;
 
     virtual void InvokeSafely(std::function<void()> callback) = 0;
+
+    //! If fetching chunk slice statistics is not possible for the operation, returns an error with a reason.
+    virtual TError GetUseChunkSliceStatisticsError() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInputManagerHost)
