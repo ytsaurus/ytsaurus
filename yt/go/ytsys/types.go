@@ -150,7 +150,11 @@ func (m *PrimaryMaster) GetAddr() *Addr {
 }
 
 func (m *PrimaryMaster) GetCypressPath() ypath.Path {
-	return m.Path
+	if m.Path != "" {
+		return m.Path
+	}
+
+	return PrimaryMastersPath.Child(m.Addr.String())
 }
 
 func (m *PrimaryMaster) GetRole() ClusterRole {
@@ -185,7 +189,11 @@ func (m *SecondaryMaster) GetAddr() *Addr {
 }
 
 func (m *SecondaryMaster) GetCypressPath() ypath.Path {
-	return m.Path
+	if m.Path != "" {
+		return m.Path
+	}
+
+	return SecondaryMastersPath.Child(m.Addr.String())
 }
 
 func (m *SecondaryMaster) GetRole() ClusterRole {
@@ -219,7 +227,11 @@ func (m *TimestampProvider) GetAddr() *Addr {
 }
 
 func (m *TimestampProvider) GetCypressPath() ypath.Path {
-	return m.Path
+	if m.Path != "" {
+		return m.Path
+	}
+
+	return TimestampProvidersPath.Child(m.Addr.String())
 }
 
 func (m *TimestampProvider) GetRole() ClusterRole {
@@ -409,7 +421,11 @@ func (p *HTTPProxy) GetAddr() *Addr {
 }
 
 func (p *HTTPProxy) GetCypressPath() ypath.Path {
-	return p.Path
+	if p.Path != "" {
+		return p.Path
+	}
+
+	return HTTPProxiesPath.Child(p.Addr.String())
 }
 
 func (p *HTTPProxy) GetRole() ClusterRole {
@@ -449,7 +465,11 @@ func (p *RPCProxy) GetAddr() *Addr {
 }
 
 func (p *RPCProxy) GetCypressPath() ypath.Path {
-	return p.Path
+	if p.Path != "" {
+		return p.Path
+	}
+
+	return RPCProxiesPath.Child(p.Addr.String())
 }
 
 func (p *RPCProxy) GetRole() ClusterRole {
@@ -493,7 +513,11 @@ func (s *Scheduler) GetAddr() *Addr {
 }
 
 func (s *Scheduler) GetCypressPath() ypath.Path {
-	return s.Path
+	if s.Path != "" {
+		return s.Path
+	}
+
+	return SchedulersPath.Child(s.Addr.String())
 }
 
 func (s *Scheduler) GetRole() ClusterRole {
@@ -525,7 +549,11 @@ func (a *ControllerAgent) GetAddr() *Addr {
 }
 
 func (a *ControllerAgent) GetCypressPath() ypath.Path {
-	return a.Path
+	if a.Path != "" {
+		return a.Path
+	}
+
+	return ControllerAgentsPath.Child(a.Addr.String())
 }
 
 func (a *ControllerAgent) GetRole() ClusterRole {
