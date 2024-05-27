@@ -9,6 +9,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.rows.YsonSerializable;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
@@ -86,7 +87,7 @@ class TiTypeUtil {
     }
 
     static Optional<TiType> getTiTypeIfSimple(Class<?> clazz) {
-        if (YTreeNode.class.isAssignableFrom(clazz)) {
+        if (YTreeNode.class.isAssignableFrom(clazz) || YsonSerializable.class.isAssignableFrom(clazz)) {
             return Optional.of(TiType.yson());
         }
         if (Enum.class.isAssignableFrom(clazz)) {

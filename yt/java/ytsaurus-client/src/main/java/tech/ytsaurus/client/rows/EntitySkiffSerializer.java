@@ -26,7 +26,9 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.common.Decimal;
+import tech.ytsaurus.core.rows.YsonSerializable;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.core.utils.ClassUtils;
 import tech.ytsaurus.lang.NonNullApi;
 import tech.ytsaurus.lang.NonNullFields;
 import tech.ytsaurus.skiff.SkiffParser;
@@ -35,8 +37,10 @@ import tech.ytsaurus.skiff.SkiffSerializer;
 import tech.ytsaurus.typeinfo.DecimalType;
 import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.yson.BufferReference;
+import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
 import static tech.ytsaurus.client.rows.TiTypeUtil.isSimpleType;
 import static tech.ytsaurus.client.rows.TiTypeUtil.tableSchemaToStructTiType;
@@ -59,7 +63,7 @@ public class EntitySkiffSerializer<T> {
     private final Class<T> entityClass;
     private final List<EntityFieldDescr> entityFieldDescriptions;
     private final Map<Class<?>, List<EntityFieldDescr>> entityFieldsMap = new HashMap<>();
-    private final Map<Class<?>, Constructor<?>> complexObjectConstructorMap = new HashMap<>();
+    private final Map<Class<?>, Constructor<?>> objectConstructorMap = new HashMap<>();
     private @Nullable TableSchema entityTableSchema;
     private @Nullable TiType entityTiType;
     private @Nullable SkiffSchema skiffSchema;
@@ -221,7 +225,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isTimestamp()) {
                 serializer.serializeTimestamp((Instant) object);
             } else if (tiType.isYson()) {
-                serializer.serializeYson((YTreeNode) object);
+                serializeYson(object, serializer);
             } else {
                 throw new IllegalArgumentException(
                         String.format("Type '%s' is not supported", tiType));
@@ -274,6 +278,24 @@ public class EntitySkiffSerializer<T> {
         } else {
             throwIncorrectFieldTypeException("string", object.getClass());
         }
+    }
+
+    private <YsonType> void serializeYson(
+            YsonType object,
+            SkiffSerializer serializer
+    ) {
+        var byteOutputStreamForYson = new ByteArrayOutputStream();
+        ClosableYsonConsumer consumer = YTreeBinarySerializer.getSerializer(byteOutputStreamForYson);
+        if (YTreeNode.class.isAssignableFrom(object.getClass())) {
+            YTreeNodeUtils.walk((YTreeNode) object, consumer, true);
+        } else if (YsonSerializable.class.isAssignableFrom(object.getClass())) {
+            ((YsonSerializable) object).serialize(consumer);
+        } else {
+            throwIncorrectFieldTypeException("yson", object.getClass());
+        }
+        consumer.close();
+        byte[] bytes = byteOutputStreamForYson.toByteArray();
+        serializer.serializeString(bytes);
     }
 
     private <ObjectType> void serializeComplexObject(
@@ -350,8 +372,8 @@ public class EntitySkiffSerializer<T> {
         serializer.serializeByte(END_TAG);
     }
 
-    private <ListType, KeyType, ValueType> void serializeMap(
-            ListType object,
+    private <MapType, KeyType, ValueType> void serializeMap(
+            MapType object,
             TiType tiType,
             SkiffSerializer serializer
     ) {
@@ -505,15 +527,7 @@ public class EntitySkiffSerializer<T> {
             throwInvalidSchemeException(null);
         }
 
-        var defaultConstructor = complexObjectConstructorMap.computeIfAbsent(clazz, objectClass -> {
-            try {
-                var constructor = objectClass.getDeclaredConstructor();
-                constructor.setAccessible(true);
-                return constructor;
-            } catch (NoSuchMethodException e) {
-                throw new RuntimeException("Entity must have empty constructor", e);
-            }
-        });
+        var defaultConstructor = objectConstructorMap.computeIfAbsent(clazz, ClassUtils::getEmptyConstructor);
 
         ObjectType object = getInstanceWithoutArguments(defaultConstructor);
 
@@ -556,7 +570,7 @@ public class EntitySkiffSerializer<T> {
             throwInvalidSchemeException(null);
         }
 
-        var collectionConstructor = complexObjectConstructorMap.computeIfAbsent(
+        var collectionConstructor = objectConstructorMap.computeIfAbsent(
                 clazz,
                 getConstructorOrDefaultFor(defaultClass)
         );
@@ -589,7 +603,7 @@ public class EntitySkiffSerializer<T> {
             throwInvalidSchemeException(null);
         }
 
-        var mapConstructor = complexObjectConstructorMap.computeIfAbsent(
+        var mapConstructor = objectConstructorMap.computeIfAbsent(
                 clazz,
                 getConstructorOrDefaultFor(HashMap.class)
         );
@@ -672,7 +686,7 @@ public class EntitySkiffSerializer<T> {
             } else if (tiType.isTimestamp()) {
                 return castToType(deserializeTimestamp(parser));
             } else if (tiType.isYson()) {
-                return castToType(deserializeYson(parser));
+                return castToType(deserializeYson(clazz, parser));
             }
             throw new IllegalArgumentException(
                     String.format("Type '%s' is not supported", tiType));
@@ -736,10 +750,20 @@ public class EntitySkiffSerializer<T> {
         return Instant.ofEpochMilli(parser.parseUint64());
     }
 
-    private YTreeNode deserializeYson(SkiffParser parser) {
+    private <YsonType> YsonType deserializeYson(Class<YsonType> clazz, SkiffParser parser) {
         BufferReference ref = parser.parseYson32();
-        return YTreeBinarySerializer.deserialize(
-                new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength()));
+        ByteArrayInputStream inputStream = new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength());
+        if (YTreeNode.class.isAssignableFrom(clazz)) {
+            return castToType(YTreeBinarySerializer.deserialize(inputStream));
+        }
+        if (YsonSerializable.class.isAssignableFrom(clazz)) {
+            var constructor = objectConstructorMap.computeIfAbsent(clazz, ClassUtils::getEmptyConstructor);
+            YsonSerializable ysonSerializable = getInstanceWithoutArguments(constructor);
+            ysonSerializable.deserialize(inputStream);
+            return castToType(ysonSerializable);
+        }
+        throwIncorrectFieldTypeException("yson", clazz);
+        return null;
     }
 
     private void throwInvalidSchemeException(@Nullable Exception e) {

@@ -301,17 +301,22 @@ public class ClassUtils {
     public static Function<Class<?>, Constructor<?>> getConstructorOrDefaultFor(Class<?> clazz) {
         return objectClass -> {
             try {
-                var constructor = objectClass.getDeclaredConstructor();
-                constructor.setAccessible(true);
-                return constructor;
-            } catch (NoSuchMethodException e) {
-                try {
-                    return clazz.getConstructor();
-                } catch (NoSuchMethodException ex) {
-                    throw new IllegalArgumentException("Clazz must have default constructor", ex);
-                }
+                return getEmptyConstructor(objectClass);
+            } catch (IllegalArgumentException e) {
+                return getEmptyConstructor(clazz);
             }
         };
+    }
+
+    public static <T> Constructor<T> getEmptyConstructor(Class<T> objectClass) {
+        try {
+            var constructor = objectClass.getDeclaredConstructor();
+            constructor.setAccessible(true);
+            return constructor;
+        } catch (NoSuchMethodException e) {
+            throw new IllegalArgumentException(
+                    String.format("%s must have an empty constructor", objectClass.getCanonicalName()), e);
+        }
     }
 
     public static <ObjectType> ObjectType getInstanceWithoutArguments(Constructor<?> defaultConstructor) {
