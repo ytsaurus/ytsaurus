@@ -4,6 +4,7 @@
 #include "shard.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
@@ -464,6 +465,17 @@ void ValidateCompressionCodec(
 
     }
 }
+
+void ValidateErasureCodec(
+    const NYson::TYsonString& value,
+    const std::optional<THashSet<NErasure::ECodec>>& forbiddenCodecIds)
+{
+    auto codecId = ConvertTo<NErasure::ECodec>(value);
+    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecIds.has_value() && forbiddenCodecIds->contains(codecId)) {
+        THROW_ERROR_EXCEPTION("Erasure codec %Qv is forbidden", codecId);
+    }
+}
+
 
 TRichClusterResources GetNodeResourceUsage(const TCypressNode* node)
 {
