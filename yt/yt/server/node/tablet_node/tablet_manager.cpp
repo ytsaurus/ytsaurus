@@ -1104,7 +1104,7 @@ private:
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
         bool isSmoothMoveTarget = request->has_movement_source_cell_id();
-        auto userData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
+        auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
 
@@ -1164,7 +1164,7 @@ private:
             cumulativeDataWeight);
         tabletHolder->RawSettings() = rawSettings;
 
-        tabletHolder->CustomRuntimeData() = std::move(userData);
+        tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
 
         InitializeTablet(tabletHolder.get());
 
@@ -3650,7 +3650,7 @@ private:
         }
 
         if (request->has_custom_runtime_data()) {
-            static constexpr int CustomRuntimeDataTruncateLimit = 100;
+            constexpr int CustomRuntimeDataTruncateLimit = 100;
             YT_LOG_INFO("Set custom runtime data for tablet (%v, CustomRuntimeData: %v)",
                 tablet->GetLoggingTag(),
                 TruncateString(
