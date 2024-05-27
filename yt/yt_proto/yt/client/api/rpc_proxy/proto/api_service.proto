@@ -660,7 +660,7 @@ message TRspAdvanceConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqPushProducer
+message TReqPushQueueProducer
 {
     optional NYT.NProto.TGuid transaction_id = 1;
     optional string producer_path = 2;
@@ -673,7 +673,7 @@ message TReqPushProducer
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 
-message TRspPushProducer
+message TRspPushQueueProducer
 {
     optional int64 last_sequence_number = 1;
     optional uint64 skipped_row_count = 2;

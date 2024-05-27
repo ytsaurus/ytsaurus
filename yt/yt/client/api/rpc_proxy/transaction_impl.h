@@ -86,7 +86,7 @@ public:
         i64 newOffset,
         const TAdvanceConsumerOptions& options) override;
 
-    TFuture<TPushProducerResult> PushProducer(
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
         const TString& sessionId,
@@ -94,7 +94,7 @@ public:
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
         const std::optional<NYson::TYsonString>& userMeta,
-        const TPushProducerOptions& options) override;
+        const TPushQueueProducerOptions& options) override;
 
     // IClientBase implementation.
     TFuture<NApi::ITransactionPtr> StartTransaction(

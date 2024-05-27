@@ -225,6 +225,7 @@ public:
     UNSUPPORTED_METHOD(TFuture<void>, StopPipeline, (const TYPath&, const TStopPipelineOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, PausePipeline, (const TYPath&, const TPausePipelineOptions&));
     UNSUPPORTED_METHOD(TFuture<TPipelineStatus>, GetPipelineStatus, (const TYPath&, const TGetPipelineStatusOptions&));
+    UNSUPPORTED_METHOD(TFuture<TPushQueueProducerResult>, PushQueueProducer, (const NYPath::TYPath&, const NYPath::TYPath&, const TString&, i64, NTableClient::TNameTablePtr, TSharedRange<NTableClient::TUnversionedRow>, const std::optional<NYson::TYsonString>&, const TPushQueueProducerOptions&));
 
 private:
     const THedgingExecutorPtr Executor_;

@@ -162,17 +162,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPushProducerOptions
-    : public NApi::TPushProducerOptions
+struct TPushQueueProducerOptions
+    : public NApi::TPushQueueProducerOptions
     , public TTabletWriteOptions
 {
 };
 
-class TPushProducerCommand
-    : public TTypedCommand<TPushProducerOptions>
+class TPushQueueProducerCommand
+    : public TTypedCommand<TPushQueueProducerOptions>
 {
 public:
-    REGISTER_YSON_STRUCT_LITE(TPushProducerCommand);
+    REGISTER_YSON_STRUCT_LITE(TPushQueueProducerCommand);
 
     static void Register(TRegistrar registrar);
 

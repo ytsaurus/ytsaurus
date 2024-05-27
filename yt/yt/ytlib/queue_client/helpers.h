@@ -18,13 +18,13 @@ NYTree::IYPathServicePtr CreateQueueAgentYPathService(
     const TString& objectKind,
     const NYPath::TYPath& objectPath);
 
-struct TValidatePushProducerRowsResult
+struct TValidatePushQueueProducerRowsResult
 {
     i64 LastSequenceNumber = -1;
     size_t SkipRowCount = 0;
 };
 
-TValidatePushProducerRowsResult ValidatePushProducerRows(
+TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TUnversionedRow> rows,
     i64 lastProducerSequenceNumber,

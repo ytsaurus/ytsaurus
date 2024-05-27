@@ -968,7 +968,7 @@ def remove_queue_producer_session(producer_path, queue_path, session_id, **kwarg
     execute_command("remove_queue_producer_session", kwargs)
 
 
-def push_producer(producer_path, queue_path, session_id, epoch, data, user_meta=None, **kwargs):
+def push_queue_producer(producer_path, queue_path, session_id, epoch, data, user_meta=None, **kwargs):
     kwargs["producer_path"] = producer_path
     kwargs["queue_path"] = queue_path
     kwargs["session_id"] = session_id
@@ -976,7 +976,7 @@ def push_producer(producer_path, queue_path, session_id, epoch, data, user_meta=
     if user_meta is not None:
         kwargs["user_meta"] = user_meta
 
-    return execute_command("push_producer", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
+    return execute_command("push_queue_producer", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
 
 
 def start_transaction(**kwargs):

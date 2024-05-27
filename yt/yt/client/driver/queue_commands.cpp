@@ -336,7 +336,7 @@ void TRemoveQueueProducerSessionCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPushProducerCommand::Register(TRegistrar registrar)
+void TPushQueueProducerCommand::Register(TRegistrar registrar)
 {
     registrar.ParameterWithUniversalAccessor<std::optional<i64>>(
         "sequence_number",
@@ -354,7 +354,7 @@ void TPushProducerCommand::Register(TRegistrar registrar)
 
 }
 
-void TPushProducerCommand::DoExecute(ICommandContextPtr context)
+void TPushQueueProducerCommand::DoExecute(ICommandContextPtr context)
 {
     auto tableMountCache = context->GetClient()->GetTableMountCache();
 
@@ -366,7 +366,7 @@ void TPushProducerCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
     producerTableInfo->ValidateSorted();
 
-    struct TPushProducerBufferTag
+    struct TPushQueueProducerBufferTag
     { };
 
     auto insertRowsFormatConfig = ConvertTo<TInsertRowsFormatConfigPtr>(context->GetInputFormat().Attributes());
@@ -385,7 +385,7 @@ void TPushProducerCommand::DoExecute(ICommandContextPtr context)
 
     PipeInputToOutput(context->Request().InputStream, &output, 64_KB);
     auto rows = valueConsumer.GetRows();
-    auto rowBuffer = New<TRowBuffer>(TPushProducerBufferTag());
+    auto rowBuffer = New<TRowBuffer>(TPushQueueProducerBufferTag());
     auto capturedRows = rowBuffer->CaptureRows(rows);
     auto rowRange = MakeSharedRange(
         std::vector<TUnversionedRow>(capturedRows.begin(), capturedRows.end()),
@@ -398,7 +398,7 @@ void TPushProducerCommand::DoExecute(ICommandContextPtr context)
         requestUserMeta = NYson::ConvertToYsonString(UserMeta);
     }
 
-    auto result = WaitFor(transaction->PushProducer(
+    auto result = WaitFor(transaction->PushQueueProducer(
         ProducerPath,
         QueuePath,
         SessionId,

@@ -525,7 +525,7 @@ TFuture<void> TTransaction::AdvanceConsumer(
     return req->Invoke().As<void>();
 }
 
-TFuture<TPushProducerResult> TTransaction::PushProducer(
+TFuture<TPushQueueProducerResult> TTransaction::PushQueueProducer(
     const NYPath::TRichYPath& producerPath,
     const NYPath::TRichYPath& queuePath,
     const TString& sessionId,
@@ -533,7 +533,7 @@ TFuture<TPushProducerResult> TTransaction::PushProducer(
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TUnversionedRow> rows,
     const std::optional<NYson::TYsonString>& userMeta,
-    const TPushProducerOptions& options)
+    const TPushQueueProducerOptions& options)
 {
     ValidateTabletTransactionId(GetId());
 
@@ -542,7 +542,7 @@ TFuture<TPushProducerResult> TTransaction::PushProducer(
     THROW_ERROR_EXCEPTION_IF(options.SequenceNumber && *options.SequenceNumber < 0,
         "Sequence number %v cannot be negative", *options.SequenceNumber);
 
-    auto req = Proxy_.PushProducer();
+    auto req = Proxy_.PushQueueProducer();
     SetTimeoutOptions(*req, options);
     if (options.SequenceNumber) {
         req->set_sequence_number(*options.SequenceNumber);
@@ -572,8 +572,8 @@ TFuture<TPushProducerResult> TTransaction::PushProducer(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPushProducerPtr& rsp) {
-        return TPushProducerResult{.LastSequenceNumber = rsp->last_sequence_number()};
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPushQueueProducerPtr& rsp) {
+        return TPushQueueProducerResult{.LastSequenceNumber = rsp->last_sequence_number()};
     }));
 }
 

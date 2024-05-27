@@ -3,7 +3,7 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 from yt_commands import (
     authors, create, create_queue_producer_session, get, insert_rows, remove,
     remove_queue_producer_session, select_rows, wait_for_tablet_state,
-    push_producer, raises_yt_error, start_transaction, commit_transaction)
+    push_queue_producer, raises_yt_error, start_transaction, commit_transaction)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -203,7 +203,7 @@ class TestProducerApi(TestQueueAgentBase):
             assert row["data"] == f"row{row_index + 1}"
 
     @authors("nadya73")
-    def test_push_producer_with_start_sequence_number(self):
+    def test_push_queue_producer_with_start_sequence_number(self):
         self._create_queue("//tmp/q")
         self._create_producer("//tmp/p")
 
@@ -212,9 +212,9 @@ class TestProducerApi(TestQueueAgentBase):
         assert session["epoch"] == 0
 
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
         assert push_result["last_sequence_number"] == 0
         assert push_result["skipped_row_count"] == 0
 
@@ -222,16 +222,16 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_queue("//tmp/q", 1)
 
         with raises_yt_error(code=yt_error_codes.InvalidEpoch):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=1, sequence_number=1)
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=1, sequence_number=1)
 
         session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
         assert session["sequence_number"] == 0
         assert session["epoch"] == 1
 
         with raises_yt_error(code=yt_error_codes.ZombieEpoch):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0, sequence_number=1)
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0, sequence_number=1)
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}, {"data": "row2"}], epoch=1, sequence_number=0)
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}, {"data": "row2"}], epoch=1, sequence_number=0)
         assert push_result["last_sequence_number"] == 1
         assert push_result["skipped_row_count"] == 1
 
@@ -239,7 +239,7 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_queue("//tmp/q", 2)
 
     @authors("nadya73")
-    def test_push_producer_with_explicit_sequence_numbers(self):
+    def test_push_queue_producer_with_explicit_sequence_numbers(self):
         self._create_queue("//tmp/q")
         self._create_producer("//tmp/p")
 
@@ -247,13 +247,13 @@ class TestProducerApi(TestQueueAgentBase):
         assert session["sequence_number"] == -1
         assert session["epoch"] == 0
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1", "$sequence_number": 0}], epoch=0)
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1", "$sequence_number": 0}], epoch=0)
         assert push_result["last_sequence_number"] == 0
         assert push_result["skipped_row_count"] == 0
         self._check_session("//tmp/p", "test", 0, 0)
         self._check_queue("//tmp/q", 1)
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[
             {"data": "row2", "$sequence_number": 6},
             {"data": "row3", "$sequence_number": 10},
         ], epoch=0)
@@ -262,7 +262,7 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_session("//tmp/p", "test", 10, 0)
         self._check_queue("//tmp/q", 3)
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[
             {"data": "row2", "$sequence_number": 6},
             {"data": "row3", "$sequence_number": 10},
             {"data": "row4", "$sequence_number": 14},
@@ -273,19 +273,19 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_queue("//tmp/q", 4)
 
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row5", "$sequence_number": 17}], epoch=0, sequence_number=17)
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row5", "$sequence_number": 17}], epoch=0, sequence_number=17)
         self._check_session("//tmp/p", "test", 14, 0)
         self._check_queue("//tmp/q", 4)
 
         with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[
                 {"data": "row5", "$sequence_number": 17},
                 {"data": "row6"},
             ], epoch=0)
         self._check_session("//tmp/p", "test", 14, 0)
         self._check_queue("//tmp/q", 4)
 
-        push_producer("//tmp/p", "//tmp/q", "test", data=[
+        push_queue_producer("//tmp/p", "//tmp/q", "test", data=[
             {"data": "row5"},
         ], epoch=0, sequence_number=17)
         self._check_session("//tmp/p", "test", 17, 0)
@@ -293,7 +293,7 @@ class TestProducerApi(TestQueueAgentBase):
 
 
     @authors("nadya73")
-    def test_push_producer_twice_in_transaction(self):
+    def test_push_queue_producer_twice_in_transaction(self):
         self._create_queue("//tmp/q")
         self._create_producer("//tmp/p")
 
@@ -303,7 +303,7 @@ class TestProducerApi(TestQueueAgentBase):
 
         tx = start_transaction(type="tablet")
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1", "$sequence_number": 0}], epoch=0, tx=tx)
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1", "$sequence_number": 0}], epoch=0, tx=tx)
 
         assert push_result["last_sequence_number"] == 0
         assert push_result["skipped_row_count"] == 0
@@ -313,7 +313,7 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_queue("//tmp/q", 0)
 
         with raises_yt_error(code=yt_error_codes.DuplicateSessionPush):
-            push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0, sequence_number=5, tx=tx)
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0, sequence_number=5, tx=tx)
 
         commit_transaction(tx)
 
@@ -336,12 +336,12 @@ class TestProducerApi(TestQueueAgentBase):
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
 
-        push_result1 = push_producer("//tmp/p", "//tmp/q", "test1", data=[
+        push_result1 = push_queue_producer("//tmp/p", "//tmp/q", "test1", data=[
             {"data": "row1", "$sequence_number": 0},
         ], epoch=0, tx=tx1)
         assert push_result1["last_sequence_number"] == 0
 
-        push_result2 = push_producer("//tmp/p", "//tmp/q", "test2", data=[
+        push_result2 = push_queue_producer("//tmp/p", "//tmp/q", "test2", data=[
             {"data": "row2", "$sequence_number": 0},
         ], epoch=0, tx=tx2)
         assert push_result2["last_sequence_number"] == 0
@@ -367,12 +367,12 @@ class TestProducerApi(TestQueueAgentBase):
         assert session2["sequence_number"] == -1
 
         tx = start_transaction(type="tablet")
-        push_result1 = push_producer("//tmp/p", "//tmp/q", "test1", data=[
+        push_result1 = push_queue_producer("//tmp/p", "//tmp/q", "test1", data=[
             {"data": "row1", "$sequence_number": 3},
         ], epoch=0, tx=tx)
         assert push_result1["last_sequence_number"] == 3
 
-        push_result2 = push_producer("//tmp/p", "//tmp/q", "test2", data=[
+        push_result2 = push_queue_producer("//tmp/p", "//tmp/q", "test2", data=[
             {"data": "row2", "$sequence_number": 1},
         ], epoch=0, tx=tx)
         assert push_result2["last_sequence_number"] == 1
@@ -391,7 +391,7 @@ class TestProducerApi(TestQueueAgentBase):
         session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
         assert session["epoch"] == 0
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[
             {"data": "row1", "$tablet_index": 0, "$sequence_number": 0},
             {"data": "row2", "$tablet_index": 1, "$sequence_number": 2},
         ], epoch=0)
@@ -423,7 +423,7 @@ class TestProducerApi(TestQueueAgentBase):
         assert session["user_meta"] == user_meta
         self._check_session("//tmp/p", "test", -1, 0, user_meta=user_meta)
 
-        push_result = push_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
         assert push_result["last_sequence_number"] == 0
         assert push_result["skipped_row_count"] == 0
 
@@ -432,7 +432,7 @@ class TestProducerApi(TestQueueAgentBase):
         # Update usermeta.
         user_meta["filename"] = "file2"
 
-        push_result = push_producer(
+        push_result = push_queue_producer(
             "//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}],
             epoch=0, sequence_number=1, user_meta=user_meta)
         assert push_result["last_sequence_number"] == 1

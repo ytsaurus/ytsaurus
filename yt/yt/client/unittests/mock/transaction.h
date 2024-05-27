@@ -213,6 +213,16 @@ public:
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TPushQueueProducerResult>, PushQueueProducer, (
+        const NYPath::TYPath& producerPath,
+        const NYPath::TYPath& queuePath,
+        const TString& sessionId,
+        i64 epoch,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const std::optional<NYson::TYsonString>& userMeta,
+        const TPushQueueProducerOptions& options), (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockTransaction)

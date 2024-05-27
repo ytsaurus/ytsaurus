@@ -63,7 +63,7 @@ std::optional<i64> GetSequenceNumberFromRow(
     return sequenceNumber;
 }
 
-TValidatePushProducerRowsResult ValidatePushProducerRows(
+TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
     NTableClient::TNameTablePtr nameTable,
     TSharedRange<NTableClient::TUnversionedRow> rows,
     i64 lastProducerSequenceNumber,
@@ -116,7 +116,7 @@ TValidatePushProducerRowsResult ValidatePushProducerRows(
         }
     }
 
-    return TValidatePushProducerRowsResult{
+    return TValidatePushQueueProducerRowsResult{
         .LastSequenceNumber = lastSequenceNumber,
         .SkipRowCount = skipRowCount,
     };

@@ -12,7 +12,7 @@ struct TAdvanceConsumerOptions
     : public TTimeoutOptions
 { };
 
-struct TPushProducerOptions
+struct TPushQueueProducerOptions
     : public TTimeoutOptions
 {
     //! Sequence number of the first row in the batch.
@@ -23,7 +23,7 @@ struct TPushProducerOptions
     std::optional<i64> SequenceNumber;
 };
 
-struct TPushProducerResult
+struct TPushQueueProducerResult
 {
     i64 LastSequenceNumber = -1;
     ui64 SkippedRowCount = 0;
@@ -63,7 +63,7 @@ struct IQueueTransaction
         i64 newOffset,
         const TAdvanceConsumerOptions& options) = 0;
 
-    virtual TFuture<TPushProducerResult> PushProducer(
+    virtual TFuture<TPushQueueProducerResult> PushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
         const TString& sessionId,
@@ -71,7 +71,7 @@ struct IQueueTransaction
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
         const std::optional<NYson::TYsonString>& userMeta = {},
-        const TPushProducerOptions& options = {}) = 0;
+        const TPushQueueProducerOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

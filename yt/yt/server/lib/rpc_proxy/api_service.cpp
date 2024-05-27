@@ -719,7 +719,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushProducer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushQueueProducer));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -4060,7 +4060,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PushProducer)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PushQueueProducer)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -4074,7 +4074,7 @@ private:
             userMeta = TYsonString(FromProto<TString>(request->user_meta()));
         }
 
-        TPushProducerOptions options;
+        TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
         if (request->has_sequence_number()) {
             options.SequenceNumber = request->sequence_number();
@@ -4106,7 +4106,7 @@ private:
                 sessionId = std::move(sessionId), userMeta = std::move(userMeta), rowset = std::move(rowset)] {
                 auto rowsetRows = rowset->GetRows();
 
-                return transaction->PushProducer(
+                return transaction->PushQueueProducer(
                     producerPath,
                     queuePath,
                     sessionId,

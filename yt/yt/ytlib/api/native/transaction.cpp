@@ -385,7 +385,7 @@ public:
         return VoidFuture;
     }
 
-    TFuture<TPushProducerResult> PushProducer(
+    TFuture<TPushQueueProducerResult> PushQueueProducer(
         const NYPath::TRichYPath& producerPath,
         const NYPath::TRichYPath& queuePath,
         const TString& sessionId,
@@ -393,7 +393,7 @@ public:
         NTableClient::TNameTablePtr nameTable,
         TSharedRange<NTableClient::TUnversionedRow> rows,
         const std::optional<NYson::TYsonString>& userMeta,
-        const TPushProducerOptions& options) override
+        const TPushQueueProducerOptions& options) override
     {
         ValidateTabletTransactionId(GetId());
 
@@ -464,7 +464,7 @@ public:
 
         auto lastProducerSequenceNumber = session.SequenceNumber;
 
-        auto validateResult = ValidatePushProducerRows(
+        auto validateResult = ValidatePushQueueProducerRows(
             nameTable, rows, lastProducerSequenceNumber, options.SequenceNumber);
 
         YT_LOG_DEBUG("Rows were validated (SkipRowCount: %v, LastSequenceNumber: %v)",
@@ -490,7 +490,7 @@ public:
         auto updatedSessionRows = FromRecords(MakeRange(std::array{updatedSession}));
         WriteRows(producerPath.GetPath(), producerNameTable, updatedSessionRows);
 
-        return MakeFuture(TPushProducerResult{
+        return MakeFuture(TPushQueueProducerResult{
             .LastSequenceNumber = validateResult.LastSequenceNumber,
             .SkippedRowCount = validateResult.SkipRowCount,
         });

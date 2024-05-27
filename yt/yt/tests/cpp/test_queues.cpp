@@ -1145,8 +1145,8 @@ TEST_F(TProducerApiTest, TestBasic)
 
     auto nameTable = TNameTable::FromSchema(*queue->GetSchema());
 
-    auto result = WaitFor(transaction->PushProducer(
-        producerPath, queuePath, sessionId, epoch, nameTable, rows, /*userMeta*/ {}, TPushProducerOptions{.SequenceNumber = 0}))
+    auto result = WaitFor(transaction->PushQueueProducer(
+        producerPath, queuePath, sessionId, epoch, nameTable, rows, /*userMeta*/ {}, TPushQueueProducerOptions{.SequenceNumber = 0}))
         .ValueOrThrow();
 
     ASSERT_EQ(result.LastSequenceNumber, 9);
