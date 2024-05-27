@@ -60,6 +60,10 @@ get_built_tool_path(
 )
 
 add_library(yt-server-node)
+
+if(ENABLE_DUMP_PROTO_MESSAGE)
+  target_compile_definitions(yt-server-node PRIVATE ENABLE_DUMP_PROTO_MESSAGE=1)
+endif()
 target_compile_options(yt-server-node PRIVATE
   -Wdeprecated-this-capture
 )

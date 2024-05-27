@@ -41,6 +41,11 @@ public:
 
     void Run();
 
+    NRpc::IServerPtr WaitRpcServer() const {
+        while (!RpcServerStarted_) {}
+        return RpcServer_;
+    }
+
 private:
     const TProxyConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
@@ -72,6 +77,8 @@ private:
     NNodeTrackerClient::TAddressMap LocalAddresses_;
     IDynamicConfigManagerPtr DynamicConfigManager_;
     IAccessCheckerPtr AccessChecker_;
+
+    std::atomic_bool RpcServerStarted_{false};
 
     void DoRun();
 

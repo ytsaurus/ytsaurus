@@ -12,6 +12,7 @@
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/fuzzing/lib/timer.h>
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>

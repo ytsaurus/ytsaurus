@@ -614,3 +614,41 @@ message TRspAnnounceChunkReplicas
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TFuzzerDatanodeSingleRequest {
+    oneof request {
+        TReqStartChunk start_chunk = 1;
+        TReqFinishChunk finish_chunk = 2;
+        TReqCancelChunk cancel_chunk = 3;
+        TReqPutBlocks put_blocks = 4;
+//        TReqSendBlocks send_blocks = 5;
+        TReqFlushBlocks flush_blocks = 6;
+        TReqUpdateP2PBlocks update_p2p_blocks = 7;
+        TReqProbeChunkSet probe_chunk_set = 8;
+        TReqProbeBlockSet probe_block_set = 9;
+        TReqGetBlockSet get_block_set = 10;
+        TReqGetBlockRange get_block_range = 11;
+        TReqGetChunkFragmentSet get_chunk_fragment_set = 12;
+        TReqLookupRows lookup_rows = 13;
+        TReqPingSession ping_session = 14;
+        TReqGetChunkMeta get_chunk_meta = 15;
+        TReqGetChunkSliceDataWeights get_chunk_slice_data_weights = 16;
+        TReqUpdatePeer update_peer = 17;
+        TReqGetTableSamples get_table_samples = 18;
+        TReqGetChunkSlices get_chunk_slices = 19;
+        TReqGetColumnarStatistics get_columnar_statistics = 20;
+        TReqDisableChunkLocations disable_chunk_locations = 21;
+        TReqDestroyChunkLocations destroy_chunk_locations = 22;
+        TReqResurrectChunkLocations resurrect_chunk_locations = 23;
+        TReqAnnounceChunkReplicas announce_chunk_replicas = 24;
+    }
+}
+
+message TDatanodeFuzzerSingleRequestWithAttachments {
+    required TFuzzerDatanodeSingleRequest request = 1;
+    repeated string attachments = 2;
+}
+
+message TDatanodeFuzzerInput {
+    repeated TDatanodeFuzzerSingleRequestWithAttachments requests = 1;
+}

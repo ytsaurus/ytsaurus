@@ -1,0 +1,180 @@
+{
+    "address_resolver" = {
+        "localhost_fqdn" = "127.0.0.1";
+        "enable_ipv4" = "true";
+        "enable_ipv6" = "false";
+    };
+    "logging" = {
+        "abort_on_alert" = %true;
+        "compression_thread_count" = 4;
+        "rules" = [
+            {
+                "min_level" = "debug";
+                "writers" = [
+                    "debug";
+                ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "type" = "file";
+                "file_name" = "/tmp/logs/fuzz-test-distributed/common.info.log";
+            };
+            "debug" = {
+                "type" = "file";
+                "file_name" = "/tmp/logs/fuzz-test-distributed/common.debug.log";
+            };
+            "error" = {
+                "type" = "file";
+                "file_name" = "/tmp/logs/fuzz-test-distributed/common.err.log";
+            };
+            "stderr" = {
+                "type" = "stderr";
+            };
+        };
+    };
+    "addresses" = [
+        [
+            "interconnect";
+            "127.0.0.1";
+        ];
+        [
+            "default";
+            "127.0.0.1";
+        ];
+    ];
+    "rpc_port"=9013;
+    "cluster_connection" = {
+        "cluster_name" = "cff10574-a60850f1-cbc21756-87471663";
+        "cell_directory" = {
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+            "enable_peer_polling" = %true;
+            "peer_polling_period" = 500;
+            "peer_polling_period_splay" = 100;
+            "peer_polling_request_timeout" = 100;
+            "rediscover_period" = 5000;
+            "rediscover_splay" = 500;
+        };
+        "primary_master" = {
+            "peers" = [
+                {
+                    "address" = "127.0.0.1:19832";
+                };
+            ];
+            "addresses" = [
+                "127.0.0.1:19832";
+            ];
+            "cell_id" = "17f68cac-ffffffff-10259-ffffffff";
+            "retry_backoff_time" = 100;
+            "retry_attempts" = 100;
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+            "enable_peer_polling" = %true;
+            "peer_polling_period" = 500;
+            "peer_polling_period_splay" = 100;
+            "peer_polling_request_timeout" = 100;
+            "rediscover_period" = 5000;
+            "rediscover_splay" = 500;
+            "rpc_timeout" = 25000;
+        };
+        "timestamp_provider" = {
+            "addresses" = [
+                "127.0.0.1:19832";
+            ];
+            "peers" = [
+                {
+                    "address" = "127.0.0.1:19832";
+                };
+            ];
+            "update_period" = 500;
+            "soft_backoff_time" = 100;
+            "hard_backoff_time" = 100;
+        };
+        "cell_directory_synchronizer" = {
+            "sync_period" = 500;
+            "sync_period_splay" = 100;
+        };
+        "chaos_cell_directory_synchronizer" = {
+            "sync_period" = 500;
+            "sync_period_splay" = 100;
+            "sync_all_chaos_cells" = %true;
+        };
+        "cluster_directory_synchronizer" = {
+            "sync_period" = 500;
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+        };
+        "table_mount_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "expire_after_access_time" = 0;
+            "refresh_time" = 0;
+        };
+        "sync_replica_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "expire_after_access_time" = 0;
+            "refresh_time" = 0;
+        };
+        "queue_agent" = {
+            "stages" = {
+                "production" = {
+                    "addresses" = [];
+                };
+            };
+            "queue_consumer_registration_manager" = {
+                "bypass_caching" = %true;
+                "cache_refresh_period" = 3000;
+                "configuration_refresh_period" = 500;
+                "resolve_symlinks" = %true;
+                "resolve_replicas" = %true;
+            };
+        };
+        "permission_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "expire_after_access_time" = 0;
+            "refresh_time" = 0;
+        };
+        "master_cell_directory_synchronizer" = {
+            "sync_period" = 500;
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+        };
+        "job_node_descriptor_cache" = {
+            "expire_after_successful_update_time" = 0;
+            "expire_after_failed_update_time" = 0;
+            "expire_after_access_time" = 0;
+            "refresh_time" = 0;
+        };
+        "node_directory_synchronizer" = {
+            "sync_period" = 500;
+            "expire_after_successful_update_time" = 500;
+            "expire_after_failed_update_time" = 500;
+        };
+        "upload_transaction_timeout" = 15000;
+        "use_followers_for_write_targets_allocation" = %false;
+        "secondary_masters" = [];
+        "discovery_connection" = {
+            "addresses" = [
+                "127.0.0.1:19832";
+            ];
+        };
+    };
+    "cypress_annotations"={
+        "k8s_node_name"="cl1d3pjv9tg50753c0k5-oduh";
+        "k8s_pod_name"="rp-0";
+        "k8s_pod_namespace"="default";
+    };
+    role=default;
+    "cypress_user_manager"={
+    };
+    "cypress_token_authenticator"={
+        secure=%true;
+    };
+    "require_authentication"=%false;
+    "yp_service_discovery" = {
+        "enable" = %false;
+    };
+}

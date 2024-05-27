@@ -47,6 +47,10 @@ public:
             .Optional();
 
     }
+    NRpc::IServerPtr WaitRpcServer() const {
+        while (!boostrap_created_) {}
+        return bootstrap_->WaitRpcServer();
+    }
 
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
@@ -124,12 +128,15 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NRpcProxy::TBootstrap(std::move(config), std::move(configNode));
-        bootstrap->Run();
+        bootstrap_ = new NRpcProxy::TBootstrap(std::move(config), std::move(configNode));
+        boostrap_created_.store(true);
+        bootstrap_->Run();
     }
 
 private:
     TString RemoteClusterProxy_;
+    NRpcProxy::TBootstrap* bootstrap_;
+    std::atomic_bool boostrap_created_{false};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

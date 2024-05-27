@@ -540,6 +540,7 @@ static void ForwardSignal(int signo, siginfo_t *info, void *context) {
   }
 }
 
+#ifndef ENABLE_FUZZER
 static void HandleSegvAndForward(int signo, siginfo_t *info, void *context) {
   SegvHandler(signo, info, context);
   ForwardSignal(signo, info, context);
@@ -556,6 +557,7 @@ extern "C" void MallocExtension_Internal_ActivateGuardedSampling() {
     Static::guardedpage_allocator().AllowAllocations();
   });
 }
+#endif
 
 }  // namespace tcmalloc_internal
 }  // namespace tcmalloc

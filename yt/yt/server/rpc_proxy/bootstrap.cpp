@@ -247,6 +247,7 @@ void TBootstrap::DoRun()
     }
 
     RpcServer_->RegisterService(ApiService_);
+    RpcServerStarted_.store(true);
     if (TvmOnlyRpcServer_ && TvmOnlyApiService_) {
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }

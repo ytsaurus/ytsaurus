@@ -269,9 +269,11 @@ void MallocExtension::SetGuardedSamplingRate(int64_t rate) {
 
 void MallocExtension::ActivateGuardedSampling() {
 #if ABSL_INTERNAL_HAVE_WEAK_MALLOCEXTENSION_STUBS
+#ifndef ENABLE_FUZZER
   if (&MallocExtension_Internal_ActivateGuardedSampling != nullptr) {
     MallocExtension_Internal_ActivateGuardedSampling();
   }
+#endif
 #endif
 }
 

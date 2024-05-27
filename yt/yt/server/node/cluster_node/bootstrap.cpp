@@ -181,6 +181,12 @@
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
+#include <iostream>
+#include <cstring>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <unistd.h>
+
 namespace NYT::NClusterNode {
 
 using namespace NAdmin;
@@ -228,6 +234,41 @@ static inline const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+int getFreePort() {
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        std::cerr << "Error opening socket" << std::endl;
+        return -1;
+    }
+
+    struct sockaddr_in serv_addr;
+    std::memset(&serv_addr, 0, sizeof(serv_addr));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_addr.s_addr = INADDR_ANY;
+    serv_addr.sin_port = 0;
+
+    if (bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0) {
+        std::cerr << "Error on binding" << std::endl;
+        close(sockfd);
+        return -1;
+    }
+
+    socklen_t len = sizeof(serv_addr);
+    if (getsockname(sockfd, (struct sockaddr *)&serv_addr, &len) < 0) {
+        std::cerr << "Error on getsockname" << std::endl;
+        close(sockfd);
+        return -1;
+    }
+
+    int port = ntohs(serv_addr.sin_port);
+    close(sockfd);
+
+    return port;
+}
+}
 class TBootstrap
     : public IBootstrap
 {
@@ -746,6 +787,15 @@ private:
 
     void DoInitialize()
     {
+    #ifdef ENABLE_FUZZER
+        Config_->RpcPort = getFreePort();
+        Config_->MonitoringPort = getFreePort();
+        Config_->BusServer->Port = getFreePort();
+        Config_->SkynetHttpPort = getFreePort();
+        Config_->DataNode->StoreLocations[0]->Path = 
+            TString("/tmp/logs/fuzz-test-datanode/runtime_data/node/" + std::to_string(Config_->RpcPort) + "/chunk_store/0/");
+    #endif
+
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
         if (!Config_->ClusterConnection->Static->Networks) {

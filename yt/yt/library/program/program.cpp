@@ -315,8 +315,10 @@ void ConfigureIgnoreSigpipe()
 
 void ConfigureCrashHandler()
 {
+    #ifndef ENABLE_FUZZER
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
+    #endif
 }
 
 namespace {

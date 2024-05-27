@@ -2829,3 +2829,27 @@ message TCheckPermissionByAclResult
     optional string subject_name = 3;
     repeated string missing_subjects = 4;
 }
+
+
+message TFuzzerRpcProxySingleRequest {
+    oneof request {
+        TReqCreateNode create_node = 1;
+        TReqCreateObject create_object = 2;
+        TReqListNode list_node = 3;
+        TReqGetNode get_node = 4;
+        TReqReadFile read_file = 5;
+        TReqWriteFile write_file = 6;
+        TReqReadTable read_table = 7;
+        TReqWriteTable write_table = 8;
+        TWriteTableMeta write_table_meta = 9;
+    }
+}
+
+message TRpcProxySingleRequestWithAttachments {
+    required TFuzzerRpcProxySingleRequest request = 1;
+    repeated string attachments = 2;
+}
+
+message TRpcProxyFuzzerInput {
+    repeated TRpcProxySingleRequestWithAttachments requests = 1;
+}

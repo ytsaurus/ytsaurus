@@ -90,6 +90,12 @@ public:
             .NoArgument();
     }
 
+
+    NRpc::IServerPtr WaitRpcServer() const {
+        while (!RpcServerStarted_) {}
+        return RpcServer_;
+    }
+
 protected:
     void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
@@ -238,6 +244,8 @@ protected:
         }
 
         if (!isDryRun) {
+            RpcServer_ = bootstrap->GetRpcServer();
+            RpcServerStarted_.store(true);
             bootstrap->Run();
         } else {
             const auto& cellarNodeBootstrap = bootstrap->GetCellarNodeBootstrap();
@@ -270,6 +278,9 @@ private:
     NYson::TYsonString DryRunSnapshotMeta_;
     TString RemoteClusterProxy_;
     bool SleepAfterInitialize_ = false;
+
+    std::atomic_bool RpcServerStarted_{false};
+    NRpc::IServerPtr RpcServer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

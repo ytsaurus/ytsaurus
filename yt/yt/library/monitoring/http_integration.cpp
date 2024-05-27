@@ -100,6 +100,7 @@ void Initialize(
             .EndMap());
 #endif
 
+#ifndef ENABLE_FUZZER_DIST
     if (monitoringServer) {
         auto exporter = New<NProfiling::TSolomonExporter>(config);
         exporter->Register("/solomon", monitoringServer);
@@ -118,6 +119,7 @@ void Initialize(
             "/orchid/",
             GetOrchidYPathHttpHandler(*orchidRoot));
     }
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,6 +8,9 @@
 
 
 add_library(server-lib-rpc_proxy)
+if(ENABLE_DUMP_PROTO_MESSAGE)
+  target_compile_definitions(server-lib-rpc_proxy PRIVATE ENABLE_DUMP_PROTO_MESSAGE=1)
+endif()
 target_compile_options(server-lib-rpc_proxy PRIVATE
   -Wdeprecated-this-capture
 )

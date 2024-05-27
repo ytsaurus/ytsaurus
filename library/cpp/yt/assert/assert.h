@@ -48,12 +48,21 @@ void AssertTrapImpl(
 #endif
 
 //! Same as |YT_ASSERT| but evaluates and checks the expression in both release and debug mode.
+#ifdef DISABLE_YT_VERIFY
+#define YT_VERIFY(expr) \
+    do { \
+        if (Y_UNLIKELY(!(expr))) { \
+            throw std::runtime_error("Verification failed: " #expr); \
+        } \
+    } while (false)
+#else
 #define YT_VERIFY(expr) \
     do { \
         if (Y_UNLIKELY(!(expr))) { \
             YT_ASSERT_TRAP("YT_VERIFY", #expr); \
         } \
     } while (false)
+#endif
 
 //! Fatal error code marker. Abnormally terminates the current process.
 #ifdef YT_COMPILING_UDF
