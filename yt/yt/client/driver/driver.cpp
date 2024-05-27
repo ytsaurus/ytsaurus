@@ -353,6 +353,7 @@ public:
         REGISTER    (TAdvanceConsumerCommand,              "advance_consumer",                Null,       Structured, true,   false, ApiVersion4);
         REGISTER    (TCreateQueueProducerSessionCommand,   "create_queue_producer_session",   Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TRemoveQueueProducerSessionCommand,   "remove_queue_producer_session",   Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TPushProducerCommand,                 "push_producer",                   Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER    (TStartQueryCommand,                   "start_query",                     Null,       Structured, true, false, ApiVersion4);
         REGISTER    (TAbortQueryCommand,                   "abort_query",                     Null,       Structured, true, false, ApiVersion4);

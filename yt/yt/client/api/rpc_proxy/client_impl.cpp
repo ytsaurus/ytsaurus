@@ -899,8 +899,8 @@ TFuture<TCreateQueueProducerSessionResult> TClient::CreateQueueProducerSession(
         }
 
         return TCreateQueueProducerSessionResult{
-            .SequenceNumber = FromProto<ui64>(rsp->sequence_number()),
-            .Epoch = FromProto<ui64>(rsp->epoch()),
+            .SequenceNumber = FromProto<i64>(rsp->sequence_number()),
+            .Epoch = FromProto<i64>(rsp->epoch()),
             .UserMeta = std::move(userMeta),
         };
     }));

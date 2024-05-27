@@ -215,20 +215,39 @@ TError MakeRevivalError(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void CheckPermission(
+    const NYPath::TYPath& path,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TAuthenticationOptions& options,
+    const IConnectionPtr& connection,
+    EPermission permission)
+{
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(tableInfo->TableId),
+        .User = options.GetAuthenticatedUser(),
+        .Permission = permission,
+    };
+    const auto& permissionCache = connection->GetPermissionCache();
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError("No %v permission for %v", permission, path);
+}
+
 void CheckReadPermission(
     const NYPath::TYPath& path,
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const TAuthenticationOptions& options,
     const IConnectionPtr& connection)
 {
-    NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(tableInfo->TableId),
-        .User = options.GetAuthenticatedUser(),
-        .Permission = EPermission::Read,
-    };
-    const auto& permissionCache = connection->GetPermissionCache();
-    WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError("No read permission for %v", path);
+    CheckPermission(path, tableInfo, options, connection, EPermission::Read);
+}
+
+void CheckWritePermission(
+    const NYPath::TYPath& path,
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const TAuthenticationOptions& options,
+    const IConnectionPtr& connection)
+{
+    CheckPermission(path, tableInfo, options, connection, EPermission::Write);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

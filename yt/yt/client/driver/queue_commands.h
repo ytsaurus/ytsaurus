@@ -162,4 +162,30 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPushProducerOptions
+    : public NApi::TPushProducerOptions
+    , public TTabletWriteOptions
+{
+};
+
+class TPushProducerCommand
+    : public TTypedCommand<TPushProducerOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TPushProducerCommand);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    NYPath::TRichYPath ProducerPath;
+    NYPath::TRichYPath QueuePath;
+    TString SessionId;
+    i64 Epoch;
+    NYTree::INodePtr UserMeta;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

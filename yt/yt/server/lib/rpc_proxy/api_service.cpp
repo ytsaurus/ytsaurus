@@ -719,6 +719,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushProducer));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -4056,6 +4057,69 @@ private:
                 if (tabletErrors.Incomplete) {
                     response->set_incomplete(tabletErrors.Incomplete);
                 }
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PushProducer)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto producerPath = FromProto<TRichYPath>(request->producer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+
+        auto sessionId = FromProto<TString>(request->session_id());
+
+        std::optional<NYson::TYsonString> userMeta;
+        if (request->has_user_meta()) {
+            userMeta = TYsonString(FromProto<TString>(request->user_meta()));
+        }
+
+        TPushProducerOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_sequence_number()) {
+            options.SequenceNumber = request->sequence_number();
+        }
+
+        context->SetRequestInfo(
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v, "
+            "Epoch: %v, TransactionId: %v",
+            producerPath,
+            queuePath,
+            sessionId,
+            request->epoch(),
+            transactionId);
+
+        auto transaction = GetTransactionOrThrow(
+            context,
+            request,
+            transactionId,
+            /*options*/ std::nullopt,
+            /*searchInPool*/ true);
+
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+
+        ExecuteCall(
+            context,
+            [=, producerPath = std::move(producerPath), queuePath = std::move(queuePath),
+                sessionId = std::move(sessionId), userMeta = std::move(userMeta), rowset = std::move(rowset)] {
+                auto rowsetRows = rowset->GetRows();
+
+                return transaction->PushProducer(
+                    producerPath,
+                    queuePath,
+                    sessionId,
+                    request->epoch(),
+                    rowset->GetNameTable(),
+                    rowsetRows,
+                    userMeta,
+                    options);
+            },
+            [] (const auto& context, const auto& pushProducerResult) {
+                auto* response = &context->Response();
+                response->set_last_sequence_number(pushProducerResult.LastSequenceNumber);
+                response->set_skipped_row_count(pushProducerResult.SkippedRowCount);
             });
     }
 

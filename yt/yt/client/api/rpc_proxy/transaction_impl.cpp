@@ -525,6 +525,58 @@ TFuture<void> TTransaction::AdvanceConsumer(
     return req->Invoke().As<void>();
 }
 
+TFuture<TPushProducerResult> TTransaction::PushProducer(
+    const NYPath::TRichYPath& producerPath,
+    const NYPath::TRichYPath& queuePath,
+    const TString& sessionId,
+    i64 epoch,
+    NTableClient::TNameTablePtr nameTable,
+    TSharedRange<NTableClient::TUnversionedRow> rows,
+    const std::optional<NYson::TYsonString>& userMeta,
+    const TPushProducerOptions& options)
+{
+    ValidateTabletTransactionId(GetId());
+
+    THROW_ERROR_EXCEPTION_IF(epoch < 0,
+        "Epoch number %v cannot be negative", epoch);
+    THROW_ERROR_EXCEPTION_IF(options.SequenceNumber && *options.SequenceNumber < 0,
+        "Sequence number %v cannot be negative", *options.SequenceNumber);
+
+    auto req = Proxy_.PushProducer();
+    SetTimeoutOptions(*req, options);
+    if (options.SequenceNumber) {
+        req->set_sequence_number(*options.SequenceNumber);
+    }
+
+    if (NTracing::IsCurrentTraceContextRecorded()) {
+        req->TracingTags().emplace_back("yt.producer_path", ToString(producerPath));
+        req->TracingTags().emplace_back("yt.queue_path", ToString(queuePath));
+        req->TracingTags().emplace_back("yt.session_id", ToString(sessionId));
+        req->TracingTags().emplace_back("yt.epoch", ToString(epoch));
+    }
+
+    ToProto(req->mutable_transaction_id(), GetId());
+
+    ToProto(req->mutable_producer_path(), producerPath);
+    ToProto(req->mutable_queue_path(), queuePath);
+
+    ToProto(req->mutable_session_id(), sessionId);
+    req->set_epoch(epoch);
+
+    if (userMeta) {
+        ToProto(req->mutable_user_meta(), userMeta->AsStringBuf());
+    }
+
+    req->Attachments() = SerializeRowset(
+        nameTable,
+        MakeRange(rows),
+        req->mutable_rowset_descriptor());
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPushProducerPtr& rsp) {
+        return TPushProducerResult{.LastSequenceNumber = rsp->last_sequence_number()};
+    }));
+}
+
 TFuture<ITransactionPtr> TTransaction::StartTransaction(
     ETransactionType type,
     const TTransactionStartOptions& options)

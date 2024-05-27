@@ -220,6 +220,14 @@ public:
         return std::tuple{queue, consumer, queueNameTable};
     }
 
+    void CreateQueueProducer(const TRichYPath& path)
+    {
+        WaitFor(Client_->CreateNode(path.GetPath(), EObjectType::QueueProducer, TCreateNodeOptions{}))
+            .ThrowOnError();
+
+        WaitUntilEqual(path.GetPath() + "/@tablet_state", "mounted");
+    }
+
     // NB: Only creates user once per test YT instance.
     IClientPtr CreateUser(const TString& name) const
     {
@@ -1085,6 +1093,81 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     ASSERT_EQ(partitions.size(), 1u);
     EXPECT_EQ(partitions[0].PartitionIndex, 0);
     EXPECT_EQ(partitions[0].NextRowIndex, 10);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TProducerApiTest = TQueueTestBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TProducerApiTest, TestBasic)
+{
+    TRichYPath producerPath;
+    producerPath.SetPath("//tmp/test_producer");
+
+    TRichYPath queuePath;
+    queuePath.SetPath("//tmp/test_queue");
+
+    CreateQueueProducer(producerPath);
+
+    auto queueAttributes = CreateEphemeralAttributes();
+    queueAttributes->Set("tablet_count", 3);
+    auto queue = New<TDynamicTable>(
+            queuePath,
+            New<TTableSchema>(std::vector<TColumnSchema>{
+                TColumnSchema("a", EValueType::Uint64),
+                TColumnSchema("b", EValueType::String)}),
+            queueAttributes);
+
+    auto sessionId = "session_1";
+    i64 epoch = 0;
+
+    WaitFor(Client_->CreateQueueProducerSession(producerPath, queuePath, sessionId))
+        .ValueOrThrow();
+
+    auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    TUnversionedRowsBuilder rowsBuilder;
+    int rowCount = 10;
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        TUnversionedRowBuilder rowBuilder;
+
+        rowBuilder.AddValue(MakeUnversionedUint64Value(rowIndex, 0));
+
+        TString value = ToString(rowIndex * rowIndex);
+        rowBuilder.AddValue(MakeUnversionedStringValue(value, 1));
+
+        rowsBuilder.AddRow(rowBuilder.GetRow());
+    }
+    auto rows = rowsBuilder.Build();
+
+    auto nameTable = TNameTable::FromSchema(*queue->GetSchema());
+
+    auto result = WaitFor(transaction->PushProducer(
+        producerPath, queuePath, sessionId, epoch, nameTable, rows, /*userMeta*/ {}, TPushProducerOptions{.SequenceNumber = 0}))
+        .ValueOrThrow();
+
+    ASSERT_EQ(result.LastSequenceNumber, 9);
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
+
+    auto allRowsResult = WaitFor(Client_->SelectRows(Format("* from [%v]", queuePath)))
+        .ValueOrThrow();
+
+    ASSERT_EQ(std::ssize(allRowsResult.Rowset->GetRows()), 10);
+
+    auto sessionRowsResult = WaitFor(Client_->SelectRows(Format("queue_cluster, queue_path, session_id, sequence_number, epoch from [%v]", producerPath)))
+        .ValueOrThrow();
+    auto sessionRows = sessionRowsResult.Rowset->GetRows();
+
+    auto actualSessionRow = ToString(sessionRows[0]);
+    auto expectedSessionRow = ToString(YsonToSchemalessRow(
+        "<id=0> \"primary\"; <id=1> \"//tmp/test_queue\"; <id=2> session_1; <id=3> 9; <id=4> 0;"));
+
+    ASSERT_EQ(actualSessionRow, expectedSessionRow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

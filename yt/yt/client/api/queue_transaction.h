@@ -12,6 +12,23 @@ struct TAdvanceConsumerOptions
     : public TTimeoutOptions
 { };
 
+struct TPushProducerOptions
+    : public TTimeoutOptions
+{
+    //! Sequence number of the first row in the batch.
+    /*!
+     * If it is not set, than $sequence_number should be presented in each row.
+     * Otherwise, $sequence_number will be calculated for each rows.
+     */
+    std::optional<i64> SequenceNumber;
+};
+
+struct TPushProducerResult
+{
+    i64 LastSequenceNumber = -1;
+    ui64 SkippedRowCount = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IQueueTransaction
@@ -45,6 +62,16 @@ struct IQueueTransaction
         std::optional<i64> oldOffset,
         i64 newOffset,
         const TAdvanceConsumerOptions& options) = 0;
+
+    virtual TFuture<TPushProducerResult> PushProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TString& sessionId,
+        i64 epoch,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const std::optional<NYson::TYsonString>& userMeta = {},
+        const TPushProducerOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

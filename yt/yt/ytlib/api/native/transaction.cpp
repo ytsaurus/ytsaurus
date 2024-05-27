@@ -19,9 +19,10 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
-#include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -36,7 +37,10 @@
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
+
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
+#include <yt/yt/ytlib/queue_client/helpers.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -379,6 +383,117 @@ public:
         subConsumerClient->Advance(this, partitionIndex, oldOffset, newOffset);
 
         return VoidFuture;
+    }
+
+    TFuture<TPushProducerResult> PushProducer(
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
+        const TString& sessionId,
+        i64 epoch,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<NTableClient::TUnversionedRow> rows,
+        const std::optional<NYson::TYsonString>& userMeta,
+        const TPushProducerOptions& options) override
+    {
+        ValidateTabletTransactionId(GetId());
+
+        const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
+        auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath()))
+            .ValueOrThrow();
+        // TODO(nadya73): use special producer permission.
+        CheckWritePermission(producerPath.GetPath(), producerTableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+            .ValueOrThrow();
+        CheckWritePermission(queuePath.GetPath(), queueTableInfo, Client_->GetOptions(), Client_->GetNativeConnection());
+
+        if (!PushedQueueProducerSessions_.insert(std::pair<TRichYPath, TString>{producerPath, sessionId}).second) {
+            THROW_ERROR_EXCEPTION(NQueueClient::EErrorCode::DuplicateSessionPush,
+                "Rows for session %v were pushed before via %v producer in %v transaction",
+                sessionId,
+                producerPath,
+                GetId());
+        }
+
+        // TODO(nadya73): check queue producer registration.
+
+        // Cluster for queue and producer should be the same.
+        auto cluster = Client_->GetClusterName();
+        if (!cluster) {
+            THROW_ERROR_EXCEPTION("Cannot serve request, "
+                "cluster connection was not properly configured with a cluster name");
+        }
+
+        // TODO(nadya73): resolve RT/CRT paths by replicas.
+
+        auto producerNameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
+        NQueueClient::NRecords::TQueueProducerSessionKey sessionKey = {
+            .QueueCluster = TString(*cluster),
+            .QueuePath = queuePath.GetPath(),
+            .SessionId = sessionId,
+        };
+
+        auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+
+        auto sessionRowset = WaitFor(LookupRows(
+            producerPath.GetPath(),
+            producerNameTable,
+            keys,
+            TLookupRowsOptions{}))
+            .ValueOrThrow()
+            .Rowset;
+
+        auto sessions = ToRecords<NRecords::TQueueProducerSession>(sessionRowset);
+        THROW_ERROR_EXCEPTION_IF(sessions.empty(), "Unknown queue producer session %v", sessionId);
+
+        const auto& session = sessions[0];
+
+        THROW_ERROR_EXCEPTION_IF(
+            session.Epoch > epoch,
+            NQueueClient::EErrorCode::ZombieEpoch,
+            "Received session epoch %v is less then the actual %v epoch, probably it is a zombie",
+            epoch,
+            session.Epoch);
+
+        THROW_ERROR_EXCEPTION_IF(
+            session.Epoch < epoch,
+            NQueueClient::EErrorCode::InvalidEpoch,
+            "Received epoch %v is greater then the actual %v epoch",
+            epoch,
+            session.Epoch);
+
+        auto lastProducerSequenceNumber = session.SequenceNumber;
+
+        auto validateResult = ValidatePushProducerRows(
+            nameTable, rows, lastProducerSequenceNumber, options.SequenceNumber);
+
+        YT_LOG_DEBUG("Rows were validated (SkipRowCount: %v, LastSequenceNumber: %v)",
+            validateResult.SkipRowCount,
+            validateResult.LastSequenceNumber);
+
+        if (validateResult.SkipRowCount >= rows.Size()) {
+            YT_LOG_DEBUG("After validation %v rows should be skipped, do nothing", validateResult.SkipRowCount);
+        }
+
+        auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
+        WriteRows(queuePath.GetPath(), nameTable, filteredRows);
+
+        NQueueClient::NRecords::TQueueProducerSessionPartial updatedSession = {
+            .Key = sessionKey,
+            .SequenceNumber = validateResult.LastSequenceNumber,
+            .Epoch = epoch,
+        };
+        if (userMeta) {
+            updatedSession.UserMeta = userMeta;
+        }
+
+        auto updatedSessionRows = FromRecords(MakeRange(std::array{updatedSession}));
+        WriteRows(producerPath.GetPath(), producerNameTable, updatedSessionRows);
+
+        return MakeFuture(TPushProducerResult{
+            .LastSequenceNumber = validateResult.LastSequenceNumber,
+            .SkippedRowCount = validateResult.SkipRowCount,
+        });
     }
 
     void ModifyRows(
@@ -1252,6 +1367,8 @@ private:
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
     std::vector<TModificationRequest*> PendingRequests_;
     TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
+
+    THashSet<std::pair<TRichYPath, TString>> PushedQueueProducerSessions_;
 
     struct TSyncReplica
     {

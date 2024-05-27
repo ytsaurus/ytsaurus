@@ -1,15 +1,40 @@
 #include "queue_commands.h"
+
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/yt/client/api/config.h>
+
+#include <yt/yt/client/formats/parser.h>
+
+#include <yt/yt/client/table_client/adapters.h>
+#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/table_consumer.h>
+#include <yt/yt/client/table_client/table_output.h>
+
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/library/formats/format.h>
 
 namespace NYT::NDriver {
 
-using namespace NConcurrency;
 using namespace NApi;
+using namespace NConcurrency;
+using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NYTree;
+using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static NLogging::TLogger WithCommandTag(
+    const NLogging::TLogger& logger,
+    const ICommandContextPtr& context)
+{
+    return logger.WithTag("Command: %v",
+        context->Request().CommandName);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,6 +332,95 @@ void TRemoveQueueProducerSessionCommand::DoExecute(ICommandContextPtr context)
         .ThrowOnError();
 
     ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPushProducerCommand::Register(TRegistrar registrar)
+{
+    registrar.ParameterWithUniversalAccessor<std::optional<i64>>(
+        "sequence_number",
+        [] (TThis* command) -> auto& {
+            return command->Options.SequenceNumber;
+        })
+        .Optional(/*init*/ false);
+
+    registrar.Parameter("producer_path", &TThis::ProducerPath);
+    registrar.Parameter("queue_path", &TThis::QueuePath);
+    registrar.Parameter("session_id", &TThis::SessionId);
+    registrar.Parameter("epoch", &TThis::Epoch);
+    registrar.Parameter("user_meta", &TThis::UserMeta)
+        .Optional();
+
+}
+
+void TPushProducerCommand::DoExecute(ICommandContextPtr context)
+{
+    auto tableMountCache = context->GetClient()->GetTableMountCache();
+
+    auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(QueuePath.GetPath()))
+        .ValueOrThrow();
+    queueTableInfo->ValidateOrdered();
+
+    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(ProducerPath.GetPath()))
+        .ValueOrThrow();
+    producerTableInfo->ValidateSorted();
+
+    struct TPushProducerBufferTag
+    { };
+
+    auto insertRowsFormatConfig = ConvertTo<TInsertRowsFormatConfigPtr>(context->GetInputFormat().Attributes());
+    auto typeConversionConfig = ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes());
+    // Parse input data.
+    TBuildingValueConsumer valueConsumer(
+        queueTableInfo->Schemas[ETableSchemaKind::Write],
+        WithCommandTag(Logger, context),
+        insertRowsFormatConfig->EnableNullToYsonEntityConversion,
+        typeConversionConfig);
+    valueConsumer.SetTreatMissingAsNull(true);
+
+    TTableOutput output(CreateParserForFormat(
+        context->GetInputFormat(),
+        &valueConsumer));
+
+    PipeInputToOutput(context->Request().InputStream, &output, 64_KB);
+    auto rows = valueConsumer.GetRows();
+    auto rowBuffer = New<TRowBuffer>(TPushProducerBufferTag());
+    auto capturedRows = rowBuffer->CaptureRows(rows);
+    auto rowRange = MakeSharedRange(
+        std::vector<TUnversionedRow>(capturedRows.begin(), capturedRows.end()),
+        std::move(rowBuffer));
+
+    auto transaction = GetTransaction(context);
+
+    std::optional<NYson::TYsonString> requestUserMeta;
+    if (UserMeta) {
+        requestUserMeta = NYson::ConvertToYsonString(UserMeta);
+    }
+
+    auto result = WaitFor(transaction->PushProducer(
+        ProducerPath,
+        QueuePath,
+        SessionId,
+        Epoch,
+        valueConsumer.GetNameTable(),
+        std::move(rowRange),
+        requestUserMeta,
+        Options))
+        .ValueOrThrow();
+
+    if (ShouldCommitTransaction()) {
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
+
+    ProduceOutput(context, [&] (NYson::IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("last_sequence_number").Value(result.LastSequenceNumber)
+                .Item("skipped_row_count").Value(result.SkippedRowCount)
+            .EndMap();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

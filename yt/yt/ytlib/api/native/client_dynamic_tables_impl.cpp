@@ -2880,8 +2880,8 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         .ValueOrThrow()
         .Rowset;
 
-    ui64 nextSequenceNumber = 0;
-    ui64 nextEpoch = 0;
+    i64 lastSequenceNumber = -1;
+    i64 epoch = 0;
     auto responseUserMeta = userMeta;
 
     auto records = ToRecords<NQueueClient::NRecords::TQueueProducerSession>(sessionRowset);
@@ -2889,31 +2889,31 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     if (!records.empty()) {
         const auto& record = records[0];
 
-        nextSequenceNumber = record.SequenceNumber;
-        nextEpoch = record.Epoch + 1;
+        lastSequenceNumber = record.SequenceNumber;
+        epoch = record.Epoch + 1;
         if (!responseUserMeta) {
             responseUserMeta = record.UserMeta;
         }
     }
 
-    NQueueClient::NRecords::TQueueProducerSessionPartial nextRow = {
+    NQueueClient::NRecords::TQueueProducerSessionPartial resultRecord = {
         .Key = sessionKey,
-        .SequenceNumber = nextSequenceNumber,
-        .Epoch = nextEpoch,
+        .SequenceNumber = lastSequenceNumber,
+        .Epoch = epoch,
     };
     if (userMeta) {
-        nextRow.UserMeta = userMeta;
+        resultRecord.UserMeta = userMeta;
     }
 
-    auto nextRows = FromRecords(MakeRange(std::array{nextRow}));
+    auto resultRows = FromRecords(MakeRange(std::array{resultRecord}));
 
-    transaction->WriteRows(producerPath.GetPath(), nameTable, nextRows);
+    transaction->WriteRows(producerPath.GetPath(), nameTable, resultRows);
     WaitFor(transaction->Commit())
         .ValueOrThrow();
 
     return TCreateQueueProducerSessionResult{
-        .SequenceNumber = nextSequenceNumber,
-        .Epoch = nextEpoch,
+        .SequenceNumber = lastSequenceNumber,
+        .Epoch = epoch,
         .UserMeta = responseUserMeta,
     };
 }

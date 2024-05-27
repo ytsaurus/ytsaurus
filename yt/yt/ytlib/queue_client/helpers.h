@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/rpc/channel.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -15,6 +17,18 @@ NYTree::IYPathServicePtr CreateQueueAgentYPathService(
     const TString& cluster,
     const TString& objectKind,
     const NYPath::TYPath& objectPath);
+
+struct TValidatePushProducerRowsResult
+{
+    i64 LastSequenceNumber = -1;
+    size_t SkipRowCount = 0;
+};
+
+TValidatePushProducerRowsResult ValidatePushProducerRows(
+    NTableClient::TNameTablePtr nameTable,
+    TSharedRange<NTableClient::TUnversionedRow> rows,
+    i64 lastProducerSequenceNumber,
+    std::optional<i64> initialSequenceNumber);
 
 ////////////////////////////////////////////////////////////////////////////////
 

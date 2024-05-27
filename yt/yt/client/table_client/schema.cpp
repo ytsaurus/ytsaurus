@@ -977,6 +977,7 @@ TTableSchemaPtr TTableSchema::ToWrite() const
     } else {
         columns.push_back(TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
             .SetSortOrder(ESortOrder::Ascending));
+        columns.push_back(TColumnSchema(SequenceNumberColumnName, ESimpleLogicalValueType::Int64));
         for (const auto& column : Columns()) {
             if (column.StableName().Underlying() != TimestampColumnName &&
                 column.StableName().Underlying() != CumulativeDataWeightColumnName)
