@@ -40,7 +40,10 @@ using TMasterEpoch = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const THashSet<TErrorCode> HeartbeatRetriableErrors = {NHydra::EErrorCode::ReadOnly, NCellServer::EErrorCode::MasterCellNotReady};
+static const THashSet<TErrorCode> HeartbeatRetriableErrors = {
+    NHydra::EErrorCode::ReadOnly,
+    NCellServer::EErrorCode::MasterCellNotReady,
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,13 +16,6 @@ using TSecondaryMasterConnectionConfigs = THashMap<NObjectClient::TCellTag, NApi
 
 ///////////////////////////////////////////////////////////////////////////////
 
-using TCellReconfigurationSignature = void(
-    const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
-    const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
-    const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
-
-///////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)
 
