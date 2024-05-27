@@ -103,7 +103,7 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
 void TActionManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("create_action_batch_size_limit", &TThis::CreateActionBatchSizeLimit)
-        .Default(100);
+        .Default(500);
     registrar.Parameter("tablet_action_polling_period", &TThis::TabletActionPollingPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("tablet_action_creation_timeout", &TThis::TabletActionCreationTimeout)
