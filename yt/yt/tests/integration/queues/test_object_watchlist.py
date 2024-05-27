@@ -29,6 +29,13 @@ class QueueAgentHelpers:
         for path in paths:
             assert consumers[path] == get(path + "/@attribute_revision")
 
+    @staticmethod
+    def assert_registered_producers_are(*paths):
+        producers = QueueAgentHelpers.get_objects()["producers"]
+        assert producers.keys() == builtins.set(paths)
+        for path in paths:
+            assert producers[path] == get(path + "/@attribute_revision")
+
 
 class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
     USE_DYNAMIC_TABLES = True
@@ -62,12 +69,13 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                attributes={"chaos_cell_bundle": "chaos_bundle",
                            "schema": [{"name": "data", "type": "string"}]})
 
-        # Object without schema is not a queue or consumer.
+        # Object without schema is not a queue, consumer, or producer.
         create("chaos_replicated_table",
                "//tmp/chaos_rep_q2",
                attributes={"chaos_cell_bundle": "chaos_bundle"})
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/q2", "//tmp/rep_q1", "//tmp/rep_q1-rep1", "//tmp/chaos_rep_q1")
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         consumer_schema = [{"name": "data", "type": "string", "sort_order": "ascending"},
                            {"name": "test", "type": "string"}]
@@ -94,6 +102,30 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                                "schema": consumer_schema,
                                "treat_as_queue_consumer": True})
 
+        producer_schema = consumer_schema
+        create("table",
+               "//tmp/p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        create("table",
+               "//tmp/p2",
+               attributes={"dynamic": True,
+                           "schema": producer_schema})
+        with raises_yt_error('Builtin attribute "treat_as_queue_producer" cannot be set'):
+            create("table",
+                   "//tmp/p3",
+                   attributes={"dynamic": True,
+                               "schema": [{"name": "data", "type": "string"},
+                                          {"name": "test", "type": "string"}],
+                               "treat_as_queue_producer": True})
+        with raises_yt_error('Builtin attribute "treat_as_queue_producer" cannot be set'):
+            create("table",
+                   "//tmp/p4",
+                   attributes={"dynamic": False,
+                               "schema": producer_schema,
+                               "treat_as_queue_producer": True})
+
         # Possible to create replicated consumers.
         create("replicated_table",
                "//tmp/rep_c1",
@@ -110,6 +142,24 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         with raises_yt_error('Either "schema" or "schema_id" must be specified for dynamic tables'):
             create("replicated_table",
                    "//tmp/rep_c3",
+                   attributes={"dynamic": True})
+
+        # Possible to create replicated producers.
+        create("replicated_table",
+               "//tmp/rep_p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        with raises_yt_error('Builtin attribute "treat_as_queue_producer" cannot be set'):
+            create("replicated_table",
+                   "//tmp/rep_p2",
+                   attributes={"dynamic": True,
+                               "schema": [{"name": "data", "type": "string"},
+                                          {"name": "test", "type": "string"}],
+                               "treat_as_queue_producer": True})
+        with raises_yt_error('Either "schema" or "schema_id" must be specified for dynamic tables'):
+            create("replicated_table",
+                   "//tmp/rep_p3",
                    attributes={"dynamic": True})
 
         # Possible to create chaos replicated consumers.
@@ -132,6 +182,26 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                                "treat_as_queue_consumer": True})
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1", "//tmp/rep_c1", "//tmp/chaos_rep_c1")
 
+        # Possible to create chaos replicated producers.
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_p1",
+               attributes={"chaos_cell_bundle": "chaos_bundle",
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        with raises_yt_error('Builtin attribute "treat_as_queue_producer" cannot be set'):
+            create("chaos_replicated_table",
+                   "//tmp/chaos_rep_p2",
+                   attributes={"chaos_cell_bundle": "chaos_bundle",
+                               "treat_as_queue_producer": True})
+        with raises_yt_error('Builtin attribute "treat_as_queue_producer" cannot be set'):
+            create("chaos_replicated_table",
+                   "//tmp/chaos_rep_p2",
+                   attributes={"chaos_cell_bundle": "chaos_bundle",
+                               "schema": [{"name": "data", "type": "string"},
+                                          {"name": "test", "type": "string"}],
+                               "treat_as_queue_producer": True})
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1", "//tmp/chaos_rep_p1")
+
         remove("//tmp/q1")
         remove("//tmp/q2")
         remove("//tmp/rep_q1")
@@ -144,6 +214,12 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         remove("//tmp/rep_c1")
         remove("//tmp/chaos_rep_c1")
         QueueAgentHelpers.assert_registered_consumers_are()
+
+        remove("//tmp/p1")
+        remove("//tmp/p2")
+        remove("//tmp/rep_p1")
+        remove("//tmp/chaos_rep_p1")
+        QueueAgentHelpers.assert_registered_producers_are()
 
     @authors("achulkov2", "nadya73")
     def test_transactional_create(self):
@@ -166,6 +242,18 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                attributes={"dynamic": True,
                            "schema": consumer_schema},
                tx=tx1)
+        producer_schema = consumer_schema
+        create("table",
+               "//tmp/p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True},
+               tx=tx1)
+        create("table",
+               "//tmp/p2",
+               attributes={"dynamic": True,
+                           "schema": producer_schema},
+               tx=tx1)
 
         create("replicated_table", "//tmp/rep_q1", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]}, tx=tx1)
         create("replicated_table",
@@ -174,27 +262,40 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                            "schema": consumer_schema,
                            "treat_as_queue_consumer": True},
                tx=tx1)
+        create("replicated_table",
+               "//tmp/rep_p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True},
+               tx=tx1)
 
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         commit_transaction(tx1)
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/rep_q1")
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1", "//tmp/rep_c1")
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1")
 
         tx2 = start_transaction()
         remove("//tmp/q1", tx=tx2)
         remove("//tmp/q2", tx=tx2)
         remove("//tmp/c1", tx=tx2)
         remove("//tmp/c2", tx=tx2)
+        remove("//tmp/p1", tx=tx2)
+        remove("//tmp/p2", tx=tx2)
         remove("//tmp/rep_q1", tx=tx2)
         remove("//tmp/rep_c1", tx=tx2)
+        remove("//tmp/rep_p1", tx=tx2)
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/rep_q1")
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1", "//tmp/rep_c1")
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1")
 
         commit_transaction(tx2)
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
     @authors("achulkov2", "nadya73")
     def test_alter(self):
@@ -207,25 +308,30 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
 
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         alter_table("//tmp/q1", dynamic=True)
         alter_table("//tmp/chaos_rep_q1", schema=[{"name": "data", "type": "string"}])
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/chaos_rep_q1")
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         alter_table("//tmp/q1", schema=[{"name": "data", "type": "string"}, {"name": "kek", "type": "string"}])
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/chaos_rep_q1")
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         alter_table("//tmp/q1", dynamic=False)
         alter_table("//tmp/chaos_rep_q1", schema=[])
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         remove("//tmp/q1")
         remove("//tmp/chaos_rep_q1")
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         create("chaos_replicated_table",
                "//tmp/chaos_rep_c1",
@@ -235,6 +341,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                            "treat_as_queue_consumer": True})
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/chaos_rep_c1")
+        QueueAgentHelpers.assert_registered_producers_are()
 
         # Impossible to alter chaos consumer to queue via changing schema.
         with raises_yt_error("Chaos replicated table object cannot be both a queue and a consumer."):
@@ -244,18 +351,57 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
             alter_table("//tmp/chaos_rep_c1", schema=[])
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/chaos_rep_c1")
+        QueueAgentHelpers.assert_registered_producers_are()
 
         set("//tmp/chaos_rep_c1/@treat_as_queue_consumer", False)
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         alter_table("//tmp/chaos_rep_c1", schema=[{"name": "data", "type": "string"}])
         QueueAgentHelpers.assert_registered_queues_are("//tmp/chaos_rep_c1")
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
         remove("//tmp/chaos_rep_c1")
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
+
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_p1",
+               attributes={"chaos_cell_bundle": "chaos_bundle",
+                           "schema": [{"name": "data", "type": "string", "sort_order": "ascending"},
+                                      {"name": "test", "type": "string"}],
+                           "treat_as_queue_producer": True})
+        QueueAgentHelpers.assert_registered_queues_are()
+        QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/chaos_rep_p1")
+
+        # Impossible to alter chaos producer to queue via changing schema.
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer."):
+            alter_table("//tmp/chaos_rep_p1", schema=[{"name": "data", "type": "string"}])
+        # Impossible to alter chaos consumer with empty schema.
+        with raises_yt_error("Chaos replicated table object cannot be both a queue and a producer."):
+            alter_table("//tmp/chaos_rep_p1", schema=[])
+        QueueAgentHelpers.assert_registered_queues_are()
+        QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/chaos_rep_p1")
+
+        set("//tmp/chaos_rep_p1/@treat_as_queue_producer", False)
+        QueueAgentHelpers.assert_registered_queues_are()
+        QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
+
+        alter_table("//tmp/chaos_rep_p1", schema=[{"name": "data", "type": "string"}])
+        QueueAgentHelpers.assert_registered_queues_are("//tmp/chaos_rep_p1")
+        QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
+
+        remove("//tmp/chaos_rep_p1")
+        QueueAgentHelpers.assert_registered_queues_are()
+        QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
     @authors("achulkov2", "nadya73")
     def test_copy(self):
@@ -288,6 +434,24 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                            "treat_as_queue_consumer": True})
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1", "//tmp/rep_c1", "//tmp/chaos_rep_c1")
 
+        producer_schema = consumer_schema
+        create("table",
+               "//tmp/p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        create("replicated_table",
+               "//tmp/rep_p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_p1",
+               attributes={"chaos_cell_bundle": "chaos_bundle",
+                           "schema": producer_schema,
+                           "treat_as_queue_producer": True})
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1", "//tmp/chaos_rep_p1")
+
         for queue_name_prefix in ("q", "rep_q", "chaos_rep_q"):
             copy(f"//tmp/{queue_name_prefix}1", f"//tmp/{queue_name_prefix}2")
         QueueAgentHelpers.assert_registered_queues_are("//tmp/q1", "//tmp/q2", "//tmp/rep_q1", "//tmp/rep_q2", "//tmp/chaos_rep_q1", "//tmp/chaos_rep_q2")
@@ -297,12 +461,19 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
             copy(f"//tmp/{consumer_name_prefix}1", f"//tmp/{consumer_name_prefix}2")
         QueueAgentHelpers.assert_registered_consumers_are("//tmp/c1", "//tmp/rep_c1", "//tmp/chaos_rep_c1")
 
+        # Copying doesn't carry over the treat_as_queue_producer flag.
+        for producer_name_prefix in ("p", "rep_p", "chaos_rep_p"):
+            copy(f"//tmp/{producer_name_prefix}1", f"//tmp/{producer_name_prefix}2")
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1", "//tmp/chaos_rep_p1")
+
         for object_name_prefix in ("", "rep_", "chaos_rep_"):
             for index in (1, 2):
                 remove(f"//tmp/{object_name_prefix}q{index}")
                 remove(f"//tmp/{object_name_prefix}c{index}")
+                remove(f"//tmp/{object_name_prefix}p{index}")
         QueueAgentHelpers.assert_registered_queues_are()
         QueueAgentHelpers.assert_registered_consumers_are()
+        QueueAgentHelpers.assert_registered_producers_are()
 
     @authors("achulkov2", "nadya73")
     def test_transactional_copy(self):
@@ -381,6 +552,39 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
         for consumer_name in ("c1", "rep_c1", "chaos_rep_c1"):
             with raises_yt_error("Operation cannot be performed in transaction"):
                 set(f"//tmp/{consumer_name}/@treat_as_queue_consumer", True, tx=tx)
+
+    @authors("apachee")
+    def test_treat_as_queue_producer_modifications(self):
+        producer_schema = [{"name": "data", "type": "string", "sort_order": "ascending"},
+                           {"name": "test", "type": "string"}]
+        create("table",
+               "//tmp/p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema})
+        create("replicated_table",
+               "//tmp/rep_p1",
+               attributes={"dynamic": True,
+                           "schema": producer_schema})
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+        create("chaos_replicated_table",
+               "//tmp/chaos_rep_p1",
+               attributes={"chaos_cell_bundle": "chaos_bundle",
+                           "schema": producer_schema})
+        QueueAgentHelpers.assert_registered_producers_are()
+
+        for producer_name in ("p1", "rep_p1", "chaos_rep_p1"):
+            set(f"//tmp/{producer_name}/@treat_as_queue_producer", True)
+        QueueAgentHelpers.assert_registered_producers_are("//tmp/p1", "//tmp/rep_p1", "//tmp/chaos_rep_p1")
+
+        for producer_name in ("p1", "rep_p1", "chaos_rep_p1"):
+            set(f"//tmp/{producer_name}/@treat_as_queue_producer", False)
+        QueueAgentHelpers.assert_registered_producers_are()
+
+        tx = start_transaction()
+        for producer_name in ("p1", "rep_p1", "chaos_rep_p1"):
+            with raises_yt_error("Operation cannot be performed in transaction"):
+                set(f"//tmp/{producer_name}/@treat_as_queue_producer", True, tx=tx)
 
 
 class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):

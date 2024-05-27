@@ -185,7 +185,8 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
     bool isQueue = table->IsQueue();
-    bool isConsumer = table->IsConsumer();
+    bool isQueueConsumer = table->IsQueueConsumer();
+    bool isQueueProducer = table->IsQueueProducer();
 
     TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ isDynamic);
 
@@ -388,14 +389,23 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetPresent(isDynamic && isSorted));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerStatus)
-        .SetPresent(isConsumer)
+        .SetPresent(isQueueConsumer)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerPartitions)
-        .SetPresent(isConsumer)
+        .SetPresent(isQueueConsumer)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::VitalQueueConsumer)
         .SetWritable(true)
-        .SetPresent(isConsumer));
+        .SetPresent(isQueueConsumer));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueProducer)
+        .SetWritable(true)
+        .SetPresent(isDynamic && isSorted));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueProducerStatus)
+        .SetPresent(isQueueProducer)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueProducerPartitions)
+        .SetPresent(isQueueProducer)
+        .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountConfig)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EffectiveMountConfig)
@@ -427,7 +437,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     bool isDynamic = table->IsDynamic();
     bool isSorted = table->IsSorted();
     bool isExternal = table->IsExternal();
-    bool isConsumer = table->IsConsumer();
+    bool isQueueConsumer = table->IsQueueConsumer();
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
@@ -961,16 +971,25 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             }
 
             BuildYsonFluently(consumer)
-                .Value(table->GetTreatAsConsumer());
+                .Value(table->GetTreatAsQueueConsumer());
             return true;
 
         case EInternedAttributeKey::VitalQueueConsumer:
-            if (!isConsumer) {
+            if (!isQueueConsumer) {
                 break;
             }
 
             BuildYsonFluently(consumer)
                 .Value(table->GetIsVitalConsumer());
+            return true;
+
+        case EInternedAttributeKey::TreatAsQueueProducer:
+            if (!isDynamic || !isSorted) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetTreatAsQueueProducer());
             return true;
 
         case EInternedAttributeKey::MountConfig:
@@ -1103,7 +1122,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
     auto chunkLists = table->GetChunkLists();
     bool isExternal = table->IsExternal();
     bool isQueue = table->IsQueue();
-    bool isConsumer = table->IsConsumer();
+    bool isQueueConsumer = table->IsQueueConsumer();
+    bool isQueueProducer = table->IsQueueProducer();
 
     switch (key) {
         case EInternedAttributeKey::TableChunkFormatStatistics:
@@ -1159,7 +1179,15 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
 
         case EInternedAttributeKey::QueueConsumerStatus:
         case EInternedAttributeKey::QueueConsumerPartitions: {
-            if (!isConsumer) {
+            if (!isQueueConsumer) {
+                break;
+            }
+            return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+        }
+
+        case EInternedAttributeKey::QueueProducerStatus:
+        case EInternedAttributeKey::QueueProducerPartitions: {
+            if (!isQueueProducer) {
                 break;
             }
             return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
@@ -1636,15 +1664,15 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             auto* lockedTable = LockThisImpl();
-            auto isConsumerObjectBefore = lockedTable->IsTrackedConsumerObject();
-            lockedTable->SetTreatAsConsumer(ConvertTo<bool>(value));
-            auto isConsumerObjectAfter = lockedTable->IsTrackedConsumerObject();
+            auto isQueueConsumerObjectBefore = lockedTable->IsTrackedQueueConsumerObject();
+            lockedTable->SetTreatAsQueueConsumer(ConvertTo<bool>(value));
+            auto isQueueConsumerObjectAfter = lockedTable->IsTrackedQueueConsumerObject();
 
-            if (isConsumerObjectAfter != isConsumerObjectBefore) {
-                if (isConsumerObjectAfter) {
-                    tableManager->RegisterConsumer(table);
+            if (isQueueConsumerObjectAfter != isQueueConsumerObjectBefore) {
+                if (isQueueConsumerObjectAfter) {
+                    tableManager->RegisterQueueConsumer(table);
                 } else {
-                    tableManager->UnregisterConsumer(table);
+                    tableManager->UnregisterQueueConsumer(table);
                 }
             }
 
@@ -1656,12 +1684,37 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::VitalQueueConsumer: {
             ValidateNoTransaction();
 
-            if (!table->IsConsumer()) {
+            if (!table->IsQueueConsumer()) {
                 break;
             }
 
             auto* lockedTable = LockThisImpl();
             lockedTable->SetIsVitalConsumer(ConvertTo<bool>(value));
+
+            SetModified(EModificationType::Attributes);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::TreatAsQueueProducer: {
+            ValidateNoTransaction();
+
+            if (!table->IsDynamic() || !table->IsSorted()) {
+                break;
+            }
+
+            auto* lockedTable = LockThisImpl();
+            auto isQueueProducerObjectBefore = lockedTable->IsTrackedQueueProducerObject();
+            lockedTable->SetTreatAsQueueProducer(ConvertTo<bool>(value));
+            auto isQueueProducerObjectAfter = lockedTable->IsTrackedQueueProducerObject();
+
+            if (isQueueProducerObjectAfter != isQueueProducerObjectBefore) {
+                if (isQueueProducerObjectAfter) {
+                    tableManager->RegisterQueueProducer(table);
+                } else {
+                    tableManager->UnregisterQueueProducer(table);
+                }
+            }
 
             SetModified(EModificationType::Attributes);
 

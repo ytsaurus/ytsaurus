@@ -101,12 +101,13 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, BackupError);
     Save(context, ReplicaBackupDescriptors);
     Save(context, QueueAgentStage);
-    Save(context, TreatAsConsumer);
+    Save(context, TreatAsQueueConsumer);
     Save(context, IsVitalConsumer);
     Save(context, *MountConfigStorage);
     Save(context, HunkStorageNode);
     Save(context, SecondaryIndices);
     Save(context, IndexTo);
+    Save(context, TreatAsQueueProducer);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -138,7 +139,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, BackupError);
     Load(context, ReplicaBackupDescriptors);
     Load(context, QueueAgentStage);
-    Load(context, TreatAsConsumer);
+    Load(context, TreatAsQueueConsumer);
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
     Load(context, HunkStorageNode);
@@ -156,6 +157,13 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap || context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag_24_1))
     {
         Load<bool>(context);
+    }
+
+    // COMPAT(apachee)
+    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
+        context.GetVersion() >= EMasterReign::QueueProducers)
+    {
+        Load(context, TreatAsQueueProducer);
     }
 }
 
@@ -378,6 +386,22 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     } else {
         DynamicTableAttributes_.reset();
     }
+
+    // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
+    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
+    if (context.GetVersion() < EMasterReign::QueueProducers_24_1
+        || (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap && context.GetVersion() < EMasterReign::QueueProducers)) {
+        if (Attributes_) {
+            constexpr static std::array producerRelatedAttributes = {
+                EInternedAttributeKey::TreatAsQueueProducer,
+                EInternedAttributeKey::QueueProducerStatus,
+                EInternedAttributeKey::QueueProducerPartitions,
+            };
+            for (const auto& attribute : producerRelatedAttributes) {
+                Attributes_->Remove(attribute.Unintern());
+            }
+        }
+    }
 }
 
 bool TTableNode::IsDynamic() const
@@ -395,14 +419,24 @@ bool TTableNode::IsTrackedQueueObject() const
     return IsNative() && IsTrunk() && IsQueue();
 }
 
-bool TTableNode::IsConsumer() const
+bool TTableNode::IsQueueConsumer() const
 {
-    return GetTreatAsConsumer();
+    return GetTreatAsQueueConsumer();
 }
 
-bool TTableNode::IsTrackedConsumerObject() const
+bool TTableNode::IsTrackedQueueConsumerObject() const
 {
-    return IsNative() && IsTrunk() && IsConsumer();
+    return IsNative() && IsTrunk() && IsQueueConsumer();
+}
+
+bool TTableNode::IsQueueProducer() const
+{
+    return GetTreatAsQueueProducer();
+}
+
+bool TTableNode::IsTrackedQueueProducerObject() const
+{
+    return IsNative() && IsTrunk() && IsQueueProducer();
 }
 
 bool TTableNode::IsEmpty() const
@@ -766,7 +800,8 @@ void TTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstrap) const
     if (IsObjectAlive(this)) {
         // NB: Const-cast due to const-correctness rabbit-hole, which led to TTableNode* being stored in the set.
         YT_VERIFY(bootstrap->GetTableManager()->GetQueues().contains(const_cast<TTableNode*>(this)) == IsTrackedQueueObject());
-        YT_VERIFY(bootstrap->GetTableManager()->GetConsumers().contains(const_cast<TTableNode*>(this)) == IsTrackedConsumerObject());
+        YT_VERIFY(bootstrap->GetTableManager()->GetQueueConsumers().contains(const_cast<TTableNode*>(this)) == IsTrackedQueueConsumerObject());
+        YT_VERIFY(bootstrap->GetTableManager()->GetQueueProducers().contains(const_cast<TTableNode*>(this)) == IsTrackedQueueProducerObject());
     }
 }
 

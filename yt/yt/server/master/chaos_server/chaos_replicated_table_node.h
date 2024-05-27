@@ -24,7 +24,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NChaosServer::TChaosCellBundlePtr, ChaosCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(TReplicationCardId, ReplicationCardId);
     DEFINE_BYVAL_RW_PROPERTY(bool, OwnsReplicationCard);
-    DEFINE_BYVAL_RW_PROPERTY(bool, TreatAsConsumer);
+    DEFINE_BYVAL_RW_PROPERTY(bool, TreatAsQueueConsumer);
+    DEFINE_BYVAL_RW_PROPERTY(bool, TreatAsQueueProducer);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, QueueAgentStage);
 
 public:
@@ -48,8 +49,10 @@ public:
 
     bool IsQueue() const;
     bool IsTrackedQueueObject() const;
-    bool IsConsumer() const;
-    bool IsTrackedConsumerObject() const;
+    bool IsQueueConsumer() const;
+    bool IsTrackedQueueConsumerObject() const;
+    bool IsQueueProducer() const;
+    bool IsTrackedQueueProducerObject() const;
     bool IsSorted() const;
     bool HasNonEmptySchema() const;
 };

@@ -55,6 +55,10 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
         case EInternedAttributeKey::QueueConsumerPartitions:
             objectKind = "consumer";
             break;
+        case EInternedAttributeKey::QueueProducerStatus:
+        case EInternedAttributeKey::QueueProducerPartitions:
+            objectKind = "producer";
+            break;
         default:
             YT_ABORT();
     }
@@ -100,10 +104,12 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
     switch (key) {
         case EInternedAttributeKey::QueueStatus:
         case EInternedAttributeKey::QueueConsumerStatus:
+        case EInternedAttributeKey::QueueProducerStatus:
             remoteKey = "/status";
             break;
         case EInternedAttributeKey::QueuePartitions:
         case EInternedAttributeKey::QueueConsumerPartitions:
+        case EInternedAttributeKey::QueueProducerPartitions:
             remoteKey = "/partitions";
             break;
         default:

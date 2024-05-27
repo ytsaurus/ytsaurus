@@ -39,9 +39,13 @@ struct IChaosManager
     virtual void RegisterQueue(TChaosReplicatedTableNode* node) =  0;
     virtual void UnregisterQueue(TChaosReplicatedTableNode* node) = 0;
 
-    virtual const THashSet<TChaosReplicatedTableNode*>& GetConsumers() const = 0;
-    virtual void RegisterConsumer(TChaosReplicatedTableNode* node) = 0;
-    virtual void UnregisterConsumer(TChaosReplicatedTableNode* node) = 0;
+    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueueConsumers() const = 0;
+    virtual void RegisterQueueConsumer(TChaosReplicatedTableNode* node) = 0;
+    virtual void UnregisterQueueConsumer(TChaosReplicatedTableNode* node) = 0;
+
+    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueueProducers() const = 0;
+    virtual void RegisterQueueProducer(TChaosReplicatedTableNode* node) = 0;
+    virtual void UnregisterQueueProducer(TChaosReplicatedTableNode* node) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosManager)

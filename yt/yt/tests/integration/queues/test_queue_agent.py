@@ -1561,6 +1561,34 @@ class TestMasterIntegration(TestQueueAgentBase):
         for attribute in ("queue_consumer_status", "queue_consumer_partitions"):
             assert full_attributes[attribute] == YsonEntity()
 
+    @authors("apachee")
+    def test_producer_attributes(self):
+        if self._should_skip_queue_producer_attributes_tests():
+            return
+
+        create("queue_producer", "//tmp/p")
+
+        # TODO(apachee): Remove the following code after update to create queue_producer.
+        assert not get("//tmp/p/@treat_as_queue_producer")
+        set("//tmp/p/@treat_as_queue_producer", True)
+
+        assert get("//tmp/p/@queue_agent_stage") == "production"
+
+        set("//tmp/p/@queue_agent_stage", "testing")
+        set("//tmp/p/@queue_agent_stage", "production")
+
+        # NB(apachee): Since there are no orchid nodes for producers yet,
+        # it should throw resolution error for path //queue_agent/producers.
+        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+            get("//tmp/p/@queue_producer_status")
+        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+            get("//tmp/p/@queue_producer_partitions")
+
+        # Check attributes opaqueness.
+        full_attributes = get("//tmp/p/@")
+        for attribute in ("queue_producer_status", "queue_producer_partitions"):
+            assert full_attributes[attribute] == YsonEntity()
+
     @authors("max42", "nadya73")
     def test_queue_agent_stage(self):
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
@@ -1637,6 +1665,20 @@ class TestMasterIntegration(TestQueueAgentBase):
         # TODO(max42): this attribute is deprecated.
         self._set_and_assert_revision_change("//tmp/c", "vital_queue_consumer", True)
         self._set_and_assert_revision_change("//tmp/c", "target_queue", "haha:muahaha")
+
+    @authors("apachee")
+    def test_revision_changes_on_producer_attribute_change(self):
+        if self._should_skip_queue_producer_attributes_tests():
+            return
+
+        create("queue_producer", "//tmp/p")
+
+        # TODO(apachee): Remove the following code after update to create queue_producer.
+        assert not get("//tmp/p/@treat_as_queue_producer")
+        set("//tmp/p/@treat_as_queue_producer", True)
+
+        self._set_and_assert_revision_change("//tmp/p", "treat_as_queue_producer", True)
+        self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
 
 
 class TestCypressSynchronizerBase(TestQueueAgentBase):
@@ -2292,6 +2334,30 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         return (replicated_queue, self._create_replicated_queue(replicated_queue),
                 replicated_consumer, self._create_replicated_consumer(replicated_consumer))
 
+    def _create_chaos_producer(self, path):
+        producer_data_replica_path = f"{path}_data"
+        producer_queue_replica_path = f"{path}_queue"
+        chaos_replicated_producer_replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{producer_data_replica_path}"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True,
+             "replica_path": f"{producer_queue_replica_path}"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True,
+             "replica_path": f"{producer_data_replica_path}"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{producer_queue_replica_path}"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True,
+             "replica_path": f"{producer_data_replica_path}"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True,
+             "replica_path": f"{producer_queue_replica_path}"},
+        ]
+        self._create_chaos_replicated_table_base(
+            path,
+            chaos_replicated_producer_replicas,
+            init_queue_agent_state.PRODUCER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes={"treat_as_queue_producer": True})
+        return chaos_replicated_producer_replicas
+
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
         _create_chaos_queue_consumer_pair,
@@ -2456,6 +2522,28 @@ class TestMultiClusterReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjec
         full_attributes = get(f"{chaos_consumer}/@")
         for attribute in ("queue_consumer_status", "queue_consumer_partitions"):
             assert full_attributes[attribute] == YsonEntity()
+
+    @authors("apachee")
+    def test_chaos_producer_attributes(self):
+        if self._should_skip_queue_producer_attributes_tests():
+            return
+
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        chaos_producer = "//tmp/crt_producer"
+        self._create_chaos_producer(chaos_producer)
+
+        assert get(f"{chaos_producer}/@queue_agent_stage") == "production"
+
+        # Check that queue_agent_stage is writable.
+        set(f"{chaos_producer}/@queue_agent_stage", "testing")
+        set(f"{chaos_producer}/@queue_agent_stage", "production")
+
+        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+            get(f"{chaos_producer}/@queue_producer_status")
+        with raises_yt_error("Node /queue_agent has no child with key \"producers\""):
+            get(f"{chaos_producer}/@queue_producer_partitions")
 
 
 class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):

@@ -173,9 +173,13 @@ public:
     virtual void RegisterQueue(TTableNode* node) = 0;
     virtual void UnregisterQueue(TTableNode* node) = 0;
 
-    virtual const THashSet<TTableNode*>& GetConsumers() const = 0;
-    virtual void RegisterConsumer(TTableNode* node) = 0;
-    virtual void UnregisterConsumer(TTableNode* node) = 0;
+    virtual const THashSet<TTableNode*>& GetQueueConsumers() const = 0;
+    virtual void RegisterQueueConsumer(TTableNode* node) = 0;
+    virtual void UnregisterQueueConsumer(TTableNode* node) = 0;
+
+    virtual const THashSet<TTableNode*>& GetQueueProducers() const = 0;
+    virtual void RegisterQueueProducer(TTableNode* node) = 0;
+    virtual void UnregisterQueueProducer(TTableNode* node) = 0;
 
     virtual TFuture<NYson::TYsonString> GetQueueAgentObjectRevisionsAsync() const = 0;
 

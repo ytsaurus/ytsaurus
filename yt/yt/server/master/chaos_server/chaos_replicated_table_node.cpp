@@ -59,7 +59,8 @@ void TChaosReplicatedTableNode::Save(TSaveContext& context) const
     Save(context, ChaosCellBundle_);
     Save(context, ReplicationCardId_);
     Save(context, OwnsReplicationCard_);
-    Save(context, TreatAsConsumer_);
+    Save(context, TreatAsQueueConsumer_);
+    Save(context, TreatAsQueueProducer_);
     Save(context, QueueAgentStage_);
 }
 
@@ -82,7 +83,24 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
 
     // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::ChaosReplicatedConsumersFix) {
-        Load(context, TreatAsConsumer_);
+        Load(context, TreatAsQueueConsumer_);
+    }
+
+    // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
+    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
+    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
+        context.GetVersion() >= EMasterReign::QueueProducers)
+    {
+        Load(context, TreatAsQueueProducer_);
+    } else if (Attributes_) {
+        constexpr static std::array producerRelatedAttributes = {
+            EInternedAttributeKey::TreatAsQueueProducer,
+            EInternedAttributeKey::QueueProducerStatus,
+            EInternedAttributeKey::QueueProducerPartitions,
+        };
+        for (const auto& attribute : producerRelatedAttributes) {
+            Attributes_->Remove(attribute.Unintern());
+        }
     }
 
     // COMPAT(nadya73): Remove queue related attributes for old reigns.
@@ -111,7 +129,8 @@ void TChaosReplicatedTableNode::CheckInvariants(NCellMaster::TBootstrap* bootstr
     if (IsObjectAlive(this)) {
         // NB: Const-cast due to const-correctness rabbit-hole, which led to TChaosReplicatedTableNode* being stored in the set.
         YT_VERIFY(bootstrap->GetChaosManager()->GetQueues().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedQueueObject());
-        YT_VERIFY(bootstrap->GetChaosManager()->GetConsumers().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedConsumerObject());
+        YT_VERIFY(bootstrap->GetChaosManager()->GetQueueConsumers().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedQueueConsumerObject());
+        YT_VERIFY(bootstrap->GetChaosManager()->GetQueueProducers().contains(const_cast<TChaosReplicatedTableNode*>(this)) == IsTrackedQueueProducerObject());
     }
 }
 
@@ -133,15 +152,27 @@ bool TChaosReplicatedTableNode::IsTrackedQueueObject() const
 }
 
 // Chaos Replicated Tables are always dynamic.
-bool TChaosReplicatedTableNode::IsConsumer() const
+bool TChaosReplicatedTableNode::IsQueueConsumer() const
 {
-    return GetTreatAsConsumer();
+    return GetTreatAsQueueConsumer();
 }
 
 // Chaos Replicated Tables are always native.
-bool TChaosReplicatedTableNode::IsTrackedConsumerObject() const
+bool TChaosReplicatedTableNode::IsTrackedQueueConsumerObject() const
 {
-    return IsNative() && IsTrunk() && IsConsumer();
+    return IsNative() && IsTrunk() && IsQueueConsumer();
+}
+
+// Chaos Replicated Tables are always dynamic.
+bool TChaosReplicatedTableNode::IsQueueProducer() const
+{
+    return GetTreatAsQueueProducer();
+}
+
+// Chaos Replicated Tables are always native.
+bool TChaosReplicatedTableNode::IsTrackedQueueProducerObject() const
+{
+    return IsNative() && IsTrunk() && IsQueueProducer();
 }
 
 bool TChaosReplicatedTableNode::HasNonEmptySchema() const

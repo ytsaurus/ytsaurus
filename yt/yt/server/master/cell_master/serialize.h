@@ -241,6 +241,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
     ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
     ((FixCypressTransactionMirroring_24_1)                          (2572))  // kvk1920
+    ((QueueProducers_24_1)                                          (2573))  // apachee
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
@@ -262,6 +263,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddTableNodeCustomRuntimeData)                                (2617))  // gryzlov-ad
     ((IncreasedMaxKeyColumnInDynamicTableTo128)                     (2618))  // sabdenovch
     ((FixCypressTransactionMirroring)                               (2619))  // kvk1920
+    ((QueueProducers)                                               (2620))  // apachee
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
