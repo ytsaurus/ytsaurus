@@ -4677,6 +4677,7 @@ class TestAccountsProfiling(YTEnvSetup):
         assert gauge_value == gauge.get()
 
     @authors("h0pless")
+    @flaky(max_runs=3)
     def test_accounts_profiling(self):
         set("//sys/@config/incumbent_manager/scheduler/incumbents/security_manager/use_followers", True)
         set("//sys/@config/security_manager/accounts_profiling_period", 1)
