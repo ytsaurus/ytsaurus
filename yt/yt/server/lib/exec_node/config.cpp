@@ -772,6 +772,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("profile_job_proxy_process_exit", &TThis::ProfileJobProxyProcessExit)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

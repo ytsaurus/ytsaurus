@@ -202,6 +202,7 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/phoenix.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/pool_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/proc.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/process_exit_profiler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/protobuf_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/random.cpp
