@@ -748,16 +748,16 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto onFlushRowMerger = CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
-            tabletSnapshot->QuerySchema->GetColumnCount(),
-            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            tabletSnapshot->QuerySchema,
             TColumnFilter(),
             mountConfig,
             currentTimestamp,
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
+            tabletSnapshot->CustomRuntimeData,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
-            tabletSnapshot->QuerySchema->GetTtlColumnIndex(),
+            /*useTtlColumn*/ true,
             /*mergeDeletionsOnFlush*/ mountConfig->MergeDeletionsOnFlush);
 
         auto unflushedTimestamp = MaxTimestamp;
@@ -773,13 +773,13 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto compactionRowMerger = CreateVersionedRowMerger(
             mountConfig->RowMergerType,
             New<TRowBuffer>(TMergeRowsOnFlushBufferTag()),
-            tabletSnapshot->QuerySchema->GetColumnCount(),
-            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            tabletSnapshot->QuerySchema,
             TColumnFilter(),
             mountConfig,
             currentTimestamp,
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
+            tabletSnapshot->CustomRuntimeData,
             /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 

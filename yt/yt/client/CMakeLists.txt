@@ -191,6 +191,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/record_codegen_cpp.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/record_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/watermark_runtime_data.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/table_mount_cache_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/tablet_client/public.cpp

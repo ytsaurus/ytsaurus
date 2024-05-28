@@ -2,18 +2,14 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <yt/yt/ytlib/table_client/config.h>
-
-#include <yt/yt/ytlib/table_client/row_merger.h>
-
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
-
-#include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/overlapping_reader.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/versioned_row_merger.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -22,12 +18,13 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/yt/library/query/engine_api/config.h>
+#include <yt/yt/client/tablet_client/watermark_runtime_data.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/config.h>
 
 namespace NYT::NTableClient {
 
@@ -71,6 +68,7 @@ using namespace NConcurrency;
 using namespace NQueryClient;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NTabletClient;
 
 using ::ToString;
 
@@ -109,6 +107,17 @@ protected:
         TTableSchema schema({
             TColumnSchema("k", EValueType::Int64),
             TColumnSchema("l", EValueType::Int64),
+            TColumnSchema("m", EValueType::Int64),
+            TColumnSchema("n", EValueType::Int64)
+        });
+        return schema;
+    }
+
+    static TTableSchema GetTypicalWatermarkSchema()
+    {
+        TTableSchema schema({
+            TColumnSchema("k", EValueType::Int64),
+            TColumnSchema("watermark", EValueType::Uint64),
             TColumnSchema("m", EValueType::Int64),
             TColumnSchema("n", EValueType::Int64)
         });
@@ -531,21 +540,25 @@ public:
         TTableSchema schema = GetTypicalSchema(),
         TColumnFilter columnFilter = TColumnFilter(),
         bool mergeRowsOnFlush = false,
-        bool mergeDeletionsOnFlush  = false)
+        bool mergeDeletionsOnFlush  = false,
+        ERowMergerType rowMergerType = ERowMergerType::Legacy,
+        TYsonString runtimeData = {})
     {
-        auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
-        return CreateLegacyVersionedRowMerger(
+        auto schemaPtr = GetKeyedSchema(schema, 1);
+        auto evaluator = ColumnEvaluatorCache_->Find(schemaPtr);
+        return CreateVersionedRowMerger(
+            rowMergerType,
             MergedRowBuffer_,
-            schema.GetColumnCount(),
-            1,
+            std::move(schemaPtr),
             columnFilter,
             config,
             currentTimestamp,
             majorTimestamp,
             evaluator,
+            std::move(runtimeData),
             false,
             mergeRowsOnFlush,
-            schema.GetTtlColumnIndex(),
+            true,
             mergeDeletionsOnFlush);
     }
 
@@ -1718,6 +1731,182 @@ TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
     merger->AddPartialRow(row);
 
     EXPECT_FALSE(merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, WatermarkBasic)
+{
+    auto watermarkData = TWatermarkRuntimeData();
+    watermarkData.ColumnName = "watermark";
+    watermarkData.Watermark = 11;
+    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto merger = GetTypicalMerger(
+        nullptr,
+        1000,
+        0,
+        GetTypicalWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        ERowMergerType::Watermark,
+        std::move(runtimeData));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=2;ts=15> 42; <id=2;ts=13> 52");
+    merger->AddPartialRow(row);
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+                "<id=0> 0","<id=1;ts=20> 12")},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
+{
+    auto invalidRuntimeData = TYsonString(TString("{column_name=l; watermark=\"11\"}"));
+    auto merger = GetTypicalMerger(
+        nullptr,
+        1000,
+        0,
+        GetTypicalWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        ERowMergerType::Watermark,
+        std::move(invalidRuntimeData));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=2;ts=15> 42; <id=2;ts=13> 52");
+    merger->AddPartialRow(row);
+
+    // Invalid runtime data is ignored
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{row},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
+{
+    auto watermarkData = TWatermarkRuntimeData();
+    watermarkData.ColumnName = "watermark";
+    watermarkData.Watermark = 12;
+    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto merger = GetTypicalMerger(
+        nullptr,
+        1000,
+        0,
+        GetTypicalWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        ERowMergerType::Watermark,
+        std::move(runtimeData));
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=10> 5; <id=1;ts=15> 10; <id=1;ts=20> 12;"
+        "<id=2;ts=15> 42; <id=2;ts=13> 52");
+    merger->AddPartialRow(row);
+
+    EXPECT_FALSE(merger->BuildMergedRow());
+}
+
+TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 0;
+    config->MinDataTtl = TDuration::Zero();
+    config->MaxDataTtl = TDuration::Seconds(5);
+
+    auto watermarkData = TWatermarkRuntimeData();
+    watermarkData.ColumnName = "watermark";
+    watermarkData.Watermark = 12;
+    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto merger = GetTypicalMerger(
+        config,
+        TimestampFromUnixTime(10),
+        0,
+        GetTypicalWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        ERowMergerType::Watermark,
+        std::move(runtimeData));
+
+    // Without watermarks all rows should be deleted according to MaxDataTtl
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 5; <id=1;ts=%v> 10; <id=1;ts=%v> 12;"
+            "<id=2;ts=%v> 42; <id=2;ts=%v> 52",
+            TimestampFromUnixTime(1),
+            TimestampFromUnixTime(3),
+            TimestampFromUnixTime(4),
+            TimestampFromUnixTime(2),
+            TimestampFromUnixTime(4)));
+    merger->AddPartialRow(row);
+
+    auto expectedRow = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 12; <id=2;ts=%v> 52",
+            TimestampFromUnixTime(4),
+            TimestampFromUnixTime(4)));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{expectedRow},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
+{
+    auto config = GetRetentionConfig();
+    config->MinDataVersions = 0;
+    config->MinDataTtl = TDuration::Seconds(5);
+    config->MaxDataTtl = TDuration::Seconds(10);
+
+    auto watermarkData = TWatermarkRuntimeData();
+    watermarkData.ColumnName = "watermark";
+    watermarkData.Watermark = 100;
+    auto runtimeData = ConvertToYsonString(watermarkData);
+    auto merger = GetTypicalMerger(
+        config,
+        TimestampFromUnixTime(8),
+        0,
+        GetTypicalWatermarkSchema(),
+        TColumnFilter(),
+        false,
+        false,
+        ERowMergerType::Watermark,
+        std::move(runtimeData));
+
+    // According to watermark all rows should be deleted, but MinDataTtl prevents it
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> #; <id=1;ts=%v> 10; <id=1;ts=%v> 12;"
+            "<id=2;ts=%v> 42; <id=2;ts=%v> 52",
+            TimestampFromUnixTime(1),
+            TimestampFromUnixTime(2),
+            TimestampFromUnixTime(4),
+            TimestampFromUnixTime(3),
+            TimestampFromUnixTime(4)));
+    merger->AddPartialRow(row);
+
+    auto expectedRow = BuildVersionedRow(
+        "<id=0> 0",
+        Format(
+            "<id=1;ts=%v> 12; <id=2;ts=%v> 42; <id=2;ts=%v> 52",
+            TimestampFromUnixTime(4),
+            TimestampFromUnixTime(3),
+            TimestampFromUnixTime(4)));
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{expectedRow},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

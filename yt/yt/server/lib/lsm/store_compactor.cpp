@@ -13,9 +13,10 @@
 
 namespace NYT::NLsm {
 
-using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NTabletClient;
 using namespace NTabletNode;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,8 +157,10 @@ private:
         auto* tablet = partition->GetTablet();
 
         auto mountConfig = tablet->GetMountConfig();
-        if (!mountConfig->EnableDiscardingExpiredPartitions || mountConfig->MinDataVersions != 0 ||
-            tablet->GetHasTtlColumn())
+        if (!mountConfig->EnableDiscardingExpiredPartitions ||
+            mountConfig->MinDataVersions != 0 ||
+            tablet->GetHasTtlColumn() ||
+            mountConfig->RowMergerType == ERowMergerType::Watermark)
         {
             return {};
         }
@@ -195,14 +198,6 @@ private:
             stores.push_back(store->GetId());
         }
 
-        return TCompactionRequest{
-            .Tablet = MakeStrong(tablet),
-            .PartitionId = partition->GetId(),
-            .Stores = std::move(stores),
-            .DiscardStores = true,
-            .Reason = EStoreCompactionReason::DiscardByTtl,
-        };
-
         YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
             "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
             tablet->GetLoggingTag(),
@@ -211,6 +206,14 @@ private:
             partitionMaxTimestamp,
             majorTimestamp,
             partition->Stores().size());
+
+        return TCompactionRequest{
+            .Tablet = MakeStrong(tablet),
+            .PartitionId = partition->GetId(),
+            .Stores = std::move(stores),
+            .DiscardStores = true,
+            .Reason = EStoreCompactionReason::DiscardByTtl,
+        };
     }
 
     std::optional<TCompactionRequest> ScanPartitionForCompaction(TPartition* partition, bool allowForcedCompaction)

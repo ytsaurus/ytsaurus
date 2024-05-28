@@ -223,6 +223,13 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         else:
             set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
 
+    def _sync_set_watermark(self, watermark, column_name="watermark"):
+        runtime_data = {"column_name": column_name, "watermark": watermark}
+        set("//tmp/t/@custom_runtime_data", runtime_data)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        wait(lambda: get(f"//sys/tablets/{tablet_id}/orchid/custom_runtime_data", default=None) == runtime_data)
+
 
 ##################################################################
 
@@ -1680,6 +1687,92 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError, match="Cell {} has no assigned peers".format(cell_id)):
             lookup_rows("//tmp/t", [{"key": 1}])
 
+    @authors("gryzlov-ad")
+    def test_watermark_basic(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "watermark", "type": "uint64"},
+        ]
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=schema,
+            mount_config={
+                "min_data_ttl": 0,
+                "max_data_ttl": 1000,
+                "min_data_versions": 0,
+                "max_data_versions": 1,
+                "row_merger_type": "watermark",
+                "auto_compaction_period": 1,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+
+        rows = [
+            {"key": 0, "watermark": 10},
+            {"key": 1, "watermark": 11},
+            {"key": 2, "watermark": 12},
+        ]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        query = "* from [//tmp/t] order by key limit 100"
+        for i, watermark in enumerate([9, 10, 11, 12]):
+            self._sync_set_watermark(watermark)
+            wait(lambda: select_rows(query) == rows[i:])
+
+            time.sleep(1)
+            assert select_rows(query) == rows[i:]
+
+        # Row with an empty watermark should not interfere with compaction.
+        empty_watermark_row = {"key": 3, "watermark": yson.YsonEntity()}
+        rows.append(empty_watermark_row)
+
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        wait(lambda: select_rows(query) == [empty_watermark_row])
+
+    @authors("gryzlov-ad")
+    def test_watermark_wrong_schema(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            # Watermark column type must be uint64 or optional<uint64>, otherwise it is ignored.
+            {"name": "watermark", "type": "int64"},
+        ]
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=schema,
+            mount_config={
+                "min_data_ttl": 0,
+                "max_data_ttl": 5000,
+                "min_data_versions": 0,
+                "max_data_versions": 1,
+                "row_merger_type": "watermark",
+                "auto_compaction_period": 1,
+                "merge_rows_on_flush": True,
+            },
+        )
+
+        sync_mount_table("//tmp/t")
+        self._sync_set_watermark(11)
+
+        rows = [
+            {"key": 0, "watermark": 10},
+            {"key": 1, "watermark": 11},
+            {"key": 2, "watermark": 12},
+        ]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        query = "* from [//tmp/t]"
+        assert_items_equal(select_rows(query), rows)
+        # All rows are deleted due to "max_data_ttl" and it is not prevented by low watermark value.
+        wait(lambda: select_rows(query) == [])
+
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2963,7 +3056,7 @@ class TestDynamicTablesTtl(DynamicTablesBase):
         self._sync_wait_chunk_ids_to_change("//tmp/t")
         assert lookup_rows("//tmp/t", keys) == []
 
-    @authors("alxelexa")
+    @authors("alexelexa")
     def test_per_row_ttl_min_data_ttl(self):
         self._create_table_with_ttl_column(min_data_ttl=20000)
         keys = [{"key": 0}]

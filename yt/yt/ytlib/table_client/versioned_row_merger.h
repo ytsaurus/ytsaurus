@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/query/base/public.h>
 
+#include <library/cpp/yt/yson_string/public.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,16 +47,16 @@ std::unique_ptr<IVersionedRowMerger> CreateLegacyVersionedRowMerger(
 std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
     NTabletClient::ERowMergerType rowMergerType,
     TRowBufferPtr rowBuffer,
-    int columnCount,
-    int keyColumnCount,
+    TTableSchemaPtr tableSchema,
     const TColumnFilter& columnFilter,
     TRetentionConfigPtr config,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+    NYT::NYson::TYsonString customRuntimeData,
     bool lookup,
     bool mergeRowsOnFlush,
-    std::optional<int> ttlColumnIndex = std::nullopt,
+    bool useTtlColumn = false,
     bool mergeDeletionsOnFlush = false);
 
 ////////////////////////////////////////////////////////////////////////////////

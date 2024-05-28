@@ -150,13 +150,13 @@ protected:
         : Merger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             New<TRowBuffer>(TLookupSessionBufferTag()),
-            tabletSnapshot->PhysicalSchema->GetColumnCount(),
-            tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
+            tabletSnapshot->PhysicalSchema,
             columnFilter,
             retentionConfig,
             timestampRange.Timestamp,
             MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
+            tabletSnapshot->CustomRuntimeData,
             /*lookup*/ true,
             /*mergeRowsOnFlush*/ false))
     { }
@@ -268,13 +268,13 @@ protected:
         , CacheRowMerger_(CreateVersionedRowMerger(
             tabletSnapshot->Settings.MountConfig->RowMergerType,
             RowBuffer_,
-            tabletSnapshot->PhysicalSchema->GetColumnCount(),
-            tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
+            tabletSnapshot->PhysicalSchema,
             TColumnFilter::MakeUniversal(),
             tabletSnapshot->Settings.MountConfig,
             GetCompactionTimestamp(tabletSnapshot->Settings.MountConfig, RetainedTimestamp_, Logger),
             MaxTimestamp, // Do not consider major timestamp.
             tabletSnapshot->ColumnEvaluator,
+            tabletSnapshot->CustomRuntimeData,
             /*lookup*/ true, // Do not produce sentinel rows.
             /*mergeRowsOnFlush*/ true)) // Always merge rows on flush.
     { }
