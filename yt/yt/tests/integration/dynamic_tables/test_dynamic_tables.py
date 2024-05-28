@@ -41,7 +41,7 @@ from flaky import flaky
 from collections import Counter
 import time
 import builtins
-from random import shuffle
+from random import shuffle, randrange
 
 ##################################################################
 
@@ -1386,7 +1386,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//sys/@config/tablet_manager/decommission_through_extra_peers",
             test_decommission,
         )
-        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+        set(
+            "//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout",
+            100,
+        )
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 100)
 
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/cluster_nodes")
@@ -1414,14 +1418,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             wait_for_cells(list(cell_ids.keys()))
 
         if test_decommission:
-            for idx, node in enumerate(nodes):
+            for iteration in range(2):
+                idx = randrange(node_count)
+                node = nodes[idx]
                 set_node_decommissioned(node, True)
                 _check([node], 0, 0)
                 _check(nodes[:idx], 1, 2)
                 _check(nodes[idx + 1:], 1, 2)
                 set_node_decommissioned(node, False)
                 _check(nodes, 1, 1)
-
         _check(nodes, 1, 1)
 
         nodes = ls("//sys/cluster_nodes")

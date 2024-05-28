@@ -2824,6 +2824,68 @@ def get_cluster_drivers(primary_driver=None):
     raise "Failed to get cluster drivers"
 
 
+class AsyncGet:
+    def __init__(self, path, driver):
+        self.output_stream = OutputType()
+        self.response = self.send_request(path, driver=driver, return_response=True, output_stream=self.output_stream)
+
+    def send_request(self, path, **kwargs):
+        kwargs["path"] = path
+        return execute_command_with_output_format("get", kwargs)
+
+    def get(self):
+        self.response.wait()
+        if not self.response.is_ok():
+            error = YtResponseError(self.response.error())
+            raise error
+        result = yson.loads(self.output_stream.getvalue())
+        return result["value"]
+
+
+def get_cell_peers_info_from_orchid(cells, driver):
+    peers_to_results = {}
+    for cell in cells:
+        cell_id = str(cell)
+        peers = cell.attributes["peers"]
+        for peer in peers:
+            address = peer.get("address", None)
+            if address is None:
+                continue
+            if cell_id not in peers_to_results:
+                peers_to_results[cell_id] = {}
+            peers_to_results[cell_id][address] = {
+                "actual_config_version" : AsyncGet(
+                    "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id),
+                    driver=driver),
+                "active" : AsyncGet(
+                    "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/hydra/active".format(address, cell_id),
+                    driver=driver)
+            }
+    return peers_to_results
+
+
+def check_cells_state_orchid(cells, driver, decommissioned_addresses):
+    peers_to_results = get_cell_peers_info_from_orchid(cells, driver)
+    for cell in cells:
+        cell_id = str(cell)
+        expected_config_version = cell.attributes["config_version"]
+        peers = cell.attributes["peers"]
+        for peer in peers:
+            address = peer.get("address", None)
+            if address is None or address in decommissioned_addresses:
+                return False
+            try:
+                actual_config_version = peers_to_results[cell_id][address]["actual_config_version"].get()
+                if actual_config_version != expected_config_version:
+                    return False
+                active = peers_to_results[cell_id][address]["active"].get()
+                if not active:
+                    return False
+            except YtError:
+                return False
+    return True
+
+
 # TODO(babenko): rename to wait_for_tablet_cells
 def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
     print_debug("Waiting for tablet cells to become healthy...")
@@ -2838,35 +2900,7 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
             return cells
         return [cell for cell in cells if cell.attributes["id"] in cell_ids]
 
-    def check_orchid():
-        cells = get_cells(driver=driver)
-        for cell in cells:
-            cell_id = str(cell)
-            expected_config_version = cell.attributes["config_version"]
-            peers = cell.attributes["peers"]
-            for peer in peers:
-                address = peer.get("address", None)
-                if address is None or address in decommissioned_addresses:
-                    return False
-                try:
-                    actual_config_version = get(
-                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id),
-                        driver=driver,
-                    )
-                    if actual_config_version != expected_config_version:
-                        return False
-
-                    active = get(
-                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/hydra/active".format(address, cell_id),
-                        driver=driver,
-                    )
-                    if not active:
-                        return False
-                except YtError:
-                    return False
-        return True
-
-    wait(check_orchid)
+    wait(lambda: check_cells_state_orchid(get_cells(driver), driver, decommissioned_addresses))
 
     def check_cells(driver):
         cells = get_cells(driver=driver)
