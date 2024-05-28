@@ -1,8 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "serialize.h"
-#include "mutation_forwarder.h"
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 
@@ -23,13 +21,10 @@ class TTabletAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    TTabletAutomaton(
-        TCellId cellId,
-        IInvokerPtr asyncSnapshotInvoker,
-        NLeaseServer::ILeaseManagerPtr leaseManager);
+    explicit TTabletAutomaton(ITabletAutomatonHostPtr host);
 
 private:
-    const NLeaseServer::ILeaseManagerPtr LeaseManager_;
+    const TWeakPtr<ITabletAutomatonHost> Host_;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         NHydra::ICheckpointableOutputStream* output,

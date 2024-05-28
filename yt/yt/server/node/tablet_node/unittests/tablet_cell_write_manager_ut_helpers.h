@@ -58,6 +58,7 @@ static const TLogger Logger("Test");
 
 class TSimpleTabletSlot
     : public ITransactionManagerHost
+    , public ITabletAutomatonHost
 {
 public:
     static constexpr TCellId CellId = {0, 42};
@@ -68,10 +69,7 @@ public:
         AutomatonQueue_ = New<TActionQueue>("Automaton");
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
 
-        Automaton_ = New<TTabletAutomaton>(
-            CellId,
-            /*asyncSnapshotInvoker*/ AutomatonInvoker_,
-            /*leaseManager*/ nullptr);
+        Automaton_ = New<TTabletAutomaton>(this);
         Automaton_->RegisterWaitTimeObserver([&] (TDuration mutationWaitTime) {
             TotalMutationWaitTime_ += mutationWaitTime.MicroSeconds() + 1;
         });
@@ -89,6 +87,17 @@ public:
 
         TabletManager_->InitializeTablet(options);
         TabletCellWriteManager_->Initialize();
+    }
+
+    const IInvokerPtr& GetAsyncSnapshotInvoker() override
+    {
+        return AutomatonInvoker_;
+    }
+
+    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() override
+    {
+        static const NLeaseServer::ILeaseManagerPtr result;
+        return result;
     }
 
     NHydra::ISimpleHydraManagerPtr GetSimpleHydraManager() override
@@ -118,13 +127,14 @@ public:
 
     const IMutationForwarderPtr& GetMutationForwarder() override
     {
-        static IMutationForwarderPtr dummyMutationForwarder = CreateDummyMutationForwarder();
-        return dummyMutationForwarder;
+        static const auto result = CreateDummyMutationForwarder();
+        return result;
     }
 
-    ITabletManagerPtr GetTabletManager() override
+    const ITabletManagerPtr& GetTabletManager() override
     {
-        return nullptr;
+        static const ITabletManagerPtr result;
+        return result;
     }
 
     void Shutdown()

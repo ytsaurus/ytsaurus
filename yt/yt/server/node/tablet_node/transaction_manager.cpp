@@ -7,6 +7,7 @@
 #include "transaction.h"
 // COMPAT(aleksandra-zh)
 #include "tablet_manager.h"
+#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>

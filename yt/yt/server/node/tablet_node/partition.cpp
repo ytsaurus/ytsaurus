@@ -3,6 +3,7 @@
 #include "store.h"
 #include "tablet.h"
 #include "structured_logger.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

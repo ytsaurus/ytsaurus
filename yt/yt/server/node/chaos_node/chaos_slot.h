@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/tablet_server/public.h>
 
+#include <yt/yt/server/lib/lease_server/public.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -36,13 +38,25 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IChaosAutomatonHost
+    : public virtual TRefCounted
+{
+    virtual NHydra::TCellId GetCellId() const = 0;
+    virtual const IInvokerPtr& GetAsyncSnapshotInvoker() const = 0;
+    virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IChaosAutomatonHost);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An instance of Chaos Hydra.
 struct IChaosSlot
     : public NCellarAgent::ICellarOccupier
+    , public IChaosAutomatonHost
 {
     static constexpr NCellarClient::ECellarType CellarType = NCellarClient::ECellarType::Chaos;
 
-    virtual NHydra::TCellId GetCellId() const = 0;
     virtual const TString& GetCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
 
@@ -64,6 +78,7 @@ struct IChaosSlot
     virtual const IChaosManagerPtr& GetChaosManager() const = 0;
     virtual const ICoordinatorManagerPtr& GetCoordinatorManager() const = 0;
     virtual const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const = 0;
+
     virtual const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const = 0;
 
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;

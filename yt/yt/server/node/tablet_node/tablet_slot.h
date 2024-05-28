@@ -38,13 +38,25 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletCellData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct ITabletAutomatonHost
+    : public virtual TRefCounted
+{
+    virtual NHydra::TCellId GetCellId() = 0;
+    virtual const IInvokerPtr& GetAsyncSnapshotInvoker() = 0;
+    virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ITabletAutomatonHost);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An instance of Hydra managing a number of tablets.
 struct ITabletSlot
     : public NCellarAgent::ICellarOccupier
+    , public ITabletAutomatonHost
 {
     static constexpr auto CellarType = NCellarClient::ECellarType::Tablet;
 
-    virtual NHydra::TCellId GetCellId() = 0;
     virtual NHydra::EPeerState GetAutomatonState() = 0;
     virtual int GetAutomatonTerm() = 0;
 
@@ -91,9 +103,7 @@ struct ITabletSlot
 
     virtual const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() = 0;
 
-    virtual const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() = 0;
-
-    virtual ITabletManagerPtr GetTabletManager() = 0;
+    virtual const ITabletManagerPtr& GetTabletManager() = 0;
     virtual const ITabletCellWriteManagerPtr& GetTabletCellWriteManager() = 0;
     virtual const ISmoothMovementTrackerPtr& GetSmoothMovementTracker() = 0;
 

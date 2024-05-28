@@ -939,8 +939,6 @@ private:
 
         auto rpcServer = Bootstrap_->GetRpcServer();
 
-        Automaton_.Reset();
-
         if (TransactionSupervisor_) {
             for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
                 rpcServer->UnregisterService(service);
@@ -957,6 +955,8 @@ private:
             rpcServer->UnregisterService(LeaseManager_->GetRpcService());
         }
         LeaseManager_.Reset();
+
+        Automaton_.Reset();
     }
 
     void OnRecoveryComplete()

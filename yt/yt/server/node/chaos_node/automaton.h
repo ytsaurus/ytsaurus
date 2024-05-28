@@ -20,13 +20,10 @@ class TChaosAutomaton
     : public NHydra::TCompositeAutomaton
 {
 public:
-    TChaosAutomaton(
-        NHydra::TCellId cellId,
-        IInvokerPtr asyncSnapshotInvoker,
-        NLeaseServer::ILeaseManagerPtr leaseManager);
+    explicit TChaosAutomaton(IChaosAutomatonHostPtr host);
 
 private:
-    const NLeaseServer::ILeaseManagerPtr LeaseManager_;
+    const TWeakPtr<IChaosAutomatonHost> Host_;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
         NHydra::ICheckpointableOutputStream* output,

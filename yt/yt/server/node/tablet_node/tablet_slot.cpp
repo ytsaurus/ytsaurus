@@ -357,6 +357,13 @@ public:
         return THood::GetGuardedAutomatonInvoker(queue);
     }
 
+    const IInvokerPtr& GetAsyncSnapshotInvoker() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return SnapshotQueue_->GetInvoker();
+    }
+
     const IMutationForwarderPtr& GetMutationForwarder() override
     {
         return MutationForwarder_;
@@ -523,7 +530,7 @@ public:
         return Occupant_->GetLeaseManager();
     }
 
-    ITabletManagerPtr GetTabletManager() override
+    const ITabletManagerPtr& GetTabletManager() override
     {
         return TabletManager_;
     }
@@ -557,10 +564,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto automation = New<TTabletAutomaton>(
-            GetCellId(),
-            SnapshotQueue_->GetInvoker(),
-            GetLeaseManager());
+        auto automation = New<TTabletAutomaton>(this);
 
         if (auto controller = Bootstrap_->GetOverloadController()) {
             automation->RegisterWaitTimeObserver(controller->CreateGenericTracker(
@@ -742,6 +746,8 @@ public:
 
     ECellarType GetCellarType() override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return CellarType;
     }
 

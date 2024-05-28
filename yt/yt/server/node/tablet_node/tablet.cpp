@@ -17,6 +17,7 @@
 #include "hunk_chunk.h"
 #include "hunk_lock_manager.h"
 #include "hedging_manager_registry.h"
+#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>

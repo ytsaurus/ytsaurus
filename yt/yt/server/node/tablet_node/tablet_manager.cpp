@@ -29,6 +29,7 @@
 #include "row_digest_fetcher.h"
 #include "chunk_view_size_fetcher.h"
 #include "smooth_movement_tracker.h"
+#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
