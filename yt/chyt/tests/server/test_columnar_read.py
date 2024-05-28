@@ -4,6 +4,8 @@ from yt_commands import (write_table, authors, create, merge)
 
 import yt.yson as yson
 
+import pytest
+
 
 class TestColumnarRead(ClickHouseTestBase):
     CONFIG_PATCH = {
@@ -35,6 +37,7 @@ class TestColumnarRead(ClickHouseTestBase):
         assert data == values
 
     @authors("babenko")
+    @pytest.mark.timeout(180)
     def test_integer(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]:
