@@ -61,7 +61,7 @@ The following is then performed:
 
 ## Notes { #notes }
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 Setting an ACE with a column read permission causes all users not specified in the ACE to automatically lose the read permission for the column. Therefore, before restricting access to the column, make sure that doing so will not break the processes working with the table.
 

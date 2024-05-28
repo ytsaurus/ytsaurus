@@ -1,35 +1,3 @@
-# General information
-
-This section contains information about the system of access control to tables and other [Cypress](../../../user-guide/storage/cypress.md) nodes (users, groups, accounts, chunks, transactions, etc.).
-
-Any user request passes through proxies that [**authenticate**](https://en.wikipedia.org/wiki/Authentication) the user, that is, verify their authenticity. Based on the token contained in the request and obtained using the [OAuth](https://en.wikipedia.org/wiki/OAuth) protocol, the proxy determines the name of the user who initiated the request. If no token is specified in the request, it is assumed that the request was made by the `guest` user. After authentication, the token is not used at the subsequent user request processing stages. For more information, see [Authentication](../../../user-guide/storage/auth.md).
-
-**Authorization** (granting permissions) is performed by the Cypress master server. The decision to grant or deny access depends on:
-
-1. The access type (read, write, etc.).
-2. The user who initiated the request.
-3. The object to which access is requested.
-
-If access is denied, a message with details is generated: the name of the user to whom access is denied, the object to which access was requested, and the access type.
-
-The {{product-name}} system supports lists of **users** and **groups**. The common name for users and groups is **subjects**.
-
-Each object in the {{product-name}} system has an **Access Control List** (**ACL**). This list is stored in the `@acl` attribute of the object and consists of individual entries (**Access Control Entry** or **ACE**) where each entry contains a list of subjects, access type, and a number of other parameters listed in the table in the [Authorization](../../../user-guide/storage/access-control.md#authorization) section.
-
-## Users, groups { #users_groups }
-
-A list of all registered users of the system is stored in Cypress at `//sys/users`. Each user has a unique name. If a request marked with the name of a non-existent user is received from a proxy, the master server returns a `No such user` error.
-
-A list of all registered groups can be found at `//sys/groups`. Each group also has a unique name.
-
-{% note warning "Attention!" %}
-
-Users and groups are located in the same namespace, which means that their names must not coincide.
-
-{% endnote %}
-
-Group members can be random subjects: both users and other groups. The system guarantees that the "membership in the group" relation does not contain cycles. In the process of authorization, decisions are made on the basis of a transitive closure. Thus, user `A` can be a member of group `C` either directly (being a member of group `С`) or indirectly (`A` being a member of group `B` and group `B` being a member of group `C`).
-
 ## System subjects { #system_subjects }
 
 In {{product-name}}, there is a set of subjects that perform system functions. You cannot delete such subjects. System functions include:
@@ -39,7 +7,7 @@ In {{product-name}}, there is a set of subjects that perform system functions. Y
 
 ## Subject attributes { #subject_attributes }
 
-The table shows a list of attributes that all subjects have.
+The table below shows a list of attributes that are inherent to all subjects.
 
 | **Attribute** | **Type** | **Description** |
 | ------------------- | --------------- | ------------------------------------------------------------ |
@@ -50,7 +18,7 @@ The table shows a list of attributes that all subjects have.
 
 ## User attributes { #user_attributes }
 
-In addition to the attributes inherent to all subjects, users have the attributes presented in the table.
+In addition to the inherent attributes that are shared by all subjects, users have the attributes listed in the table below.
 
 | **Attribute** | **Type** | **Description** | **Mandatory** |
 | -------------------------- | --------------- | ------------------------------------------------------------ | ------------------- |
@@ -64,7 +32,7 @@ In addition to the attributes inherent to all subjects, users have the attribute
 
 ## Group attributes { #group_attributes }
 
-In addition to the attributes inherent to all subjects, groups have the attributes presented in the table.
+In addition to the inherent attributes that are shared by all subjects, groups have the attributes listed in the table below.
 
 | **Attribute** | **Type** | **Description** |
 | ----------- | --------------- | --------------------------------------------------------- |
@@ -109,13 +77,13 @@ Access type `P` is also called **permission**. The permissions supported by {{pr
 
 Object `O` means a random system object: Cypress node, user, group, account, chunk, transaction, and so on.
 
-To make a decision, the system implicitly builds an **effective access control list** (effective ACL) for object `O`. An effective access control list is a node access control list and everything inherited from its parents. Any **access control list** (ACL) is a list of **access control entries** (ACE). The order of entries in this list does not matter. The object can inherit its ACL, which is controlled by the `inherit_acl = %true` attribute. When inheriting, the inheritance mode (the `inheritance_mode` key in the `acl` entry) is defined for each ACE. The latter can be `object_only`, `object_and_descendants`, `descendants_only`, and `immediate_descendants_only`.
+To make a decision, the system implicitly builds an **effective access control list** (effective ACL) for object `O`. An effective access control list is a combination of the access control list specified on the node and the access control lists inherited from its parents. Any **access control list** (ACL) is a list of **access control entries** (ACE). The order of entries in this list does not matter. The object can inherit its ACL, which is controlled by the `inherit_acl = %true` attribute. When inheriting, the inheritance mode (the `inheritance_mode` key in the `acl` entry) is defined for each ACE. The latter can be `object_only`, `object_and_descendants`, `descendants_only`, and `immediate_descendants_only`.
 
 The `object_only` value means that this entry affects only the object itself. The `object_and_descendants` value means that this entry affects the object and all its descendants, including indirect ones. The `descendants_only` value means that this entry affects only descendants, including indirect ones. The `immediate_descendants_only` value means that this entry affects only direct descendants (sons). Each entry has a structure presented in the table.
 
 | **Attribute** | **Type** | **Description** |
 | ------------------ | ------------------- | ------------------------------------------------------------ |
-| `action` | `string` | Either `allow` (allowing entry) or `deny` (denying entry). |
+| `action` | `SecurityAction` | Either `allow` (allowing entry) or `deny` (denying entry). |
 | `subjects` | `array<string>` | A list of names of subjects to which the entry applies. |
 | `permissions` | `array<Permission>` | A list of access permissions to which the action specified in the `action` attribute applies. |
 | `inheritance_mode` | `InheritanceMode` | The inheritance mode of this ACE, by default `object_and_descendants`. |
@@ -125,7 +93,7 @@ Once an effective list is built, the decision to grant or deny access is made ac
 1. If there is at least one allowing entry for `U` and `P` and no denying entries for `U` and `P`, access is granted.
 2. Otherwise, access is denied.
 
-"Entry for `U` and `P`" means that `P` is mentioned in the `permissions` list and user `U` or at least one group in which user U is directly or indirectly a member is mentioned in the `subjects` list. From that description, it follows specifically that if the effective list is empty, access will be denied.
+“Entry for `U` and `P`” means that `P` is mentioned in the `permissions` list and either user `U` or at least one group in which user U is a direct or indirect member is mentioned in the `subjects` list. From that description, it follows specifically that if the effective list is empty, access will be denied.
 
 ## Object owner and owner user { #owner}
 
@@ -142,10 +110,11 @@ There is also a special fictitious `owner` user in the system. You cannot authen
 ## Managing operations
 
 Any operation has an ACL associated with it, similar to Cypress nodes. You can obtain this ACL from the attribute at `runtime_parameters/acl` of the operation.
+
 Access permissions have the following semantics:
 
 - The `read` permission is responsible for reading the live preview of the output and intermediate data of the operation, as well as the "artifacts" of its jobs: stderr, fail context, and the input data of individual jobs.
-- The `manage` permission is responsible for managing the state of the operation, i.e. the `Abort`, `Complete`, `Suspend`, and `Resume` actions. The corresponding buttons are located in the upper-right corner of the operation page in the web interface. It is also responsible for actions with jobs: `Abort`, `Abandon`, and `Send signal`. The corresponding buttons are located in the drop-down menu on the right side of the `Jobs` page in the {{product-name}} web interface.
+- The `manage` permission is responsible for managing actions that change the state of the operation, including `Abort`, `Complete`, `Suspend`, and `Resume` (the corresponding buttons are located in the upper-right corner of the operation page in the web interface), as well as for managing actions with jobs, including `Abort`, `Abandon`, and `Send signal` (the corresponding buttons are located in the drop-down menu on the right side of the `Jobs` page in the {{product-name}} web interface).
 - Using [Job Shell](../../../user-guide/problems/jobshell-and-slowjobs.md) requires `read` and `manage` permissions at the same time , since having access via the console enables you to read or randomly change the job state.
 
 You can specify the ACL for an operation when it starts. To do this, in the operation specification, indicate an `"acl"` section as follows:
@@ -168,14 +137,14 @@ In normal mode, you should have only allowing entries. Denying entries can be se
 
 We do not recommend mentioning specific users in the ACL. When access is granted, we recommend using groups with the same type of needs instead of individual users.
 
-ACL inheritance should be used everywhere, except in places where the nature of access changes radically. For example, on the Cypress root, the default entry is set to allow all users (except `guest`) to read. In those Cypress places where security-sensitive information is stored, such as token lists, access is redefined from scratch.
+ACL inheritance should be used everywhere, except in places where the nature of access changes radically. For example, on the Cypress root, the default entry is set to allow all users (except `guest`) to read. When overriding access to parts of Cypress that store security-sensitive information, such as token lists, the access definitions must be redefined from scratch.
 
 ## Checking the ACL { #check_acl}
 
 To check if a user has a certain permission to a certain Cypress node, use the `check-permission` command. Example:
 
 ```bash
-yt check-permission yql write //tmp
+$ yt check-permission yql write //tmp
 {
   "action" = "allow";
   "object_id" = "1-3-411012f-1888ce1f";
@@ -187,5 +156,4 @@ yt check-permission yql write //tmp
 
 ## Requesting access { #request_access }
 
-To gain access to an existing account or directory in {{product-name}}, contact your system administrator.
-
+To gain access to an existing account or directory in {{product-name}}, {% if audience == "public" %}contact your system administrator{%else%}see [Configuring access to data](../../../user-guide/storage/acl-manage.md){%endif%}.
