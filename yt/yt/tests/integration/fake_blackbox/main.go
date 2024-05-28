@@ -64,10 +64,8 @@ func replyOKUserTicket(w http.ResponseWriter, login string) {
 	_, _ = fmt.Fprintf(w, `{
         "users" : [
             {
-                "login": %q,
-                "attributes": {
-                    "1008": %q
-                },
+                "login" : %q,
+                "attributes" : {"1008": %q}
             }
         ]
     }`, login, login)
