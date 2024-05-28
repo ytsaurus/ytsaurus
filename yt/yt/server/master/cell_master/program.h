@@ -222,9 +222,9 @@ private:
 
         NYson::TYsonWriter writer(&Cout, NYson::EYsonFormat::Pretty);
         auto info = NYTree::BuildYsonStringFluently()
-          .BeginMap()
-              .Item("current_reign").Value(NCellMaster::GetCurrentReign())
-          .EndMap();
+            .BeginMap()
+                .Item("current_reign").Value(NCellMaster::GetCurrentReign())
+            .EndMap();
         NYson::Serialize(info, &writer);
         Cout << Endl;
 
