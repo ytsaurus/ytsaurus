@@ -199,6 +199,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckChunkCountPerTabletBeforeMount_23_2)                     (2461))  // alexelexa
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
     ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
+    ((FixLastSeenPersistance_23_2)                                  (2464))  // cherepashka
     // 24.1 starts here.
 );
 

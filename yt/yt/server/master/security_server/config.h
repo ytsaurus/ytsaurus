@@ -71,6 +71,9 @@ public:
     // This is a panic button.
     bool EnableSubjectTagFilters;
 
+    //! COMPAT(cherepashka)
+    bool DisableUpdateUserLastSeen;
+
     REGISTER_YSON_STRUCT(TDynamicSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);
