@@ -167,6 +167,7 @@ DEFINE_ENUM(EMasterReign,
     ((PersistLastSeenLeaseTransactionTimeout_23_2)                  (2462))  // danilalexeev
     ((AccountProfilingIncumbency_23_2)                              (2463))  // h0pless
     ((FixLastSeenPersistance_23_2)                                  (2464))  // cherepashka
+    ((IncreasedMaxKeyColumnInDynamicTableTo128_23_2)                (2465))  // sabdenovch
     // 24.1 starts here.
     ((SecondaryIndex)                                               (2500))  // sabdenovch
     ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
