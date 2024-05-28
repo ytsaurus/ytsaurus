@@ -75,7 +75,7 @@ private:
 
     THashSet<TAllocationPtr> FinishedAllocations_;
 
-    NTracing::TSamplerPtr TracingSampler_;
+    const NTracing::TSamplerPtr TracingSampler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
