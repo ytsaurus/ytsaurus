@@ -1411,8 +1411,11 @@ class TestTypedApi(object):
         assert row.field == enum_type.A
         assert type(row.field) is type(enum_type.A)
         assert row.field_optional == enum_type.B
+        assert type(row.field_optional) is type(enum_type.B)
         assert row.field_list == [enum_type.B]
+        assert type(row.field_list[0]) is type(enum_type.B)
         assert row.field_optional_list == [enum_type.A]
+        assert type(row.field_optional_list[0]) is type(enum_type.A)
 
 
     class SimpleIdentityMapper(TypedJob):
