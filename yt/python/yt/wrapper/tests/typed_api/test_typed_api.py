@@ -1793,7 +1793,6 @@ class TestTypedApi(object):
         with pytest.raises(YtError, match="bad post init: field2"):
             list(yt.read_table_structured(table, RowWithBadNestedPostInit))
 
-
     @authors("ermolovd")
     def test_manual_mapper_output_streams_in_map_reduce(self):
         table1 = "//tmp/table1"
