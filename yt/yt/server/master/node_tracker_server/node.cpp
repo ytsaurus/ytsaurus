@@ -92,7 +92,7 @@ void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 bool TNode::TCellNodeDescriptor::IsReliable() const
 {
     return CellReliability == ECellAggregatedStateReliability::StaticallyKnown ||
-            CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
+        CellReliability == ECellAggregatedStateReliability::DynamicallyDiscovered;
 }
 
 void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
@@ -209,8 +209,8 @@ bool TNode::MustReportHeartbeatsToAllMasters() const
 {
     const auto& heartbeats = GetHeartbeatTypes();
     return heartbeats.contains(ENodeHeartbeatType::Data) ||
-            heartbeats.contains(ENodeHeartbeatType::Tablet) ||
-            heartbeats.contains(ENodeHeartbeatType::Cellar);
+        heartbeats.contains(ENodeHeartbeatType::Tablet) ||
+        heartbeats.contains(ENodeHeartbeatType::Cellar);
 
 }
 
@@ -416,7 +416,6 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
         std::vector<TString>(Tags_.begin(), Tags_.end()),
         (GetAggregatedState() == ENodeState::Online) ? std::make_optional(TInstant::Now()) : std::nullopt);
 }
-
 
 void TNode::InitializeStates(
     TCellTag selfCellTag,

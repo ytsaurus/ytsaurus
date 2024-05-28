@@ -26,6 +26,10 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
 struct ICellDirectory
     : public TRefCounted
 {
+    using TCellReconfigurationSignature = void(
+        const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
+        const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
+        const THashSet<NObjectClient::TCellTag>& removedSecondaryMasterCellTags);
     DECLARE_INTERFACE_SIGNAL(TCellReconfigurationSignature, CellDirectoryChanged);
 
     virtual void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory) = 0;

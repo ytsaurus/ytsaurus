@@ -1428,7 +1428,7 @@ private:
         auto populateCellRoles = [&] (TCellTag cellTag) {
             auto roles = ComputeMasterCellRolesFromConfig(cellTag);
             THROW_ERROR_EXCEPTION_IF(!IsDiscoveredMasterCell(cellTag) && roles != EMasterCellRoles::None,
-                "Attempted to set master cell roles %v to master with cell tag %v that is not discovered by all nodes ",
+                "Attempted to set master cell roles %v to master with cell tag %v that is not discovered by all nodes",
                 roles,
                 cellTag)
 
