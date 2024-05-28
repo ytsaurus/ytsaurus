@@ -21,4 +21,6 @@ DEFINE_VECTORIZED_REQUEST_BATCHER(NYT::NYTree::NProto, Get);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#undef DEFINE_VECTORIZED_REQUEST_BATCHER
+
 } // namespace NYT::NObjectClient

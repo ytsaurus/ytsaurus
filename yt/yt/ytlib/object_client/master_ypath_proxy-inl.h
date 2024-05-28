@@ -16,23 +16,23 @@ static const int VectorizedReadSubbatchSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TReq, class TRsp>
+template <class TRequest, class TResponse>
 class TMasterYPathProxy::TVectorizedRequestBatcher
 {
 private:
-    using TTypedRequest = NYTree::TTypedYPathRequest<TReq, TRsp>;
-    using TTypedResponse = NYTree::TTypedYPathResponse<TReq, TRsp>;
-    using TTypedRequestPtr = TIntrusivePtr<NYTree::TTypedYPathRequest<TReq, TRsp>>;
-    using TTypedResponsePtr = TIntrusivePtr<NYTree::TTypedYPathResponse<TReq, TRsp>>;
+    using TTypedRequest = NYTree::TTypedYPathRequest<TRequest, TResponse>;
+    using TTypedResponse = NYTree::TTypedYPathResponse<TRequest, TResponse>;
+    using TTypedRequestPtr = TIntrusivePtr<NYTree::TTypedYPathRequest<TRequest, TResponse>>;
+    using TTypedResponsePtr = TIntrusivePtr<NYTree::TTypedYPathResponse<TRequest, TResponse>>;
 
 public:
     TVectorizedRequestBatcher(
         const NApi::NNative::IClientPtr& client,
         const TTypedRequestPtr& templateRequest,
         TRange<TObjectId> objectIds)
-    : ObjectCount_(objectIds.size())
-    , SerializedTemplateRequest_(templateRequest->Serialize())
-    , Client_(client)
+        : ObjectCount_(objectIds.size())
+        , SerializedTemplateRequest_(templateRequest->Serialize())
+        , Client_(client)
     {
         for (auto objectId : objectIds) {
             auto cellTag = CellTagFromId(objectId);
@@ -51,7 +51,7 @@ public:
         }
 
         return AllSucceeded(AsyncResults_)
-            .ApplyUnique(BIND([objectCount=ObjectCount_] (std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>&& results) {
+            .ApplyUnique(BIND([objectCount = ObjectCount_] (std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>&& results) {
                 THashMap<TObjectId, TErrorOr<TTypedResponsePtr>> objectIdToResponse;
                 objectIdToResponse.reserve(objectCount);
 
@@ -77,21 +77,21 @@ public:
                                 TTypedResponsePtr innerResponse = New<TTypedResponse>();
                                 innerResponse->Deserialize(innerMessage);
                                 EmplaceOrCrash(objectIdToResponse, objectId, std::move(innerResponse));
-                            } catch (TErrorException& ex) {
-                                EmplaceOrCrash(objectIdToResponse, objectId, std::move(ex.Error()));
+                            } catch (const std::exception& ex) {
+                                EmplaceOrCrash(objectIdToResponse, objectId, ex);
                             }
                         }
                     }
                 }
                 return objectIdToResponse;
-            }));
+            }).AsyncVia(GetCurrentInvoker()));
     }
 
 private:
     THashMap<TCellTag, std::vector<TObjectId>> CellTagToObjectId_;
-    size_t ObjectCount_;
-    TSharedRefArray SerializedTemplateRequest_;
-    NApi::NNative::IClientPtr Client_;
+    const int ObjectCount_;
+    const TSharedRefArray SerializedTemplateRequest_;
+    const NApi::NNative::IClientPtr Client_;
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> AsyncResults_;
 
@@ -106,9 +106,9 @@ private:
         // Additionally it's better to send several smaller requests to make sure they don't occupy master for too long.
         auto batchReq = proxy.ExecuteBatch();
         auto objectIdsRange = TRange(objectIds);
-        i64 startOffset = 0;
+        int startOffset = 0;
         while (startOffset < std::ssize(objectIds)) {
-            auto endOffset = std::min(startOffset + VectorizedReadSubbatchSize, std::ssize(objectIds));
+            auto endOffset = std::min<int>(startOffset + VectorizedReadSubbatchSize, std::ssize(objectIds));
             auto subrequest = FormVectorizedReadRequest(objectIdsRange.Slice(startOffset, endOffset));
             startOffset = endOffset;
 

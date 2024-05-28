@@ -449,11 +449,14 @@ private:
         auto templateRequest = templateRequestBuilder.Finish();
 
         NRpc::NProto::TRequestHeader templateRequestHeader;
-        ParseRequestHeader(templateRequest, &templateRequestHeader);
+        if (!ParseRequestHeader(templateRequest, &templateRequestHeader)) {
+            THROW_ERROR_EXCEPTION("Error parsing request header");
+        }
         auto templateMethod = templateRequestHeader.method();
 
-        context->SetRequestInfo("TemplateMethod: %v, ObjectIds: %v",
+        context->SetRequestInfo("TemplateMethod: %v, TransactionId: %v, ObjectIds: %v",
             templateMethod,
+            transactionId,
             objectIds);
 
         ValidateVectorizedRead(templateMethod, objectIds);
@@ -470,16 +473,14 @@ private:
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
-            auto* object = objectManager->FindObject(objectId);
-            if (object) {
+            if (auto* object = objectManager->FindObject(objectId)) {
                 auto proxy = objectManager->GetProxy(object, transaction);
                 proxy->Invoke(subcontext);
             } else {
-                auto noSuchObjectError = TError(
+                subcontext->Reply(TError(
                     NYTree::EErrorCode::ResolveError,
                     "No such object %v",
-                    objectId);
-                subcontext->Reply(noSuchObjectError);
+                    objectId));
             }
 
             const auto& subresponseMessage = subcontext->GetResponseMessage();
@@ -495,19 +496,19 @@ private:
     void ValidateVectorizedRead(const std::string& templateMethod, const std::vector<TObjectId>& objectIds)
     {
         static const int MaxVectorizedReadRequestSize = 100;
-        static const THashSet<std::string> MultiReadMethodWhitelist = {
+        static const THashSet<std::string> VectorizedReadMethodWhitelist = {
             "Get",
         };
 
         THROW_ERROR_EXCEPTION_UNLESS(
-            MultiReadMethodWhitelist.contains(templateMethod),
+            VectorizedReadMethodWhitelist.contains(templateMethod),
             "Method %Qv is not supported as a template for \"VectorizedRead\"",
             templateMethod);
 
         if (objectIds.size() > MaxVectorizedReadRequestSize) {
-            THROW_ERROR_EXCEPTION("Request has more than %v objects",
-                MaxVectorizedReadRequestSize)
-                << TErrorAttribute("object_count", objectIds.size());
+            THROW_ERROR_EXCEPTION("Too many objects in vectorized request: %v > %v",
+                objectIds.size(),
+                MaxVectorizedReadRequestSize);
         }
     }
 };

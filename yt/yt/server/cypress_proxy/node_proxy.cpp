@@ -1057,20 +1057,20 @@ private:
             Bootstrap_->GetNativeRootClient(),
             requestTemplate,
             nodesToFetchFromMaster);
-        auto nodeIdToResponseOrError = WaitFor(vectorizedBatcher.Invoke())
+        auto nodeIdToRspOrError = WaitFor(vectorizedBatcher.Invoke())
             .ValueOrThrow();
 
         THashMap<TNodeId, TYPathProxy::TRspGetPtr> nodeIdToMasterResponse;
-        for (auto [nodeId, responseOrError] : nodeIdToResponseOrError) {
-            if (!responseOrError.IsOK()) {
+        for (auto [nodeId, rspOrError] : nodeIdToRspOrError) {
+            if (!rspOrError.IsOK()) {
                 // TODO(kvk1920): In case of race between Get(path) and Create(path, force=true)
                 // for the same path we can get an error "no such node".
                 // Retry is needed if a given path still exists.
                 // Since retry mechanism is not implemented yet, this will do for now.
                 THROW_ERROR_EXCEPTION("Error getting requested information from master")
-                    << responseOrError;
+                    << rspOrError;
             }
-            nodeIdToMasterResponse[nodeId] = responseOrError.Value();
+            nodeIdToMasterResponse[nodeId] = rspOrError.Value();
         }
 
         // Build a DFS over this mess.
