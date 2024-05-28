@@ -1,4 +1,5 @@
 #include "automaton.h"
+
 #include "private.h"
 #include "serialize.h"
 #include "chaos_slot.h"
@@ -18,14 +19,11 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChaosAutomaton::TChaosAutomaton(
-    TCellId cellId,
-    IInvokerPtr asyncSnapshotInvoker,
-    NLeaseServer::ILeaseManagerPtr leaseManager)
+TChaosAutomaton::TChaosAutomaton(IChaosAutomatonHostPtr host)
     : TCompositeAutomaton(
-        std::move(asyncSnapshotInvoker),
-        cellId)
-    , LeaseManager_(std::move(leaseManager))
+        host->GetAsyncSnapshotInvoker(),
+        host->GetCellId())
+    , Host_(std::move(host))
 { }
 
 std::unique_ptr<NHydra::TSaveContext> TChaosAutomaton::CreateSaveContext(
@@ -38,9 +36,13 @@ std::unique_ptr<NHydra::TSaveContext> TChaosAutomaton::CreateSaveContext(
 std::unique_ptr<NHydra::TLoadContext> TChaosAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
+    auto host = Host_.Lock();
+    if (!host) {
+        THROW_ERROR_EXCEPTION("Automaton host is destroyed");
+    }
     auto context = std::make_unique<TLoadContext>(input);
     TCompositeAutomaton::SetupLoadContext(context.get());
-    context->SetLeaseManager(LeaseManager_);
+    context->SetLeaseManager(host->GetLeaseManager());
     return context;
 }
 
@@ -63,12 +65,9 @@ TChaosAutomatonPart::TChaosAutomatonPart(
         slot->GetHydraManager(),
         slot->GetAutomaton(),
         slot->GetAutomatonInvoker())
-    , Slot_(slot)
+    , Slot_(std::move(slot))
     , Bootstrap_(bootstrap)
 {
-    YT_VERIFY(Slot_);
-    YT_VERIFY(Bootstrap_);
-
     Logger = ChaosNodeLogger()
         .WithTag("CellId: %v", Slot_->GetCellId());
 }

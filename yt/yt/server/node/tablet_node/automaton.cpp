@@ -1,4 +1,5 @@
 #include "automaton.h"
+
 #include "private.h"
 #include "serialize.h"
 #include "tablet_slot.h"
@@ -15,14 +16,11 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletAutomaton::TTabletAutomaton(
-    TCellId cellId,
-    IInvokerPtr asyncSnapshotInvoker,
-    NLeaseServer::ILeaseManagerPtr leaseManager)
+TTabletAutomaton::TTabletAutomaton(ITabletAutomatonHostPtr host)
     : NHydra::TCompositeAutomaton(
-        std::move(asyncSnapshotInvoker),
-        cellId)
-    , LeaseManager_(std::move(leaseManager))
+        host->GetAsyncSnapshotInvoker(),
+        host->GetCellId())
+    , Host_(std::move(host))
 { }
 
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
@@ -35,9 +33,13 @@ std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
 std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
+    auto host = Host_.Lock();
+    if (!host) {
+        THROW_ERROR_EXCEPTION("Automaton host is destroyed");
+    }
     auto context = std::make_unique<TLoadContext>(input);
     TCompositeAutomaton::SetupLoadContext(context.get());
-    context->SetLeaseManager(LeaseManager_);
+    context->SetLeaseManager(host->GetLeaseManager());
     return context;
 }
 

@@ -9,6 +9,7 @@
 #include "transaction_manager.h"
 #include "transaction.h"
 #include "store_manager.h"
+#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>

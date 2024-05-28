@@ -6,6 +6,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "hunks_serialization.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
 

@@ -73,6 +73,9 @@
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 
+// COMPAT(babenko)
+#include <yt/yt/server/node/tablet_node/serialize.h>
+
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 

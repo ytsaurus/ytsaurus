@@ -5,6 +5,7 @@
 #include "transaction.h"
 #include "automaton.h"
 #include "hunks_serialization.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

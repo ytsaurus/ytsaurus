@@ -4,6 +4,7 @@
 #include <yt/yt/server/node/tablet_node/store_manager.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
 #include <yt/yt/server/node/tablet_node/ordered_store_manager.h>
+#include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 

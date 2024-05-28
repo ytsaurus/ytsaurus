@@ -7,6 +7,7 @@
 #include "tablet_slot.h"
 #include "transaction.h"
 #include "transaction_manager.h"
+#include "serialize.h"
 
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/helpers.h>
