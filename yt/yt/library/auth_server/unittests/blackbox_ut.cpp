@@ -225,14 +225,25 @@ class TMockBlackboxService
     : public IBlackboxService
 {
 public:
+    TMockBlackboxService(bool useLowercaseLogin = false)
+        : UseLowercaseLogin_(useLowercaseLogin)
+    { }
+
     MOCK_METHOD(TFuture<INodePtr>, Call, (
         const TString&,
         (const THashMap<TString, TString>&)), (override));
 
     TErrorOr<TString> GetLogin(const NYTree::INodePtr& reply) const override
     {
-        return GetByYPath<TString>(reply, "/login");
+        if (UseLowercaseLogin_) {
+            return GetByYPath<TString>(reply, "/attributes/1008");
+        } else {
+            return GetByYPath<TString>(reply, "/login");
+        }
     }
+
+private:
+    bool UseLowercaseLogin_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -589,13 +600,13 @@ TEST_F(TCookieAuthenticatorTest, SuccessWithoutTicket)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTicketAuthenticatorTest
-    : public ::testing::Test
+    : public ::testing::TestWithParam<bool>
 {
 protected:
     void SetUp() override
     {
         Config_ = New<TBlackboxTicketAuthenticatorConfig>();
-        Blackbox_ = New<TMockBlackboxService>();
+        Blackbox_ = New<TMockBlackboxService>(GetParam());
         Tvm_ = New<TMockTvmService>();
         Authenticator_ = CreateBlackboxTicketAuthenticator(Config_, Blackbox_, Tvm_);
 
@@ -606,12 +617,12 @@ protected:
         ON_CALL(*Tvm_, ParseUserTicket("good_ticket"))
             .WillByDefault(Return(TParsedTicket{42, {"bar", "baz"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("good_ticket")))
-            .WillByDefault(Return(Response("{users=[{login=TheUser}]}")));
+            .WillByDefault(Return(Response("{users=[{login=TheUser;attributes={\"1008\"=the_user}}]}")));
 
         ON_CALL(*Tvm_, ParseUserTicket("bad_ticket"))
             .WillByDefault(Return(TParsedTicket{43, {"bad", "scope"}}));
         ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("bad_ticket")))
-            .WillByDefault(Return(Response("{users=[{login=ScopelessUser}]}")));
+            .WillByDefault(Return(Response("{users=[{login=ScopelessUser;attributes={\"1008\"=scopeless_user}}]}")));
 
     }
 
@@ -636,31 +647,39 @@ protected:
     TIntrusivePtr<ITicketAuthenticator> Authenticator_;
 };
 
-TEST_F(TTicketAuthenticatorTest, Success)
+TEST_P(TTicketAuthenticatorTest, Success)
 {
     auto result = Invoke("good_ticket").Get();
     ASSERT_TRUE(result.IsOK());
-    EXPECT_EQ("TheUser", result.Value().Login);
+    if (GetParam()) {
+        EXPECT_EQ("the_user", result.Value().Login);
+    } else {
+        EXPECT_EQ("TheUser", result.Value().Login);
+    }
     EXPECT_EQ("blackbox:user-ticket", result.Value().Realm);
     EXPECT_EQ("good_ticket", result.Value().UserTicket);
 }
 
-TEST_F(TTicketAuthenticatorTest, ScopeFailure)
+TEST_P(TTicketAuthenticatorTest, ScopeFailure)
 {
     auto result = Invoke("bad_ticket").Get();
     ASSERT_FALSE(result.IsOK());
 }
 
-TEST_F(TTicketAuthenticatorTest, DisableScopeCheck)
+TEST_P(TTicketAuthenticatorTest, DisableScopeCheck)
 {
     Config_->EnableScopeCheck = false;
     EXPECT_CALL(*Tvm_, ParseUserTicket(_)).Times(0);
     auto result = Invoke("bad_ticket").Get();
     ASSERT_TRUE(result.IsOK());
-    EXPECT_EQ("ScopelessUser", result.Value().Login);
+    if (GetParam()) {
+        EXPECT_EQ("scopeless_user", result.Value().Login);
+    } else {
+        EXPECT_EQ("ScopelessUser", result.Value().Login);
+    }
 }
 
-TEST_F(TTicketAuthenticatorTest, FailOnTvmFailure)
+TEST_P(TTicketAuthenticatorTest, FailOnTvmFailure)
 {
     EXPECT_CALL(*Tvm_, ParseUserTicket(_))
         .WillOnce(Throw(std::exception()));
@@ -668,7 +687,7 @@ TEST_F(TTicketAuthenticatorTest, FailOnTvmFailure)
     ASSERT_FALSE(result.IsOK());
 }
 
-TEST_F(TTicketAuthenticatorTest, FailOnBlackboxFailure)
+TEST_P(TTicketAuthenticatorTest, FailOnBlackboxFailure)
 {
     EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
         .WillOnce(Return(MakeFuture<INodePtr>(TError("Blackbox failure"))));
@@ -677,7 +696,7 @@ TEST_F(TTicketAuthenticatorTest, FailOnBlackboxFailure)
     EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox failure"));
 }
 
-TEST_F(TTicketAuthenticatorTest, FailOnBlackboxError)
+TEST_P(TTicketAuthenticatorTest, FailOnBlackboxError)
 {
     EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
         .WillOnce(Return(Response("{error=unhappy}")));
@@ -685,6 +704,9 @@ TEST_F(TTicketAuthenticatorTest, FailOnBlackboxError)
     ASSERT_TRUE(!result.IsOK());
     EXPECT_THAT(CollectMessages(result), HasSubstr("unhappy"));
 }
+
+INSTANTIATE_TEST_SUITE_P(UseLowercaseLogin, TTicketAuthenticatorTest, ::testing::Values(true));
+INSTANTIATE_TEST_SUITE_P(UseLogin, TTicketAuthenticatorTest, ::testing::Values(false));
 
 ////////////////////////////////////////////////////////////////////////////////
 
