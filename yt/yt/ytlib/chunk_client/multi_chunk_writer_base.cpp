@@ -212,14 +212,16 @@ void TNontemplateMultiChunkWriterBase::InitSession()
 bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
 {
     if (CurrentSession_.TemplateWriter->IsCloseDemanded()) {
-        YT_LOG_DEBUG("Switching to next chunk due to chunk writer demand");
+        YT_LOG_DEBUG("Switching to next chunk due to chunk writer demand (ChunkId: %v)",
+            CurrentSession_.TemplateWriter->GetChunkId());
 
         SwitchSession();
         return true;
     }
 
     if (CurrentSession_.TemplateWriter->GetMetaSize() > Config_->MaxMetaSize) {
-        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkMetaSize: %v, MaxMetaSize: %v)",
+        YT_LOG_DEBUG("Switching to next chunk: meta is too large (ChunkId: %v, CurrentSessionMetaSize: %v, MaxMetaSize: %v)",
+            CurrentSession_.TemplateWriter->GetChunkId(),
             CurrentSession_.TemplateWriter->GetMetaSize(),
             Config_->MaxMetaSize);
 
@@ -228,7 +230,8 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
     }
 
     if (CurrentSession_.TemplateWriter->GetDataWeight() > Config_->DesiredChunkWeight) {
-        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (DataWeight: %v, DesiredChunkWeight: %v)",
+        YT_LOG_DEBUG("Switching to next chunk: data weight is too large (ChunkId: %v, CurrentSessionDataWeight: %v, DesiredChunkWeight: %v)",
+            CurrentSession_.TemplateWriter->GetChunkId(),
             CurrentSession_.TemplateWriter->GetDataWeight(),
             Config_->DesiredChunkWeight);
 
@@ -240,7 +243,8 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         if (Options_->ErasureCodec != ECodec::None ||
             CurrentSession_.TemplateWriter->GetCompressedDataSize() > 2 * Config_->DesiredChunkSize)
         {
-            YT_LOG_DEBUG("Switching to next chunk: compressed data size is too large (CurrentSessionSize: %v, DesiredChunkSize: %v)",
+            YT_LOG_DEBUG("Switching to next chunk: compressed data size is too large (ChunkId: %v, CurrentSessionSize: %v, DesiredChunkSize: %v)",
+                CurrentSession_.TemplateWriter->GetChunkId(),
                 CurrentSession_.TemplateWriter->GetCompressedDataSize(),
                 Config_->DesiredChunkSize);
 
