@@ -109,7 +109,7 @@ void ExpectFields(const DB::IColumn& column, std::vector<DB::Field> expectedFiel
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class TTestYTCHConversion
+class TYTCHConversionTest
     : public ::testing::Test
 {
 public:
@@ -257,7 +257,7 @@ bool IsDecimalRepresentable(const TString& decimal, int precision, int scale)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TTestYTCHConversion, TestAnyPassthrough)
+TEST_F(TYTCHConversionTest, AnyPassthrough)
 {
     std::vector<TString> ysons = {
         "42",
@@ -294,7 +294,7 @@ TEST_F(TTestYTCHConversion, TestAnyPassthrough)
     }
 }
 
-TEST_F(TTestYTCHConversion, TestSimpleTypes)
+TEST_F(TYTCHConversionTest, SimpleTypes)
 {
     // Prepare test values as YSON.
     std::vector<TString> ysonStringsInt8 = {
@@ -420,7 +420,7 @@ TEST_F(TTestYTCHConversion, TestSimpleTypes)
     testAsType(ysonsFloat, ESimpleLogicalValueType::Double, std::make_shared<DB::DataTypeNumber<double>>(), double(), double());
 }
 
-TEST_F(TTestYTCHConversion, TestOptionalSimpleTypeAsUnversionedValue)
+TEST_F(TYTCHConversionTest, OptionalSimpleTypeAsUnversionedValue)
 {
     auto intValue = MakeUnversionedInt64Value(42);
     auto nullValue = MakeUnversionedNullValue();
@@ -440,7 +440,7 @@ TEST_F(TTestYTCHConversion, TestOptionalSimpleTypeAsUnversionedValue)
     });
 }
 
-TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
+TEST_F(TYTCHConversionTest, OptionalSimpleType)
 {
     // Nesting level is the number of optional<> wrappers around int.
 
@@ -492,7 +492,7 @@ TEST_F(TTestYTCHConversion, TestOptionalSimpleType)
     }
 }
 
-TEST_F(TTestYTCHConversion, TestNullAndVoid)
+TEST_F(TYTCHConversionTest, NullAndVoid)
 {
     // Nesting level is the number of optional<> wrappers around null or void.
 
@@ -546,7 +546,7 @@ TEST_F(TTestYTCHConversion, TestNullAndVoid)
     }
 }
 
-TEST_F(TTestYTCHConversion, TestListInt32)
+TEST_F(TYTCHConversionTest, ListInt32)
 {
     std::vector<TString> ysonStringsListInt32 = {
         "[42;57]",
@@ -579,7 +579,7 @@ TEST_F(TTestYTCHConversion, TestListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestListListInt32)
+TEST_F(TYTCHConversionTest, ListListInt32)
 {
     std::vector<TString> ysonStringsListListInt32 = {
         "[[42;57];[-1]]",
@@ -612,7 +612,7 @@ TEST_F(TTestYTCHConversion, TestListListInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestListAny)
+TEST_F(TYTCHConversionTest, ListAny)
 {
     std::vector<TString> ysonStringsListAny = {
         "[#; 42; []; [[];[]]; x]",
@@ -643,7 +643,7 @@ TEST_F(TTestYTCHConversion, TestListAny)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestOptionalListOptionalInt32)
+TEST_F(TYTCHConversionTest, OptionalListOptionalInt32)
 {
     std::vector<TString> ysonStringsOptionalListOptionalInt32 = {
         "[#]",
@@ -676,7 +676,7 @@ TEST_F(TTestYTCHConversion, TestOptionalListOptionalInt32)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestDictIntString)
+TEST_F(TYTCHConversionTest, DictIntString)
 {
     std::vector<TString> ysonStringsDictIntString = {
         "[[42; foo]; [27; bar]]",
@@ -708,7 +708,7 @@ TEST_F(TTestYTCHConversion, TestDictIntString)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestOptionalTupleInt32String)
+TEST_F(TYTCHConversionTest, OptionalTupleInt32String)
 {
     std::vector<TString> ysonStringsOptionalTupleInt32String = {
         "[42; xyz]",
@@ -739,7 +739,7 @@ TEST_F(TTestYTCHConversion, TestOptionalTupleInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestOptionalStructInt32String)
+TEST_F(TYTCHConversionTest, OptionalStructInt32String)
 {
     std::vector<TString> ysonStringsOptionalStructInt32String = {
         "{key=42;value=xyz}",
@@ -784,7 +784,7 @@ TEST_F(TTestYTCHConversion, TestOptionalStructInt32String)
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
 }
 
-TEST_F(TTestYTCHConversion, TestDecimal)
+TEST_F(TYTCHConversionTest, Decimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -856,7 +856,7 @@ TEST_F(TTestYTCHConversion, TestDecimal)
 }
 
 // Mostly copy-pasted from TestDecimal.
-TEST_F(TTestYTCHConversion, TestOptionalDecimal)
+TEST_F(TYTCHConversionTest, OptionalDecimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -929,7 +929,7 @@ TEST_F(TTestYTCHConversion, TestOptionalDecimal)
 }
 
 // Mostly copy-pasted from TestDecimal.
-TEST_F(TTestYTCHConversion, TestListDecimal)
+TEST_F(TYTCHConversionTest, ListDecimal)
 {
     std::vector<TString> values = {
         "1.2",
@@ -999,7 +999,7 @@ TEST_F(TTestYTCHConversion, TestListDecimal)
     }
 }
 
-TEST_F(TTestYTCHConversion, TestAnyUpcast)
+TEST_F(TYTCHConversionTest, AnyUpcast)
 {
     // This is a pretty tricky scenario. Any column may be read from chunks originally
     // from the table having concrete type for this column. In this case we interpret
@@ -1037,7 +1037,7 @@ TEST_F(TTestYTCHConversion, TestAnyUpcast)
     ExpectDataConversion(anyDescriptor, ytAnyColumn, {DB::Field("{\"a\"=1;}"), DB::Field("[]")});
 }
 
-TEST_F(TTestYTCHConversion, TestIntegerUpcast)
+TEST_F(TYTCHConversionTest, IntegerUpcast)
 {
     // Similar as previous for integers, e.g. int16 -> int32.
     std::vector<TUnversionedValue> intValues = {MakeUnversionedInt64Value(42), MakeUnversionedInt64Value(-17)};
@@ -1055,7 +1055,7 @@ TEST_F(TTestYTCHConversion, TestIntegerUpcast)
     ExpectDataConversion<DB::ColumnInt32>(int32Descriptor, ytInt16Column, {DB::Field(42), DB::Field(-17)});
 }
 
-TEST_F(TTestYTCHConversion, TestReadOnlyConversions)
+TEST_F(TYTCHConversionTest, ReadOnlyConversions)
 {
     std::vector<TColumnSchema> readOnlyColumnSchemas{
         TColumnSchema(

@@ -49,7 +49,7 @@ template <typename... Args>
 [[noreturn]] void ThrowConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
 {
     THROW_ERROR_EXCEPTION(
-        "Error converting %Qv of type %v to ClickHouse",
+        "Error converting %Qv of type %Qv to ClickHouse",
         descriptor.GetDescription(),
         *descriptor.GetType())
             << TError(args...);
@@ -1094,7 +1094,7 @@ private:
     {
         if (!EnableReadOnlyConversions_) {
             THROW_ERROR_EXCEPTION(
-                "Field %Qv has type %v which is supported only for reading",
+                "Field %Qv has type %Qv which is supported only for reading",
                 descriptor.GetDescription(),
                 *descriptor.GetType());
         }
