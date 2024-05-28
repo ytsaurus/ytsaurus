@@ -4,7 +4,6 @@
 #include "partition_balancer.h"
 #include "private.h"
 #include "slot_manager.h"
-#include "slot_manager.h"
 #include "store.h"
 #include "sorted_chunk_store.h"
 #include "store_compactor.h"

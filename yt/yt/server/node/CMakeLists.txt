@@ -223,6 +223,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/cached_row.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chaos_agent.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_replica_cache_pinger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/chunk_view_size_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_builder.cpp

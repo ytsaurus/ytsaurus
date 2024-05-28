@@ -256,20 +256,15 @@ public:
         CacheSizeGauge_.Update(Entries_.size());
     }
 
-    void DiscardChunk(TChunkId chunkId) override
+    void PingChunk(TChunkId chunkId) override
     {
         YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
 
-        auto mapGuard = WriterGuard(EntriesLock_);
+        auto mapGuard = ReaderGuard(EntriesLock_);
         auto it = Entries_.find(chunkId);
         if (it != Entries_.end()) {
-            Entries_.erase(it);
-            YT_LOG_DEBUG("Chunk discarded from replica cache (ChunkId: %v)",
-                chunkId);
-            DiscardsCounter_.Increment();
+            it->second->LastAccessTime = TInstant::Now();
         }
-
-        CacheSizeGauge_.Update(Entries_.size());
     }
 
     void UpdateReplicas(

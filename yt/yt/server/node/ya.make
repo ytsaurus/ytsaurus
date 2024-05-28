@@ -103,6 +103,7 @@ SRCS(
     tablet_node/bootstrap.cpp
     tablet_node/cached_row.cpp
     tablet_node/chaos_agent.cpp
+    tablet_node/chunk_replica_cache_pinger.cpp
     tablet_node/chunk_view_size_fetcher.cpp
     tablet_node/compaction_hint_fetcher.cpp
     tablet_node/compression_dictionary_builder.cpp

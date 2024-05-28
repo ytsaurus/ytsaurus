@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 
 #include "backing_store_cleaner.h"
+#include "chunk_replica_cache_pinger.h"
 #include "compression_dictionary_builder.h"
 #include "compression_dictionary_manager.h"
 #include "error_manager.h"
@@ -302,6 +303,7 @@ public:
         PartitionBalancer_ = CreatePartitionBalancer(this);
         BackingStoreCleaner_ = CreateBackingStoreCleaner(this);
         LsmInterop_ = CreateLsmInterop(this, StoreCompactor_, PartitionBalancer_, StoreRotator_);
+        ChunkReplicaCachePinger_ = CreateChunkReplicaCachePinger(this);
         CompressionDictionaryBuilder_ = CreateCompressionDictionaryBuilder(this);
         ErrorManager_ = CreateErrorManager(this);
         CompressionDictionaryManager_ = CreateCompressionDictionaryManager(
@@ -374,6 +376,7 @@ public:
         StatisticsReporter_->Start();
         BackingStoreCleaner_->Start();
         LsmInterop_->Start();
+        ChunkReplicaCachePinger_->Start();
         HintManager_->Start();
         TableDynamicConfigManager_->Start();
         SlotManager_->Start();
@@ -595,6 +598,7 @@ private:
     TStatisticsReporterPtr StatisticsReporter_;
     IBackingStoreCleanerPtr BackingStoreCleaner_;
     ILsmInteropPtr LsmInterop_;
+    IChunkReplicaCachePingerPtr ChunkReplicaCachePinger_;
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     IErrorManagerPtr ErrorManager_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
