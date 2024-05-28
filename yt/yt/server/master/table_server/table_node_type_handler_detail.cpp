@@ -124,7 +124,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     if (auto eraseCodecValue = context.ExplicitAttributes->FindYson("erasure_codec")) {
-        ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecIds);
+        ValidateErasureCodec(eraseCodecValue, chunkManagerConfig->ForbiddenErasureCodecs);
     }
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);

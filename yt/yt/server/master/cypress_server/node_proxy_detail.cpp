@@ -2264,7 +2264,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             if (key == EInternedAttributeKey::ErasureCodec) { \
                 ValidateErasureCodec( \
                     value, \
-                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecIds); \
+                    Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
             } \
             { \
                 auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
@@ -2616,7 +2616,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         if (key == "erasure_codec") { \
             ValidateErasureCodec( \
                 value, \
-                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecIds); \
+                Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
         } \
         using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
         InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \

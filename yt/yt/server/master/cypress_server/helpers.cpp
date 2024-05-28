@@ -468,10 +468,10 @@ void ValidateCompressionCodec(
 
 void ValidateErasureCodec(
     const NYson::TYsonString& value,
-    const THashSet<NErasure::ECodec>& forbiddenCodecIds)
+    const THashSet<NErasure::ECodec>& forbiddenCodecs)
 {
     auto codecId = ConvertTo<NErasure::ECodec>(value);
-    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecIds.contains(codecId)) {
+    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecs.contains(codecId)) {
         THROW_ERROR_EXCEPTION("Erasure codec %Qv is forbidden", codecId);
     }
 }
