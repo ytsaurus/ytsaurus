@@ -1,5 +1,5 @@
 import yt.type_info as ti  # noqa
-from .types import yt_dataclass, is_yt_dataclass, create_annotated_type, OutputRow, yt_enum  # noqa
+from .types import yt_dataclass, is_yt_dataclass, create_annotated_type, OutputRow, create_yt_enum  # noqa
 from .table_schema import ColumnSchema, TableSchema, SortColumn  # noqa
 
 from .internal_schema import _row_py_schema_to_skiff_schema, _validate_py_schema  # noqa

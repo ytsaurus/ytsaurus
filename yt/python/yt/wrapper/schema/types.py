@@ -112,30 +112,62 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     return Annotated[py_type, Annotation(ti_type, to_yt_type=to_yt_type, from_yt_type=from_yt_type)]
 
 
-def yt_enum(ti_type, to_yt_type=None, from_yt_type=None):
+def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     """
     Create enum for yt_dataclass.
-    yt_enum supports only typed enums (e.g. enum.StrEnum and enum.IntEnum)
+    yt_enum supports only typed enums
+    (e.g. enum.StrEnum, enum.IntEnum or descendant of enum.Enum along with another simple type).
 
     Example:
         @yt_enum(ti.Int32)
         class CustomEnum(enum.IntEnum):
             a = 1
+            b = 2
+
+        class AnotherEnum(bytes, enum.Enum):
+            a = "example1"
+            b = "example2"
+
+        YtCustomEnum = create_yt_enum(CustomEnum, ti.Int32)
+        YtAnotherCustomEnum = create_yt_enum(AnotherEnum, ti.Utf8)
+
+        @yt_enum(ti.Int32)
 
         @yt_dataclass
         class TableRow:
             a: CustomEnum
-            b: Optional[CustomEnum]
-            c: List[CustomEnum]
+            b: Optional[YtCustomEnum]
+            c: List[YtCustomEnum]
+            d: YtAnotherCustomEnum
     """
-    def _wrapper(py_type):
-        return create_annotated_type(
-            py_type,
-            ti_type=ti_type,
-            to_yt_type=to_yt_type,
-            from_yt_type=from_yt_type,
-        )
-    return _wrapper
+
+    def _default_from_yt_type(value):
+        return py_type(value)
+
+    def _default_unicode_from_yt_type(value):
+        return py_type(value.decode("utf-8"))
+
+    def get_converter():
+        if from_yt_type is not None:
+            return from_yt_type
+        elif issubclass(py_type, str):
+            # from_yt_type is called from Skiff parser with a value as wire type.
+            # https://github.com/ytsaurus/ytsaurus/blob/6009fefee1fce6cd0fdec8e75cefb46e76e749be/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp#L281
+            # Wire type for string is bytes
+            # (unlike the case when we do not pass from_yt_type and Skiff parser converts the value to simple python type string).
+            # https://github.com/ytsaurus/ytsaurus/blob/39a22474a028d0eee543f8d4b3cc32f9f0ae36bd/yt/python/yt/wrapper/schema/internal_schema.py#L636
+            # Thus we have to convert bytes to unicode string in the python code.
+            return _default_unicode_from_yt_type
+        else:
+            return _default_from_yt_type
+
+    annotated_enum = create_annotated_type(
+        py_type,
+        ti_type=ti_type,
+        to_yt_type=to_yt_type,
+        from_yt_type=get_converter(),
+    )
+    return annotated_enum
 
 
 def _is_py_type_optional(py_type):
@@ -200,12 +232,16 @@ def _get_time_types():
 
 
 def _get_py_time_types():
+    if hasattr(_get_py_time_types, "_info"):
+        return _get_py_time_types._info
+    check_schema_module_available()
     # Sorted in order of inheritance.
-    return (
+    _get_py_time_types._info = (
         datetime.datetime,
         datetime.date,
         datetime.timedelta,
     )
+    return _get_py_time_types._info
 
 
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):

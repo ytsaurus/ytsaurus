@@ -1342,68 +1342,78 @@ class TestTypedApi(object):
         assert row.tuple_str_int == ("a", 10,)
         assert row.tuple_int_bytes == (1, b"\x01",)
 
-    @authors("thenno")
-    def test_enum(self):
-        @yt.yt_enum(ti.Int32)
-        class CustomIntEnum(enum.IntEnum):
-            A = 1
-            B = 2
-            C = 3
-            D = 4
+    class CustomIntEnum(enum.IntEnum):
+        A = 1
+        B = 2
 
-        @yt.yt_enum(ti.Utf8)
-        class CustomStrEnum(enum.StrEnum):
-            A = "a"
-            B = "b"
-            C = "c"
-            D = "d"
+    class CustomStrEnum(enum.StrEnum):
+        A = "a"
+        B = "b"
+
+    class CustomBytesEnum(bytes, enum.Enum):
+        A = b"a"
+        B = b"b"
+
+    class CustomFloatEnum(float, enum.Enum):
+        A = 0.1
+        B = 0.2
+
+    @authors("thenno")
+    @pytest.mark.parametrize(
+        "enum_type,to_ti_type",
+        [
+            (CustomIntEnum, ti.Int16),
+            (CustomStrEnum, ti.String),
+            (CustomBytesEnum, ti.Utf8),
+            (CustomFloatEnum, ti.Float),
+        ],
+    )
+    def test_enums(self, enum_type, to_ti_type):
+        YtEnum = yt.create_yt_enum(enum_type, ti_type=to_ti_type)
 
         @yt_dataclass
         class RowWithEnum:
             # int
-            field_int: CustomIntEnum
-            field_optional_int: typing.Optional[CustomIntEnum]
-            field_list_int: typing.List[CustomIntEnum]
-            field_optional_list_int: typing.Optional[typing.List[CustomIntEnum]]
-            # str
-            field_str: CustomStrEnum
-            field_optional_str: typing.Optional[CustomStrEnum]
-            field_list_str: typing.List[CustomStrEnum]
-            field_optional_list_str: typing.Optional[typing.List[CustomStrEnum]]
+            field: YtEnum
+            field_optional: typing.Optional[YtEnum]
+            field_list: typing.List[YtEnum]
+            field_optional_list: typing.Optional[typing.List[YtEnum]]
 
+        expected_schema = TableSchema() \
+            .add_column("field", to_ti_type) \
+            .add_column("field_optional", ti.Optional[to_ti_type]) \
+            .add_column("field_list", ti.List[to_ti_type]) \
+            .add_column("field_optional_list", ti.Optional[ti.List[to_ti_type]])
         schema = TableSchema.from_row_type(RowWithEnum)
 
+        assert schema == expected_schema
+
         table = "//tmp/table"
-        yt.create("table", table, attributes={"schema": schema})
         yt.write_table_structured(
             table,
             RowWithEnum,
             [
                 RowWithEnum(
-                    field_int=CustomIntEnum.A,
-                    field_optional_int=CustomIntEnum.B,
-                    field_list_int=[CustomIntEnum.C],
-                    field_optional_list_int=[CustomIntEnum.D],
-                    field_str=CustomStrEnum.A,
-                    field_optional_str=CustomStrEnum.B,
-                    field_list_str=[CustomStrEnum.C],
-                    field_optional_list_str=[CustomStrEnum.D],
+                    field=enum_type.A,
+                    field_optional=enum_type.B,
+                    field_list=[enum_type.B],
+                    field_optional_list=[enum_type.A],
                 )
             ])
 
         typed_rows = list(yt.read_table_structured(table, RowWithEnum))
+
         assert len(typed_rows) == 1
+        assert TableSchema.from_yson_type(yt.get(table + "/@schema")) == expected_schema
+
         row = typed_rows[0]
 
-        assert row.field_int == CustomIntEnum.A
-        assert row.field_optional_int == CustomIntEnum.B
-        assert row.field_list_int == [CustomIntEnum.C]
-        assert row.field_optional_list_int == [CustomIntEnum.D]
+        assert row.field == enum_type.A
+        assert type(row.field) is type(enum_type.A)
+        assert row.field_optional == enum_type.B
+        assert row.field_list == [enum_type.B]
+        assert row.field_optional_list == [enum_type.A]
 
-        assert row.field_str == CustomStrEnum.A
-        assert row.field_optional_str == CustomStrEnum.B
-        assert row.field_list_str == [CustomStrEnum.C]
-        assert row.field_optional_list_str == [CustomStrEnum.D]
 
     class SimpleIdentityMapper(TypedJob):
         def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:
@@ -1782,6 +1792,7 @@ class TestTypedApi(object):
 
         with pytest.raises(YtError, match="bad post init: field2"):
             list(yt.read_table_structured(table, RowWithBadNestedPostInit))
+
 
     @authors("ermolovd")
     def test_manual_mapper_output_streams_in_map_reduce(self):
