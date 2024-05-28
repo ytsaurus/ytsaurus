@@ -182,9 +182,8 @@ public:
 
     EDirectIOPolicy UseDirectIOForReads() const override;
 
-    bool IsReadRequestLimitExceeded() const override;
-
-    bool IsWriteRequestLimitExceeded() const override;
+    bool IsReadInFlightRequestLimitExceeded() const override;
+    bool IsWriteInFlightRequestLimitExceeded() const override;
 
 protected:
     friend class TRequestCounterGuard;
@@ -215,7 +214,7 @@ protected:
     void AddReadWaitTimeSample(TDuration duration);
     void Reconfigure(const NYTree::INodePtr& node) override;
 
-    TRequestCounterGuard CreateRequestCounterGuard(EIOEngineRequestType requestType);
+    TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType);
 
 private:
     const TConfigPtr StaticConfig_;

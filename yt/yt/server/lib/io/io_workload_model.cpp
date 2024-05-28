@@ -514,14 +514,14 @@ public:
         return Underlying_->UseDirectIOForReads();
     }
 
-    bool IsReadRequestLimitExceeded() const override
+    bool IsReadInFlightRequestLimitExceeded() const override
     {
-        return Underlying_->IsReadRequestLimitExceeded();
+        return Underlying_->IsReadInFlightRequestLimitExceeded();
     }
 
-    bool IsWriteRequestLimitExceeded() const override
+    bool IsWriteInFlightRequestLimitExceeded() const override
     {
-        return Underlying_->IsWriteRequestLimitExceeded();
+        return Underlying_->IsWriteInFlightRequestLimitExceeded();
     }
 
 private:
