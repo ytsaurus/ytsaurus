@@ -5945,10 +5945,12 @@ private:
                 auto replicaIndex = replica.ReplicaIndex;
                 if (auto* chunk = FindChunk(chunkId)) {
                     TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
-                    auto approved = location->RemoveReplica(replica);
+                    if (location->HasReplica(replica)) {
+                        auto approved = location->RemoveReplica(replica);
 
-                    TChunkLocationPtrWithReplicaIndex locationWithIndex(location, replicaIndex);
-                    chunk->RemoveReplica(locationWithIndex, approved);
+                        TChunkLocationPtrWithReplicaIndex locationWithIndex(location, replicaIndex);
+                        chunk->RemoveReplica(locationWithIndex, approved);
+                    }
                 }
 
                 auto nodeState = node->GetLocalState();
