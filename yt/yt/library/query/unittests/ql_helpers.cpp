@@ -67,6 +67,14 @@ TKeyColumns GetSampleKeyColumns2()
     return keyColumns;
 }
 
+TKeyColumns GetSampleKeyColumns3()
+{
+    TKeyColumns keyColumns;
+    keyColumns.push_back("k");
+    keyColumns.push_back("any_key");
+    return keyColumns;
+}
+
 TTableSchemaPtr GetSampleTableSchema()
 {
     return New<TTableSchema>(std::vector{
@@ -81,6 +89,7 @@ TTableSchemaPtr GetSampleTableSchema()
         TColumnSchema("ki", EValueType::Int64),
         TColumnSchema("ku", EValueType::Uint64),
         TColumnSchema("kd", EValueType::Double),
+        TColumnSchema("any_key", EValueType::Any),
     });
 }
 

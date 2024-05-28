@@ -97,7 +97,6 @@ TConstraintRef ConstraintFromLowerBound(
     auto current = TConstraintRef::Universal();
     ui32 keyColumnIndex = keyColumnCount;
 
-
     // TODO(lukyan): Support sentinels.
     for (const auto& value : keyBound.Elements()) {
         YT_VERIFY(!IsSentinelType(value.Type));
@@ -157,10 +156,10 @@ TConstraintRef ConstraintFromUpperBound(
     return current;
 }
 
-TConstraintRef GetConstraintFromKeyRange(TConstraintsHolder* constraints, TRowRange keyRange, int keyColumnCount)
+TConstraintRef GetConstraintFromKeyRange(TConstraintsHolder* constraints, TRowRange keyRange, int keyColumnCount, const TRowBufferPtr& buffer)
 {
-    auto lower = ConstraintFromLowerBound(constraints, keyRange.first, keyColumnCount);
-    auto upper = ConstraintFromUpperBound(constraints, keyRange.second, keyColumnCount);
+    auto lower = ConstraintFromLowerBound(constraints, buffer->CaptureRow(keyRange.first), keyColumnCount);
+    auto upper = ConstraintFromUpperBound(constraints, buffer->CaptureRow(keyRange.second), keyColumnCount);
 
     return constraints->Intersect(lower, upper);
 }
@@ -179,7 +178,7 @@ std::vector<TRowRange> GetRangesFromConstraints(
     rangesGenerator.GenerateReadRanges(
         constraintRef,
         [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
-            auto boundRow = buffer->AllocateUnversioned(keyColumnCount );
+            auto boundRow = buffer->AllocateUnversioned(keyColumnCount);
 
             int columnId = 0;
             while (columnId < std::ssize(constraintRow) && constraintRow[columnId].IsExact()) {
@@ -226,7 +225,7 @@ std::vector<TRowRange> GetRangesFromExpression(
 
     constraintRef = constraints.Intersect(
         constraintRef,
-        GetConstraintFromKeyRange(&constraints, keyRange, keyColumns.size()));
+        GetConstraintFromKeyRange(&constraints, keyRange, keyColumns.size(), buffer));
 
     return GetRangesFromConstraints(buffer, std::ssize(keyColumns), constraints, constraintRef, rangeCountLimit);
 }
@@ -302,7 +301,7 @@ protected:
     }
 };
 
-void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
+[[maybe_unused]] void PrintTo(const TRefineKeyRangeTestCase& testCase, ::std::ostream* os)
 {
     *os
         << "{ "
@@ -1279,6 +1278,33 @@ TEST_F(TRefineKeyRangeTest, InColumnPermutation)
     EXPECT_EQ(YsonToKey("5;0"), result[1].first);
     EXPECT_EQ(YsonToKey("5;0;" _MAX_), result[1].second);
 }
+
+TEST_F(TRefineKeyRangeTest, Any)
+{
+    auto expr = PrepareExpression(
+        R"(
+            k = 1 and any_key >= yson_string_to_any('[1;2;3]') or
+            k = 5 and any_key >= yson_string_to_any('[2;a;4u]')
+        )",
+        *GetSampleTableSchema());
+
+    auto rowBuffer = New<TRowBuffer>();
+    auto result = GetRangesFromExpression(
+        rowBuffer,
+        GetSampleKeyColumns3(),
+        expr,
+        std::pair(YsonToKey("1;[0;0;0]"), YsonToKey("5;[100;100;100]")));
+
+    EXPECT_EQ(2u, result.size());
+
+    EXPECT_EQ(YsonToKey("1;[1;2;3]"), result[0].first);
+    EXPECT_EQ(YsonToKey("1;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("5;[2;a;4u]"), result[1].first);
+    EXPECT_EQ(YsonToKey("5;[100;100;100]"), result[1].second);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 const TString Letters("ABCDEFGHIJKLMNOPQRSTUVWXYZ");
 
