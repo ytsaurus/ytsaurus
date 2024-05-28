@@ -12,14 +12,15 @@
 namespace NYT::NQueryClient {
 
 using NTableClient::EValueType;
+using NTableClient::TDynamicTableKeyMask;
 using NTableClient::TUnversionedValue;
 using NTableClient::TUnversionedRow;
 using NTabletClient::TDynamicValueData;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDDComparerSignature = int(ui32, const TDynamicValueData*, ui32, const TDynamicValueData*);
-using TDUComparerSignature = int(ui32, const TDynamicValueData*, const TUnversionedValue*, int);
+using TDDComparerSignature = int(TDynamicTableKeyMask, const TDynamicValueData*, TDynamicTableKeyMask, const TDynamicValueData*);
+using TDUComparerSignature = int(TDynamicTableKeyMask, const TDynamicValueData*, const TUnversionedValue*, int);
 using TUUComparerSignature = int(const TUnversionedValue*, const TUnversionedValue*, i32);
 
 struct TCGKeyComparers
@@ -46,5 +47,7 @@ struct IRowComparerProvider
 DEFINE_REFCOUNTED_TYPE(IRowComparerProvider)
 
 IRowComparerProviderPtr CreateRowComparerProvider(TSlruCacheConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

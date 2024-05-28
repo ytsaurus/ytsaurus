@@ -466,8 +466,8 @@ protected:
 
     void ProduceKeys(TSortedDynamicRow dynamicRow, TUnversionedValue* dstKey)
     {
-        ui32 nullKeyMask = dynamicRow.GetNullKeyMask();
-        ui32 nullKeyBit = 1;
+        TDynamicTableKeyMask nullKeyMask = dynamicRow.GetNullKeyMask();
+        TDynamicTableKeyMask nullKeyBit = 1;
         const auto* srcKey = dynamicRow.BeginKeys();
         for (int index = 0;
              index < KeyColumnCount_;
@@ -1633,8 +1633,8 @@ void TSortedDynamicStore::AddReadLockRevision(TLockDescriptor& lock, ui32 revisi
 
 void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys)
 {
-    ui32 nullKeyMask = 0;
-    ui32 nullKeyBit = 1;
+    TDynamicTableKeyMask nullKeyMask = 0;
+    TDynamicTableKeyMask nullKeyBit = 1;
     auto* dstValue = dstRow.BeginKeys();
     auto columnIt = Schema_->Columns().begin();
     for (int index = 0;
@@ -1660,9 +1660,9 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
 
 void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow)
 {
-    ui32 nullKeyMask = srcRow.GetNullKeyMask();
+    TDynamicTableKeyMask nullKeyMask = srcRow.GetNullKeyMask();
     dstRow.SetNullKeyMask(nullKeyMask);
-    ui32 nullKeyBit = 1;
+    TDynamicTableKeyMask nullKeyBit = 1;
     const auto* srcKeys = srcRow.BeginKeys();
     auto* dstKeys = dstRow.BeginKeys();
     auto columnIt = Schema_->Columns().begin();
@@ -1670,7 +1670,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
          index < KeyColumnCount_;
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
     {
-        bool isNull = nullKeyMask & nullKeyBit;
+        auto isNull = static_cast<bool>(nullKeyMask & nullKeyBit);
         dstRow.GetDataWeight() += NTabletNode::GetDataWeight(columnIt->GetWireType(), isNull, *srcKeys);
         if (!isNull) {
             if (IsStringLikeType(columnIt->GetWireType())) {
