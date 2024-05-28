@@ -1363,8 +1363,8 @@ class TestTypedApi(object):
         "enum_type,to_ti_type",
         [
             (CustomIntEnum, ti.Int16),
-            (CustomStrEnum, ti.String),
-            (CustomBytesEnum, ti.Utf8),
+            (CustomStrEnum, ti.Utf8),
+            (CustomBytesEnum, ti.String),
             (CustomFloatEnum, ti.Float),
         ],
     )
