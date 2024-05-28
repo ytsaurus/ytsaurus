@@ -373,7 +373,7 @@ void TPushQueueProducerCommand::DoExecute(ICommandContextPtr context)
     auto typeConversionConfig = ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes());
     // Parse input data.
     TBuildingValueConsumer valueConsumer(
-        queueTableInfo->Schemas[ETableSchemaKind::Write],
+        queueTableInfo->Schemas[ETableSchemaKind::WriteViaQueueProducer],
         WithCommandTag(Logger, context),
         insertRowsFormatConfig->EnableNullToYsonEntityConversion,
         typeConversionConfig);

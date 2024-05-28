@@ -17,7 +17,7 @@ struct TPushQueueProducerOptions
 {
     //! Sequence number of the first row in the batch.
     /*!
-     * If it is not set, than $sequence_number should be presented in each row.
+     * If it is not set, then $sequence_number should be presented in each row.
      * Otherwise, $sequence_number will be calculated for each rows.
      */
     std::optional<i64> SequenceNumber;

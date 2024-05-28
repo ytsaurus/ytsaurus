@@ -215,8 +215,8 @@ public:
         const TModifyRowsOptions& options), (override));
 
     MOCK_METHOD(TFuture<TPushQueueProducerResult>, PushQueueProducer, (
-        const NYPath::TYPath& producerPath,
-        const NYPath::TYPath& queuePath,
+        const NYPath::TRichYPath& producerPath,
+        const NYPath::TRichYPath& queuePath,
         const TString& sessionId,
         i64 epoch,
         NTableClient::TNameTablePtr nameTable,

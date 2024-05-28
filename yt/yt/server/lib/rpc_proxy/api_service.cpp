@@ -4116,10 +4116,10 @@ private:
                     userMeta,
                     options);
             },
-            [] (const auto& context, const auto& pushProducerResult) {
+            [] (const auto& context, const auto& pushQueueProducerResult) {
                 auto* response = &context->Response();
-                response->set_last_sequence_number(pushProducerResult.LastSequenceNumber);
-                response->set_skipped_row_count(pushProducerResult.SkippedRowCount);
+                response->set_last_sequence_number(pushQueueProducerResult.LastSequenceNumber);
+                response->set_skipped_row_count(pushQueueProducerResult.SkippedRowCount);
             });
     }
 

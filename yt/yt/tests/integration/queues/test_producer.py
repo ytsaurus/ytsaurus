@@ -291,7 +291,6 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_session("//tmp/p", "test", 17, 0)
         self._check_queue("//tmp/q", 5)
 
-
     @authors("nadya73")
     def test_push_queue_producer_twice_in_transaction(self):
         self._create_queue("//tmp/q")
@@ -402,11 +401,11 @@ class TestProducerApi(TestQueueAgentBase):
         self._check_session("//tmp/p", "test", 2, 0)
         self._check_queue("//tmp/q", 2)
 
-        rows = select_rows(f"* from [//tmp/q] where [$tablet_index] = 0")
+        rows = select_rows("* from [//tmp/q] where [$tablet_index] = 0")
         assert len(rows) == 1
         assert rows[0]["data"] == "row1"
 
-        rows = select_rows(f"* from [//tmp/q] where [$tablet_index] = 1")
+        rows = select_rows("* from [//tmp/q] where [$tablet_index] = 1")
         assert len(rows) == 1
         assert rows[0]["data"] == "row2"
 
@@ -442,4 +441,3 @@ class TestProducerApi(TestQueueAgentBase):
 
         session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
         assert session["user_meta"] == user_meta
-

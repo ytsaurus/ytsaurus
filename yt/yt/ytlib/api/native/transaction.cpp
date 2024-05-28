@@ -451,14 +451,14 @@ public:
         THROW_ERROR_EXCEPTION_IF(
             session.Epoch > epoch,
             NQueueClient::EErrorCode::ZombieEpoch,
-            "Received session epoch %v is less then the actual %v epoch, probably it is a zombie",
+            "Received session epoch %v is less than the actual %v epoch, probably it is a zombie",
             epoch,
             session.Epoch);
 
         THROW_ERROR_EXCEPTION_IF(
             session.Epoch < epoch,
             NQueueClient::EErrorCode::InvalidEpoch,
-            "Received epoch %v is greater then the actual %v epoch",
+            "Received epoch %v is greater than the actual %v epoch",
             epoch,
             session.Epoch);
 
@@ -476,7 +476,11 @@ public:
         }
 
         auto filteredRows = rows.Slice(validateResult.SkipRowCount, rows.Size());
-        WriteRows(queuePath.GetPath(), nameTable, filteredRows);
+        WriteRows(
+            queuePath.GetPath(),
+            nameTable,
+            filteredRows,
+            TModifyRowsOptions{ .WriteViaQueueProducer = true });
 
         NQueueClient::NRecords::TQueueProducerSessionPartial updatedSession = {
             .Key = sessionKey,
@@ -865,8 +869,9 @@ private:
             const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
             const auto& primaryWithTabletIndexIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::PrimaryWithTabletIndex);
 
-            const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Write);
+            auto writeSchemaKind = Options_.WriteViaQueueProducer ? ETableSchemaKind::WriteViaQueueProducer : ETableSchemaKind::Write;
+            const auto& writeSchema = tableInfo->Schemas[writeSchemaKind];
+            const auto& writeIdMapping = GetColumnIdMapping(transaction, tableInfo, writeSchemaKind);
 
             const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
             const auto& versionedWriteIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::VersionedWrite);
