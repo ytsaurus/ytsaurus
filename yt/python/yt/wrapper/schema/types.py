@@ -153,7 +153,7 @@ def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
         elif issubclass(py_type, str):
             # from_yt_type is called from Skiff parser with a value as wire type.
             # https://github.com/ytsaurus/ytsaurus/blob/6009fefee1fce6cd0fdec8e75cefb46e76e749be/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp#L281
-            # Wire type for string is bytes
+            # Wire type for string is bytes.
             # (unlike the case when we do not pass from_yt_type and Skiff parser converts the value to simple python type string).
             # https://github.com/ytsaurus/ytsaurus/blob/39a22474a028d0eee543f8d4b3cc32f9f0ae36bd/yt/python/yt/wrapper/schema/internal_schema.py#L636
             # Thus we have to convert bytes to unicode string in the python code.
