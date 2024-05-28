@@ -4055,6 +4055,18 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
             },
         },
     }
+    DELTA_NODE_CONFIG = {
+        "cluster_connection": {
+            "replication_card_cache": {
+                "expire_after_successful_update_time": 60000,
+                "expire_after_failed_update_time": 60000,
+                "expire_after_access_time": 60000,
+                "refresh_time": 10000,
+                "soft_backoff_time": 10000,
+                "hard_backoff_time":  10000,
+            },
+        },
+    }
 
     def setup_method(self, method):
         super().setup_method(method)

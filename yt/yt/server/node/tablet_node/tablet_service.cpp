@@ -249,9 +249,18 @@ private:
                 if (era == InvalidReplicationEra) {
                     THROW_ERROR_EXCEPTION("Direct write is not allowed: replica is identifying replication era");
                 }
-                THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
-                    era,
-                    *replicationEra);
+
+                if (*replicationEra > era) {
+                    const auto& chaosAgent = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId)->GetChaosAgent();
+                    chaosAgent->RefreshEra(*replicationEra);
+                    era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+                }
+
+                if (*replicationEra != era) {
+                    THROW_ERROR_EXCEPTION("Replication era mismatch: expected %v, got %v",
+                        era,
+                        *replicationEra);
+                }
             }
 
             auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
