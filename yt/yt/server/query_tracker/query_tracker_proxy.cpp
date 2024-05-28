@@ -1,3 +1,4 @@
+#include "config.h"
 #include "query_tracker_proxy.h"
 
 #include <yt/yt/client/api/transaction.h>
@@ -32,6 +33,7 @@ using namespace NConcurrency;
 using namespace NLogging;
 using namespace NQueryTrackerClient;
 using namespace NQueryTrackerClient::NRecords;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -106,7 +108,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     const TString& tablePath,
     const TString& tableKind,
     const std::optional<std::vector<TString>>& lookupKeys,
-    NTransactionClient::TTimestamp timestamp)
+    TTimestamp timestamp)
 {
     auto rowBuffer = New<TRowBuffer>();
     const auto& nameTable = TRecordDescriptor::Get()->GetNameTable();
@@ -156,30 +158,30 @@ THashSet<TString> GetUserSubjects(const TString& user, const IClientPtr& client)
     return userSubjects;
 }
 
-NSecurityClient::ESecurityAction CheckAccessControl(
+ESecurityAction CheckAccessControl(
     const TString& user,
     const std::optional<TString>& accessControlObject,
     const TString& queryAuthor,
     const IClientPtr& client,
     EPermission permission,
-    const NLogging::TLogger& logger)
+    const TLogger& logger)
 {
     auto& Logger = logger;
     if (user == queryAuthor) {
-        return NSecurityClient::ESecurityAction::Allow;
+        return ESecurityAction::Allow;
     }
     auto actualAccessControlObject = accessControlObject.value_or(TString(DefaultAccessControlObject));
     auto aclOrError = WaitFor(client->GetNode(Format(
         "%v/%v/@principal_acl",
         QueriesAcoNamespacePath,
-        NYPath::ToYPathLiteral(actualAccessControlObject))));
+        ToYPathLiteral(actualAccessControlObject))));
     if (!aclOrError.IsOK()) {
         YT_LOG_WARNING(aclOrError,
             "Error while fetching access control object queries/%v",
             actualAccessControlObject);
         auto userSubjects = GetUserSubjects(user, client);
-        if (userSubjects.contains(NSecurityClient::SuperusersGroupName)) {
-            return NSecurityClient::ESecurityAction::Allow;
+        if (userSubjects.contains(SuperusersGroupName)) {
+            return ESecurityAction::Allow;
         }
         THROW_ERROR_EXCEPTION(
             "Error while fetching access control object queries/%v. "
@@ -214,8 +216,8 @@ TQuery LookupQuery(
     const IClientPtr& client,
     const TString& root,
     const std::optional<std::vector<TString>>& lookupKeys,
-    NTransactionClient::TTimestamp timestamp,
-    const NLogging::TLogger& logger)
+    TTimestamp timestamp,
+    const TLogger& logger)
 {
     auto asyncActiveRecord = LookupQueryTrackerRecord<TActiveQueryDescriptor>(
         queryId,
@@ -260,15 +262,15 @@ TQuery LookupQuery(
 void ValidateQueryPermissions(
     TQueryId queryId,
     const TString& root,
-    NTransactionClient::TTimestamp timestamp,
+    TTimestamp timestamp,
     const TString& user,
     const IClientPtr& client,
     EPermission permission,
-    const NLogging::TLogger& logger)
+    const TLogger& logger)
 {
     std::vector<TString> lookupKeys = {"user", "access_control_object"};
     auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, logger);
-    if (CheckAccessControl(user, query.AccessControlObject, *query.User, client, permission, logger) == NSecurityClient::ESecurityAction::Deny) {
+    if (CheckAccessControl(user, query.AccessControlObject, *query.User, client, permission, logger) == ESecurityAction::Deny) {
         ThrowAccessDeniedException(queryId, permission, user, query.AccessControlObject, *query.User);
     }
 }
@@ -343,7 +345,7 @@ void VerifyAccessControlObjectExists(const TString& accessControlObject, const I
     auto error = WaitFor(client->NodeExists(Format(
         "%v/%v",
         QueriesAcoNamespacePath,
-        NYPath::ToYPathLiteral(accessControlObject))));
+        ToYPathLiteral(accessControlObject))));
 
     if (!error.IsOK()) {
         THROW_ERROR_EXCEPTION("Failed to check whether access control object %Qv exists", accessControlObject)
@@ -407,20 +409,47 @@ using namespace NDetail;
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxy::TQueryTrackerProxy(
-    NApi::NNative::IClientPtr stateClient,
-    TYPath stateRoot
+    NNative::IClientPtr stateClient,
+    TYPath stateRoot,
+    TQueryTrackerProxyConfigPtr config
 )
     : StateClient_(std::move(stateClient))
     , StateRoot_(std::move(stateRoot))
+    , ProxyConfig_(std::move(config))
 { }
 
-void TQueryTrackerProxy::StartQuery(
-        const TQueryId queryId,
-        const EQueryEngine engine,
-        const TString& query,
-        const TStartQueryOptions& options,
-        const TString& user)
+void TQueryTrackerProxy::Reconfigure(const TQueryTrackerProxyConfigPtr& config)
 {
+    ProxyConfig_ = config;
+}
+
+void TQueryTrackerProxy::StartQuery(
+    const TQueryId queryId,
+    const EQueryEngine engine,
+    const TString& query,
+    const TStartQueryOptions& options,
+    const TString& user)
+{
+    if (ssize(options.Files) > ProxyConfig_->MaxQueryFileCount) {
+        THROW_ERROR_EXCEPTION("Too many files: limit is %v, actual count is %v",
+            ProxyConfig_->MaxQueryFileCount,
+            options.Files.size());
+    }
+    for (const auto& file : options.Files) {
+        if (ssize(file->Name) > ProxyConfig_->MaxQueryFileNameSizeBytes) {
+            THROW_ERROR_EXCEPTION("Too large file %v name: limit is %v, actual size is %v",
+                file->Name,
+                ProxyConfig_->MaxQueryFileNameSizeBytes,
+                file->Name.size());
+        }
+        if (ssize(file->Content) > ProxyConfig_->MaxQueryFileContentSizeBytes) {
+            THROW_ERROR_EXCEPTION("Too large file %v content: limit is %v, actual size is %v",
+                file->Name,
+                ProxyConfig_->MaxQueryFileContentSizeBytes,
+                file->Content.size());
+        }
+    }
+
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
     YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)", queryId, options.Draft);
@@ -725,7 +754,7 @@ TQuery TQueryTrackerProxy::GetQuery(
     const TGetQueryOptions& options,
     const TString& user)
 {
-    auto timestamp = options.Timestamp != NTransactionClient::NullTimestamp
+    auto timestamp = options.Timestamp != NullTimestamp
         ? options.Timestamp
         : WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
@@ -779,7 +808,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     std::vector<TString> userSubjectsVector(userSubjects.begin(), userSubjects.end());
     YT_LOG_DEBUG("Fetched user %Qv subjects: %v", user, userSubjectsVector);
 
-    bool isSuperuser = userSubjects.contains(NSecurityClient::SuperusersGroupName);
+    bool isSuperuser = userSubjects.contains(SuperusersGroupName);
     std::vector<TString> acosForUser;
 
     if (!isSuperuser) {
@@ -1073,14 +1102,14 @@ void TQueryTrackerProxy::AlterQuery(
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
-    NApi::NNative::IClientPtr stateClient,
-    TYPath stateRoot
-)
+    NNative::IClientPtr stateClient,
+    TYPath stateRoot,
+    TQueryTrackerProxyConfigPtr config)
 {
     return New<TQueryTrackerProxy>(
         std::move(stateClient),
-        std::move(stateRoot)
-    );
+        std::move(stateRoot),
+        std::move(config));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -33,27 +33,6 @@ using namespace NDetail;
 
 TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
 {
-    auto queryTrackerConfig = Connection_->GetConfig()->QueryTracker;
-    if (ssize(options.Files) > queryTrackerConfig->MaxQueryFileCount) {
-        THROW_ERROR_EXCEPTION("Too many files: limit is %v, actual count is %v",
-            queryTrackerConfig->MaxQueryFileCount,
-            options.Files.size());
-    }
-    for (const auto& file : options.Files) {
-        if (ssize(file->Name) > queryTrackerConfig->MaxQueryFileNameSizeBytes) {
-            THROW_ERROR_EXCEPTION("Too large file %v name: limit is %v, actual size is %v",
-                file->Name,
-                queryTrackerConfig->MaxQueryFileNameSizeBytes,
-                file->Name.size());
-        }
-        if (ssize(file->Content) > queryTrackerConfig->MaxQueryFileContentSizeBytes) {
-            THROW_ERROR_EXCEPTION("Too large file %v content: limit is %v, actual size is %v",
-                file->Name,
-                queryTrackerConfig->MaxQueryFileContentSizeBytes,
-                file->Content.size());
-        }
-    }
-
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
 
@@ -61,24 +40,32 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.Settings) {
-        req->set_settings(ConvertToYsonString(options.Settings).ToString());
+        rpcRequest->set_settings(ConvertToYsonString(options.Settings).ToString());
     }
     if (options.Annotations) {
-        req->set_annotations(ConvertToYsonString(options.Annotations).ToString());
+        rpcRequest->set_annotations(ConvertToYsonString(options.Annotations).ToString());
     }
     if (options.AccessControlObject) {
-        req->set_access_control_object(*options.AccessControlObject);
+        rpcRequest->set_access_control_object(*options.AccessControlObject);
     }
-    req->set_draft(options.Draft);
-    req->set_files(ConvertToYsonString(options.Files).ToString());
+    rpcRequest->set_draft(options.Draft);
+    for (const auto& file : options.Files) {
+        auto* protoFile = rpcRequest->add_files();
+        protoFile->set_name(file->Name);
+        protoFile->set_content(file->Content);
+        protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
+    }
 
-    req->set_engine(NProto::ConvertQueryEngineToProto(engine));
-    req->set_query(query);
+    rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(engine));
+    rpcRequest->set_query(query);
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rpcResponse = rsp->rpc_proxy_response();
 
-    return FromProto<TQueryId>(rsp->query_id());
+    return FromProto<TQueryId>(rpcResponse.query_id());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,9 +79,11 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
-    ToProto(req->mutable_query_id(), queryId);
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.AbortMessage) {
-        req->set_abort_message(*options.AbortMessage);
+        rpcRequest->set_abort_message(*options.AbortMessage);
     }
 
     WaitFor(req->Invoke())
@@ -112,18 +101,21 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
-    ToProto(req->mutable_query_id(), queryId);
-    req->set_result_index(resultIndex);
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    ToProto(rpcRequest->mutable_query_id(), queryId);
+    rpcRequest->set_result_index(resultIndex);
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rpcResponse = rsp->rpc_proxy_response();
 
     return TQueryResult {
-        .Id = FromProto<TQueryId>(rsp->query_id()),
-        .ResultIndex = rsp->result_index(),
-        .Error = FromProto<TError>(rsp->error()),
-        .Schema = rsp->has_schema() ? FromProto<TTableSchemaPtr>(rsp->schema()) : nullptr,
-        .DataStatistics = FromProto<TDataStatistics>(rsp->data_statistics()),
-        .IsTruncated = rsp->is_truncated(),
+        .Id = FromProto<TQueryId>(rpcResponse.query_id()),
+        .ResultIndex = rpcResponse.result_index(),
+        .Error = FromProto<TError>(rpcResponse.error()),
+        .Schema = rpcResponse.has_schema() ? FromProto<TTableSchemaPtr>(rpcResponse.schema()) : nullptr,
+        .DataStatistics = FromProto<TDataStatistics>(rpcResponse.data_statistics()),
+        .IsTruncated = rpcResponse.is_truncated(),
     };
 }
 
@@ -138,26 +130,30 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
-    ToProto(req->mutable_query_id(), queryId);
-    req->set_result_index(resultIndex);
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    ToProto(rpcRequest->mutable_query_id(), queryId);
+    rpcRequest->set_result_index(resultIndex);
 
     if (options.Columns) {
-        auto* protoColumns = req->mutable_columns();
+        auto* protoColumns = rpcRequest->mutable_columns();
         for (const auto& column : *options.Columns) {
             protoColumns->add_items(column);
         }
     }
     if (options.LowerRowIndex) {
-        req->set_lower_row_index(*options.LowerRowIndex);
+        rpcRequest->set_lower_row_index(*options.LowerRowIndex);
     }
     if (options.UpperRowIndex) {
-        req->set_upper_row_index(*options.UpperRowIndex);
+        rpcRequest->set_upper_row_index(*options.UpperRowIndex);
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rpcResponse = rsp->rpc_proxy_response();
+
     struct TQueryTrackerNativeClientTag { };
     return NRpcProxy::DeserializeRowset<TUnversionedRow>(
-        rsp->rowset_descriptor(),
+        rpcResponse.rowset_descriptor(),
         MergeRefsToRef<TQueryTrackerNativeClientTag>(rsp->Attachments()));
 }
 
@@ -172,19 +168,19 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
-    ToProto(req->mutable_query_id(), queryId);
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.Attributes) {
-        ToProto(req->mutable_attributes(), options.Attributes);
+        ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
     if (options.Timestamp) {
-        req->set_timestamp(ToProto<i64>(options.Timestamp));
+        rpcRequest->set_timestamp(ToProto<i64>(options.Timestamp));
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
-
-    TQuery query;
-    FromProto(&query, rsp->query());
-    return query;
+    auto rpcResponse = rsp->rpc_proxy_response();
+    return FromProto<TQuery>(rpcResponse.query());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,47 +194,50 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.FromTime) {
-        req->set_from_time(NYT::ToProto<i64>(*options.FromTime));
+        rpcRequest->set_from_time(NYT::ToProto<i64>(*options.FromTime));
     }
     if (options.ToTime) {
-        req->set_to_time(NYT::ToProto<i64>(*options.ToTime));
+        rpcRequest->set_to_time(NYT::ToProto<i64>(*options.ToTime));
     }
     if (options.CursorTime) {
-        req->set_cursor_time(NYT::ToProto<i64>(*options.CursorTime));
+        rpcRequest->set_cursor_time(NYT::ToProto<i64>(*options.CursorTime));
     }
 
-    req->set_cursor_direction(static_cast<NProto::EOperationSortDirection>(options.CursorDirection));
+    rpcRequest->set_cursor_direction(static_cast<NProto::EOperationSortDirection>(options.CursorDirection));
 
     if (options.UserFilter) {
-        req->set_user_filter(*options.UserFilter);
+        rpcRequest->set_user_filter(*options.UserFilter);
     }
     if (options.StateFilter) {
-        req->set_state_filter(NProto::ConvertQueryStateToProto(*options.StateFilter));
+        rpcRequest->set_state_filter(NProto::ConvertQueryStateToProto(*options.StateFilter));
     }
     if (options.EngineFilter) {
-        req->set_engine_filter(NProto::ConvertQueryEngineToProto(*options.EngineFilter));
+        rpcRequest->set_engine_filter(NProto::ConvertQueryEngineToProto(*options.EngineFilter));
     }
     if (options.SubstrFilter) {
-        req->set_substr_filter(*options.SubstrFilter);
+        rpcRequest->set_substr_filter(*options.SubstrFilter);
     }
 
-    req->set_limit(options.Limit);
+    rpcRequest->set_limit(options.Limit);
 
     if (options.Attributes) {
-        ToProto(req->mutable_attributes(), options.Attributes);
+        ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
+    auto rpcResponse = rsp->rpc_proxy_response();
 
-    std::vector<TQuery> queries(rsp->queries_size());
-    for (auto i = 0; i < rsp->queries_size(); i++) {
-        FromProto(&queries[i], rsp->queries()[i]);
+    std::vector<TQuery> queries(rpcResponse.queries_size());
+    for (auto i = 0; i < rpcResponse.queries_size(); i++) {
+        FromProto(&queries[i], rpcResponse.queries()[i]);
     }
     return TListQueriesResult{
         .Queries = std::move(queries),
-        .Incomplete = rsp->incomplete(),
-        .Timestamp = rsp->timestamp(),
+        .Incomplete = rpcResponse.incomplete(),
+        .Timestamp = rpcResponse.timestamp(),
     };
 }
 
@@ -253,12 +252,14 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     req->SetTimeout(options.Timeout);
     req->SetUser(*Options_.User);
 
-    ToProto(req->mutable_query_id(), queryId);
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.Annotations) {
-        req->set_annotations(ConvertToYsonString(options.Annotations).ToString());
+        rpcRequest->set_annotations(ConvertToYsonString(options.Annotations).ToString());
     }
     if (options.AccessControlObject) {
-        req->set_access_control_object(*options.AccessControlObject);
+        rpcRequest->set_access_control_object(*options.AccessControlObject);
     }
 
     WaitFor(req->Invoke())

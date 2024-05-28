@@ -106,6 +106,23 @@ DEFINE_REFCOUNTED_TYPE(TSpytEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryTrackerProxyConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    i64 MaxQueryFileCount;
+    i64 MaxQueryFileNameSizeBytes;
+    i64 MaxQueryFileContentSizeBytes;
+
+    REGISTER_YSON_STRUCT(TQueryTrackerProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxyConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -120,6 +137,8 @@ public:
     TYqlEngineConfigPtr YqlEngine;
     TChytEngineConfigPtr ChytEngine;
     TSpytEngineConfigPtr SpytEngine;
+
+    TQueryTrackerProxyConfigPtr ProxyConfig;
 
     REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig);
 

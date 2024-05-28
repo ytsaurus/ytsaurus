@@ -72,6 +72,18 @@ void TSpytEngineConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueryTrackerProxyConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_query_file_count", &TThis::MaxQueryFileCount)
+        .Default(8192);
+    registrar.Parameter("max_query_file_name_size_bytes", &TThis::MaxQueryFileNameSizeBytes)
+        .Default(1_KB);
+    registrar.Parameter("max_query_file_content_size_bytes", &TThis::MaxQueryFileContentSizeBytes)
+        .Default(2_KB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("active_query_acquisition_period", &TThis::ActiveQueryAcquisitionPeriod)
@@ -91,6 +103,8 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("spyt_engine", &TThis::SpytEngine)
         .DefaultNew();
     registrar.Parameter("mock_engine", &TThis::MockEngine)
+        .DefaultNew();
+    registrar.Parameter("proxy_config", &TThis::ProxyConfig)
         .DefaultNew();
 }
 

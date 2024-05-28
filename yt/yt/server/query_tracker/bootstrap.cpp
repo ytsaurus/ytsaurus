@@ -201,8 +201,8 @@ void TBootstrap::DoRun()
 
     QueryTrackerProxy_ = CreateQueryTrackerProxy(
         NativeClient_,
-        Config_->Root
-    );
+        Config_->Root,
+        DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig);
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
@@ -280,6 +280,9 @@ void TBootstrap::OnDynamicConfigChanged(
     }
     if (QueryTracker_) {
         QueryTracker_->Reconfigure(newConfig->QueryTracker);
+    }
+    if (QueryTrackerProxy_) {
+        QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);
     }
 
     YT_LOG_DEBUG(

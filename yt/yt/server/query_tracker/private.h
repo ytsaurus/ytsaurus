@@ -43,6 +43,7 @@ DECLARE_REFCOUNTED_CLASS(TQueryTrackerProxy)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerServerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerServerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryTrackerProxyConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 

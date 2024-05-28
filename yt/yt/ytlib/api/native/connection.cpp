@@ -1124,7 +1124,8 @@ private:
             }));
     }
 
-    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage) {
+    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
+    {
         auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
             YT_VERIFY(clusterConnection);

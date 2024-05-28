@@ -10,10 +10,6 @@
 
 namespace NYT::NQueryTracker {
 
-using namespace NApi;
-using namespace NYPath;
-using namespace NYson;
-
 ///////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerProxy
@@ -21,49 +17,53 @@ class TQueryTrackerProxy
 {
 public:
     TQueryTrackerProxy(
-        NNative::IClientPtr stateClient,
-        TYPath stateRoot);
+        NApi::NNative::IClientPtr stateClient,
+        NYPath::TYPath stateRoot,
+        TQueryTrackerProxyConfigPtr config);
+
+    void Reconfigure(const TQueryTrackerProxyConfigPtr& config);
 
     void StartQuery(
         const TQueryId queryId,
-        const NQueryTrackerClient::EQueryEngine engine,
+        const EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options,
+        const NApi::TStartQueryOptions& options,
         const TString& user);
 
     void AbortQuery(
         const TQueryId queryId,
-        const TAbortQueryOptions& options,
+        const NApi::TAbortQueryOptions& options,
         const TString& user);
 
-    TQueryResult GetQueryResult(
+    NApi::TQueryResult GetQueryResult(
         const TQueryId queryId,
         const i64 resultIndex,
         const TString& user);
 
-    IUnversionedRowsetPtr ReadQueryResult(
+    NApi::IUnversionedRowsetPtr ReadQueryResult(
         const TQueryId queryId,
         const i64 resultIndex,
-        const TReadQueryResultOptions& options,
+        const NApi::TReadQueryResultOptions& options,
         const TString& user);
 
-    TQuery GetQuery(
+    NApi::TQuery GetQuery(
         const TQueryId queryId,
-        const TGetQueryOptions& options,
+        const NApi::TGetQueryOptions& options,
         const TString& user);
 
-    TListQueriesResult ListQueries(
-        const TListQueriesOptions& options,
+    NApi::TListQueriesResult ListQueries(
+        const NApi::TListQueriesOptions& options,
         const TString& user);
 
     void AlterQuery(
         const TQueryId queryId,
-        const TAlterQueryOptions& options,
+        const NApi::TAlterQueryOptions& options,
         const TString& user);
 
 private:
-    const NNative::IClientPtr StateClient_;
-    const TYPath StateRoot_;
+    const NApi::NNative::IClientPtr StateClient_;
+    const NYPath::TYPath StateRoot_;
+    TQueryTrackerProxyConfigPtr ProxyConfig_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
@@ -71,9 +71,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerProxy)
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
-    NNative::IClientPtr stateClient,
-    NYPath::TYPath stateRoot
-);
+    NApi::NNative::IClientPtr stateClient,
+    NYPath::TYPath stateRoot,
+    TQueryTrackerProxyConfigPtr config);
 
 ///////////////////////////////////////////////////////////////////////////////
 
