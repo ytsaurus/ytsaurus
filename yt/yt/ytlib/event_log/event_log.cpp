@@ -162,6 +162,8 @@ public:
     }
 
 private:
+    const NLogging::TLogger& Logger = EventLogWriterLogger();
+
     TEventLogManagerConfigPtr Config_;
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
@@ -191,11 +193,22 @@ private:
         }
 
         auto owningRows = PendingEventLogRows_.DequeueAll();
-        if (!owningRows.empty()) {
-            std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
-            if (!EventLogWriter_->Write(rows)) {
-                EventLogWriterReadyEvent_ = EventLogWriter_->GetReadyEvent();
-            }
+        if (owningRows.empty()) {
+            return;
+        }
+
+        std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
+        bool writerReady = true;
+
+        // TODO(eshcherbin): Add better error handling? Retries with exponential backoff?
+        try {
+            writerReady = EventLogWriter_->Write(rows);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Could not write to event log");
+        }
+
+        if (!writerReady) {
+            EventLogWriterReadyEvent_ = EventLogWriter_->GetReadyEvent();
         }
     }
 

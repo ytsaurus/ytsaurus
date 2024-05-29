@@ -73,7 +73,7 @@ public:
 
     TFuture<void> GetReadyEvent() override
     {
-        YT_UNIMPLEMENTED();
+        return VoidFuture;
     }
 
     TFuture<void> Close() override
