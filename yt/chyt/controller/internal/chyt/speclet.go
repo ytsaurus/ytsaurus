@@ -26,6 +26,8 @@ type Speclet struct {
 
 	// BuiltinLogRotationPolicy contains options for builtin log rotation.
 	BuiltinLogRotationPolicy map[string]any `yson:"builtin_log_rotation_policy"`
+
+	ExportSystemLogTables *bool `yson:"export_system_log_tables"`
 }
 
 const (
@@ -71,4 +73,11 @@ func (speclet *Speclet) RuntimeDataPathOrDefault() ypath.Path {
 		return *speclet.RuntimeDataPath
 	}
 	return DefaultRuntimeDataPath
+}
+
+func (speclet *Speclet) ExportSystemLogTablesOrDefault(defaultValue bool) bool {
+	if speclet.ExportSystemLogTables != nil {
+		return *speclet.ExportSystemLogTables
+	}
+	return defaultValue
 }

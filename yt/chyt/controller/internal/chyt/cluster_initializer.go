@@ -135,7 +135,27 @@ func (initializer *ClusterInitializer) setUpYTClickHouseUser(ctx context.Context
 			yt.PermissionCreate,
 		},
 	}
-	return initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/schemas/orchid"), orchidACL)
+	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, ypath.Path("//sys/schemas/orchid"), orchidACL)
+	if err != nil {
+		return err
+	}
+
+	rootACL := yt.ACE{
+		Action:   yt.ActionAllow,
+		Subjects: []string{YTClickHouseUser},
+		Permissions: []yt.Permission{
+			yt.PermissionWrite,
+			yt.PermissionRead,
+			yt.PermissionRemove,
+			yt.PermissionMount,
+		},
+	}
+	err = initializer.addPermissionIfNeeded(ctx, YTClickHouseUser, initializer.root, rootACL)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (initializer *ClusterInitializer) setUpCHYTSQLObjectsUser(ctx context.Context) error {

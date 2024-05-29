@@ -31,10 +31,12 @@ type Config struct {
 	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
 	AddressResolver           map[string]any       `yson:"address_resolver"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
+	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
 }
 
 const (
 	DefaultEnableYandexSpecificLinks = false
+	DefaultExportSystemLogTables     = false
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -49,6 +51,13 @@ func (c *Config) EnableYandexSpecificLinksOrDefault() bool {
 		return *c.EnableYandexSpecificLinks
 	}
 	return DefaultEnableYandexSpecificLinks
+}
+
+func (c *Config) ExportSystemLogTablesOrDefault() bool {
+	if c.ExportSystemLogTables != nil {
+		return *c.ExportSystemLogTables
+	}
+	return DefaultExportSystemLogTables
 }
 
 type Controller struct {
@@ -156,9 +165,14 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		return
 	}
 
+	err = c.prepareCypressDirectories(ctx, oplet.Alias())
+	if err != nil {
+		return
+	}
+
 	// Build artifacts if there are no local binaries.
 	if c.config.LocalBinariesDir == nil {
-		err = c.appendArtifacts(ctx, &speclet, &filePaths, &description)
+		err = c.appendOpArtifacts(ctx, &speclet, &filePaths, &description)
 		if err != nil {
 			return
 		}
@@ -171,7 +185,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	// Prepare runtime stuff: stderr/core-table, etc.
-	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPathOrDefault().Child(alias), alias, oplet.NextIncarnationIndex())
+	runtimePaths, err := c.prepareRuntime(ctx, speclet.RuntimeDataPathOrDefault().Child(alias), oplet.NextIncarnationIndex())
 	if err != nil {
 		return
 	}
@@ -294,6 +308,14 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Type:         strawberry.TypePath,
 					CurrentValue: speclet.GeoDataPath,
 					DefaultValue: DefaultGeoDataPath,
+				},
+				{
+					Title:        "Export system log tables",
+					Name:         "export_system_log_tables",
+					Type:         strawberry.TypeBool,
+					CurrentValue: speclet.ExportSystemLogTables,
+					DefaultValue: c.config.ExportSystemLogTablesOrDefault(),
+					Description:  "If true, system log tables (e.g. system.query_log) configured with SystemLogTableExporter engine are exported to cypress.",
 				},
 				{
 					Title:        "Query settings",

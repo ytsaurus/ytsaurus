@@ -177,6 +177,25 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 		sqlUDFStorage["enabled"] = true
 	}
 
+	if _, ok := configAsMap["system_log_table_exporters"]; !ok {
+		configAsMap["system_log_table_exporters"] = make(map[string]any)
+	}
+	systemLogTableExporters, err := asMapNode(configAsMap["system_log_table_exporters"])
+	if err != nil {
+		err = fmt.Errorf("invalid system_log_table_exporters config: %v", err)
+		return
+	}
+	systemLogTableExporters["cypress_root_directory"] = c.systemLogTableRootDir(oplet.Alias())
+	if _, ok := systemLogTableExporters["default"]; !ok {
+		systemLogTableExporters["default"] = make(map[string]any)
+	}
+	exporterDefaultConfig, err := asMapNode(systemLogTableExporters["default"])
+	if err != nil {
+		err = fmt.Errorf("invalid default system log table exporter config: %v", err)
+		return
+	}
+	exporterDefaultConfig["enabled"] = speclet.ExportSystemLogTablesOrDefault(c.config.ExportSystemLogTablesOrDefault())
+
 	return
 }
 
@@ -236,15 +255,8 @@ func (c Controller) sqlUDFDir(alias string) ypath.Path {
 	return c.root.Child(alias).Child("user_defined_sql_functions")
 }
 
-func (c *Controller) createOpaqueDirIfNotExists(ctx context.Context, dir ypath.Path) error {
-	_, err := c.ytc.CreateNode(ctx, dir, yt.NodeMap,
-		&yt.CreateNodeOptions{
-			IgnoreExisting: true,
-			Attributes: map[string]any{
-				"opaque": true,
-			},
-		})
-	return err
+func (c Controller) systemLogTableRootDir(alias string) ypath.Path {
+	return c.artifactDir(alias).Child("system_log_tables")
 }
 
 func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet, speclet *Speclet, filePaths *[]ypath.Rich) error {
@@ -275,15 +287,6 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		} else {
 			c.l.Warn("tvm id specified, but no tvm secret provided in env")
 		}
-	}
-
-	err = c.createOpaqueDirIfNotExists(ctx, c.artifactDir(oplet.Alias()))
-	if err != nil {
-		return fmt.Errorf("error creating artifact dir: %v", err)
-	}
-
-	if err := c.createOpaqueDirIfNotExists(ctx, c.sqlUDFDir(oplet.Alias())); err != nil {
-		return fmt.Errorf("error creating sql udf dir: %v", err)
 	}
 
 	var logRotationPolicy map[string]any
