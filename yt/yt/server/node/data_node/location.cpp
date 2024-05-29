@@ -409,7 +409,7 @@ TChunkLocation::TChunkLocation(
     HealthChecker_ = New<TDiskHealthChecker>(
         ChunkContext_->DataNodeConfig->DiskHealthChecker,
         GetPath(),
-        GetAuxPoolInvoker(),
+        GetAuxPoolInvoker({}, {}), // TODO what to pass here
         DataNodeLogger,
         Profiler_);
 
@@ -574,16 +574,20 @@ i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
     return GetRuntimeConfig()->CoalescedReadMaxGapSize;
 }
 
-const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
+IInvokerPtr TChunkLocation::GetAuxPoolInvoker(
+        const TWorkloadDescriptor& descriptor,
+        const TGuid& sessionId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return IOEngine_->GetAuxPoolInvoker();
+    return IOEngine_->GetAuxPoolInvoker(
+        descriptor,
+        sessionId);
 }
 
 std::vector<TChunkDescriptor> TChunkLocation::Scan()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker({}, {})); // TODO what to pass here
     YT_VERIFY(GetState() == ELocationState::Enabling);
 
     try {
@@ -707,7 +711,7 @@ bool TChunkLocation::Resurrect()
             ChangeState(ELocationState::Disabled, ELocationState::Enabling);
         }
     })
-        .AsyncVia(GetAuxPoolInvoker())
+        .AsyncVia(GetAuxPoolInvoker({}, {})) // TODO what to pass here
         .Run());
 
     return true;
@@ -1310,7 +1314,7 @@ void TChunkLocation::UnlockChunk(TChunkId chunkId)
 
 void TChunkLocation::UnlockChunkLocks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -1496,7 +1500,7 @@ void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
 
 TFuture<void> TChunkLocation::SynchronizeActions()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -1552,7 +1556,7 @@ void TChunkLocation::CreateDisableLockFile(const TError& reason)
 
 void TChunkLocation::ResetLocationStatistic()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     AvailableSpace_.store(0);
     UsedSpace_.store(0);
@@ -2025,7 +2029,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 
 void TStoreLocation::RemoveLocationChunks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -2085,7 +2089,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
             ChunkStoreHost_->CancelLocationSessions(MakeStrong(static_cast<TChunkLocation*>(this)));
 
             WaitFor(BIND(&TStoreLocation::SynchronizeActions, MakeStrong(this))
-                .AsyncVia(GetAuxPoolInvoker())
+                .AsyncVia(GetAuxPoolInvoker({}, {})) // TODO what to pass here
                 .Run())
                 .ThrowOnError();
 
@@ -2110,7 +2114,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
                 GetState());
         }
     })
-        .AsyncVia(GetAuxPoolInvoker())
+        .AsyncVia(GetAuxPoolInvoker({}, {})) // TODO what to pass here
         .Run());
 
     return true;

@@ -205,7 +205,7 @@ TFuture<void> TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 
             location->Start();
         })
-        .AsyncVia(location->GetAuxPoolInvoker()));
+        .AsyncVia(location->GetAuxPoolInvoker({}, {}))); // TODO what to pass here
 }
 
 void TChunkStore::RegisterNewChunk(
@@ -357,7 +357,7 @@ TChunkStore::TChunkEntry TChunkStore::DoEraseChunk(const IChunkPtr& chunk)
 
 void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 {
-    VERIFY_INVOKER_AFFINITY(chunk->GetLocation()->GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(chunk->GetLocation()->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     {
         auto lockedChunkGuard = chunk->GetLocation()->TryLockChunk(chunk->GetId());

@@ -375,15 +375,15 @@ public:
 
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        EWorkloadCategory category,
+        const TWorkloadDescriptor& descriptor,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        const TSessionId& sessionId,
         bool useDedicatedAllocations) override
     {
         NProfiling::TWallTimer requestTimer;
         auto future = Underlying_->Read(
             requests,
-            category,
+            descriptor,
             tagCookie,
             sessionId,
             useDedicatedAllocations);
@@ -392,7 +392,7 @@ public:
         future.AsVoid().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TError& /*error*/) {
             auto duration = requestTimer.GetElapsedTime();
             for (const auto& request : requests) {
-                ModelManager_->RegisterRead(request, category, duration);
+                ModelManager_->RegisterRead(request, descriptor.Category, duration);
             }
         }));
 
@@ -401,15 +401,15 @@ public:
 
     TFuture<void> Write(
         TWriteRequest request,
-        EWorkloadCategory category,
-        TSessionId sessionId) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
         NProfiling::TWallTimer requestTimer;
 
-        auto future = Underlying_->Write(request, category, sessionId);
+        auto future = Underlying_->Write(request, descriptor, sessionId);
 
         future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TErrorOr<void>&) {
-            ModelManager_->RegisterWrite(request, category, requestTimer.GetElapsedTime());
+            ModelManager_->RegisterWrite(request, descriptor.Category, requestTimer.GetElapsedTime());
         }));
 
         return future;
@@ -417,59 +417,66 @@ public:
 
     TFuture<void> FlushFile(
         TFlushFileRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->FlushFile(std::move(request), category);
+        return Underlying_->FlushFile(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> FlushFileRange(
         TFlushFileRangeRequest request,
-        EWorkloadCategory category,
-        TSessionId sessionId) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->FlushFileRange(std::move(request), category, sessionId);
+        return Underlying_->FlushFileRange(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->FlushDirectory(std::move(request), category);
+        return Underlying_->FlushDirectory(std::move(request), descriptor, sessionId);
     }
 
     TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->Open(std::move(request), category);
+        return Underlying_->Open(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Close(
         TCloseRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->Close(std::move(request), category);
+        return Underlying_->Close(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Allocate(
         TAllocateRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->Allocate(std::move(request), category);
+        return Underlying_->Allocate(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Lock(
         TLockRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->Lock(std::move(request), category);
+        return Underlying_->Lock(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Resize(
         TResizeRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->Resize(std::move(request), category);
+        return Underlying_->Resize(std::move(request), descriptor, sessionId);
     }
 
     bool IsSick() const override
@@ -477,9 +484,11 @@ public:
         return Underlying_->IsSick();
     }
 
-    const IInvokerPtr& GetAuxPoolInvoker() override
+    IInvokerPtr GetAuxPoolInvoker(
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return Underlying_->GetAuxPoolInvoker();
+        return Underlying_->GetAuxPoolInvoker(descriptor, sessionId);
     }
 
     std::optional<TRequestSizes> GetRequestSizes() override

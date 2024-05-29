@@ -34,7 +34,7 @@ TSessionBase::TSessionBase(
     , Location_(location)
     , Lease_(std::move(lease))
     , MasterEpoch_(Bootstrap_->GetMasterEpoch())
-    , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker()))
+    , SessionInvoker_(CreateSerializedInvoker(Location_->GetAuxPoolInvoker(options.WorkloadDescriptor, SessionId_.ChunkId)))
     , Logger(DataNodeLogger.WithTag("LocationId: %v, ChunkId: %v",
         Location_->GetId(),
         SessionId_))

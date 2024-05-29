@@ -764,9 +764,11 @@ private:
 
     static TClientChunkReadOptions MakeOptions()
     {
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserBatch);
+        workloadDescriptor.DiskFairShareBucketTag = "TPeriodicProbingSession";
         return {
             // TODO(akozhikhov): Employ some system category.
-            .WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserBatch),
+            .WorkloadDescriptor = workloadDescriptor,
             .ReadSessionId = TReadSessionId::Create()
         };
     }

@@ -40,6 +40,15 @@ struct IInvoker
 
 DEFINE_REFCOUNTED_TYPE(IInvoker)
 
+struct IInvokerWithExpectedBytes
+    : public virtual IInvoker
+{
+    virtual void InvokeWithExpectedBytes(TClosure callback, i64 expectedBytes) = 0;
+    virtual void InvokeWithExpectedBytes(TMutableRange<std::pair<TClosure, i64>> callbacks) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IInvokerWithExpectedBytes)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IPrioritizedInvoker

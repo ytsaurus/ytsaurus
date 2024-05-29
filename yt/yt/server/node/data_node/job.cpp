@@ -540,6 +540,7 @@ private:
         workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v%v",
             ChunkId_,
             isPullReplicationJob ? " as a virtual pull" : ""));
+        workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
 
         auto chunk = GetLocalChunkOrThrow(ChunkId_, sourceMediumIndex);
 
@@ -1072,6 +1073,7 @@ private:
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
         workloadDescriptor.Annotations.push_back(Format("Seal of chunk %v",
             ChunkId_));
+        workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
 
         auto updateGuard = TChunkUpdateGuard::Acquire(chunk);
 
@@ -1456,6 +1458,7 @@ private:
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemMerge;
         workloadDescriptor.Annotations.push_back(Format("Merge chunk %v", chunkId));
+        workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
 
         IChunkReader::TReadBlocksOptions options;
         options.ClientOptions.WorkloadDescriptor = workloadDescriptor;
@@ -2040,7 +2043,9 @@ private:
                 EWorkloadCategory::SystemReincarnation,
                 /*band*/ 0,
                 /*instant*/ {},
-                {Format("Reincarnate chunk %v", OldChunkId_)}),
+                {Format("Reincarnate chunk %v", OldChunkId_)},
+                /*compressionFairShareTag*/ {},
+                /*diskFairShareBucketTag*/ ToString(JobId_)),
             .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
         };
 
@@ -2434,7 +2439,10 @@ private:
             auto partChunkId = EncodeChunkId(chunkIdWithIndex);
 
             auto req = proxy.GetChunkMeta();
-            SetRequestWorkloadDescriptor(req, TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+            TWorkloadDescriptor workloadDescriptor;
+            workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+            workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
+            SetRequestWorkloadDescriptor(req, workloadDescriptor);
             req->SetTimeout(DynamicConfig_->RpcTimeout);
             ToProto(req->mutable_chunk_id(), partChunkId);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
@@ -2560,6 +2568,7 @@ private:
         auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};
+        workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
 
         std::vector<TSharedRef> rows;
         rows.reserve(lastRowIndex - firstRowIndex);
@@ -2720,6 +2729,7 @@ private:
 
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+        workloadDescriptor.DiskFairShareBucketTag = ToString(JobId_);
 
         for (int index = 0; index < std::ssize(parts); ++index) {
             const auto& part = parts[index];

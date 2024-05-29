@@ -1623,7 +1623,7 @@ public:
             std::move(logger))
         , StaticConfig_(std::move(config))
         , Config_(New<TUringConfigProvider>(StaticConfig_))
-        , ReconfigureInvoker_(CreateSerializedInvoker(GetAuxPoolInvoker(), NProfiling::TTagSet({{"invoker", "uring_io_engine_base"}, {"location_id", locationId}})))
+        , ReconfigureInvoker_(CreateSerializedInvoker(GetAuxPoolInvoker({}, {}), NProfiling::TTagSet({{"invoker", "uring_io_engine_base"}, {"location_id", locationId}})))
         , ThreadPool_(New<TUringThreadPool>(
             Format("%v:%v", TRequestQueue::GetThreadPoolName(), LocationId_),
             LocationId_,
@@ -1641,9 +1641,9 @@ public:
 
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        EWorkloadCategory category,
+        const TWorkloadDescriptor& descriptor,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        const TSessionId& sessionId,
         bool useDedicatedAllocations) override
     {
         if (std::ssize(requests) > MaxSubrequestCount) {
@@ -1667,14 +1667,14 @@ public:
             readRequestCombiner,
             combinedRequests,
             requestSlicer,
-            category,
+            descriptor.Category,
             sessionId);
     }
 
     TFuture<void> Write(
         TWriteRequest request,
-        EWorkloadCategory category,
-        TSessionId sessionId) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
         TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
 
@@ -1696,25 +1696,26 @@ public:
             uringRequests.push_back(std::move(uringRequest));
         }
 
-        ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
+        ThreadPool_->SubmitRequests(uringRequests, descriptor.Category, sessionId);
 
         return AllSucceeded(std::move(futures));
     }
 
     TFuture<void> FlushFile(
         TFlushFileRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
         auto uringRequest = std::make_unique<TFlushFileUringRequest>();
         uringRequest->Type = EUringRequestType::FlushFile;
         uringRequest->FlushFileRequest = std::move(request);
-        return SubmitRequest<void>(std::move(uringRequest), category, { });
+        return SubmitRequest<void>(std::move(uringRequest), descriptor.Category, sessionId);
     }
 
     virtual TFuture<void> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
-        EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
+        const TWorkloadDescriptor& /*descriptor*/,
+        const TSessionId& /*sessionId*/) override
     {
         // TODO (capone212): implement
         return VoidFuture;

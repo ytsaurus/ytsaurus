@@ -890,7 +890,7 @@ IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
 
 void TBlobChunkBase::SyncRemove(bool force)
 {
-    VERIFY_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
     Context_->BlobReaderCache->EvictReader(this);
 
@@ -902,7 +902,7 @@ TFuture<void> TBlobChunkBase::AsyncRemove()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
-        .AsyncVia(Location_->GetAuxPoolInvoker())
+        .AsyncVia(Location_->GetAuxPoolInvoker({}, {})) // TODO what to pass here
         .Run();
 }
 

@@ -377,7 +377,7 @@ private:
     void DoWriteTerm(int term)
     {
         WaitFor(BIND(&TLocalChangelogStoreFactory::WriteTermImpl, MakeStrong(this))
-            .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+            .AsyncVia(IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserBatch, {})) // TODO what to pass here
             .Run(term))
             .ThrowOnError();
     }
@@ -462,7 +462,7 @@ private:
         try {
             if (!Initialized_) {
                 WaitFor(BIND(&TLocalChangelogStoreFactory::InitializeImpl, MakeStrong(this))
-                    .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+                    .AsyncVia(IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                     .Run())
                     .ThrowOnError();
                 Initialized_ = true;
@@ -476,7 +476,7 @@ private:
             auto epoch = Lock_->Acquire();
 
             int term = WaitFor(BIND(&TLocalChangelogStoreFactory::ReadTermImpl, MakeStrong(this))
-                .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+                .AsyncVia(IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserBatch, {})) // TODO what to pass here
                 .Run())
                 .ValueOrThrow();
 

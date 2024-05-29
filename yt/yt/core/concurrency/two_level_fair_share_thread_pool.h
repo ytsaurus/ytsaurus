@@ -26,7 +26,8 @@ struct ITwoLevelFairShareThreadPool
 
     virtual IInvokerPtr GetInvoker(
         const TString& poolName,
-        const TFairShareThreadPoolTag& tag) = 0;
+        const TFairShareThreadPoolTag& tag,
+        double bucketWeight = 1.0) = 0;
 
     virtual void Shutdown() = 0;
 
@@ -35,6 +36,17 @@ struct ITwoLevelFairShareThreadPool
 };
 
 DEFINE_REFCOUNTED_TYPE(ITwoLevelFairShareThreadPool)
+
+struct INewNewTwoLevelFairShareThreadPool
+    : public virtual ITwoLevelFairShareThreadPool
+{
+    virtual IInvokerWithExpectedBytesPtr GetInvokerWithExpectedBytes(
+        const TString& poolName,
+        const TFairShareThreadPoolTag& tag,
+        double bucketWeight = 1.0) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(INewNewTwoLevelFairShareThreadPool)
 
 ITwoLevelFairShareThreadPoolPtr CreateTwoLevelFairShareThreadPool(
     int threadCount,
