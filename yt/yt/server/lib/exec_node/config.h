@@ -475,6 +475,8 @@ class TJobInputCacheDynamicConfig
 public:
     bool Enabled;
 
+    std::optional<i64> JobCountThreshold;
+
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
 

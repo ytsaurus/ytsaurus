@@ -51,6 +51,8 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
 
+    THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs);
+
     void RegisterJobChunks(
         TJobId jobId,
         THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkSpecs);

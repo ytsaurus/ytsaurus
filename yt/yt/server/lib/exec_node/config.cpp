@@ -567,6 +567,8 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
+    registrar.Parameter("job_count_threshold", &TThis::JobCountThreshold)
+        .Default();
     registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
     registrar.Parameter("meta_cache", &TThis::MetaCache)

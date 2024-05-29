@@ -10,6 +10,7 @@
 
 #include <yt/yt/server/lib/exec_node/public.h>
 #include <yt/yt/server/lib/exec_node/job_report.h>
+#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
 
 #include <yt/yt/server/lib/misc/job_report.h>
 
@@ -334,6 +335,8 @@ private:
     std::vector<TString> TmpfsPaths_;
 
     std::atomic<bool> UseJobInputCache_ = false;
+
+    TAtomicObject<THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>> ProxiableChunks_;
 
     std::vector<TArtifact> Artifacts_;
     std::vector<NDataNode::TArtifactKey> LayerArtifactKeys_;
