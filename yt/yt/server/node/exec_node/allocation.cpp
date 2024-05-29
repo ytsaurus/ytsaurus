@@ -229,12 +229,12 @@ const TControllerAgentDescriptor& TAllocation::GetControllerAgentDescriptor() co
     return ControllerAgentDescriptor_;
 }
 
-NClusterNode::TJobResources TAllocation::GetResourceUsage() const noexcept
+NClusterNode::TJobResources TAllocation::GetResourceUsage(bool excludeReleasing) const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (ResourceHolder_) {
-        return ResourceHolder_->GetResourceUsage();
+        return ResourceHolder_->GetResourceUsage(excludeReleasing);
     }
 
     return {};
@@ -319,6 +319,7 @@ void TAllocation::Preempt(
         return;
     }
 
+    Job_->PrepareResourcesRelease();
     Job_->Interrupt(
         timeout,
         EInterruptReason::Preemption,

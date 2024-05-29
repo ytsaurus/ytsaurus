@@ -1587,6 +1587,13 @@ void TJob::OnEvictedFromAllocation()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     Allocation_.Reset();
+    PrepareResourcesRelease();
+}
+
+void TJob::PrepareResourcesRelease()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     // NB(arkady-e1ppa): In some cases job can
     // be finished (and also enter cleanup phase)
     // before it is evicted from the allocation.
