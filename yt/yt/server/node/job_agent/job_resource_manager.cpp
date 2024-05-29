@@ -990,10 +990,6 @@ public:
                 FormatResources(pendingResources));
         }
 
-        YT_LOG_FATAL_IF(
-            state == EResourcesState::Releasing && resourceUsageOverdraftOccurred,
-            "Resource overdraft occured for releasing resource holder");
-
         return resourceUsageOverdraftOccurred;
     }
 
@@ -1769,9 +1765,13 @@ void TResourceHolder::UpdateResourceDemand(
     PortCount_ = portCount;
 }
 
-TJobResources TResourceHolder::GetResourceUsage() const noexcept
+TJobResources TResourceHolder::GetResourceUsage(bool excludeReleasing) const noexcept
 {
     auto guard = ReaderGuard(ResourcesLock_);
+
+    if (excludeReleasing && State_ == EResourcesState::Releasing) {
+        return ZeroJobResources();
+    }
 
     return TotalResourceUsage();
 }
@@ -1812,10 +1812,16 @@ void TResourceHolder::ResetOwner(const TResourceOwnerPtr& owner)
 void TResourceHolder::PrepareResourcesRelease() noexcept
 {
     auto guard = WriterGuard(ResourcesLock_);
+    if (State_ >= EResourcesState::Releasing) {
+        // In case of preemption, we become Releasing
+        // before we finish the allocation.
+        // Thus upon allocation compelition/abortion
+        // job will be evicted and this function will
+        // be called again.
+        return;
+    }
 
     auto state = std::exchange(State_, EResourcesState::Releasing);
-    YT_VERIFY(state != EResourcesState::Released);
-    YT_VERIFY(state != EResourcesState::Releasing);
 
     ResourceManagerImpl_->PrepareResourcesRelease(state, TotalResourceUsage());
 }

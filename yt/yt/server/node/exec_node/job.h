@@ -219,6 +219,7 @@ public:
     bool IsGrowingStale(TDuration maxDelay) const;
 
     void OnEvictedFromAllocation();
+    void PrepareResourcesRelease();
 
     bool IsJobProxyCompleted() const noexcept;
 

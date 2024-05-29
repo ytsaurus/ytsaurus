@@ -159,7 +159,7 @@ public:
     void ReleaseNonSlotResources();
     void ReleaseBaseResources();
 
-    NClusterNode::TJobResources GetResourceUsage() const noexcept;
+    NClusterNode::TJobResources GetResourceUsage(bool excludeReleasing = false) const noexcept;
 
     std::pair<NClusterNode::TJobResources, NClusterNode::TJobResources> GetDetailedResourceUsage() const noexcept;
 

@@ -1292,7 +1292,7 @@ private:
             // TODO(pogorelov): Move it to FillStatus.
             {
                 auto& resourceUsage = *allocationStatus->mutable_resource_usage();
-                resourceUsage = ToNodeResources(allocation->GetResourceUsage());
+                resourceUsage = ToNodeResources(allocation->GetResourceUsage(/*excludeReleasing*/ true));
                 ReplaceCpuWithVCpu(resourceUsage);
             }
         }

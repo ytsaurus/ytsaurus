@@ -49,7 +49,7 @@ public:
     void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescriptor);
     const TControllerAgentDescriptor& GetControllerAgentDescriptor() const;
 
-    NClusterNode::TJobResources GetResourceUsage() const noexcept;
+    NClusterNode::TJobResources GetResourceUsage(bool excludeReleasing = false) const noexcept;
 
     void Abort(TError error);
     void Complete();
