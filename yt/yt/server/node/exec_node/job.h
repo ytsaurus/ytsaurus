@@ -315,6 +315,7 @@ private:
     std::optional<TInstant> StartTime_;
     std::optional<TInstant> ExecStartTime_;
     std::optional<TInstant> FinishTime_;
+    std::optional<TInstant> ResultReceivedTime_;
 
     std::optional<TInstant> StartPrepareVolumeTime_;
     std::optional<TInstant> FinishPrepareVolumeTime_;
@@ -524,6 +525,8 @@ private:
     void ResetJobProbe();
 
     NJobProxy::IJobProbePtr GetJobProbeOrThrow();
+
+    void ReportJobProxyProcessFinish(const TError& error);
 
     static bool ShouldCleanSandboxes();
 

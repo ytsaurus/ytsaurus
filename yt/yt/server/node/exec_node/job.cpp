@@ -758,6 +758,8 @@ void TJob::OnResultReceived(TJobResult jobResult)
     GuardedAction(
         "OnResultReceived",
         [&] {
+            ResultReceivedTime_ = TInstant::Now();
+
             SetJobPhase(EJobPhase::FinalizingJobProxy);
 
             std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension;
@@ -2215,6 +2217,8 @@ void TJob::OnJobProxyFinished(const TError& error)
 
     ResetJobProbe();
 
+    ReportJobProxyProcessFinish(error);
+
     if (HandleFinishingPhase()) {
         return;
     }
@@ -3463,6 +3467,18 @@ IJobProbePtr TJob::GetJobProbeOrThrow()
         THROW_ERROR_EXCEPTION("Job probe is not available");
     }
     return JobProbe_;
+}
+
+void TJob::ReportJobProxyProcessFinish(const TError& error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    std::optional<TDuration> delay;
+    if (ResultReceivedTime_) {
+        delay = TInstant::Now() - *ResultReceivedTime_;
+    }
+
+    Bootstrap_->GetJobController()->OnJobProxyProcessFinished(error, delay);
 }
 
 bool TJob::ShouldCleanSandboxes()

@@ -193,6 +193,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/phoenix.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/pool_allocator.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/proc.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/process_exit_profiler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/protobuf_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/public.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/misc/random.cpp

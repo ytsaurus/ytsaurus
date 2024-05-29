@@ -43,6 +43,7 @@
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/process_exit_profiler.h>
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
@@ -104,8 +105,9 @@ public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
-        , OperationInfoRequestBackoffStrategy_(DynamicConfig_.Acquire()->OperationInfoRequestBackoffStrategy)
+        , OperationInfoRequestBackoffStrategy_(GetDynamicConfig()->OperationInfoRequestBackoffStrategy)
         , Profiler_("/job_controller")
+        , JobProxyExitProfiler_(Profiler_, "/job_proxy_process_exit")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
         , CacheMissArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_miss_artifacts_size"))
         , CacheBypassedArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_bypassed_artifacts_size"))
@@ -274,13 +276,6 @@ public:
         return GetDynamicConfig()->JobProxy;
     }
 
-    TJobControllerDynamicConfigPtr GetDynamicConfig() const override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return DynamicConfig_.Acquire();
-    }
-
     TBuildInfoPtr GetBuildInfo() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -439,10 +434,25 @@ public:
         return future;
     }
 
+    TJobControllerDynamicConfigPtr GetDynamicConfig() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return DynamicConfig_.Acquire();
+    }
+
+    void OnJobProxyProcessFinished(const TError& error, std::optional<TDuration> delay) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        JobProxyExitProfiler_.OnProcessExit(error, delay);
+    }
+
     void EvictThrottlingRequest(TGuid id)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        YT_LOG_DEBUG("Outstanding throttling request evicted (ThrottlingRequestId: %v)",
+        YT_LOG_DEBUG(
+            "Outstanding throttling request evicted (ThrottlingRequestId: %v)",
             id);
         YT_VERIFY(OutstandingThrottlingRequests_.erase(id) == 1);
     }
@@ -491,6 +501,7 @@ private:
     std::optional<TInstant> CpuOverdraftInstant_;
 
     TProfiler Profiler_;
+    TProcessExitProfiler JobProxyExitProfiler_;
     TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
     THashMap<EJobState, TCounter> JobFinalStateCounters_;

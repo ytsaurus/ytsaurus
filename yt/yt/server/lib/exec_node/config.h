@@ -669,6 +669,8 @@ public:
 
     TDuration ProfilingPeriod;
 
+    bool ProfileJobProxyProcessExit;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

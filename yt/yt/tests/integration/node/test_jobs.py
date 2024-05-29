@@ -6,7 +6,7 @@ from yt_commands import (
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla)
 
-from yt_helpers import JobCountProfiler
+from yt_helpers import JobCountProfiler, profiler_factory
 
 ##################################################################
 
@@ -66,6 +66,21 @@ class TestJobs(YTEnvSetup):
         wait(lambda: aborted_job_profiler.get_job_count_delta() == 1)
 
         release_breakpoint()
+
+        op.track()
+
+    @authors("arkady-e1ppa")
+    def test_job_proxy_exit_profiling(self):
+        update_nodes_dynamic_config(value=True, path="/exec_node/job_controller/profile_job_proxy_process_exit")
+        nodes = ls("//sys/cluster_nodes")
+        profilers = [profiler_factory().at_node(node) for node in nodes]
+        exit_ok = [profiler.counter("job_controller/job_proxy_process_exit/zero_exit_code") for profiler in profilers]
+
+        op = run_test_vanilla("echo 1> null", job_count=3)
+
+        op.wait_for_state("completed")
+
+        wait(lambda: any([counter.get_delta() > 0 for counter in exit_ok]))
 
         op.track()
 
