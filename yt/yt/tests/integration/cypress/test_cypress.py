@@ -3827,7 +3827,7 @@ class TestCypress(YTEnvSetup):
     def test_forbidden_erasure_codecs(self):
         create("map_node", "//tmp/ec1", attributes={"erasure_codec": "reed_solomon_6_3"})
 
-        set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1]) # forbid reed_solomon_6_3
+        set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1])  # forbid reed_solomon_6_3
         create("table", "//tmp/t1")
         with pytest.raises(YtError):
             set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
