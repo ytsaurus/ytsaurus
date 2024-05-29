@@ -119,7 +119,6 @@ def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     (e.g. enum.StrEnum, enum.IntEnum or descendant of enum.Enum along with another simple type).
 
     Example:
-        @yt_enum(ti.Int32)
         class CustomEnum(enum.IntEnum):
             a = 1
             b = 2
@@ -130,8 +129,6 @@ def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
 
         YtCustomEnum = create_yt_enum(CustomEnum, ti.Int32)
         YtAnotherCustomEnum = create_yt_enum(AnotherEnum, ti.Utf8)
-
-        @yt_enum(ti.Int32)
 
         @yt_dataclass
         class TableRow:
