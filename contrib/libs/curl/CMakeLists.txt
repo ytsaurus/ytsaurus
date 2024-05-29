@@ -34,6 +34,7 @@ target_include_directories(contrib-libs-curl PUBLIC
 target_include_directories(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib
+  ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
 
 target_link_libraries(contrib-libs-curl PUBLIC
@@ -42,6 +43,7 @@ target_link_libraries(contrib-libs-curl PUBLIC
   contrib-libs-nghttp2
   contrib-libs-openssl
   contrib-libs-zlib
+  contrib-libs-zstd
   contrib-libs-c-ares
 )
 
