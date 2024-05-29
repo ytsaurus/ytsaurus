@@ -593,8 +593,10 @@ public:
             auto guard = Guard(SpinLock_);
             if (auto* pullFuture = InflightImagePulls_.FindPtr(image.Image)) {
                 YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
-                return pullFuture->ToImmediatelyCancelable().Apply(BIND([=, this, this_ = MakeStrong(this)] {
+                return pullFuture->ToImmediatelyCancelable()
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                         // Ignore errors and retry pull after end of previous concurrent attempt.
+                        Y_UNUSED(error);
                         return PullImage(image, /*always*/ false, authConfig, podSpec);
                     }));
             }
