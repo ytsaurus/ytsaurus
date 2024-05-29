@@ -113,10 +113,7 @@ void TTabletBase::Load(TLoadContext& context)
 
         Load(context, SettingsRevision_);
 
-        // COMPAT(alexelexa)
-        if (context.GetVersion() >= EMasterReign::AddTabletMountTime) {
-            Servant_.SetMountTime(Load<TInstant>(context));
-        }
+        Servant_.SetMountTime(Load<TInstant>(context));
     } else {
         Load(context, Servant_);
 

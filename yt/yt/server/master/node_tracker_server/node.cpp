@@ -749,33 +749,10 @@ void TNode::Load(TLoadContext& context)
     TMaintenanceTarget::Load(context);
 
     using NYT::Load;
-
     Load(context, NodeAddresses_);
-
-    // COMPAT(aleksandra-zh).
-    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
-        Load(context, MulticellDescriptors_);
-    } else {
-        using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
-        TMulticellStates multicellStates;
-        Load(context, multicellStates);
-
-        MulticellDescriptors_.clear();
-        MulticellDescriptors_.reserve(multicellStates.size());
-        for (auto [cellTag, state] : multicellStates) {
-            TCellNodeDescriptor descriptor{
-                state,
-                TCellNodeStatistics(),
-                /*registrationPending*/ false,
-                ECellAggregatedStateReliability::StaticallyKnown,
-            };
-            MulticellDescriptors_.emplace(cellTag, descriptor);
-        }
-    }
-
+    Load(context, MulticellDescriptors_);
     Load(context, UserTags_);
     Load(context, NodeTags_);
-
     Load(context, RealChunkLocations_);
 
     // NB: unlike real chunk locations that are serialized as part of an
@@ -839,11 +816,7 @@ void TNode::Load(TLoadContext& context)
     Load(context, ReplicaEndorsements_);
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::ReliableNodeStateGossip) {
-        Load(context, LastGossipState_);
-    }
+    Load(context, LastGossipState_);
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();

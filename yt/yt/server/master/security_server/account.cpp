@@ -286,10 +286,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     }
 
     Load(context, AllowUsingChunkMerger_);
-
-    if (context.GetVersion() >= EMasterReign::SupportAccountChunkMergerCriteria) {
-        Load(context, ChunkMergerCriteria_);
-    }
+    Load(context, ChunkMergerCriteria_);
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
 

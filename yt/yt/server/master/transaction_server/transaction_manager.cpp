@@ -1924,9 +1924,6 @@ private:
     THashSet<TTransaction*> NativeTopmostTransactions_;
     THashSet<TTransaction*> NativeTransactions_;
 
-    // COMPAT(h0pless)
-    bool NeedTransactionLocksCountRecalculation_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
@@ -2822,8 +2819,6 @@ private:
         TransactionMap_.LoadValues(context);
         Load(context, TimestampHolderMap_);
         BoomerangTracker_->Load(context);
-
-        NeedTransactionLocksCountRecalculation_ = context.GetVersion() < EMasterReign::TooManyLocksCheck;
     }
 
 
@@ -2851,22 +2846,6 @@ private:
         for (auto [id, transaction] : TransactionMap_) {
             if (IsObjectAlive(transaction)) {
                 CacheTransactionStarted(transaction);
-            }
-        }
-
-        // COMPAT(h0pless)
-        if (NeedTransactionLocksCountRecalculation_) {
-            for (auto [transactionId, transaction]: TransactionMap_) {
-                if (!IsObjectAlive(transaction)) {
-                    continue;
-                }
-
-                auto transactionLockCount = transaction->Locks().size();
-                auto* currentTransaction = transaction;
-                while (currentTransaction) {
-                    currentTransaction->IncreaseRecursiveLockCount(transactionLockCount);
-                    currentTransaction = currentTransaction->GetParent();
-                }
             }
         }
 
@@ -2899,7 +2878,6 @@ private:
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
-        NeedTransactionLocksCountRecalculation_ = false;
     }
 
     void OnStartLeading() override

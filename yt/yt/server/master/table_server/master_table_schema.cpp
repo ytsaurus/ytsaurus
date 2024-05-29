@@ -59,37 +59,21 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     auto tableSchema = Load<TTableSchema>(context);
 
-    // COMPAT(h0pless)
-    if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-        if (IsObjectAlive(this)) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+    if (IsObjectAlive(this)) {
+        const auto& tableManager = context.GetBootstrap()->GetTableManager();
+
+        if (IsNative()) {
             SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
         } else {
+            // Imported schemas require no registration because reverse
+            // index for imported schemas is not necessary.
             TableSchema_ = New<TTableSchema>(std::move(tableSchema));
         }
     } else {
-        if (IsObjectAlive(this)) {
-            const auto& tableManager = context.GetBootstrap()->GetTableManager();
-
-            if (IsNative()) {
-                SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
-            } else {
-                // Imported schemas require no registration because reverse
-                // index for imported schemas is not necessary.
-                TableSchema_ = New<TTableSchema>(std::move(tableSchema));
-            }
-        } else {
-            TableSchema_ = New<TTableSchema>(std::move(tableSchema));
-        }
-
-        if (context.GetVersion() < EMasterReign::RecomputeMasterTableSchemaRefCounters) {
-            if (Load<bool>(context)) {
-                CellTagToExportCount_ = Load<TCellTagToExportRefcount>(context);
-            }
-        } else {
-            Load(context, CellTagToExportCount_);
-        }
+        TableSchema_ = New<TTableSchema>(std::move(tableSchema));
     }
+
+    Load(context, CellTagToExportCount_);
 
     if (context.GetVersion() >= EMasterReign::AddChunkSchemas) {
         Load(context, ReferencingAccounts_);
@@ -219,18 +203,6 @@ void TMasterTableSchema::SetChargedMasterMemoryUsage(TAccount* account, i64 usag
     if (!inserted) {
         it->second = usage;
     }
-}
-
-void TMasterTableSchema::SetId(TMasterTableSchemaId id)
-{
-    Id_ = id;
-}
-
-void TMasterTableSchema::ResetExportRefCounters()
-{
-    YT_LOG_DEBUG("Resetting export ref counters for schema (SchemaId: %v)",
-        GetId());
-    CellTagToExportCount_.clear();
 }
 
 TMasterTableSchema::TNativeTableSchemaToObjectMapIterator TMasterTableSchema::GetNativeTableSchemaToObjectMapIterator() const

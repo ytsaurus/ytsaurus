@@ -12,8 +12,6 @@ class TTableManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // COMPAT(h0pless): Remove after RecomputeMasterTableSchemaRefCounters.
-    bool AlertOnMasterTableSchemaRefCounterMismatch;
 
     REGISTER_YSON_STRUCT(TTableManagerConfig);
 

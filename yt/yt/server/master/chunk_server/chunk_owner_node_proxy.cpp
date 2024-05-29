@@ -1577,22 +1577,10 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
         return tableManager->GetEmptyMasterTableSchema();
     }
 
+    YT_VERIFY(schemaId);
+
     if (schema) {
-        // COMPAT(h0pless): Remove this after schema migration is complete.
-        if (!schemaId) {
-            YT_LOG_ALERT("Created native schema on an external cell tag (NodeId: %v, TransactionId: %v)",
-                node->GetId(),
-                schemaHolder->GetId());
-            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
-        }
-
         return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
-    }
-
-    if (!schemaId) {
-        YT_LOG_ALERT("Used empty native schema on an external cell tag (NodeId: %v)",
-            node->GetId());
-        return tableManager->GetEmptyMasterTableSchema();
     }
 
     return tableManager->GetMasterTableSchema(schemaId);

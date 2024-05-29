@@ -93,39 +93,6 @@ message TReqUnlockForeignNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqExportTableSchema
-{
-    required NYT.NProto.TGuid schema_id = 1;
-    required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
-    required NYT.NProto.TGuid transaction_id = 3;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(shakurov)
-message TReqFixNodeStatistics
-{
-  repeated NYT.NProto.TGuid node_ids = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(h0pless): Remove this after schema migration is complete.
-message TReqSetTableSchemas
-{
-    message TSetTableSchema
-    {
-        required NYT.NProto.TGuid table_node_id = 1;
-        required NYT.NProto.TGuid transaction_id = 2;
-        required NYT.NProto.TGuid schema_id = 3;
-        optional NYT.NTableClient.NProto.TTableSchemaExt schema = 4;
-    }
-
-    repeated TSetTableSchema subrequests = 1;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqSetAttributeOnTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;

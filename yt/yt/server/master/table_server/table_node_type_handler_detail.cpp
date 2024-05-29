@@ -238,52 +238,20 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
-        auto setCorrespondingTableSchema = [] (
-            TTableNode* node,
-            const TTableSchema* effectiveTableSchema,
-            const TTableSchemaPtr& tableSchema,
-            TMasterTableSchemaId schemaId,
-            const auto& tableManager)
-        {
-            if (node->IsNative()) {
-                if (effectiveTableSchema) {
-                    return tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
-                }
-
+        if (node->IsNative()) {
+            if (effectiveTableSchema) {
+                tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+            } else {
                 auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptySchema);
-                return emptySchema;
             }
-
-            // COMPAT(h0pless): AddChunkSchemas
-            if (tableSchema) {
-                // COMPAT(h0pless): Remove this after schema migration is complete.
-                if (!schemaId) {
-                    YT_LOG_ALERT("Created native schema on an external cell tag (NodeId: %v)",
-                        node->GetId());
-                    return tableManager->GetOrCreateNativeMasterTableSchema(*tableSchema, node);
-                }
-
-                YT_LOG_ALERT("Created imported schema on an external cell tag outside of designated mutation "
-                    "(NodeId: %v)",
-                    node->GetId());
-                return tableManager->CreateImportedMasterTableSchema(*tableSchema, node, schemaId);
-            }
-
-            if (!schemaId) {
-                YT_LOG_ALERT("Used empty native schema on an external cell tag (NodeId: %v)",
-                    node->GetId());
-                auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
-                tableManager->SetTableSchema(node, emptySchema);
-                return emptySchema;
-            }
+        } else {
+            YT_VERIFY(schemaId);
+            YT_VERIFY(!tableSchema);
 
             auto* schemaById = tableManager->GetMasterTableSchema(schemaId);
             tableManager->SetTableSchema(node, schemaById);
-            return schemaById;
-        };
-
-        setCorrespondingTableSchema(node, effectiveTableSchema, tableSchema, schemaId, tableManager);
+        }
 
         if ((node->IsNative() && effectiveTableSchema) || schemaMode == ETableSchemaMode::Strong) {
             node->SetSchemaMode(ETableSchemaMode::Strong);

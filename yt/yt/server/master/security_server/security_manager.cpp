@@ -2890,9 +2890,6 @@ private:
 
     bool IsChunkHostCell_ = false;
 
-    // COMPAT(h0pless): Reign UpdatePerUserThrottlerLimits
-    bool NeedUpdatePerUserThrottlerLimits_ = false;
-
     // COMPAT(h0pless): Remove this after chunk schemas are introduced.
     bool NeedRecomputeReferencingAccounts_ = false;
 
@@ -3208,7 +3205,6 @@ private:
         ProxyRoleMap_.LoadKeys(context);
         AccountResourceUsageLeaseMap_.LoadKeys(context);
 
-        NeedUpdatePerUserThrottlerLimits_ = context.GetVersion() < EMasterReign::UpdatePerUserThrottlerLimits;
         NeedRecomputeReferencingAccounts_ = context.GetVersion() < EMasterReign::AddChunkSchemas;
     }
 
@@ -3307,29 +3303,6 @@ private:
 
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
-
-        // Strictly speaking, only root user is necessary here, but it doesn't hurt to make more built-in users independent from the default config.
-        if (NeedUpdatePerUserThrottlerLimits_) {
-            const auto unlimitedThrottlerConfig = New<TThroughputThrottlerConfig>();
-            RootUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            RootUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            ReplicatorUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            ReplicatorUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            FileCacheUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            FileCacheUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsCleanerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsCleanerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsClientUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsClientUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellChangeloggerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellChangeloggerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellSnapshotterUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellSnapshotterUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-            TableMountInformerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TableMountInformerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
 
         InitializeRootAccount();
     }
@@ -3742,7 +3715,6 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
-        NeedUpdatePerUserThrottlerLimits_ = false;
         NeedRecomputeReferencingAccounts_ = false;
         GroupNameMapInitialized_ = false;
 

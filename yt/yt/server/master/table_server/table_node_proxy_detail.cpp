@@ -2257,21 +2257,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
             }
 
-            // COMPAT(h0pless): RefactorSchemaExport
-            if (options.Schema) {
-                // COMPAT(h0pless): Remove this after schema migration is complete.
-                if (!options.SchemaId) {
-                    YT_LOG_ALERT("Created native schema on an external cell tag (TableId: %v)",
-                        table->GetId());
-                    return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
-                }
-
-                YT_LOG_ALERT("Created imported schema on an external cell outside of designated mutation "
-                    "(TableId: %v)",
-                    table->GetId());
-                return tableManager->CreateImportedMasterTableSchema(*schema, table, options.SchemaId);
-            }
-
+            YT_VERIFY(!options.Schema);
             auto* existingSchema = tableManager->GetMasterTableSchema(options.SchemaId);
             tableManager->SetTableSchema(table, existingSchema);
             return existingSchema;

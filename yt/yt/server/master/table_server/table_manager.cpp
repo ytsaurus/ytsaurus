@@ -154,17 +154,10 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraImportMasterTableSchema, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraUnimportMasterTableSchema, Unretained(this)));
 
-        // COMPAT(h0pless): RefactorSchemaExport
-        RegisterMethod(BIND_NO_PROPAGATE(&TTableManager::HydraTakeArtificialRef, Unretained(this)));
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(New<TMasterTableSchemaTypeHandler>(this));
         objectManager->RegisterHandler(CreateTableCollocationTypeHandler(Bootstrap_, &TableCollocationMap_));
         objectManager->RegisterHandler(CreateSecondaryIndexTypeHandler(Bootstrap_, &SecondaryIndexMap_));
-
-        // COMPAT(h0pless): Remove this after empty schema migration is complete.
-        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        PrimaryCellEmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, primaryCellTag, 0xffffffffffffffff);
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         EmptyMasterTableSchemaId_ = MakeWellKnownId(EObjectType::MasterTableSchema, cellTag, 0xffffffffffffffff);
@@ -393,6 +386,7 @@ public:
             : nullptr;
     }
 
+    // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
         TMasterTableSchemaId hintId) override
@@ -1309,36 +1303,6 @@ public:
         }
     }
 
-    void TransformForeignSchemaIdsToNative() override
-    {
-        std::vector<std::unique_ptr<TMasterTableSchema>> schemasToUpdate;
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
-        for (auto it = MasterTableSchemaMap_.begin(); it != MasterTableSchemaMap_.end();) {
-            auto schemaId = it->first;
-            ++it;
-
-            if (CellTagFromId(schemaId) != cellTag) {
-                auto schemaPtr = MasterTableSchemaMap_.Release(schemaId);
-
-                auto newSchemaId = GenerateNativeSchemaIdFromForeign(schemaPtr->GetId(), cellTag);
-                schemaPtr->SetId(newSchemaId);
-
-                YT_LOG_ALERT("Updating schema ID for a native schema (NewSchemaId: %v, SchemaId: %v, Schema: %v)",
-                    schemaId,
-                    schemaPtr->AsTableSchema(),
-                    newSchemaId);
-
-                schemasToUpdate.push_back(std::move(schemaPtr));
-            }
-        }
-
-        for (auto i = 0; i < std::ssize(schemasToUpdate); ++i) {
-            auto schemaId = schemasToUpdate[i]->GetId();
-            MasterTableSchemaMap_.Insert(schemaId, std::move(schemasToUpdate[i]));
-        }
-    }
-
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationData), ReplicationCollocationCreated);
     DEFINE_SIGNAL_OVERRIDE(void(TTableCollocationId), ReplicationCollocationDestroyed);
 
@@ -1395,12 +1359,6 @@ private:
     NHydra::TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
 
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
-
-    // COMPAT(h0pless): Remove this after empty schema migration is complete.
-    TMasterTableSchemaId PrimaryCellEmptyMasterTableSchemaId_;
-
-    // COMPAT(h0pless): RefactorSchemaExport
-    bool NeedTakeArtificialRef_ = false;
 
     TMasterTableSchemaId EmptyMasterTableSchemaId_;
     TMasterTableSchema* EmptyMasterTableSchema_ = nullptr;
@@ -1471,7 +1429,6 @@ private:
         }
 
         EmptyMasterTableSchema_ = FindMasterTableSchema(EmptyMasterTableSchemaId_);
-
         if (EmptyMasterTableSchema_) {
             return;
         }
@@ -1739,20 +1696,6 @@ private:
         objectManager->UnrefObject(schema);
     }
 
-    void HydraTakeArtificialRef(NProto::TReqTakeArtificialRef* request)
-    {
-        YT_LOG_DEBUG("Received TakeArtificialRef request (RequestSize: %v)",
-            request->schema_ids_size());
-        for (auto protoSchemaId : request->schema_ids()) {
-            auto schemaId = FromProto<TMasterTableSchemaId>(protoSchemaId);
-            auto* schema = GetMasterTableSchema(schemaId);
-
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            // All imported schemas should have an artificial ref.
-            // This is done to make sure that native cell is managing their lifetime.
-            objectManager->RefObject(schema);
-        }
-    }
 
     void Clear() override
     {
@@ -1772,8 +1715,6 @@ private:
         QueueProducers_.clear();
 
         NeedToAddReplicatedQueues_ = false;
-
-        NeedTakeArtificialRef_ = false;
     }
 
     void SetZeroState() override
@@ -1824,60 +1765,6 @@ private:
         }
 
         NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
-
-        auto schemaExportMode = ESchemaMigrationMode::None;
-        if (context.GetVersion() < EMasterReign::ExportMasterTableSchemas) {
-            schemaExportMode = ESchemaMigrationMode::AllSchemas;
-        } else if (context.GetVersion() < EMasterReign::ExportEmptyMasterTableSchemas) {
-            schemaExportMode = ESchemaMigrationMode::EmptySchemaOnly;
-        }
-
-        if (EMasterReign::ExportMasterTableSchemas < context.GetVersion() &&
-            context.GetVersion() < EMasterReign::RefactorSchemaExport)
-        {
-            NeedTakeArtificialRef_ = true;
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        // COMPAT(h0pless): Remove this after schema cmigration is complete.
-        if (schemaExportMode == ESchemaMigrationMode::None) {
-            return;
-        }
-
-        if (schemaExportMode == ESchemaMigrationMode::AllSchemas || multicellManager->IsPrimaryMaster()) {
-            // Just load schemas as usual.
-            EmptyMasterTableSchema_ = GetMasterTableSchema(EmptyMasterTableSchemaId_);
-            YT_VERIFY(EmptyMasterTableSchema_->IsNative());
-        } else if (schemaExportMode == ESchemaMigrationMode::EmptySchemaOnly) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto* oldEmptyMasterTableSchema = GetMasterTableSchema(PrimaryCellEmptyMasterTableSchemaId_);
-
-            // Un-import old empty schema.
-            NativeTableSchemaToObjectMap_.erase(oldEmptyMasterTableSchema->GetNativeTableSchemaToObjectMapIterator());
-            oldEmptyMasterTableSchema->ResetNativeTableSchemaToObjectMapIterator();
-            // The above iterator reset should've retained the actual
-            // TTableSchema inside the old object.
-
-            // Historically, this schema hasn't been flagged as foreign, even
-            // though it actually is.
-            oldEmptyMasterTableSchema->SetForeign();
-
-            // Allow it to die peacefully if need be.
-            objectManager->UnrefObject(oldEmptyMasterTableSchema);
-            oldEmptyMasterTableSchema->ResetExportRefCounters();
-
-            // Replace new empty schema with an even newer one.
-            EmptyMasterTableSchema_ = DoCreateMasterTableSchema(
-                EmptyTableSchema,
-                EmptyMasterTableSchemaId_,
-                /*isNative*/ true);
-            YT_VERIFY(EmptyMasterTableSchema_->RefObject() == 1);
-        }
-    }
-
-    void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
     THashMap<TMasterTableSchema*, THashMap<TAccount*, int>> ComputeMasterTableSchemaReferencingAccounts()
@@ -2029,84 +1916,6 @@ private:
         return schemaToRefCounter;
     }
 
-    void RecomputeMasterTableSchemaExportRefCounters(ELogLevel logLevel) override
-    {
-        auto schemaToExportRefCounters = ComputeMasterTableSchemaExportRefCounters();
-        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
-            auto expectedExportRefCounters = GetOrCrash(schemaToExportRefCounters, schema);
-            for (auto [cellTag, actualRefCounter] : schema->CellTagToExportCount()) {
-                auto it = expectedExportRefCounters.find(cellTag);
-
-                auto expectedRefCounter = it != expectedExportRefCounters.end()
-                    ? it->second
-                    : 0;
-
-                if (expectedRefCounter != actualRefCounter) {
-                    YT_LOG_EVENT(Logger, logLevel, "Table schema has invalid export ref counter; setting proper value "
-                        "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                        schemaId,
-                        cellTag,
-                        expectedRefCounter,
-                        actualRefCounter);
-
-                    if (actualRefCounter > expectedRefCounter) {
-                        for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
-                            UnexportMasterTableSchema(schema, cellTag);
-                        }
-                    } else {
-                        for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
-                            ExportMasterTableSchema(schema, cellTag);
-                        }
-                    }
-                }
-
-                expectedExportRefCounters.erase(it);
-            }
-
-            for (auto [cellTag, refCounter] : expectedExportRefCounters) {
-                YT_LOG_EVENT(Logger, logLevel, "Table schema has missing entries in export ref counter; setting proper value "
-                    "(SchemaId: %v, CellTag: %v, ExpectedRefCounter: %v)",
-                    schemaId,
-                    cellTag,
-                    refCounter);
-
-                for (i64 index = 0; index < refCounter; ++index) {
-                    ExportMasterTableSchema(schema, cellTag);
-                }
-            }
-        }
-    }
-
-    void RecomputeMasterTableSchemaRefCounters(ELogLevel logLevel) override
-    {
-        auto schemaToRefCounter = ComputeMasterTableSchemaRefCounters();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto [schemaId, schema] : MasterTableSchemaMap_) {
-            auto expectedRefCounter = GetOrCrash(schemaToRefCounter, schema);
-            auto actualRefCounter = schema->GetObjectRefCounter();
-
-            if (expectedRefCounter != actualRefCounter) {
-                YT_LOG_EVENT(Logger, logLevel, "Table schema has invalid ref counter; setting proper value "
-                    "(SchemaId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
-                    schemaId,
-                    expectedRefCounter,
-                    actualRefCounter);
-
-                if (actualRefCounter > expectedRefCounter) {
-                    for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
-                        objectManager->UnrefObject(schema);
-                    }
-                } else {
-                    for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
-                        objectManager->RefObject(schema);
-                    }
-                }
-
-                YT_VERIFY(schema->GetObjectRefCounter() == expectedRefCounter);
-            }
-        }
-    }
-
     void OnTableCopied(TTableNode* sourceNode, TTableNode* clonedNode) override
     {
         if (!sourceNode->IsForeign()) {
@@ -2141,52 +1950,6 @@ private:
                     if (replicatedTableNode->IsTrackedQueueObject()) {
                         RegisterQueue(replicatedTableNode);
                     }
-                }
-            }
-        }
-
-        if (NeedTakeArtificialRef_) {
-            THashMap<TCellTag, std::vector<TMasterTableSchemaId>> cellTagToExportedSchemaIds;
-            for (auto [schemaId, schema] : MasterTableSchemaMap_) {
-                if (!IsObjectAlive(schema)) {
-                    continue;
-                }
-                if (!schema->IsNative()) {
-                    continue;
-                }
-
-                const auto& cellTagToExportCount = schema->CellTagToExportCount();
-                for (const auto& [cellTag, refCounter] : cellTagToExportCount) {
-                    cellTagToExportedSchemaIds[cellTag].push_back(schemaId);
-                }
-            }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            auto sendRequestAndLog = [&] (TCellTag cellTag, NProto::TReqTakeArtificialRef& req) {
-                YT_LOG_DEBUG("Sending TakeArtificialRef request (DestinationCellTag: %v, RequestSize: %v)",
-                    cellTag,
-                    req.schema_ids_size());
-                multicellManager->PostToMaster(req, cellTag);
-                req.clear_schema_ids();
-            };
-
-            const auto maxBatchSize = 10000;
-            for (const auto& [cellTag, schemaIds] : cellTagToExportedSchemaIds) {
-                auto batchSize = 0;
-                NProto::TReqTakeArtificialRef req;
-                for (auto schemaId : schemaIds) {
-                    auto subreq = req.add_schema_ids();
-                    ToProto(subreq, schemaId);
-                    ++batchSize;
-
-                    if (batchSize >= maxBatchSize) {
-                        sendRequestAndLog(cellTag, req);
-                        batchSize = 0;
-                    }
-                }
-
-                if (batchSize != 0) {
-                    sendRequestAndLog(cellTag, req);
                 }
             }
         }
@@ -2317,7 +2080,7 @@ private:
         }
     }
 
-    // COMPAT(h0pless): RefactorSchemaExport
+    // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
         const NTableClient::TTableSchema& tableSchema,
         TSchemafulNode* schemaHolder,

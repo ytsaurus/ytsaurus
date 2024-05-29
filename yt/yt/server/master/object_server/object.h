@@ -255,8 +255,7 @@ public:
     virtual void LoadEctoplasm(TStreamLoadContext& context);
 
 protected:
-    // COMPAT(h0pless): Make this field const when schema migration will be finished.
-    TObjectId Id_;
+    const TObjectId Id_;
 
     int RefCounter_ = 0;
     TEpochRefCounter EphemeralRefCounter_;

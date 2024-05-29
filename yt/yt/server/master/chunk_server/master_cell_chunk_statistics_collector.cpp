@@ -152,15 +152,6 @@ protected:
         TransientClear();
     }
 
-    void OnAfterSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnAfterSnapshotLoaded();
-
-        for (const auto& statisticsPieceCollector : StatisticsPieceCollectors_) {
-            statisticsPieceCollector->OnAfterSnapshotLoaded();
-        }
-    }
-
 private:
     std::vector<IMasterCellChunkStatisticsPieceCollectorPtr> StatisticsPieceCollectors_;
 
@@ -392,11 +383,6 @@ private:
 
     void Load(NCellMaster::TLoadContext& context)
     {
-        if (context.GetVersion() < EMasterReign::MasterCellChunkStatisticsCollector) {
-            Running_ = false;
-            return;
-        }
-
         using NYT::Load;
 
         auto statisticsPieceCollectorCount = Load<size_t>(context);
