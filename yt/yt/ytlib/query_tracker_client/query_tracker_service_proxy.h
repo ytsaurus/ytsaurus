@@ -22,6 +22,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetQuery);
     DEFINE_RPC_PROXY_METHOD(NProto, ListQueries);
     DEFINE_RPC_PROXY_METHOD(NProto, AlterQuery);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetQueryTrackerInfo);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -60,6 +60,9 @@ public:
         const NApi::TAlterQueryOptions& options,
         const TString& user);
 
+    NApi::TGetQueryTrackerInfoResult GetQueryTrackerInfo(
+        const NApi::TGetQueryTrackerInfoOptions& options);
+
 private:
     const NApi::NNative::IClientPtr StateClient_;
     const NYPath::TYPath StateRoot_;

@@ -89,3 +89,15 @@ message TRspAlterQuery
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryTrackerInfo
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo rpc_proxy_request = 1;
+}
+
+message TRspGetQueryTrackerInfo
+{ 
+    required NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

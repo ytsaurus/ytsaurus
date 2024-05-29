@@ -43,6 +43,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueries));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AlterQuery));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetQueryTrackerInfo));
     }
 
 private:
@@ -243,7 +244,7 @@ private:
             : std::nullopt;
 
         options.StateFilter = rpcRequest.has_state_filter()
-            ? std::make_optional(FromProto<EQueryState>(rpcRequest.state_filter()))
+            ? std::make_optional(ConvertQueryStateFromProto(rpcRequest.state_filter()))
             : std::nullopt;
 
         options.EngineFilter = rpcRequest.has_engine_filter()
@@ -300,6 +301,32 @@ private:
         context->SetResponseInfo("QueryId: %v", queryId);
 
         QueryTracker_->AlterQuery(queryId, options, user);
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
+    {
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 2);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
+
+        auto rpcRequest = request->rpc_proxy_request();
+        auto* rpcResponse = response->mutable_rpc_proxy_response();
+
+        TGetQueryTrackerInfoOptions options;
+        if (rpcRequest.has_attributes()) {
+            options.Attributes = FromProto<TAttributeFilter>(rpcRequest.attributes());
+        }
+
+        context->SetRequestInfo("User: %v", context->GetAuthenticationIdentity().User);
+
+        auto result = QueryTracker_->GetQueryTrackerInfo(options);
+
+        rpcResponse->set_cluster_name(result.ClusterName);
+        rpcResponse->set_supported_features(result.SupportedFeatures.ToString());
+        for (const auto& accessControlObject : result.AccessControlObjects) {
+            *rpcResponse->add_access_control_objects() = accessControlObject;
+        }
 
         context->Reply();
     }

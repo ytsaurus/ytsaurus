@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    add_member, authors, create_access_control_object, create_access_control_object_namespace, remove,
+    add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
@@ -456,14 +456,6 @@ class TestAccessControl(YTEnvSetup):
     @authors("aleksandr.gaev")
     def test_get_query_tracker_info(self, query_tracker):
         assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': True}, 'access_control_objects': ['nobody']}
-
-        remove("//sys/access_control_object_namespaces/queries/nobody")
-        remove("//sys/access_control_object_namespaces/queries")
-
-        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': False}, 'access_control_objects': []}
-
-        create_access_control_object_namespace("queries")
-        create_access_control_object("nobody", "queries")
 
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}

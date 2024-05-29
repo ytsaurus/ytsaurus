@@ -6022,16 +6022,33 @@ private:
     // QUERY TRACKER
     ////////////////////////////////////////////////////////////////////////////////
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartQuery)
+    template <class TRequest>
+    TQueryTrackerServiceProxy GetQueryTrackerProxy(
+        const IServiceContextPtr& context,
+        const TRequest* request)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
+        return TQueryTrackerServiceProxy(
             client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+    }
+
+    template <class TProxyRequest, class TQTRequestPtr>
+    void FillQueryTrackerRequest(
+        const IServiceContextPtr& context,
+        const TProxyRequest* proxyRequest,
+        const TQTRequestPtr qtRequest)
+    {
+        qtRequest->SetTimeout(context->GetTimeout());
+        qtRequest->SetUser(context->GetAuthenticationIdentity().User);
+        qtRequest->mutable_rpc_proxy_request()->MergeFrom(*proxyRequest);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartQuery)
+    {
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.StartQuery();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, Engine: %v",
             request->query_tracker_stage(),
@@ -6052,14 +6069,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortQuery)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.AbortQuery();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
             request->query_tracker_stage(),
@@ -6077,14 +6090,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQueryResult)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.GetQueryResult();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
@@ -6106,14 +6115,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReadQueryResult)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.ReadQueryResult();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
@@ -6132,17 +6137,12 @@ private:
             });
     }
 
-
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQuery)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.GetQuery();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, StartTimestamp: %v",
             request->query_tracker_stage(),
@@ -6164,14 +6164,10 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListQueries)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.ListQueries();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo(
             "QueryTrackerStage: %v, Limit: %v",
@@ -6194,17 +6190,12 @@ private:
             });
     }
 
-
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AlterQuery)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-        TQueryTrackerServiceProxy proxy(
-            client->GetNativeConnection()->GetQueryTrackerChannelOrThrow(request->query_tracker_stage()));
+        auto proxy = GetQueryTrackerProxy(context, request);
 
         auto req = proxy.AlterQuery();
-        req->SetTimeout(context->GetTimeout());
-        req->SetUser(context->GetAuthenticationIdentity().User);
-        req->mutable_rpc_proxy_request()->MergeFrom(*request);
+        FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
             request->query_tracker_stage(),
@@ -6222,34 +6213,23 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetQueryTrackerInfo)
     {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
+        auto proxy = GetQueryTrackerProxy(context, request);
 
-        TGetQueryTrackerInfoOptions options;
-        SetTimeoutOptions(&options, context.Get());
+        auto req = proxy.GetQueryTrackerInfo();
+        FillQueryTrackerRequest(context, request, req);
 
-        options.QueryTrackerStage = request->query_tracker_stage();
-
-        if (request->has_attributes()) {
-            options.Attributes = FromProto<NYTree::TAttributeFilter>(request->attributes());
-        }
-
-        context->SetRequestInfo("QueryTrackerStage: %v", options.QueryTrackerStage);
+        context->SetRequestInfo("QueryTrackerStage: %v", request->query_tracker_stage());
 
         ExecuteCall(
             context,
             [=] {
-                return client->GetQueryTrackerInfo(options);
+                return req->Invoke();
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
+                response->MergeFrom(result->rpc_proxy_response());
 
-                response->set_cluster_name(result.ClusterName);
-                response->set_supported_features(result.SupportedFeatures.ToString());
-                for (const auto& accessControlObject : result.AccessControlObjects) {
-                    *response->add_access_control_objects() = accessControlObject;
-                }
-
-                context->SetResponseInfo("ClusterName: %v", result.ClusterName);
+                context->SetResponseInfo("ClusterName: %v", response->cluster_name());
             });
     }
 

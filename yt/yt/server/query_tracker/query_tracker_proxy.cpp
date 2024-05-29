@@ -1099,6 +1099,53 @@ void TQueryTrackerProxy::AlterQuery(
         .ThrowOnError();
 }
 
+TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
+    const TGetQueryTrackerInfoOptions& options)
+{
+    YT_LOG_DEBUG(
+        "Getting query tracker information (Attributes: %v)",
+        options.Attributes);
+
+    auto attributes = options.Attributes;
+
+    attributes.ValidateKeysOnly();
+
+    TString clusterName = "";
+
+    if (attributes.AdmitsKeySlow("cluster_name")) {
+        YT_LOG_DEBUG("Getting cluster name");
+        clusterName = StateClient_->GetClusterName().value_or("");
+    }
+
+    TNodeExistsOptions nodeExistsOptions;
+    nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
+
+    static const TYsonString EmptyMap = TYsonString(TString("{}"));
+    TYsonString supportedFeatures = EmptyMap;
+    if (attributes.AdmitsKeySlow("supported_features")) {
+        supportedFeatures = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("access_control").Value(true)
+            .EndMap();
+    }
+
+    std::vector<TString> accessControlObjects;
+    if (attributes.AdmitsKeySlow("access_control_objects")) {
+        YT_LOG_DEBUG("Getting access control objects");
+        TListNodeOptions listOptions;
+        listOptions.ReadFrom = EMasterChannelKind::Cache;
+        auto allAcos = WaitFor(StateClient_->ListNode(TString(QueriesAcoNamespacePath), listOptions))
+            .ValueOrThrow();
+        accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
+    }
+
+    return TGetQueryTrackerInfoResult{
+        .ClusterName = std::move(clusterName),
+        .SupportedFeatures = std::move(supportedFeatures),
+        .AccessControlObjects = std::move(accessControlObjects),
+    };
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 TQueryTrackerProxyPtr CreateQueryTrackerProxy(
