@@ -20,7 +20,9 @@
 namespace NYT::NExecNode {
 
 using namespace NChunkClient;
+using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
 
@@ -48,25 +50,13 @@ bool CanJobUseProxyingDataNodeService(EJobType jobType)
     return jobType != NJobTrackerClient::EJobType::RemoteCopy;
 }
 
-void ModifyChunkSpecReplicas(
-    NNodeTrackerClient::TNodeId nodeId,
-    EJobType jobType,
+void AppendProxiableChunkSpecs(
     const std::vector<TTableSchemaPtr>& schemas,
-    TTableInputSpec* tableSpec,
-    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>* chunkSpecs)
+    const TTableInputSpec& tableSpec,
+    EJobType jobType,
+    THashMap<TChunkId, TRefCountedChunkSpecPtr>* chunkSpecs)
 {
-    if (schemas.empty()) {
-        return;
-    }
-
-    std::vector<NChunkClient::NProto::TChunkSpec> proxiedChunkSpecs;
-    proxiedChunkSpecs.reserve(tableSpec->chunk_specs_size());
-
-    for (auto& chunkSpec : *tableSpec->mutable_chunk_specs()) {
-        if (!chunkSpec.use_proxying_data_node_service()) {
-            continue;
-        }
-
+    for (const auto& chunkSpec : tableSpec.chunk_specs()) {
         auto tableIndex = chunkSpec.table_index();
 
         YT_VERIFY(std::ssize(schemas) > tableIndex);
@@ -74,25 +64,73 @@ void ModifyChunkSpecReplicas(
         const auto& schema = schemas[tableIndex];
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
 
-        // Skip tables with hunk columns.
-        if (schema->HasHunkColumns() ||
-            !IsBlobChunkId(chunkId) ||
-            !CanJobUseProxyingDataNodeService(jobType))
+        if (!schema->HasHunkColumns() &&
+            IsBlobChunkId(chunkId) &&
+            CanJobUseProxyingDataNodeService(jobType))
         {
-            chunkSpec.set_use_proxying_data_node_service(false);
+            auto proxiedChunkId = MakeProxiedChunkId(chunkId);
+            auto spec = New<TRefCountedChunkSpec>(chunkSpec);
+            spec->set_use_proxying_data_node_service(false);
+            chunkSpecs->emplace(
+                proxiedChunkId,
+                std::move(spec));
+        }
+    }
+}
+
+//! Getting chunks that can be cached in job input cache.
+THashMap<TChunkId, TRefCountedChunkSpecPtr> GetProxiableChunkSpecs(
+    const TJobSpecExt& jobSpecExt,
+    EJobType jobType)
+{
+    auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(jobSpecExt.extensions());
+    std::vector<TTableSchemaPtr> schemas = GetJobInputTableSchemas(
+        jobSpecExt,
+        dataSourceDirectoryExt ? FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt) : nullptr);
+
+    THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkSpecs;
+
+    auto scanTableSpecs = [&] (const auto& tableSpecs) {
+        for (auto& tableSpec : tableSpecs) {
+            AppendProxiableChunkSpecs(schemas, tableSpec, jobType, &chunkSpecs);
+        }
+    };
+
+    scanTableSpecs(jobSpecExt.input_table_specs());
+    scanTableSpecs(jobSpecExt.foreign_input_table_specs());
+
+    return chunkSpecs;
+}
+
+void PrepareProxiedChunkReading(
+    TNodeId nodeId,
+    const THashSet<TChunkId>& hotChunks,
+    const THashSet<TChunkId>& eligibleChunks,
+    TTableInputSpec* tableSpec)
+{
+    // 1. Chunks for which proxying is enabled are added to the new list - proxied_chunk_specs.
+    //    For proxying chunks, the hostId, replicas, and chunkId are replaced.
+    // 2. Chunks that are proxied are registered in the job input cache.
+    // 3. Inside PatchProxiedChunkSpecs, proxying chunks replace chunks received in
+    //    the scheduler and controller spec.
+    // 4. JobProxy reads proxied chunks through replication reader via exe node, reads are cached in job input cache.
+    // 5. For proxied chunks, the ChunkId always describes the EObjectType::Chunk type in order not to use
+    //    the erasure reader in the job proxy. Using erasure reader for such chunks is incorrect,
+    //    as it leads to incorrect reindexing of blocks.
+    std::vector<TChunkSpec> proxiedChunkSpecs;
+    proxiedChunkSpecs.reserve(tableSpec->chunk_specs_size());
+
+    for (const auto& chunkSpec : tableSpec->chunk_specs()) {
+        auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto proxiedChunkId = MakeProxiedChunkId(chunkId);
+
+        if (!eligibleChunks.contains(proxiedChunkId)) {
             continue;
         }
 
-        // 1. Chunks for which proxying is enabled are added to the new list - proxied_chunk_specs.
-        //    For proxying chunks, the hostId, replicas, and chunkId are replaced.
-        // 2. Chunks that are proxied are registered in the job input cache.
-        // 3. Inside PatchProxiedChunkSpecs, proxying chunks replace chunks received in
-        //    the scheduler and controller spec.
-        // 4. JobProxy reads proxied chunks through replication reader via exe node, reads are cached in job input cache.
-        // 5. For proxied chunks, the ChunkId always describes the EObjectType::Chunk type in order not to use
-        //    the erasure reader in the job proxy. Using erasure reader for such chunks is incorrect,
-        //    as it leads to incorrect reindexing of blocks.
-        auto proxiedChunkId = MakeProxiedChunkId(chunkId);
+        if (!hotChunks.contains(proxiedChunkId) && !chunkSpec.use_proxying_data_node_service()) {
+            continue;
+        }
 
         YT_LOG_INFO(
             "Modify chunk spec for job input cache (OldChunkId: %v, "
@@ -104,87 +142,46 @@ void ModifyChunkSpecReplicas(
             chunkSpec.replicas_size(),
             1);
 
-        {
-            auto spec = New<TRefCountedChunkSpec>(chunkSpec);
-            spec->set_use_proxying_data_node_service(false);
-            chunkSpecs->emplace(
-                proxiedChunkId,
-                std::move(spec));
-        }
+        TChunkSpec proxiedChunkSpec;
+        proxiedChunkSpec.CopyFrom(chunkSpec);
 
-        {
-            NChunkClient::NProto::TChunkSpec proxiedChunkSpec;
-            proxiedChunkSpec.CopyFrom(chunkSpec);
+        auto newReplicas = TChunkReplicaWithMediumList();
+        newReplicas.reserve(1);
+        newReplicas.emplace_back(nodeId, 0, AllMediaIndex);
 
-            auto newReplicas = TChunkReplicaWithMediumList();
-            newReplicas.reserve(1);
-            newReplicas.emplace_back(nodeId, 0, AllMediaIndex);
+        ToProto(proxiedChunkSpec.mutable_chunk_id(), proxiedChunkId);
+        proxiedChunkSpec.set_erasure_codec(ToProto<int>(NErasure::ECodec::None));
+        ToProto(proxiedChunkSpec.mutable_replicas(), newReplicas);
 
-            ToProto(proxiedChunkSpec.mutable_chunk_id(), proxiedChunkId);
-            proxiedChunkSpec.set_erasure_codec(ToProto<int>(NErasure::ECodec::None));
-            ToProto(proxiedChunkSpec.mutable_replicas(), newReplicas);
-
-            proxiedChunkSpecs.push_back(std::move(proxiedChunkSpec));
-        }
+        proxiedChunkSpecs.push_back(std::move(proxiedChunkSpec));
     }
 
     ToProto(tableSpec->mutable_proxied_chunk_specs(), proxiedChunkSpecs);
 }
 
-void PatchInterruptDescriptor(
-    const THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
-    NChunkClient::TInterruptDescriptor& interruptDescriptor)
-{
-    auto updateChunkSpecsInDescriptorToOriginal = [&] (std::vector<TDataSliceDescriptor>& descriptors) {
-        for (auto& descriptor : descriptors) {
-            for (auto& chunkSpec : descriptor.ChunkSpecs) {
-                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-                if (auto originalSpecIt = chunkIdToOriginalSpec.find(chunkId)) {
-                    auto originalSpec = originalSpecIt->second;
-
-                    chunkSpec.mutable_chunk_id()->CopyFrom(originalSpec->chunk_id());
-                    chunkSpec.set_erasure_codec(originalSpec->erasure_codec());
-                    chunkSpec.mutable_replicas()->CopyFrom(originalSpec->replicas());
-                }
-            }
-        }
-    };
-
-    updateChunkSpecsInDescriptorToOriginal(interruptDescriptor.UnreadDataSliceDescriptors);
-    updateChunkSpecsInDescriptorToOriginal(interruptDescriptor.ReadDataSliceDescriptors);
-}
-
-THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ModifyChunkSpecForJobInputCache(
-    NNodeTrackerClient::TNodeId nodeId,
-    EJobType jobType,
+void PrepareProxiedChunkReading(
+    TNodeId nodeId,
+    const THashSet<TChunkId>& hotChunks,
+    const THashSet<TChunkId>& eligibleChunks,
     TJobSpecExt* jobSpecExt)
 {
-    auto dataSourceDirectoryExt = FindProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt->extensions());
-    std::vector<TTableSchemaPtr> schemas = GetJobInputTableSchemas(
-        *jobSpecExt,
-        dataSourceDirectoryExt ? FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt) : nullptr);
-
-    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkSpecs;
-
-    auto reconfigureTableSpecs = [&] (auto* tableSpecs) {
+    auto patchTableSpecs = [&] (auto* tableSpecs) {
         for (auto& tableSpec : *tableSpecs) {
-            ModifyChunkSpecReplicas(nodeId, jobType, schemas, &tableSpec, &chunkSpecs);
+            PrepareProxiedChunkReading(nodeId, hotChunks, eligibleChunks, &tableSpec);
         }
     };
 
-    reconfigureTableSpecs(jobSpecExt->mutable_input_table_specs());
-    reconfigureTableSpecs(jobSpecExt->mutable_foreign_input_table_specs());
-
-    return chunkSpecs;
+    patchTableSpecs(jobSpecExt->mutable_input_table_specs());
+    patchTableSpecs(jobSpecExt->mutable_foreign_input_table_specs());
 }
 
-THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
+THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* jobSpecProto)
 {
-    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec;
+    THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec;
     auto* jobSpecExt = jobSpecProto->MutableExtension(TJobSpecExt::job_spec_ext);
 
     auto patchTableSpec = [&] (auto* tableSpec) {
-        THashMap<TChunkId, NChunkClient::NProto::TChunkSpec> proxiedChunkSpecs;
+        THashMap<TChunkId, TChunkSpec> proxiedChunkSpecs;
 
         for (auto& chunkSpec : tableSpec->proxied_chunk_specs()) {
             proxiedChunkSpecs.emplace(
@@ -192,7 +189,7 @@ THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs
                 std::move(chunkSpec));
         }
 
-        std::vector<NChunkClient::NProto::TChunkSpec> newChunkSpecs;
+        std::vector<TChunkSpec> newChunkSpecs;
         newChunkSpecs.reserve(tableSpec->chunk_specs_size());
 
         for (const auto& chunkSpec : tableSpec->chunk_specs()) {
@@ -209,11 +206,8 @@ THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs
                 chunkIdToOriginalSpec.emplace(chunkId, New<TRefCountedChunkSpec>(chunkSpec));
             } else {
                 const auto& proxiedChunkSpec = proxiedChunkSpecIt->second;
-
-                YT_VERIFY(proxiedChunkSpec.use_proxying_data_node_service());
-
                 auto newChunkSpec = chunkSpec;
-
+                newChunkSpec.set_use_proxying_data_node_service(true);
                 newChunkSpec.mutable_chunk_id()->CopyFrom(proxiedChunkSpec.chunk_id());
                 newChunkSpec.set_erasure_codec(proxiedChunkSpec.erasure_codec());
                 newChunkSpec.mutable_replicas()->CopyFrom(proxiedChunkSpec.replicas());
@@ -249,6 +243,29 @@ THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs
     patchTableSpecs(jobSpecExt->mutable_foreign_input_table_specs());
 
     return chunkIdToOriginalSpec;
+}
+
+void PatchInterruptDescriptor(
+    const THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
+    TInterruptDescriptor& interruptDescriptor)
+{
+    auto restoreOriginalChunkSpecs = [&] (std::vector<TDataSliceDescriptor>& descriptors) {
+        for (auto& descriptor : descriptors) {
+            for (auto& chunkSpec : descriptor.ChunkSpecs) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                if (auto originalSpecIt = chunkIdToOriginalSpec.find(chunkId)) {
+                    auto originalSpec = originalSpecIt->second;
+
+                    chunkSpec.mutable_chunk_id()->CopyFrom(originalSpec->chunk_id());
+                    chunkSpec.set_erasure_codec(originalSpec->erasure_codec());
+                    chunkSpec.mutable_replicas()->CopyFrom(originalSpec->replicas());
+                }
+            }
+        }
+    };
+
+    restoreOriginalChunkSpecs(interruptDescriptor.UnreadDataSliceDescriptors);
+    restoreOriginalChunkSpecs(interruptDescriptor.ReadDataSliceDescriptors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -107,6 +107,28 @@ void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
     Config_.Store(config);
 }
 
+THashSet<TChunkId> TJobInputCache::FilterHotChunks(const std::vector<TChunkId>& chunkSpecs)
+{
+    auto guard = ReaderGuard(Lock_);
+
+    THashSet<TChunkId> hotChunks;
+
+    auto threshold = Config_.Acquire()->JobCountThreshold;
+
+    if (!threshold) {
+        return {};
+    }
+
+    for (const auto& chunkId : chunkSpecs) {
+        auto chunkIt = ChunkToJobs_.find(chunkId);
+        if (chunkIt && std::ssize(chunkIt->second) >= threshold.value()) {
+            EmplaceOrCrash(hotChunks, chunkId);
+        }
+    }
+
+    return hotChunks;
+}
+
 void TJobInputCache::RegisterJobChunks(
     TJobId jobId,
     THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkSpecs)

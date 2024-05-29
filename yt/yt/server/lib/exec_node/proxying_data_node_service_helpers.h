@@ -15,9 +15,14 @@ DECLARE_REFCOUNTED_TYPE(TRefCountedChunkSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ModifyChunkSpecForJobInputCache(
+THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> GetProxiableChunkSpecs(
+    const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
+    EJobType jobType);
+
+void PrepareProxiedChunkReading(
     NNodeTrackerClient::TNodeId nodeId,
-    EJobType jobType,
+    const THashSet<NChunkClient::TChunkId>& hotChunks,
+    const THashSet<NChunkClient::TChunkId>& eligibleChunks,
     NControllerAgent::NProto::TJobSpecExt* jobSpecExt);
 
 THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(NControllerAgent::NProto::TJobSpec* jobSpecProto);

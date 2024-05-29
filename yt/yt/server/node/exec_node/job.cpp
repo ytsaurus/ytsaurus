@@ -34,7 +34,6 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/helpers.h>
-#include <yt/yt/server/lib/exec_node/proxying_data_node_service_helpers.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -2114,6 +2113,15 @@ void TJob::RunJobProxy()
     SetJobPhase(EJobPhase::SpawningJobProxy);
     InitializeJobProbe();
 
+    auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
+    auto hotChunks = JobInputCache_->FilterHotChunks(eligibleChunks);
+
+    PrepareProxiedChunkReading(
+        Bootstrap_->GetNodeId(),
+        hotChunks,
+        THashSet<TChunkId>(eligibleChunks.begin(), eligibleChunks.end()),
+        JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext));
+
     BIND(
         &IUserSlot::RunJobProxy,
         GetUserSlot(),
@@ -2452,8 +2460,8 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto* jobSpecExt = JobSpec_.MutableExtension(TJobSpecExt::job_spec_ext);
-    if (jobSpecExt->has_input_node_directory()) {
+    const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
+    if (jobSpecExt.has_input_node_directory()) {
         YT_LOG_INFO("Node directory is provided by scheduler");
         return nullptr;
     }
@@ -2492,8 +2500,8 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
             }
         };
 
-        validateTableSpecs(jobSpecExt->input_table_specs());
-        validateTableSpecs(jobSpecExt->foreign_input_table_specs());
+        validateTableSpecs(jobSpecExt.input_table_specs());
+        validateTableSpecs(jobSpecExt.foreign_input_table_specs());
 
         // NB: No need to add these descriptors to the input node directory.
         for (const auto& artifact : Artifacts_) {
@@ -2525,9 +2533,11 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
     if (JobInputCache_->IsEnabled()) {
         UseJobInputCache_.store(true);
+        auto chunks = GetProxiableChunkSpecs(jobSpecExt, GetType());
+        ProxiableChunks_.Store(chunks);
         JobInputCache_->RegisterJobChunks(
             Id_,
-            ModifyChunkSpecForJobInputCache(Bootstrap_->GetNodeId(), GetType(), jobSpecExt));
+            std::move(chunks));
     }
 
     YT_LOG_INFO("Finish preparing node directory");
