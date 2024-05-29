@@ -20,6 +20,7 @@ SRCS(
     dynamic_io_engine.cpp
     io_engine_base.cpp
     io_engine_uring.cpp
+    io_engine_fair.cpp
 )
 
 PEERDIR(

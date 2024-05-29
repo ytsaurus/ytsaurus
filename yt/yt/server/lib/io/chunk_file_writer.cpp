@@ -6,6 +6,7 @@
 #include <yt/yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/yt/ytlib/chunk_client/format.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
+#include <yt/yt/ytlib/chunk_client/session_id.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -69,7 +70,7 @@ void TChunkFileWriter::TryLockDataFile(TPromise<void> promise)
     TDelayedExecutor::Submit(
         BIND(&TChunkFileWriter::TryLockDataFile, MakeStrong(this), promise),
         TDuration::MilliSeconds(10),
-        IOEngine_->GetAuxPoolInvoker());
+        IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserInteractive, {})); // TODO what can we pass here
 }
 
 void TChunkFileWriter::SetFailed(const TError& error)
@@ -104,7 +105,7 @@ TFuture<void> TChunkFileWriter::Open()
 
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
-    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
+    return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode}, EWorkloadCategory::UserInteractive, {}) // TODO what descriptor and sessionId can we pass here
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -113,7 +114,7 @@ TFuture<void> TChunkFileWriter::Open()
             auto promise = NewPromise<void>();
             TryLockDataFile(promise);
             return promise.ToFuture();
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserInteractive, {}))) // TODO what can we pass here
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Opening);
 
@@ -132,12 +133,28 @@ bool TChunkFileWriter::WriteBlock(
     const TWorkloadDescriptor& workloadDescriptor,
     const TBlock& block)
 {
-    return WriteBlocks(workloadDescriptor, {block});
+    return WriteBlockWithSession(workloadDescriptor, block, {});
 }
 
 bool TChunkFileWriter::WriteBlocks(
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<TBlock>& blocks)
+{
+    return WriteBlocksWithSession(workloadDescriptor, blocks, {});
+}
+
+bool TChunkFileWriter::WriteBlockWithSession(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TBlock& block,
+    NYT::TGuid sessionId)
+{
+    return WriteBlocksWithSession(workloadDescriptor, {block}, sessionId);
+}
+
+bool TChunkFileWriter::WriteBlocksWithSession(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const std::vector<TBlock>& blocks,
+    NYT::TGuid sessionId)
 {
     if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
         ReadyEvent_ = MakeFuture<void>(std::move(error));
@@ -170,7 +187,8 @@ bool TChunkFileWriter::WriteBlocks(
             std::move(buffers),
             SyncOnClose_
         },
-        workloadDescriptor.Category)
+        workloadDescriptor,
+        sessionId)
         .Apply(BIND([=, this, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
@@ -202,12 +220,20 @@ TFuture<void> TChunkFileWriter::Close(
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta)
 {
+    return CloseWithSession(workloadDescriptor, chunkMeta, {});
+}
+
+TFuture<void> TChunkFileWriter::CloseWithSession(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TDeferredChunkMetaPtr& chunkMeta,
+    NYT::TGuid sessionId)
+{
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
     }
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
-    return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
+    return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_}, workloadDescriptor, sessionId)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -221,7 +247,8 @@ TFuture<void> TChunkFileWriter::Close(
             ChunkMeta_->CopyFrom(*chunkMeta);
             SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 
-            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
+YT_LOG_DEBUG("Initially closed a chunk, opening");
+            return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode}, workloadDescriptor, sessionId);
         }))
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
@@ -242,6 +269,7 @@ TFuture<void> TChunkFileWriter::Close(
             ::memcpy(buffer.Begin(), &header, sizeof(header));
             ::memcpy(buffer.Begin() + sizeof(header), metaData.Begin(), metaData.Size());
 
+YT_LOG_DEBUG("Opened a chunk, writing and closing");
             return
                 IOEngine_->Write({
                     chunkMetaFile,
@@ -249,16 +277,19 @@ TFuture<void> TChunkFileWriter::Close(
                     {std::move(buffer)},
                     SyncOnClose_
                 },
-                workloadDescriptor.Category)
+                workloadDescriptor,
+                sessionId)
                 .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
                     std::move(chunkMetaFile),
                     MetaDataSize_,
                     SyncOnClose_
                 },
-                workloadDescriptor.Category));
+                workloadDescriptor,
+                sessionId));
         }))
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
+YT_LOG_DEBUG("Wrote and closed a chunk");
 
             NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
             NFS::Rename(FileName_ + NFS::TempFileSuffix, FileName_);
@@ -266,9 +297,10 @@ TFuture<void> TChunkFileWriter::Close(
             if (!SyncOnClose_) {
                 return VoidFuture;
             }
+YT_LOG_DEBUG("Doing FlushDirectory for a chunk");
 
-            return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)});
-        }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
+            return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)}, workloadDescriptor, sessionId);
+        }).AsyncVia(IOEngine_->GetAuxPoolInvoker(workloadDescriptor, sessionId)))
         .Apply(BIND([this, _this = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Closing);
 
@@ -279,6 +311,7 @@ TFuture<void> TChunkFileWriter::Close(
                     << error;
             }
 
+YT_LOG_DEBUG("Flushed a chunk, success");
             ChunkInfo_.set_disk_space(DataSize_ + MetaDataSize_);
             State_.store(EState::Closed);
         }));
@@ -318,7 +351,7 @@ TFuture<void> TChunkFileWriter::Cancel()
 
             State_.store(EState::Aborted);
         })
-        .AsyncVia(IOEngine_->GetAuxPoolInvoker())
+        .AsyncVia(IOEngine_->GetAuxPoolInvoker(EWorkloadCategory::UserInteractive, {})) // TODO what can we pass here
         .Run();
 }
 

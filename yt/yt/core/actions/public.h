@@ -30,6 +30,7 @@ template <class T>
 class TFutureHolder;
 
 DECLARE_REFCOUNTED_STRUCT(IInvoker)
+DECLARE_REFCOUNTED_STRUCT(IInvokerWithExpectedBytes)
 DECLARE_REFCOUNTED_STRUCT(IPrioritizedInvoker)
 DECLARE_REFCOUNTED_STRUCT(ISuspendableInvoker)
 

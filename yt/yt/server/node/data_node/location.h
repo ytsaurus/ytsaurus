@@ -234,7 +234,9 @@ public:
     double GetIOWeight() const;
 
     //! Returns an invoker for various auxiliarly IO activities.
-    const IInvokerPtr& GetAuxPoolInvoker();
+    IInvokerPtr GetAuxPoolInvoker(
+        const TWorkloadDescriptor& descriptor,
+        const TGuid& sessionId);
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!

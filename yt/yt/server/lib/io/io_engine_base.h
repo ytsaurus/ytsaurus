@@ -146,21 +146,21 @@ class TIOEngineBase
     : public IIOEngine
 {
 public:
-    TFuture<TIOEngineHandlePtr> Open(TOpenRequest request, EWorkloadCategory category) override;
+    TFuture<TIOEngineHandlePtr> Open(TOpenRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
-    TFuture<void> Close(TCloseRequest request, EWorkloadCategory category) override;
+    TFuture<void> Close(TCloseRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
-    TFuture<void> FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category) override;
+    TFuture<void> FlushDirectory(TFlushDirectoryRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
-    TFuture<void> Allocate(TAllocateRequest request, EWorkloadCategory category) override;
+    TFuture<void> Allocate(TAllocateRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
-    virtual TFuture<void> Lock(TLockRequest request, EWorkloadCategory category) override;
+    virtual TFuture<void> Lock(TLockRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
-    virtual TFuture<void> Resize(TResizeRequest request, EWorkloadCategory category) override;
+    virtual TFuture<void> Resize(TResizeRequest request, const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
     bool IsSick() const override;
 
-    const IInvokerPtr& GetAuxPoolInvoker() override;
+    IInvokerPtr GetAuxPoolInvoker(const TWorkloadDescriptor& descriptor, const TSessionId& sessionId) override;
 
     i64 GetTotalReadBytes() const override;
 

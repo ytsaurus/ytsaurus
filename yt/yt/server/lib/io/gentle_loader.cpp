@@ -58,7 +58,7 @@ public:
                 mode |= DirectAligned;
             }
 
-            auto future = IOEngine_->Open({file->Path, mode})
+            auto future = IOEngine_->Open({file->Path, mode}, EWorkloadCategory::UserInteractive, {}) // TODO what to pass here
                 .Apply(BIND([file] (const TIOEngineHandlePtr& handle) {
                     return TReadFileInfo{
                         .Handle = handle,
@@ -137,7 +137,8 @@ private:
         return IOEngine_->Read(
             {{fileInfo.Handle, offset, readSize}},
             category,
-            GetRefCountedTypeCookie<TChunkFileReaderBufferTag>())
+            GetRefCountedTypeCookie<TChunkFileReaderBufferTag>(),
+            {}) // TODO what to pass here
             .AsVoid()
             .Apply(BIND([requestTimer] {
                 return requestTimer.GetElapsedTime();
@@ -296,7 +297,7 @@ private:
             mode |= DirectAligned;
         }
 
-        info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}))
+        info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}, EWorkloadCategory::UserInteractive, {}))  // TODO what to pass here
             .ValueOrThrow();
 
         if (Config_->PreallocateWriteFiles) {
@@ -304,7 +305,7 @@ private:
                 info.WriterIndex,
                 Config_->MaxWriteFileSize);
 
-            WaitFor(IOEngine_->Allocate({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}))
+            WaitFor(IOEngine_->Allocate({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}, EWorkloadCategory::UserInteractive, {})) // TODO what to pass here
                 .ThrowOnError();
         }
     }
@@ -324,10 +325,11 @@ private:
                 .Offset = fileInfo.Offset,
                 .Buffers = {MakeRandomBuffer(packetSize)},
             },
-            category)
+            category,
+            {}) // TODO what to pass here
             .Apply(BIND([&] () {
                 if (Config_->FlushAfterWrite) {
-                    return IOEngine_->FlushFile({handle, EFlushFileMode::Data});
+                    return IOEngine_->FlushFile({handle, EFlushFileMode::Data}, category, {}); // TODO what to pass here
                 }
                 return VoidFuture;
             }));

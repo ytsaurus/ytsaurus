@@ -36,77 +36,94 @@ public:
 
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        EWorkloadCategory category,
+        const TWorkloadDescriptor& descriptor,
         TRefCountedTypeCookie tagCookie,
-        TSessionId sessionId,
+        const TSessionId& sessionId,
         bool useDedicatedAllocations) override
     {
-        return GetCurrentEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
+        YT_LOG_DEBUG("TDynamicIOEngine Read");
+        return GetCurrentEngine()->Read(std::move(requests), descriptor, tagCookie, sessionId, useDedicatedAllocations);
     }
 
     TFuture<void> Write(
         TWriteRequest request,
-        EWorkloadCategory category,
-        TSessionId sessionId) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Write(std::move(request), category, sessionId);
+        YT_LOG_DEBUG("TDynamicIOEngine Write");
+        return GetCurrentEngine()->Write(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> FlushFile(
         TFlushFileRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->FlushFile(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine FlushFile");
+        return GetCurrentEngine()->FlushFile(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> FlushFileRange(
         TFlushFileRangeRequest request,
-        EWorkloadCategory category,
-        TSessionId sessionId) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->FlushFileRange(std::move(request), category, sessionId);
+        YT_LOG_DEBUG("TDynamicIOEngine FlushFileRange");
+        return GetCurrentEngine()->FlushFileRange(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->FlushDirectory(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine FlushDirectory");
+        return GetCurrentEngine()->FlushDirectory(std::move(request), descriptor, sessionId);
     }
 
     TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Open(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine Open");
+        return GetCurrentEngine()->Open(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Close(
         TCloseRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Close(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine Close");
+        return GetCurrentEngine()->Close(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Allocate(
         TAllocateRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Allocate(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine Allocate");
+        return GetCurrentEngine()->Allocate(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Lock(
         TLockRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Lock(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine Lock");
+        return GetCurrentEngine()->Lock(std::move(request), descriptor, sessionId);
     }
 
     TFuture<void> Resize(
         TResizeRequest request,
-        EWorkloadCategory category) override
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->Resize(std::move(request), category);
+        YT_LOG_DEBUG("TDynamicIOEngine Resize");
+        return GetCurrentEngine()->Resize(std::move(request), descriptor, sessionId);
     }
 
     bool IsSick() const override
@@ -156,9 +173,11 @@ public:
         GetCurrentEngine()->Reconfigure(dynamicIOConfig);
     }
 
-    const IInvokerPtr& GetAuxPoolInvoker() override
+    IInvokerPtr GetAuxPoolInvoker(
+        const TWorkloadDescriptor& descriptor,
+        const TSessionId& sessionId) override
     {
-        return GetCurrentEngine()->GetAuxPoolInvoker();
+        return GetCurrentEngine()->GetAuxPoolInvoker(descriptor, sessionId);
     }
 
     i64 GetTotalReadBytes() const override

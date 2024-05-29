@@ -327,7 +327,7 @@ public:
 
             futures.push_back(
                 BIND(&TImpl::InitializeLocation, MakeStrong(this))
-                    .AsyncVia(location->GetAuxPoolInvoker())
+                    .AsyncVia(location->GetAuxPoolInvoker({}, {})) // TODO what to pass here
                     .Run(location));
 
             Locations_.push_back(location);
@@ -504,7 +504,7 @@ private:
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         auto descriptors = location->Scan();
 
@@ -603,7 +603,7 @@ private:
 
         TSessionCounterGuard sessionCounterGuard(location);
 
-        auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker());
+        auto invoker = CreateSerializedInvoker(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
         invoker->Invoke(BIND(
             downloader,
             MakeStrong(this),
@@ -640,7 +640,7 @@ private:
         }
 
         YT_LOG_INFO("Scheduling cached chunk validation");
-        location->GetAuxPoolInvoker()->Invoke(BIND(
+        location->GetAuxPoolInvoker({}, {})->Invoke(BIND( // TODO what to pass here
             &TImpl::DoValidateChunk,
             MakeStrong(this),
             Passed(std::move(cookie)),
@@ -664,7 +664,7 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         try {
             YT_LOG_INFO("Chunk validation started");
@@ -746,7 +746,7 @@ private:
         location->UpdateChunkCount(-1);
         location->UpdateUsedSpace(-descriptor.DiskSpace);
 
-        location->GetAuxPoolInvoker()->Invoke(BIND(
+        location->GetAuxPoolInvoker({}, {})->Invoke(BIND( // TODO what to pass here
             &TCacheLocation::RemoveChunkFiles,
             location,
             descriptor.Id,
@@ -779,7 +779,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         auto chunkId = descriptor.Id;
 
@@ -965,7 +965,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = GetReplicasFromChunkSpec(chunkSpec);
@@ -1126,7 +1126,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         try {
             auto producer = MakeFileProducer(
@@ -1211,7 +1211,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         try {
             auto producer = MakeTableProducer(
@@ -1361,7 +1361,7 @@ private:
         TLockedChunkGuard lockedChunkGuard,
         const std::function<void(IOutputStream*)>& producer)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
@@ -1444,7 +1444,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker({}, {})); // TODO what to pass here
 
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);

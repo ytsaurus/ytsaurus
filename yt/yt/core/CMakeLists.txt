@@ -127,6 +127,7 @@ target_sources(yt-yt-core PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/invoker_queue.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/lease_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/new_fair_share_thread_pool.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/new_new_fair_share_thread_pool.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/nonblocking_batcher.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/notify_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/core/concurrency/periodic_executor.cpp

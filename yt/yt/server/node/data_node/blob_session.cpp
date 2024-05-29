@@ -69,6 +69,7 @@ public:
         , SessionInvoker_(std::move(sessionInvoker))
         , Options_(options)
         , Logger(std::move(logger))
+        , SessionId_(std::move(chunkId))
         , Writer_(New<TChunkFileWriter>(
             Location_->GetIOEngine(),
             chunkId,
@@ -117,6 +118,7 @@ private:
     const IInvokerPtr SessionInvoker_;
     const TSessionOptions Options_;
     const NLogging::TLogger Logger;
+    NYT::TGuid SessionId_;
 
     const NIO::TChunkFileWriterPtr Writer_;
 
@@ -217,7 +219,7 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(Options_.WorkloadDescriptor, blocks));
+        YT_VERIFY(!Writer_->WriteBlocksWithSession(Options_.WorkloadDescriptor, blocks, SessionId_));
 
         return Writer_->GetReadyEvent().Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
@@ -249,7 +251,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
+        return Writer_->CloseWithSession(Options_.WorkloadDescriptor, deferredChunkMeta, SessionId_).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 

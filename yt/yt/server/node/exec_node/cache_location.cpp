@@ -171,7 +171,7 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 
 TFuture<void> TCacheLocation::RemoveChunks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker(EWorkloadCategory::Idle, {})); // TODO what to pass here
     YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
         GetId());
 
@@ -206,7 +206,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
             WaitFor(RemoveChunks())
                 .ThrowOnError();
             WaitFor(BIND(&TCacheLocation::SynchronizeActions, MakeStrong(this))
-                .AsyncVia(GetAuxPoolInvoker())
+                .AsyncVia(GetAuxPoolInvoker(EWorkloadCategory::Idle, {})) // TODO what to pass here
                 .Run())
                 .ThrowOnError();
             ResetLocationStatistic();
@@ -222,7 +222,7 @@ bool TCacheLocation::ScheduleDisable(const TError& reason)
                 GetState());
         }
     })
-        .AsyncVia(GetAuxPoolInvoker())
+        .AsyncVia(GetAuxPoolInvoker(EWorkloadCategory::Idle, {})) // TODO what to pass here
         .Run());
 
     return true;

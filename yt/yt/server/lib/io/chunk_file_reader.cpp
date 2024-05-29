@@ -365,7 +365,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
             firstBlockInfo.Offset,
             totalSize
         }},
-        options.WorkloadDescriptor.Category,
+        options.WorkloadDescriptor,
         GetRefCountedTypeCookie<TChunkFileReaderBufferTag>(),
         options.ReadSessionId,
         options.UseDedicatedAllocations)
@@ -386,7 +386,7 @@ TFuture<TRefCountedChunkMetaPtr> TChunkFileReader::DoReadMeta(
     YT_LOG_DEBUG("Started reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    return IOEngine_->ReadAll(metaFileName, options.WorkloadDescriptor.Category, options.ReadSessionId)
+    return IOEngine_->ReadAll(metaFileName, options.WorkloadDescriptor, options.ReadSessionId)
         .Apply(BIND(&TChunkFileReader::OnMetaRead, MakeStrong(this), metaFileName, options.ChunkReaderStatistics));
 }
 
@@ -472,7 +472,7 @@ TFuture<TIOEngineHandlePtr> TChunkFileReader::OpenDataFile(EDirectIOFlag useDire
         if (useDirectIO == EDirectIOFlag::On) {
             TIOEngineHandle::MarkOpenForDirectIO(&mode);
         }
-        DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode})
+        DataFileHandleFuture_[useDirectIO] = IOEngine_->Open({FileName_, mode}, EWorkloadCategory::UserInteractive, {}) // TODO what can we pass here
             .ToUncancelable()
             .Apply(BIND(&TChunkFileReader::OnDataFileOpened, MakeStrong(this), useDirectIO));
     }
