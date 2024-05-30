@@ -209,7 +209,8 @@ public:
             1,
             Config_->MaxJobsPerSplit);
 
-        YT_LOG_DEBUG("Estimated optimal job count for unread data slices "
+        YT_LOG_DEBUG(
+            "Estimated optimal job count for unread data slices "
             "(JobCount: %v, JobId: %v, PrepareDuration: %.6g, ExecDuration: %.6g, "
             "ProcessedRowCount: %v, MedianCompletionDuration: %.6g, MinJobTime: %v, "
             "ExecToPrepareTimeRatio: %v, UnreadRowCount: %v, ExpectedExecDuration: %.6g)",

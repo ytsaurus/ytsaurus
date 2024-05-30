@@ -6126,7 +6126,8 @@ private:
                     "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
-                    chunkIdWithIndexes,
+                    chunkIdWithIndexes.Id,
+                    chunkIdWithIndexes.MediumIndex,
                     reason);
                 return {nullptr, nullptr};
             }
@@ -6137,7 +6138,8 @@ private:
                     "MediumType: %v, ChunkEventType: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
-                    chunkIdWithIndexes,
+                    chunkIdWithIndexes.Id,
+                    chunkIdWithIndexes.MediumIndex,
                     medium->GetType(),
                     reason);
                 return {nullptr, nullptr};
@@ -6154,7 +6156,7 @@ private:
                 "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                chunkIdWithIndexes,
+                chunkIdWithIndexes.Id,
                 mediumIndex,
                 reason);
             return {nullptr, nullptr};
@@ -6166,7 +6168,8 @@ private:
                 "MediumType: %v, ChunkEventType: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
-                chunkIdWithIndexes,
+                chunkIdWithIndexes.Id,
+                chunkIdWithIndexes.MediumIndex,
                 medium->GetType(),
                 reason);
             return {nullptr, nullptr};

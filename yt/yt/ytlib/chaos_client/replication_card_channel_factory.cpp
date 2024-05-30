@@ -170,7 +170,9 @@ private:
             return MakeFuture<IChannelPtr>(detectingChannel);
         }
 
-        YT_LOG_DEBUG("Unable to created replication card channel due to cell tag absence in cell directory (CellTag: %v)");
+        YT_LOG_DEBUG(
+            "Unable to created replication card channel due to cell tag absence in cell directory (CellTag: %v)",
+            cellTag);
 
         return MakeFuture<IChannelPtr>(UnavailableError_);
     }

@@ -473,8 +473,7 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
     YT_LOG_DEBUG(
         error,
         "Operation abort notification enqueued (OperationId: %v)",
-        OperationId_,
-        error);
+        OperationId_);
 }
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)

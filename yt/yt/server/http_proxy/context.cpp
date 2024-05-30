@@ -647,7 +647,7 @@ void TContext::SetupOutputStream()
             YT_LOG_DEBUG("Sending keep-alive frame");
             auto error = WaitFor(stream->WriteKeepAliveFrame());
             if (!error.IsOK()) {
-                YT_LOG_ERROR("Error sending keep-alive frame", error);
+                YT_LOG_ERROR(error, "Error sending keep-alive frame");
                 return;
             }
             Y_UNUSED(WaitFor(stream->Flush()));

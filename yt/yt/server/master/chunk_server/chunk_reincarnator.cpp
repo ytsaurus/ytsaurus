@@ -1992,7 +1992,7 @@ private:
 
         if (response->config_version() != ConfigVersion_) {
             YT_LOG_DEBUG(
-                "Cannot prepare exported chunk reincarnation: config version mismatch ",
+                "Cannot prepare exported chunk reincarnation: config version mismatch "
                 "(ForeignCellTag: %v, CurrentConfigVersion: %v, ResponseConfigVersion: %v)",
                 foreignCellTag,
                 ConfigVersion_,

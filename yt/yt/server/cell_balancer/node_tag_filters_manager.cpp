@@ -508,7 +508,7 @@ void ProcessNodesReleasements(
         }
 
         if (nodeInfo->Decommissioned != leaveDecommissioned) {
-            YT_LOG_DEBUG("Releasing node: setting target decommissioned state (Bundle: %v, NodeName: %v, Decommissioned: $v)",
+            YT_LOG_DEBUG("Releasing node: setting target decommissioned state (Bundle: %v, NodeName: %v, Decommissioned: %v)",
                 bundleName,
                 nodeName,
                 leaveDecommissioned);
@@ -685,7 +685,8 @@ THashSet<TString> GetDataCentersToPopulate(
 
         const auto& status = dataCentersOrder.back();
 
-        YT_LOG_DEBUG("Bundle data center status "
+        YT_LOG_DEBUG(
+            "Bundle data center status "
             "(Bundle: %v, DataCenter: %v, Unfeasible: %v, Forbidden: %v, AssignedTabletCellCount: %v,"
             " PerDataCenterSlotCount: %v, RequiredPerDataCenterNodeCount: %v"
             " RequiredNodeAssignmentCount: %v, AvailableNodeCount: %v, RequiredNodeCount: %v)",
@@ -757,7 +758,8 @@ void SetNodeTagFilter(
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
 
     if (targetConfig->EnableDrillsMode || GetDrillsNodeTagFilter(bundleInfo, bundleName) == nodeTagFilter) {
-        YT_LOG_WARNING("Bundle has drills mode enabled. To disable drills mode set bundle attribute @bundle_controller_target_config/enable_drills_mode=%false (Bundle: %v)",
+        YT_LOG_WARNING(
+            "Bundle has drills mode enabled. To disable drills mode set bundle attribute @bundle_controller_target_config/enable_drills_mode=%%false (Bundle: %v)",
             bundleName);
 
         mutations->AlertsToFire.push_back({

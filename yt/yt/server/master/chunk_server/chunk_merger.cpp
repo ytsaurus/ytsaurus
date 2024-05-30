@@ -505,7 +505,7 @@ private:
             } else {
                 ++violatedCriteriaCount;
                 YT_LOG_DEBUG(
-                    "Cannot add chunk to merge job due to limit violation ",
+                    "Cannot add chunk to merge job due to limit violation "
                     "(ViolatedCriterion: %v, %v, DesiredParentChunkListId: %v, ParentChunkListId: %v)",
                     criterionName,
                     formattedArguments,

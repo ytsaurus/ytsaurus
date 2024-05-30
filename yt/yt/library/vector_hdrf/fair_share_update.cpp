@@ -1289,6 +1289,7 @@ void TOperationElement::ComputeAndSetFairShare(double suggestion, EFairShareType
             "FitFactor: %.10g, "
             "FSBFFSegmentArguments: {%.10g, %.10g}, "
             "FSBFFSegmentValues: {%.10g, %.10g})",
+            fairShareType,
             suggestion,
             fairShare,
             fsbsSegment.LeftBound(), fsbsSegment.RightBound(),

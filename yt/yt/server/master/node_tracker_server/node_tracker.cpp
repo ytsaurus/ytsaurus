@@ -858,7 +858,7 @@ public:
             auto shouldSetReliability = node->GetLocalCellAggregatedStateReliability() == ECellAggregatedStateReliability::DuringPropagation;
             auto receivedAllNecessaryHeartbeats = node->ReportedHeartbeats() == GetExpectedHeartbeats(node, multicellManager->IsPrimaryMaster());
             if (node->MustReportHeartbeatsToAllMasters() && shouldSetReliability && receivedAllNecessaryHeartbeats) {
-                YT_LOG_DEBUG("Node discovered \"new\" master cell (CellTag: %v, NodeId: %v, Address: %v)",
+                YT_LOG_DEBUG("Node discovered \"new\" master cell (CellTag: %v, NodeId: %v, Address: %v, HeartbeatType: %v)",
                     cellTag,
                     node->GetId(),
                     node->GetDefaultAddress(),
@@ -2112,7 +2112,7 @@ private:
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() != ENodeState::Offline) {
-            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v)");
+            YT_LOG_ALERT("Node is not offline when it should be (NodeId: %v)", node->GetId());
         }
 
         // Everything below is COMPAT(aleksandra-zh).

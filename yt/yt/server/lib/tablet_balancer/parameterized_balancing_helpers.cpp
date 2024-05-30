@@ -1107,7 +1107,8 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     YT_LOG_DEBUG("Merging tablets (Tablets: %v, TabletSize: %v, TabletMetric: %v, CorrelationId: %v)",
         tabletsToMerge,
         enlargedTabletSize,
-        enlargedTabletMetric);
+        enlargedTabletMetric,
+        correlationId);
 
     return TReshardDescriptor{
         .Tablets = std::move(tabletsToMerge),

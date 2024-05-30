@@ -434,7 +434,7 @@ private:
                 try {
                     id = FromString<int>(key);
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING("Unrecognized item (Key: %v)%",
+                    YT_LOG_WARNING("Unrecognized item (Key: %v)",
                         key);
                     continue;
                 }

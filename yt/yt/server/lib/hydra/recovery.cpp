@@ -301,7 +301,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
             if (lastRemoteSequenceNumber < automatonSequenceNumber) {
                 auto reliablyAppliedSequenceNumber = DecoratedAutomaton_->GetReliablyAppliedSequenceNumber();
                 YT_LOG_FATAL_IF(reliablyAppliedSequenceNumber > lastRemoteSequenceNumber,
-                    "Trying to truncate a mutation that was reliably applied (ReliablyAppliedSequenceNumber, LastRemoteSequenceNumber: %v)",
+                    "Trying to truncate a mutation that was reliably applied (ReliablyAppliedSequenceNumber %v, LastRemoteSequenceNumber: %v)",
                     reliablyAppliedSequenceNumber,
                     lastRemoteSequenceNumber);
                 YT_LOG_INFO("Truncating a mutation that was already applied (LastRemoteSequenceNumber: %v, AutomatonSequenceNumber: %v, ReliablyAppliedSequenceNumber: %v)",

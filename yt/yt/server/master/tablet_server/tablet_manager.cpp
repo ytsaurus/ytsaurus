@@ -5730,7 +5730,7 @@ private:
             auxiliaryServant.GetMountRevision() != targetMountRevision)
         {
             YT_LOG_DEBUG("Mount revision mismatch, will not switch servants "
-                "(TabletId: %v, ExpectedSourceMountRevision: %v, ExpectedTargetMountRevision: %v, ",
+                "(TabletId: %v, ExpectedSourceMountRevision: %v, ExpectedTargetMountRevision: %v, "
                 "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
                 tablet->GetId(),
                 sourceMountRevision,
@@ -5799,7 +5799,7 @@ private:
 
         if (auxiliaryServant.GetMountRevision() != auxiliaryMountRevision) {
             YT_LOG_DEBUG("Mount revision mismatch, will not deallocate servant "
-                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %v, ",
+                "(TabletId: %v, ExpectedAuxiliaryMountRevision: %v, "
                 "ActualSourceMountRevision: %v, ActualTargetMountRevision: %v)",
                 tablet->GetId(),
                 auxiliaryMountRevision,

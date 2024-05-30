@@ -1698,8 +1698,9 @@ private:
 
         auto preparedRequest = PrepareHeartbeatRequest();
 
-        YT_LOG_DEBUG("Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
-            "OperationEventCount: %v, JobEventCount: %v)",
+        YT_LOG_DEBUG(
+            "Sending heartbeat (ExecNodesRequested: %v, OperationsSent: %v, OperationAlertsSent: %v, SuspiciousJobsSent: %v, "
+            "OperationEventCount: %v)",
             preparedRequest.ExecNodesRequested,
             preparedRequest.OperationsSent,
             preparedRequest.OperationAlertsSent,

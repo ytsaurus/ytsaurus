@@ -364,7 +364,7 @@ public:
 
     void PrepareSecondaryQueries()
     {
-        YT_LOG_DEBUG("Preparing distribution (QueryAST: %v)", *QueryInfo_.query, static_cast<void*>(this));
+        YT_LOG_DEBUG("Preparing distribution (QueryAST: %v, This: %v)", *QueryInfo_.query, static_cast<void*>(this));
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 

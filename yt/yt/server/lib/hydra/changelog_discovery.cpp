@@ -66,7 +66,7 @@ private:
             if (!channel)
                 continue;
 
-            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v)",
+            YT_LOG_DEBUG("Requesting changelog info (PeerId: %v, ChangelogId: %v)",
                 peerId,
                 ChangelogId_);
 

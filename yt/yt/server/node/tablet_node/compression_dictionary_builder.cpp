@@ -672,7 +672,7 @@ private:
                 columnInfo.Dictionary = dictionaryOrError.Value();
             } else {
                 YT_LOG_DEBUG(dictionaryOrError,
-                    "Compression dictionary training error occurred; builder will skip corresponding column ",
+                    "Compression dictionary training error occurred; builder will skip corresponding column "
                     "(ColumnId: %v)",
                     columnId);
             }

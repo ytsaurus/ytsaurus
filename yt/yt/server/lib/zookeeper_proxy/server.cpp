@@ -213,7 +213,9 @@ private:
     {
         auto connectionId = connection->GetConnectionId();
 
-        YT_LOG_INFO(error, "Zookeeper server observed connection failure, termintating connection",
+        YT_LOG_INFO(
+            error,
+            "Zookeeper server observed connection failure, termintating connection "
             "(ConnectionId: %v)",
             connectionId);
 

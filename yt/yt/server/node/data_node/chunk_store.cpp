@@ -521,7 +521,8 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
         oldChunkEntry = DoFindExistingChunk(chunk);
         if (!oldChunkEntry.Chunk) {
-            YT_LOG_DEBUG("Journal chunk no longer exists and will not be updated (ChunkId: %v)",
+            YT_LOG_DEBUG(
+                "Journal chunk no longer exists and will not be updated (ChunkId: %v, Version: %v, JournalChunkSealed: %v, JournalChunkActive: %v)",
                 journalChunk->GetId(),
                 version,
                 journalChunk->IsSealed(),

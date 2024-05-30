@@ -3705,6 +3705,8 @@ private:
         YT_LOG_INFO("Checking if tablet cell is decommissioned "
             "(LifeStage: %v, TabletMapEmpty: %v, TransactionManagerDecommissioned: %v, "
             "TransactionSupervisorDecommissioned: %v, LeaseManagerDecommissioned: %v)",
+            CellLifeStage_,
+            TabletMap_.empty(),
             transactionManagerDecommissioned,
             transactionSupervisorDecommissioned,
             leaseManagerDecommissioned);

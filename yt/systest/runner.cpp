@@ -185,7 +185,11 @@ TRunner::TDatasetInfo TRunner::PopulateSortDataset(
         TString attemptPath = TestHome_.TablePath(name, attempt);
 
         return BIND([&]() {
-            YT_LOG_INFO("Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)", parent.Stored.Path, sortColumnsString);
+            YT_LOG_INFO(
+                "Performing sort (InputTable: %v, Columns: %v, OutputTable: %v)",
+                parent.Stored.Path,
+                sortColumnsString,
+                attemptPath);
             RunSort(Client_, Pool_, parent.Stored.Path, attemptPath,
                 TSortColumns(TVector<TString>(columns.begin(), columns.end())));
             return attemptPath;

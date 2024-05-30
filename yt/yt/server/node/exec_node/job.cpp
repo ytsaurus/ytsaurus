@@ -1397,6 +1397,7 @@ void TJob::DoInterrupt(
         "Job interruption requested (Timeout: %v, InterruptionReason: %v, Preempted: %v, PreemptionReason: %v, PreemptedFor: %v)",
         timeout,
         interruptionReason,
+        preemptionReason.has_value(),
         preemptionReason,
         preemptedFor);
 

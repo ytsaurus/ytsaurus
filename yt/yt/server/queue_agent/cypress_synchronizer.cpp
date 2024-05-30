@@ -597,7 +597,7 @@ private:
                 if (!responseOrError.IsOK()) {
                     YT_LOG_ERROR(
                         responseOrError,
-                        "Error fetching attributes for object ",
+                        "Error fetching attributes for object (Object: %v)",
                         object.Object);
                     RowsWithErrors_.AppendObjectWithError(object, responseOrError);
                     continue;

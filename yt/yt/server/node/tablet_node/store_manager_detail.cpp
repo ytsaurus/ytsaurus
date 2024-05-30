@@ -540,7 +540,7 @@ void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason,
                 activeStore->GetLockCount());
             YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
         } else {
-            YT_LOG_INFO("Active store is not locked and will be dropped (StoreId: %v)",
+            YT_LOG_INFO("Active store is not locked and will be dropped (StoreId: %v, LockCount: %v)",
                 activeStore->GetId(),
                 activeStore->GetLockCount());
         }

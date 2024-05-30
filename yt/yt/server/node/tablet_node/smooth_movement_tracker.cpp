@@ -361,6 +361,7 @@ private:
         if (mountRevision != tablet->GetMountRevision()) {
             YT_LOG_ALERT("Invalid mount revision on servant switch request, ignored "
                 "(%v, ExpectedMountRevision: %v, ActualMountRevision: %v)",
+                tablet->GetLoggingTag(),
                 tablet->GetMountRevision(),
                 mountRevision);
             return;

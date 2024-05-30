@@ -1441,8 +1441,7 @@ private:
                 if (name) {
                     YT_LOG_DEBUG("Missing %v transaction (OperationId: %v)",
                         name,
-                        operationId,
-                        transactionId);
+                        operationId);
                 }
                 return nullptr;
             }

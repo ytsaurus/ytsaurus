@@ -120,6 +120,7 @@ bool TPackingStatistics::CheckPacking(
         WindowOfHeartbeats_.size(),
         // TODO(ignat): use TMediumDirectory to log disk resources.
         FormatResources(heartbeatSnapshot.Resources().Free().ToJobResources()),
+        FormatResources(allocationResourcesWithQuota),
         decision);
 
     return decision;

@@ -294,7 +294,9 @@ private:
     {
         auto connectionId = connection->GetConnectionId();
 
-        YT_LOG_INFO(error, "Kafka proxy server observed connection failure, terminating connection",
+        YT_LOG_INFO(
+            error,
+            "Kafka proxy server observed connection failure, terminating connection "
             "(ConnectionId: %v)",
             connectionId);
 

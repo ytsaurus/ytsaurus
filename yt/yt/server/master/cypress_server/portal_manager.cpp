@@ -637,7 +637,7 @@ private:
 
         exitNode->SetRemovalStarted(true);
 
-        YT_LOG_DEBUG("Portal exit removal started (EntranceNodeId: %)",
+        YT_LOG_DEBUG("Portal exit removal started (EntranceNodeId: %v)",
             exitNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();

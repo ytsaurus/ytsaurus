@@ -64,7 +64,7 @@ void FromProto(
             std::bind(&TBootstrap::GetRemoteClient, bootstrap, _1),
             operationTransactionPingPeriod);
     } catch (const std::exception& ex) {
-        YT_LOG_INFO(ex, "Failed to attach operation transactions", operationId);
+        YT_LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)", operationId);
     }
 
     result->Attributes = TOperationControllerInitializeAttributes{

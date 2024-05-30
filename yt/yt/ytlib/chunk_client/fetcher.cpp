@@ -361,7 +361,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     auto now = TInstant::Now();
     while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
         auto nodeId = BannedNodes_.begin()->second;
-        YT_LOG_DEBUG("Unban node (Address: %v)",
+        YT_LOG_DEBUG("Unban node (Address: %v, Now: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             now);
 

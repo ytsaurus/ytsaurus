@@ -193,7 +193,9 @@ public:
         i64 remainingSize = StateAllocationSize_ - StatePointer_ - 1;
         YT_LOG_DEBUG("Building new query registry state (StateSize: %v, RemainingSize: %v)", stateString.size(), remainingSize);
         if (remainingSize < static_cast<i64>(stateString.size())) {
-            YT_LOG_DEBUG("Not enough place for new query registry state, moving pointer to the beginning", StatePointer_);
+            YT_LOG_DEBUG(
+                "Not enough place for new query registry state, moving pointer to the beginning (StatePointer: %v)",
+                StatePointer_);
             StatePointer_ = 0;
         }
         remainingSize = StateAllocationSize_ - StatePointer_ - 1;
