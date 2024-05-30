@@ -202,11 +202,12 @@ class TUser
     : public TSubject
 {
 public:
-    // Limits and bans.
+    // Limits, bans and removals.
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, ObjectServiceRequestLimits);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
+    DEFINE_BYVAL_RW_PROPERTY(bool, PendingRemoval, false);
 
     //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.
@@ -257,6 +258,8 @@ public:
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
 
     void UpdateCounters(const TUserWorkload& workloadType);
+
+    void AlertIfPendingRemoval(TStringBuf message) const;
 
 protected:
     // Transient

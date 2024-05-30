@@ -264,6 +264,7 @@
     XX(JobProxyVersion, job_proxy_build_version) \
     XX(PendingAclsUpdate, pending_acls_update) \
     XX(PendingRestart, pending_restart) \
+    XX(PendingRemoval, pending_removal) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \

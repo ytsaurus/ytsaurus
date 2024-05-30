@@ -742,6 +742,14 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
                     "Access denied: can only set owner to self");
             }
 
+            if (owner->IsUser()) {
+                owner->AsUser()->AlertIfPendingRemoval(
+                    Format("User pending for removal is being set as %Q attribute for object (User: %v, ObjectId: %v)",
+                    EInternedAttributeKey::Owner.Unintern(),
+                    owner->GetName(),
+                    GetId()));
+            }
+
             if (!force) {
                 ValidateModifiedPermission(TAcdOverride(*owner));
             }

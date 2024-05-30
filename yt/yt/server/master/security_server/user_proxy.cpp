@@ -108,6 +108,9 @@ private:
             .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::PasswordRevision);
         descriptors->push_back(EInternedAttributeKey::LastSeenTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PendingRemoval)
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Tags)
             .SetWritable(true)
             .SetRemovable(true)
@@ -255,6 +258,11 @@ private:
             case EInternedAttributeKey::Tags:
                 BuildYsonFluently(consumer)
                     .Value(user->Tags().GetSourceTags());
+                return true;
+
+            case EInternedAttributeKey::PendingRemoval:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetPendingRemoval());
                 return true;
 
             default:
@@ -414,6 +422,12 @@ private:
                     ValidateBooleanFormulaVariable(tag);
                 }
                 user->Tags() = TBooleanFormulaTags(std::move(newTags));
+                return true;
+            }
+
+            case EInternedAttributeKey::PendingRemoval: {
+                auto pendingRemoval = ConvertTo<bool>(value);
+                user->SetPendingRemoval(pendingRemoval);
                 return true;
             }
 

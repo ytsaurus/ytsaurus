@@ -179,6 +179,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
     ((FixCypressTransactionMirroring_24_1)                          (2572))  // kvk1920
     ((QueueProducers_24_1)                                          (2573))  // apachee
+    ((PendingRemovalUserAttribute)                                  (2574))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

@@ -1542,6 +1542,10 @@ private:
             }
         }
 
+        User_->AlertIfPendingRemoval(
+            Format("User pending for removal has accessed object service (User: %v)",
+            User_->GetName()));
+
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
             auto error = securityManager->CheckUserAccess(User_.Get());
