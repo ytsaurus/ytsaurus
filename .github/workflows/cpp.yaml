@@ -136,8 +136,8 @@ jobs:
           if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
           then
             NIGHTLY_IMAGE_TAG=${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
-            docker tag ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ytsaurus/ytsaurus-nightly:latest
-            docker push ytsaurus/ytsaurus-nightly:latest
+            docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:latest
+            docker push ghcr.io/ytsaurus/ytsaurus-nightly:latest
           fi
 
       - name: Download benchmarks
@@ -150,8 +150,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest
-          docker push ytsaurus/ytsaurus-systest:latest
+          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest --image-cr ghcr.io/
+          docker push ghcr.io/ytsaurus/ytsaurus-systest:latest
 
   stop-vm:
     name: Stop VM
