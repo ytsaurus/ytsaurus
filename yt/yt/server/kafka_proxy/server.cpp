@@ -773,7 +773,7 @@ private:
             auto commitResultOrError = WaitFor(transaction->Commit());
 
             if (!commitResultOrError.IsOK()) {
-                YT_LOG_DEBUG(commitResultOrError, "Failed to produce rows (Topic: %v, ConnectionId: %v)", connectionId);
+                YT_LOG_DEBUG(commitResultOrError, "Failed to produce rows (Topic: %v, ConnectionId: %v)", topic.Name, connectionId);
 
                 if (commitResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                     fillError(NKafka::EErrorCode::TopicAuthorizationFailed);
