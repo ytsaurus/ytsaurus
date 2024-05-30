@@ -120,6 +120,7 @@ public:
                     if (!AllowValueRange_) {
                         return false;
                     }
+                    [[fallthrough]];
                 case EBinaryOp::Equal:
                     return IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs);
                 default:
