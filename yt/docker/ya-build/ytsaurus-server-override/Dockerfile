@@ -1,5 +1,5 @@
 ARG BASE_IMAGE="dev"
-FROM ytsaurus/ytsaurus:${BASE_IMAGE}
+FROM mirror.gcr.io/ytsaurus/ytsaurus:${BASE_IMAGE}
 
 USER root
 

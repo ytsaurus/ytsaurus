@@ -3,7 +3,7 @@ ARG BUILD_ROOT="/build"
 
 ARG PROTOC_VERSION="3.20.1"
 
-FROM ubuntu:focal as build-python-packages
+FROM mirror.gcr.io/ubuntu:focal as build-python-packages
 
 ARG SOURCE_ROOT
 ENV SOURCE_ROOT $SOURCE_ROOT

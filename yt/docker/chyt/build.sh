@@ -6,7 +6,7 @@ image_tag="latest"
 ytsaurus_source_path="."
 chyt_build_path="."
 output_path="."
-image_prefix=""
+image_cr=""
 
 print_usage() {
     cat << EOF
@@ -15,7 +15,7 @@ Usage: $script_name [-h|--help]
                     [--chyt-build-path /path/to/chyt.build (default: $chyt_build_path)]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag image_tag (default: $image_tag)]
-                    [--image-prefix image_prefix (default: '$image_prefix')]
+                    [--image-cr image_cr (default: '$image_prefix')]
 EOF
     exit 1
 }
@@ -40,8 +40,8 @@ while [[ $# -gt 0 ]]; do
         image_tag="$2"
         shift 2
         ;;
-        --image-prefix)
-        image_prefix="$2"
+        --image-cr)
+        image_cr="$2"
         shift 2
         ;;
 
@@ -76,4 +76,4 @@ cp -r ${chyt_credits}/* ${output_path}/chyt/credits
 
 cd ${output_path}/chyt
 
-docker build -t ${image_prefix}ytsaurus/chyt:${image_tag} .
+docker build -t ${image_cr}ytsaurus/chyt:${image_tag} .
