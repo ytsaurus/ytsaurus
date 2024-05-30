@@ -43,5 +43,6 @@ IF (NOT OPENSOURCE)
         skynet
         terraform
         yt_proto
+        yt_sync
     )
 ENDIF()
