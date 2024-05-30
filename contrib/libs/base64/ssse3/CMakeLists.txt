@@ -32,8 +32,6 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
-  -mssse3
-  -std=c11
 )
 
 set_property(
@@ -42,7 +40,5 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
-  -mssse3
-  -std=c11
 )
 

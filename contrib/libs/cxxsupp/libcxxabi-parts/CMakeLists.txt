@@ -47,7 +47,5 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
-  -fPIC
-  -fno-lto
 )
 

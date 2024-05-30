@@ -32,7 +32,6 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
-  -std=c11
 )
 
 set_property(
@@ -41,6 +40,5 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
-  -std=c11
 )
 
