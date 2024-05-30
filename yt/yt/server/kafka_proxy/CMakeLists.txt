@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
 
 add_library(yt-server-kafka_proxy)
@@ -28,6 +29,7 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-yt-client
   server-lib-cypress_registrar
   server-lib-misc
   yt-yt-ytlib
@@ -37,11 +39,36 @@ target_link_libraries(yt-server-kafka_proxy PUBLIC
 )
 
 target_sources(yt-server-kafka_proxy PRIVATE
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
+)
+
+add_custom_command(
+  OUTPUT
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.h
+  DEPENDS
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.yaml
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  ${PROJECT_SOURCE_DIR}/yt/python/yt/record_codegen_helpers/__init__.py
+  COMMAND
+  ${CMAKE_COMMAND}
+  -E
+  env
+  PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
+  ${Python3_EXECUTABLE}
+  ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
+  --input
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.yaml
+  --output-root
+  ${PROJECT_BINARY_DIR}
+  --output-cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.record.cpp
 )
 

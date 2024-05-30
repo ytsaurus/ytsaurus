@@ -19,6 +19,7 @@ class Field:
 @dataclass
 class RecordType:
     type_name: str
+    sorted: Optional[bool]
     fields: List[Field]
     table_name: Optional[str]
     table_group: Optional[str]

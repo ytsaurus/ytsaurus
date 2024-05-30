@@ -1,0 +1,19 @@
+namespace: NYT::NKafka::NRecords
+
+types:
+  - type_name: TKafkaMessage
+    sorted: False
+    fields:
+      - cpp_name: TabletIndex
+        cpp_type: i32
+        column_name: $tablet_index
+        column_type: Int32
+      - cpp_name: MessageKey
+        cpp_type: TString
+        column_name: key
+        column_type: String
+      - cpp_name: MessageValue
+        cpp_type: TString
+        column_name: value
+        column_type: String
+        required: True

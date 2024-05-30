@@ -4,6 +4,10 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PROTO_NAMESPACE(yt)
 
+GENERATE_YT_RECORD(
+    records/kafka_message.yaml
+)
+
 SRCS(
     bootstrap.cpp
     config.cpp

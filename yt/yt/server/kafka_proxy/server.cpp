@@ -4,15 +4,20 @@
 #include "connection.h"
 #include "private.h"
 
+#include <yt/yt/server/kafka_proxy/records/kafka_message.record.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
-#include <yt/yt/client/queue_client/consumer_client.h>
-
 #include <yt/yt/client/kafka/protocol.h>
 #include <yt/yt/client/kafka/error.h>
+
+#include <yt/yt/client/queue_client/consumer_client.h>
+
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -41,7 +46,9 @@ using namespace NConcurrency;
 using namespace NKafka;
 using namespace NNet;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NThreading;
+using namespace NTransactionClient;
 using namespace NQueueClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -80,6 +87,7 @@ public:
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoFetch, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslHandshake, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslAuthenticate, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoProduce, Unretained(this)));
     }
 
     void Start() override
@@ -391,6 +399,11 @@ private:
                 .MinVersion = 0,
                 .MaxVersion = 0,
             },
+            TRspApiKey{
+                .ApiKey = static_cast<int>(ERequestType::Produce),
+                .MinVersion = 0,
+                .MaxVersion = 0,
+            },
             /*
             // TODO(nadya73): Support it later.
             TRspApiKey{
@@ -650,16 +663,14 @@ private:
         auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
 
         for (const auto& topic : request.Topics) {
-            TRspFetchResponse topicResponse{
-                .Topic = topic.Topic,
-            };
+            auto& topicResponse = response.Responses.emplace_back();
+            topicResponse.Topic = topic.Topic;
             topicResponse.Partitions.reserve(topic.Partitions.size());
 
             for (const auto& partition : topic.Partitions) {
-                TRspFetchResponsePartition topicPartitionResponse{
-                    .PartitionIndex = partition.Partition,
-                    .HighWatermark = 0, // TODO(nadya73): fill it with normal data
-                };
+                auto& topicPartitionResponse = topicResponse.Partitions.emplace_back();
+                topicPartitionResponse.PartitionIndex = partition.Partition;
+                topicPartitionResponse.HighWatermark = 0;  // TODO(nadya73): fill it with normal data.
 
                 auto rowsetOrError = WaitFor(client->PullQueue(
                     topic.Topic,
@@ -699,11 +710,84 @@ private:
                         }
                     }
                 }
+            }
+        }
 
-                topicResponse.Partitions.push_back(std::move(topicPartitionResponse));
+        return response;
+    }
+
+    TRspProduce DoProduce(const TConnectionId& connectionId, const TReqProduce& request)
+    {
+        YT_LOG_DEBUG("Start to handle Produce request (TopicsCount: %v, ConnectionId: %v)", request.TopicData.size(), connectionId);
+
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong (ConnectionId: %v)", connectionId);
+        }
+
+        TRspProduce response;
+        response.Responses.reserve(request.TopicData.size());
+
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        for (const auto& topic : request.TopicData) {
+            auto& topicResponse = response.Responses.emplace_back();
+            topicResponse.PartitionResponses.reserve(topic.PartitionData.size());
+
+            auto path = TRichYPath::Parse(topic.Name);
+
+            auto fillError = [&](NKafka::EErrorCode errorCode = NKafka::EErrorCode::UnknownServerError) {
+                for (const auto& partition : topic.PartitionData) {
+                    auto& partitionResponse = topicResponse.PartitionResponses.emplace_back();
+                    partitionResponse.Index = partition.Index;
+                    partitionResponse.ErrorCode = errorCode;
+                }
+            };
+
+            auto transactionOrError = WaitFor(client->StartTransaction(ETransactionType::Tablet));
+            if (!transactionOrError.IsOK()) {
+                YT_LOG_DEBUG(transactionOrError, "Failed to produce rows (Topic: %v, ConnectionId: %v)", topic.Name, connectionId);
+                fillError();
+                continue;
             }
 
-            response.Responses.push_back(std::move(topicResponse));
+            auto& transaction = transactionOrError.Value();
+
+            auto nameTable = NKafka::NRecords::TKafkaMessageDescriptor::Get()->GetNameTable();
+
+            for (const auto& partition : topic.PartitionData) {
+                std::vector<NKafka::NRecords::TKafkaMessagePartial> messages;
+                messages.reserve(partition.Records.size());
+                for (const auto& record : partition.Records) {
+                    messages.push_back(NKafka::NRecords::TKafkaMessagePartial{
+                        .TabletIndex = partition.Index,
+                        .MessageKey = record.Message.Key,
+                        .MessageValue = record.Message.Value
+                    });
+                }
+
+                auto rows = FromRecords(MakeRange(messages));
+                transaction->WriteRows(path.GetPath(), nameTable, rows);
+            }
+
+            auto commitResultOrError = WaitFor(transaction->Commit());
+
+            if (!commitResultOrError.IsOK()) {
+                YT_LOG_DEBUG(commitResultOrError, "Failed to produce rows (Topic: %v, ConnectionId: %v)", connectionId);
+
+                if (commitResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                    fillError(NKafka::EErrorCode::TopicAuthorizationFailed);
+                } else {
+                    fillError();
+                }
+                continue;
+            }
+
+            for (const auto& partition : topic.PartitionData) {
+                topicResponse.PartitionResponses.push_back(TRspProduceResponsePartitionResponse{
+                    .Index = partition.Index,
+                });
+            }
         }
 
         return response;

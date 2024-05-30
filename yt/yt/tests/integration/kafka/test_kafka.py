@@ -6,12 +6,12 @@ from yt_queue_agent_test_base import (
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
-    make_ace)
+    make_ace, select_rows, sync_unmount_table)
 
 from confluent_kafka import (
-    Consumer, TopicPartition)
+    Consumer, TopicPartition, Producer, KafkaError)
 
-from flaky import flaky
+from confluent_kafka.serialization import StringSerializer
 
 import functools
 import time
@@ -21,6 +21,14 @@ import time
 
 def _get_token(token, config):
     return token, time.time() + 3600
+
+
+def _fail_on_error(err, msg):
+    assert err is None
+
+
+def _check_error(code, err, msg):
+    assert isinstance(err, KafkaError) and err.code() == code
 
 
 class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
@@ -33,6 +41,13 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         {"name": "$cumulative_data_weight", "type": "int64"},
         {"name": "surname", "type": "string"},
         {"name": "number", "type": "int64"},
+    ]
+
+    KAFKA_QUEUE_SCHEMA = [
+        {"name": "$timestamp", "type": "uint64"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
+        {"name": "key", "type": "string"},
+        {"name": "value", "type": "string", "required": True},
     ]
 
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -54,6 +69,16 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         attributes = {
             "dynamic": True,
             "schema": TestKafkaProxy.DEFAULT_QUEUE_SCHEMA,
+        }
+        attributes.update(kwargs)
+        create("table", path, attributes=attributes)
+        sync_mount_table(path)
+
+    @staticmethod
+    def _create_kafka_queue(path, **kwargs):
+        attributes = {
+            "dynamic": True,
+            "schema": TestKafkaProxy.KAFKA_QUEUE_SCHEMA,
         }
         attributes.update(kwargs)
         create("table", path, attributes=attributes)
@@ -117,7 +142,6 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         assert ls("//sys/kafka_proxies/instances")[0] == address
 
     @authors("nadya73")
-    @flaky(max_runs=3)
     def test_basic(self):
         username = "u"
         create_user(username)
@@ -183,3 +207,95 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
 
             if poll_count > 10:
                 break
+
+    @authors("nadya73")
+    def test_producer(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        queue_path = "primary://tmp/queue"
+
+        TestKafkaProxy._create_kafka_queue(queue_path, tablet_count=3)
+
+        address = self.Env.get_kafka_proxy_address()
+        producer_config = {
+            "bootstrap.servers": address,
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanisms": "OAUTHBEARER",
+            "oauth_cb": functools.partial(_get_token, token),
+            "client.id": "1234567",
+            "debug": "all",
+        }
+        p = Producer(producer_config)
+
+        serializer = StringSerializer('utf_8')
+
+        rows_count = 20
+        messages = [[f"key_{i}", f"value_{i}"] for i in range(int(rows_count / 2))]
+        messages += [[f"value_{i}"] for i in range(int(rows_count / 2), rows_count)]
+
+        for msg_index, msg in enumerate(messages):
+            p.poll(0.0)
+
+            if len(msg) > 1:
+                p.produce(topic=queue_path,
+                          key=serializer(msg[0]),
+                          value=serializer(msg[1]),
+                          on_delivery=_fail_on_error)
+            else:
+                p.produce(topic=queue_path,
+                          value=serializer(msg[0]),
+                          on_delivery=_fail_on_error)
+            if msg_index % 4 == 0:
+                p.flush()
+
+        p.flush()
+
+        def _check_rows(expected_rows_count):
+            rows = select_rows("* from [//tmp/queue]")
+            rows = sorted(rows, key=lambda row: int(row["value"][6:]))
+            assert len(rows) == expected_rows_count
+
+            for row_index, row in enumerate(rows):
+                if row_index < rows_count / 2:
+                    assert row["key"] == f"key_{row_index}"
+                else:
+                    assert row["key"] == ""
+                assert row["value"] == f"value_{row_index}"
+
+        _check_rows(rows_count)
+
+        # Failed to write rows.
+        sync_unmount_table(queue_path)
+
+        p.poll(0.0)
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_20"),
+                  value=serializer("value_20"),
+                  on_delivery=functools.partial(_check_error, KafkaError.UNKNOWN))
+
+        p.flush()
+
+        sync_mount_table(queue_path)
+
+        _check_rows(rows_count)
+
+        # No write permission.
+        set(f"{queue_path}/@inherit_acl", False)
+
+        p.poll(0.0)
+
+        p.produce(topic=queue_path,
+                  key=serializer("key_20"),
+                  value=serializer("value_20"),
+                  on_delivery=functools.partial(_check_error, KafkaError.TOPIC_AUTHORIZATION_FAILED))
+
+        p.flush()
+
+        set(f"{queue_path}/@inherit_acl", True)
+
+        _check_rows(rows_count)

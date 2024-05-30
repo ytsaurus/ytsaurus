@@ -67,6 +67,8 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+{%- if type.sorted is none or type.sorted %}
+
 TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 {
     std::array values{
@@ -89,6 +91,8 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+{%- endif %}
 
 TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const TRowBufferPtr& rowBuffer,
