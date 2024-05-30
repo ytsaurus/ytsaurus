@@ -69,4 +69,4 @@ cp -r ${credits} ${output_path}
 
 cd ${output_path}
 
-docker build -t ytsaurus/ytsaurus:${image_tag} .
+docker build -t ghcr.io/ytsaurus/ytsaurus:${image_tag} .

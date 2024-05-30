@@ -76,8 +76,8 @@ jobs:
       publish-ytsaurus: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
     secrets:
-      DOCKER_HUB_LOGIN: ${{ secrets.DOCKER_HUB_LOGIN }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
   stop-vm:

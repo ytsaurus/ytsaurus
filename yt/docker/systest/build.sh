@@ -69,4 +69,4 @@ cp ${benchmarks_path} ${output_path}
 
 cd ${output_path}
 
-docker build -t ytsaurus/ytsaurus-systest:${image_tag} .
+docker build -t ghcr.io/ytsaurus/ytsaurus-systest:${image_tag} .

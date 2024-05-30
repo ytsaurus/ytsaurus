@@ -28,9 +28,9 @@ on:
         required: true
         type: string
     secrets:
-      DOCKER_HUB_LOGIN:
+      GH_PERSONAL_ACCESS_TOKEN:
         required: true
-      DOCKER_HUB_PASSWORD:
+      GH_USERNAME:
         required: true
 
 jobs:
@@ -50,9 +50,9 @@ jobs:
 
           bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/ytsaurus:${IMAGE_TAG}
+          docker tag ghcr.io/ytsaurus/ytsaurus:${IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
 
       - name: Query tracker image
         if: ${{ inputs.publish-query-tracker }}
@@ -62,9 +62,9 @@ jobs:
 
           bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/query-tracker:${IMAGE_TAG}
-          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/query-tracker:${IMAGE_TAG}
+          docker tag ghcr.io/ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
 
       - name: CHYT image
         if: ${{ inputs.publish-chyt }}
@@ -74,7 +74,7 @@ jobs:
 
           bash ./ytsaurus/yt/docker/chyt/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --chyt-build-path ../build/yt/chyt --output-path ../docker-chyt-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/chyt:${IMAGE_TAG}
+          docker push ghcr.io/ytsaurus/chyt:${IMAGE_TAG}
 
       - name: Strawberry image
         if: ${{ inputs.publish-strawberry }}
@@ -84,7 +84,7 @@ jobs:
 
           bash ./ytsaurus/yt/docker/strawberry/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-strawberry-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/strawberry:${IMAGE_TAG}
+          docker push ghcr.io/ytsaurus/strawberry:${IMAGE_TAG}
 
       - name: Local image
         if: ${{ inputs.publish-local }}
@@ -94,7 +94,7 @@ jobs:
 
           bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/local:${IMAGE_TAG}
+          docker push ghcr.io/ytsaurus/local:${IMAGE_TAG}
 
       - name: Core image (relwithdebinfo)
         if: ${{ inputs.publish-ytsaurus }}
@@ -105,9 +105,9 @@ jobs:
 
           bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/ytsaurus:${IMAGE_TAG}
-          docker tag ytsaurus/ytsaurus:${IMAGE_TAG} ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/ytsaurus:${IMAGE_TAG}
+          docker tag ghcr.io/ytsaurus/ytsaurus:${IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/ytsaurus-nightly:${IMAGE_TAG}-${GITHUB_SHA}
 
       - name: Query tracker image (relwithdebinfo)
         if: ${{ inputs.publish-query-tracker }}
@@ -119,9 +119,9 @@ jobs:
 
           bash ./ytsaurus/yt/docker/query-tracker/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --qt-build-path ../build_qt_relwithdebinfo --output-path ../docker-query-tracker-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/query-tracker:${IMAGE_TAG}
-          docker tag ytsaurus/query-tracker:${IMAGE_TAG} ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
-          docker push ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/query-tracker:${IMAGE_TAG}
+          docker tag ghcr.io/ytsaurus/query-tracker:${IMAGE_TAG} ghcr.io/ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
+          docker push ghcr.io/ytsaurus/query-tracker-nightly:${IMAGE_TAG}-${GITHUB_SHA}
 
       - name: Chyt image (relwithdebinfo)
         if: ${{ inputs.publish-chyt }}
@@ -132,7 +132,7 @@ jobs:
 
           bash ./ytsaurus/yt/docker/chyt/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --chyt-build-path ../build/yt/chyt --output-path ../docker-chyt-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/chyt:${IMAGE_TAG}
+          docker push ghcr.io/ytsaurus/chyt:${IMAGE_TAG}
 
       - name: Local image (relwithdebinfo)
         if: ${{ inputs.publish-local }}
@@ -143,5 +143,5 @@ jobs:
 
           bash ./ytsaurus/yt/docker/local/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-local-build --image-tag ${IMAGE_TAG}
 
-          docker push ytsaurus/local:${IMAGE_TAG}
+          docker push ghcr.io/ytsaurus/local:${IMAGE_TAG}
 
