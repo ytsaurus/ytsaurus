@@ -1,10 +1,10 @@
 ARG YTSAURUS_TAG=dev
 ARG QUERY_TRACKER_TAG=dev
 ARG STRAWBERRY_TAG=dev
-ARG IMAGE_PREFIX=ghcr.io
+ARG IMAGE_CR=ghcr.io/
 
 # Query tracker.
-FROM ${IMAGE_PREFIX}ytsaurus/query-tracker:${QUERY_TRACKER_TAG} as qt
+FROM ${IMAGE_CR}ytsaurus/query-tracker:${QUERY_TRACKER_TAG} as qt
 WORKDIR /query-tracker
 
 RUN mkdir -p /query-tracker/usr/bin
@@ -18,7 +18,7 @@ RUN cp /usr/bin/init_query_tracker_state /query-tracker/usr/bin
 RUN find /usr/bin -name '*CREDITS' -print0 | xargs -0 -I '{}' cp '{}' /query-tracker/usr/bin
 
 # Strawberry.
-FROM ${IMAGE_PREFIX}ytsaurus/strawberry:${STRAWBERRY_TAG} as strawberry
+FROM ${IMAGE_CR}ytsaurus/strawberry:${STRAWBERRY_TAG} as strawberry
 WORKDIR /strawberry
 
 RUN mkdir -p /strawberry/usr/bin
@@ -27,7 +27,7 @@ RUN cp /usr/bin/strawberry-controller /strawberry/usr/bin
 RUN find /usr/bin -name '*CREDITS' -print0 | xargs -0 -I '{}' cp '{}' /strawberry/usr/bin
 
 # Main image.
-FROM ${IMAGE_PREFIX}ytsaurus/ytsaurus:${YTSAURUS_TAG}
+FROM ${IMAGE_CR}ytsaurus/ytsaurus:${YTSAURUS_TAG}
 USER root
 
 COPY --from=qt /query-tracker/usr/bin/* /usr/bin/

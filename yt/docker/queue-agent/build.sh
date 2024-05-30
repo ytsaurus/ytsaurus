@@ -6,7 +6,7 @@ image_tag=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 output_path="."
-image_prefix=""
+image_cr=""
 
 print_usage() {
     cat << EOF
@@ -15,7 +15,7 @@ Usage: $script_name [-h|--help]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
-                    [--image-prefix some-cr/ (default: '$image_prefix')]
+                    [--image-cr some-cr/ (default: '$image_cr')]
 EOF
     exit 1
 }
@@ -40,8 +40,8 @@ while [[ $# -gt 0 ]]; do
         image_tag="$2"
         shift 2
         ;;
-        --image-prefix)
-        image_prefix="$2"
+        --image-cr)
+        image_cr="$2"
         shift 2
         ;;
         -h|--help)
@@ -74,4 +74,4 @@ cp -r ${ytsaurus_credits}/ytserver-all.CREDITS ${output_path}/credits
 
 cd ${output_path}
 
-docker build -t ${image_prefix}ytsaurus/queue-agent:${image_tag} .
+docker build -t ${image_cr}ytsaurus/queue-agent:${image_tag} .
