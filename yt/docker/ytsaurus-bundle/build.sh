@@ -11,6 +11,7 @@ strawberry_tag=""
 output_path="."
 
 image_tag=""
+image_prefix="ghcr.io/"
 
 print_usage() {
     cat << EOF
@@ -20,6 +21,7 @@ Usage: $script_name [-h|--help]
                     [--query-tracker-tag ytsaurus/query-tracker tag]
                     [--strawberry-tag ytsaurus/strawberry image tag]
                     [--output-path /path/to/output (default: $output_path)]
+                    [--image-prefix some-cr/ (default: $image_prefix)]
 EOF
     exit 1
 }
@@ -48,6 +50,10 @@ while [[ $# -gt 0 ]]; do
         output_path="$2"
         shift 2
         ;;
+        --image-prefix)
+        image_prefix="$2"
+        shift 2
+        ;;
         -h|--help)
         print_usage
         shift
@@ -65,4 +71,4 @@ cp ${dockerfile} ${output_path}
 
 cd ${output_path}
 
-docker build -t ytsaurus/ytsaurus-bundle:${ytsaurus_tag} . --build-arg YTSAURUS_TAG=${ytsaurus_tag} --build-arg QUERY_TRACKER_TAG=${query_tracker_tag} --build-arg STRAWBERRY_TAG=${strawberry_tag}
+docker build -t ${image_prefix}ytsaurus/ytsaurus-bundle:${ytsaurus_tag} . --build-arg YTSAURUS_TAG=${ytsaurus_tag} --build-arg QUERY_TRACKER_TAG=${query_tracker_tag} --build-arg STRAWBERRY_TAG=${strawberry_tag} --build-arg IMAGE_PREFIX=${image_prefix}

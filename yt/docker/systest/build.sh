@@ -8,6 +8,7 @@ output_path="."
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 image_tag="latest"
+image_prefix=""
 
 print_usage() {
     cat << EOF
@@ -16,6 +17,7 @@ Usage: $script_name [-h|--help]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
+                    [--image-prefix some-cr/ (default: $image_prefix)]
 EOF
     exit 1
 }
@@ -38,6 +40,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image-tag)
         image_tag="$2"
+        shift 2
+        ;;
+        --image-prefix)
+        image_prefix="$2"
         shift 2
         ;;
         -h|--help)
@@ -63,4 +69,4 @@ cp ${ytsaurus_source_path}/yt/systest/scripts/init.sh ${output_path}
 
 cd ${output_path}
 
-docker build -t ytsaurus/ytsaurus-systest:${image_tag} .
+docker build -t ${image_prefix}ytsaurus/ytsaurus-systest:${image_tag} .
