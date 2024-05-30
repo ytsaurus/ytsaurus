@@ -109,11 +109,6 @@ using TJoinLookup = google::dense_hash_map<
     NDetail::TGroupHasher,
     NDetail::TRowComparer>;
 
-using TJoinLookupRows = std::unordered_multiset<
-    const TPIValue*,
-    NDetail::TGroupHasher,
-    NDetail::TRowComparer>;
-
 struct TLookupRowInRowsetWebAssemblyContext
 {
     std::unique_ptr<TLookupRows> LookupTable;
