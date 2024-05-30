@@ -263,6 +263,7 @@ public:
         auto mapGuard = ReaderGuard(EntriesLock_);
         auto it = Entries_.find(chunkId);
         if (it != Entries_.end()) {
+            auto entryGuard = Guard(it->second->Lock);
             it->second->LastAccessTime = TInstant::Now();
         }
     }
