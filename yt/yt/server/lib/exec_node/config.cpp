@@ -777,6 +777,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("profile_job_proxy_process_exit", &TThis::ProfileJobProxyProcessExit)
         .Default(false);
+
+    registrar.Parameter("test_resource_acquisition_delay", &TThis::TestResourceAcquisitionDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

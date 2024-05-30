@@ -857,11 +857,10 @@ public:
         const TJobResources& baseResources,
         const TJobResources& additionalResources,
         const std::vector<int>& ports,
-        EResourcesState currentState)
+        EResourcesState currentState,
+        bool resourceHolderStarted)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        bool resourceHolderStarted = currentState > EResourcesState::Pending;
 
         YT_VERIFY(resourceHolderStarted || ports.empty());
 
@@ -1595,6 +1594,7 @@ void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResource
     GpuSlots_ = std::move(acquiredResources.GpuSlots);
 
     State_ = EResourcesState::Acquired;
+    HasStarted_ = true;
 }
 
 void TResourceHolder::ReleaseAdditionalResources()
@@ -1670,7 +1670,8 @@ void TResourceHolder::ReleaseBaseResources()
         BaseResourceUsage_,
         AdditionalResourceUsage_,
         Ports_,
-        State_);
+        State_,
+        HasStarted_);
 
     State_ = EResourcesState::Released;
 
