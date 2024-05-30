@@ -2843,7 +2843,18 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("tablet_count", [1, 2])
-    def test_ordered_chaos_table(self, tablet_count):
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            None,
+            [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "string"},
+                {"name": "$timestamp", "type": "uint64"},
+            ]
+        ]
+    )
+    def test_ordered_chaos_table(self, tablet_count, schema):
         cell_id = self._sync_create_chaos_bundle_and_cell()
 
         replicas = [
@@ -2851,7 +2862,15 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/q"},
         ]
-        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, sync_replication_era=False, mount_tables=False, ordered=True)
+
+        card_id, replica_ids = self._create_chaos_tables(
+            cell_id,
+            replicas,
+            sync_replication_era=False,
+            mount_tables=False,
+            ordered=True,
+            schema=schema
+        )
         _, remote_driver0, remote_driver1 = self._get_drivers()
 
         for replica in replicas:

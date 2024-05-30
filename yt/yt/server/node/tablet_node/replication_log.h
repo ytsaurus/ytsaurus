@@ -14,7 +14,6 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetLogRowIndex(NTableClient::TUnversionedRow logRow);
-TTimestamp GetLogRowTimestamp(NTableClient::TUnversionedRow logRow);
 
 TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex = -1);
 
