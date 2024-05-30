@@ -351,4 +351,11 @@ LLVM_BC(
         dict_sum_finalize
 )
 
+LLVM_BC(
+    udf/yson_string_to_any.cpp
+    NAME yson_string_to_any
+    SYMBOLS
+        yson_string_to_any
+)
+
 END()

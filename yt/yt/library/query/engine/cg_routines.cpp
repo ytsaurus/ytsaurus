@@ -2360,97 +2360,6 @@ void ThrowCannotCompareTypes(NYson::ETokenType lhsType, NYson::ETokenType rhsTyp
         rhsType);
 }
 
-int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
-{
-    lhsData = ConvertPointerFromWasmToHost(lhsData);
-    rhsData = ConvertPointerFromWasmToHost(rhsData);
-
-    TStringBuf lhsInput(lhsData, lhsLength);
-    TStringBuf rhsInput(rhsData, rhsLength);
-
-    NYson::TStatelessLexer lexer;
-
-    NYson::TToken lhsToken;
-    NYson::TToken rhsToken;
-    lexer.ParseToken(lhsInput, &lhsToken);
-    lexer.ParseToken(rhsInput, &rhsToken);
-
-    if (lhsToken.GetType() != rhsToken.GetType()) {
-        ThrowCannotCompareTypes(lhsToken.GetType(), rhsToken.GetType());
-    }
-
-    auto tokenType = lhsToken.GetType();
-
-    switch (tokenType) {
-        case NYson::ETokenType::Boolean: {
-            auto lhsValue = lhsToken.GetBooleanValue();
-            auto rhsValue = rhsToken.GetBooleanValue();
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-            break;
-        }
-        case NYson::ETokenType::Int64: {
-            auto lhsValue = lhsToken.GetInt64Value();
-            auto rhsValue = rhsToken.GetInt64Value();
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-            break;
-        }
-        case NYson::ETokenType::Uint64: {
-            auto lhsValue = lhsToken.GetUint64Value();
-            auto rhsValue = rhsToken.GetUint64Value();
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-            break;
-        }
-        case NYson::ETokenType::Double: {
-            auto lhsValue = lhsToken.GetDoubleValue();
-            auto rhsValue = rhsToken.GetDoubleValue();
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-            break;
-        }
-        case NYson::ETokenType::String: {
-            auto lhsValue = lhsToken.GetStringValue();
-            auto rhsValue = rhsToken.GetStringValue();
-            if (lhsValue < rhsValue) {
-                return -1;
-            } else if (lhsValue > rhsValue) {
-                return +1;
-            } else {
-                return 0;
-            }
-            break;
-        }
-        default:
-            THROW_ERROR_EXCEPTION("Values of type %Qlv are not comparable",
-                tokenType);
-    }
-
-    YT_ABORT();
-}
-
-
 #define DEFINE_COMPARE_ANY(TYPE, TOKEN_TYPE) \
 int CompareAny##TOKEN_TYPE(char* lhsData, i32 lhsLength, TYPE rhsValue) \
 { \
@@ -3596,13 +3505,30 @@ void CompositeMemberAccessorHelper(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareYsonValuesHelper(const char* lhsOffset, int lhsLength, const char* rhsOffset, int rhsLength)
+int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
 {
     auto* lhs = ConvertPointerFromWasmToHost(lhsOffset, lhsLength);
     auto* rhs = ConvertPointerFromWasmToHost(rhsOffset, rhsLength);
     return NYT::NTableClient::CompareYsonValues(
         TYsonStringBuf(TStringBuf(lhs, lhsLength)),
         TYsonStringBuf(TStringBuf(rhs, rhsLength)));
+}
+
+ui64 HashYsonValueHelper(const char* dataOffset, ui32 length)
+{
+    auto* data = ConvertPointerFromWasmToHost(dataOffset, length);
+    return NYT::NTableClient::CompositeFarmHash(TYsonStringBuf(TStringBuf(data, length)));
+}
+
+int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
+{
+    return CompareYsonValuesHelper(lhsData, lhsLength, rhsData, rhsLength);
+}
+
+void ValidateYsonHelper(const char* offset, ui32 length)
+{
+    auto* data = ConvertPointerFromWasmToHost(offset, length);
+    ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit=*/ 256);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3762,7 +3688,6 @@ REGISTER_ROUTINE(RegexEscape);
 REGISTER_ROUTINE(XdeltaMerge);
 REGISTER_ROUTINE(ToLowerUTF8);
 REGISTER_ROUTINE(GetFarmFingerprint);
-REGISTER_ROUTINE(CompareAny);
 REGISTER_ROUTINE(CompareAnyBoolean);
 REGISTER_ROUTINE(CompareAnyInt64);
 REGISTER_ROUTINE(CompareAnyUint64);
@@ -3801,6 +3726,9 @@ REGISTER_ROUTINE(LikeOpHelper);
 REGISTER_ROUTINE(CompositeMemberAccessorHelper);
 REGISTER_ROUTINE(DictSumIteration);
 REGISTER_ROUTINE(CompareYsonValuesHelper);
+REGISTER_ROUTINE(HashYsonValueHelper);
+REGISTER_ROUTINE(CompareAny);
+REGISTER_ROUTINE(ValidateYsonHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);

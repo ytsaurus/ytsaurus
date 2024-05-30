@@ -204,6 +204,12 @@ get_built_tool_path(
   tools/rescompiler/bin
   rescompiler
 )
+get_built_tool_path(
+  TOOL_rescompiler_bin
+  TOOL_rescompiler_dependency
+  tools/rescompiler/bin
+  rescompiler
+)
 
 add_library(library-query-engine)
 target_compile_options(library-query-engine PRIVATE
@@ -328,6 +334,7 @@ target_sources(library-query-engine.global PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/aef3fcfb2f42efbbe6e19dc5e42865dc.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/d34e0bd6058ed25e8015ef8decbea547.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/f5889e61d169d8594dc076c5ba7ccfb9.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/79ebd602137b5314a4f29bc0d1efa9ca.cpp
 )
 add_custom_command(
   OUTPUT
@@ -1121,6 +1128,30 @@ add_custom_command(
   -o
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/dict_sum_merged.bc
 )
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_optimized.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_merged.bc
+  COMMAND
+  ${LLVMOPT}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_merged.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_optimized.bc
+  -internalize-public-api-list=yson_string_to_any
+  -passes="default<O2>,globalopt,globaldce,internalize"
+)
+add_custom_command(
+  OUTPUT
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_merged.bc
+  DEPENDS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_string_to_any.cpp.bc
+  COMMAND
+  ${LLVMLINK}
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_string_to_any.cpp.bc
+  -o
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_merged.bc
+)
 llvm_compile_c(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/avg.c
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/avg.c.bc
@@ -1348,6 +1379,13 @@ llvm_compile_cxx(library-query-engine.global
 llvm_compile_cxx(library-query-engine.global
   ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/greatest.cpp
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/greatest.cpp.bc
+  ${CLANGPLUSPLUS}
+  -Wno-unknown-warning-option
+  -emit-llvm
+)
+llvm_compile_cxx(library-query-engine.global
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/query/engine/udf/yson_string_to_any.cpp
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/udf/yson_string_to_any.cpp.bc
   ${CLANGPLUSPLUS}
   -Wno-unknown-warning-option
   -emit-llvm
@@ -1582,4 +1620,11 @@ resources(library-query-engine.global
   ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/dict_sum_optimized.bc
   KEYS
   /llvm_bc/dict_sum
+)
+resources(library-query-engine.global
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/79ebd602137b5314a4f29bc0d1efa9ca.cpp
+  INPUTS
+  ${CMAKE_BINARY_DIR}/yt/yt/library/query/engine/yson_string_to_any_optimized.bc
+  KEYS
+  /llvm_bc/yson_string_to_any
 )

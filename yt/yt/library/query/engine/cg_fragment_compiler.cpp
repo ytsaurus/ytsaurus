@@ -303,7 +303,35 @@ TValueTypeLabels CodegenHasherBody(
         builder->CreateBr(gotoNextBB);
     };
 
-    BasicBlock* hashAnyBB = hashStringBB;
+    BasicBlock* hashAnyBB = nullptr;
+    {
+        hashAnyBB = builder->CreateBBHere("hashNull");
+        builder->SetInsertPoint(hashAnyBB);
+
+        auto valuePtr = builder->CreateInBoundsGEP(
+            TValueTypeBuilder::Get(builder->getContext()),
+            values,
+            indexPhi);
+        auto value = TCGValue::LoadFromRowValue(
+            builder,
+            valuePtr,
+            EValueType::Any);
+
+        result2Phi->addIncoming(builder->getInt64(0), builder->GetInsertBlock());
+        BasicBlock* hashDataBB = builder->CreateBBHere("hashData");
+        builder->CreateCondBr(value.GetIsNull(builder), gotoNextBB, hashDataBB);
+
+        builder->SetInsertPoint(hashDataBB);
+        Value* hashResult = builder->CreateCall(
+            builder.Module->GetRoutine("HashYsonValueHelper"),
+            {
+                value.GetTypedData(builder),
+                value.GetLength()
+            });
+
+        result2Phi->addIncoming(hashResult, builder->GetInsertBlock());
+        builder->CreateBr(gotoNextBB);
+    };
 
     builder->SetInsertPoint(gotoHashBB);
 

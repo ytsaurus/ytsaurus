@@ -728,6 +728,17 @@ struct TCastEliminator
             }
         }
 
+        if (functionExpr->FunctionName == "yson_string_to_any") {
+            YT_VERIFY(functionExpr->Arguments.size() == 1);
+            if (auto* literal = functionExpr->Arguments[0]->As<TLiteralExpression>()) {
+                YT_VERIFY(literal->Value.Type() == EValueType::String);
+                auto asUnversionedValue = TUnversionedValue(literal->Value);
+                asUnversionedValue.Type = EValueType::Any;
+                ValidateYson(TYsonStringBuf(asUnversionedValue.AsStringBuf()), /*nestingLevelLimit=*/ 256);
+                return New<TLiteralExpression>(EValueType::Any, TOwningValue(asUnversionedValue));
+            }
+        }
+
         return TBase::OnFunction(functionExpr);
     }
 };

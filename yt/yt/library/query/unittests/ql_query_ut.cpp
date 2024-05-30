@@ -6518,6 +6518,8 @@ TEST_F(TQueryEvaluateTest, CompareAny)
         "a=1.0;b=1.0;",
         "a=x;b=y;",
         "a=x;b=x;",
+        "a=[1;2;3];b=[1;2;3];",
+        "a=[1;2;3];b=[1;3;4];",
     };
 
     auto resultSplit = MakeSplit({
@@ -6540,6 +6542,8 @@ TEST_F(TQueryEvaluateTest, CompareAny)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
         "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false",
+        "r1=%true;r2=%false;r3=%true;r4=%false;r5=%false;r6=%true",
     }, resultSplit);
 
     Evaluate("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6 FROM [//t]",
@@ -6654,6 +6658,135 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
         }), {
             "a=x;"},
         ResultMatcher(result));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, YsonStringToAny)
+{
+    // TODO(dtorilov): Add WebAssembly UDF.
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{
+            R"(a="1")",
+            R"(a="1u")",
+            R"(a="1.0")",
+            R"(a="abc")",
+            R"(a="%true")",
+
+            R"(a="{}")",
+            R"(a="{b=1}")",
+            R"(a="{b=1u}")",
+            R"(a="{b=1.0}")",
+            R"(a="{b=abc}")",
+            R"(a="{b=%true}")",
+            R"(a="{b=[]}")",
+            R"(a="{b=[1;2;3]}")",
+            R"(a="{b=[1;abc;3.14;%false]}")",
+            R"(a="{b=[1;2;3];c=42u}")",
+
+            R"(a="[]")",
+            R"(a="[1]")",
+            R"(a="[1u]")",
+            R"(a="[1.0]")",
+            R"(a="[abc]")",
+            R"(a="[%true]")",
+            R"(a="[[]]")",
+            R"(a="[[1;2;3]]")",
+            R"(a="[[1;abc;3.14;%false]]")",
+            R"(a="[[1;2;3];42u]")",
+        };
+
+        auto resultSplit = MakeSplit({{"r", EValueType::Any}});
+        auto result = YsonToRows({
+            R"(r=1)",
+            R"(r=1u)",
+            R"(r=1.0)",
+            R"(r=abc)",
+            R"(r=%true)",
+
+            R"(r={})",
+            R"(r={b=1})",
+            R"(r={b=1u})",
+            R"(r={b=1.0})",
+            R"(r={b=abc})",
+            R"(r={b=%true})",
+            R"(r={b=[]})",
+            R"(r={b=[1;2;3]})",
+            R"(r={b=[1;abc;3.14;%false]})",
+            R"(r={b=[1;2;3];c=42u})",
+
+            R"(r=[])",
+            R"(r=[1])",
+            R"(r=[1u])",
+            R"(r=[1.0])",
+            R"(r=[abc])",
+            R"(r=[%true])",
+            R"(r=[[]])",
+            R"(r=[[1;2;3]])",
+            R"(r=[[1;abc;3.14;%false]])",
+            R"(r=[[1;2;3];42u])",
+        }, resultSplit);
+
+        auto query = "yson_string_to_any(a) as r FROM [//t]";
+        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+    }
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{R"(a="#")"};
+
+        auto resultSplit = MakeSplit({{"r", EValueType::Boolean}});
+        auto result = YsonToRows({R"(r=%true)"}, resultSplit);
+
+        auto query = "yson_string_to_any(a) = make_entity() as r FROM [//t]";
+        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+    }
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{R"(a=dummy)"};
+
+        auto resultSplit = MakeSplit({{"r", EValueType::Any}});
+        auto result = YsonToRows({R"(r=[""])"}, resultSplit);
+
+        auto query = "make_list(yson_string_to_any('\"\"')) as r FROM [//t]";
+        EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result));
+    }
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{R"(a=dummy)"};
+
+        auto resultSplit = MakeSplit({});
+        auto result = YsonToRows({}, resultSplit);
+
+        auto query = "yson_string_to_any('') as r FROM [//t]";
+        EXPECT_THROW_THAT(
+            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            HasSubstr("Error occurred while parsing YSON"));
+    }
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{R"(a=dummy)"};
+
+        auto resultSplit = MakeSplit({});
+        auto result = YsonToRows({}, resultSplit);
+
+        auto query = "yson_string_to_any('[[1;2;3]') as r FROM [//t]";
+        EXPECT_THROW_THAT(
+            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            HasSubstr("Unexpected \"finish\""));
+    }
+    {
+        auto split = MakeSplit({{"a", EValueType::String}});
+        auto source = std::vector<TString>{R"(a="")"};
+
+        auto resultSplit = MakeSplit({});
+        auto result = YsonToRows({}, resultSplit);
+
+        auto query = "yson_string_to_any(a) as r FROM [//t]";
+        EXPECT_THROW_THAT(
+            EvaluateOnlyViaNativeExecutionBackend(query, split, source, ResultMatcher(result)),
+            HasSubstr("Error occurred while parsing YSON"));
+    }
 
     SUCCEED();
 }
