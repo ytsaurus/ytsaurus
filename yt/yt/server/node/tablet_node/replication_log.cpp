@@ -26,12 +26,6 @@ i64 GetLogRowIndex(TUnversionedRow logRow)
     return logRow[1].Data.Int64;
 }
 
-TTimestamp GetLogRowTimestamp(TUnversionedRow logRow)
-{
-    YT_ASSERT(logRow[2].Type == EValueType::Uint64);
-    return logRow[2].Data.Uint64;
-}
-
 TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex)
 {
     return MakeUnversionedOwningRow(
@@ -42,6 +36,13 @@ TLegacyOwningKey MakeRowBound(i64 rowIndex, i64 tabletIndex)
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
+
+TTimestamp GetLogRowTimestamp(TUnversionedRow logRow, const std::optional<int>& timestampColumnIdOptional)
+{
+    auto timetampColumnIndex = timestampColumnIdOptional.value_or(0) + 2;
+    YT_ASSERT(logRow[timetampColumnIndex].Type == EValueType::Uint64);
+    return logRow[timetampColumnIndex].Data.Uint64;
+}
 
 TUnversionedRow BuildOrderedLogRow(
     TUnversionedRow row,
@@ -228,7 +229,7 @@ public:
         bool isVersioned) override
     {
         *rowIndex = GetLogRowIndex(logRow);
-        *timestamp = GetLogRowTimestamp(logRow);
+        *timestamp = NDetail::GetLogRowTimestamp(logRow, TimestampColumnId_);
         if (IsSorted_) {
             if (isVersioned) {
                 ParseSortedLogRowWithTimestamps(
@@ -354,7 +355,7 @@ private:
         }
 
         if (isVersioned) {
-            auto timestamp = GetLogRowTimestamp(logRow);
+            auto timestamp = NDetail::GetLogRowTimestamp(logRow, TimestampColumnId_);
             YT_VERIFY(TimestampColumnId_);
             mutableReplicationRow.Begin()[columnCount++] = MakeUnversionedUint64Value(timestamp, *TimestampColumnId_);
         }
@@ -581,7 +582,7 @@ private:
         YT_VERIFY(readerRows.size() == 1);
 
         i64 actualRowIndex = GetLogRowIndex(readerRows[0]);
-        auto timestamp = GetLogRowTimestamp(readerRows[0]);
+        auto timestamp = NDetail::GetLogRowTimestamp(readerRows[0], TimestampColumnId_);
         YT_VERIFY(actualRowIndex == rowIndex);
 
         YT_LOG_DEBUG("Replication log row timestamp is read (RowIndex: %v, Timestamp: %v)",

@@ -2673,7 +2673,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
     @authors("gritukan")
     @pytest.mark.parametrize("preserve_timestamps", [False, True])
-    def test_replicate_timestamp_column(self, preserve_timestamps):
+    @pytest.mark.parametrize(
+        "schema",
+        [
+            [{"name": "$timestamp", "type": "uint64"}] + SIMPLE_SCHEMA_ORDERED,
+            SIMPLE_SCHEMA_ORDERED + [{"name": "$timestamp", "type": "uint64"}],
+        ]
+    )
+    def test_replicate_timestamp_column(self, preserve_timestamps, schema):
         self._create_cells()
 
         schema = [{"name": "$timestamp", "type": "uint64"}] + SIMPLE_SCHEMA_ORDERED
