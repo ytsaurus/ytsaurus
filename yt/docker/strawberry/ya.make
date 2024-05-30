@@ -6,3 +6,7 @@ FILES(
 )
 
 END()
+
+RECURSE(
+    credits
+)

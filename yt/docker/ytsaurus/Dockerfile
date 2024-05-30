@@ -20,7 +20,6 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tools && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-scheduler && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-controller-agent && \
-    ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-queue-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy
 
@@ -28,11 +27,8 @@ COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
 COPY ./init_operations_archive.py /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
 
-COPY ./chyt-controller /usr/bin/chyt-controller
-
 # CREDITS files with licenses for all binaries.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
-COPY ./credits/chyt-controller.CREDITS  /usr/bin/chyt-controller.CREDITS
 
 RUN apt-get update && apt-get install -y software-properties-common
 RUN add-apt-repository ppa:deadsnakes/ppa

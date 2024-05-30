@@ -51,14 +51,12 @@ done
 
 
 ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-chyt_controller="${ytsaurus_source_path}/yt/chyt/controller/cmd/chyt-controller/chyt-controller"
 init_queue_agent_state="${ytsaurus_source_path}/yt/python/yt/environment/init_queue_agent_state.py"
 init_operations_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operations_archive.py"
 credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
 dockerfile="${ytsaurus_source_path}/yt/docker/ytsaurus/Dockerfile"
 
 cp ${ytserver_all} ${output_path}
-cp ${chyt_controller} ${output_path}
 cp ${init_queue_agent_state} ${output_path}
 cp ${init_operations_archive} ${output_path}
 
