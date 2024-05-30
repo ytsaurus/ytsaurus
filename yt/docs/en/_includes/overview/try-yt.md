@@ -36,7 +36,7 @@ This section describes the installation of {{product-name}} in a Kubernetes clus
 
 1. Install the [helm utility](https://helm.sh/docs/intro/install/).
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Install the chart: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```
@@ -81,7 +81,7 @@ As a result, the `kubectl cluster-info` command should be executed successfully.
 
 1. Install the [helm utility](https://helm.sh/docs/intro/install/).
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Install the chart: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Install the chart: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```

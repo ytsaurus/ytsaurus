@@ -36,7 +36,7 @@ token=""
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Установите чарт: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Установите чарт: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Проверьте результат:
 
 ```
@@ -91,7 +91,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Установите чарт: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Установите чарт: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Проверьте результат:
 
 ```
