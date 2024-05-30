@@ -443,28 +443,29 @@ TString SuggestCypressShardName(TCypressShard* shard)
 
 void ValidateCompressionCodec(
     const NYson::TYsonString& value,
-    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
-    const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias)
+    const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
+    const std::optional<THashMap<TString, TString>>& configuredForbiddenCodecNameToAlias)
 {
-    auto deprecatedCodecs = configuredDeprecatedCodecIds
-        ? *configuredDeprecatedCodecIds
-        : NCompression::GetDeprecatedCodecIds();
-    auto codecId = ConvertTo<NCompression::ECodec>(value);
-    if (deprecatedCodecs.find(codecId) != deprecatedCodecs.end()) {
-        THROW_ERROR_EXCEPTION("Codec %Qlv is deprecated", codecId);
+    if (NCellMaster::IsSubordinateMutation()) {
+        return;
     }
 
-    auto deprecatedCodecNameToAlias = configuredDeprecatedCodecNameToAlias
-        ? *configuredDeprecatedCodecNameToAlias
-        : NCompression::GetDeprecatedCodecNameToAlias();
+    auto deprecatedCodecs = configuredForbiddenCodecs
+        ? *configuredForbiddenCodecs
+        : NCompression::GetForbiddenCodecs();
+    auto codecId = ConvertTo<NCompression::ECodec>(value);
+    if (deprecatedCodecs.find(codecId) != deprecatedCodecs.end()) {
+        THROW_ERROR_EXCEPTION("Compression codec %Qv is forbidden", codecId);
+    }
+
+    auto deprecatedCodecNameToAlias = configuredForbiddenCodecNameToAlias
+        ? *configuredForbiddenCodecNameToAlias
+        : NCompression::GetForbiddenCodecNameToAlias();
     auto codecName = ConvertTo<TString>(value);
     auto it = deprecatedCodecNameToAlias.find(codecName);
     if (deprecatedCodecNameToAlias.find(codecName) != deprecatedCodecNameToAlias.end()) {
         auto& [_, alias] = *it;
-        THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead",
-            codecName,
-            alias);
-
+        THROW_ERROR_EXCEPTION("Compression codec name %Qv is forbidden, use %Qv instead", codecName, alias);
     }
 }
 

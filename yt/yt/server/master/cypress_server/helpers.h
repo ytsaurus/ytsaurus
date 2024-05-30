@@ -118,8 +118,8 @@ TString SuggestCypressShardName(TCypressShard* shard);
 
 void ValidateCompressionCodec(
     const NYson::TYsonString& value,
-    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
-    const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias);
+    const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
+    const std::optional<THashMap<TString, TString>>& configuredForbiddenCodecNameToAlias);
 
 void ValidateErasureCodec(
     const NYson::TYsonString& value,

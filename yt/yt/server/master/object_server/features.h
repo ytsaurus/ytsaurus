@@ -9,7 +9,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 NYson::TYsonString CreateFeatureRegistryYson(
-    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds);
+    const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCompressionCodecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

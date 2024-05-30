@@ -273,7 +273,7 @@ private:
         if (populateFeatures) {
             const auto& configManager = Bootstrap_->GetConfigManager();
             const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
-            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->DeprecatedCodecIds).ToString());
+            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->ForbiddenCompressionCodecs).ToString());
         }
 
         context->Reply();
