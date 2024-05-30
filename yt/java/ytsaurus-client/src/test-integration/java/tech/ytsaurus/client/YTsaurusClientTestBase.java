@@ -58,7 +58,7 @@ public class YTsaurusClientTestBase {
         );
 
         if (!System.getenv().containsKey("YT_PROXY")) {
-            localYTsaurus = new FixedHostPortGenericContainer<>("ytsaurus/local:dev")
+            localYTsaurus = new FixedHostPortGenericContainer<>("ghcr.io/ytsaurus/local:dev")
                     .withFixedExposedPort(10110, 80) // http
                     .withFixedExposedPort(10111, 10111) // rpc_proxy
                     .withFixedExposedPort(10125, 10125)
