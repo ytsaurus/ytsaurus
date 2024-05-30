@@ -155,7 +155,7 @@ public:
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
-        JobProxyLogManager_ = New<TJobProxyLogManager>(Bootstrap_->GetExecNodeBootstrap());
+        JobProxyLogManager_ = CreateJobProxyLogManager(Bootstrap_->GetExecNodeBootstrap());
     }
 
     void Start() override
@@ -540,7 +540,7 @@ private:
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
-    TJobProxyLogManagerPtr JobProxyLogManager_;
+    IJobProxyLogManagerPtr JobProxyLogManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

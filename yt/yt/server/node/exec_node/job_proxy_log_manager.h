@@ -8,41 +8,25 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobProxyLogManager
+struct IJobProxyLogManager
     : public TRefCounted
 {
-public:
-    explicit TJobProxyLogManager(IBootstrap* bootstrap);
-    void Start();
-    void OnJobUnregistered(TJobId jobId);
+    virtual void Start() = 0;
 
-    TString GetShardingKey(TJobId jobId);
+    virtual void OnJobUnregistered(TJobId jobId) = 0;
 
-    void OnDynamicConfigChanged(
+    virtual TString GetShardingKey(TJobId jobId) = 0;
+
+    virtual void OnDynamicConfigChanged(
         TJobProxyLogManagerDynamicConfigPtr oldConfig,
-        TJobProxyLogManagerDynamicConfigPtr newConfig);
-
-private:
-    IBootstrap* const Bootstrap_;
-
-    TJobProxyLogManagerConfigPtr Config_;
-
-    bool Enabled_;
-
-    TString Directory_;
-    int ShardingKeyLength_;
-    TDuration LogsStoragePeriod_;
-
-    std::optional<int> DirectoryTraversalConcurrency_;
-    NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
-
-    void CreateShardingDirectories();
-    void TraverseJobDirectoriesAndScheduleRemovals();
-    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, TString shardingDirPath);
-    void RemoveJobLog(TJobId jobId);
+        TJobProxyLogManagerDynamicConfigPtr newConfig) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobProxyLogManager);
+DEFINE_REFCOUNTED_TYPE(IJobProxyLogManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IJobProxyLogManagerPtr CreateJobProxyLogManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

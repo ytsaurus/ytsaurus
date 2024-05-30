@@ -86,7 +86,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnector)
 
 DECLARE_REFCOUNTED_STRUCT(IJobEnvironment)
 
-DECLARE_REFCOUNTED_CLASS(TJobProxyLogManager)
+DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
 DEFINE_ENUM(EExecNodeThrottlerKind,
     //! Controls incoming bandwidth used by Artifact Cache downloads.
