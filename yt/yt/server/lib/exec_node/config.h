@@ -673,6 +673,10 @@ public:
 
     bool ProfileJobProxyProcessExit;
 
+    //! This option is used for testing purposes only.
+    //! Adds delay before starting a job.
+    std::optional<TDuration> TestResourceAcquisitionDelay;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

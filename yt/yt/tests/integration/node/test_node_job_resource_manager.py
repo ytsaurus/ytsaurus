@@ -2,9 +2,92 @@ import time
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, run_sleeping_vanilla, update_nodes_dynamic_config, ls, get, wait)
+    authors, with_breakpoint, wait_breakpoint, release_breakpoint, run_test_vanilla,
+    run_sleeping_vanilla, update_nodes_dynamic_config, ls, get, wait, abort_job)
 
-from yt_helpers import JobCountProfiler
+from yt_helpers import JobCountProfiler, profiler_factory
+
+
+class TestUserMemoryUsageTracker(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    @authors("arkady-e1ppa")
+    def test_completed_job_resource_usage(self):
+        node = ls("//sys/cluster_nodes")[0]
+        profiler = profiler_factory().at_node(node)
+        user_jobs_used = profiler \
+            .counter(
+                name="cluster_node/memory_usage/used",
+                tags={'category': 'user_jobs'})
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        wait_breakpoint()
+
+        wait(lambda: user_jobs_used.get_delta() > 0)
+
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: user_jobs_used.get_delta() == 0)
+
+    @authors("arkady-e1ppa")
+    def test_aborted_running_job_resource_usage(self):
+        node = ls("//sys/cluster_nodes")[0]
+        profiler = profiler_factory().at_node(node)
+        user_jobs_used = profiler \
+            .counter(
+                name="cluster_node/memory_usage/used",
+                tags={'category': 'user_jobs'})
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        (job_id, ) = wait_breakpoint()
+
+        wait(lambda: user_jobs_used.get_delta() > 0)
+
+        abort_job(job_id)
+        release_breakpoint()
+        op.track()
+
+        wait(lambda: user_jobs_used.get_delta() == 0)
+
+    @authors("arkady-e1ppa")
+    def test_aborted_created_job_resource_usage(self):
+        node = ls("//sys/cluster_nodes")[0]
+        profiler = profiler_factory().at_node(node)
+        user_jobs_used = profiler \
+            .counter(
+                name="cluster_node/memory_usage/used",
+                tags={'category': 'user_jobs'})
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "test_resource_acquisition_delay": 10000,
+                },
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 6 * 10000,
+                    }
+                },
+            },
+        })
+
+        def wait_for_job_to_finish(op):
+            if op.get_job_count("aborted") > 0:
+                return True
+
+            return op.get_job_count("completed") > 0
+
+        op = run_test_vanilla("echo 1 > null")
+        wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_job_count".format(node)) > 0)
+        op.abort()
+        wait(lambda: wait_for_job_to_finish(op), timeout=90)
+
+        op.track(raise_on_aborted=False)
+
+        wait(lambda: user_jobs_used.get_delta() == 0)
 
 
 class TestMemoryPressureDetector(YTEnvSetup):

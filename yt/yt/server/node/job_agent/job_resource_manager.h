@@ -208,6 +208,10 @@ private:
     std::vector<int> Ports_;
 
     EResourcesState State_ = EResourcesState::Pending;
+    // NB(arkady-e1ppa): We can convert pending holder
+    // to the releasing one, discarding the information
+    // had it ever entered Acquired state.
+    bool HasStarted_ = false;
 
     void Register();
     void Unregister();
