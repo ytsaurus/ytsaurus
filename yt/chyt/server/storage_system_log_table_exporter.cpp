@@ -341,11 +341,9 @@ private:
         WaitFor(Client_->CreateNode(CypressTableDirectory_, EObjectType::MapNode, options))
             .ThrowOnError();
 
-        auto attributes = CreateEphemeralAttributes();
+        auto attributes = ConvertToAttributes(Config_->CreateTableAttributes);
         attributes->Set("atomicity", NTransactionClient::EAtomicity::None);
         attributes->Set("dynamic", true);
-        attributes->Set("enable_dynamic_store_read", true);
-        attributes->Set("optimize_for", EOptimizeFor::Scan);
         attributes->Set("schema", Schema_);
 
         options = {};

@@ -552,6 +552,9 @@ public:
     //! Max rows to keep in memory in a circular buffer.
     i64 MaxRowsToKeep;
 
+    //! Table attributes specified during creation of a new table.
+    NYTree::IMapNodePtr CreateTableAttributes;
+
     REGISTER_YSON_STRUCT(TSystemLogTableExporterConfig);
 
     static void Register(TRegistrar registrar);
