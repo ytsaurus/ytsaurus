@@ -112,31 +112,37 @@ TNodeId CreatePipelineNode(
             .ValueOrThrow();
     }();
 
-    std::vector<TFuture<void>> createTableFutures;
-    for (const auto& [tableName, tableSchema] : GetTables()) {
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("schema", tableSchema);
-        attributes->Set("dynamic", true);
-        TCreateNodeOptions createOptions;
-        createOptions.Attributes = std::move(attributes);
-        createTableFutures.push_back(transaction->CreateNode(YPathJoin(path, ToYPathLiteral(tableName)), EObjectType::Table, createOptions)
-            .AsVoid());
-    }
+    auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
+    auto initializeTables = attributes->Get<bool>("initialize_tables", true);
+    if (initializeTables) {
+        std::vector<TFuture<void>> createTableFutures;
+        for (const auto& [tableName, tableSchema] : GetTables()) {
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("schema", tableSchema);
+            attributes->Set("dynamic", true);
+            TCreateNodeOptions createOptions;
+            createOptions.Attributes = std::move(attributes);
+            createTableFutures.push_back(
+                transaction->CreateNode(YPathJoin(path, ToYPathLiteral(tableName)), EObjectType::Table, createOptions)
+                .AsVoid());
+        }
 
-    WaitFor(AllSucceeded(std::move(createTableFutures)))
-        .ThrowOnError();
+        WaitFor(AllSucceeded(std::move(createTableFutures)))
+            .ThrowOnError();
+    }
 
     WaitFor(transaction->Commit())
         .ThrowOnError();
 
-    std::vector<TFuture<void>> mountTableFutures;
-    for (const auto& [tableName, _] : GetTables()) {
-        mountTableFutures.push_back(client->MountTable(YPathJoin(path, ToYPathLiteral(tableName)))
-            .AsVoid());
+    if (initializeTables) {
+        std::vector<TFuture<void>> mountTableFutures;
+        for (const auto& [tableName, _] : GetTables()) {
+            mountTableFutures.push_back(client->MountTable(YPathJoin(path, ToYPathLiteral(tableName)))
+                .AsVoid());
+        }
+        WaitFor(AllSucceeded(std::move(mountTableFutures)))
+            .ThrowOnError();
     }
-
-    WaitFor(AllSucceeded(std::move(mountTableFutures)))
-        .ThrowOnError();
 
     return pipelineNodeId;
 }
