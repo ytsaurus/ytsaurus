@@ -146,7 +146,15 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
-%type <ETotalsMode> group-by-clause-tail
+%type <TNullableExpressionList> select-clause
+%type <TTableDescriptor> from-clause
+%type <std::optional<TTableDescriptor>> with-index-clause
+%type <std::vector<std::variant<TJoin, TArrayJoin>>> join-clause
+%type <TNullableExpressionList> where-clause
+%type <std::tuple<TNullableExpressionList, ETotalsMode, TNullableExpressionList>> group-by-clause
+%type <TOrderExpressionList> order-by-clause
+%type <std::optional<i64>> offset-clause
+%type <std::optional<i64>> limit-clause
 
 %type <TTableDescriptor> table-descriptor
 
@@ -211,11 +219,45 @@ head
 ;
 
 parse-query
-    : select-clause from-clause where-clause group-by-clause order-by-clause offset-clause limit-clause
+    :
+        select-clause[select]
+        from-clause[from]
+        with-index-clause[withIndex]
+        join-clause[joins]
+        where-clause[where]
+        group-by-clause[groupBy]
+        order-by-clause[orderBy]
+        offset-clause[offset]
+        limit-clause[limit]
+        {
+            head->Ast = TQuery {
+                .Table = std::move($from),
+                .WithIndex = std::move($withIndex),
+                .Joins = std::move($joins),
+
+                .SelectExprs = std::move($select),
+                .WherePredicate = std::move($where),
+
+                .GroupExprs = std::move(std::get<0>($groupBy)),
+                .TotalsMode = std::move(std::get<1>($groupBy)),
+                .HavingPredicate = std::move(std::get<2>($groupBy)),
+
+                .OrderExpressions = std::move($orderBy),
+
+                .Offset = $offset,
+                .Limit = $limit,
+            };
+        }
 ;
 
 parse-job-query
-    : select-clause where-clause
+    : select-clause[select] where-clause[where]
+        {
+            head->Ast = TQuery {
+                .SelectExprs = std::move($select),
+                .WherePredicate = std::move($where),
+            };
+        }
 ;
 
 parse-expression
@@ -224,17 +266,19 @@ parse-expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Expected scalar expression, got %Qv", GetSource(@$, source));
             }
-            std::get<TExpressionPtr>(head->Ast) = $expr.front();
+            head->Ast = $expr.front();
         }
 ;
 
 select-clause
     : optional-select-keyword comma-expr[projections]
         {
-            std::get<TQuery>(head->Ast).SelectExprs = $projections;
+            $$ = std::move($projections);
         }
     | optional-select-keyword Asterisk
-        { }
+        {
+            $$ = std::nullopt;
+        }
 ;
 
 optional-select-keyword
@@ -258,18 +302,21 @@ table-descriptor
 ;
 
 from-clause
-    : KwFrom table-descriptor[table] with-index-clause join-clause
+    : KwFrom table-descriptor[table]
         {
-            std::get<TQuery>(head->Ast).Table = $table;
+            $$ = std::move($table);
         }
 ;
 
 with-index-clause
     : KwWithIndex Identifier[path]
         {
-            std::get<TQuery>(head->Ast).WithIndex = TTableDescriptor($path);
+            $$ = TTableDescriptor($path);
         }
     |
+        {
+            $$ = std::nullopt;
+        }
 ;
 
 join-predicate
@@ -281,19 +328,25 @@ join-predicate
 ;
 
 join-clause
-    : join-clause is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
+    : join-clause[list] is-left[isLeft] KwJoin table-descriptor[table] KwUsing identifier-list[fields] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.push_back(TJoin($isLeft, $table, $fields, $predicate));
+            $$.swap($list);
+            $$.push_back(TJoin($isLeft, $table, $fields, $predicate));
         }
-    | join-clause is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
+    | join-clause[list] is-left[isLeft] KwJoin table-descriptor[table] KwOn bitor-op-expr[lhs] OpEqual bitor-op-expr[rhs] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.push_back(TJoin($isLeft, $table, $lhs, $rhs, $predicate));
+            $$.swap($list);
+            $$.push_back(TJoin($isLeft, $table, $lhs, $rhs, $predicate));
         }
-    | join-clause is-left[isLeft] KwArray KwJoin pseudo-alias-comma-expr[arrays] join-predicate[predicate]
+    | join-clause[list] is-left[isLeft] KwArray KwJoin pseudo-alias-comma-expr[arrays] join-predicate[predicate]
         {
-            std::get<TQuery>(head->Ast).Joins.push_back(TArrayJoin($isLeft, $arrays, $predicate));
+            $$.swap($list);
+            $$.push_back(TArrayJoin($isLeft, $arrays, $predicate));
         }
     |
+        {
+            $$ = {};
+        }
 ;
 
 is-left
@@ -310,55 +363,50 @@ is-left
 where-clause
     : KwWhere or-op-expr[predicate]
         {
-            std::get<TQuery>(head->Ast).WherePredicate = $predicate;
+            $$ = std::move($predicate);
         }
     |
+        {
+            $$ = std::nullopt;
+        }
 ;
 
 group-by-clause
-    : KwGroupBy comma-expr[exprs] group-by-clause-tail[totalsMode]
+    : KwGroupBy comma-expr[key]
         {
-            std::get<TQuery>(head->Ast).GroupExprs = std::pair($exprs, $totalsMode);
+            $$ = std::tuple(std::move($key), ETotalsMode::None, std::nullopt);
         }
-    |
-;
-
-group-by-clause-tail
-    : KwWithTotals
+    | KwGroupBy comma-expr[key] KwWithTotals
         {
-            $$ = ETotalsMode::BeforeHaving;
+            $$ = std::tuple(std::move($key), ETotalsMode::BeforeHaving, std::nullopt);
         }
-    | having-clause
+    | KwGroupBy comma-expr[key] KwHaving or-op-expr[filter]
         {
-            $$ = ETotalsMode::None;
+            $$ = std::tuple(std::move($key), ETotalsMode::None, std::move($filter));
         }
-    | having-clause KwWithTotals
+    | KwGroupBy comma-expr[key] KwHaving or-op-expr[filter] KwWithTotals
         {
-            $$ = ETotalsMode::AfterHaving;
+            $$ = std::tuple(std::move($key), ETotalsMode::AfterHaving, std::move($filter));
         }
-    | KwWithTotals having-clause
+    | KwGroupBy comma-expr[key] KwWithTotals KwHaving or-op-expr[filter]
         {
-            $$ = ETotalsMode::BeforeHaving;
+            $$ = std::tuple(std::move($key), ETotalsMode::BeforeHaving, std::move($filter));
         }
     |
         {
-            $$ = ETotalsMode::None;
-        }
-;
-
-having-clause
-    : KwHaving or-op-expr[predicate]
-        {
-            std::get<TQuery>(head->Ast).HavingPredicate = $predicate;
+            $$ = std::tuple(std::nullopt, ETotalsMode::None, std::nullopt);
         }
 ;
 
 order-by-clause
     : KwOrderBy order-expr-list[exprs]
         {
-            std::get<TQuery>(head->Ast).OrderExpressions = $exprs;
+            $$ = std::move($exprs);
         }
     |
+        {
+            $$ = {};
+        }
 ;
 
 order-expr-list
@@ -391,17 +439,23 @@ is-desc
 offset-clause
     : KwOffset Int64Literal[offset]
         {
-            std::get<TQuery>(head->Ast).Offset = $offset;
+            $$ = $offset;
         }
     |
+        {
+            $$ = std::nullopt;
+        }
 ;
 
 limit-clause
     : KwLimit Int64Literal[limit]
         {
-            std::get<TQuery>(head->Ast).Limit = $limit;
+            $$ = $limit;
         }
     |
+        {
+            $$ = std::nullopt;
+        }
 ;
 
 identifier-list

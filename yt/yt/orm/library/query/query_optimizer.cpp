@@ -42,7 +42,7 @@ protected:
     {
         TOptimizeResultCollector collector;
         if (query->GroupExprs) {
-            collector(Optimize(query->GroupExprs->first));
+            collector(Optimize(*query->GroupExprs));
         }
 
         collector(Optimize(query->SelectExprs));
@@ -342,7 +342,7 @@ private:
             }
         }
         if (Query_->GroupExprs) {
-            if (!IsOptimizationAllowed(Query_->GroupExprs->first)) {
+            if (!IsOptimizationAllowed(*Query_->GroupExprs)) {
                 return false;
             }
         }

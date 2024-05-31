@@ -120,7 +120,7 @@ std::vector<TString> ExtractFunctionNames(
     ExtractFunctionNames(query.SelectExprs, &functions);
 
     if (query.GroupExprs) {
-        for (const auto& expr : query.GroupExprs->first) {
+        for (const auto& expr : *query.GroupExprs) {
             ExtractFunctionNames(expr, &functions);
         }
     }
@@ -2733,7 +2733,7 @@ void PrepareQuery(
     }
 
     if (ast.GroupExprs) {
-        auto groupClause = BuildGroupClause(ast.GroupExprs->first, ast.GroupExprs->second, builder);
+        auto groupClause = BuildGroupClause(*ast.GroupExprs, ast.TotalsMode, builder);
 
         auto keyColumns = query->GetKeyColumns();
 
@@ -3003,20 +3003,21 @@ THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf
     return queryLiterals;
 }
 
-void ParseQueryString(
-    NAst::TAstHead* astHead,
+NAst::TAstHead ParseQueryString(
     const TString& source,
     NAst::TParser::token::yytokentype strayToken,
     TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1)
 {
+    auto head = NAst::TAstHead();
+
     THashMap<TString, TString> queryLiterals;
     if (placeholderValues) {
         queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(placeholderValues);
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, astHead, source);
+    NAst::TParser parser(lexer, &head, source);
 
     int result = parser.parse();
 
@@ -3024,6 +3025,8 @@ void ParseQueryString(
         THROW_ERROR_EXCEPTION("Parse failure")
             << TErrorAttribute("source", source);
     }
+
+    return head;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3034,16 +3037,6 @@ NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
         case EParseMode::Query:      return NAst::TParser::token::StrayWillParseQuery;
         case EParseMode::JobQuery:   return NAst::TParser::token::StrayWillParseJobQuery;
         case EParseMode::Expression: return NAst::TParser::token::StrayWillParseExpression;
-        default:                     YT_ABORT();
-    }
-}
-
-NAst::TAstHead MakeAstHead(EParseMode mode)
-{
-    switch (mode) {
-        case EParseMode::Query:
-        case EParseMode::JobQuery:   return NAst::TAstHead::MakeQuery();
-        case EParseMode::Expression: return NAst::TAstHead::MakeExpression();
         default:                     YT_ABORT();
     }
 }
@@ -3070,16 +3063,13 @@ std::unique_ptr<TParsedSource> ParseSource(
     TYsonStringBuf placeholderValues,
     int syntaxVersion)
 {
-    auto parsedSource = std::make_unique<TParsedSource>(
+    return std::make_unique<TParsedSource>(
         source,
-        MakeAstHead(mode));
-    ParseQueryString(
-        &parsedSource->AstHead,
-        source,
-        GetStrayToken(mode),
-        placeholderValues,
-        syntaxVersion);
-    return parsedSource;
+        ParseQueryString(
+            source,
+            GetStrayToken(mode),
+            placeholderValues,
+            syntaxVersion));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3565,12 +3555,7 @@ TQueryPtr PrepareJobQuery(
     const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher)
 {
-    auto astHead = NAst::TAstHead::MakeQuery();
-    ParseQueryString(
-        &astHead,
-        source,
-        NAst::TParser::token::StrayWillParseJobQuery);
-
+    auto astHead = ParseQueryString(source, NAst::TParser::token::StrayWillParseJobQuery);
     const auto& ast = std::get<NAst::TQuery>(astHead.Ast);
     const auto& aliasMap = astHead.AliasMap;
 

@@ -238,33 +238,6 @@ bool operator == (const TJoin& lhs, const TJoin& rhs)
         std::tie(rhs.IsLeft, rhs.Table, rhs.Fields, rhs.Lhs, rhs.Rhs, rhs.Predicate);
 }
 
-bool operator == (const TQuery& lhs, const TQuery& rhs)
-{
-    return
-        std::tie(
-            lhs.Table,
-            lhs.WithIndex,
-            lhs.Joins,
-            lhs.SelectExprs,
-            lhs.WherePredicate,
-            lhs.GroupExprs,
-            lhs.HavingPredicate,
-            lhs.OrderExpressions,
-            lhs.Offset,
-            lhs.Limit) ==
-        std::tie(
-            rhs.Table,
-            rhs.WithIndex,
-            rhs.Joins,
-            rhs.SelectExprs,
-            rhs.WherePredicate,
-            rhs.GroupExprs,
-            rhs.HavingPredicate,
-            rhs.OrderExpressions,
-            rhs.Offset,
-            rhs.Limit);
-}
-
 void FormatLiteralValue(TStringBuilderBase* builder, const TLiteralValue& value)
 {
     Visit(value,
@@ -723,8 +696,8 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 
     if (query.GroupExprs) {
         builder->AppendString(" GROUP BY ");
-        FormatExpressions(builder, query.GroupExprs->first);
-        if (query.GroupExprs->second == ETotalsMode::BeforeHaving) {
+        FormatExpressions(builder, *query.GroupExprs);
+        if (query.TotalsMode == ETotalsMode::BeforeHaving) {
             builder->AppendString(" WITH TOTALS");
         }
     }
@@ -734,7 +707,7 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
         FormatExpression(builder, *query.HavingPredicate);
     }
 
-    if (query.GroupExprs && query.GroupExprs->second == ETotalsMode::AfterHaving) {
+    if (query.GroupExprs && query.TotalsMode == ETotalsMode::AfterHaving) {
         builder->AppendString(" WITH TOTALS");
     }
 

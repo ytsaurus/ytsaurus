@@ -478,16 +478,17 @@ struct TQuery
     TNullableExpressionList SelectExprs;
     TNullableExpressionList WherePredicate;
 
-    std::optional<std::pair<TExpressionList, ETotalsMode>> GroupExprs;
+    TNullableExpressionList GroupExprs;
+    ETotalsMode TotalsMode = ETotalsMode::None;
     TNullableExpressionList HavingPredicate;
 
     TOrderExpressionList OrderExpressions;
 
     std::optional<i64> Offset;
     std::optional<i64> Limit;
-};
 
-bool operator == (const TQuery& lhs, const TQuery& rhs);
+    bool operator==(const TQuery& other) const = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -498,20 +499,6 @@ struct TAstHead
 {
     std::variant<TQuery, TExpressionPtr> Ast;
     TAliasMap AliasMap;
-
-    static TAstHead MakeQuery()
-    {
-        TAstHead result;
-        result.Ast.emplace<TQuery>();
-        return result;
-    }
-
-    static TAstHead MakeExpression()
-    {
-        TAstHead result;
-        result.Ast.emplace<TExpressionPtr>();
-        return result;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,8 +25,10 @@ std::unique_ptr<TQueryEvaluationContext> CreateQueryEvaluationContext(
 {
     auto expressionSource = FormatExpression(*astExpression);
 
-    auto astHead = NAst::TAstHead::MakeExpression();
-    astHead.Ast = std::move(astExpression);
+    auto astHead = NAst::TAstHead{
+        .Ast = std::move(astExpression),
+        .AliasMap = {},
+    };
 
     TParsedSource parsedSource(
         std::move(expressionSource),
