@@ -1863,14 +1863,15 @@ class TestFileConfig:
         ]
     )
     @pytest.mark.parametrize(
-        "config_content,error",
+        "profile,config_content,error",
         [
-            ({"config_version": 2}, "Missing profiles key in YT config"),
-            ({"config_version": 2, "profiles": []}, "Profiles should be dict, not"),
-            ({"config_version": 2, "profiles": {"bla": {}}}, r"Unknown profile.*Known profiles: bla"),
+            ("profile_name", {"config_version": 2}, "Missing profiles key in YT config"),
+            ("profile_name", {"config_version": 2, "profiles": []}, "Profiles should be dict, not"),
+            ("profile_name", {"config_version": 2, "profiles": {"bla": {}}}, r"Unknown profile.*Known profiles: bla"),
+            (None, {"config_version": 2, "profiles": {"bla": {}}}, "Profile has not been set and there is no default profile in the config"),
         ]
     )
-    def test_invalid_config_v2(self, config_format, dumper, config_content, error):
+    def test_invalid_config_v2(self, profile, config_format, dumper, config_content, error):
         user_config = "/home/user/.yt/config"
         fs_helper = self._MockConfigFSHelper(
             data={
@@ -1882,7 +1883,7 @@ class TestFileConfig:
         )
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = config_format
-        yt_config["config_profile"] = "profile_name"
+        yt_config["config_profile"] = profile
 
         with pytest.raises(yt.YtError, match=error):
             _update_from_file(yt_config, fs_helper=fs_helper)
@@ -1911,6 +1912,7 @@ class TestFileConfig:
                                     "token": "token2",
                                 },
                             },
+                            "default_profile": "profile1",
                         },
                     ),
                     is_valid=True,
@@ -1921,6 +1923,12 @@ class TestFileConfig:
         )
         yt_config = copy.deepcopy(default_config)
         yt_config["config_format"] = config_format
+
+        # Check default_profile.
+        yt_config["config_profile"] = None
+        _update_from_file(yt_config, fs_helper=fs_helper)
+        assert yt_config["token"] == "token1"
+
         yt_config["config_profile"] = "profile2"
 
         _update_from_file(yt_config, fs_helper=fs_helper)
@@ -1932,8 +1940,18 @@ class TestFileConfig:
         assert yt_config == default_config
 
     @authors("thenno")
-    def test_profile_from_env_v2(self, monkeypatch):
-        monkeypatch.setenv("YT_CONFIG_PROFILE", "profile1")
+    @pytest.mark.parametrize(
+        "profile,expected_token",
+        [
+            ("profile1", "token1"),
+            (None, "token2"),
+        ]
+    )
+    def test_profile_from_env_v2(self, profile, expected_token, monkeypatch):
+        if profile:
+            monkeypatch.setenv("YT_CONFIG_PROFILE", profile)
+        else:
+            assert os.environ.get("YT_CONFIG_PROFILE") is None
 
         user_config = "/home/user/.yt/config"
         fs_helper = self._MockConfigFSHelper(
@@ -1942,9 +1960,13 @@ class TestFileConfig:
                     content=yson.dumps(
                         {
                             "config_version": 2,
+                            "default_profile": "profile2",
                             "profiles": {
                                 "profile1": {
                                     "token": "token1",
+                                },
+                                "profile2": {
+                                    "token": "token2",
                                 },
                             },
                         },
@@ -1959,4 +1981,4 @@ class TestFileConfig:
         yt_config["config_format"] = "yson"
 
         _update_from_file(yt_config, fs_helper=fs_helper)
-        assert yt_config["token"] == "token1"
+        assert yt_config["token"] == expected_token

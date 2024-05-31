@@ -782,13 +782,13 @@ SHORTCUTS = {
 }
 
 
-def update_config_from_env(config):
+def update_config_from_env(config, config_profile=None):
     # type: (yt.wrapper.mappings.VerifiedDict) -> yt.wrapper.mappings.VerifiedDict
     """Patch config from envs and the config file."""
 
     _update_from_env_patch(config)
 
-    _update_from_file(config)
+    _update_from_file(config, config_profile=config_profile)
 
     _update_from_env_vars(config)
 
@@ -883,6 +883,7 @@ def _update_from_env_patch(config):
 class ConfigParserV2:
     VERSION = 2
     _PROFILES_KEY = "profiles"
+    _DEFAULT_PROFILE_KEY = "default_profile"
 
     def __init__(self, config, profile):
         self._config = config
@@ -894,12 +895,17 @@ class ConfigParserV2:
         profiles = self._config[self._PROFILES_KEY]
         if not isinstance(profiles, dict):
             raise common.YtError("Profiles should be dict, not {0}".format(type(profiles)))
-        if self._profile not in profiles:
+        current_profile = self._profile
+        if current_profile is None:
+            current_profile = self._config.get(self._DEFAULT_PROFILE_KEY)
+            if current_profile is None:
+                raise common.YtError("Profile has not been set and there is no default profile in the config")
+        if current_profile not in profiles:
             raise common.YtError("Unknown profile {0}. Known profiles: {1}".format(
-                self._profile,
+                current_profile,
                 ",".join(profiles.keys())),
             )
-        profile = profiles[self._profile]
+        profile = profiles[current_profile]
         return profile
 
 
@@ -943,8 +949,8 @@ def _get_config_path(fs_helper):
     return config_path
 
 
-def _update_from_file(config, fs_helper=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, _ConfigFSHelper) -> None
+def _update_from_file(config, config_profile=None, fs_helper=None):
+    # type: (yt.wrapper.mappings.VerifiedDict, str, _ConfigFSHelper) -> None
     if fs_helper is None:
         fs_helper = _ConfigFSHelper()
 
@@ -952,6 +958,9 @@ def _update_from_file(config, fs_helper=None):
     for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_CONFIG_PROFILE"]:
         if opt_name in os.environ:
             config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
+
+    if config_profile is None:
+        config_profile = config["config_profile"]
 
     config_path = config["config_path"]
     if config_path is None or not fs_helper.is_file(config_path):
@@ -978,7 +987,7 @@ def _update_from_file(config, fs_helper=None):
 
     config_version = parsed_config.get("config_version")
     if ConfigParserV2.VERSION == config_version:
-        parsed_config = ConfigParserV2(config=parsed_config, profile=config["config_profile"]).extract()
+        parsed_config = ConfigParserV2(config=parsed_config, profile=config_profile).extract()
     elif config_version is None:
         # Just a fallback to the old format.
         # All keys are stored at the top level of the config.
@@ -989,10 +998,10 @@ def _update_from_file(config, fs_helper=None):
     common.update_inplace(config, parsed_config)
 
 
-def get_config_from_env():
-    # type: () -> yt.wrapper.mappings.VerifiedDict
+def get_config_from_env(config_profile=None):
+    # type: (str) -> yt.wrapper.mappings.VerifiedDict
     """Get default config with patches from envs"""
-    return update_config_from_env(get_default_config())
+    return update_config_from_env(get_default_config(), config_profile=config_profile)
 
 
 def _get_settings_from_cluster_callback(config=None, client=None):
