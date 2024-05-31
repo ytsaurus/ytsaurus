@@ -76,6 +76,15 @@ CONSUMER_OBJECT_TABLE_SCHEMA = CONSUMER_OBJECT_TABLE_SCHEMA_WITHOUT_META + [
     {"name": "meta", "type": "any", "required": False},
 ]
 
+PRODUCER_OBJECT_TABLE_SCHEMA = [
+    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "session_id", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "sequence_number", "type": "uint64", "required": True},
+    {"name": "epoch", "type": "uint64", "required": True},
+    {"name": "user_meta", "type": "any", "required": False},
+    {"name": "system_meta", "type": "any", "required": False},
+]
 
 ################################################################################
 

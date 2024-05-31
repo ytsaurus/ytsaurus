@@ -341,6 +341,7 @@ DEFINE_ENUM(EObjectType,
 
     // Queue stuff
     ((QueueConsumer)                               (1700))
+    ((QueueProducer)                               (1701))
 );
 
 //! A bit mask marking schema types.

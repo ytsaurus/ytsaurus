@@ -1158,6 +1158,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_producer_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_collocation_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/api/native/replication_card_type_handler.cpp
@@ -1349,6 +1350,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/queue_consumer_init.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/dynamic_state.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/producer_init.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/queue_client/registration_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/disk_resources.cpp
