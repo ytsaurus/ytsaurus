@@ -381,7 +381,7 @@ Publishes as docker images.
 
 ## Kubernetes operator
 
-Publishes as a helm-chart on [docker hub](https://hub.docker.com/r/ytsaurus/ytop-chart/tags).
+Publishes as a helm-chart on [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart).
 
 **Current release:** 0.6.0
 
