@@ -20,15 +20,6 @@ using namespace NYTree;
 using namespace NQueryClient;
 using namespace NChunkClient::NProto;
 
-namespace NDetail {
-
-// Path to access control object namespace for QT.
-constexpr TStringBuf QueriesAcoNamespacePath = "//sys/access_control_object_namespaces/queries";
-
-} // namespace NDetail
-
-using namespace NDetail;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
@@ -270,53 +261,27 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
 
 TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTrackerInfoOptions& options)
 {
-    IClientPtr client;
-    TString root;
-    std::tie(client, root) = GetNativeConnection()->GetQueryTrackerStage(options.QueryTrackerStage);
+    TQueryTrackerServiceProxy proxy(
+        Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
 
-    YT_LOG_DEBUG(
-        "Getting query tracker information (Attributes: %v)",
-        options.Attributes);
+    auto req = proxy.GetQueryTrackerInfo();
+    req->SetTimeout(options.Timeout);
+    req->SetUser(*Options_.User);
 
-    auto attributes = options.Attributes;
-
-    attributes.ValidateKeysOnly();
-
-    TString clusterName = "";
-
-    if (attributes.AdmitsKeySlow("cluster_name")) {
-        YT_LOG_DEBUG("Getting cluster name");
-        clusterName = client->GetClusterName().value_or("");
+    auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
+    if (options.Attributes) {
+        ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
 
-    TNodeExistsOptions nodeExistsOptions;
-    nodeExistsOptions.ReadFrom = EMasterChannelKind::Cache;
-    bool accessControlSupported = WaitFor(client->NodeExists(TString(QueriesAcoNamespacePath), nodeExistsOptions))
+    auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
-
-    static const TYsonString EmptyMap = TYsonString(TString("{}"));
-    TYsonString supportedFeatures = EmptyMap;
-    if (attributes.AdmitsKeySlow("supported_features")) {
-        supportedFeatures = BuildYsonStringFluently()
-            .BeginMap()
-                .Item("access_control").Value(accessControlSupported)
-            .EndMap();
-    }
-
-    std::vector<TString> accessControlObjects;
-    if (accessControlSupported && attributes.AdmitsKeySlow("access_control_objects")) {
-        YT_LOG_DEBUG("Getting access control objects");
-        TListNodeOptions listOptions;
-        listOptions.ReadFrom = EMasterChannelKind::Cache;
-        auto allAcos = WaitFor(client->ListNode(TString(QueriesAcoNamespacePath), listOptions))
-            .ValueOrThrow();
-        accessControlObjects = ConvertTo<std::vector<TString>>(allAcos);
-    }
+    auto rpcResponse = rsp->rpc_proxy_response();
 
     return TGetQueryTrackerInfoResult{
-        .ClusterName = std::move(clusterName),
-        .SupportedFeatures = std::move(supportedFeatures),
-        .AccessControlObjects = std::move(accessControlObjects),
+        .ClusterName = rpcResponse.cluster_name(),
+        .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
+        .AccessControlObjects = FromProto<std::vector<TString>>(rpcResponse.access_control_objects()),
     };
 }
 
