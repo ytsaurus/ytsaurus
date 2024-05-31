@@ -390,21 +390,40 @@ private:
         }
 
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
-        auto batchReq = proxy.ExecuteBatch();
-        for (auto cellId : cellIds) {
-            YT_LOG_INFO("Unregistering cell from Cypress (CellId: %v)",
-                cellId);
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (auto cellId : cellIds) {
+                auto req = TYPathProxy::Exists(FromObjectId(cellId));
+                batchReq->AddRequest(req);
+            }
 
-            auto path = GetCellHydraPersistencePath(cellId);
-            auto req = TYPathProxy::Remove(path);
-            req->set_force(true);
-            req->set_recursive(true);
-            batchReq->AddRequest(req);
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspExists>()) {
+                if (rspOrError.ValueOrThrow()->value()) {
+                    YT_LOG_ALERT("Synchronizer attempted to delete an existing cell");
+                    return;
+                }
+            }
         }
+        {
+            auto batchReq = proxy.ExecuteBatch();
+            for (auto cellId : cellIds) {
+                YT_LOG_INFO("Unregistering cell from Cypress (CellId: %v)",
+                    cellId);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        auto cumulativeError = GetCumulativeError(batchRspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError);
+                auto path = GetCellHydraPersistencePath(cellId);
+                auto req = TYPathProxy::Remove(path);
+                req->set_force(true);
+                req->set_recursive(true);
+                batchReq->AddRequest(req);
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            auto cumulativeError = GetCumulativeError(batchRspOrError);
+            THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError);
+        }
     }
 
     TFuture<void> UpdateCellHydraPersistenceAcls(
@@ -545,6 +564,7 @@ private:
                     "registered_in_cypress",
                     "pending_acls_update",
                 });
+                req->set_limit(dynamicConfig->ListAliveCellsRequestSizeLimit);
                 batchReq->AddRequest(req);
             };
             listAliveCells(TabletCellCypressPrefix);
@@ -554,6 +574,10 @@ private:
 
             for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspList>()) {
                 auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
+                if (listNode->Attributes().Get("incomplete", false)) {
+                    YT_LOG_ALERT("Hydra persistence synchronizer got an incomplete response");
+                    return;
+                }
                 auto list = listNode->AsList();
                 for (const auto& item : list->GetChildren()) {
                     auto cellId = ConvertTo<TCellId>(item);
