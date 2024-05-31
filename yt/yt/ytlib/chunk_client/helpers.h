@@ -329,8 +329,11 @@ TString ToString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Is chunk data weight large enough to be teleported (is it large enough to be split).
-bool IsLargeEnoughChunkDataWeight(i64 chunkDataWeight, i64 chunkDataWeightThreshold);
+//! Is chunk size large enough to be teleported (is it large enough to be split).
+bool IsLargeEnoughChunkSize(i64 chunkSize, i64 chunkSizeThreshold);
+
+//! Is chunk weight large enough to be teleported (is it large enough to be split).
+bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold);
 
 ////////////////////////////////////////////////////////////////////////////////
 

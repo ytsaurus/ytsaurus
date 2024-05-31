@@ -1093,9 +1093,14 @@ TString ToString(const TAllyReplicasInfo& allyReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsLargeEnoughChunkDataWeight(i64 chunkDataWeight, i64 chunkDataWeightThreshold)
+bool IsLargeEnoughChunkSize(i64 chunkSize, i64 chunkSizeThreshold)
 {
-    return chunkDataWeight >= chunkDataWeightThreshold;
+    return chunkSize >= chunkSizeThreshold;
+}
+
+bool IsLargeEnoughChunkWeight(i64 chunkWeight, i64 chunkWeightThreshold)
+{
+    return chunkWeight >= chunkWeightThreshold;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
