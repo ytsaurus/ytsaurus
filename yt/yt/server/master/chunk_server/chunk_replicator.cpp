@@ -2723,8 +2723,14 @@ void TChunkReplicator::OnRefresh()
         }
 
         auto replicas = chunkManager->GetChunkReplicas(chunksToRefresh);
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
         for (const auto& chunk : chunksToRefresh) {
             if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            // Incumbency could have been lost during replica fetch.
+            if (!incumbentManager->HasIncumbency(EIncumbentType::ChunkReplicator, chunk->GetShardIndex())) {
                 continue;
             }
 
