@@ -11,7 +11,7 @@ on:
 jobs:
   pr-notifications:
     name: Send PR notifications
-    runs-on: trampoline
+    runs-on: ubuntu-latest
     steps:
       - name: Send telegram message
         uses: appleboy/telegram-action@master
