@@ -6,5 +6,6 @@
     "taxi/github/code-linters": "taxi/github/code-linters/pyproject.toml",
     "taxi/tars": "taxi/tars/pyproject.toml",
     "taxi/tplatform/uservices/": "taxi/tplatform/uservices/pyproject.toml",
-    "taxi/uservices/": "taxi/uservices/pyproject.toml"
+    "taxi/uservices/": "taxi/uservices/pyproject.toml",
+    "intranet/yandex_directory/": "intranet/yandex_directory/pyproject.toml"
 }
