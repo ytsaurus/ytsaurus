@@ -4,7 +4,7 @@
 
 All main components are releases as a docker image.
 
-**Current release:** 23.2.0 (`ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`)
+**Current release:** {{yt-server-version}} (`ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`)
 
 **All releases:**
 
@@ -213,7 +213,7 @@ NB: This release is compatible only with the operator 0.5.0 and newer versions.
 
 {% cut "**0.0.3**" %}
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
 - System query_tracker tables have been moved to sys bundle
 
 {% endcut %}

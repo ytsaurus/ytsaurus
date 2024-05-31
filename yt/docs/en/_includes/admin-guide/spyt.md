@@ -12,7 +12,7 @@ spec:
   ytsaurus:
     name:
       minisaurus
-  image: ytsaurus/spyt:{{spyt-version}}
+  image: ghcr.io/ytsaurus/spyt:{{spyt-version}}
 ```
 
 You can start the specification using `kubectl`:

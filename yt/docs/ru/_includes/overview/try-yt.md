@@ -26,7 +26,7 @@ token=""
 
 ## Kubernetes
 
-Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти на [dockerhub](https://hub.docker.com/u/ytsaurus).
+Для разворачивания {{product-name}} в Kubernetes рекомендуется воспользоваться [оператором](https://github.com/ytsaurus/yt-k8s-operator). Готовые docker-образы с оператором, UI, серверными компонентами и примерами можно найти в [Github Packages](https://github.com/orgs/ytsaurus/packages).
 
 ### Развёртывание в кластере Kubernetes
 
@@ -36,7 +36,7 @@ token=""
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Установите чарт: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Установите чарт: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Проверьте результат:
 
 ```
@@ -53,7 +53,7 @@ kubectl create namespace <namespace>
 kubectl create secret generic ytadminsec --from-literal=login=admin --from-literal=password=<password> --from-literal=token=<password>  -n <namespace>
 ```
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.4.0/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_demo.yaml), поправьте по необходимости и загрузите в кластер `kubectl apply -f cluster_v1_demo.yaml -n <namespace>`.
 
 Необходимо прописать гарантии или лимиты ресурсов в секции `execNodes`, указанные значения будут отражены в конфигурации нод, и будут видны планировщику. Для надёжного хранения данных, обязательно выделите персистентные тома.
 
@@ -91,7 +91,7 @@ https://kubernetes.io/ru/docs/tasks/tools/install-minikube/
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`.
-3. Установите чарт: `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Установите чарт: `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Проверьте результат:
 
 ```
@@ -102,7 +102,7 @@ ytsaurus-ytop-chart-controller-manager-5765c5f995-dntph   2/2     Running    0  
 
 #### Запуск кластера {{product-name}}
 
-Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.4.0/cluster_v1_minikube.yaml) в кластер `kubectl apply -f cluster_v1_minikube.yaml`.
+Загрузите [спецификацию](https://github.com/ytsaurus/yt-k8s-operator/blob/main/config/samples/0.9.1/cluster_v1_local.yaml) в кластер `kubectl apply -f cluster_v1_local.yaml`.
 
 Если загрузка прошла успешно, через некоторое время список запущенных подов будет выглядеть следующим образом:
 

@@ -12,15 +12,15 @@
 
 Команда {{product-name}} поддерживает и развивает собственный k8s-оператор. Код оператора доступен в [github](https://github.com/ytsaurus/yt-k8s-operator).
 
-Релизы оператора выкладываются на [docker-hub](https://hub.docker.com/r/ytsaurus/k8s-operator/tags).
+Релизы оператора выкладываются в [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/k8s-operator).
 
-Дополнительно выкладываются [helm-чарты](https://hub.docker.com/r/ytsaurus/ytop-chart/tags), позволяющие установить все необходимые компоненты.
+Дополнительно выкладываются [helm-чарты](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart), позволяющие установить все необходимые компоненты.
 
 ### Установка оператора
 
 1. Установите утилиту [helm](https://helm.sh/docs/intro/install/).
 2. Установите cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
-3. Установите чарт `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Установите чарт `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Проверьте результат:
 
 ```bash

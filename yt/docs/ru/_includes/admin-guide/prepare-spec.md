@@ -10,8 +10,8 @@ kind: Ytsaurus
 metadata:
   name: ytdemo
 spec:
-  coreImage: ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo
-  uiImage: ytsaurus/ui:stable
+  coreImage: ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo
+  uiImage: ghcr.io/ytsaurus/ui:stable
 
   adminCredentials:
     name: ytadminsec
@@ -117,8 +117,8 @@ spec:
 
 | **Поле**            | **Тип**         | **Описание**                                                 |
 | ------------------- | --------------- | ------------------------------------------------------------ |
-| `coreImage`         | `string`        | Образ для основных серверных компонент, например, `ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`. |
-| `uiImage`         | `string` | Образ для UI, например, `ytsaurus/ui:stable`. |
+| `coreImage`         | `string`        | Образ для основных серверных компонент, например, `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`. |
+| `uiImage`         | `string` | Образ для UI, например, `ghcr.io/ytsaurus/ui:stable`. |
 | `imagePullSecrets` | `array<LocalObjectReference>` | Секреты, необходимые для скачивания образов из private registry. Подробности можно узнать [по ссылке](https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/). |
 | `configOverrides`  | `optional<LocalObjectReference>` | Конфигмапа для переопределения генерируемых статических конфигов. Нужно использовать только в редких случаях. |
 | `adminCredentials` | `optional<LocalObjectReference>` | Секрет с логином/паролем для админского аккаунта. |
@@ -153,9 +153,9 @@ spec:
 
 На первом шаге необходимо выбрать основной docker-образ для серверных компонент.
 
-Большинство серверных компонент релизятся из отдельной (релизной) ветки. На данный момент последняя стабильная ветка — `stable/23.2`. Настоятельно рекомендуется использовать образ, собранный из стабильной релизной ветки.
+Большинство серверных компонент релизятся из отдельной (релизной) ветки. На данный момент последняя стабильная ветка — `stable/{{yt-stable-branch}}`. Настоятельно рекомендуется использовать образ, собранный из стабильной релизной ветки.
 
-Докер-образ, собранный из релизной ветки, имеет вид `ytsaurus/ytsaurus:stable-23.2.N` или `ytsaurus/ytsaurus:stable-23.2.N-relwithdebinfo`. Отличия указанных образов в том, что во втором образе все бинарные файлы собраны с debug-символами.
+Докер-образ, собранный из релизной ветки, имеет вид `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N` или `ghcr.io/ytsaurus/ytsaurus:stable-{{yt-stable-branch}}.N-relwithdebinfo`. Отличия указанных образов в том, что во втором образе все бинарные файлы собраны с debug-символами.
 
 В случае падения серверных компонент в stderr компоненты будет напечатан stacktrace, а также на k8s-ноде будет отложен `coredump` (если это настроено в вашем k8s-кластере). Такие меры позволят понять, что именно произошло с компонентой. По этой причине  рекомендуется использовать образы `relwithdebinfo`, несмотря на то что они занимают больше места. Без debug-символов команда {{product-name}} скорее всего не сможет помочь вам в случае проблем.
 
@@ -168,19 +168,19 @@ spec:
 
 | **Поле**            | **Docker-репозиторий** | **Рекомендуемый тег стабильного релиза** |
 | ------------------- | --------------- | ----------------------------- |
-| `discovery` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo`      |
-| `primaryMasters` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `httpProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `rpcProxies` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `dataNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `execNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `tabletNodes` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `schedulers` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo`  |
-| `controllerAgents` | [ytsaurus/ytsaurus](https://hub.docker.com/r/ytsaurus/ytsaurus/tags) | `stable-23.2.0-relwithdebinfo` |
-| `queryTrackers` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}-relwithdebinfo` |
-| `yqlAgents` | [ytsaurus/query-tracker](https://hub.docker.com/r/ytsaurus/query-tracker/tags) | `{{qt-version}}` |
-| `strawberry` | [ytsaurus/strawberry](https://hub.docker.com/r/ytsaurus/strawberry/tags) | `{{strawberry-version}}` |
-| `ui` | [ytsaurus/ui](https://hub.docker.com/r/ytsaurus/ui/tags) | `stable` |
+| `discovery` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo`      |
+| `primaryMasters` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `httpProxies` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `rpcProxies` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `dataNodes` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `execNodes` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `tabletNodes` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `schedulers` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo`  |
+| `controllerAgents` | [ghcr.io/ytsaurus/ytsaurus](https://github.com/ytsaurus/ytsaurus/pkgs/container/ytsaurus) | `stable-{{yt-server-version}}-relwithdebinfo` |
+| `queryTrackers` | [ghcr.io/ytsaurus/query-tracker](https://github.com/ytsaurus/ytsaurus/pkgs/container/query-tracker) | `{{qt-version}}-relwithdebinfo` |
+| `yqlAgents` | [ghcr.io/ytsaurus/query-tracker](https://github.com/ytsaurus/ytsaurus/pkgs/container/query-tracker) | `{{qt-version}}` |
+| `strawberry` | [ghcr.io/ytsaurus/strawberry](https://github.com/ytsaurus/ytsaurus/pkgs/container/strawberry) | `{{strawberry-version}}` |
+| `ui` | [ghcr.io/ytsaurus/ui](https://github.com/ytsaurus/ytsaurus-ui/pkgs/container/ui) | `stable` |
 
 Помимо указанных образов выкладывается общий образ для всех серверных компонент сразу (кроме `ui`). Такой образ достаточно указать один раз в `coreImage`, не указывая ничего в поле `image` компонент явно.
 

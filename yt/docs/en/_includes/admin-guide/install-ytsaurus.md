@@ -12,15 +12,15 @@ Before using the operator, make sure you have the [kubectl](https://kubernetes.i
 
 The {{product-name}} team supports and develops its own K8s operator. The operator code is available on [GitHub](https://github.com/ytsaurus/yt-k8s-operator).
 
-Operator releases are posted on [Docker Hub](https://hub.docker.com/r/ytsaurus/k8s-operator/tags).
+Operator releases are posted on [Github Packages](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/k8s-operator).
 
-Additionally, [helm charts](https://hub.docker.com/r/ytsaurus/ytop-chart/tags) are laid out so you can install all the components you need.
+Additionally, [helm charts](https://github.com/ytsaurus/yt-k8s-operator/pkgs/container/ytop-chart) are laid out so you can install all the components you need.
 
 ### Installing the operator
 
 1. Install the [helm](https://helm.sh/docs/intro/install/) utility.
 2. Install cert-manager: `kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.11.0/cert-manager.yaml`
-3. Install the charts `helm install ytsaurus oci://registry-1.docker.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
+3. Install the charts `helm install ytsaurus oci://ghcr.io/ytsaurus/ytop-chart --version {{k8s-operator-version}}`.
 4. Check the result:
 
 ```bash

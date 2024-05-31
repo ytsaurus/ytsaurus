@@ -4,7 +4,7 @@ metadata:
   name: ytdemo
 spec:
   coreImage: {{ .Values.YtsaurusImagePath }}
-  uiImage: ytsaurus/ui:stable
+  uiImage: mirror.gcr.io/ytsaurus/ui:stable
   enableFullUpdate: true
 
   adminCredentials:
@@ -97,11 +97,11 @@ spec:
 
   queryTrackers:
     instanceCount: 1
-    image: ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
+    image: mirror.gcr.io/ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
 
   yqlAgents:
     instanceCount: 1
-    image: ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
+    image: mirror.gcr.io/ytsaurus/query-tracker-nightly:dev-66906-ce55146bc191ec5c82efcde5d6e0d592fc0ec50a
 
   schedulers:
     instanceCount: 1

@@ -2,7 +2,7 @@
 
 ## Выбор образа и старт обновления
 
-Периодически выпускаются новые релизы, а также вносятся исправления в рамках текущих стабильных релизов. Почитать подробнее про выпущенные релизы можно [в отдельном разделе](../../admin-guide/releases.md). Докер-образы со стабильными релизами имеют вид `ytsaurus/ytsaurus:23.N.M`, например `ytsaurus/ytsaurus:{{yt-server}}`.
+Периодически выпускаются новые релизы, а также вносятся исправления в рамках текущих стабильных релизов. Почитать подробнее про выпущенные релизы можно [в отдельном разделе](../../admin-guide/releases.md). Докер-образы со стабильными релизами имеют вид `ghcr.io/ytsaurus/ytsaurus:23.N.M`, например `ghcr.io/ytsaurus/ytsaurus:{{yt-server-version}}`.
 
 Kubernetes оператор поддерживает обновление докер-образов, используемых для серверных компонент. Для обновления необходимо поменять `coreImage` в спецификации {{product-name}} и запушить её в k8s с помощью `kubectl apply -f my_ytsaurus_spec.yaml -n <namespace>`.
 
@@ -97,7 +97,7 @@ $ kubectl describe ytsaurus -n <namespace>
 
 ### Инструкция
 
-1. Запустите обновление чарта `helm upgrade ytsaurus --install oci://docker.io/ytsaurus/ytop-chart --version <new-version>`
+1. Запустите обновление чарта `helm upgrade ytsaurus --install oci://ghcr.io/ytsaurus/ytop-chart --version <new-version>`
 2. Проверить, что старые поды оператора удалились, а новые создались:
 ```bash
 $ kubectl get pod -n <namespace>
