@@ -107,7 +107,7 @@ jobs:
     name: Send notifications
     needs:
       - stop-vm
-    runs-on: trampoline
+    runs-on: ubuntu-latest
     if: ${{ failure() }}
     steps:
       - name: Send telegram message
