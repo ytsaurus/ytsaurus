@@ -138,9 +138,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter);
 TAutoMergeTask::TAutoMergeTask(
     ITaskHostPtr taskHost,
     int maxChunksPerJob,
-    i64 chunkSizeThreshold,
+    i64 maxChunkSize,
+    i64 maxChunkDataWeight,
     i64 dataWeightPerJob,
-    i64 maxDataWeightPerJob,
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
     : TTask(taskHost, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
@@ -171,8 +171,8 @@ TAutoMergeTask::TAutoMergeTask(
         options.RowBuffer = TaskHost_->GetRowBuffer();
         options.Mode = EUnorderedChunkPoolMode::AutoMerge;
         options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
-        options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;
-        options.MinTeleportChunkSize = chunkSizeThreshold;
+        options.MinTeleportChunkSize = maxChunkSize;
+        options.MinTeleportChunkDataWeight = maxChunkDataWeight;
         options.Logger = Logger.WithTag("Name: %v(%v)", GetTitle(), poolIndex);
 
         auto unorderedPool = CreateUnorderedChunkPool(

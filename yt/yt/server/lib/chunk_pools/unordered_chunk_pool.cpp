@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -497,10 +498,10 @@ private:
         } else {
             const auto& chunk = dataSlice->GetSingleUnversionedChunk();
 
-            if (chunk->IsCompleteChunk() &&
-                ((chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
-                chunk->GetDataWeight() >= MinTeleportChunkDataWeight_)) &&
-                InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable())
+            if (InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable() &&
+                chunk->IsCompleteChunk() &&
+                (chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
+                    IsLargeEnoughChunkDataWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_)))
             {
                 if (Sampler_.Sample()) {
                     ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});

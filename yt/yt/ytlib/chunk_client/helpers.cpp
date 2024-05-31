@@ -1093,4 +1093,11 @@ TString ToString(const TAllyReplicasInfo& allyReplicas)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsLargeEnoughChunkDataWeight(i64 chunkDataWeight, i64 chunkDataWeightThreshold)
+{
+    return chunkDataWeight >= chunkDataWeightThreshold;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

@@ -329,6 +329,11 @@ TString ToString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Is chunk data weight large enough to be teleported (is it large enough to be split).
+bool IsLargeEnoughChunkDataWeight(i64 chunkDataWeight, i64 chunkDataWeightThreshold);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

@@ -1931,10 +1931,11 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         default:
             YT_ABORT();
     }
-    i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
-    auto upperWeightLimit = std::min<i64>(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight, Spec_->MaxDataWeightPerJob / 2);
-    i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, upperWeightLimit);
-    i64 dataWeightPerJob = desiredChunkDataWeight;
+
+    const i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
+    const i64 maxChunkDataWeight = std::max<i64>(std::min(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight / 2, Spec_->MaxDataWeightPerJob / 2), 1);
+    const i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, maxChunkDataWeight);
+    const i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: if row count limit is set on any output table, we do not
     // enable auto merge as it prematurely stops the operation
@@ -1951,7 +1952,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 
     YT_LOG_INFO("Auto merge parameters calculated ("
         "Mode: %v, OutputChunkCountEstimate: %v, MaxIntermediateChunkCount: %v, ChunkCountPerMergeJob: %v, "
-        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
+        "ChunkSizeThreshold: %v, DesiredChunkSize: %v, DesiredChunkDataWeight: %v, MaxChunkDataWeight: %v, IntermediateChunkUnstageMode: %v)",
         mode,
         outputChunkCountEstimate,
         maxIntermediateChunkCount,
@@ -1959,6 +1960,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
         autoMergeSpec->ChunkSizeThreshold,
         desiredChunkSize,
         desiredChunkDataWeight,
+        maxChunkDataWeight,
         GetIntermediateChunkUnstageMode());
 
     AutoMergeDirector_ = std::make_unique<TAutoMergeDirector>(
@@ -1995,8 +1997,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
             /*taskHost*/ this,
             chunkCountPerMergeJob,
             autoMergeSpec->ChunkSizeThreshold,
+            maxChunkDataWeight,
             dataWeightPerJob,
-            Spec_->MaxDataWeightPerJob,
             std::move(outputStreamDescriptors),
             std::vector<TInputStreamDescriptorPtr>{});
         RegisterTask(AutoMergeTask_);
