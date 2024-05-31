@@ -3571,6 +3571,17 @@ class TestAccountTree(AccountsTestSuiteBase):
         set("//sys/accounts/yt/@resource_limits/disk_space_per_medium", {"default": 2, "nvme1": 1})
         set("//sys/account_tree/yt2/@parent_name", "yt")
 
+    @authors("danilalexeev")
+    def test_create_cell_with_node_overdraft_yt21871(self):
+        self._set_account_node_count_limit("sys", 0)
+        assert self._is_account_node_count_limit_violated("sys")
+
+        with raises_yt_error("Error registering cell in Cypress"):
+            # Should not crash.
+            sync_create_cells(1)
+
+        self._set_account_node_count_limit("sys", 100500)
+
     @authors("shakurov")
     def test_recursive_violated_resource_limits(self):
         create_domestic_medium("hdd7")

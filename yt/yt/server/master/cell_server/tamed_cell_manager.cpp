@@ -2534,7 +2534,10 @@ private:
     IMapNodePtr FindCellNode(TTamedCellId cellId)
     {
         auto cellMapNodeProxy = GetCellMapNode(cellId);
-        return cellMapNodeProxy->FindChild(ToString(cellId))->AsMap();
+        if (auto node = cellMapNodeProxy->FindChild(ToString(cellId))) {
+            return node->AsMap();
+        }
+        return nullptr;
     }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
