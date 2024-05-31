@@ -175,8 +175,8 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-yt_image=ytsaurus/local:$yt_version
-ui_image=ytsaurus/ui:$ui_version
+yt_image=ghcr.io/ytsaurus/local:$yt_version
+ui_image=ghcr.io/ytsaurus/ui:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
     if [ ! -d "$local_cypress_dir" ]; then
