@@ -1703,8 +1703,8 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
     YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
 
     YT_LOG_FATAL_IF(
-        State_ != EResourcesState::Acquired,
-        "Resource holder is not acquired");
+        !HasStarted_ || State_ == EResourcesState::Released,
+        "Resource holder is neither acquired nor releasing");
 
     return DoSetResourceUsage(
         newResourceUsage,
