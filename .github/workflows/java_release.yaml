@@ -6,53 +6,21 @@ on:
       - 'java-sdk/1\.[0-9]+\.[0-9]+'
 
 jobs:
-  start-vm:
-    name: Start VM
-    runs-on: trampoline
-    outputs:
-      label: ${{ steps.start-yc-runner.outputs.label }}
-      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
-    steps:
-      - name: Start YC runner
-        id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: start
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          folder-id: ${{ vars.YC_FOLDER_ID }}
-          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
-          zone-id: ${{ vars.YC_ZONE_ID }}
-          subnet-id: ${{ vars.YC_SUBNET_ID }}
-          cores: 4
-          memory: 8GB
-          core-fraction: 100
-          disk-type: network-ssd-nonreplicated
-          disk-size: 93GB
-
-  checkout:
-    name: Checkout sources
-    needs: start-vm
+  release:
+    name: Run release
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-  release:
-    name: Run release
-    needs:
-      - start-vm
-      - checkout
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
       - name: Set up JDK 11
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
+        uses: gradle/gradle-build-action@v3
 
       - name: Execute Gradle build
         run: ./gradlew build
@@ -68,27 +36,10 @@ jobs:
         run: |
           ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion=${{ steps.tag.outputs.RELEASE_VERSION }} -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
 
-  stop-vm:
-    name: Stop VM
-    needs:
-      - start-vm
-      - release
-    runs-on: trampoline
-    if: ${{ always() }}
-    steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
   send-notifications:
     name: Send notifications
     needs:
-      - stop-vm
+      - release
     runs-on: ubuntu-latest
     if: ${{ failure() }}
     steps:
