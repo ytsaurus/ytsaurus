@@ -359,6 +359,12 @@ void TAutoMergeConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([] (TAutoMergeConfig* config) {
+        if (config->JobIO->TableWriter->DesiredChunkWeight < config->ChunkSizeThreshold) {
+            THROW_ERROR_EXCEPTION("Desired chunk weight cannot be less than chunk size threshold")
+                << TErrorAttribute("chunk_size_threshold", config->ChunkSizeThreshold)
+                << TErrorAttribute("desired_chunk_weight", config->JobIO->TableWriter->DesiredChunkWeight);
+        }
+
         if (config->Mode == EAutoMergeMode::Manual) {
             if (!config->MaxIntermediateChunkCount || !config->ChunkCountPerMergeJob) {
                 THROW_ERROR_EXCEPTION(

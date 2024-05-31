@@ -72,9 +72,9 @@ public:
     TAutoMergeTask(
         ITaskHostPtr taskHost,
         int maxChunksPerJob,
-        i64 chunkSizeThreshold,
+        i64 maxChunkSize,
+        i64 maxChunkDataWeight,
         i64 dataWeightPerJob,
-        i64 maxDataWeightPerJob,
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 

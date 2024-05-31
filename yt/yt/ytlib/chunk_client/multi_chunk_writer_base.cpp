@@ -16,6 +16,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -229,7 +230,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         return true;
     }
 
-    if (CurrentSession_.TemplateWriter->GetDataWeight() > Config_->DesiredChunkWeight) {
+    if (IsLargeEnoughChunkDataWeight(CurrentSession_.TemplateWriter->GetDataWeight(), Config_->DesiredChunkWeight)) {
         YT_LOG_DEBUG("Switching to next chunk: data weight is too large (ChunkId: %v, CurrentSessionDataWeight: %v, DesiredChunkWeight: %v)",
             CurrentSession_.TemplateWriter->GetChunkId(),
             CurrentSession_.TemplateWriter->GetDataWeight(),

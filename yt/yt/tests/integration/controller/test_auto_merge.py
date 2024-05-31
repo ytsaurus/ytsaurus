@@ -412,9 +412,31 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         assert content[:1] == init_content
         assert normalize_schema(get("//tmp/t_out/@schema")) == schema_out
 
-    @authors("max42", "psushin")
+    @authors("yuryalekseev", "psushin")
     @pytest.mark.timeout(60)
-    def test_teleport_large_chunks(self):
+    @pytest.mark.parametrize("teleport_by", ["size", "weight"])
+    def test_teleport_large_chunks(self, teleport_by):
+        max_chunk_size_or_weight = 100 * 1024
+
+        spec = {
+            "auto_merge": {
+                "mode": "manual",
+                "max_intermediate_chunk_count": 5,
+                "chunk_count_per_merge_job": 5,
+            },
+            "data_size_per_job": 1,
+            "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
+        }
+
+        if teleport_by == "size":
+            # Chunks are teleported because of chunk_size_threshold.
+            spec["auto_merge"].update({"chunk_size_threshold": max_chunk_size_or_weight})
+            spec["auto_merge"].update({"job_io": {"table_writer": {"desired_chunk_weight": 4 * max_chunk_size_or_weight}}})
+        else:
+            # Chunks are teleported because of desired_chunk_weight.
+            spec["auto_merge"].update({"chunk_size_threshold": max_chunk_size_or_weight})
+            spec["auto_merge"].update({"job_io": {"table_writer": {"desired_chunk_weight": max_chunk_size_or_weight}}})
+
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
@@ -427,16 +449,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             out=["//tmp/t_out1", "//tmp/t_out2"],
             # First 8 jobs produce teleportable output, to ensure that teleports are handled correctly and operation doesn't get stuck.
             command="read x; if (($YT_JOB_INDEX < 8)); then head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi >&4",
-            spec={
-                "auto_merge": {
-                    "mode": "manual",
-                    "max_intermediate_chunk_count": 5,
-                    "chunk_count_per_merge_job": 5,
-                    "chunk_size_threshold": 100 * 1024,
-                },
-                "data_size_per_job": 1,
-                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
-            },
+            spec=spec,
         )
         self._verify_auto_merge_job_types(op)
         assert get("//tmp/t_out1/@chunk_count") == 0
