@@ -32,6 +32,8 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
+  -mavx2
+  -std=c11
 )
 
 set_property(
@@ -40,5 +42,7 @@ set_property(
   APPEND
   PROPERTY
   COMPILE_OPTIONS
+  -mavx2
+  -std=c11
 )
 
