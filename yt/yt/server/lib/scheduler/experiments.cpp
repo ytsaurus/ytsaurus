@@ -214,127 +214,34 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
 
     TAssignmentContext assignmentContext(type, user, specNode);
 
-    if (experimentOverridesNode) {
-        auto experimentOverrides = ConvertTo<std::vector<TString>>(experimentOverridesNode);
-        // Experiments are explicitly specified via spec option, use them.
-        // If some experiment is unrecognized or is not viable due to filter, fail whole operation.
-        for (const auto& experimentNameAndMaybeGroupName : experimentOverrides) {
-            TString experimentName;
-            TString groupName;
-            if (auto dotPosition = experimentNameAndMaybeGroupName.find('.'); dotPosition != TString::npos) {
-                experimentName = experimentNameAndMaybeGroupName.substr(0, dotPosition);
-                groupName = experimentNameAndMaybeGroupName.substr(dotPosition + 1);
-            } else {
-                experimentName = experimentNameAndMaybeGroupName;
-                groupName = "treatment";
-            }
+    auto result = experimentOverridesNode
+        ? SelectExperimentsBySpec(*preparedExperiments, experimentOverridesNode)
+        : SelectExperimentsRandomly(*preparedExperiments);
 
-            auto experimentIt = preparedExperiments->Experiments.find(experimentName);
-            if (experimentIt == preparedExperiments->Experiments.end()) {
-                THROW_ERROR_EXCEPTION("Experiment %Qv is not known", experimentName);
-            }
-            const auto& experiment = experimentIt->second;
-            auto groupIt = experiment->Config->Groups.find(groupName);
-            if (groupIt == experiment->Config->Groups.end()) {
-                THROW_ERROR_EXCEPTION("Group %Qv is not known in experiment %Qv", groupName, experimentName);
-            }
-            if (!MatchExperiment(experiment, assignmentContext)) {
+    for (const auto& [experimentIt, groupIt, experimentUniformSample, groupUniformSample] : result) {
+        const auto& [experimentName, experiment] = *experimentIt;
+        const auto& [groupName, group] = *groupIt;
+
+        if (!MatchExperiment(experiment, assignmentContext)) {
+            if (experimentOverridesNode) {
                 THROW_ERROR_EXCEPTION("Operation does not match filter of experiment %Qv",
                     experimentName)
                     << TErrorAttribute("filter", experiment->Config->Filter);
-            }
-
-            assignments.emplace_back(New<TExperimentAssignment>());
-            assignments.back()->SetFields(
-                experimentName,
-                groupName,
-                experiment->Config->Ticket,
-                experiment->Config->Dimension,
-                /*experimentUniformSample*/ 0.0,
-                /*groupUniformSample*/ 0.0,
-                groupIt->second);
-        }
-    } else {
-        // Pick at most one experiment from each dimension, then pick
-        // one group in each chosen experiment.
-
-        // dimension -> name -> experiment.
-        THashMap<TString, THashMap<TString, TPreparedExperimentPtr>> dimensionToExperiments;
-        for (const auto& [name, experiment] : preparedExperiments->Experiments) {
-            EmplaceOrCrash(dimensionToExperiments[experiment->Config->Dimension], name, experiment);
-        }
-
-        std::random_device randomDevice;
-        std::mt19937 generator(randomDevice());
-        std::uniform_real_distribution distribution(0.0, 1.0);
-
-        //! Generic helper for picking at most one element from map "object name -> object" with
-        //! each object having a Fraction field; used both for experiment dimensions and groups.
-        //! If forcePick is set, some element is guaranteed to be picked (use this option to overcome
-        //! double precision issues when total Fraction is expected to be 1.0).
-        //! Returns a pair (iterator, uniformSample); iterator may point to collection's end().
-        auto pickElement = [&] (auto& collection, bool forcePick, auto fractionGetter) {
-            if (forcePick) {
-                // Sanity check.
-                YT_VERIFY(!collection.empty());
-            }
-            double uniformSample = distribution(generator);
-            double cumulativeFraction = 0.0;
-            typename std::remove_reference_t<decltype(collection)>::const_iterator sampledIt;
-            for (auto it = collection.cbegin(); ; ++it) {
-                if (it == collection.cend() && forcePick) {
-                    // Keep previous value of sampledIt.
-                    break;
-                }
-                sampledIt = it;
-                if (it == collection.cend()) {
-                    YT_VERIFY(!forcePick);
-                    // By this moment sampledIt may be equal to end().
-                    break;
-                }
-                if (cumulativeFraction + fractionGetter(it->second) > uniformSample) {
-                    break;
-                }
-                cumulativeFraction += fractionGetter(it->second);
-            }
-            return std::pair(sampledIt, uniformSample);
-        };
-
-        for (const auto& dimensionExperiments : GetValues(dimensionToExperiments)) {
-            auto [experimentIt, experimentUniformSample] = pickElement(
-                dimensionExperiments,
-                /*forcePick*/ false,
-                [] (const TPreparedExperimentPtr& experiment) {
-                    return experiment->Config->Fraction;
-                });
-            if (experimentIt == dimensionExperiments.end()) {
-                // Pick no experiment from this dimension.
-                continue;
-            }
-            auto [experimentName, experiment] = *experimentIt;
-            auto [groupIt, groupUniformSample] = pickElement(
-                experiment->Config->Groups,
-                /*forcePick*/ true,
-                [] (const TExperimentGroupConfigPtr& experiment) {
-                    return experiment->Fraction;
-                });
-            auto [groupName, group] = *groupIt;
-
-            if (!MatchExperiment(experiment, assignmentContext)) {
+            } else {
                 // Skip such experiment.
                 continue;
             }
-
-            assignments.emplace_back(New<TExperimentAssignment>());
-            assignments.back()->SetFields(
-                experimentName,
-                groupName,
-                experiment->Config->Ticket,
-                experiment->Config->Dimension,
-                experimentUniformSample,
-                groupUniformSample,
-                group);
         }
+
+        assignments.emplace_back(New<TExperimentAssignment>());
+        assignments.back()->SetFields(
+            experimentName,
+            groupName,
+            experiment->Config->Ticket,
+            experiment->Config->Dimension,
+            experimentUniformSample,
+            groupUniformSample,
+            group);
     }
 
     if (specNode->FindChild("controller_agent_tag")) {
@@ -354,6 +261,117 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
     }
 
     return assignments;
+}
+
+std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::SelectExperimentsBySpec(
+    const TPreparedExperiments& preparedExperiments,
+    INodePtr& experimentOverridesNode) const
+{
+    std::vector<TExperimentAssigner::TSelectedExperimentGroup> result;
+
+    auto experimentOverrides = ConvertTo<std::vector<TString>>(experimentOverridesNode);
+    // Experiments are explicitly specified via spec option, use them.
+    // If some experiment is unrecognized or is not viable due to filter, fail whole operation.
+    for (const auto& experimentNameAndMaybeGroupName : experimentOverrides) {
+        TString experimentName;
+        TString groupName;
+        if (auto dotPosition = experimentNameAndMaybeGroupName.find('.'); dotPosition != TString::npos) {
+            experimentName = experimentNameAndMaybeGroupName.substr(0, dotPosition);
+            groupName = experimentNameAndMaybeGroupName.substr(dotPosition + 1);
+        } else {
+            experimentName = experimentNameAndMaybeGroupName;
+            groupName = "treatment";
+        }
+
+        auto experimentIt = preparedExperiments.Experiments.find(experimentName);
+        if (experimentIt == preparedExperiments.Experiments.end()) {
+            THROW_ERROR_EXCEPTION("Experiment %Qv is not known", experimentName);
+        }
+        const auto& experiment = experimentIt->second;
+        auto groupIt = experiment->Config->Groups.find(groupName);
+        if (groupIt == experiment->Config->Groups.end()) {
+            THROW_ERROR_EXCEPTION("Group %Qv is not known in experiment %Qv", groupName, experimentName);
+        }
+
+        result.emplace_back(experimentIt, groupIt, /*experimentUniformSample*/ 0.0, /*groupUniformSample*/ 0.0);
+    }
+
+    return result;
+}
+
+std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::SelectExperimentsRandomly(
+    const TPreparedExperiments& preparedExperiments) const
+{
+    std::vector<TExperimentAssigner::TSelectedExperimentGroup> result;
+
+    // Pick at most one experiment from each dimension, then pick
+    // one group in each chosen experiment.
+
+    // dimension -> name -> experiment.
+    THashMap<TString, THashMap<TString, TPreparedExperimentPtr>> dimensionToExperiments;
+    for (const auto& [name, experiment] : preparedExperiments.Experiments) {
+        EmplaceOrCrash(dimensionToExperiments[experiment->Config->Dimension], name, experiment);
+    }
+
+    std::random_device randomDevice;
+    std::mt19937 generator(randomDevice());
+    std::uniform_real_distribution distribution(0.0, 1.0);
+
+    //! Generic helper for picking at most one element from map "object name -> object" with
+    //! each object having a Fraction field; used both for experiment dimensions and groups.
+    //! If forcePick is set, some element is guaranteed to be picked (use this option to overcome
+    //! double precision issues when total Fraction is expected to be 1.0).
+    //! Returns a pair (iterator, uniformSample); iterator may point to collection's end().
+    auto pickElement = [&] (auto& collection, bool forcePick, auto fractionGetter) {
+        if (forcePick) {
+            // Sanity check.
+            YT_VERIFY(!collection.empty());
+        }
+        double uniformSample = distribution(generator);
+        double cumulativeFraction = 0.0;
+        typename std::remove_reference_t<decltype(collection)>::const_iterator sampledIt;
+        for (auto it = collection.cbegin(); ; ++it) {
+            if (it == collection.cend() && forcePick) {
+                // Keep previous value of sampledIt.
+                break;
+            }
+            sampledIt = it;
+            if (it == collection.cend()) {
+                YT_VERIFY(!forcePick);
+                // By this moment sampledIt may be equal to end().
+                break;
+            }
+            if (cumulativeFraction + fractionGetter(it->second) > uniformSample) {
+                break;
+            }
+            cumulativeFraction += fractionGetter(it->second);
+        }
+        return std::pair(sampledIt, uniformSample);
+    };
+
+    for (const auto& dimensionExperiments : GetValues(dimensionToExperiments)) {
+        auto [experimentIt, experimentUniformSample] = pickElement(
+            dimensionExperiments,
+            /*forcePick*/ false,
+            [] (const TPreparedExperimentPtr& experiment) {
+                return experiment->Config->Fraction;
+            });
+        if (experimentIt == dimensionExperiments.end()) {
+            // Pick no experiment from this dimension.
+            continue;
+        }
+        const auto& experiment = experimentIt->second;
+        auto [groupIt, groupUniformSample] = pickElement(
+            experiment->Config->Groups,
+            /*forcePick*/ true,
+            [] (const TExperimentGroupConfigPtr& experiment) {
+                return experiment->Fraction;
+            });
+
+        result.emplace_back(experimentIt, groupIt, experimentUniformSample, groupUniformSample);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

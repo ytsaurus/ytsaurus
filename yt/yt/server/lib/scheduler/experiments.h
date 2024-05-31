@@ -82,11 +82,13 @@ struct TExperimentConfig
     //! Probability of experiment enabling among all operations from either exclusive or non-exclusive operation domain.
     double Fraction;
 
+    using TGroups = THashMap<TString, TExperimentGroupConfigPtr>;
+
     //! Specification of testing groups. Typical situation with AB-experiment involving two groups
     //! (control and treatment) may be set up using shorthand option 'ab_treatment_group' below.
     //! You must specify all groups here, total group fraction should be equal to 1.0 (with absolute tolerance 1e-6)
     //! unless you are using 'ab_treatment_group' shorthand.
-    THashMap<TString, TExperimentGroupConfigPtr> Groups;
+    TGroups Groups;
 
     //! A shorthand allowing to specify only treatment group for a regular AB-experiment. Control group
     //! will be automatically generated with remaining fraction and empty spec patches and controller agent tag.
@@ -187,13 +189,28 @@ public:
 
     struct TPreparedExperiments final
     {
-        THashMap<TString, TPreparedExperimentPtr> Experiments;
+        using TExperiments = THashMap<TString, TPreparedExperimentPtr>;
+        TExperiments Experiments;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
     TAtomicIntrusivePtr<TPreparedExperiments> PreparedExperiments_;
+
+    struct TSelectedExperimentGroup
+    {
+        TPreparedExperiments::TExperiments::const_iterator Experiment;
+        TExperimentConfig::TGroups::const_iterator Group;
+        double ExperimentUniformSample;
+        double GroupUniformSample;
+    };
+
+    std::vector<TSelectedExperimentGroup> SelectExperimentsBySpec(
+        const TPreparedExperiments& preparedExperiments,
+        NYTree::INodePtr& experimentOverridesNode) const;
+    std::vector<TSelectedExperimentGroup> SelectExperimentsRandomly(
+        const TPreparedExperiments& preparedExperiments) const;
 };
 
 //! Validate experiment specification, in particular:
