@@ -1123,6 +1123,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
     TYsonString supportedFeatures = EmptyMap;
     if (attributes.AdmitsKeySlow("supported_features")) {
+        // These features are guaranteed to be deployed before or with this code.
         supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
                 .Item("access_control").Value(true)
