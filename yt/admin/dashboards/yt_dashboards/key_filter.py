@@ -1,6 +1,6 @@
 # flake8: noqa
 
-from .common.sensors import NodeTablet
+from .common.sensors import NodeTablet, yt_host
 
 try:
     from .constants import KEY_FILTER_DASHBOARD_DEFAULT_CLUSTER
@@ -12,7 +12,7 @@ from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.backends.monitoring import (
     MonitoringTag, MonitoringLabelDashboardParameter)
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 def build_key_filter_rowset():
     lookup_row_count = NodeTablet("yt.tablet_node.lookup.{}_count.rate")
@@ -21,6 +21,7 @@ def build_key_filter_rowset():
 
     return (Rowset()
         .min(0)
+        .aggr(yt_host, "tablet_cell_bundle")
         .row()
             .cell("Lookup row count", MultiSensor(
                 MonitoringExpr(lookup_row_count("row")).alias("row count"),
@@ -48,6 +49,12 @@ def build_key_filter_rowset():
                 MonitoringExpr(lookup_key_filter("input")).alias("input key count"),
                 MonitoringExpr(lookup_key_filter("filtered_out")).alias("filtered out key count"),
             ))
+            .cell("", EmptyCell())
+        .row()
+            .cell("Lookup cumulative CPU time", NodeTablet("yt.tablet_node.lookup.cpu_time.rate"))
+            .cell("Lookup max duration", MonitoringExpr(
+                NodeTablet("yt.tablet_node.multiread.request_duration.max")).series_max("table_path")
+                    .all(yt_host, "tablet_cell_bundle"))
         ).owner
 
 def build_key_filter():
@@ -62,4 +69,4 @@ def build_key_filter():
     return (d
         .value(MonitoringTag("cluster"), TemplateTag("cluster"))
         .value(MonitoringTag("table_path"), TemplateTag("table_path"))
-        .aggr("user", "tablet_cell_bundle", "table_tag", "host"))
+        .aggr("user", "table_tag", "host"))
