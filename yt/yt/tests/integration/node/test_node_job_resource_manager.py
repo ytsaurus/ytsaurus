@@ -68,7 +68,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
                 },
                 "controller_agent_connector": {
                     "heartbeat_executor": {
-                        "period": 6 * 10000,
+                        "period": 2 * 10000,
                     }
                 },
             },
