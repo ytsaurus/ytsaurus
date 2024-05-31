@@ -121,6 +121,10 @@ void ValidateCompressionCodec(
     const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
     const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias);
 
+void ValidateErasureCodec(
+    const NYson::TYsonString& value,
+    const THashSet<NErasure::ECodec>& forbiddenCodecs);
+
 NSecurityServer::TRichClusterResources GetNodeResourceUsage(const TCypressNode* node);
 
 //! Returns closest ancestor with annotation or nullptr if there are no such ancestors.

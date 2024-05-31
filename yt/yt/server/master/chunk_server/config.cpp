@@ -567,6 +567,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("deprecated_codec_name_to_alias", &TThis::DeprecatedCodecNameToAlias)
         .Default();
 
+    registrar.Parameter("forbidden_erasure_codecs", &TThis::ForbiddenErasureCodecs)
+        .Default();
+
     registrar.Parameter("max_oldest_part_missing_chunks", &TThis::MaxOldestPartMissingChunks)
         .Default(100);
 

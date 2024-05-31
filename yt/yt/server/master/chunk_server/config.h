@@ -586,6 +586,9 @@ public:
     //! Deprecated codec names and their alises, used values from yt/core/compression by default.
     std::optional<THashMap<TString, TString>> DeprecatedCodecNameToAlias;
 
+    //! Forbidden erasure codec ids, empty by default.
+    THashSet<NErasure::ECodec> ForbiddenErasureCodecs;
+
     //! The number of oldest part-missing chunks to be remembered by the replicator.
     int MaxOldestPartMissingChunks;
 

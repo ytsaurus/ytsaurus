@@ -64,7 +64,7 @@ def not_implemented_in_sequoia(func):
 
 
 class TestCypress(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 12
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 3
     NUM_NODES = 0
@@ -3807,6 +3807,9 @@ class TestCypress(YTEnvSetup):
             set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
 
+        with pytest.raises(YtError):
+            create("table", "//tmp/t1", attributes={"compression_codec": "gzip_normal"})
+
         set("//sys/@config/chunk_manager/deprecated_codec_ids", [])
         create("table", "//tmp/t1")
         remove("//tmp/t1")
@@ -3818,6 +3821,39 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t1")
         set("//tmp/t1/@compression_codec", "gzip_normal")
         remove("//tmp/t1")
+
+    @authors("abogutskiy")
+    @not_implemented_in_sequoia
+    def test_forbidden_erasure_codecs(self):
+        create("map_node", "//tmp/ec1", attributes={"erasure_codec": "reed_solomon_6_3"})
+
+        set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [1])  # forbid reed_solomon_6_3
+        create("table", "//tmp/t1")
+        with pytest.raises(YtError):
+            set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
+        set("//tmp/t1/@erasure_codec", "reed_solomon_3_3")
+        remove("//tmp/t1")
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_6_3"})
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/ec2", attributes={"erasure_codec": "reed_solomon_6_3"})
+
+        create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_3_3"})
+        remove("//tmp/t1")
+
+        set("//sys/@config/chunk_manager/forbidden_erasure_codecs", [])
+        create("table", "//tmp/t1", attributes={"erasure_codec": "reed_solomon_6_3"})
+        remove("//tmp/t1")
+
+        create("table", "//tmp/ec1/t1")
+        remove("//tmp/ec1/t1")
+
+        create("table", "//tmp/t1")
+        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3")
+        remove("//tmp/t1")
+        remove("//tmp/ec1")
 
     @authors("cookiedoth")
     @pytest.mark.parametrize(
