@@ -126,6 +126,7 @@ jobs:
         run: |
           mkdir -p ../docker-chyt-build
           IMAGE_TAG=${{ inputs.image-tag }}
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
 
           bash ./ytsaurus/yt/docker/chyt/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --chyt-build-path ../build/yt/chyt --output-path ../docker-chyt-build --image-tag ${IMAGE_TAG} --image-cr ghcr.io/
 
@@ -194,6 +195,7 @@ jobs:
         if: ${{ inputs.publish-chyt }}
         run: |
           IMAGE_TAG=${{ inputs.image-tag }}-relwithdebinfo
+          NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}-relwithdebinfo
 
           mv ../build_relwithdebinfo/yt/chyt/server/bin/ytserver-clickhouse ../build/yt/chyt/server/bin/ytserver-clickhouse
 
