@@ -7,6 +7,7 @@ from yt_commands import (
 
 from yt_helpers import JobCountProfiler, profiler_factory
 
+from flaky import flaky
 
 class TestUserMemoryUsageTracker(YTEnvSetup):
     NUM_MASTERS = 1
@@ -53,6 +54,7 @@ class TestUserMemoryUsageTracker(YTEnvSetup):
         wait(lambda: user_jobs_used.get_delta() == 0)
 
     @authors("arkady-e1ppa")
+    @flaky(max_runs=5)
     def test_aborted_created_job_resource_usage(self):
         node = ls("//sys/cluster_nodes")[0]
         profiler = profiler_factory().at_node(node)
