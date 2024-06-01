@@ -9,6 +9,7 @@ from yt_helpers import JobCountProfiler, profiler_factory
 
 from flaky import flaky
 
+
 class TestUserMemoryUsageTracker(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
