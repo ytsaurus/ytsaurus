@@ -1,5 +1,4 @@
 #include "config.h"
-#include "helpers.h"
 #include "job_resources.h"
 
 #include "yt/yt/core/misc/error.h"
@@ -1777,7 +1776,8 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         }
 
         if (spec->HasNontrivialMapper()) {
-            for (const auto& stream : spec->Mapper->OutputStreams) {
+            for (int i = 0; i < std::ssize(spec->Mapper->OutputStreams) - spec->MapperOutputTableCount; ++i) {
+                const auto& stream = spec->Mapper->OutputStreams[i];
                 if (stream->Schema->GetSortColumns() != spec->SortBy) {
                     THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly the same "
                         "\"sort_by\" sort column prefix")

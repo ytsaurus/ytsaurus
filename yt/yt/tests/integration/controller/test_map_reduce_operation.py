@@ -1619,6 +1619,71 @@ for l in sys.stdin:
         expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
         assert sorted_dicts(expected_rows) == sorted_dicts(result_rows)
 
+    @authors("ermolovd")
+    def test_intermediate_schema_mapper_side_output(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
+        schema = [
+            make_column("a", "int64", sort_order="ascending"),
+            make_column("struct", struct_type([("a", "int64"), ("b", "string"), ("c", "bool")])),
+        ]
+        reducer_output_schema = [
+            make_column("a", "int64"),
+            make_column("struct", struct_type([("a", "int64"), ("b", "string"), ("c", "bool")])),
+        ]
+
+        create("table", "//tmp/input")
+        create("table", "//tmp/reducer_output", attributes={"schema": reducer_output_schema})
+        create("table", "//tmp/mapper_output")
+
+        rows = [{"a": i, "b": str(i) * 3} for i in range(50)]
+        write_table("//tmp/input", rows)
+
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", b"""
+import json, os, sys
+for l in sys.stdin:
+    row = json.loads(l)
+    a, b = row["a"], row["b"]
+
+    intermediate_row = json.dumps({"a": a, "struct": {"a": a, "b": b, "c": True}})
+    sys.stdout.write(intermediate_row + "\\n")
+
+    mapper_side_out_row = json.dumps({"b": b})
+    os.write(4, mapper_side_out_row.encode("utf-8") + b"\\n")
+""")
+
+        map_reduce(
+            in_="//tmp/input",
+            out=["//tmp/mapper_output", "//tmp/reducer_output"],
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reducer_command="cat",
+            reduce_by=["a"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": schema},
+                        {"schema": [make_column("b", "string")]},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+                "mapper_output_table_count": 1,
+            },
+        )
+
+        reducer_actual_rows = read_table("//tmp/reducer_output")
+        reducer_expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
+        assert sorted_dicts(reducer_expected_rows) == sorted_dicts(reducer_actual_rows)
+
+        mapper_actual_rows = read_table("//tmp/mapper_output")
+
+        mapper_expected_rows = [{"b": r["b"]} for r in rows]
+        assert mapper_expected_rows == mapper_actual_rows
+
     @authors("levysotsky")
     def test_single_intermediate_schema_trivial_mapper(self):
         input_schema = output_schema = [
