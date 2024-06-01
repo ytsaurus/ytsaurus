@@ -215,7 +215,7 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_job_environment_resurrection", &TThis::EnableJobEnvironmentResurrection)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("max_consecutive_gpu_job_failures", &TThis::MaxConsecutiveGpuJobFailures)
         .Default(50);
@@ -234,10 +234,10 @@ void TSlotManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(20));
 
     registrar.Parameter("abort_on_free_volume_synchronization_failed", &TThis::AbortOnFreeVolumeSynchronizationFailed)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("abort_on_free_slot_synchronization_failed", &TThis::AbortOnFreeSlotSynchronizationFailed)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("abort_on_jobs_disabled", &TThis::AbortOnJobsDisabled)
         .Default(false);
@@ -263,10 +263,10 @@ void TVolumeManagerDynamicConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("abort_on_operation_with_volume_failed", &TThis::AbortOnOperationWithVolumeFailed)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("abort_on_operation_with_layer_failed", &TThis::AbortOnOperationWithLayerFailed)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("throw_on_prepare_volume", &TThis::ThrowOnPrepareVolume)
         .Default(false);
