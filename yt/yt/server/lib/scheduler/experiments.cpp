@@ -293,7 +293,12 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
             THROW_ERROR_EXCEPTION("Group %Qv is not known in experiment %Qv", groupName, experimentName);
         }
 
-        result.emplace_back(experimentIt, groupIt, /*experimentUniformSample*/ 0.0, /*groupUniformSample*/ 0.0);
+        result.emplace_back(TSelectedExperimentGroup{
+            .Experiment = experimentIt,
+            .Group = groupIt,
+            .ExperimentUniformSample = 0.0,
+            .GroupUniformSample = 0.0
+        });
     }
 
     return result;
@@ -368,7 +373,12 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
                 return experiment->Fraction;
             });
 
-        result.emplace_back(experimentIt, groupIt, experimentUniformSample, groupUniformSample);
+        result.emplace_back(TSelectedExperimentGroup{
+            .Experiment = experimentIt,
+            .Group = groupIt,
+            .ExperimentUniformSample = experimentUniformSample,
+            .GroupUniformSample = groupUniformSample
+        });
     }
 
     return result;
