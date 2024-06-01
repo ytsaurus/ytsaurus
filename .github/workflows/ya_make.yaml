@@ -36,11 +36,11 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     steps:
       - name: Checkout ytsaurus
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           path: ytsaurus
       - name: Checkout ydb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
         with:
           repository: ydb-platform/ydb
           ref: 9602cbe953310f3b833b7b99cf5ced4021cdd63b
