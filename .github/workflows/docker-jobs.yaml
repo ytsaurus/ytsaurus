@@ -53,7 +53,7 @@ jobs:
           IMAGE_TAG=${{ inputs.image-tag }}
           NIGHTLY_IMAGE_TAG=${{ inputs.nightly-image-tag }}
 
-          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image ${IMAGE_TAG} --image-cr ghcr.io/
+          bash ./ytsaurus/yt/docker/ytsaurus/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-ytsaurus-build --image-tag ${IMAGE_TAG} --image-cr ghcr.io/
 
           if ! [[ ${IMAGE_TAG} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/ytsaurus:${IMAGE_TAG}
