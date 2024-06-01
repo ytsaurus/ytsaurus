@@ -202,7 +202,10 @@ void TBootstrap::DoRun()
         Connection_,
         DynamicConfigManager_);
 
-    BusServer_ = CreateBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(
+        Config_->BusServer,
+        GetYTPacketTranscoderFactory(),
+        MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
     if (Config_->TvmOnlyRpcPort) {
         auto busConfigCopy = CloneYsonStruct(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
