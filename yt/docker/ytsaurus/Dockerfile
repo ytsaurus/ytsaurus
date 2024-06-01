@@ -1,4 +1,4 @@
-FROM ubuntu:focal
+FROM mirror.gcr.io/ubuntu:focal
 
 USER root
 
