@@ -974,7 +974,7 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("use_disable_send_blocks", &TThis::UseDisableSendBlocks)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();
