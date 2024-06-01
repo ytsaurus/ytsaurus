@@ -230,7 +230,7 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         return true;
     }
 
-    if (IsLargeEnoughChunkDataWeight(CurrentSession_.TemplateWriter->GetDataWeight(), Config_->DesiredChunkWeight)) {
+    if (IsLargeEnoughChunkWeight(CurrentSession_.TemplateWriter->GetDataWeight(), Config_->DesiredChunkWeight)) {
         YT_LOG_DEBUG("Switching to next chunk: data weight is too large (ChunkId: %v, CurrentSessionDataWeight: %v, DesiredChunkWeight: %v)",
             CurrentSession_.TemplateWriter->GetChunkId(),
             CurrentSession_.TemplateWriter->GetDataWeight(),
@@ -240,9 +240,9 @@ bool TNontemplateMultiChunkWriterBase::TrySwitchSession()
         return true;
     }
 
-    if (CurrentSession_.TemplateWriter->GetCompressedDataSize() > Config_->DesiredChunkSize) {
+    if (IsLargeEnoughChunkSize(CurrentSession_.TemplateWriter->GetCompressedDataSize(), Config_->DesiredChunkSize)) {
         if (Options_->ErasureCodec != ECodec::None ||
-            CurrentSession_.TemplateWriter->GetCompressedDataSize() > 2 * Config_->DesiredChunkSize)
+            IsLargeEnoughChunkSize(CurrentSession_.TemplateWriter->GetCompressedDataSize(), 2 * Config_->DesiredChunkSize))
         {
             YT_LOG_DEBUG("Switching to next chunk: compressed data size is too large (ChunkId: %v, CurrentSessionSize: %v, DesiredChunkSize: %v)",
                 CurrentSession_.TemplateWriter->GetChunkId(),

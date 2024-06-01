@@ -500,8 +500,8 @@ private:
 
             if (InputStreamDirectory_.GetDescriptor(dataSlice->GetInputStreamIndex()).IsTeleportable() &&
                 chunk->IsCompleteChunk() &&
-                (chunk->IsLargeCompleteChunk(MinTeleportChunkSize_) ||
-                    IsLargeEnoughChunkDataWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_)))
+                (IsLargeEnoughChunkSize(chunk->GetCompressedDataSize(), MinTeleportChunkSize_) ||
+                    IsLargeEnoughChunkWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_)))
             {
                 if (Sampler_.Sample()) {
                     ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
