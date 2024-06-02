@@ -176,10 +176,12 @@ std::vector<TRowRange> GetRangesFromConstraints(
 
     TReadRangesGenerator rangesGenerator(constraints);
 
+    auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, rangeCountLimit);
+
     rangesGenerator.GenerateReadRanges(
         constraintRef,
-        [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
-            auto boundRow = buffer->AllocateUnversioned(keyColumnCount );
+        [&] (TRange<TColumnConstraint> constraintRow) {
+            auto boundRow = buffer->AllocateUnversioned(keyColumnCount);
 
             int columnId = 0;
             while (columnId < std::ssize(constraintRow) && constraintRow[columnId].IsExact()) {
@@ -209,7 +211,7 @@ std::vector<TRowRange> GetRangesFromConstraints(
                 YT_VERIFY(resultRanges.back().second == rowRange.second && resultRanges.back().first <= rowRange.first);
             }
         },
-        rangeCountLimit);
+        keyWidth);
 
     return resultRanges;
 }

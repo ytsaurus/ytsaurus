@@ -954,7 +954,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
         }
     }
 
-    auto rangeCountLimit = options.RangeExpansionLimit / moduloExpansion;
+    auto rangeCountLimit = options.RangeExpansionLimit / moduloExpansion + (options.RangeExpansionLimit % moduloExpansion > 0);
 
     TComputedColumnsInfo computedColumnInfos;
     computedColumnInfos.Build(*evaluator, schema->GetKeyColumnNames());
@@ -974,9 +974,18 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     std::vector<TRowRange> enrichedRanges;
 
     TReadRangesGenerator rangesGenerator(constraints);
+
+    auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, rangeCountLimit);
+    YT_LOG_DEBUG(
+        "Estimate range expansion depth (KeyWidth: %v, Expansion: %v, LimitPerModulo: %v, InitialLimit: %v)",
+        keyWidth,
+        expansion,
+        rangeCountLimit,
+        options.RangeExpansionLimit);
+
     rangesGenerator.GenerateReadRanges(
         constraintRef,
-        [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
+        [&] (TRange<TColumnConstraint> constraintRow) {
             YT_LOG_DEBUG_IF(
                 options.VerboseLogging,
                 "ConstraintRow: %v",
@@ -999,7 +1008,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
 
             enrichedRanges.insert(enrichedRanges.end(), ranges.begin(), ranges.end());
         },
-        rangeCountLimit);
+        keyWidth);
 
     std::sort(enrichedRanges.begin(), enrichedRanges.end());
     enrichedRanges.erase(
@@ -1032,9 +1041,17 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     TRowRanges resultRanges;
 
     TReadRangesGenerator rangesGenerator(constraints);
+
+    auto [keyWidth, expansion] = rangesGenerator.GetExpansionDepthAndEstimation(constraintRef, options.RangeExpansionLimit);
+    YT_LOG_DEBUG(
+        "Estimate range expansion depth (KeyWidth: %v, Expansion: %v, Limit: %v)",
+        keyWidth,
+        expansion,
+        options.RangeExpansionLimit);
+
     rangesGenerator.GenerateReadRanges(
         constraintRef,
-        [&] (TRange<TColumnConstraint> constraintRow, ui64 /*rangeExpansionLimit*/) {
+        [&] (TRange<TColumnConstraint> constraintRow) {
             YT_LOG_DEBUG_IF(
                 options.VerboseLogging,
                 "ConstraintRow: %v",
@@ -1091,7 +1108,7 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
                 resultRanges.push_back(rowRange);
             }
         },
-        options.RangeExpansionLimit);
+        keyWidth);
 
     return MakeSharedRange(resultRanges, buffer);
 }

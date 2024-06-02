@@ -171,6 +171,10 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
             std::sort(values.begin(), values.end(), [&] (TRow lhs, TRow rhs) {
                 return CompareRowUsingMapping(lhs, rhs, keyMapping) < 0;
             });
+        } else {
+            for (auto it = values.begin(), itEnd = values.end(); it + 1 < itEnd; ++it) {
+                YT_VERIFY(CompareRowUsingMapping(*it, *(it + 1), keyMapping) <= 0);
+            }
         }
 
         std::vector<int> commonKeyPrefixes(1, 0);
