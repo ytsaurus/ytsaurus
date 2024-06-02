@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
@@ -189,6 +191,8 @@ private:
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
         RootClient_ = Connection_->CreateClient({.User = NSecurityClient::RootUserName});
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
         {
             TCypressRegistrarOptions options{

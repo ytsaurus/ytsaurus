@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
@@ -158,6 +160,8 @@ void TBootstrap::DoRun()
 
     auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
     Client_ = Connection_->CreateNativeClient(clientOptions);
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
     BusServer_ = CreateBusServer(Config_->BusServer);
 

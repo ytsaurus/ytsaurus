@@ -74,6 +74,8 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/table_client/config.h>
@@ -772,6 +774,8 @@ TJobResult TJobProxy::RunJob()
 
         auto clusterConnection = CreateNativeConnection(Config_->ClusterConnection);
         Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(GetAuthenticatedUser()));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         PackBaggageFromJobSpec(RootSpan_, JobSpecHelper_->GetJobSpec(), OperationId_, JobId_);
 

@@ -33,11 +33,11 @@ class TFileLogWriter
 public:
     TFileLogWriter(
         std::unique_ptr<ILogFormatter> formatter,
-        TString name,
-        TFileLogWriterConfigPtr config,
+        const TString& name,
+        const TFileLogWriterConfigPtr& config,
         ILogWriterHost* host)
-        : TStreamLogWriterBase(std::move(formatter), std::move(name))
-        , Config_(std::move(config))
+        : TStreamLogWriterBase(std::move(formatter), name, config)
+        , Config_(config)
         , Host_(host)
         , DirectoryName_(NFS::GetDirectoryName(Config_->FileName))
         , FileNamePrefix_(NFS::GetFileName(Config_->FileName))
@@ -189,9 +189,11 @@ private:
                 Formatter_->WriteLogReopenSeparator(GetOutputStream());
             }
 
-            Formatter_->WriteLogStartEvent(GetOutputStream());
+            if (Config_->AreSystemMessagesEnabled()) {
+                Formatter_->WriteFormatted(GetOutputStream(), GetLogStartEvent(Config_->GetSystemMessageFamily()));
+            }
 
-            ResetCurrentSegment(File_->GetLength());
+            ResetSegmentSize(File_->GetLength());
         } catch (const std::exception& ex) {
             Disabled_ = true;
             YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)",

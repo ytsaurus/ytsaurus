@@ -154,6 +154,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -761,6 +763,8 @@ void TBootstrap::DoInitialize()
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
 
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
     SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger);
 

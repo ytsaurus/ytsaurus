@@ -73,50 +73,128 @@ i64 TRateLimitCounter::GetAndResetLastSkippedEventsCount()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStreamLogWriterBase::TStreamLogWriterBase(
-    std::unique_ptr<ILogFormatter> formatter,
-    TString name)
-    : Formatter_(std::move(formatter))
+TSegmentSizeReporter::TSegmentSizeReporter(TString logWriterName)
+    : CurrentSegmentSizeGauge_(
+        TProfiler{"/logging"}.WithSparse().WithTag("writer", std::move(logWriterName)).Gauge("/current_segment_size"))
+{ }
+
+void TSegmentSizeReporter::IncrementSegmentSize(i64 size)
+{
+    CurrentSegmentSizeGauge_.Update(CurrentSegmentSize_.fetch_add(size, std::memory_order::relaxed) + size);
+}
+
+void TSegmentSizeReporter::ResetSegmentSize(i64 size)
+{
+    CurrentSegmentSize_.store(size, std::memory_order::relaxed);
+    CurrentSegmentSizeGauge_.Update(size);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRateLimitingLogWriterBase::TRateLimitingLogWriterBase(TCallback<i64(const TLogEvent&)> writeImpl, TString name, TLogWriterConfigPtr config)
+    : WriteImpl_(writeImpl)
     , Name_(std::move(name))
+    , Config_(std::move(config))
     , RateLimit_(
         std::nullopt,
         {},
         TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Counter("/events_skipped_by_global_limit"))
-    , CurrentSegmentSizeGauge_(
-        TProfiler{"/logging"}.WithSparse().WithTag("writer", Name_).Gauge("/current_segment_size"))
 { }
 
-void TStreamLogWriterBase::Write(const TLogEvent& event)
+void TRateLimitingLogWriterBase::Write(const TLogEvent& event)
 {
-    auto* stream = GetOutputStream();
-    if (!stream) {
-        return;
+    auto* categoryRateLimit = GetCategoryRateLimitCounter(event.Category->Name);
+    if (RateLimit_.IsIntervalPassed()) {
+        auto eventsSkipped = RateLimit_.GetAndResetLastSkippedEventsCount();
+        WriteLogSkippedEvent(eventsSkipped, Name_);
+    }
+    if (categoryRateLimit->IsIntervalPassed()) {
+        auto eventsSkipped = categoryRateLimit->GetAndResetLastSkippedEventsCount();
+        WriteLogSkippedEvent(eventsSkipped, event.Category->Name);
     }
 
-    try {
-        auto* categoryRateLimit = GetCategoryRateLimitCounter(event.Category->Name);
-        if (RateLimit_.IsIntervalPassed()) {
-            auto eventsSkipped = RateLimit_.GetAndResetLastSkippedEventsCount();
-            if (eventsSkipped > 0) {
-                Formatter_->WriteLogSkippedEvent(stream, eventsSkipped, Name_);
-            }
-        }
-        if (categoryRateLimit->IsIntervalPassed()) {
-            auto eventsSkipped = categoryRateLimit->GetAndResetLastSkippedEventsCount();
-            if (eventsSkipped > 0) {
-                Formatter_->WriteLogSkippedEvent(stream, eventsSkipped, event.Category->Name);
-            }
-        }
-        if (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached()) {
-            auto bytesWritten = Formatter_->WriteFormatted(stream, event);
-            CurrentSegmentSize_ += bytesWritten;
-            CurrentSegmentSizeGauge_.Update(CurrentSegmentSize_);
+    // We do not do this in the constructor since it happens to be called during TLogManager construction itself.
+    if (!SystemCategory_) {
+        SystemCategory_ = GetDefaultLogManager()->GetCategory(SystemLoggingCategoryName);
+    }
+    bool isSystemEvent = event.Category == SystemCategory_;
+
+    // We always let system events pass through without affecting rate limits.
+    if (isSystemEvent || (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached())) {
+        auto bytesWritten = WriteImpl_(event);
+
+        if (!isSystemEvent) {
             RateLimit_.UpdateCounter(bytesWritten);
             categoryRateLimit->UpdateCounter(bytesWritten);
         }
+    }
+}
+
+void TRateLimitingLogWriterBase::SetRateLimit(std::optional<i64> limit)
+{
+    RateLimit_.SetRateLimit(limit);
+}
+
+void TRateLimitingLogWriterBase::SetCategoryRateLimits(const THashMap<TString, i64>& categoryRateLimits)
+{
+    CategoryToRateLimit_.clear();
+    for (const auto& it : categoryRateLimits) {
+        GetCategoryRateLimitCounter(it.first)->SetRateLimit(it.second);
+    }
+}
+
+void TRateLimitingLogWriterBase::WriteLogSkippedEvent(i64 eventsSkipped, TStringBuf skippedBy)
+{
+    if (eventsSkipped > 0 && Config_->AreSystemMessagesEnabled()) {
+        WriteImpl_(GetSkippedLogEvent(Config_->GetSystemMessageFamily(), eventsSkipped, skippedBy));
+    }
+}
+
+TRateLimitCounter* TRateLimitingLogWriterBase::GetCategoryRateLimitCounter(TStringBuf category)
+{
+    auto it = CategoryToRateLimit_.find(category);
+    if (it == CategoryToRateLimit_.end()) {
+        auto r = TProfiler{"/logging"}
+            .WithSparse()
+            .WithTag("writer", Name_)
+            .WithTag("category", TString{category}, -1);
+
+        // TODO(prime@): optimize sensor count
+        it = CategoryToRateLimit_.insert({category, TRateLimitCounter(
+            std::nullopt,
+            r.Counter("/bytes_written"),
+            r.Counter("/events_skipped_by_category_limit"))}).first;
+    }
+    return &it->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamLogWriterBase::TStreamLogWriterBase(
+    std::unique_ptr<ILogFormatter> formatter,
+    const TString& name,
+    TLogWriterConfigPtr config)
+    : TRateLimitingLogWriterBase(BIND(&TStreamLogWriterBase::WriteImpl, Unretained(this)), name, std::move(config))
+    , TSegmentSizeReporter(name)
+    , Formatter_(std::move(formatter))
+{ }
+
+i64 TStreamLogWriterBase::WriteImpl(const TLogEvent& event)
+{
+    auto* stream = GetOutputStream();
+    if (!stream) {
+        return 0;
+    }
+
+    try {
+        auto bytesWritten = Formatter_->WriteFormatted(stream, event);
+        IncrementSegmentSize(bytesWritten);
+        return bytesWritten;
     } catch (const std::exception& ex) {
         OnException(ex);
     }
+
+    return 0;
 }
 
 void TStreamLogWriterBase::Flush()
@@ -155,44 +233,6 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
 #endif
     _exit(100);
     YT_ABORT();
-}
-
-void TStreamLogWriterBase::ResetCurrentSegment(i64 size)
-{
-    CurrentSegmentSize_ = size;
-    CurrentSegmentSizeGauge_.Update(CurrentSegmentSize_);
-}
-
-void TStreamLogWriterBase::SetRateLimit(std::optional<i64> limit)
-{
-    RateLimit_.SetRateLimit(limit);
-}
-
-void TStreamLogWriterBase::SetCategoryRateLimits(const THashMap<TString, i64>& categoryRateLimits)
-{
-    CategoryToRateLimit_.clear();
-    for (const auto& it : categoryRateLimits) {
-        GetCategoryRateLimitCounter(it.first)->SetRateLimit(it.second);
-    }
-}
-
-TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(TStringBuf category)
-{
-    auto it = CategoryToRateLimit_.find(category);
-    if (it == CategoryToRateLimit_.end()) {
-        auto r = TProfiler{"/logging"}
-            .WithSparse()
-            .WithTag("writer", Name_)
-            .WithTag("category", TString{category}, -1);
-
-        // TODO(prime@): optimize sensor count
-        it = CategoryToRateLimit_.insert({category, TRateLimitCounter(
-            std::nullopt,
-            r.Counter("/bytes_written"),
-            r.Counter("/events_skipped_by_category_limit")
-        )}).first;
-    }
-    return &it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
