@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +36,7 @@ import tech.ytsaurus.skiff.SkiffParser;
 import tech.ytsaurus.skiff.SkiffSchema;
 import tech.ytsaurus.skiff.SkiffSerializer;
 import tech.ytsaurus.typeinfo.DecimalType;
+import tech.ytsaurus.typeinfo.StructType;
 import tech.ytsaurus.typeinfo.TiType;
 import tech.ytsaurus.yson.BufferReference;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
@@ -61,7 +63,6 @@ public class EntitySkiffSerializer<T> {
     private static final byte ONE_TAG = 0x01;
     private static final byte END_TAG = (byte) 0xFF;
     private final Class<T> entityClass;
-    private final List<EntityFieldDescr> entityFieldDescriptions;
     private final Map<Class<?>, List<EntityFieldDescr>> entityFieldsMap = new HashMap<>();
     private final Map<Class<?>, Constructor<?>> objectConstructorMap = new HashMap<>();
     private @Nullable TableSchema entityTableSchema;
@@ -75,17 +76,14 @@ public class EntitySkiffSerializer<T> {
         }
         this.entityClass = entityClass;
         try {
-            this.entityTableSchema = EntityTableSchemaCreator.create(entityClass, null);
+            this.entityTableSchema = EntityTableSchemaCreator.create(entityClass);
             this.entityTiType = tableSchemaToStructTiType(entityTableSchema);
             this.skiffSchema = SchemaConverter.toSkiffSchema(entityTableSchema);
             this.format = Format.skiff(skiffSchema, 1);
         } catch (EntityTableSchemaCreator.PrecisionAndScaleNotSpecifiedException ignored) {
         }
 
-        var declaredFields = getAllDeclaredFields(entityClass);
-        this.entityFieldDescriptions = EntityFieldDescr.of(declaredFields);
-        setFieldsAccessibleToTrue(declaredFields);
-        entityFieldsMap.put(entityClass, entityFieldDescriptions);
+        entityFieldsMap.put(entityClass, getEntityFieldDescrs(entityClass));
     }
 
     public Optional<Format> getFormat() {
@@ -122,7 +120,7 @@ public class EntitySkiffSerializer<T> {
         if (entityTiType == null) {
             throwNoSchemaException();
         }
-        serializeEntity(object, entityTiType, entityFieldDescriptions, serializer);
+        serializeEntity(object, entityTiType, serializer);
     }
 
     public Optional<T> deserialize(byte[] objectBytes) {
@@ -157,7 +155,6 @@ public class EntitySkiffSerializer<T> {
             tiType = tiType.asOptional().getItem();
         }
 
-        Class<?> clazz = object.getClass();
         if (isSimpleType(tiType)) {
             serializeSimpleType(object, tiType, serializer);
             return;
@@ -170,7 +167,7 @@ public class EntitySkiffSerializer<T> {
             return;
         }
 
-        serializeComplexObject(object, tiType, clazz, serializer);
+        serializeComplexObject(object, tiType, serializer);
     }
 
     private void serializeDecimal(
@@ -301,14 +298,14 @@ public class EntitySkiffSerializer<T> {
     private <ObjectType> void serializeComplexObject(
             ObjectType object,
             TiType objectTiType,
-            Class<?> clazz,
             SkiffSerializer serializer
     ) {
-        if (Collection.class.isAssignableFrom(object.getClass())) {
+        final Class<?> clazz = object.getClass();
+        if (Collection.class.isAssignableFrom(clazz)) {
             serializeCollection(object, objectTiType, serializer);
             return;
         }
-        if (Map.class.isAssignableFrom(object.getClass())) {
+        if (Map.class.isAssignableFrom(clazz)) {
             serializeMap(object, objectTiType, serializer);
             return;
         }
@@ -317,41 +314,57 @@ public class EntitySkiffSerializer<T> {
             return;
         }
 
-        var entityFields = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
-            var declaredFields = getAllDeclaredFields(entityClass);
-            setFieldsAccessibleToTrue(declaredFields);
-            return EntityFieldDescr.of(declaredFields);
-        });
-        serializeEntity(object, objectTiType, entityFields, serializer);
+        serializeEntity(object, objectTiType, serializer);
+    }
+
+    private static List<EntityFieldDescr> getEntityFieldDescrs(Class<?> entityClass) {
+        var declaredFields = getAllDeclaredFields(entityClass);
+        setFieldsAccessibleToTrue(declaredFields);
+        return EntityFieldDescr.of(declaredFields);
     }
 
     private <ObjectType> void serializeEntity(
             ObjectType object,
             TiType structTiType,
-            List<EntityFieldDescr> fieldDescriptions,
             SkiffSerializer serializer
     ) {
         if (!structTiType.isStruct()) {
             throwInvalidSchemeException(null);
         }
 
-        int indexInSchema = 0;
+        serializeEntity(object, structTiType.asStruct().getMembers().iterator(), serializer);
+    }
+
+    private <ObjectType> void serializeEntity(
+            ObjectType object,
+            Iterator<StructType.Member> structMembersIterator,
+            SkiffSerializer serializer
+    ) {
+        if (!structMembersIterator.hasNext()) {
+            throwInvalidSchemeException(null);
+        }
+
+        var fieldDescriptions = entityFieldsMap.computeIfAbsent(
+                object.getClass(), EntitySkiffSerializer::getEntityFieldDescrs);
         for (var fieldDescr : fieldDescriptions) {
             if (fieldDescr.isTransient()) {
                 continue;
             }
             try {
-                serializeObject(
-                        fieldDescr.getField().get(object),
-                        structTiType.asStruct().getMembers()
-                                .get(indexInSchema).getType(),
-                        serializer
-                );
-                indexInSchema++;
-            } catch (IllegalAccessException | IndexOutOfBoundsException e) {
+                if (fieldDescr.isEmbeddable()) {
+                    serializeEntity(fieldDescr.getField().get(object), structMembersIterator, serializer);
+                } else {
+                    serializeObject(
+                            fieldDescr.getField().get(object),
+                            structMembersIterator.next().getType(),
+                            serializer
+                    );
+                }
+            } catch (IllegalAccessException e) {
                 throwInvalidSchemeException(e);
             }
         }
+
     }
 
     private <CollectionType, ElemType> void serializeCollection(
@@ -527,32 +540,41 @@ public class EntitySkiffSerializer<T> {
             throwInvalidSchemeException(null);
         }
 
+        return deserializeEntity(clazz, tiType.asStruct().getMembers().iterator(), parser);
+    }
+
+    private <ObjectType> ObjectType deserializeEntity(
+            Class<ObjectType> clazz,
+            Iterator<StructType.Member> structMembersIterator,
+            SkiffParser parser
+    ) {
+        if (!structMembersIterator.hasNext()) {
+            throwInvalidSchemeException(null);
+        }
+
         var defaultConstructor = objectConstructorMap.computeIfAbsent(clazz, ClassUtils::getEmptyConstructor);
 
         ObjectType object = getInstanceWithoutArguments(defaultConstructor);
 
-        var fieldDescriptions = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
-            var declaredFields = getAllDeclaredFields(entityClass);
-            setFieldsAccessibleToTrue(declaredFields);
-            return EntityFieldDescr.of(declaredFields);
-        });
-        int indexInSchema = 0;
+        var fieldDescriptions = entityFieldsMap.computeIfAbsent(clazz, EntitySkiffSerializer::getEntityFieldDescrs);
         for (var fieldDescr : fieldDescriptions) {
             if (fieldDescr.isTransient()) {
                 continue;
             }
             try {
-                fieldDescr.getField().set(
-                        object,
-                        deserializeObject(
-                                castToType(fieldDescr.getField().getType()),
-                                tiType.asStruct().getMembers().get(indexInSchema).getType(),
-                                fieldDescr.getTypeParameters(),
-                                parser
-                        )
-                );
-                indexInSchema++;
-            } catch (IllegalAccessException | IndexOutOfBoundsException e) {
+                Object value;
+                if (fieldDescr.isEmbeddable()) {
+                    value = deserializeEntity(fieldDescr.getField().getType(), structMembersIterator, parser);
+                } else {
+                    value = deserializeObject(
+                            castToType(fieldDescr.getField().getType()),
+                            structMembersIterator.next().getType(),
+                            fieldDescr.getTypeParameters(),
+                            parser
+                    );
+                }
+                fieldDescr.getField().set(object, value);
+            } catch (IllegalAccessException e) {
                 throwInvalidSchemeException(e);
             }
         }

@@ -6,9 +6,12 @@ import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -32,6 +35,8 @@ import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
 
 public class EntityTableSchemaCreator {
 
+    private final ParseContext context = new ParseContext();
+
     private EntityTableSchemaCreator() {
     }
 
@@ -41,25 +46,50 @@ public class EntityTableSchemaCreator {
 
     public static <T> TableSchema create(Class<T> annotatedClass, @Nullable TableSchema tableSchema) {
         if (!anyOfAnnotationsPresent(annotatedClass, JavaPersistenceApi.entityAnnotations())) {
-            throw new IllegalArgumentException("Class must be annotated with @Entity");
+            throw new IllegalArgumentException(
+                    String.format("Class %s must be annotated with @Entity", annotatedClass.getName())
+            );
         }
 
         TableSchema.Builder tableSchemaBuilder = TableSchema.builder();
         StructType tableSchemaAsStructType = tableSchema != null ?
                 TiTypeUtil.tableSchemaToStructTiType(tableSchema).asStruct() : null;
-        for (Field field : getAllDeclaredFields(annotatedClass)) {
-            if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
-                continue;
-            }
-            tableSchemaBuilder.add(
-                    getFieldColumnSchema(field, tableSchemaAsStructType)
-            );
+        final var creator = new EntityTableSchemaCreator();
+        try {
+            creator.processClassFieldsRecursively(annotatedClass,
+                    f -> tableSchemaBuilder.add(creator.getFieldColumnSchema(f, tableSchemaAsStructType)));
+        } catch (InfiniteLoopException e) {
+            var loopChain = creator.context.visitedFields.entrySet().stream()
+                    .map(it -> String.format("%s.%s", it.getKey().getName(), it.getValue()))
+                    .collect(Collectors.joining("->"));
+            throw new IllegalArgumentException(String.format("Entity %s contains a loop in fields hierarchy: %s",
+                    annotatedClass.getName(), loopChain));
         }
-
         return tableSchemaBuilder.build();
     }
 
-    private static ColumnSchema getFieldColumnSchema(Field field, @Nullable StructType structTypeInSchema) {
+    private <T> void processClassFieldsRecursively(Class<T> clazz, Consumer<Field> consumer) {
+        if (context.visitedFields.containsKey(clazz)) {
+            throw new InfiniteLoopException();
+        }
+        for (Field field : getAllDeclaredFields(clazz)) {
+            if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
+                continue;
+            }
+            if (anyOfAnnotationsPresent(field.getType(), JavaPersistenceApi.embeddableAnnotations())) {
+                context.visitedFields.put(clazz, field.getName());
+                processClassFieldsRecursively(field.getType(), consumer);
+                context.visitedFields.remove(clazz);
+                continue;
+            } else if (anyOfAnnotationsPresent(field, JavaPersistenceApi.embeddedAnnotations())) {
+                throw new IllegalArgumentException(String.format("%s field is annotated with @Embedded, but %s " +
+                        "in not annotated with @Embeddable", field.getName(), field.getType().getName()));
+            }
+            consumer.accept(field);
+        }
+    }
+
+    private ColumnSchema getFieldColumnSchema(Field field, @Nullable StructType structTypeInSchema) {
         String name = field.getName();
         Annotation annotation = getAnnotationIfPresent(field, JavaPersistenceApi.columnAnnotations()).orElse(null);
         if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
@@ -71,16 +101,15 @@ public class EntityTableSchemaCreator {
                 name,
                 getTypeParametersOfField(field),
                 annotation,
-                getStructMemberTiType(name, structTypeInSchema)
-                        .orElse(null)
+                getStructMemberTiType(name, structTypeInSchema).orElse(null)
         );
     }
 
-    private static <T> ColumnSchema getClassColumnSchema(Class<T> clazz,
-                                                         String name,
-                                                         List<Type> genericTypeParameters,
-                                                         @Nullable Annotation annotation,
-                                                         @Nullable TiType tiTypeInSchema) {
+    private <T> ColumnSchema getClassColumnSchema(Class<T> clazz,
+                                                  String name,
+                                                  List<Type> genericTypeParameters,
+                                                  @Nullable Annotation annotation,
+                                                  @Nullable TiType tiTypeInSchema) {
         boolean isNullable = true;
         if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
             isNullable = JavaPersistenceApi.isColumnNullable(annotation);
@@ -120,10 +149,10 @@ public class EntityTableSchemaCreator {
                 );
     }
 
-    private static <T> TiType getClassTiType(Class<T> clazz,
-                                             @Nullable Annotation annotation,
-                                             List<Type> genericTypeParameters,
-                                             @Nullable TiType tiTypeInSchema) {
+    private <T> TiType getClassTiType(Class<T> clazz,
+                                      @Nullable Annotation annotation,
+                                      List<Type> genericTypeParameters,
+                                      @Nullable TiType tiTypeInSchema) {
         if (JavaPersistenceApi.isColumnAnnotationPresent(annotation)) {
             String columnDefinition = JavaPersistenceApi.getColumnDefinition(annotation);
             if (!columnDefinition.isEmpty()) {
@@ -188,33 +217,24 @@ public class EntityTableSchemaCreator {
         );
     }
 
-    private static <T> TiType getEntityTiType(
+    private <T> TiType getEntityTiType(
             Class<T> clazz,
             @Nullable StructType structTypeInSchema
     ) {
         ArrayList<StructType.Member> members = new ArrayList<>();
-        for (Field field : getAllDeclaredFields(clazz)) {
-            if (isFieldTransient(field, JavaPersistenceApi.transientAnnotations())) {
-                continue;
-            }
-            members.add(getStructMember(field, structTypeInSchema));
-        }
-
+        processClassFieldsRecursively(clazz, f -> members.add(getStructMember(f, structTypeInSchema)));
         return TiType.struct(members);
     }
 
-    private static StructType.Member getStructMember(
+    private StructType.Member getStructMember(
             Field field,
             @Nullable StructType structTypeInSchema
     ) {
-        var columnSchema = getFieldColumnSchema(
-                field,
-                structTypeInSchema
-        );
+        var columnSchema = getFieldColumnSchema(field, structTypeInSchema);
         return new StructType.Member(columnSchema.getName(), columnSchema.getTypeV3());
     }
 
-    private static TiType getCollectionTiType(
+    private TiType getCollectionTiType(
             Type elementType,
             @Nullable TiType elementTiTypeInSchema
     ) {
@@ -230,7 +250,7 @@ public class EntityTableSchemaCreator {
         );
     }
 
-    private static TiType getMapTiType(
+    private TiType getMapTiType(
             Type keyType,
             Type valueType,
             @Nullable TiType keyTiTypeInSchema,
@@ -256,7 +276,7 @@ public class EntityTableSchemaCreator {
         );
     }
 
-    private static TiType getArrayTiType(
+    private TiType getArrayTiType(
             Class<?> arrayClass,
             @Nullable TiType elementTiTypeInSchema
     ) {
@@ -302,11 +322,19 @@ public class EntityTableSchemaCreator {
         return TiType.decimal(precision, scale);
     }
 
+    private static class ParseContext {
+        private final Map<Class<?>, String> visitedFields = new LinkedHashMap<>();
+    }
+
     public static class PrecisionAndScaleNotSpecifiedException extends RuntimeException {
 
     }
 
     public static class MismatchEntityAndTableSchemaDecimalException extends RuntimeException {
+
+    }
+
+    private static class InfiniteLoopException extends RuntimeException {
 
     }
 }
