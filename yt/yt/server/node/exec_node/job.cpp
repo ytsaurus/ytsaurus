@@ -2469,13 +2469,13 @@ TJobProxyConfigPtr TJob::CreateConfig()
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
         auto writerConfig = ConvertTo<NLogging::TLogWriterConfigPtr>(writerConfigNode);
-        if (writerConfig->Type != NLogging::TFileLogWriterConfig::Type) {
+        if (writerConfig->Type != NLogging::TFileLogWriterConfig::WriterType) {
             return writerConfigNode;
         }
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
         tryReplaceSlotIndex(fileLogWriterConfig->FileName);
-        return writerConfig->BuildFullConfig(fileLogWriterConfig);
+        return ConvertTo<IMapNodePtr>(fileLogWriterConfig);
     });
 
     if (proxyConfig->StderrPath) {

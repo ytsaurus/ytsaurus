@@ -137,6 +137,8 @@
 
 #include <yt/yt/client/misc/workload.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/transaction_client/config.h>
@@ -779,6 +781,8 @@ private:
 
         Client_ = Connection_->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 
         MemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,

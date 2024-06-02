@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/lazy_client.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
@@ -198,6 +200,8 @@ private:
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
         SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger);
 

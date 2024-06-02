@@ -370,6 +370,7 @@ TEST_F(TLoggingTest, StreamWriter)
     auto writer = CreateStreamLogWriter(
         std::make_unique<TPlainTextLogFormatter>(),
         "test_writer",
+        New<TLogWriterConfig>(),
         &stringOutput);
 
     WritePlainTextEvent(writer);
@@ -524,7 +525,7 @@ TEST_F(TLoggingTest, PlainTextLoggingStructuredFormatter)
             writerConfig->FileName = logFile.Name();
 
             auto writer = CreateFileLogWriter(
-                std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}, /*enableControllMessages*/ true, enableSourceLocation),
+                std::make_unique<TStructuredLogFormatter>(format, THashMap<TString, INodePtr>{}, enableSourceLocation),
                 "test_writer",
                 writerConfig,
                 this);
@@ -657,9 +658,9 @@ TEST_F(TLoggingTest, StructuredLoggingJsonFormat)
     auto formatter = std::make_unique<TStructuredLogFormatter>(
         ELogFormat::Json,
         /*commonFields*/ THashMap<TString, INodePtr>{},
-        /*enableControlMessages*/ true,
         /*enableSourceLocation*/ false,
         /*enableSystemFields*/ true,
+        /*enableHostField*/ false,
         jsonFormat);
 
     auto writer = CreateFileLogWriter(
