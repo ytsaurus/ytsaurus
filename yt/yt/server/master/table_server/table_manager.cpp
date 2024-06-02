@@ -1178,19 +1178,19 @@ public:
         }
     }
 
-    const THashSet<TTableNode*>& GetConsumers() const override
+    const THashSet<TTableNode*>& GetQueueConsumers() const override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
-        return Consumers_;
+        return QueueConsumers_;
     }
 
-    void RegisterConsumer(TTableNode* node) override
+    void RegisterQueueConsumer(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        if (!Consumers_.insert(node).second) {
+        if (!QueueConsumers_.insert(node).second) {
             YT_LOG_ALERT(
                 "Attempting to register a consumer twice (Node: %v, Path: %v)",
                 node->GetId(),
@@ -1198,14 +1198,49 @@ public:
         }
     }
 
-    void UnregisterConsumer(TTableNode* node) override
+    void UnregisterQueueConsumer(TTableNode* node) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        if (!Consumers_.erase(node)) {
+        if (!QueueConsumers_.erase(node)) {
             YT_LOG_ALERT(
                 "Attempting to unregister an unknown consumer (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    const THashSet<TTableNode*>& GetQueueProducers() const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return QueueProducers_;
+    }
+
+    void RegisterQueueProducer(TTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+        YT_ASSERT(node->IsTrunk());
+
+        if (!QueueProducers_.insert(node).second) {
+            YT_LOG_ALERT(
+                "Attempting to register a producer twice (Node: %v, Path: %v)",
+                node->GetId(),
+                Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
+        }
+    }
+
+    void UnregisterQueueProducer(TTableNode* node) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasHydraContext());
+        YT_ASSERT(node->IsTrunk());
+
+        if (!QueueProducers_.erase(node)) {
+            YT_LOG_ALERT(
+                "Attempting to unregister an unknown producer (Node: %v, Path: %v)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
@@ -1238,10 +1273,13 @@ public:
         };
         objectRevisions["queues"] = {};
         objectRevisions["consumers"] = {};
+        objectRevisions["producers"] = {};
         addToObjectRevisions("queues", GetQueues());
-        addToObjectRevisions("consumers", GetConsumers());
+        addToObjectRevisions("consumers", GetQueueConsumers());
+        addToObjectRevisions("producers", GetQueueProducers());
         addToObjectRevisions("queues", chaosManager->GetQueues());
-        addToObjectRevisions("consumers", chaosManager->GetConsumers());
+        addToObjectRevisions("consumers", chaosManager->GetQueueConsumers());
+        addToObjectRevisions("producers", chaosManager->GetQueueProducers());
 
         if (multicellManager->IsPrimaryMaster() && multicellManager->GetRoleMasterCellCount(EMasterCellRole::CypressNodeHost) > 1) {
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
@@ -1381,8 +1419,10 @@ private:
 
     //! Contains native trunk nodes for which IsQueue() is true.
     THashSet<TTableNode*> Queues_;
-    //! Contains native trunk nodes for which IsConsumer() is true.
-    THashSet<TTableNode*> Consumers_;
+    //! Contains native trunk nodes for which IsQueueConsumer() is true.
+    THashSet<TTableNode*> QueueConsumers_;
+    //! Contains native trunk nodes for which IsQueueProducer() is true.
+    THashSet<TTableNode*> QueueProducers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1728,7 +1768,8 @@ private:
         StatisticsUpdateRequests_.Clear();
         NodeIdToOngoingStatisticsUpdate_.clear();
         Queues_.clear();
-        Consumers_.clear();
+        QueueConsumers_.clear();
+        QueueProducers_.clear();
 
         NeedToAddReplicatedQueues_ = false;
 
@@ -1772,7 +1813,12 @@ private:
         }
 
         Load(context, Queues_);
-        Load(context, Consumers_);
+        Load(context, QueueConsumers_);
+
+        // COMPAT(apachee)
+        if (context.GetVersion() >= EMasterReign::QueueProducers_24_1) {
+            Load(context, QueueProducers_);
+        }
 
         NeedToAddReplicatedQueues_ = context.GetVersion() < EMasterReign::QueueReplicatedTablesList;
 
@@ -2247,7 +2293,8 @@ private:
         TableCollocationMap_.SaveValues(context);
         SecondaryIndexMap_.SaveValues(context);
         Save(context, Queues_);
-        Save(context, Consumers_);
+        Save(context, QueueConsumers_);
+        Save(context, QueueProducers_);
     }
 
     void OnReplicationCollocationCreated(TTableCollocation* collocation)

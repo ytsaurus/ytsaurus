@@ -265,6 +265,7 @@
     XX(JobProxyVersion, job_proxy_build_version) \
     XX(PendingAclsUpdate, pending_acls_update) \
     XX(PendingRestart, pending_restart) \
+    XX(PendingRemoval, pending_removal) \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -408,6 +409,8 @@
     XX(QueueConsumerPartitions, queue_consumer_partitions) \
     XX(QueueStatus, queue_status) \
     XX(QueuePartitions, queue_partitions) \
+    XX(QueueProducerPartitions, queue_producer_partitions) \
+    XX(QueueProducerStatus, queue_producer_status) \
     XX(QuorumInfo, quorum_info) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
@@ -539,6 +542,7 @@
     XX(Transient, transient) \
     XX(TransientMasterMemoryUsage, transient_master_memory_usage) \
     XX(TreatAsQueueConsumer, treat_as_queue_consumer) \
+    XX(TreatAsQueueProducer, treat_as_queue_producer) \
     XX(Tree, tree) \
     XX(TrimmedChildCount, trimmed_child_count) \
     XX(TrimmedRowCount, trimmed_row_count) \

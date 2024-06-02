@@ -241,6 +241,8 @@ DEFINE_ENUM(EMasterReign,
     ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
     ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
     ((FixCypressTransactionMirroring_24_1)                          (2572))  // kvk1920
+    ((QueueProducers_24_1)                                          (2573))  // apachee
+    ((PendingRemovalUserAttribute)                                  (2574))  // cherepashka
     // 24.2 starts here.
 );
 

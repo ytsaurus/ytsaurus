@@ -2149,6 +2149,11 @@ public:
     {
         TWallTimer checkPermissionTimer;
 
+        user->AlertIfPendingRemoval(
+            Format("User pending for removal was mentioned in permission check for object (User: %v, ObjectId: %v)",
+            user->GetName(),
+            object->GetId()));
+
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG("Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
@@ -2287,6 +2292,11 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
+        user->AlertIfPendingRemoval(
+            Format("User pending for removal was mentioned in validating permission for object (User: %v, ObjectId: %v)",
+            user->GetName(),
+            object->GetId()));
+
         // TODO(cherepashka): remove after acl & inherited attributes are implemented in Sequoia.
         if (GetSequoiaContext()) {
             return;
@@ -2616,6 +2626,10 @@ public:
 
     TError CheckUserAccess(TUser* user) override
     {
+        user->AlertIfPendingRemoval(
+            Format("User pending for removal was mentioned in check user access (User: %v)",
+            user->GetName()));
+
         if (user->GetBanned()) {
             return TError(
                 NSecurityClient::EErrorCode::UserBanned,

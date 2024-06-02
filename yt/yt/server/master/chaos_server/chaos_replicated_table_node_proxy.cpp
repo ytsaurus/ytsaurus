@@ -74,7 +74,8 @@ private:
 
         bool isSorted = impl->IsSorted();
         bool isQueue = impl->IsQueue();
-        bool isConsumer = impl->IsConsumer();
+        bool isQueueConsumer = impl->IsQueueConsumer();
+        bool isQueueProducer = impl->IsQueueProducer();
         bool hasNonEmptySchema = impl->HasNonEmptySchema();
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
@@ -95,6 +96,9 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
             .SetPresent(hasNonEmptySchema && isSorted));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueProducer)
+            .SetWritable(true)
+            .SetPresent(hasNonEmptySchema && isSorted));
 
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
             .SetWritable(true)
@@ -107,10 +111,16 @@ private:
             .SetPresent(isQueue)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerStatus)
-            .SetPresent(isConsumer)
+            .SetPresent(isQueueConsumer)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueConsumerPartitions)
-            .SetPresent(isConsumer)
+            .SetPresent(isQueueConsumer)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueProducerStatus)
+            .SetPresent(isQueueProducer)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueProducerPartitions)
+            .SetPresent(isQueueProducer)
             .SetOpaque(true));
     }
 
@@ -150,7 +160,16 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(node->GetTreatAsConsumer());
+                    .Value(node->GetTreatAsQueueConsumer());
+                return true;
+            }
+
+            case EInternedAttributeKey::TreatAsQueueProducer: {
+                if (!node->HasNonEmptySchema() || !node->IsSorted()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(node->GetTreatAsQueueProducer());
                 return true;
             }
 
@@ -202,14 +221,35 @@ private:
                 if (!lockedTableNode->HasNonEmptySchema() || !lockedTableNode->IsSorted()) {
                     break;
                 }
-                bool isConsumerObjectBefore = lockedTableNode->IsTrackedConsumerObject();
-                lockedTableNode->SetTreatAsConsumer(ConvertTo<bool>(value));
-                bool isConsumerObjectAfter = lockedTableNode->IsTrackedConsumerObject();
+                bool isQueueConsumerObjectBefore = lockedTableNode->IsTrackedQueueConsumerObject();
+                lockedTableNode->SetTreatAsQueueConsumer(ConvertTo<bool>(value));
+                bool isQueueConsumerObjectAfter = lockedTableNode->IsTrackedQueueConsumerObject();
                 const auto& chaosManager = Bootstrap_->GetChaosManager();
-                if (isConsumerObjectAfter && !isConsumerObjectBefore) {
-                    chaosManager->RegisterConsumer(lockedTableNode);
-                } else if (!isConsumerObjectAfter && isConsumerObjectBefore) {
-                    chaosManager->UnregisterConsumer(lockedTableNode);
+                if (isQueueConsumerObjectAfter && !isQueueConsumerObjectBefore) {
+                    chaosManager->RegisterQueueConsumer(lockedTableNode);
+                } else if (!isQueueConsumerObjectAfter && isQueueConsumerObjectBefore) {
+                    chaosManager->UnregisterQueueConsumer(lockedTableNode);
+                }
+
+                SetModified(EModificationType::Attributes);
+
+                return true;
+            }
+
+            case EInternedAttributeKey::TreatAsQueueProducer: {
+                ValidateNoTransaction();
+                auto* lockedTableNode = LockThisImpl();
+                if (!lockedTableNode->HasNonEmptySchema() || !lockedTableNode->IsSorted()) {
+                    break;
+                }
+                bool isQueueProducerObjectBefore = lockedTableNode->IsTrackedQueueProducerObject();
+                lockedTableNode->SetTreatAsQueueProducer(ConvertTo<bool>(value));
+                bool isQueueProducerObjectAfter = lockedTableNode->IsTrackedQueueProducerObject();
+                const auto& chaosManager = Bootstrap_->GetChaosManager();
+                if (isQueueProducerObjectAfter && !isQueueProducerObjectBefore) {
+                    chaosManager->RegisterQueueProducer(lockedTableNode);
+                } else if (!isQueueProducerObjectAfter && isQueueProducerObjectBefore) {
+                    chaosManager->UnregisterQueueProducer(lockedTableNode);
                 }
 
                 SetModified(EModificationType::Attributes);
@@ -260,7 +300,8 @@ private:
     {
         const auto* table = GetThisImpl();
         bool isQueue = table->IsQueue();
-        bool isConsumer = table->IsConsumer();
+        bool isQueueConsumer = table->IsQueueConsumer();
+        bool isQueueProducer = table->IsQueueProducer();
 
         switch (key) {
             case EInternedAttributeKey::Era:
@@ -340,7 +381,15 @@ private:
 
             case EInternedAttributeKey::QueueConsumerStatus:
             case EInternedAttributeKey::QueueConsumerPartitions: {
-                if (!isConsumer) {
+                if (!isQueueConsumer) {
+                    break;
+                }
+                return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
+            }
+
+            case EInternedAttributeKey::QueueProducerStatus:
+            case EInternedAttributeKey::QueueProducerPartitions: {
+                if (!isQueueProducer) {
                     break;
                 }
                 return GetQueueAgentAttributeAsync(Bootstrap_, table->GetQueueAgentStage(), GetPath(), key);
@@ -466,12 +515,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         }
     }
 
-    if (table->IsTrackedConsumerObject()) {
+    if (table->IsTrackedQueueConsumerObject()) {
         bool isValidConsumerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
         if (!isValidConsumerSchema) {
             THROW_ERROR_EXCEPTION(
                 "Chaos replicated table object cannot be both a queue and a consumer.\
                 To transform consumer into queue set \"treat_as_queue_consumer\" attribute into False first");
+        }
+    }
+
+    if (table->IsTrackedQueueProducerObject()) {
+        bool isValidProducerSchema = !effectiveSchema->IsEmpty() && effectiveSchema->IsSorted();
+        if (!isValidProducerSchema) {
+            THROW_ERROR_EXCEPTION(
+                "Chaos replicated table object cannot be both a queue and a producer.\
+                To transform producer into queue set \"treat_as_queue_producer\" attribute into False first");
         }
     }
 

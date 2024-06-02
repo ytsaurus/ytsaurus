@@ -95,6 +95,13 @@ private:
         auto* member = GetSubject(name);
         auto* group = GetThisImpl();
 
+        if (member->IsUser()) {
+            member->AsUser()->AlertIfPendingRemoval(
+                Format("User pending for removal joined group (User: %v, Group: %v)",
+                member->GetName(),
+                group->GetName()));
+        }
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->AddMember(group, member, ignoreExisting);
 

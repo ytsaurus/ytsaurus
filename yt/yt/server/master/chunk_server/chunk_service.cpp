@@ -172,6 +172,10 @@ private:
                     return;
                 }
 
+                user->AlertIfPendingRemoval(
+                    Format("User pending for removal has accessed chunk service (User: %v)",
+                    user->GetName()));
+
                 const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
 
                 auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;

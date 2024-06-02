@@ -25,6 +25,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 static void ValidateCellTags(const auto& perCell)
 {
     for (const auto& [cellTag, value] : perCell) {
@@ -337,6 +341,7 @@ void TUser::Save(TSaveContext& context) const
     Save(context, *ObjectServiceRequestLimits_);
     Save(context, Tags_);
     Save(context, LastSeenTime_);
+    Save(context, PendingRemoval_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
@@ -362,6 +367,11 @@ void TUser::Load(TLoadContext& context)
         context.GetVersion() >= EMasterReign::FixLastSeenPersistance)
     {
         Load(context, LastSeenTime_);
+    }
+
+    // COMPAT(cherepashka)
+    if (context.GetVersion() >= EMasterReign::PendingRemovalUserAttribute) {
+        Load(context, PendingRemoval_);
     }
 
     TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
@@ -429,6 +439,13 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
         default:
             YT_ABORT();
     }
+}
+
+void TUser::AlertIfPendingRemoval(TStringBuf message) const
+{
+    YT_LOG_ALERT_IF(
+        GetPendingRemoval(),
+        message);
 }
 
 const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

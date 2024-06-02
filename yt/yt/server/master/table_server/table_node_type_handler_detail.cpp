@@ -311,8 +311,12 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
                 tableManager->RegisterQueue(node);
             }
 
-            if (node->IsTrackedConsumerObject()) {
-                tableManager->RegisterConsumer(node);
+            if (node->IsTrackedQueueConsumerObject()) {
+                tableManager->RegisterQueueConsumer(node);
+            }
+
+            if (node->IsTrackedQueueProducerObject()) {
+                tableManager->RegisterQueueProducer(node);
             }
 
             if (node->IsNative()) {
@@ -386,8 +390,12 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
         tableManager->UnregisterQueue(table);
     }
 
-    if (table->IsTrackedConsumerObject()) {
-        tableManager->UnregisterConsumer(table);
+    if (table->IsTrackedQueueConsumerObject()) {
+        tableManager->UnregisterQueueConsumer(table);
+    }
+
+    if (table->IsTrackedQueueProducerObject()) {
+        tableManager->UnregisterQueueProducer(table);
     }
 
     TTabletOwnerTypeHandler::DoDestroy(table);

@@ -128,8 +128,11 @@ private:
             // NB: Schema mode is always strong in chaos replicated tables.
             node->SetSchemaMode(ETableSchemaMode::Strong);
 
-            if (node->IsTrackedConsumerObject()) {
-                chaosManager->RegisterConsumer(node);
+            if (node->IsTrackedQueueConsumerObject()) {
+                chaosManager->RegisterQueueConsumer(node);
+            }
+            if (node->IsTrackedQueueProducerObject()) {
+                chaosManager->RegisterQueueProducer(node);
             }
             if (node->IsTrackedQueueObject()) {
                 chaosManager->RegisterQueue(node);
@@ -200,8 +203,11 @@ private:
     void DoZombify(TChaosReplicatedTableNode* node) override
     {
         const auto& chaosManager = GetBootstrap()->GetChaosManager();
-        if (node->IsTrackedConsumerObject()) {
-            chaosManager->UnregisterConsumer(node);
+        if (node->IsTrackedQueueConsumerObject()) {
+            chaosManager->UnregisterQueueConsumer(node);
+        }
+        if (node->IsTrackedQueueProducerObject()) {
+            chaosManager->UnregisterQueueProducer(node);
         }
         if (node->IsTrackedQueueObject()) {
             chaosManager->UnregisterQueue(node);

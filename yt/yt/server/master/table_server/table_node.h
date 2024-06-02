@@ -82,8 +82,9 @@ private:
         TError BackupError;
         std::vector<NTabletClient::TTableReplicaBackupDescriptor> ReplicaBackupDescriptors;
         std::optional<TString> QueueAgentStage;
-        bool TreatAsConsumer = false;
+        bool TreatAsQueueConsumer = false;
         bool IsVitalConsumer = false;
+        bool TreatAsQueueProducer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
         NTabletServer::THunkStorageNodePtr HunkStorageNode;
         THashSet<TSecondaryIndex*> SecondaryIndices;
@@ -135,8 +136,9 @@ public:
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupError);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, ReplicaBackupDescriptors);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, QueueAgentStage);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsConsumer);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsQueueConsumer);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IsVitalConsumer);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsQueueProducer);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, SecondaryIndices);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IndexTo);
 
@@ -172,8 +174,10 @@ public:
     bool IsDynamic() const;
     bool IsQueue() const;
     bool IsTrackedQueueObject() const;
-    bool IsConsumer() const;
-    bool IsTrackedConsumerObject() const;
+    bool IsQueueConsumer() const;
+    bool IsTrackedQueueConsumerObject() const;
+    bool IsQueueProducer() const;
+    bool IsTrackedQueueProducerObject() const;
     bool IsEmpty() const;
     bool IsLogicallyEmpty() const;
     bool IsUniqueKeys() const;
