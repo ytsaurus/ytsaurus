@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/yson/null_consumer.h>
 
+#include <yt/yt/library/vector_hdrf/resource_helpers.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler {
@@ -241,6 +243,11 @@ public:
     {
         static THashMap<TString, TString> stub;
         return stub;
+    }
+
+    bool IsFairSharePreUpdateOffloadingEnabled() const override
+    {
+        return true;
     }
 
     TFairShareTreeAllocationSchedulerNodeState* GetNodeState(const TExecNodePtr node)
@@ -786,15 +793,24 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
+        auto totalResourceLimits = strategyHost->GetResourceLimits(TreeConfig_->NodesFilter);
+
+        TFairSharePreUpdateContext preUpdateContext{
+            .Now = now,
+            .TotalResourceLimits = totalResourceLimits,
+        };
+
         NVectorHdrf::TFairShareUpdateContext context(
-            /*totalResourceLimits*/ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
+            totalResourceLimits,
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
             TreeConfig_->IntegralGuarantees->SmoothPeriod,
             now,
             previousUpdateTime);
 
-        rootElement->PreUpdate(&context);
+        rootElement->InitializeFairShareUpdate(now, context);
+
+        rootElement->PreUpdate(&preUpdateContext);
 
         NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
         updateExecutor.Run();
@@ -822,7 +838,8 @@ protected:
             /*resourceUsage*/ TJobResources{},
             /*resourceLimits*/ TJobResources{},
             /*nodeCount*/ 0,
-            std::move(treeSchedulingSnapshot));
+            std::move(treeSchedulingSnapshot),
+            TJobResourcesByTagFilter{});
     }
 
     TScheduleAllocationsContextWithDependencies PrepareScheduleAllocationsContext(

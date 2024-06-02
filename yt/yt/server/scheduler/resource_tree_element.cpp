@@ -55,7 +55,7 @@ void TResourceTreeElement::SetSpecifiedResourceLimits(
     const std::optional<TJobResources>& specifiedResourceLimits,
     const std::vector<TResourceTreeElementPtr>& descendantOperations)
 {
-    // NB: This method called from Control thread, tree structure supposed to have no changes.
+    // NB: This method is called from Control thread, tree structure supposed to have no changes.
     bool resourceLimitsSpecifiedBeforeUpdate = ResourceLimitsSpecified_;
     bool resourceLimitsSpecified = specifiedResourceLimits.has_value();
     bool shouldInitializeResourceUsage =

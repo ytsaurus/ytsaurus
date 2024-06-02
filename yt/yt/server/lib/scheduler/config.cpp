@@ -1193,6 +1193,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
 
+    registrar.Parameter("enable_fair_share_preupdate_offloading", &TThis::EnableFairSharePreUpdateOffloading)
+        .Default(false);
+
     registrar.Preprocessor([&] (TSchedulerConfig* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });

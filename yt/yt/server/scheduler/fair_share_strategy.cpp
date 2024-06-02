@@ -2271,6 +2271,21 @@ private:
         Initialized_ = true;
     }
 
+    // TODO(renadeen): we should move tagFilter to resourceLimits map into tree orchid and remove this method.
+    TJobResourcesByTagFilter GetResourceLimitsByTagFilter() override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        TJobResourcesByTagFilter result;
+        for (const auto& [_, tree] : IdToTree_) {
+            for (const auto& [tagFilter, resourceLimits] : tree->GetResourceLimitsByTagFilter()) {
+                result.emplace(tagFilter, resourceLimits);
+            }
+        }
+
+        return result;
+    }
+
     class TPoolTreeService
         : public TVirtualMapBase
     {
