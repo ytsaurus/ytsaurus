@@ -140,6 +140,7 @@ TConstraintRef TConstraintsHolder::Intersect(TConstraintRef lhs, TConstraintRef 
     }
 
     result.EndIndex = columnConstraints.size();
+
     return result;
 }
 
@@ -291,6 +292,7 @@ TConstraintRef TConstraintsHolder::Unite(TConstraintRef lhs, TConstraintRef rhs)
     }
 
     result.EndIndex = columnConstraints.size();
+
     return result;
 }
 
@@ -342,10 +344,54 @@ TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
     return result.Flush();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TReadRangesGenerator::TReadRangesGenerator(const TConstraintsHolder& constraints)
     : Constraints_(constraints)
     , Row_(Constraints_.size(), UniversalInterval)
 { }
+
+ui64 TReadRangesGenerator::EstimateExpansion(TConstraintRef constraintRef, ui32 keyWidthLimit, ui64 rangeExpansionLimit)
+{
+    auto columnId = constraintRef.ColumnId;
+    if (columnId == SentinelColumnId || columnId > keyWidthLimit) {
+        // Leaf node.
+        return 1;
+    }
+
+    auto intervals = MakeRange(Constraints_[columnId])
+        .Slice(constraintRef.StartIndex, constraintRef.EndIndex);
+
+    ui64 result = 0;
+    for (const auto& item : intervals) {
+        auto newExpansion = EstimateExpansion(item.Next, keyWidthLimit, rangeExpansionLimit);
+        if (newExpansion < rangeExpansionLimit - result) {
+            result += newExpansion;
+        } else {
+            result = rangeExpansionLimit;
+            break;
+        }
+    }
+
+    return result;
+}
+
+std::pair<ui32, ui64> TReadRangesGenerator::GetExpansionDepthAndEstimation(TConstraintRef constraintRef, ui64 rangeExpansionLimit)
+{
+    ui32 keyWidth = 0;
+    ui64 expansion = 1;
+    while (keyWidth < Row_.size()) {
+        auto nextExpansion = EstimateExpansion(constraintRef, keyWidth, rangeExpansionLimit);
+        if (nextExpansion >= rangeExpansionLimit) {
+            break;
+        }
+        expansion = nextExpansion;
+        ++keyWidth;
+    }
+    return {keyWidth, expansion};
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void CopyValues(TRange<TValue> source, TMutableRow dest)
 {

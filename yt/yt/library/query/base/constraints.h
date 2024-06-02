@@ -118,7 +118,10 @@ public:
     explicit TReadRangesGenerator(const TConstraintsHolder& constraints);
 
     template <class TOnRange>
-    void GenerateReadRanges(TConstraintRef constraintRef, const TOnRange& onRange, ui64 rangeExpansionLimit = std::numeric_limits<ui64>::max());
+    void GenerateReadRanges(TConstraintRef constraintRef, const TOnRange& onRange, ui32 keyWidthLimit = std::numeric_limits<ui32>::max());
+
+    ui64 EstimateExpansion(TConstraintRef constraintRef, ui32 keyWidthLimit, ui64 rangeExpansionLimit = std::numeric_limits<ui64>::max());
+    std::pair<ui32, ui64> GetExpansionDepthAndEstimation(TConstraintRef constraintRef, ui64 rangeExpansionLimit = std::numeric_limits<ui64>::max());
 
 private:
     const TConstraintsHolder& Constraints_;

@@ -96,32 +96,29 @@ inline bool TColumnConstraint::IsUniversal() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOnRange>
-void TReadRangesGenerator::GenerateReadRanges(TConstraintRef constraintRef, const TOnRange& onRange, ui64 rangeExpansionLimit)
+void TReadRangesGenerator::GenerateReadRanges(TConstraintRef constraintRef, const TOnRange& onRange, ui32 keyWidthLimit)
 {
     auto columnId = constraintRef.ColumnId;
     if (columnId == SentinelColumnId) {
         // Leaf node.
-        onRange(Row_, rangeExpansionLimit);
+        onRange(Row_);
         return;
     }
 
     auto intervals = MakeRange(Constraints_[columnId])
         .Slice(constraintRef.StartIndex, constraintRef.EndIndex);
 
-    if (rangeExpansionLimit < intervals.Size()) {
+    if (columnId >= keyWidthLimit) {
         Row_[columnId] = TColumnConstraint{intervals.Front().GetLowerBound(), intervals.Back().GetUpperBound()};
-
-        onRange(Row_, rangeExpansionLimit);
+        onRange(Row_);
     } else if (!intervals.Empty()) {
-        ui64 nextRangeExpansionLimit = rangeExpansionLimit / intervals.Size();
-        YT_VERIFY(nextRangeExpansionLimit > 0);
         for (const auto& item : intervals) {
             Row_[columnId] = TColumnConstraint{item.GetLowerBound(), item.GetUpperBound()};
 
             Row_[columnId].Lower.Value.Id = columnId;
             Row_[columnId].Upper.Value.Id = columnId;
 
-            GenerateReadRanges(item.Next, onRange, nextRangeExpansionLimit);
+            GenerateReadRanges(item.Next, onRange, keyWidthLimit);
         }
     }
 
