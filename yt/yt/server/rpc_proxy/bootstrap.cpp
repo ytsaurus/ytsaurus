@@ -51,6 +51,8 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
@@ -170,6 +172,8 @@ void TBootstrap::DoRun()
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
     RootClient_ = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_,

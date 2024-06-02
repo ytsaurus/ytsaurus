@@ -53,6 +53,8 @@
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
 
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
+
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -317,6 +319,8 @@ void TBootstrap::SetupClients()
 {
     auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
     RootClient_ = Connection_->CreateClient(options);
+
+    NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
 void TBootstrap::OnDynamicConfigChanged(
