@@ -198,6 +198,8 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/complex_types/yson_format_conversion.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/complex_types/uuid_text.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/complex_types/time_text.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/logging/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/logging/dynamic_table_log_writer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/zookeeper/packet.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/zookeeper/protocol.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/zookeeper/requests.cpp

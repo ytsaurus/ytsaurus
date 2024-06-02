@@ -170,6 +170,9 @@ SRCS(
     complex_types/uuid_text.cpp
     complex_types/time_text.cpp
 
+    logging/config.cpp
+    logging/dynamic_table_log_writer.cpp
+
     zookeeper/packet.cpp
     zookeeper/protocol.cpp
     zookeeper/requests.cpp
