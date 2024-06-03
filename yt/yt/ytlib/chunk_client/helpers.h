@@ -274,8 +274,8 @@ EChunkFeatures GetSupportedChunkFeatures();
 //! #chunkFeatures. Throws an error if client cannot process such a chunk.
 void ValidateChunkFeatures(
     TChunkId chunkId,
-    ui64 chunkFeatures,
-    ui64 supportedChunkFeatures);
+    NChunkClient::EChunkFeatures chunkFeatures,
+    NChunkClient::EChunkFeatures supportedChunkFeatures);
 
 ///////////////////////////////////////////////////////////////////////////////
 

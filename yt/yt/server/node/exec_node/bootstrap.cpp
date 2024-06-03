@@ -218,7 +218,7 @@ public:
         DiskChangeChecker_->Start();
     }
 
-    const TJobInputCachePtr& GetJobInputCache() const override
+    const IJobInputCachePtr& GetJobInputCache() const override
     {
         return JobInputCache_;
     }
@@ -298,7 +298,7 @@ private:
 
     const TActionQueuePtr DnsOverRpcActionQueue_ = New<TActionQueue>("DnsOverRpc");
 
-    TJobInputCachePtr JobInputCache_;
+    IJobInputCachePtr JobInputCache_;
 
     TSlotManagerPtr SlotManager_;
 

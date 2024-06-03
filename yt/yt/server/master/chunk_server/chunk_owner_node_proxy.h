@@ -60,7 +60,7 @@ protected:
         bool FetchParityReplicas = false;
         bool OmitDynamicStores = false;
         bool ThrowOnChunkViews = false;
-        ui64 SupportedChunkFeatures = 0;
+        NChunkClient::EChunkFeatures SupportedChunkFeatures = NChunkClient::EChunkFeatures::None;
         std::vector<NChunkClient::TReadRange> Ranges;
     };
 

@@ -388,7 +388,7 @@ private:
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
 
-    const TJobInputCachePtr JobInputCache_;
+    const IJobInputCachePtr JobInputCache_;
 
     void OnResourcesAcquired() noexcept;
 

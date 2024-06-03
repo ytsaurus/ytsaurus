@@ -26,91 +26,47 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobInputCache
+struct IJobInputCache
     : public virtual TRefCounted
 {
 public:
-    TJobInputCache(
-        NExecNode::IBootstrap* bootstrap,
-        NProfiling::TProfiler profiler = JobInputCacheProfiler);
-
-    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         NChunkClient::TChunkId chunkId,
         const std::vector<int>& blockIndices,
-        NChunkClient::IChunkReader::TReadBlocksOptions options);
+        NChunkClient::IChunkReader::TReadBlocksOptions options) = 0;
 
-    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+    virtual TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
         NChunkClient::TChunkId chunkId,
         int firstBlockCount,
         int blockCount,
-        NChunkClient::IChunkReader::TReadBlocksOptions options);
+        NChunkClient::IChunkReader::TReadBlocksOptions options) = 0;
 
-    TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetChunkMeta(
+    virtual TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetChunkMeta(
         NChunkClient::TChunkId chunkId,
         NChunkClient::TClientChunkReadOptions options,
         std::optional<int> partitionTag,
-        const std::optional<std::vector<int>>& extensionTags);
+        const std::optional<std::vector<int>>& extensionTags) = 0;
 
-    THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs);
+    virtual THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs) = 0;
 
-    void RegisterJobChunks(
+    virtual void RegisterJobChunks(
         TJobId jobId,
-        THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkSpecs);
+        THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkSpecs) = 0;
 
-    void UnregisterJobChunks(TJobId jobId);
+    virtual void UnregisterJobChunks(TJobId jobId) = 0;
 
-    bool IsCachedChunk(NChunkClient::TChunkId chunkId) const;
+    virtual bool IsChunkCached(NChunkClient::TChunkId chunkId) = 0;
 
-    bool IsEnabled();
+    virtual bool IsEnabled() = 0;
 
-    void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config);
-
-private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-
-    NExecNode::IBootstrap* const Bootstrap_;
-
-    const NChunkClient::IClientBlockCachePtr BlockCache_;
-    const NChunkClient::IClientChunkMetaCachePtr MetaCache_;
-
-    const NChunkClient::TChunkReaderHostPtr ChunkReaderHost_;
-
-    const NProfiling::TProfiler Profiler_;
-
-    NProfiling::TCounter InputRequests_;
-    NProfiling::TCounter OutputRequests_;
-
-    NProfiling::TCounter RequestedBytes_;
-    NProfiling::TCounter ProxyingBytes_;
-
-    TAtomicIntrusivePtr<NExecNode::TJobInputCacheDynamicConfig> Config_;
-
-    THashMap<TJobId, THashSet<NChunkClient::TChunkId>> JobToChunks_;
-    THashMap<NChunkClient::TChunkId, THashSet<TJobId>> ChunkToJobs_;
-
-    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ChunkToSpec_;
-    THashMap<NChunkClient::TChunkId, NChunkClient::IChunkReaderPtr> ChunksToReader_;
-
-    NChunkClient::IChunkReaderPtr GetOrCreateReaderForChunk(NChunkClient::TChunkId chunkId);
-    NChunkClient::IChunkReaderPtr CreateReaderForChunk(NChunkClient::TChunkId chunkId);
-
-    TRefCountedChunkSpecPtr DoGetChunkSpec(NChunkClient::TChunkId chunkId) const;
-
-    TFuture<std::vector<NChunkClient::TBlock>> DoGetBlockSet(
-        NChunkClient::TChunkId chunkId,
-        const std::vector<int>& blockIndices,
-        NChunkClient::IChunkReader::TReadBlocksOptions options);
-
-    TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoGetChunkMeta(
-        NChunkClient::TChunkId chunkId,
-        NChunkClient::TClientChunkReadOptions options);
+    virtual void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobInputCache)
+DEFINE_REFCOUNTED_TYPE(IJobInputCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobInputCachePtr CreateJobInputCache(NExecNode::IBootstrap* bootstrap);
+IJobInputCachePtr CreateJobInputCache(NExecNode::IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -59,7 +59,7 @@ void AppendProxiableChunkSpecs(
     for (const auto& chunkSpec : tableSpec.chunk_specs()) {
         auto tableIndex = chunkSpec.table_index();
 
-        YT_VERIFY(std::ssize(schemas) > tableIndex);
+        YT_VERIFY(tableIndex < std::ssize(schemas));
 
         const auto& schema = schemas[tableIndex];
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -109,12 +109,12 @@ void PrepareProxiedChunkReading(
     TTableInputSpec* tableSpec)
 {
     // 1. Chunks for which proxying is enabled are added to the new list - proxied_chunk_specs.
-    //    For proxying chunks, the hostId, replicas, and chunkId are replaced.
+    //    For proxying chunks, the nodeId, replicas, and chunkId are replaced.
     // 2. Chunks that are proxied are registered in the job input cache.
     // 3. Inside PatchProxiedChunkSpecs, proxying chunks replace chunks received in
     //    the scheduler and controller spec.
     // 4. JobProxy reads proxied chunks through replication reader via exe node, reads are cached in job input cache.
-    // 5. For proxied chunks, the ChunkId always describes the EObjectType::Chunk type in order not to use
+    // 5. For proxied chunks, the chunkId always describes the EObjectType::Chunk type in order not to use
     //    the erasure reader in the job proxy. Using erasure reader for such chunks is incorrect,
     //    as it leads to incorrect reindexing of blocks.
     std::vector<TChunkSpec> proxiedChunkSpecs;
@@ -132,7 +132,7 @@ void PrepareProxiedChunkReading(
             continue;
         }
 
-        YT_LOG_INFO(
+        YT_LOG_DEBUG(
             "Modify chunk spec for job input cache (OldChunkId: %v, "
             "NewChunkId: %v, "
             "OldReplicaCount: %v, "
@@ -213,7 +213,7 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* job
                 newChunkSpec.mutable_replicas()->CopyFrom(proxiedChunkSpec.replicas());
                 chunkIdToOriginalSpec.emplace(proxiedChunkId, New<TRefCountedChunkSpec>(chunkSpec));
 
-                YT_LOG_INFO(
+                YT_LOG_DEBUG(
                     "Modify chunk spec for job input cache ("
                     "OldChunkId: %v, "
                     "NewChunkId: %v, "
