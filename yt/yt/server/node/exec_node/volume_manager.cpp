@@ -1571,7 +1571,7 @@ DEFINE_REFCOUNTED_TYPE(TLayer)
 class TTmpfsLayerCacheCounters
 {
 public:
-    TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler)
+    explicit TTmpfsLayerCacheCounters(NProfiling::TProfiler profiler)
         : Profiler_(std::move(profiler))
     { }
 
@@ -1598,7 +1598,6 @@ private:
         return key;
     }
 
-private:
     const NProfiling::TProfiler Profiler_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
