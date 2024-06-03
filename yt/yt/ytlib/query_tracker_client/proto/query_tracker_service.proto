@@ -1,0 +1,103 @@
+package NYT.NQueryTrackerClient.NProto;
+
+import "yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto";
+import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqStartQuery rpc_proxy_request = 1;
+}
+
+message TRspStartQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TRspStartQuery rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqAbortQuery rpc_proxy_request = 1;
+}
+
+message TRspAbortQuery
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryResult
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult rpc_proxy_request = 1;
+}
+
+message TRspGetQueryResult
+{
+    required NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqReadQueryResult
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult rpc_proxy_request = 1;
+}
+
+// Filled with one attachment containing the query result
+message TRspReadQueryResult
+{
+    required NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqGetQuery rpc_proxy_request = 1;
+}
+
+message TRspGetQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TRspGetQuery rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqListQueries
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqListQueries rpc_proxy_request = 1;
+}
+
+message TRspListQueries
+{
+    required NYT.NApi.NRpcProxy.NProto.TRspListQueries rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAlterQuery
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqAlterQuery rpc_proxy_request = 1;
+}
+
+message TRspAlterQuery
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryTrackerInfo
+{
+    required NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo rpc_proxy_request = 1;
+}
+
+message TRspGetQueryTrackerInfo
+{ 
+    required NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo rpc_proxy_response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

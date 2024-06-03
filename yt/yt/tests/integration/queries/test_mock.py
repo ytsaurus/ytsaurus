@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    add_member, authors, create_access_control_object, create_access_control_object_namespace, remove,
+    add_member, authors, create_access_control_object, remove,
     make_ace, raises_yt_error, wait, create_user, print_debug, select_rows)
 
 from yt_error_codes import AuthorizationErrorCode, ResolveErrorCode
@@ -457,14 +457,6 @@ class TestAccessControl(YTEnvSetup):
     def test_get_query_tracker_info(self, query_tracker):
         assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': True}, 'access_control_objects': ['nobody']}
 
-        remove("//sys/access_control_object_namespaces/queries/nobody")
-        remove("//sys/access_control_object_namespaces/queries")
-
-        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': False}, 'access_control_objects': []}
-
-        create_access_control_object_namespace("queries")
-        create_access_control_object("nobody", "queries")
-
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == {'cluster_name': '', 'supported_features': {'access_control': True}, 'access_control_objects': []}
@@ -654,15 +646,18 @@ class TestAccessControlList(YTEnvSetup):
 class TestQueriesMockRpcProxy(TestQueriesMock):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
 
 
 @authors("apollo1321")
 class TestAccessControlRpcProxy(TestAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
 
 
 @authors("apollo1321")
 class TestAccessControlListRpcProxy(TestAccessControlList):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1

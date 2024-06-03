@@ -15,6 +15,20 @@
 find_package(Python3 REQUIRED)
 find_package(linux-headers-generic REQUIRED)
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-ytlib-query_tracker_client)
 
 target_compile_options(yt-ytlib-query_tracker_client PRIVATE
@@ -26,10 +40,18 @@ target_link_libraries(yt-ytlib-query_tracker_client PUBLIC
   contrib-libs-cxxsupp
   yutil
   yt-yt-client
+  yt-yt-core
+  yt_proto-yt-client
+  contrib-libs-protobuf
+)
+
+target_proto_messages(yt-ytlib-query_tracker_client PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.proto
 )
 
 target_sources(yt-ytlib-query_tracker_client PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/proto/query_tracker_service.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/query_tracker_client/helpers.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/query_tracker_client/records/query.record.cpp
@@ -64,5 +86,21 @@ add_custom_command(
   yt/yt/core/yson/string.h
   --output-include
   yt/yt/core/misc/error.h
+)
+
+target_proto_addincls(yt-ytlib-query_tracker_client
+  ./
+  ${PROJECT_SOURCE_DIR}/
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/yt
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+  ${PROJECT_BINARY_DIR}
+  ${PROJECT_SOURCE_DIR}/contrib/libs/protobuf/src
+)
+
+target_proto_outs(yt-ytlib-query_tracker_client
+  --cpp_out=${PROJECT_BINARY_DIR}/
+  --cpp_styleguide_out=${PROJECT_BINARY_DIR}/
 )
 

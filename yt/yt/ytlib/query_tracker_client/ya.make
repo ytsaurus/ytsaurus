@@ -12,12 +12,16 @@ GENERATE_YT_RECORD(
 )
 
 SRCS(
+    proto/query_tracker_service.proto
+
     config.cpp
     helpers.cpp
 )
 
 PEERDIR(
     yt/yt/client
+    yt/yt/core
+    yt/yt_proto/yt/client
 )
 
 END()
