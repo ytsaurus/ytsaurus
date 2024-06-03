@@ -612,9 +612,11 @@ void TContext::LogStructuredRequest()
 void TContext::SetupInputStream()
 {
     if (IdentityContentEncoding == InputContentEncoding_) {
-        DriverRequest_.InputStream = CreateCopyingAdapter(Request_);
+        DriverRequest_.InputStream = Request_;
     } else {
-        DriverRequest_.InputStream = CreateDecompressingAdapter(Request_, *InputContentEncoding_);
+        DriverRequest_.InputStream = CreateZeroCopyAdapter(
+            CreateDecompressingAdapter(Request_, *InputContentEncoding_),
+            /*blockSize*/ 1_MB);
     }
 }
 
