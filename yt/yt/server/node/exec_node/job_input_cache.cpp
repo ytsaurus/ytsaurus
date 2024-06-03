@@ -43,6 +43,82 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobInputCache
+    : public IJobInputCache
+{
+public:
+    TJobInputCache(
+        NExecNode::IBootstrap* bootstrap,
+        NProfiling::TProfiler profiler = JobInputCacheProfiler);
+
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+        NChunkClient::TChunkId chunkId,
+        const std::vector<int>& blockIndices,
+        NChunkClient::IChunkReader::TReadBlocksOptions options) override;
+
+    TFuture<std::vector<NChunkClient::TBlock>> ReadBlocks(
+        NChunkClient::TChunkId chunkId,
+        int firstBlockCount,
+        int blockCount,
+        NChunkClient::IChunkReader::TReadBlocksOptions options) override;
+
+    TFuture<NChunkClient::TRefCountedChunkMetaPtr> GetChunkMeta(
+        NChunkClient::TChunkId chunkId,
+        NChunkClient::TClientChunkReadOptions options,
+        std::optional<int> partitionTag,
+        const std::optional<std::vector<int>>& extensionTags) override;
+
+    THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs) override;
+
+    void RegisterJobChunks(
+        TJobId jobId,
+        THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkSpecs) override;
+
+    void UnregisterJobChunks(TJobId jobId) override;
+
+    bool IsChunkCached(NChunkClient::TChunkId chunkId) override;
+
+    bool IsEnabled() override;
+
+    void Reconfigure(const NExecNode::TJobInputCacheDynamicConfigPtr& config) override;
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+
+    NExecNode::IBootstrap* const Bootstrap_;
+
+    const NChunkClient::IClientBlockCachePtr BlockCache_;
+    const NChunkClient::IClientChunkMetaCachePtr MetaCache_;
+
+    const NChunkClient::TChunkReaderHostPtr ChunkReaderHost_;
+
+    const NProfiling::TProfiler Profiler_;
+
+    TAtomicIntrusivePtr<NExecNode::TJobInputCacheDynamicConfig> Config_;
+
+    THashMap<TJobId, THashSet<NChunkClient::TChunkId>> JobIdToChunkIds_;
+    THashMap<NChunkClient::TChunkId, THashSet<TJobId>> ChunkIdToJobIds_;
+
+    THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> ChunkIdToSpec_;
+    THashMap<NChunkClient::TChunkId, NChunkClient::IChunkReaderPtr> ChunkIdToReader_;
+
+    NChunkClient::IChunkReaderPtr GetOrCreateReaderForChunk(NChunkClient::TChunkId chunkId);
+    NChunkClient::IChunkReaderPtr CreateReaderForChunk(NChunkClient::TChunkId chunkId);
+
+    TRefCountedChunkSpecPtr DoGetChunkSpec(NChunkClient::TChunkId chunkId) const;
+
+    TFuture<std::vector<NChunkClient::TBlock>> DoGetBlockSet(
+        NChunkClient::TChunkId chunkId,
+        const std::vector<int>& blockIndices,
+        NChunkClient::IChunkReader::TReadBlocksOptions options);
+
+    TFuture<NChunkClient::TRefCountedChunkMetaPtr> DoGetChunkMeta(
+        NChunkClient::TChunkId chunkId,
+        NChunkClient::TClientChunkReadOptions options);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobInputCache::TJobInputCache(
     NExecNode::IBootstrap* bootstrap,
     NProfiling::TProfiler profiler)
@@ -70,31 +146,30 @@ TJobInputCache::TJobInputCache(
 {
     Profiler_.AddFuncGauge("/registered_job_count", MakeStrong(this), [this] {
         auto guard = ReaderGuard(Lock_);
-        return JobToChunks_.size();
+        return JobIdToChunkIds_.size();
     });
 
     Profiler_.AddFuncGauge("/chunks", MakeStrong(this), [this] {
         auto guard = ReaderGuard(Lock_);
-        return ChunkToJobs_.size();
+        return ChunkIdToJobIds_.size();
     });
 
     Reconfigure(New<TJobInputCacheDynamicConfig>());
 }
 
-bool TJobInputCache::IsCachedChunk(TChunkId chunkId) const
+bool TJobInputCache::IsChunkCached(TChunkId chunkId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(Lock_);
-    return ChunkToJobs_.contains(chunkId);
+    return ChunkIdToJobIds_.contains(chunkId);
 }
 
 bool TJobInputCache::IsEnabled()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto config = Config_.Acquire();
-    return config && config->Enabled;
+    return Config_.Acquire()->Enabled;
 }
 
 void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
@@ -120,7 +195,7 @@ THashSet<TChunkId> TJobInputCache::FilterHotChunks(const std::vector<TChunkId>& 
     }
 
     for (const auto& chunkId : chunkSpecs) {
-        auto chunkIt = ChunkToJobs_.find(chunkId);
+        auto chunkIt = ChunkIdToJobIds_.find(chunkId);
         if (chunkIt && std::ssize(chunkIt->second) >= threshold.value()) {
             EmplaceOrCrash(hotChunks, chunkId);
         }
@@ -138,11 +213,11 @@ void TJobInputCache::RegisterJobChunks(
     auto guard = WriterGuard(Lock_);
 
     // Insert job.
-    auto& jobChunks = EmplaceOrCrash(JobToChunks_, jobId, THashSet<TChunkId>())->second;
+    auto& jobChunks = EmplaceOrCrash(JobIdToChunkIds_, jobId, THashSet<TChunkId>())->second;
 
     for (auto& [chunkId, chunkSpec] : chunkSpecs) {
         // Create empty entry if chunk id not found.
-        auto& chunkJobs = ChunkToJobs_[chunkId];
+        auto& chunkJobs = ChunkIdToJobIds_[chunkId];
 
         // Add chunk for job.
         EmplaceOrCrash(jobChunks, chunkId);
@@ -151,7 +226,7 @@ void TJobInputCache::RegisterJobChunks(
         EmplaceOrCrash(chunkJobs, jobId);
 
         // Insert chunk spec.
-        ChunkToSpec_.emplace(std::move(chunkId), std::move(chunkSpec));
+        ChunkIdToSpec_.emplace(std::move(chunkId), std::move(chunkSpec));
     }
 }
 
@@ -162,7 +237,7 @@ void TJobInputCache::UnregisterJobChunks(TJobId jobId)
     auto guard = WriterGuard(Lock_);
 
     // Get job chunks.
-    auto jobIt = JobToChunks_.find(jobId);
+    auto jobIt = JobIdToChunkIds_.find(jobId);
 
     if (jobIt.IsEnd()) {
         return;
@@ -172,21 +247,21 @@ void TJobInputCache::UnregisterJobChunks(TJobId jobId)
 
     for (const auto& chunkId : chunkIds) {
         // Remove job from chunk.
-        auto chunkIt = GetIteratorOrCrash(ChunkToJobs_, chunkId);
+        auto chunkIt = GetIteratorOrCrash(ChunkIdToJobIds_, chunkId);
         auto& jobIds = chunkIt->second;
 
         EraseOrCrash(jobIds, jobId);
 
         // If chunk jobs is empty, than clean chunk specs and readers.
         if (jobIds.empty()) {
-            ChunkToJobs_.erase(chunkIt);
-            ChunksToReader_.erase(chunkId);
-            EraseOrCrash(ChunkToSpec_, chunkId);
+            ChunkIdToJobIds_.erase(chunkIt);
+            ChunkIdToReader_.erase(chunkId);
+            EraseOrCrash(ChunkIdToSpec_, chunkId);
         }
     }
 
     // Remove job from jobs.
-    JobToChunks_.erase(jobIt);
+    JobIdToChunkIds_.erase(jobIt);
 }
 
 TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
@@ -244,7 +319,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
 
 TRefCountedChunkSpecPtr TJobInputCache::DoGetChunkSpec(TChunkId chunkId) const
 {
-    auto specIt = ChunkToSpec_.find(chunkId);
+    auto specIt = ChunkIdToSpec_.find(chunkId);
     return specIt.IsEnd() ? nullptr : specIt->second;
 }
 
@@ -254,11 +329,11 @@ IChunkReaderPtr TJobInputCache::GetOrCreateReaderForChunk(TChunkId chunkId)
 
     auto guard = WriterGuard(Lock_);
 
-    auto readerIt = ChunksToReader_.find(chunkId);
+    auto readerIt = ChunkIdToReader_.find(chunkId);
 
     if (readerIt.IsEnd()) {
         auto reader = CreateReaderForChunk(chunkId);
-        ChunksToReader_.insert({chunkId, reader});
+        ChunkIdToReader_.insert({chunkId, reader});
         return reader;
     } else {
         return readerIt->second;
@@ -288,7 +363,7 @@ IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobInputCachePtr CreateJobInputCache(NExecNode::IBootstrap* bootstrap)
+IJobInputCachePtr CreateJobInputCache(NExecNode::IBootstrap* bootstrap)
 {
     return New<TJobInputCache>(bootstrap);
 }

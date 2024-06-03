@@ -500,7 +500,7 @@ private:
 
         ValidateChunkFeatures(
             chunk->GetId(),
-            chunkSpec->chunk_meta().features(),
+            FromProto<NChunkClient::EChunkFeatures>(chunkSpec->chunk_meta().features()),
             FetchContext_.SupportedChunkFeatures);
 
         return true;
@@ -1604,7 +1604,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     fetchContext.FetchParityReplicas = request->fetch_parity_replicas();
     fetchContext.OmitDynamicStores = request->omit_dynamic_stores();
     fetchContext.ThrowOnChunkViews = request->throw_on_chunk_views();
-    fetchContext.SupportedChunkFeatures = request->supported_chunk_features();
+    fetchContext.SupportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
     fetchContext.AddressType = request->has_address_type()
         ? CheckedEnumCast<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;

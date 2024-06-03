@@ -1476,8 +1476,8 @@ private:
             }
 
             {
-                ui64 chunkFeatures = meta->features();
-                ui64 supportedChunkFeatures = request->supported_chunk_features();
+                NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+                NChunkClient::EChunkFeatures supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
                 ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
             }
 

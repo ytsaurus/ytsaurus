@@ -979,12 +979,15 @@ EChunkFeatures GetSupportedChunkFeatures()
     return features;
 }
 
-void ValidateChunkFeatures(TChunkId chunkId, ui64 chunkFeatures, ui64 supportedChunkFeatures)
+void ValidateChunkFeatures(
+    TChunkId chunkId,
+    EChunkFeatures chunkFeatures,
+    EChunkFeatures supportedChunkFeatures)
 {
     if ((chunkFeatures & supportedChunkFeatures) != chunkFeatures) {
         for (auto chunkFeature : TEnumTraits<EChunkFeatures>::GetDomainValues()) {
-            ui64 chunkFeatureMask = ToUnderlying(chunkFeature);
-            if ((chunkFeatures & chunkFeatureMask) && !(supportedChunkFeatures & chunkFeatureMask)) {
+            EChunkFeatures chunkFeatureMask = chunkFeature;
+            if ((chunkFeatures & chunkFeatureMask) != EChunkFeatures::None && (supportedChunkFeatures & chunkFeatureMask) == EChunkFeatures::None) {
                 THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedChunkFeature,
                     "Processing chunk %v requires feature %Qv that is not supported by cluster yet",
                     chunkId,

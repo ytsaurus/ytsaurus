@@ -574,6 +574,7 @@ void TJobInputCacheDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("meta_cache", &TThis::MetaCache)
         .DefaultNew();
     registrar.Parameter("fallback_timeout_fraction", &TThis::FallbackTimeoutFraction)
+        .InRange(0.0, 1.0)
         .Default(0.8);
 }
 

@@ -59,7 +59,7 @@ private:
     const TExecNodeConfigPtr Config_;
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     NExecNode::IBootstrap* const Bootstrap_;
-    const TJobInputCachePtr JobInputCache_;
+    const IJobInputCachePtr JobInputCache_;
 
     TExecNodeDynamicConfigPtr GetDynamicConfig() const
     {
@@ -74,7 +74,7 @@ private:
     template <class T, class TContext>
     TFuture<T> WrapWithTimeout(
         TFuture<T> future,
-        TContext context,
+        const TIntrusivePtr<TContext>& context,
         TCallback<T()> fallbackValue)
     {
         if (context->GetTimeout() && context->GetStartTime()) {
@@ -91,7 +91,7 @@ private:
 
     template <class TContext, class TResponse>
     void AttachBlocksToResponse(
-        TIntrusivePtr<TContext> context,
+        const TIntrusivePtr<TContext>& context,
         TResponse* response,
         const std::vector<NChunkClient::TBlock>& blocks) const
     {
@@ -167,7 +167,7 @@ private:
             result,
             context,
             BIND([size = blockIndexes.size()] {
-                return std::vector<TBlock>(size, TBlock());
+                return std::vector<TBlock>(size);
             }));
         auto responseFuture = withTimeout
             .Apply(BIND(&TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockSet, TRspGetBlockSet>, MakeStrong(this), context, response));
@@ -204,7 +204,7 @@ private:
             result,
             context,
             BIND([size = blockCount] {
-                return std::vector<TBlock>(size, TBlock());
+                return std::vector<TBlock>(size);
             }));
         auto responseFuture = withTimeout
             .Apply(BIND(&TProxyingDataNodeService::AttachBlocksToResponse<TCtxGetBlockRange, TRspGetBlockRange>, MakeStrong(this), context, response));
@@ -249,8 +249,8 @@ private:
                 {
                     // Although it it highly unlikely that job proxy doesn't support some
                     // of the features supported by exec node, we keep this check for consistency.
-                    ui64 chunkFeatures = meta->features();
-                    ui64 supportedChunkFeatures = request->supported_chunk_features();
+                    NChunkClient::EChunkFeatures chunkFeatures = FromProto<NChunkClient::EChunkFeatures>(meta->features());
+                    NChunkClient::EChunkFeatures supportedChunkFeatures = FromProto<NChunkClient::EChunkFeatures>(request->supported_chunk_features());
                     ValidateChunkFeatures(chunkId, chunkFeatures, supportedChunkFeatures);
                 }
 
