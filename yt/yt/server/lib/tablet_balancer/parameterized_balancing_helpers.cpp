@@ -86,6 +86,36 @@ TParameterizedResharderConfig TParameterizedResharderConfig::MergeWith(
     };
 }
 
+void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "MaxMoveActionCount: %v, NodeDeviationThreshold: %v, CellDeviationThreshold: %v, "
+        "MinRelativeMetricImprovement: %v, Metric: %v",
+        config.MaxMoveActionCount,
+        config.NodeDeviationThreshold,
+        config.CellDeviationThreshold,
+        config.MinRelativeMetricImprovement,
+        config.Metric);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "EnableReshardByDefault: %v, Metric: %v",
+        config.EnableReshardByDefault,
+        config.Metric);
+}
+
+TString ToString(const TParameterizedReassignSolverConfig& config)
+{
+    return ToStringViaBuilder(config);
+}
+
+TString ToString(const TParameterizedResharderConfig& config)
+{
+    return ToStringViaBuilder(config);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TParameterizedMetricsCalculator
@@ -678,6 +708,9 @@ bool TParameterizedReassignSolver::TryFindBestAction()
 
 std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptors()
 {
+    YT_LOG_DEBUG("Reporting parameterized balancing config (Config: %v)",
+        Config_);
+
     Initialize();
 
     if (!ShouldTrigger()) {
@@ -864,7 +897,10 @@ TParameterizedResharder::TParameterizedResharder(
         .WithTag("Group: %v", groupName))
     , Config_(std::move(config))
     , GroupName_(std::move(groupName))
-{ }
+{
+    YT_LOG_DEBUG("Reporting parameterized resharder config (Config: %v)",
+        Config_);
+}
 
 void TParameterizedResharder::SortTabletActionsByUsefulness(std::vector<TReshardDescriptor>* actions) const
 {
