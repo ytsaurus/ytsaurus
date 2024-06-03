@@ -6,7 +6,7 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCypressManagerConfig::Register(TRegistrar registrar)
+void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("default_file_replication_factor", &TThis::DefaultFileReplicationFactor)
         .Default(3)
@@ -38,24 +38,6 @@ void TCypressManagerConfig::Register(TRegistrar registrar)
         .Default(2)
         .InRange(NChunkClient::MinReplicationFactor, NChunkClient::MaxReplicationFactor);
 
-    registrar.Postprocessor([] (TThis* config) {
-        NJournalClient::ValidateJournalAttributes(
-            config->DefaultJournalErasureCodec,
-            config->DefaultJournalReplicationFactor,
-            config->DefaultJournalReadQuorum,
-            config->DefaultJournalWriteQuorum);
-        NJournalClient::ValidateJournalAttributes(
-            config->DefaultHunkStorageErasureCodec,
-            config->DefaultHunkStorageReplicationFactor,
-            config->DefaultHunkStorageReadQuorum,
-            config->DefaultHunkStorageWriteQuorum);
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
-{
     registrar.Parameter("statistics_flush_period", &TThis::StatisticsFlushPeriod)
         .GreaterThan(TDuration::Zero())
         .Default(TDuration::Seconds(1));
@@ -116,6 +98,20 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(1)
         .DontSerializeDefault();
+
+    registrar.Postprocessor([] (TThis* config) {
+        NJournalClient::ValidateJournalAttributes(
+            config->DefaultJournalErasureCodec,
+            config->DefaultJournalReplicationFactor,
+            config->DefaultJournalReadQuorum,
+            config->DefaultJournalWriteQuorum);
+        NJournalClient::ValidateJournalAttributes(
+            config->DefaultHunkStorageErasureCodec,
+            config->DefaultHunkStorageReplicationFactor,
+            config->DefaultHunkStorageReadQuorum,
+            config->DefaultHunkStorageWriteQuorum);
+    });
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

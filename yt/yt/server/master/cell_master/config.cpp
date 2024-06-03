@@ -262,8 +262,6 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("object_service", &TThis::ObjectService)
         .DefaultNew();
-    registrar.Parameter("cypress_manager", &TThis::CypressManager)
-        .DefaultNew();
     registrar.Parameter("cell_manager", &TThis::CellManager)
         .DefaultNew();
     registrar.Parameter("replicated_table_tracker", &TThis::ReplicatedTableTracker)

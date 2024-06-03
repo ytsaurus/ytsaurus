@@ -61,7 +61,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_file_replication_factor": 1,
@@ -780,7 +780,7 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
         },
     }
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_file_replication_factor": 1,
@@ -3383,7 +3383,7 @@ class TestSlotManagerResurrect(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_file_replication_factor": 1,

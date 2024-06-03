@@ -77,7 +77,7 @@ protected:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        const auto& config = GetBootstrap()->GetConfig()->CypressManager;
+        const auto& config = GetBootstrap()->GetDynamicConfig()->CypressManager;
         if (context.InheritedAttributes) {
             context.InheritedAttributes->Remove("compression_codec");
         }

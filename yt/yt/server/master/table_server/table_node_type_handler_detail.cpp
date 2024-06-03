@@ -111,7 +111,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     TVersionedNodeId id,
     const TCreateNodeContext& context)
 {
-    const auto& cypressManagerConfig = this->GetBootstrap()->GetConfig()->CypressManager;
+    const auto& cypressManagerConfig = this->GetBootstrap()->GetDynamicConfig()->CypressManager;
     const auto& chunkManagerConfig = this->GetBootstrap()->GetConfigManager()->GetConfig()->ChunkManager;
 
     if (!IsCompressionCodecValidationSuppressed()) {

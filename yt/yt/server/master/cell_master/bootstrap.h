@@ -108,6 +108,7 @@ public:
 
     const IAlertManagerPtr& GetAlertManager() const;
     const IConfigManagerPtr& GetConfigManager() const;
+    const TDynamicClusterConfigPtr& GetDynamicConfig() const;
     const IMulticellManagerPtr& GetMulticellManager() const;
     const NIncumbentServer::IIncumbentManagerPtr& GetIncumbentManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
