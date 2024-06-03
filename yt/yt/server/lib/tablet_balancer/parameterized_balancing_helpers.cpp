@@ -56,10 +56,16 @@ bool IsTableMovable(TTableId tableId)
 }
 
 TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith(
-    const TParameterizedBalancingConfigPtr& groupConfig) const
+    const TParameterizedBalancingConfigPtr& groupConfig,
+    std::optional<int> maxMoveActionHardLimit) const
 {
+    auto maxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount);
+    if (maxMoveActionHardLimit) {
+        maxMoveActionCount = std::min(maxMoveActionCount, *maxMoveActionHardLimit);
+    }
+
     return TParameterizedReassignSolverConfig{
-        .MaxMoveActionCount = groupConfig->MaxActionCount.value_or(MaxMoveActionCount),
+        .MaxMoveActionCount = maxMoveActionCount,
         .NodeDeviationThreshold = groupConfig->NodeDeviationThreshold.value_or(NodeDeviationThreshold),
         .CellDeviationThreshold = groupConfig->CellDeviationThreshold.value_or(CellDeviationThreshold),
         .MinRelativeMetricImprovement = groupConfig->MinRelativeMetricImprovement.value_or(

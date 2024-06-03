@@ -55,6 +55,7 @@ public:
     bool UseStatisticsReporter;
 
     int MaxParameterizedMoveActionCount;
+    int MaxParameterizedMoveActionHardLimit;
     double ParameterizedNodeDeviationThreshold;
     double ParameterizedCellDeviationThreshold;
     double ParameterizedMinRelativeMetricImprovement;
