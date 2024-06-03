@@ -892,6 +892,7 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
     NUM_CYPRESS_PROXIES = 1
+    NUM_TEST_PARTITIONS = 6
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
