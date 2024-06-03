@@ -91,6 +91,13 @@ public:
         }
     }
 
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+       return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(slotIndex, ESlotType::Common);
+    }
+
     TFuture<void> RunJobProxy(
         const TJobProxyInternalConfigPtr& config,
         ESlotType slotType,
@@ -198,6 +205,30 @@ public:
         const TSlotManagerDynamicConfigPtr& /*newConfig*/) override
     { }
 
+    void Disable(const TError& error) override
+    {
+        if (!Enabled_.exchange(false)) {
+            return;
+        }
+
+        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << error;
+        YT_LOG_ERROR(alert);
+
+        Alert_.Store(alert);
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
+
+        if (dynamicConfig->AbortOnJobsDisabled) {
+            YT_LOG_FATAL(alert);
+        }
+
+        if (dynamicConfig->EnableJobEnvironmentResurrection) {
+            YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(std::move(alert)));
+        }
+    }
 protected:
     struct TJobProxyProcess
     {
@@ -218,15 +249,11 @@ protected:
 
     TAtomicObject<TError> Alert_;
 
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    virtual void DoInit(int slotCount, double /*cpuLimit*/, double /*idleCpuFraction*/)
+    virtual void DoInit(int /*slotCount*/, double /*cpuLimit*/, double /*idleCpuFraction*/) 
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-            CleanProcesses(slotIndex);
-        }
     }
 
     void ValidateEnabled() const
@@ -259,31 +286,6 @@ protected:
             YT_LOG_INFO(error, "Job proxy process finished (SlotIndex: %v)", slotIndex);
             // Drop reference to a process.
             JobProxyProcesses_.erase(it);
-        }
-    }
-
-    void Disable(const TError& error)
-    {
-        if (!Enabled_.exchange(false)) {
-            return;
-        }
-
-        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << error;
-        YT_LOG_ERROR(alert);
-
-        Alert_.Store(alert);
-
-        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
-        const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
-
-        if (dynamicConfig->AbortOnJobsDisabled) {
-            YT_LOG_FATAL(alert);
-        }
-
-        if (dynamicConfig->EnableJobEnvironmentResurrection) {
-            YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())
-                .AsyncVia(Bootstrap_->GetJobInvoker())
-                .Run(std::move(alert)));
         }
     }
 
@@ -753,48 +755,43 @@ private:
         MetaIdleInstance_->SetIOWeight(Config_->JobsIOWeight);
 
         UpdateContainerCpuLimits();
+    }
 
-        auto createSlots = [this, slotCount] (ESlotType slotType) {
-            try {
-                for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-                    auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
-                    WaitFor(PortoExecutor_->CreateContainer(slotContainer))
-                        .ThrowOnError();
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+        auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
+            for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
+                auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
+                WaitFor(PortoExecutor_->CreateContainer(slotContainer))
+                    .ThrowOnError();
 
-                    // This forces creation of CPU cgroup for this container.
+                // This forces creation of CPU cgroup for this container.
+                WaitFor(PortoExecutor_->SetContainerProperty(
+                    slotContainer,
+                    "cpu_guarantee",
+                    "0.05c"))
+                    .ThrowOnError();
+
+                WaitFor(PortoExecutor_->SetContainerProperty(
+                    slotContainer,
+                    "controllers",
+                    "freezer;cpu;cpuacct;cpuset;net_cls"))
+                    .ThrowOnError();
+
+                if (slotType == ESlotType::Idle) {
                     WaitFor(PortoExecutor_->SetContainerProperty(
                         slotContainer,
-                        "cpu_guarantee",
-                        "0.05c"))
+                        "cpu_policy",
+                        "idle"))
                         .ThrowOnError();
-
-                    WaitFor(PortoExecutor_->SetContainerProperty(
-                        slotContainer,
-                        "controllers",
-                        "freezer;cpu;cpuacct;cpuset;net_cls"))
-                        .ThrowOnError();
-
-                    if (slotType == ESlotType::Idle) {
-                        WaitFor(PortoExecutor_->SetContainerProperty(
-                            slotContainer,
-                            "cpu_policy",
-                            "idle"))
-                            .ThrowOnError();
-                    }
                 }
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create meta containers for jobs")
-                    << ex;
+                CleanProcesses(slotIndex, ESlotType::Common);
+                CleanProcesses(slotIndex, ESlotType::Idle);
             }
-        };
-
-        createSlots(ESlotType::Common);
-        createSlots(ESlotType::Idle);
-
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-            CleanProcesses(slotIndex, ESlotType::Common);
-            CleanProcesses(slotIndex, ESlotType::Idle);
-        }
+        })
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run();
+        return slotInitFuture;
     }
 
     TString GetFullSlotMetaContainerName(int slotIndex, ESlotType slotType)
@@ -987,40 +984,41 @@ public:
         PodDescriptors_.clear();
         PodSpecs_.clear();
         SlotCpusetCpus_.clear();
+        CpuLimit_ = cpuLimit;
 
-        {
-            std::vector<TFuture<TCriPodDescriptor>> podFutures;
+        PodDescriptors_.resize(slotCount);
+        PodSpecs_.resize(slotCount);
+        SlotCpusetCpus_.resize(slotCount);
 
-            podFutures.reserve(slotCount);
-            for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-                auto podSpec = New<NCri::TCriPodSpec>();
-                podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
-                podSpec->Resources.CpuLimit = cpuLimit;
-                PodSpecs_.push_back(podSpec);
-                auto podFuture = Executor_->RunPodSandbox(podSpec);
-                podFutures.push_back(podFuture);
+        // Init fake slot to download resource once before running init slots concurrently
+        // we need to wait for it before initializing slots.
+        WaitFor(Executor_->RunPodSandbox(New<NCri::TCriPodSpec>()))
+            .ThrowOnError();
 
-                // Wait for the first slot, otherwise containerd runs parallel
-                // pull for sandbox_image (pause) if it is not cached yet.
-                if (slotIndex == 0) {
-                    WaitFor(podFuture)
-                        .ThrowOnError();
-                }
+        WaitFor(Executor_->PullImage(TCriImageDescriptor{
+            .Image = Config_->JobProxyImage,
+        }))
+            .ThrowOnError();
+    }
 
-                SlotCpusetCpus_.push_back(EmptyCpuSet);
+    TFuture<void> InitSlot(int slotIndex) override
+    {
+        auto podSpec = New<NCri::TCriPodSpec>();
+        podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
+        podSpec->Resources.CpuLimit = CpuLimit_;
+        PodSpecs_[slotIndex] = podSpec;
+        SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
+
+        auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
+        slotInitFuture.Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+            if (result.IsOK()) {
+                // Error is handled outside in slot manager.
+                PodDescriptors_[slotIndex] = result.Value();
             }
+        }));
 
-            auto imageFuture = Executor_->PullImage(TCriImageDescriptor{
-                .Image = Config_->JobProxyImage,
-            });
+        return slotInitFuture.AsVoid();
 
-            PodDescriptors_ = WaitFor(AllSucceeded(std::move(podFutures)))
-                .ValueOrThrow();
-            YT_VERIFY(std::ssize(PodDescriptors_) == slotCount);
-
-            WaitFor(imageFuture)
-                .ThrowOnError();
-        }
     }
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
@@ -1084,6 +1082,7 @@ private:
     std::vector<TCriPodDescriptor> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
+    double CpuLimit_ = 0;
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 

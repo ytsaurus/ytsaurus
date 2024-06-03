@@ -22,6 +22,7 @@ struct IJobEnvironment
     : public virtual TRefCounted
 {
     virtual void Init(int slotCount, double cpuLimit, double idleCpuFraction) = 0;
+    virtual TFuture<void> InitSlot(int slotIndex) = 0;
 
     virtual TFuture<void> RunJobProxy(
         const NJobProxy::TJobProxyInternalConfigPtr& config,
@@ -33,6 +34,8 @@ struct IJobEnvironment
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) = 0;
 
     virtual void CleanProcesses(int slotIndex, ESlotType slotType = ESlotType::Common) = 0;
+
+    virtual void Disable(const TError& error) = 0;
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) = 0;
 

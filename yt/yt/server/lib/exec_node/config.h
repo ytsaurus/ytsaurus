@@ -299,6 +299,8 @@ public:
     // COMPAT(psushin): temporary flag to disable CloseAllDescriptors machinery.
     bool ShouldCloseDescriptors;
 
+    TDuration SlotInitTimeout;
+
     TDuration SlotReleaseTimeout;
 
     bool AbortOnFreeVolumeSynchronizationFailed;
