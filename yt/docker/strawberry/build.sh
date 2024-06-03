@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 strawberry_controller="${ytsaurus_source_path}/yt/chyt/controller/cmd/chyt-controller/chyt-controller"
-ytsaurus_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits"
+credits="${ytsaurus_source_path}/yt/docker/strawberry/credits"
 
 dockerfile="${ytsaurus_source_path}/yt/docker/strawberry/Dockerfile"
 
@@ -58,8 +58,7 @@ cp ${strawberry_controller} ${output_path}
 cp ${dockerfile} ${output_path}
 
 mkdir ${output_path}/credits
-#TODO: move strawberry(chyt)-controller credits to yt/docker/strawberry
-cp -r ${ytsaurus_credits}/chyt-controller.CREDITS ${output_path}/credits
+cp -r ${credits}/chyt-controller.CREDITS ${output_path}/credits
 
 cd ${output_path}
 
