@@ -552,6 +552,11 @@ void TComparerBuilder::BuildMainLoop(
 
 TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 {
+    THROW_ERROR_EXCEPTION_IF(keyColumnTypes.Size() > MaxKeyColumnCountInDynamicTable,
+        "Key column count too large. Got: %v, limit: %v",
+        keyColumnTypes.Size(),
+        MaxKeyColumnCountInDynamicTable);
+
     auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(cgModule, keyColumnTypes);
     auto ddComparerName = TString("DDCompare");
@@ -577,6 +582,11 @@ TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes)
 
 TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType> keyColumnTypes)
 {
+    THROW_ERROR_EXCEPTION_IF(keyColumnTypes.Size() > MaxKeyColumnCountInDynamicTable,
+        "Key column count too large. Got: %v, limit: %v",
+        keyColumnTypes.Size(),
+        MaxKeyColumnCountInDynamicTable);
+
     auto module = TCGModule::Create(GetComparerRoutineRegistry());
     auto builder = TComparerBuilder(module, keyColumnTypes);
 
