@@ -454,6 +454,17 @@ void TSystemLogTableExporterConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_rows_to_keep", &TThis::MaxRowsToKeep)
         .Default(100'000);
 
+    registrar.Parameter("create_table_attributes", &TThis::CreateTableAttributes)
+        .DefaultCtor([] {
+            return NYTree::BuildYsonNodeFluently()
+                .BeginMap()
+                    // NB: Set large value to prevent too many flushes of small chunks.
+                    .Item("dynamic_store_auto_flush_period").Value(TDuration::Days(15))
+                    .Item("enable_dynamic_store_read").Value(true)
+                    .Item("optimize_for").Value(NTableClient::EOptimizeFor::Scan)
+                .EndMap()->AsMap();
+        });
+
     registrar.Preprocessor([] (TThis* config) {
         config->Enabled = false;
     });
