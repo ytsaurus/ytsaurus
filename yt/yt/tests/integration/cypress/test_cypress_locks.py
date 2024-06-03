@@ -1598,34 +1598,33 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
     NUM_CYPRESS_PROXIES = 1
+    NUM_TEST_PARTITIONS = 8
+
+    _SUPRESSED_MESSAGES = [
+        "Retrieving TVM service ticket",
+        "Polling peer",
+        "Waiting for bus to become ready",
+        "Created bus",
+        "Bus has become ready",
+        "Request is dropped because channel is terminated",
+        "Sleeping before peer polling",
+        "Failed to poll peer",
+        "Parsing service ticket",
+    ]
 
     DELTA_DRIVER_CONFIG = {
         "logging": {
-            "suppressed_messages": [
-                "Retrieving TVM service ticket",
-                "Polling peer",
-                "Waiting for bus to become ready",
-                "Created bus",
-                "Bus has become ready",
-                "Request is dropped because channel is terminated",
-                "Sleeping before peer polling",
-                "Failed to poll peer",
-            ],
+            "suppressed_messages": _SUPRESSED_MESSAGES,
         },
+    }
+
+    DELTA_DRIVER_LOGGING_CONFIG = {
+        "suppressed_messages": _SUPRESSED_MESSAGES,
     }
 
     DELTA_RPC_DRIVER_CONFIG = {
         "logging": {
-            "suppressed_messages": [
-                "Retrieving TVM service ticket",
-                "Polling peer",
-                "Waiting for bus to become ready",
-                "Created bus",
-                "Bus has become ready",
-                "Request is dropped because channel is terminated",
-                "Sleeping before peer polling",
-                "Failed to poll peer",
-            ],
+            "suppressed_messages": _SUPRESSED_MESSAGES,
         },
     }
 
@@ -1639,11 +1638,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
         },
         "cell_master": {
             "logging": {
-                "suppressed_messages": [
-                    "Retrieving TVM service ticket",
-                    "Parsing service ticket",
-                    "ChaosMasterService.Discover",
-                ],
+                "suppressed_messages": _SUPRESSED_MESSAGES,
             },
         },
     }

@@ -164,7 +164,8 @@ class YTInstance(object):
                  preserve_working_dir=False,
                  external_bin_path=None,
                  tmpfs_path=None,
-                 open_port_iterator=None):
+                 open_port_iterator=None,
+                 modify_driver_logging_config_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
@@ -283,7 +284,10 @@ class YTInstance(object):
         else:
             self._open_port_iterator = _get_ports_generator(yt_config)
 
-        self._prepare_builtin_environment(self._open_port_iterator, modify_configs_func)
+        self._prepare_builtin_environment(
+            self._open_port_iterator,
+            modify_configs_func,
+            modify_driver_logging_config_func)
 
     def _prepare_directories(self):
         master_dirs = []
@@ -393,7 +397,7 @@ class YTInstance(object):
                 names=names
             )
 
-    def _prepare_builtin_environment(self, ports_generator, modify_configs_func):
+    def _prepare_builtin_environment(self, ports_generator, modify_configs_func, modify_driver_logging_config_func):
         service_infos = [
             ("ytserver-clock", "clocks", self.yt_config.clock_count),
             ("ytserver-discovery", "discovery servers", self.yt_config.discovery_server_count),
@@ -478,7 +482,8 @@ class YTInstance(object):
             cluster_configuration["driver"],
             cluster_configuration["rpc_driver"],
             cluster_configuration["master"],
-            cluster_configuration["clock"])
+            cluster_configuration["clock"],
+            modify_driver_logging_config_func)
 
         logger.info("Finished preparing cluster instance")
 
@@ -1778,7 +1783,12 @@ class YTInstance(object):
             if not error.is_resolve_error():
                 raise
 
-    def _prepare_drivers(self, driver_configs, rpc_driver_config, master_configs, clock_configs):
+    def _prepare_drivers(self,
+                         driver_configs,
+                         rpc_driver_config,
+                         master_configs,
+                         clock_configs,
+                         modify_driver_logging_config_func):
         for cell_index in xrange(self.yt_config.secondary_cell_count + 1):
             if cell_index == 0:
                 tag = master_configs["primary_cell_tag"]
@@ -1833,6 +1843,8 @@ class YTInstance(object):
         config_path = os.path.join(self.configs_path, "driver-logging.yson")
 
         config = _init_logging(self.logs_path, "driver", self.yt_config)
+        if modify_driver_logging_config_func:
+            modify_driver_logging_config_func(config)
         write_config(config, config_path)
 
         self.configs["driver_logging"] = config

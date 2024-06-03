@@ -261,6 +261,7 @@ class YTEnvSetup(object):
     DELTA_NODE_FLAVORS = []
 
     DELTA_DRIVER_CONFIG = {}
+    DELTA_DRIVER_LOGGING_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_DYNAMIC_MASTER_CONFIG = {}
@@ -460,9 +461,14 @@ class YTEnvSetup(object):
         return partitions
 
     @classmethod
+    def modify_driver_logging_config(cls, config):
+        update_inplace(config, cls.DELTA_DRIVER_LOGGING_CONFIG)
+
+    @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_dynamic_config_patches, cluster_index=index)
+        modify_driver_logging_config_func = cls.modify_driver_logging_config
 
         yt.logger.info("Creating cluster instance")
 
@@ -558,7 +564,8 @@ class YTEnvSetup(object):
                 "yt_stderrs",
                 cls.run_name,
                 str(index)),
-            external_bin_path=cls.bin_path
+            external_bin_path=cls.bin_path,
+            modify_driver_logging_config_func=modify_driver_logging_config_func,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -885,8 +892,8 @@ class YTEnvSetup(object):
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
 
-        nodeFlavorsLength = len(cls.DELTA_NODE_FLAVORS)
-        assert nodeFlavorsLength == 0 or cls.NUM_NODES == nodeFlavorsLength
+        node_flavors_length = len(cls.DELTA_NODE_FLAVORS)
+        assert node_flavors_length == 0 or cls.NUM_NODES == node_flavors_length
 
         for index, config in enumerate(configs["node"]):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
@@ -907,7 +914,7 @@ class YTEnvSetup(object):
 
             config = cls.update_timestamp_provider_config(cluster_index, config)
 
-            if nodeFlavorsLength != 0:
+            if node_flavors_length != 0:
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
             configs["node"][index] = config
@@ -1295,7 +1302,7 @@ class YTEnvSetup(object):
             exists_action=lambda *args, **kwargs: yt_commands.exists(*args, driver=driver, **kwargs),
             get_action=lambda *args, **kwargs: yt_commands.get(*args, driver=driver, **kwargs))
 
-        yt_commands.execute_batch(requests)
+        yt_commands.execute_batch(requests, driver=driver)
 
     def _reset_nodes(self, wait_for_nodes=True, driver=None):
         use_maintenance_requests = yt_commands.get(
