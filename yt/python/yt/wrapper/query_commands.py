@@ -7,13 +7,15 @@ from .common import datetime_to_string, set_param, get_value
 from datetime import datetime
 
 
-def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, client=None):
+def start_query(engine, query, version=None, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql".
     :type engine: str
     :param query: text of a query
     :type query: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
     :param settings: a dictionary of settings
     :type settings: dict or None
     :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
@@ -24,15 +26,19 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     :type stage: dict or None
     :param access_control_object: access control object name
     :type access_control_object: str or None
+    :param access_control_objects: list access control object names
+    :type access_control_objects: list or None
     """
 
     params = {
         "engine": engine,
         "query": query,
+        "version": get_value(version, 0),
         "settings": get_value(settings, {}),
         "files": get_value(files, []),
         "stage": get_value(stage, "production"),
         "annotations": get_value(annotations, {}),
+        "access_control_objects": get_value(access_control_objects, []),
     }
 
     set_param(params, "access_control_object", access_control_object)
@@ -46,11 +52,13 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     return query_id
 
 
-def abort_query(query_id, message=None, stage=None, client=None):
+def abort_query(query_id, version=None, message=None, stage=None, client=None):
     """Abort query.
 
     :param query_id: id of a query to abort
     :type query_id: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
     :param message: optional message to be shown in query abort error
     :type message: str or None
     :param stage: query tracker stage, defaults to "production"
@@ -59,6 +67,7 @@ def abort_query(query_id, message=None, stage=None, client=None):
 
     params = {
         "query_id": query_id,
+        "version": get_value(version, 0),
         "stage": get_value(stage, "production"),
     }
     set_param(params, "message", message)
@@ -66,11 +75,13 @@ def abort_query(query_id, message=None, stage=None, client=None):
     return make_request("abort_query", params, client=client)
 
 
-def read_query_result(query_id, result_index=None, stage=None, format=None, raw=None, client=None):
+def read_query_result(query_id, version=None, result_index=None, stage=None, format=None, raw=None, client=None):
     """Read query result.
 
     :param query_id: id of a query to read result
     :type query_id: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
     :param result_index: index of a result to read, defaults to 0
     :type result_index: int
     :param stage: query tracker stage, defaults to "production"
@@ -83,6 +94,7 @@ def read_query_result(query_id, result_index=None, stage=None, format=None, raw=
 
     params = {
         "query_id": query_id,
+        "version": get_value(version, 0),
         "result_index": get_value(result_index, 0),
         "output_format": format.to_yson_type(),
         "stage": get_value(stage, "production"),
@@ -96,11 +108,13 @@ def read_query_result(query_id, result_index=None, stage=None, format=None, raw=
         client=client)
 
 
-def get_query_result(query_id, result_index=None, stage=None, format=None, client=None):
+def get_query_result(query_id, version=None, result_index=None, stage=None, format=None, client=None):
     """Get query result.
 
     :param query_id: id of a query to get result
     :type query_id: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
     :param result_index: index of a result to get, defaults to 0
     :type result_index: int
     :param stage: query tracker stage, defaults to "production"
@@ -109,6 +123,7 @@ def get_query_result(query_id, result_index=None, stage=None, format=None, clien
 
     params = {
         "query_id": query_id,
+        "version": get_value(version, 0),
         "result_index": get_value(result_index, 0),
         "stage": get_value(stage, "production"),
     }
@@ -116,11 +131,13 @@ def get_query_result(query_id, result_index=None, stage=None, format=None, clien
     return make_formatted_request("get_query_result", params, format=format, client=client)
 
 
-def get_query(query_id, attributes=None, stage=None, format=None, client=None):
+def get_query(query_id, version=None, attributes=None, stage=None, format=None, client=None):
     """Get query.
 
     :param query_id: id of a query to get
     :type query_id: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
     :param attributes: optional attribute filter
     :type attributes: list or None
     :param stage: query tracker stage, defaults to "production"
@@ -129,6 +146,7 @@ def get_query(query_id, attributes=None, stage=None, format=None, client=None):
 
     params = {
         "query_id": query_id,
+        "version": get_value(version, 0),
         "stage": get_value(stage, "production"),
     }
     set_param(params, "attributes", attributes)
@@ -136,7 +154,36 @@ def get_query(query_id, attributes=None, stage=None, format=None, client=None):
     return make_formatted_request("get_query", params, format=format, client=client)
 
 
-def list_queries(user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
+def alter_query(query_id, version=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
+    """Alter query.
+
+    :param query_id: id of a query to get
+    :type query_id: str
+    :param stage: query tracker stage, defaults to "production"
+    :type stage: str
+    :param version: query tracker API version, defaults to 0
+    :type version: int
+    :param annotations: a dictionary of annotations
+    :type stage: dict or None
+    :param access_control_object: access control object name
+    :type access_control_object: str or None
+    :param access_control_objects: list access control object names
+    :type access_control_objects: list or None
+    """
+
+    params = {
+        "query_id": query_id,
+        "version": get_value(version, 0),
+        "stage": get_value(stage, "production"),
+        "annotations": get_value(annotations, {}),
+        "access_control_objects": get_value(access_control_objects, []),
+    }
+    set_param(params, "access_control_object", access_control_object)
+
+    return make_request("alter_query", params, client=client)
+
+
+def list_queries(version=None, user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
                  cursor_direction=None, limit=None, attributes=None, stage=None, format=None, client=None):
     """List operations that satisfy given options.
     """
@@ -147,6 +194,7 @@ def list_queries(user=None, engine=None, state=None, filter=None, from_time=None
 
     params = {
         "stage": get_value(stage, "production"),
+        "version": get_value(version, 0),
     }
     set_param(params, "user", user)
     set_param(params, "engine", engine)

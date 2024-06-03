@@ -568,7 +568,7 @@ private:
                     .Files = activeQueryRecord->Files,
                     .Settings = activeQueryRecord->Settings,
                     .User = activeQueryRecord->User,
-                    .AccessControlObject = activeQueryRecord->AccessControlObject,
+                    .AccessControlObjects = activeQueryRecord->AccessControlObjects,
                     .StartTime = activeQueryRecord->StartTime,
                     .State = finalState,
                     .Progress = activeQueryRecord->Progress,
@@ -592,7 +592,7 @@ private:
                     .Key = TFinishedQueryByStartTimeKey{.StartTime = activeQueryRecord->StartTime, .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
                     .User = activeQueryRecord->User,
-                    .AccessControlObject = activeQueryRecord->AccessControlObject,
+                    .AccessControlObjects = activeQueryRecord->AccessControlObjects,
                     .State = finalState,
                     .FilterFactors = activeQueryRecord->FilterFactors,
                 };

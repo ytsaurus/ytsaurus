@@ -271,6 +271,13 @@ NProto::EQueryState ConvertQueryStateToProto(
 
 NQueryTrackerClient::EQueryState ConvertQueryStateFromProto(
     NProto::EQueryState proto);
+
+NProto::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionToProto(
+    NApi::EQueryTrackerAPIVersion queryState);
+
+NApi::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionFromProto(
+    NProto::EQueryTrackerAPIVersion proto);
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

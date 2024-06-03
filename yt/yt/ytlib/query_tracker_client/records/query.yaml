@@ -47,10 +47,11 @@ types:
         column_type: String
         lock: client
 
-      - cpp_name: AccessControlObject
-        cpp_type: std::optional<TString>
-        column_name: access_control_object
-        column_type: String
+      # YSON list.
+      - cpp_name: AccessControlObjects
+        cpp_type: NYson::TYsonString
+        column_name: access_control_objects
+        column_type: Any
         lock: client
 
       - cpp_name: StartTime
@@ -176,10 +177,11 @@ types:
         column_name: user
         column_type: String
 
-      - cpp_name: AccessControlObject
-        cpp_type: std::optional<TString>
-        column_name: access_control_object
-        column_type: String
+      # YSON list.
+      - cpp_name: AccessControlObjects
+        cpp_type: NYson::TYsonString
+        column_name: access_control_objects
+        column_type: Any
 
       - cpp_name: StartTime
         cpp_type: TInstant
@@ -245,10 +247,11 @@ types:
         column_name: user
         column_type: String
 
-      - cpp_name: AccessControlObject
-        cpp_type: std::optional<TString>
-        column_name: access_control_object
-        column_type: String
+      # YSON list.
+      - cpp_name: AccessControlObjects
+        cpp_type: NYson::TYsonString
+        column_name: access_control_objects
+        column_type: Any
 
       - cpp_name: State
         cpp_type: NQueryTrackerClient::EQueryState

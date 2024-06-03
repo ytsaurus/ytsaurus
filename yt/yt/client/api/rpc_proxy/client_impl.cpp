@@ -2123,6 +2123,7 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     req->set_engine(NProto::ConvertQueryEngineToProto(engine));
     req->set_query(query);
     req->set_draft(options.Draft);
@@ -2135,6 +2136,9 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     }
     if (options.AccessControlObject) {
         req->set_access_control_object(*options.AccessControlObject);
+    }
+    for (const auto& aco : options.AccessControlObjects) {
+        req->add_access_control_objects(aco);
     }
 
     for (const auto& file : options.Files) {
@@ -2159,6 +2163,7 @@ TFuture<void> TClient::AbortQuery(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     ToProto(req->mutable_query_id(), queryId);
 
     if (options.AbortMessage) {
@@ -2179,6 +2184,7 @@ TFuture<TQueryResult> TClient::GetQueryResult(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     ToProto(req->mutable_query_id(), queryId);
     req->set_result_index(resultIndex);
 
@@ -2205,6 +2211,7 @@ TFuture<IUnversionedRowsetPtr> TClient::ReadQueryResult(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     ToProto(req->mutable_query_id(), queryId);
     req->set_result_index(resultIndex);
 
@@ -2238,6 +2245,7 @@ TFuture<TQuery> TClient::GetQuery(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     ToProto(req->mutable_query_id(), queryId);
 
     if (options.Attributes) {
@@ -2261,6 +2269,7 @@ TFuture<TListQueriesResult> TClient::ListQueries(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
 
     if (options.FromTime) {
         req->set_from_time(NYT::ToProto<i64>(*options.FromTime));
@@ -2311,6 +2320,7 @@ TFuture<void> TClient::AlterQuery(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     ToProto(req->mutable_query_id(), queryId);
 
     if (options.Annotations) {
@@ -2318,6 +2328,9 @@ TFuture<void> TClient::AlterQuery(
     }
     if (options.AccessControlObject) {
         req->set_access_control_object(*options.AccessControlObject);
+    }
+    for (const auto& aco : options.AccessControlObjects) {
+        req->add_access_control_objects(aco);
     }
 
     return req->Invoke().AsVoid();
@@ -2332,6 +2345,7 @@ TFuture<TGetQueryTrackerInfoResult> TClient::GetQueryTrackerInfo(
     SetTimeoutOptions(*req, options);
 
     req->set_query_tracker_stage(options.QueryTrackerStage);
+    req->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
 
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), options.Attributes);

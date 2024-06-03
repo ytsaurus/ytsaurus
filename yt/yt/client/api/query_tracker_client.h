@@ -10,9 +10,15 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EQueryTrackerAPIVersion,
+    ((TheBigBang)   (0))
+    ((MultipleAco)   (1))
+);
+
 struct TQueryTrackerOptions
 {
     TString QueryTrackerStage = "production";
+    EQueryTrackerAPIVersion Version = EQueryTrackerAPIVersion::TheBigBang;
 };
 
 DEFINE_ENUM(EContentType,
@@ -42,7 +48,8 @@ struct TStartQueryOptions
     bool Draft = false;
     NYTree::IMapNodePtr Annotations;
     std::vector<TQueryFilePtr> Files;
-    std::optional<TString> AccessControlObject;
+    std::optional<TString> AccessControlObject; // deprecated after MultipleAco API Version
+    std::vector<TString> AccessControlObjects;
 };
 
 struct TAbortQueryOptions
@@ -102,7 +109,8 @@ struct TQuery
     std::optional<TInstant> FinishTime;
     NYson::TYsonString Settings;
     std::optional<TString> User;
-    std::optional<TString> AccessControlObject;
+    std::optional<TString> AccessControlObject; // deprecated after MultipleAco API Version
+    std::optional<NYson::TYsonString> AccessControlObjects;
     std::optional<NQueryTrackerClient::EQueryState> State;
     std::optional<i64> ResultCount;
     NYson::TYsonString Progress;
@@ -137,7 +145,8 @@ struct TAlterQueryOptions
     , public TQueryTrackerOptions
 {
     NYTree::IMapNodePtr Annotations;
-    std::optional<TString> AccessControlObject;
+    std::optional<TString> AccessControlObject; // deprecated after MultipleAco API Version
+    std::vector<TString> AccessControlObjects;
 };
 
 struct TGetQueryTrackerInfoOptions

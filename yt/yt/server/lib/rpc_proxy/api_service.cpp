@@ -33,6 +33,7 @@
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/query_tracker_client.h>
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
@@ -6092,9 +6093,10 @@ private:
         auto req = proxy.StartQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, Engine: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, Engine: %v",
             request->query_tracker_stage(),
-            FromProto<EQueryEngine>(request->engine()));
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
+            ConvertQueryEngineFromProto(request->engine()));
 
         ExecuteCall(
             context,
@@ -6116,8 +6118,9 @@ private:
         auto req = proxy.AbortQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, QueryId: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
         ExecuteCall(
@@ -6137,8 +6140,9 @@ private:
         auto req = proxy.GetQueryResult();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->result_index());
 
@@ -6162,8 +6166,9 @@ private:
         auto req = proxy.ReadQueryResult();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, ResultIndex: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, QueryId: %v, ResultIndex: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->result_index());
 
@@ -6186,8 +6191,9 @@ private:
         auto req = proxy.GetQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v, StartTimestamp: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, QueryId: %v, StartTimestamp: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()),
             request->timestamp());
 
@@ -6212,8 +6218,9 @@ private:
         FillQueryTrackerRequest(context, request, req);
 
         context->SetRequestInfo(
-            "QueryTrackerStage: %v, Limit: %v",
+            "QueryTrackerStage: %v, Version: %v, Limit: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             request->limit());
 
         ExecuteCall(
@@ -6239,8 +6246,9 @@ private:
         auto req = proxy.AlterQuery();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v, QueryId: %v",
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v, QueryId: %v",
             request->query_tracker_stage(),
+            ConvertQueryTrackerAPIVersionFromProto(request->version()),
             FromProto<NQueryTrackerClient::TQueryId>(request->query_id()));
 
         ExecuteCall(
@@ -6260,7 +6268,7 @@ private:
         auto req = proxy.GetQueryTrackerInfo();
         FillQueryTrackerRequest(context, request, req);
 
-        context->SetRequestInfo("QueryTrackerStage: %v", request->query_tracker_stage());
+        context->SetRequestInfo("QueryTrackerStage: %v, Version: %v", request->query_tracker_stage(), ConvertQueryTrackerAPIVersionFromProto(request->version()));
 
         ExecuteCall(
             context,

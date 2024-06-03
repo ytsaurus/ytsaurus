@@ -1366,6 +1366,8 @@ void ToProto(
     if (query.AccessControlObject) {
         protoQuery->set_access_control_object(*query.AccessControlObject);
     }
+    protoQuery->set_access_control_objects(query.AccessControlObjects->ToString());
+
     if (query.State) {
         protoQuery->set_state(ConvertQueryStateToProto(*query.State));
     }
@@ -1431,6 +1433,11 @@ void FromProto(
         query->AccessControlObject = protoQuery.access_control_object();
     } else {
         query->AccessControlObject.reset();
+    }
+    if (protoQuery.has_access_control_objects()) {
+        query->AccessControlObjects = TYsonString(protoQuery.access_control_objects());
+    } else {
+        query->AccessControlObjects.reset();
     }
     if (protoQuery.has_state()) {
         query->State = ConvertQueryStateFromProto(protoQuery.state());
@@ -1867,6 +1874,32 @@ NQueryTrackerClient::EQueryState ConvertQueryStateFromProto(
         case NProto::EQueryState::QS_FAILED:
             return NQueryTrackerClient::EQueryState::Failed;
         case NProto::EQueryState::QS_UNKNOWN:
+            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for query state");
+    }
+    YT_ABORT();
+}
+
+NProto::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionToProto(
+    NApi::EQueryTrackerAPIVersion queryState)
+{
+    switch (queryState) {
+        case NApi::EQueryTrackerAPIVersion::TheBigBang:
+            return NProto::EQueryTrackerAPIVersion::QTAPIV_BIG_BANG;
+        case NApi::EQueryTrackerAPIVersion::MultipleAco:
+            return NProto::EQueryTrackerAPIVersion::QTAPIV_MULTIPLE_ACO;
+    }
+    YT_ABORT();
+}
+
+NApi::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionFromProto(
+    NProto::EQueryTrackerAPIVersion proto)
+{
+    switch (proto) {
+        case NProto::EQueryTrackerAPIVersion::QTAPIV_BIG_BANG:
+            return NApi::EQueryTrackerAPIVersion::TheBigBang;
+        case NProto::EQueryTrackerAPIVersion::QTAPIV_MULTIPLE_ACO:
+            return NApi::EQueryTrackerAPIVersion::MultipleAco;
+        case NProto::EQueryTrackerAPIVersion::QTAPIV_UNKNOWN:
             THROW_ERROR_EXCEPTION("Protobuf contains unknown value for query state");
     }
     YT_ABORT();

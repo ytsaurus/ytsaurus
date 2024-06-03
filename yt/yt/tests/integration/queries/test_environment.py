@@ -2,11 +2,11 @@ from conftest_lib.conftest_queries import QueryTracker
 
 from yt_env_setup import YTEnvSetup
 
-from yt.environment.init_query_tracker_state import get_latest_version
+from yt.environment.init_query_tracker_state import get_latest_version, create_tables_required_version, run_migration
 
 from yt.common import YtError
 
-from yt_commands import wait, authors, ls, get, set, assert_yt_error
+from yt_commands import wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows
 
 import yt_error_codes
 
@@ -59,3 +59,50 @@ class TestEnvironment(YTEnvSetup):
         wait(lambda: "query_tracker_invalid_state" in get(alerts_path))
         assert_yt_error(YtError.from_dict(get(alerts_path)["query_tracker_invalid_state"]),
                         "Min required state version is not met")
+
+
+class TestMigration(YTEnvSetup):
+    NUM_QUERY_TRACKERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_allocations_update_period": 10,
+        }
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    @authors("mpereskokova")
+    def test_aco_migration(self, query_tracker):
+        remove("//sys/query_tracker", recursive=True, force=True)
+
+        client = query_tracker.env.create_native_client()
+        create_tables_required_version(client, 7)
+
+        insert_rows("//sys/query_tracker/active_queries", [{"query_id": "test_query_id", "access_control_object": "test_aco"}])
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "test_query_id"}])
+        insert_rows("//sys/query_tracker/finished_queries_by_start_time", [{"query_id": "test_query_id", "start_time": 0, "access_control_object": "test_aco"}])
+        run_migration(client, 8)
+
+        active_queries = list(select_rows("* from [//sys/query_tracker/active_queries]"))
+        assert len(active_queries) == 1
+        assert active_queries[0]["query_id"] == "test_query_id"
+        assert active_queries[0]["access_control_objects"] == ["test_aco"]
+        assert "access_control_object" not in active_queries[0]
+
+        finished_queries = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(finished_queries) == 1
+        assert finished_queries[0]["access_control_objects"] == []
+        assert "access_control_object" not in finished_queries[0]
+
+        finished_queries_by_start_time = list(select_rows("* from [//sys/query_tracker/finished_queries_by_start_time]"))
+        assert len(finished_queries_by_start_time) == 1
+        assert finished_queries_by_start_time[0]["access_control_objects"] == ["test_aco"]
+        assert "access_control_object" not in finished_queries_by_start_time[0]

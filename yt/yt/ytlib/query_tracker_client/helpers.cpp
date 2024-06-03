@@ -17,7 +17,7 @@ TString GetFilterFactors(const TActiveQueryPartial& record)
     return Format("%v %v aco:%v",
         record.Query,
         (record.Annotations && *record.Annotations) ? ConvertToYsonString(*record.Annotations, EYsonFormat::Text).ToString() : "",
-        (record.AccessControlObject && *record.AccessControlObject) ? **record.AccessControlObject : "");
+        record.AccessControlObjects ? ConvertToYsonString(*record.AccessControlObjects, EYsonFormat::Text).ToString() : "[]");
 }
 
 TString GetFilterFactors(const TFinishedQueryPartial& record)
@@ -25,7 +25,7 @@ TString GetFilterFactors(const TFinishedQueryPartial& record)
     return Format("%v %v aco:%v",
         record.Query,
         (record.Annotations && *record.Annotations) ? ConvertToYsonString(*record.Annotations, EYsonFormat::Text).ToString() : "",
-        (record.AccessControlObject && *record.AccessControlObject) ? **record.AccessControlObject : "");
+        record.AccessControlObjects ? ConvertToYsonString(*record.AccessControlObjects, EYsonFormat::Text).ToString() : "[]");
 }
 
 TString GetFilterFactors(const TFinishedQuery& record)
@@ -33,7 +33,7 @@ TString GetFilterFactors(const TFinishedQuery& record)
     return Format("%v %v aco:%v",
         record.Query,
         record.Annotations ? ConvertToYsonString(record.Annotations, EYsonFormat::Text).ToString() : "",
-        record.AccessControlObject ? *record.AccessControlObject : "");
+        ConvertToYsonString(record.AccessControlObjects, EYsonFormat::Text).ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

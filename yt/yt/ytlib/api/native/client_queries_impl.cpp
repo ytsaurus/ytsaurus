@@ -32,6 +32,7 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.Settings) {
         rpcRequest->set_settings(ConvertToYsonString(options.Settings).ToString());
@@ -48,6 +49,10 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         protoFile->set_name(file->Name);
         protoFile->set_content(file->Content);
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
+    }
+
+    for (const auto& aco : options.AccessControlObjects) {
+        rpcRequest->add_access_control_objects(aco);
     }
 
     rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(engine));
@@ -71,6 +76,7 @@ void TClient::DoAbortQuery(TQueryId queryId, const TAbortQueryOptions& options)
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.AbortMessage) {
@@ -93,6 +99,7 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     rpcRequest->set_result_index(resultIndex);
@@ -122,6 +129,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     rpcRequest->set_result_index(resultIndex);
@@ -160,6 +168,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.Attributes) {
@@ -186,6 +195,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.FromTime) {
         rpcRequest->set_from_time(NYT::ToProto<i64>(*options.FromTime));
@@ -244,6 +254,7 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     req->SetUser(*Options_.User);
 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
+    rpcRequest->set_version(NProto::ConvertQueryTrackerAPIVersionToProto(options.Version));
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.Annotations) {
@@ -251,6 +262,9 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     }
     if (options.AccessControlObject) {
         rpcRequest->set_access_control_object(*options.AccessControlObject);
+    }
+    for (const auto& aco : options.AccessControlObjects) {
+        rpcRequest->add_access_control_objects(aco);
     }
 
     WaitFor(req->Invoke())

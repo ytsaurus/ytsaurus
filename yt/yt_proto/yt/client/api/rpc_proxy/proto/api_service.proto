@@ -272,6 +272,14 @@ enum EJobSpecSource
     JSS_AUTO = 0xFFFF;
 }
 
+enum EQueryTrackerAPIVersion
+{
+    QTAPIV_UNKNOWN = 100;
+
+    QTAPIV_BIG_BANG = 0;
+    QTAPIV_MULTIPLE_ACO = 1;
+}
+
 enum EQueryEngine
 {
     QE_UNKNOWN = 100;
@@ -3152,7 +3160,9 @@ message TReqStartQuery
     optional bool draft = 5;
     optional bytes annotations = 6; // YSON
     repeated TQueryFile files = 7;
-    optional string access_control_object = 8;
+    optional string access_control_object = 8; // deprecated after QTAPIV_MULTIPLE_ACO
+    repeated string access_control_objects = 9;
+    optional EQueryTrackerAPIVersion version = 10 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspStartQuery
@@ -3167,6 +3177,7 @@ message TReqAbortQuery
     required string query_tracker_stage = 1;
     required NYT.NProto.TGuid query_id = 2;
     optional string abort_message = 3;
+    optional EQueryTrackerAPIVersion version = 4 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspAbortQuery
@@ -3180,6 +3191,7 @@ message TReqGetQueryResult
     required string query_tracker_stage = 1;
     required NYT.NProto.TGuid query_id = 2;
     required int64 result_index = 3;
+    optional EQueryTrackerAPIVersion version = 4 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspGetQueryResult
@@ -3207,6 +3219,7 @@ message TReqReadQueryResult
     optional TColumns columns = 4;
     optional int64 lower_row_index = 5;
     optional int64 upper_row_index = 6;
+    optional EQueryTrackerAPIVersion version = 7 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspReadQueryResult
@@ -3226,13 +3239,14 @@ message TQuery
     optional uint64 finish_time = 6; // TInstant
     optional bytes settings = 7; // YSON
     optional string user = 8;
-    optional string access_control_object = 9;
+    optional string access_control_object = 9; // deprecated after QTAPIV_MULTIPLE_ACO
     optional EQueryState state = 10;
     optional int64 result_count = 11;
     optional bytes progress = 12; // YSON
     optional NYT.NProto.TError error = 13;
     optional bytes annotations = 14; // YSON
     optional NYT.NYTree.NProto.TAttributeDictionary other_attributes = 15;
+    optional bytes access_control_objects = 16; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3243,6 +3257,7 @@ message TReqGetQuery
     required NYT.NProto.TGuid query_id = 2;
     optional NYT.NYTree.NProto.TAttributeFilter attributes = 3;
     optional uint64 timestamp = 4;
+    optional EQueryTrackerAPIVersion version = 5 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspGetQuery
@@ -3265,6 +3280,7 @@ message TReqListQueries
     optional string substr_filter = 9;
     optional uint64 limit = 10 [default = 100];
     optional NYT.NYTree.NProto.TAttributeFilter attributes = 11;
+    optional EQueryTrackerAPIVersion version = 12 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspListQueries
@@ -3281,7 +3297,9 @@ message TReqAlterQuery
     required string query_tracker_stage = 1;
     required NYT.NProto.TGuid query_id = 2;
     optional bytes annotations = 3; // YSON
-    optional string access_control_object = 4;
+    optional string access_control_object = 4; // deprecated after QTAPIV_MULTIPLE_ACO
+    repeated string access_control_objects = 5;
+    optional EQueryTrackerAPIVersion version = 6 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspAlterQuery
@@ -3294,6 +3312,7 @@ message TReqGetQueryTrackerInfo
 {
     required string query_tracker_stage = 1;
     optional NYT.NYTree.NProto.TAttributeFilter attributes = 2;
+    optional EQueryTrackerAPIVersion version = 3 [default = QTAPIV_BIG_BANG];
 }
 
 message TRspGetQueryTrackerInfo
