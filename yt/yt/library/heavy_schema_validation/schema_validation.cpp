@@ -448,8 +448,7 @@ TError ValidateComputedColumnsCompatibility(
             }
             const auto* inputColumn = inputSchema.FindColumn(outputColumn.Name());
             if (!inputColumn) {
-                THROW_ERROR_EXCEPTION("Computed column %v is missing in input schema",
-                    outputColumn.GetDiagnosticNameString());
+                continue;
             }
             if (outputColumn.Expression() != inputColumn->Expression()) {
                 THROW_ERROR_EXCEPTION("Computed column %v has different expressions in input "

@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 
+#include <yt/yt/library/query/base/public.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,8 +133,10 @@ struct TPartitionKey
 
 std::vector<TPartitionKey> BuildPartitionKeysBySamples(
     const std::vector<NTableClient::TSample>& samples,
+    const NTableClient::TTableSchemaPtr& sampleSchema,
+    const NTableClient::TTableSchemaPtr& uploadSchema,
+    const NQueryClient::IExpressionEvaluatorCachePtr& evaluatorCache,
     int partitionCount,
-    const NTableClient::TComparator& comparator,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const NLogging::TLogger& logger);
 

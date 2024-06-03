@@ -9784,7 +9784,7 @@ void TOperationControllerBase::ValidateOutputSchemaOrdered() const
     }
 }
 
-void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool validateComputedColumns) const
+void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns) const
 {
     YT_VERIFY(OutputTables_.size() == 1);
 
@@ -9795,13 +9795,14 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
             const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                 *inputTable->Schema->Filter(inputTable->Path.GetColumns()),
                 *OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                ignoreSortOrder);
+                ignoreSortOrder,
+                forbidExtraComputedColumns);
             if (compatibility < ESchemaCompatibility::RequireValidation) {
                 // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
                 // check is performed during operation.
                 THROW_ERROR_EXCEPTION(error);
             }
-        } else if (hasComputedColumn && validateComputedColumns) {
+        } else if (hasComputedColumn && forbidExtraComputedColumns) {
             // Input table has weak schema, so we cannot check if all
             // computed columns were already computed. At least this is weird.
             THROW_ERROR_EXCEPTION("Output table cannot have computed "

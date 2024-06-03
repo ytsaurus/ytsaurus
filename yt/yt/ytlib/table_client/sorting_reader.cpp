@@ -5,6 +5,8 @@
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schemaless_row_reorderer.h>
 #include <yt/yt/client/table_client/row_batch.h>
@@ -19,6 +21,7 @@ namespace NYT::NTableClient {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
+using namespace NQueryClient;
 
 using NChunkClient::TDataSliceDescriptor;
 
@@ -36,11 +39,13 @@ public:
         ISchemalessMultiChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         TKeyColumns keyColumns,
-        TComparator comparator)
+        TComparator comparator,
+        TColumnEvaluatorPtr evaluator)
         : UnderlyingReader_(std::move(underlyingReader))
         , KeyColumns_(std::move(keyColumns))
         , Comparator_(std::move(comparator))
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
+        , Evaluator_(std::move(evaluator))
         , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
     {
         YT_VERIFY(std::ssize(KeyColumns_) == Comparator_.GetLength());
@@ -149,6 +154,7 @@ private:
     const TComparator Comparator_;
 
     const TRowBufferPtr RowBuffer_;
+    const TColumnEvaluatorPtr Evaluator_;
     TSchemalessRowReorderer RowReorderer_;
 
     std::vector<TUnversionedRow> Rows_;
@@ -165,7 +171,9 @@ private:
             }
 
             for (auto row : batch->MaterializeRows()) {
-                Rows_.push_back(RowReorderer_.ReorderRow(row));
+                auto schemafulRow = RowReorderer_.ReorderRow(row);
+                Evaluator_->EvaluateKeys(schemafulRow, RowBuffer_);
+                Rows_.push_back(schemafulRow);
             }
         }
 
@@ -187,13 +195,15 @@ ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
     TKeyColumns keyColumns,
-    TComparator comparator)
+    TComparator comparator,
+    TColumnEvaluatorPtr evaluator)
 {
     return New<TSortingReader>(
         std::move(underlyingReader),
         std::move(nameTable),
         std::move(keyColumns),
-        std::move(comparator));
+        std::move(comparator),
+        std::move(evaluator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
