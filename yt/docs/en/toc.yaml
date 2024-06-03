@@ -157,6 +157,12 @@ items:
        - name: Data processing
          expanded: true
          items:
+         - name: Overview
+           when: audience == "public"
+           href: user-guide/data-processing/overview.md
+         - name: Fault tolerance
+           when: audience == "public"
+           href: user-guide/data-processing/reliability.md
          - name: Scheduler and pools
            when: audience == "public"
            items:
