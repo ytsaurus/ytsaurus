@@ -2560,35 +2560,6 @@ OUTPUT     };
 OUTPUT }
 ```
 
-### signal_job
-
-Command properties: **Mutating**, **Light**.
-
-Semantics:
-
-- Send a signal to the job.
-
-Parameters:
-
-| **Parameter** | **Mandatory** | **Default value** | **Description** |
-| ------------ | ------------- | ------------------------- | ------------------------------------------------------------ |
-| `job_id` | Yes |                           | Job ID. |
-| `signal_name` | Yes |                           | Type of the signal to be sent to the job: `SIGHUP`, `SIGINT`, `SIGALRM`, `SIGKILL`, `SIGTERM`, `SIGUSR1`, `SIGUSR2`. |
-
-Input data:
-
-- Type: `null`.
-
-Output data:
-
-- Type: `null`.
-
-Example:
-
-```bash
-PARAMETERS { "`job_id`" = "1225d-1f2fb8c4-f1075d39-5fb7cdff"; "signal_name" = "SIGUSR1" }
-```
-
 ### abandon_job
 
 Command properties: **Mutating**, **Light**.
