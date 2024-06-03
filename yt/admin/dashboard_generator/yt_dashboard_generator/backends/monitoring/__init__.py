@@ -30,6 +30,19 @@ class MonitoringLabelDashboardParameter:
             }
         }
 
+
+##################################################################
+
+
+class MonitoringTextDashboardParameter:
+    def __init__(self, default_value=None):
+        self.dict = {
+            "text": {
+                "defaultValue": default_value,
+            }
+        }
+
+
 ##################################################################
 
 
@@ -352,7 +365,7 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 "title": parameter["title"],
             }
             for arg in parameter.get("args", []):
-                if type(arg) is MonitoringLabelDashboardParameter:
+                if type(arg) in [MonitoringLabelDashboardParameter, MonitoringTextDashboardParameter]:
                     dct.update(arg.dict)
             result.append(dct)
         return result

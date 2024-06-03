@@ -8,6 +8,7 @@ PY_SRCS(
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
+    yt_dashboards/flow.py
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
     yt_dashboards/master.py

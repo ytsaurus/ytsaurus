@@ -132,6 +132,10 @@ TabletBalancer = ProjectSensor("tablet_balancer", "yt_tablet_balancer")  # noqa:
 # CHYT
 Chyt = ProjectSensor("clickhouse", "chyt")
 
+# Flow
+FlowController = ProjectSensor("controller")  # noqa: E222
+FlowWorker =     ProjectSensor("worker")  # noqa: E222
+
 
 class SplitNodeSensorsGuard:
     _entered = False

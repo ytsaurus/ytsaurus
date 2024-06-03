@@ -20,6 +20,8 @@ from yt_dashboards.bundle_ui_dashboard import (
 
 from yt_dashboards import lsm
 
+from yt_dashboards import flow
+
 
 dashboards = {
     "cache": {
@@ -147,6 +149,10 @@ dashboards = {
         "monitoring": {},
         "grafana": {},
     },
+    "flow-general": {
+        "func": flow.build_pipeline,
+        "monitoring": {},
+    }
 }
 
 
