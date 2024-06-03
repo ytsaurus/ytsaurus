@@ -85,11 +85,6 @@ public:
         return ClusterNodeBootstrap_->GetConnection();
     }
 
-    void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const override
-    {
-        ReplicatedTableTrackerConfigFetcher_->SubscribeConfigChanged(callback);
-    }
-
     NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const override
     {
         return ReplicatedTableTrackerConfigFetcher_->GetConfig();

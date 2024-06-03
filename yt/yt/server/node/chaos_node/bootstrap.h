@@ -30,7 +30,6 @@ struct IBootstrap
     virtual const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const = 0;
 
     // Replicated table tracker stuff.
-    virtual void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const = 0;
     virtual NTabletServer::TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const = 0;
 
     // Master connection stuff.

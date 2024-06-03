@@ -389,11 +389,6 @@ public:
         return ReplicatedTableTracker_;
     }
 
-    void SubscribeReplicatedTableTrackerConfigChanged(TReplicatedTableTrackerConfigUpdateCallback callback) const override
-    {
-        Bootstrap_->SubscribeReplicatedTableTrackerConfigChanged(std::move(callback));
-    }
-
     TDynamicReplicatedTableTrackerConfigPtr GetReplicatedTableTrackerConfig() const override
     {
         return Bootstrap_->GetReplicatedTableTrackerConfig();
