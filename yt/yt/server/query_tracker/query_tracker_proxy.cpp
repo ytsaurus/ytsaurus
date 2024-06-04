@@ -46,6 +46,9 @@ static TLogger Logger("QueryTrackerProxy");
 
 namespace NDetail {
 
+// This ACO is the same as all others, but does not affect ListQueries. This is needed to enable link sharing.
+constexpr TStringBuf EveryoneShareAccessControlObject = "everyone-share";
+
 // Applies when a query doesn't have an access control object.
 constexpr TStringBuf DefaultAccessControlObject = "nobody";
 
@@ -275,7 +278,7 @@ void ValidateQueryPermissions(
     }
 }
 
-std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const IClientPtr& client)
+std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, bool filterEveryoneShareAco, const IClientPtr& client)
 {
     // Get all access control objects.
     TGetNodeOptions options;
@@ -301,6 +304,11 @@ std::vector<TString> GetAcosForSubjects(const THashSet<TString>& subjects, const
 
     for (const auto& aco : allAcos) {
         auto acoName = aco.first;
+
+        if (filterEveryoneShareAco && acoName == EveryoneShareAccessControlObject) {
+            continue;
+        }
+
         auto aclRules = ConvertToNode(aco.second->Attributes().GetYson("principal_acl"))->AsList()->GetChildren();
         bool allowUseRuleFound = false;
         bool denyUseRuleFound = false;
@@ -812,7 +820,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     std::vector<TString> acosForUser;
 
     if (!isSuperuser) {
-        acosForUser = GetAcosForSubjects(userSubjects, StateClient_);
+        acosForUser = GetAcosForSubjects(userSubjects, /*filterEveryoneShareAco*/ true, StateClient_);
         YT_LOG_DEBUG("Fetched suitable access control objects for user %Qv: %v", user, acosForUser);
     }
 

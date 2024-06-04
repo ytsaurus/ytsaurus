@@ -455,12 +455,29 @@ class TestAccessControl(YTEnvSetup):
 
     @authors("aleksandr.gaev")
     def test_get_query_tracker_info(self, query_tracker):
-        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': True}, 'access_control_objects': ['nobody']}
+        assert get_query_tracker_info() == {'cluster_name': 'primary', 'supported_features': {'access_control': True}, 'access_control_objects': ['everyone-share', 'nobody']}
 
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == {'cluster_name': '', 'supported_features': {'access_control': True}, 'access_control_objects': []}
-        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['nobody']}
+        assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone-share', 'nobody']}
+
+
+class TestShare(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+
+    @authors("mpereskokova")
+    def test_share(self, query_tracker):
+        create_user("u1")
+        create_user("u2")
+
+        q = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="everyone-share")
+
+        q.get(authenticated_user="u2")
+        expect_queries([q], list_queries(authenticated_user="u1"))
+        expect_queries([], list_queries(authenticated_user="u2"))
 
 
 # Separate list to fit 480 seconds limit for a test class.
@@ -651,6 +668,13 @@ class TestQueriesMockRpcProxy(TestQueriesMock):
 
 @authors("apollo1321")
 class TestAccessControlRpcProxy(TestAccessControl):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+
+
+@authors("mpereskokova")
+class TestShareRpcProxy(TestShare):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
