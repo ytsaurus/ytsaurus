@@ -245,6 +245,12 @@ void TParameterizedReassignSolver::Initialize()
 {
     auto cells = Bundle_->GetAliveCells();
 
+    if (cells.empty()) {
+        // Therefore nodes list will be empty and balancing will not be triggered
+        YT_LOG_WARNING("There is no alive cells");
+        return;
+    }
+
     THashMap<TTabletCellId, int> cellInfoIndex;
     Cells_.reserve(std::ssize(cells));
     for (const auto& cell : cells) {
