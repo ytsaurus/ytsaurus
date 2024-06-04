@@ -2946,6 +2946,44 @@ TEST_F(TQueryEvaluateTest, GroupByString)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
+{
+    auto split = MakeSplit({
+        {"k", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    std::vector<std::vector<TString>> source;
+
+    for (int i = 0; i < 6; ++i) {
+        if (i % 2 == 0) {
+            source.emplace_back();
+        }
+        source.back().push_back(Format("k=%v;v=%v", i, i));
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"av", EValueType::Double},
+        });
+
+        auto result = YsonToRows({
+            "av=0.0",
+            "av=1.0",
+            "av=2.0",
+            "av=3.0",
+            "av=4.0",
+            "av=5.0",
+        }, resultSplit);
+
+        EvaluateCoordinatedGroupBy(
+            "avg(v) as av FROM [//t] group by k",
+            split,
+            source,
+            OrderedResultMatcher(result, {"av"}));
+    }
+}
+
 TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
 {
     auto split = MakeSplit({

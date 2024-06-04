@@ -108,9 +108,10 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
     for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
         ::memcpy(destinationRow, rows[rowIndex], singleRowByteLength);
 
-        for (int index : rowSchemaInformation.StringLikeIndices) {
+        // TODO(dtorilov): This is a fix of YT-21907. Should use StringLikeIndices here.
+        for (int index = 0; index < rowSchemaInformation.Length; ++index) {
             TPIValue* value = &destinationRow[index];
-            if (value->Type != EValueType::Null) {
+            if (IsStringLikeType(value->Type)) {
                 ::memcpy(destinationString, std::bit_cast<char*>(value->Data.Uint64), value->Length);
                 value->SetStringPosition(destinationString);
                 destinationString += value->Length;

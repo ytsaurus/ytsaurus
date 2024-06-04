@@ -2560,18 +2560,14 @@ size_t MakeCodegenScanOp(
         codegenSource(builder);
 
         auto consume = TLlvmClosure();
-        if (executionBackend == EExecutionBackend::WebAssembly) {
-            consume = MakeConsumer(
-                builder,
-                "ScanOpInner",
-                consumerSlot);
-        } else {
-            consume = MakeConsumerWithPIConversion(
-                builder,
-                "ScanOpInner",
-                consumerSlot,
-                stringLikeColumnIndices);
-        }
+
+        // TODO(dtorilov): This is a fix of YT-21907. Should use consumer with PI conversion here.
+        Y_UNUSED(stringLikeColumnIndices);
+        Y_UNUSED(executionBackend);
+        consume = MakeConsumer(
+            builder,
+            "ScanOpInner",
+            consumerSlot);
 
         builder->CreateCall(
             builder.Module->GetRoutine("ScanOpHelper"),
@@ -3200,6 +3196,7 @@ TGroupOpSlots MakeCodegenGroupOp(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
     std::vector<EValueType> stateTypes,
+    std::vector<EValueType> aggregatedTypes,
     bool allAggregatesFirst,
     bool isMerge,
     bool checkForNullGroupKey,
@@ -3220,8 +3217,11 @@ TGroupOpSlots MakeCodegenGroupOp(
         codegenAggregates = std::move(codegenAggregates),
         keyTypes = std::move(keyTypes),
         stateTypes = std::move(stateTypes),
+        aggregatedTypes = std::move(aggregatedTypes),
         comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
+        Y_UNUSED(aggregatedTypes);
+
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "GroupCollect", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
@@ -3281,6 +3281,8 @@ TGroupOpSlots MakeCodegenGroupOp(
 
                 bool shouldReadStreamTagFromRow = isMerge;
                 Value* streamTag = nullptr;
+                Value* streamTagIsAggregated = nullptr;
+
                 if (shouldReadStreamTagFromRow) {
                     size_t streamIndex = groupRowSize;
                     auto streamIndexValue = TCGValue::LoadFromRowValues(
@@ -3290,10 +3292,24 @@ TGroupOpSlots MakeCodegenGroupOp(
                         EValueType::Uint64,
                         "reference.streamIndex");
                     streamTag = streamIndexValue.GetTypedData(builder);
+
+                    streamTagIsAggregated = builder->CreateICmpEQ(streamTag, builder->getInt64(static_cast<ui64>(EStreamTag::Aggregated)));
+
+                    CodegenIf<TCGContext>(builder, streamTagIsAggregated, [&] (TCGContext& builder) {
+                        for (int index = 0; index < std::ssize(codegenAggregates); index++) {
+                            TCGValue::LoadFromRowValues(
+                                builder,
+                                values,
+                                keySize + index,
+                                aggregatedTypes[index],
+                                "final").StoreToValues(builder, dstValues, keySize + index);
+                        }
+                    });
                 } else {
                     // We consider all incoming rows as intermediate for NodeThread and Non-Coordinated queries.
                     streamTag = builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate));
 
+                    streamTagIsAggregated = builder->getFalse();
                     // TODO(dtorilov): If query is disjoint, we can set Aggregated tag here.
                 }
 
@@ -3311,10 +3327,12 @@ TGroupOpSlots MakeCodegenGroupOp(
                     newValuesRef);
 
                 CodegenIf<TCGContext>(builder, inserted, [&] (TCGContext& builder) {
-                    for (int index = 0; index < std::ssize(codegenAggregates); index++) {
-                        codegenAggregates[index].Initialize(builder, bufferRef)
-                            .StoreToValues(builder, groupValues, keySize + index);
-                    }
+                    CodegenIf<TCGContext>(builder, builder->CreateNot(streamTagIsAggregated), [&] (TCGContext& builder) {
+                        for (int index = 0; index < std::ssize(codegenAggregates); index++) {
+                            codegenAggregates[index].Initialize(builder, bufferRef)
+                                .StoreToValues(builder, groupValues, keySize + index);
+                        }
+                    });
 
                     builder->CreateCall(
                         builder.Module->GetRoutine("AllocatePermanentRow"),
@@ -3331,31 +3349,33 @@ TGroupOpSlots MakeCodegenGroupOp(
                 // Rows over limit are skipped
                 auto notSkip = builder->CreateIsNotNull(groupValues);
 
-                CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
-                    for (int index = 0; index < std::ssize(codegenAggregates); index++) {
-                        auto aggState = TCGValue::LoadFromRowValues(
-                            builder,
-                            groupValues,
-                            keySize + index,
-                            stateTypes[index]);
-
-                        if (isMerge) {
-                            auto dstAggState = TCGValue::LoadFromRowValues(
+                CodegenIf<TCGContext>(builder, builder->CreateNot(streamTagIsAggregated), [&] (TCGContext& builder) {
+                    CodegenIf<TCGContext>(builder, notSkip, [&] (TCGContext& builder) {
+                        for (int index = 0; index < std::ssize(codegenAggregates); index++) {
+                            auto aggState = TCGValue::LoadFromRowValues(
                                 builder,
-                                innerBuilder.RowValues,
+                                groupValues,
                                 keySize + index,
                                 stateTypes[index]);
-                            auto mergeResult = (codegenAggregates[index].Merge)(builder, bufferRef, aggState, dstAggState);
-                            mergeResult.StoreToValues(builder, groupValues, keySize + index);
-                        } else {
-                            std::vector<TCGValue> newValues;
-                            for (size_t argId : aggregateExprIds[index]) {
-                                newValues.emplace_back(CodegenFragment(innerBuilder, argId));
+
+                            if (isMerge) {
+                                auto dstAggState = TCGValue::LoadFromRowValues(
+                                    builder,
+                                    innerBuilder.RowValues,
+                                    keySize + index,
+                                    stateTypes[index]);
+                                auto mergeResult = (codegenAggregates[index].Merge)(builder, bufferRef, aggState, dstAggState);
+                                mergeResult.StoreToValues(builder, groupValues, keySize + index);
+                            } else {
+                                std::vector<TCGValue> newValues;
+                                for (size_t argId : aggregateExprIds[index]) {
+                                    newValues.emplace_back(CodegenFragment(innerBuilder, argId));
+                                }
+                                auto updateResult = (codegenAggregates[index].Update)(builder, bufferRef, aggState, newValues);
+                                updateResult.StoreToValues(builder, groupValues, keySize + index);
                             }
-                            auto updateResult = (codegenAggregates[index].Update)(builder, bufferRef, aggState, newValues);
-                            updateResult.StoreToValues(builder, groupValues, keySize + index);
                         }
-                    }
+                    });
                 });
 
                 return allAggregatesFirst ? builder->CreateIsNull(groupValues) : builder->getFalse();
