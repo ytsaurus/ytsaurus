@@ -190,6 +190,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& /*stage*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {
         YT_UNIMPLEMENTED();

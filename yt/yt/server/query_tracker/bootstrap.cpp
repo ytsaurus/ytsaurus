@@ -2,8 +2,10 @@
 
 #include "alert_manager.h"
 #include "query_tracker.h"
+#include "query_tracker_proxy.h"
 #include "config.h"
 #include "private.h"
+#include "proxy_service.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -103,6 +105,9 @@ void TBootstrap::Run()
     ControlQueue_ = New<TActionQueue>("Control");
     ControlInvoker_ = ControlQueue_->GetInvoker();
 
+    ProxyPool_ = CreateThreadPool(Config_->ProxyThreadPoolSize, "Proxy");
+    ProxyInvoker_ = ProxyPool_->GetInvoker();
+
     BIND(&TBootstrap::DoRun, this)
         .AsyncVia(ControlInvoker_)
         .Run()
@@ -191,6 +196,11 @@ void TBootstrap::DoRun()
         orchidRoot,
         "query_tracker");
 
+    QueryTrackerProxy_ = CreateQueryTrackerProxy(
+        NativeClient_,
+        Config_->Root,
+        DynamicConfigManager_->GetConfig()->QueryTracker->ProxyConfig);
+
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
         CoreDumper_,
@@ -199,6 +209,9 @@ void TBootstrap::DoRun()
         orchidRoot,
         ControlInvoker_,
         NativeAuthenticator_));
+    RpcServer_->RegisterService(CreateProxyService(
+        ProxyInvoker_,
+        QueryTrackerProxy_));
 
     if (Config_->CreateStateTablesOnStartup) {
         CreateStateTablesIfNeeded();
@@ -313,6 +326,9 @@ void TBootstrap::OnDynamicConfigChanged(
     }
     if (QueryTracker_) {
         QueryTracker_->OnDynamicConfigChanged(newConfig->QueryTracker);
+    }
+    if (QueryTrackerProxy_) {
+        QueryTrackerProxy_->Reconfigure(newConfig->QueryTracker->ProxyConfig);
     }
 
     YT_LOG_DEBUG(
