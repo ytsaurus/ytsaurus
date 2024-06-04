@@ -312,6 +312,13 @@ void ScanOpHelper(
             auto** valuesOffset = std::bit_cast<const TValue**>(copiedRangesPointersGuard.GetCopiedOffset());
             interrupt |= consumeRows(consumeRowsClosure, &scanContext, valuesOffset, values.size());
         } else {
+            // TODO(dtorilov): This is a fix of YT-21907. Should use consumer with PI conversion here.
+            for (auto row : rows) {
+                for (int index : rowSchemaInformation->StringLikeIndices) {
+                    MakePositionIndependentFromUnversioned(std::bit_cast<TPIValue*>(&row[index]), row[index]);
+                }
+            }
+
             interrupt |= consumeRows(consumeRowsClosure, &scanContext, values.data(), values.size());
         }
 
@@ -1040,6 +1047,7 @@ public:
         NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
         NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
         int keySize,
+        int rowSize,
         bool shouldCheckForNullGroupKey,
         bool allAggregatesAreFirst,
         void** consumeIntermediateClosure,
@@ -1111,6 +1119,7 @@ private:
 
     TLookupRows GroupedIntermediateRows_;
     const int KeySize_;
+    const int RowSize_;
 
     // When executing a query with `with totals`, we store data for `totals` using the null grouping key.
     // Thus, rows with a null grouping key should lead to an execution error.
@@ -1169,6 +1178,7 @@ TGroupByClosure::TGroupByClosure(
     NWebAssembly::TCompartmentFunction<THasherFunction> groupHasher,
     NWebAssembly::TCompartmentFunction<TComparerFunction> groupComparer,
     int keySize,
+    int rowSize,
     bool shouldCheckForNullGroupKey,
     bool allAggregatesAreFirst,
     void** consumeIntermediateClosure,
@@ -1188,6 +1198,7 @@ TGroupByClosure::TGroupByClosure(
         groupHasher,
         groupComparer)
     , KeySize_(keySize)
+    , RowSize_(rowSize)
     , ShouldCheckForNullGroupKey_(shouldCheckForNullGroupKey)
     , AllAggregatesAreFirst_(allAggregatesAreFirst)
     , ConsumeIntermediateClosure_(consumeIntermediateClosure)
@@ -1301,7 +1312,7 @@ const TPIValue* TGroupByClosure::InsertAggregated(const TExecutionContext* /*con
     Aggregated_.push_back(row);
     ++GroupedRowCount_;
 
-    for (int index = 0; index < KeySize_; ++index) {
+    for (int index = 0; index < RowSize_; ++index) {
         CapturePIValue(&AggregatedContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
@@ -1552,7 +1563,7 @@ void GroupOpHelper(
     THasherFunction* groupHasherFunction,
     TComparerFunction* groupComparerFunction,
     int keySize,
-    int /*valuesCount*/,
+    int valuesCount,
     bool shouldCheckForNullGroupKey,
     bool allAggregatesAreFirst,
     void** collectRowsClosure,
@@ -1581,6 +1592,7 @@ void GroupOpHelper(
         groupHasher,
         groupComparer,
         keySize,
+        keySize + valuesCount,
         shouldCheckForNullGroupKey,
         allAggregatesAreFirst,
         consumeIntermediateClosure,

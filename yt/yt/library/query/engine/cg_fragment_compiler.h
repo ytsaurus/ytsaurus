@@ -234,6 +234,7 @@ TGroupOpSlots MakeCodegenGroupOp(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
     std::vector<EValueType> stateTypes,
+    std::vector<EValueType> aggregatedTypes,
     bool allAggregatesFirst,
     bool isMerge,
     bool checkForNullGroupKey,

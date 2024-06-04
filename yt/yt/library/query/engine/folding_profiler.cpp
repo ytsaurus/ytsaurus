@@ -1268,6 +1268,7 @@ void TQueryProfiler::Profile(
 
         std::vector<EValueType> keyTypes;
         std::vector<EValueType> stateTypes;
+        std::vector<EValueType> aggregatedTypes;
 
         std::vector<size_t> groupExprIds;
         std::vector<std::vector<size_t>> aggregateExprIdsByFunc;
@@ -1326,6 +1327,7 @@ void TQueryProfiler::Profile(
                 ExecutionBackend_,
                 Id_));
             stateTypes.push_back(aggregateItem.StateType);
+            aggregatedTypes.push_back(aggregateItem.ResultType);
         }
 
         auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
@@ -1350,6 +1352,7 @@ void TQueryProfiler::Profile(
             codegenAggregates,
             keyTypes,
             stateTypes,
+            aggregatedTypes,
             allAggregatesFirst,
             mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
@@ -1579,31 +1582,81 @@ void TQueryProfiler::Profile(
     size_t resultRowSize = schema->GetColumnCount();
 
     if (!finalMode) {
-        auto schemaTypes = GetTypesFromSchema(*schema);
+        if (auto groupClause = query->GroupClause.Get()) {
+            {
+                auto intermediateTypes = std::vector<EValueType>();
 
-        aggregatedSlot = MakeCodegenAddStreamOp(
-            codegenSource,
-            slotCount,
-            aggregatedSlot,
-            resultRowSize,
-            EStreamTag::Aggregated,
-            schemaTypes);
+                for (const auto& item : query->GroupClause->GroupItems) {
+                    intermediateTypes.emplace_back(NTableClient::GetWireType(item.Expression->LogicalType));
+                }
 
-        totalsSlot = MakeCodegenAddStreamOp(
-            codegenSource,
-            slotCount,
-            totalsSlot,
-            resultRowSize,
-            EStreamTag::Totals,
-            schemaTypes);
+                for (const auto& item : query->GroupClause->AggregateItems) {
+                    intermediateTypes.emplace_back(item.StateType);
+                }
 
-        intermediateSlot = MakeCodegenAddStreamOp(
-            codegenSource,
-            slotCount,
-            intermediateSlot,
-            resultRowSize,
-            EStreamTag::Intermediate,
-            schemaTypes);
+                totalsSlot = MakeCodegenAddStreamOp(
+                    codegenSource,
+                    slotCount,
+                    totalsSlot,
+                    resultRowSize,
+                    EStreamTag::Totals,
+                    intermediateTypes);
+
+                intermediateSlot = MakeCodegenAddStreamOp(
+                    codegenSource,
+                    slotCount,
+                    intermediateSlot,
+                    resultRowSize,
+                    EStreamTag::Intermediate,
+                    intermediateTypes);
+            }
+
+            {
+                auto aggregatedTypes = std::vector<EValueType>();
+
+                for (const auto& item : query->GroupClause->GroupItems) {
+                    aggregatedTypes.emplace_back(NTableClient::GetWireType(item.Expression->LogicalType));
+                }
+
+                for (const auto& item : query->GroupClause->AggregateItems) {
+                    aggregatedTypes.emplace_back(item.ResultType);
+                }
+
+                aggregatedSlot = MakeCodegenAddStreamOp(
+                    codegenSource,
+                    slotCount,
+                    aggregatedSlot,
+                    resultRowSize,
+                    EStreamTag::Aggregated,
+                    aggregatedTypes);
+            }
+        } else {
+            auto schemaTypes = GetTypesFromSchema(*schema);
+
+            aggregatedSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                aggregatedSlot,
+                resultRowSize,
+                EStreamTag::Aggregated,
+                schemaTypes);
+
+            totalsSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                totalsSlot,
+                resultRowSize,
+                EStreamTag::Totals,
+                schemaTypes);
+
+            intermediateSlot = MakeCodegenAddStreamOp(
+                codegenSource,
+                slotCount,
+                intermediateSlot,
+                resultRowSize,
+                EStreamTag::Intermediate,
+                schemaTypes);
+        }
 
         ++resultRowSize;
     }
