@@ -270,9 +270,10 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
 {
     TStringBuf imageTag;
 
-    // Format: [REGISTRY/]IMAGE[:TAG], where REGISTRY is FQDN[:PORT] - i.e. has at least one dot.
+    // Format: [REGISTRY/]IMAGE[:TAG], where REGISTRY is FQDN[:PORT].
+    // Registry FQDN must has at least one "." or PORT.
     if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageTag) ||
-        !Registry.Contains('.'))
+        Registry.find_first_of(".:") == TString::npos)
     {
         Registry = "";
         imageTag = dockerImage;
