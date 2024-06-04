@@ -16,7 +16,7 @@
 - **Docker Registry** — сервер, хранящий и распространяющий данные и метаданные Docker образов;
 - **Internal Docker Registry** — docker registry, хранящий образы непосредственно в [Кипарисе](../../../../user-guide/storage/cypress.md).
 
-Docker образ адресуется по имени в формате `[REGISTRY/]IMAGE[:TAG|@DIGEST]`, где `REGISTRY` это `FQDN[:PORT]` сервера Docker Registry. `TAG` по умолчанию **latest**. [Подробнее](https://docs.docker.com/engine/reference/commandline/pull/)
+Docker образ адресуется по имени в формате `[REGISTRY/]IMAGE[:TAG|@DIGEST]`, где `REGISTRY` это `FQDN[:PORT]` сервера Docker Registry. Registry `FQDN` должен иметь хотя бы одну "." или `PORT`. `TAG` по умолчанию **latest**. [Подробнее](https://docs.docker.com/engine/reference/commandline/pull/)
 
 Docker образ без указания `REGISTRY` считается образом из **Internal Docker Registry**, где `IMAGE` соответствует пути `//IMAGE` в Кипарисе до директории с метаданными образа.
 
