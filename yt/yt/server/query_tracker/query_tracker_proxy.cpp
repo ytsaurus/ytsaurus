@@ -46,6 +46,7 @@ static TLogger Logger("QueryTrackerProxy");
 
 namespace NDetail {
 
+// This ACO is the same as all others, but does not affect ListQueries. This is needed to enable link sharing.
 constexpr TStringBuf EveryoneShareAccessControlObject = "everyone-share";
 
 // Applies when a query doesn't have an access control object.
