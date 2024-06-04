@@ -274,7 +274,7 @@ private:
             auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
             TResponseHeader result;
             result.CorrelationId = header.CorrelationId;
-            result.Serialize(protocolWriter.get());
+            result.Serialize(protocolWriter.get(), GetResponseHeaderVersion(header.RequestType, header.ApiVersion));
             return protocolWriter->Finish();
         }();
 
@@ -402,7 +402,7 @@ private:
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::Produce),
                 .MinVersion = 0,
-                .MaxVersion = 0,
+                .MaxVersion = 8,
             },
             /*
             // TODO(nadya73): Support it later.
@@ -697,8 +697,9 @@ private:
 
                         for (const auto& row : rows) {
                             topicPartitionResponse.Records->push_back(TRecord{
-                                .Offset = offset,
-                                .Message = {
+                                .FirstOffset = offset,
+                                .MagicByte = 1,
+                                .Messages = {
                                     NKafka::TMessage{
                                         .Key = "",
                                         // TODO(nadya73): convert it to yson/json.
@@ -759,11 +760,13 @@ private:
                 std::vector<NKafka::NRecords::TKafkaMessagePartial> messages;
                 messages.reserve(partition.Records.size());
                 for (const auto& record : partition.Records) {
-                    messages.push_back(NKafka::NRecords::TKafkaMessagePartial{
-                        .TabletIndex = partition.Index,
-                        .MessageKey = record.Message.Key,
-                        .MessageValue = record.Message.Value
-                    });
+                    for (const auto& message : record.Messages) {
+                        messages.push_back(NKafka::NRecords::TKafkaMessagePartial{
+                            .TabletIndex = partition.Index,
+                            .MessageKey = message.Key,
+                            .MessageValue = message.Value
+                        });
+                    }
                 }
 
                 auto rows = FromRecords(MakeRange(messages));
