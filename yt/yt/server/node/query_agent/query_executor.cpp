@@ -733,6 +733,9 @@ private:
                             this,
                             this_ = MakeStrong(this)
                         ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
+                            if (keys.empty()) {
+                                return ISchemafulUnversionedReaderPtr{};
+                            }
                             TDataSource dataSource;
                             TQueryPtr foreignQuery;
                             std::tie(foreignQuery, dataSource) = GetForeignQuery(
