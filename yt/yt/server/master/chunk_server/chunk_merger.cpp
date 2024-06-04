@@ -271,13 +271,13 @@ public:
 
         const auto& config = GetDynamicConfig();
         const auto& info = Node_->ChunkMergerTraversalInfo();
-        TraversalInfo_.ConfigVersion = ConfigVersion_;
-        TraversalInfo_.ChunkCount = TraversalInfo_.ConfigVersion == info.ConfigVersion ? info.ChunkCount : 0;
-        TraversalInfo_.ChunkCount -= config->MaxChunkCount;
-        TraversalInfo_.ChunkCount = std::max(TraversalInfo_.ChunkCount, 0);
+        TraversalStatistics_.ConfigVersion = ConfigVersion_;
+        TraversalStatistics_.ChunkCount = TraversalStatistics_.ConfigVersion == info.ConfigVersion ? info.ChunkCount : 0;
+        TraversalStatistics_.ChunkCount -= config->MaxChunkCount;
+        TraversalStatistics_.ChunkCount = std::max(TraversalStatistics_.ChunkCount, 0);
 
         NChunkClient::TReadLimit lowerLimit;
-        lowerLimit.SetChunkIndex(TraversalInfo_.ChunkCount);
+        lowerLimit.SetChunkIndex(TraversalStatistics_.ChunkCount);
         YT_LOG_DEBUG("Traversal started (RootChunkListId: %v, LowerLimit: %v)",
             Node_->GetChunkList()->GetId(),
             lowerLimit);
@@ -325,7 +325,7 @@ private:
     std::vector<TChunkId> ChunkIds_;
     EChunkMergerMode CurrentJobMode_;
 
-    TChunkMergerTraversalInfo TraversalInfo_;
+    TChunkMergerTraversalStatistics TraversalStatistics_;
 
     TChunkListId ParentChunkListId_;
     i64 CurrentRowCount_ = 0;
@@ -346,7 +346,7 @@ private:
         const TChunkViewModifier* /*modifier*/) override
     {
         if (JobIndex_ == 0) {
-            ++TraversalInfo_.ChunkCount;
+            ++TraversalStatistics_.ChunkCount;
         }
 
         if (!IsNodeMergeable()) {
@@ -390,7 +390,7 @@ private:
             chunkVisitorHost->OnTraversalFinished(
                 NodeId_,
                 EMergeSessionResult::PermanentFailure,
-                TraversalInfo_);
+                TraversalStatistics_);
             return;
         }
 
@@ -400,7 +400,7 @@ private:
         chunkVisitorHost->OnTraversalFinished(
             NodeId_,
             result,
-            TraversalInfo_);
+            TraversalStatistics_);
     }
 
 
@@ -499,7 +499,7 @@ private:
         auto satisfiedCriteriaCount = 0;
         const auto targetSatisfiedCriteriaCount = 8;
 
-        auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
+        auto& statistics = TraversalStatistics_.ViolatedCriteriaStatistics;
         auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto formattedArguments) {
             if (condition) {
                 ++satisfiedCriteriaCount;
@@ -622,8 +622,8 @@ private:
         auto jobId = chunkManager->GenerateJobId();
 
         if (JobIndex_ == 0) {
-            YT_VERIFY(TraversalInfo_.ChunkCount > 0);
-            --TraversalInfo_.ChunkCount;
+            YT_VERIFY(TraversalStatistics_.ChunkCount > 0);
+            --TraversalStatistics_.ChunkCount;
         }
 
         chunkVisitorHost->RegisterJobAwaitingChunkCreation(
@@ -1254,14 +1254,14 @@ void TChunkMerger::RegisterJobAwaitingChunkCreation(
     ++session.JobCount;
 }
 
-void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result, TChunkMergerTraversalInfo traversalInfo)
+void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult result, TChunkMergerTraversalStatistics traversalStatistics)
 {
     auto& session = GetOrCrash(RunningSessions_, nodeId);
-    session.TraversalInfo = traversalInfo;
+    session.TraversalStatistics = traversalStatistics;
     session.TraversalFinished = true;
 
     auto& statistics = AccountToChunkMergerStatistics_[session.AccountId];
-    statistics.ViolatedCriteria += traversalInfo.ViolatedCriteriaStatistics;
+    statistics.ViolatedCriteria += traversalStatistics.ViolatedCriteriaStatistics;
 
     if (session.IsReadyForFinalization()) {
         ScheduleSessionFinalization(nodeId, result);
@@ -1279,16 +1279,16 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
 
     YT_VERIFY(session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty());
     YT_LOG_DEBUG(
-        "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalInfo: %v, AccountId: %v)",
+        "Finalizing chunk merge session (NodeId: %v, Result: %v, TraversalStatistics: %v, AccountId: %v)",
         nodeId,
         session.Result,
-        session.TraversalInfo,
+        session.TraversalStatistics,
         session.AccountId);
 
     SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
         .Result = session.Result,
-        .TraversalInfo = session.TraversalInfo,
+        .TraversalStatistics = session.TraversalStatistics,
         .JobCount = session.JobCount,
         .AccountId = session.AccountId,
         .SessionCreationTime = session.SessionCreationTime,
@@ -1311,7 +1311,7 @@ void TChunkMerger::FinalizeSessions()
         req->set_result(ToProto<int>(sessionResult.Result));
 
         if (sessionResult.Result != EMergeSessionResult::TransientFailure) {
-            ToProto(req->mutable_traversal_info(), sessionResult.TraversalInfo);
+            ToProto(req->mutable_traversal_info(), sessionResult.TraversalStatistics);
         }
         req->set_job_count(sessionResult.JobCount);
         auto sessionLifetimeDuration = TInstant::Now() - sessionResult.SessionCreationTime;
@@ -1950,12 +1950,12 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 statistics.ChunkCountSaving += chunkCountDiff;
 
                 auto& session = GetOrCrash(RunningSessions_, nodeId);
-                if (session.TraversalInfo.ChunkCount < 0) {
-                    YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v, AccountId: %v)",
+                if (session.TraversalStatistics.ChunkCount < 0) {
+                    YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalStatistics: %v, AccountId: %v)",
                         chunkOwner->GetId(),
-                        session.TraversalInfo,
+                        session.TraversalStatistics,
                         accountId);
-                    session.TraversalInfo.ChunkCount = 0;
+                    session.TraversalStatistics.ChunkCount = 0;
                 }
             }
         } else {

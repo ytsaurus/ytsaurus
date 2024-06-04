@@ -384,12 +384,12 @@ void TChunkOwnerBase::DoFixStatistics()
     DeltaStatistics_ = TDataStatistics();
 }
 
-NSecurityServer::TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
+TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const
 {
     return TCypressNode::GetTotalResourceUsage() + GetDiskUsage(ComputeTotalStatistics());
 }
 
-NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() const
+TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() const
 {
     TDataStatistics statistics;
     if (IsTrunk()) {
@@ -409,9 +409,9 @@ NSecurityServer::TClusterResources TChunkOwnerBase::GetDeltaResourceUsage() cons
     return TCypressNode::GetDeltaResourceUsage() + GetDiskUsage(statistics);
 }
 
-NSecurityServer::TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const
+TClusterResources TChunkOwnerBase::GetDiskUsage(const TDataStatistics& statistics) const
 {
-    NSecurityServer::TClusterResources result;
+    TClusterResources result;
     for (const auto& entry : Replication()) {
         result.SetMediumDiskSpace(
             entry.GetMediumIndex(),
