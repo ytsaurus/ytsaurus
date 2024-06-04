@@ -1044,10 +1044,10 @@ public:
         bool allAggregatesAreFirst,
         void** consumeIntermediateClosure,
         TWebAssemblyRowsConsumer consumeIntermediate,
-        void** consumeFinalClosure,
-        TWebAssemblyRowsConsumer consumeFinal,
-        void** consumeDeltaFinalClosure,
-        TWebAssemblyRowsConsumer consumeDeltaFinal,
+        void** consumeAggregatedClosure,
+        TWebAssemblyRowsConsumer consumeAggregated,
+        void** consumeDeltaClosure,
+        TWebAssemblyRowsConsumer consumeDelta,
         void** consumeTotalsClosure,
         TWebAssemblyRowsConsumer consumeTotals);
 
@@ -1080,7 +1080,7 @@ public:
     Y_FORCE_INLINE const TPIValue* InsertIntermediate(const TExecutionContext* context, TPIValue* row);
 
     // Returns row itself.
-    Y_FORCE_INLINE const TPIValue* InsertFinal(const TExecutionContext* context, TPIValue* row);
+    Y_FORCE_INLINE const TPIValue* InsertAggregated(const TExecutionContext* context, TPIValue* row);
 
     // Returns row itself.
     Y_FORCE_INLINE const TPIValue* InsertTotals(const TExecutionContext* context, TPIValue* row);
@@ -1102,7 +1102,7 @@ public:
 
 private:
     TExpressionContext Context_;
-    TExpressionContext FinalContext_;
+    TExpressionContext AggregatedContext_;
     TExpressionContext TotalsContext_;
 
     // The grouping key and the primary key may have a common prefix of length P.
@@ -1122,18 +1122,18 @@ private:
     void** const ConsumeIntermediateClosure_;
     const TWebAssemblyRowsConsumer ConsumeIntermediate_;
 
-    void** const ConsumeFinalClosure_;
-    const TWebAssemblyRowsConsumer ConsumeFinal_;
+    void** const ConsumeAggregatedClosure_;
+    const TWebAssemblyRowsConsumer ConsumeAggregated_;
 
-    void** const ConsumeDeltaFinalClosure_;
-    const TWebAssemblyRowsConsumer ConsumeDeltaFinal_;
+    void** const ConsumeDeltaClosure_;
+    const TWebAssemblyRowsConsumer ConsumeDelta_;
 
     void** const ConsumeTotalsClosure_;
     const TWebAssemblyRowsConsumer ConsumeTotals_;
 
     const TPIValue* LastKey_ = nullptr;
     std::vector<const TPIValue*> Intermediate_;
-    std::vector<const TPIValue*> Final_;
+    std::vector<const TPIValue*> Aggregated_;
     std::vector<const TPIValue*> Totals_;
 
     // Defines the stage of the stream processing.
@@ -1158,8 +1158,8 @@ private:
         const TFlushFunction& flush);
 
     Y_FORCE_INLINE void FlushIntermediate(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
-    Y_FORCE_INLINE void FlushFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
-    Y_FORCE_INLINE void FlushDeltaFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushAggregated(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
+    Y_FORCE_INLINE void FlushDelta(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
     Y_FORCE_INLINE void FlushTotals(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end);
 };
 
@@ -1173,14 +1173,14 @@ TGroupByClosure::TGroupByClosure(
     bool allAggregatesAreFirst,
     void** consumeIntermediateClosure,
     TWebAssemblyRowsConsumer consumeIntermediate,
-    void** consumeFinalClosure,
-    TWebAssemblyRowsConsumer consumeFinal,
-    void** consumeDeltaFinalClosure,
-    TWebAssemblyRowsConsumer consumeDeltaFinal,
+    void** consumeAggregatedClosure,
+    TWebAssemblyRowsConsumer consumeAggregated,
+    void** consumeDeltaClosure,
+    TWebAssemblyRowsConsumer consumeDelta,
     void** consumeTotalsClosure,
     TWebAssemblyRowsConsumer consumeTotals)
     : Context_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
-    , FinalContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
+    , AggregatedContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
     , TotalsContext_(MakeExpressionContext(TPermanentBufferTag(), chunkProvider))
     , PrefixEqComparer_(prefixEqComparer)
     , GroupedIntermediateRows_(
@@ -1192,10 +1192,10 @@ TGroupByClosure::TGroupByClosure(
     , AllAggregatesAreFirst_(allAggregatesAreFirst)
     , ConsumeIntermediateClosure_(consumeIntermediateClosure)
     , ConsumeIntermediate_(consumeIntermediate)
-    , ConsumeFinalClosure_(consumeFinalClosure)
-    , ConsumeFinal_(consumeFinal)
-    , ConsumeDeltaFinalClosure_(consumeDeltaFinalClosure)
-    , ConsumeDeltaFinal_(consumeDeltaFinal)
+    , ConsumeAggregatedClosure_(consumeAggregatedClosure)
+    , ConsumeAggregated_(consumeAggregated)
+    , ConsumeDeltaClosure_(consumeDeltaClosure)
+    , ConsumeDelta_(consumeDelta)
     , ConsumeTotalsClosure_(consumeTotalsClosure)
     , ConsumeTotals_(consumeTotals)
     , FlushContext_(MakeExpressionContext(TIntermediateBufferTag(), chunkProvider))
@@ -1294,15 +1294,15 @@ const TPIValue* TGroupByClosure::InsertIntermediate(const TExecutionContext* con
     return *it;
 }
 
-const TPIValue* TGroupByClosure::InsertFinal(const TExecutionContext* /*context*/, TPIValue* row)
+const TPIValue* TGroupByClosure::InsertAggregated(const TExecutionContext* /*context*/, TPIValue* row)
 {
     LastKey_ = row;
 
-    Final_.push_back(row);
+    Aggregated_.push_back(row);
     ++GroupedRowCount_;
 
     for (int index = 0; index < KeySize_; ++index) {
-        CapturePIValue(&FinalContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
+        CapturePIValue(&AggregatedContext_, &row[index], EAddressSpace::WebAssembly, EAddressSpace::WebAssembly);
     }
 
     return row;
@@ -1324,16 +1324,16 @@ const TPIValue* TGroupByClosure::InsertTotals(const TExecutionContext* /*context
 void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomingTag)
 {
     if (Y_UNLIKELY(CurrentSegment_ == EGroupOpProcessingStage::RightBorder)) {
-        if (!Final_.empty()) {
-            FlushFinal(context, Final_.data(), Final_.data() + Final_.size());
-            Final_.clear();
+        if (!Aggregated_.empty()) {
+            FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
+            Aggregated_.clear();
         }
 
         if (!Intermediate_.empty()) {
             // Can be non-null in last call.
             i64 innerCount = Intermediate_.size() - GroupedIntermediateRows_.size();
 
-            FlushDeltaFinal(context, Intermediate_.data(), Intermediate_.data() + innerCount);
+            FlushDelta(context, Intermediate_.data(), Intermediate_.data() + innerCount);
             FlushIntermediate(context, Intermediate_.data() + innerCount, Intermediate_.data() + Intermediate_.size());
 
             Intermediate_.clear();
@@ -1349,9 +1349,9 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
     }
 
     switch (LastTag_) {
-        case EStreamTag::Final: {
-            FlushFinal(context, Final_.data(), Final_.data() + Final_.size());
-            Final_.clear();
+        case EStreamTag::Aggregated: {
+            FlushAggregated(context, Aggregated_.data(), Aggregated_.data() + Aggregated_.size());
+            Aggregated_.clear();
             break;
         }
 
@@ -1367,10 +1367,10 @@ void TGroupByClosure::Flush(const TExecutionContext* context, EStreamTag incomin
             } else if (Y_UNLIKELY(Intermediate_.size() >= RowsetProcessingBatchSize)) {
                 // When group key contains full primary key (used with joins), flush will be called on each grouped row.
                 // Thus, we batch calls to Flusher.
-                FlushDeltaFinal(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
+                FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
-            } else if (Y_UNLIKELY(incomingTag == EStreamTag::Final)) {
-                FlushDeltaFinal(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
+            } else if (Y_UNLIKELY(incomingTag == EStreamTag::Aggregated)) {
+                FlushDelta(context, Intermediate_.data(), Intermediate_.data() + Intermediate_.size());
                 Intermediate_.clear();
             }
 
@@ -1410,7 +1410,7 @@ void TGroupByClosure::SetClosingSegment()
 
 bool TGroupByClosure::IsFlushed() const
 {
-    return Intermediate_.empty() && Final_.empty() && Totals_.empty();
+    return Intermediate_.empty() && Aggregated_.empty() && Totals_.empty();
 }
 
 template <typename TFlushFunction>
@@ -1460,19 +1460,19 @@ void TGroupByClosure::FlushIntermediate(const TExecutionContext* context, const 
     FlushWithBatching(context, begin, end, flush);
 }
 
-void TGroupByClosure::FlushFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+void TGroupByClosure::FlushAggregated(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
     auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
-        return ConsumeFinal_(ConsumeFinalClosure_, context, begin, size);
+        return ConsumeAggregated_(ConsumeAggregatedClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
 }
 
-void TGroupByClosure::FlushDeltaFinal(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
+void TGroupByClosure::FlushDelta(const TExecutionContext* context, const TPIValue** begin, const TPIValue** end)
 {
     auto flush = [this] (TExpressionContext* context, const TPIValue** begin, i64 size) {
-        return ConsumeDeltaFinal_(ConsumeDeltaFinalClosure_, context, begin, size);
+        return ConsumeDelta_(ConsumeDeltaClosure_, context, begin, size);
     };
 
     FlushWithBatching(context, begin, end, flush);
@@ -1506,12 +1506,12 @@ const TPIValue* InsertGroupRow(
     closure->UpdateTagAndFlushIfNeeded(context, rowTag);
 
     switch (rowTag) {
-        case EStreamTag::Final: {
+        case EStreamTag::Aggregated: {
             if (closure->IsUserRowLimitReached(context)) {
                 return nullptr;
             }
 
-            closure->InsertFinal(context, row);
+            closure->InsertAggregated(context, row);
             return row;
         }
 
@@ -1559,10 +1559,10 @@ void GroupOpHelper(
     TGroupCollector collectRowsFunction,
     void** consumeIntermediateClosure,
     TRowsConsumer consumeIntermediateFunction,
-    void** consumeFinalClosure,
-    TRowsConsumer consumeFinalFunction,
-    void** consumeDeltaFinalClosure,
-    TRowsConsumer consumeDeltaFinalFunction,
+    void** consumeAggregatedClosure,
+    TRowsConsumer consumeAggregatedFunction,
+    void** consumeDeltaClosure,
+    TRowsConsumer consumeDeltaFunction,
     void** consumeTotalsClosure,
     TRowsConsumer consumeTotalsFunction)
 {
@@ -1571,8 +1571,8 @@ void GroupOpHelper(
     auto groupHasher = PrepareFunction(groupHasherFunction);
     auto groupComparer = PrepareFunction(groupComparerFunction);
     auto consumeIntermediate = PrepareFunction(consumeIntermediateFunction);
-    auto consumeFinal = PrepareFunction(consumeFinalFunction);
-    auto consumeDeltaFinal = PrepareFunction(consumeDeltaFinalFunction);
+    auto consumeAggregated = PrepareFunction(consumeAggregatedFunction);
+    auto consumeDelta = PrepareFunction(consumeDeltaFunction);
     auto consumeTotals = PrepareFunction(consumeTotalsFunction);
 
     TGroupByClosure closure(
@@ -1585,10 +1585,10 @@ void GroupOpHelper(
         allAggregatesAreFirst,
         consumeIntermediateClosure,
         consumeIntermediate,
-        consumeFinalClosure,
-        consumeFinal,
-        consumeDeltaFinalClosure,
-        consumeDeltaFinal,
+        consumeAggregatedClosure,
+        consumeAggregated,
+        consumeDeltaClosure,
+        consumeDelta,
         consumeTotalsClosure,
         consumeTotals);
 

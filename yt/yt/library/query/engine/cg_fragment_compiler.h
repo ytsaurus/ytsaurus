@@ -30,11 +30,9 @@ struct TCodegenFragmentInfo
     size_t UseCount = 0;
     size_t Index = std::numeric_limits<size_t>::max();
 
-
     bool IsOutOfLine() const {
         return UseCount > 1 && !ForceInline;
     }
-
 };
 
 DECLARE_REFCOUNTED_STRUCT(TCodegenFragmentInfos)
@@ -221,8 +219,8 @@ size_t MakeCodegenMultiJoinOp(
 struct TGroupOpSlots
 {
     size_t Intermediate;
-    size_t Final;
-    size_t DeltaFinal;
+    size_t Aggregated;
+    size_t Delta;
     size_t Totals;
 };
 

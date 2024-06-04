@@ -81,14 +81,43 @@ public:
     void Profile(const TTableSchemaPtr& tableSchema);
 
 protected:
+    void Fold(EFoldingObjectType type);
+    void Fold(EValueType type);
+    void Fold(EExecutionBackend backend);
+    void Fold(ETotalsMode backend);
+    void Fold(bool boolean);
     void Fold(int numeric);
     void Fold(size_t numeric);
     void Fold(const char* str);
     void Fold(const llvm::FoldingSetNodeID& id);
 
     llvm::FoldingSetNodeID* Id_;
-
 };
+
+void TSchemaProfiler::Fold(EFoldingObjectType type)
+{
+    Fold(static_cast<int>(type));
+}
+
+void TSchemaProfiler::Fold(EValueType type)
+{
+    Fold(static_cast<int>(type));
+}
+
+void TSchemaProfiler::Fold(EExecutionBackend backend)
+{
+    Fold(static_cast<int>(backend));
+}
+
+void TSchemaProfiler::Fold(ETotalsMode mode)
+{
+    Fold(static_cast<int>(mode));
+}
+
+void TSchemaProfiler::Fold(bool boolean)
+{
+    Fold(static_cast<int>(boolean));
+}
 
 void TSchemaProfiler::Fold(int numeric)
 {
@@ -121,7 +150,7 @@ void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
 void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
     const auto& columns = tableSchema->Columns();
-    Fold(static_cast<int>(EFoldingObjectType::TableSchema));
+    Fold(EFoldingObjectType::TableSchema);
     for (int index = 0; index < std::ssize(columns); ++index) {
         const auto& column = columns[index];
         Fold(static_cast<ui8>(column.GetWireType()));
@@ -1218,24 +1247,24 @@ void TQueryProfiler::Profile(
     TTableSchemaPtr schema,
     bool mergeMode)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
+    Fold(ExecutionBackend_);
     size_t dummySlot = (*slotCount)++;
 
-    size_t finalSlot = dummySlot;
+    size_t aggregatedSlot = dummySlot;
     size_t intermediateSlot = dummySlot;
     size_t totalsSlot = dummySlot;
 
     bool finalMode = query->IsFinal;
 
-    Fold(static_cast<int>(EFoldingObjectType::FinalMode));
-    Fold(static_cast<int>(finalMode));
-    Fold(static_cast<int>(EFoldingObjectType::MergeMode));
-    Fold(static_cast<int>(mergeMode));
+    Fold(EFoldingObjectType::FinalMode);
+    Fold(finalMode);
+    Fold(EFoldingObjectType::MergeMode);
+    Fold(mergeMode);
 
     if (auto groupClause = query->GroupClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::GroupOp));
-        Fold(static_cast<int>(groupClause->CommonPrefixWithPrimaryKey));
-        Fold(static_cast<int>(query->UseDisjointGroupBy));
+        Fold(EFoldingObjectType::GroupOp);
+        Fold(groupClause->CommonPrefixWithPrimaryKey);
+        Fold(query->UseDisjointGroupBy);
 
         std::vector<EValueType> keyTypes;
         std::vector<EValueType> stateTypes;
@@ -1264,7 +1293,7 @@ void TQueryProfiler::Profile(
 
         bool allAggregatesFirst = true;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
-            Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
+            Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
             Fold(aggregateItem.Name.c_str());
 
@@ -1330,12 +1359,12 @@ void TQueryProfiler::Profile(
             ComparerManager_);
 
         intermediateSlot = fragmentSlots.Intermediate;
-        finalSlot = fragmentSlots.Final;
-        size_t deltaFinalSlot = fragmentSlots.DeltaFinal;
+        aggregatedSlot = fragmentSlots.Aggregated;
+        size_t deltaSlot = fragmentSlots.Delta;
         totalsSlot = fragmentSlots.Totals;
 
-        Fold(static_cast<int>(EFoldingObjectType::TotalsMode));
-        Fold(static_cast<int>(groupClause->TotalsMode));
+        Fold(EFoldingObjectType::TotalsMode);
+        Fold(groupClause->TotalsMode);
 
         schema = groupClause->GetTableSchema(query->IsFinal);
 
@@ -1355,11 +1384,11 @@ void TQueryProfiler::Profile(
         // COMPAT(lukyan)
         if (finalMode || query->UseDisjointGroupBy) {
             // Boundary segments are also final
-            deltaFinalSlot = MakeCodegenMergeOp(
+            deltaSlot = MakeCodegenMergeOp(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                deltaFinalSlot);
+                deltaSlot);
 
             intermediateSlot = dummySlot;
         } else if (mergeMode) {
@@ -1368,22 +1397,22 @@ void TQueryProfiler::Profile(
                 codegenSource,
                 slotCount,
                 intermediateSlot,
-                deltaFinalSlot);
+                deltaSlot);
 
-            deltaFinalSlot = dummySlot;
+            deltaSlot = dummySlot;
         }
 
         size_t keySize = groupClause->GroupItems.size();
 
         if (!mergeMode || finalMode) {
             if (addHaving && groupClause->TotalsMode == ETotalsMode::AfterHaving) {
-                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
+                Fold(EFoldingObjectType::HavingOp);
 
                 // Finalizes row to evaluate predicate and filters source values.
-                deltaFinalSlot = MakeCodegenFilterFinalizedOp(
+                deltaSlot = MakeCodegenFilterFinalizedOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
+                    deltaSlot,
                     havingFragmentsInfos,
                     havingPredicateId,
                     keySize,
@@ -1393,10 +1422,10 @@ void TQueryProfiler::Profile(
 
             if (groupClause->TotalsMode != ETotalsMode::None) {
                 size_t totalsSlotNew;
-                std::tie(totalsSlotNew, deltaFinalSlot) = MakeCodegenDuplicateOp(
+                std::tie(totalsSlotNew, deltaSlot) = MakeCodegenDuplicateOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot);
+                    deltaSlot);
 
                 if (mergeMode) {
                     totalsSlot = MakeCodegenMergeOp(
@@ -1409,32 +1438,32 @@ void TQueryProfiler::Profile(
                 }
             }
 
-            deltaFinalSlot = MakeCodegenFinalizeOp(
+            deltaSlot = MakeCodegenFinalizeOp(
                 codegenSource,
                 slotCount,
-                deltaFinalSlot,
+                deltaSlot,
                 keySize,
                 codegenAggregates,
                 stateTypes);
 
             if (addHaving && groupClause->TotalsMode != ETotalsMode::AfterHaving) {
-                Fold(static_cast<int>(EFoldingObjectType::HavingOp));
-                deltaFinalSlot = MakeCodegenFilterOp(
+                Fold(EFoldingObjectType::HavingOp);
+                deltaSlot = MakeCodegenFilterOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
+                    deltaSlot,
                     havingFragmentsInfos,
                     havingPredicateId);
             }
 
             if (mergeMode) {
-                finalSlot = MakeCodegenMergeOp(
+                aggregatedSlot = MakeCodegenMergeOp(
                     codegenSource,
                     slotCount,
-                    deltaFinalSlot,
-                    finalSlot);
+                    deltaSlot,
+                    aggregatedSlot);
             } else {
-                finalSlot = deltaFinalSlot;
+                aggregatedSlot = deltaSlot;
             }
         }
 
@@ -1464,20 +1493,20 @@ void TQueryProfiler::Profile(
         }
     } else {
         intermediateSlot = inputSlot;
-        finalSlot = MakeCodegenMergeOp(
+        aggregatedSlot = MakeCodegenMergeOp(
             codegenSource,
             slotCount,
             intermediateSlot,
-            finalSlot);
+            aggregatedSlot);
         intermediateSlot = dummySlot;
     }
 
     intermediateSlot = MakeCodegenOnceOp(codegenSource, slotCount, intermediateSlot);
-    finalSlot = MakeCodegenOnceOp(codegenSource, slotCount, finalSlot);
+    aggregatedSlot = MakeCodegenOnceOp(codegenSource, slotCount, aggregatedSlot);
     totalsSlot = MakeCodegenOnceOp(codegenSource, slotCount, totalsSlot);
 
     if (auto orderClause = query->OrderClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::OrderOp));
+        Fold(EFoldingObjectType::OrderOp);
 
         int orderItemCount = orderClause->OrderItems.size();
         std::vector<size_t> orderExprIds(orderItemCount);
@@ -1500,10 +1529,10 @@ void TQueryProfiler::Profile(
             Fold(static_cast<ui8>(type));
         }
 
-        finalSlot = MakeCodegenOrderOp(
+        aggregatedSlot = MakeCodegenOrderOp(
             codegenSource,
             slotCount,
-            finalSlot,
+            aggregatedSlot,
             orderFragmentsInfos,
             std::move(orderExprIds),
             std::move(orderColumnTypes),
@@ -1514,7 +1543,7 @@ void TQueryProfiler::Profile(
     }
 
     if (auto projectClause = query->ProjectClause.Get()) {
-        Fold(static_cast<int>(EFoldingObjectType::ProjectOp));
+        Fold(EFoldingObjectType::ProjectOp);
 
         std::vector<size_t> projectExprIds;
         projectExprIds.reserve(projectClause->Projections.size());
@@ -1527,7 +1556,7 @@ void TQueryProfiler::Profile(
         projectExprFragments.DumpArgs(projectExprIds);
 
         // FIXME(lukyan): Do not generate ProjectOp two times.
-        finalSlot = MakeCodegenProjectOp(codegenSource, slotCount, finalSlot, projectFragmentsInfos, projectExprIds);
+        aggregatedSlot = MakeCodegenProjectOp(codegenSource, slotCount, aggregatedSlot, projectFragmentsInfos, projectExprIds);
         totalsSlot = MakeCodegenProjectOp(codegenSource, slotCount, totalsSlot, projectFragmentsInfos, std::move(projectExprIds));
 
         MakeCodegenFragmentBodies(codegenSource, projectFragmentsInfos);
@@ -1536,7 +1565,7 @@ void TQueryProfiler::Profile(
     }
 
     bool considerLimit = query->IsOrdered() && !query->GroupClause;
-    Fold(static_cast<int>(considerLimit));
+    Fold(considerLimit);
     if (considerLimit) {
         // TODO(dtorilov): Since we have already applied filters to queries with `having` at this stage,
         // it is safe to apply `limit` to the finalSlot of grouping queries.
@@ -1544,7 +1573,7 @@ void TQueryProfiler::Profile(
         int offsetId = Variables_->AddOpaque<size_t>(query->Offset);
         int limitId = Variables_->AddOpaque<size_t>(query->Limit);
 
-        finalSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, finalSlot, offsetId, limitId);
+        aggregatedSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, aggregatedSlot, offsetId, limitId);
     }
 
     size_t resultRowSize = schema->GetColumnCount();
@@ -1552,12 +1581,12 @@ void TQueryProfiler::Profile(
     if (!finalMode) {
         auto schemaTypes = GetTypesFromSchema(*schema);
 
-        finalSlot = MakeCodegenAddStreamOp(
+        aggregatedSlot = MakeCodegenAddStreamOp(
             codegenSource,
             slotCount,
-            finalSlot,
+            aggregatedSlot,
             resultRowSize,
-            EStreamTag::Final,
+            EStreamTag::Aggregated,
             schemaTypes);
 
         totalsSlot = MakeCodegenAddStreamOp(
@@ -1579,12 +1608,12 @@ void TQueryProfiler::Profile(
         ++resultRowSize;
     }
 
-    size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, finalSlot, totalsSlot);
+    size_t resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, aggregatedSlot, totalsSlot);
     resultSlot = MakeCodegenMergeOp(codegenSource, slotCount, resultSlot, intermediateSlot);
 
     //resultSlot = MakeCodegenOnceOp(codegenSource, slotCount, resultSlot);
 
-    Fold(static_cast<int>(EFoldingObjectType::WriteOp));
+    Fold(EFoldingObjectType::WriteOp);
     MakeCodegenWriteOp(codegenSource, resultSlot, resultRowSize);
 }
 
@@ -1623,8 +1652,8 @@ void TQueryProfiler::Profile(
     size_t* slotCount,
     TJoinSubqueryProfiler joinProfiler)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
@@ -1659,7 +1688,7 @@ void TQueryProfiler::Profile(
         std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, *schema);
 
         if (selfFilter && !IsTrue(selfFilter)) {
-            Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+            Fold(EFoldingObjectType::FilterOp);
             TExpressionFragments filterExprFragments;
             size_t predicateId = TExpressionProfiler::Profile(selfFilter, schema, &filterExprFragments);
             auto fragmentInfos = filterExprFragments.ToFragmentInfos("selfFilter");
@@ -1678,7 +1707,7 @@ void TQueryProfiler::Profile(
             YT_ASSERT(joinGroupSize == 1);
 
             joinIndex++;
-            Fold(static_cast<int>(EFoldingObjectType::ArrayJoinOp));
+            Fold(EFoldingObjectType::ArrayJoinOp);
 
             const auto& arrayExpressions = arrayJoinClause->ArrayExpressions;
             auto renamedJoinSchema = arrayJoinClause->GetRenamedSchema();
@@ -1749,7 +1778,7 @@ void TQueryProfiler::Profile(
             continue;
         }
 
-        Fold(static_cast<int>(EFoldingObjectType::JoinOp));
+        Fold(EFoldingObjectType::JoinOp);
         TExpressionFragments equationFragments;
 
         size_t joinBatchSize = MaxJoinBatchSize;
@@ -1854,7 +1883,7 @@ void TQueryProfiler::Profile(
                 primaryColumns.emplace_back(index, selfTableColumns[index].GetWireType());
 
                 Fold(index);
-                Fold(static_cast<int>(selfTableColumns[index].GetWireType()));
+                Fold(selfTableColumns[index].GetWireType());
             }
         }
 
@@ -1887,7 +1916,7 @@ void TQueryProfiler::Profile(
     }
 
     if (whereClause && !IsTrue(whereClause)) {
-        Fold(static_cast<int>(EFoldingObjectType::FilterOp));
+        Fold(EFoldingObjectType::FilterOp);
         TExpressionFragments filterExprFragments;
         size_t predicateId = TExpressionProfiler::Profile(whereClause, schema, &filterExprFragments);
 
@@ -1911,8 +1940,8 @@ void TQueryProfiler::Profile(
     const TConstFrontQueryPtr& query,
     size_t* slotCount)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::ScanOp));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
     TSchemaProfiler::Profile(schema);
@@ -1941,8 +1970,8 @@ size_t TQueryProfiler::Profile(
     const TTableSchemaPtr& schema,
     TExpressionFragments* fragments)
 {
-    Fold(static_cast<int>(ExecutionBackend_));
-    Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
+    Fold(ExecutionBackend_);
+    Fold(EFoldingObjectType::NamedExpression);
 
     size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
     Fold(resultId);

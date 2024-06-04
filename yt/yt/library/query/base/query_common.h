@@ -88,7 +88,7 @@ DEFINE_ENUM(EAggregateFunction,
 );
 
 DEFINE_ENUM(EStreamTag,
-    (Final)
+    (Aggregated)
     (Intermediate)
     (Totals)
 );

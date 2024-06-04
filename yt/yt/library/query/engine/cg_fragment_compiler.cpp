@@ -190,7 +190,6 @@ TValueTypeLabels CodegenHasherBody(
                 builder->CreateShl(second, builder->getInt64(6))));
     };
 
-
     auto* entryBB = builder->GetInsertBlock();
     auto* gotoHashBB = builder->CreateBBHere("gotoHash");
     builder->CreateBr(gotoHashBB);
@@ -1339,8 +1338,6 @@ void CodegenFragmentBodies(
 
                 innerBuilder->CreateRetVoid();
             }
-
-
 
             fragmentInfos.Functions[fragmentInfos.Items[id].Index] = function;
         }
@@ -3210,8 +3207,8 @@ TGroupOpSlots MakeCodegenGroupOp(
     TComparerManagerPtr comparerManager)
 {
     size_t intermediateSlot = (*slotCount)++;
-    size_t finalSlot = (*slotCount)++;
-    size_t deltaFinalSlot = (*slotCount)++;
+    size_t aggregatedSlot = (*slotCount)++;
+    size_t deltaSlot = (*slotCount)++;
     size_t totalsSlot = (*slotCount)++;
 
     *codegenSource = [
@@ -3297,7 +3294,7 @@ TGroupOpSlots MakeCodegenGroupOp(
                     // We consider all incoming rows as intermediate for NodeThread and Non-Coordinated queries.
                     streamTag = builder->getInt64(static_cast<ui64>(EStreamTag::Intermediate));
 
-                    // TODO(dtorilov): If query is disjoint, we can set Final tag here.
+                    // TODO(dtorilov): If query is disjoint, we can set Aggregated tag here.
                 }
 
                 auto groupValues = builder->CreateCall(
@@ -3370,13 +3367,13 @@ TGroupOpSlots MakeCodegenGroupOp(
         });
 
         auto consumeIntermediate = MakeConsumer(builder, "ConsumeGroupedIntermediateRows", intermediateSlot);
-        auto consumeFinal = TLlvmClosure();
-        auto consumeDeltaFinal = MakeConsumer(builder, "ConsumeGroupedDeltaFinalRows", deltaFinalSlot);
+        auto consumeAggregated = TLlvmClosure();
+        auto consumeDelta = MakeConsumer(builder, "ConsumeGroupedDeltaRows", deltaSlot);
         auto consumeTotals = TLlvmClosure();
 
         if (isMerge) {
             // Totals and final streams do not appear in inputs of NodeTread and Non-Coordinated queries.
-            consumeFinal = MakeConsumer(builder, "ConsumeGroupedFinalRows", finalSlot);
+            consumeAggregated = MakeConsumer(builder, "ConsumeGroupedAggregatedRows", aggregatedSlot);
             consumeTotals = MakeConsumer(builder, "ConsumeGroupedTotalsRows", totalsSlot);
         }
 
@@ -3401,18 +3398,18 @@ TGroupOpSlots MakeCodegenGroupOp(
                 consumeIntermediate.ClosurePtr,
                 consumeIntermediate.Function,
 
-                isMerge ? consumeFinal.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
-                isMerge ? consumeFinal.Function : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? consumeAggregated.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
+                isMerge ? consumeAggregated.Function : ConstantInt::getNullValue(builder->getPtrTy()),
 
-                consumeDeltaFinal.ClosurePtr,
-                consumeDeltaFinal.Function,
+                consumeDelta.ClosurePtr,
+                consumeDelta.Function,
 
                 isMerge ? consumeTotals.ClosurePtr : ConstantInt::getNullValue(builder->getPtrTy()),
                 isMerge ? consumeTotals.Function : ConstantInt::getNullValue(builder->getPtrTy()),
             });
     };
 
-    return {intermediateSlot, finalSlot, deltaFinalSlot, totalsSlot};
+    return {intermediateSlot, aggregatedSlot, deltaSlot, totalsSlot};
 }
 
 size_t MakeCodegenGroupTotalsOp(
