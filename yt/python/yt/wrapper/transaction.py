@@ -122,7 +122,7 @@ class Transaction(object):
         self._stack.init(get_command_param("transaction_id", self._client),
                          get_command_param("ping_ancestor_transactions", self._client))
 
-        if self.transaction_id is not None and self.transaction_id != null_transaction_id and prerequisite_transaction_ids:
+        if self.transaction_id is not None and prerequisite_transaction_ids:
             raise RuntimeError("prerequisite_transaction_ids={!r} must be None or empty when transaction_id is not None".format(prerequisite_transaction_ids))
 
         if self.transaction_id is None:
