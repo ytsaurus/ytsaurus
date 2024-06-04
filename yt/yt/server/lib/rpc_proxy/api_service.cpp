@@ -791,6 +791,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineStatus));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFlowView));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortQuery));
@@ -6032,6 +6033,30 @@ private:
 
                 context->SetResponseInfo("State: %v",
                     result.State);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetFlowView)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        TGetFlowViewOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
+        auto viewPath = FromProto<TYPath>(request->view_path());
+        context->SetRequestInfo("PipelinePath: %v, ViewPath: %v",
+            pipelinePath,
+            viewPath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetFlowView(pipelinePath, viewPath, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_flow_view_part(result.FlowViewPart.ToString());
             });
     }
 

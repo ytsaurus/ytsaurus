@@ -877,6 +877,11 @@ public: \
         const NYPath::TYPath& pipelinePath,
         const TGetPipelineStatusOptions& options),
         (pipelinePath, options))
+    IMPLEMENT_METHOD(TGetFlowViewResult, GetFlowView, (
+        const NYPath::TYPath& pipelinePath,
+        const NYPath::TYPath& viewPath,
+        const TGetFlowViewOptions& options),
+        (pipelinePath, viewPath, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD

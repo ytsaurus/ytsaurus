@@ -176,6 +176,21 @@ TPipelineStatus TClient::DoGetPipelineStatus(
     };
 }
 
+TGetFlowViewResult TClient::DoGetFlowView(
+    const TYPath& pipelinePath,
+    const TYPath& viewPath,
+    const TGetFlowViewOptions& /*options*/)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.GetFlowView();
+    req->set_path(viewPath);
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .FlowViewPart = TYsonString(rsp->flow_view_part()),
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

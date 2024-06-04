@@ -3596,3 +3596,19 @@ def stop_pipeline(pipeline_path, **kwargs):
 def pause_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
     return execute_command("pause_pipeline", kwargs)
+
+
+def get_pipeline_status(pipeline_path, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    try:
+        return execute_command("get_pipeline_status", kwargs, parse_yson=True).lower()
+    except YtResponseError:
+        return "unknown"
+
+
+def get_flow_view(pipeline_path, view_path=None, **kwargs):
+    kwargs["pipeline_path"] = pipeline_path
+    if view_path is not None:
+        kwargs["view_path"] = view_path
+
+    return execute_command("get_flow_view", kwargs, parse_yson=True)
