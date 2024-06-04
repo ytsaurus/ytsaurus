@@ -2668,8 +2668,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         } else {
             fileLogWriterConfig->FileName = NFS::JoinPaths(
                 NFS::JoinPaths(
-                    execNodeConfig->JobProxyLogManager/*.value()*/->Directory,
-                    calculateShardingKey(execNodeConfig->JobProxyLogManager/*.value()*/->ShardingKeyLength)
+                    execNodeConfig->JobProxyLogManager->Directory,
+                    calculateShardingKey(execNodeConfig->JobProxyLogManager->ShardingKeyLength)
                 ),
                 NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
             );
