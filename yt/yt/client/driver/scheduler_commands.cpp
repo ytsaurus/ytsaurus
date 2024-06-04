@@ -640,7 +640,7 @@ void TSaveJobProxyLogCommand::DoExecute(ICommandContextPtr context)
 {
     WaitFor(context->GetClient()->SaveJobProxyLog(JobId, OutputPath))
         .ThrowOnError();
-    
+
     ProduceEmptyOutput(context);
 }
 

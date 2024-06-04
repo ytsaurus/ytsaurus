@@ -479,7 +479,7 @@ public:
         return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
     }
 
-    TJobProxyLogManagerPtr GetJobProxyLogManager() const override
+    IJobProxyLogManagerPtr GetJobProxyLogManager() const override
     {
         return JobProxyLogManager_;
     }

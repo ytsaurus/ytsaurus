@@ -4,6 +4,8 @@
 #include "config.h"
 #include "helpers.h"
 
+#include <yt/yt/client/api/transaction.h>
+
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
 
@@ -234,19 +236,32 @@ void TClient::DoSaveJobProxyLog(
         *allocationBriefInfo.OperationAcl,
         jobId,
         EPermissionSet(EPermission::Manage));
-    
+
+    auto transaction = [&] {
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Save JobProxy logs of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
+
+        NApi::TTransactionStartOptions options{
+            .Attributes = std::move(attributes)
+        };
+
+        return WaitFor(StartTransaction(NTransactionClient::ETransactionType::Master, options))
+            .ValueOrThrow();
+    }();
+
     NJobProberClient::TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
         allocationBriefInfo.NodeDescriptor));
 
     auto req = proxy.SaveJobProxyLog();
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_output_path(), outputPath);
+    ToProto(req->mutable_transaction_id(), transaction->GetId());
 
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        rspOrError,
-        "Error saving JobProxy log for job %v",
-        jobId);
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

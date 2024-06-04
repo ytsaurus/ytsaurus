@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table, save_job_proxy_log, read_file)
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
@@ -447,3 +447,45 @@ class TestJobProxyLogging(YTEnvSetup):
                 "job_proxy.log"
             )
             assert os.path.exists(log_path)
+
+
+class TestSaveJobProxyLog(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            },
+            "job_proxy": {
+                "job_proxy_logging": {
+                    "mode": "per_job_directory",
+                },
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+    }
+
+    @authors("tagirhamitov")
+    def test_rpc_method(self):
+        create("file", "//tmp/job_proxy.log")
+
+        run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        job_id = wait_breakpoint()[0]
+        save_job_proxy_log(job_id, "//tmp/job_proxy.log")
+        release_breakpoint()
+
+        assert read_file("//tmp/job_proxy.log")

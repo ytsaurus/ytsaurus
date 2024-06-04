@@ -213,13 +213,14 @@ private:
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto outputPath = FromProto<NYPath::TYPath>(request->output_path());
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo(
-            "JobId: %v, OutputPath: %v",
-            jobId, outputPath);
+            "JobId: %v, OutputPath: %v, TransactionId: %v",
+            jobId, outputPath, transactionId);
 
         auto jobProxyLogManager = Bootstrap_->GetJobController()->GetJobProxyLogManager();
-        jobProxyLogManager->SaveJobProxyLog(jobId, outputPath);
+        jobProxyLogManager->SaveJobProxyLog(jobId, outputPath, transactionId);
         
         context->Reply();
     }

@@ -3,9 +3,17 @@
 #include "bootstrap.h"
 #include "private.h"
 
+#include <yt/yt/client/api/file_writer.h>
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_chunk_output.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -68,6 +76,35 @@ public:
         LogsStoragePeriod_ = newConfig->LogsStoragePeriod;
         DirectoryTraversalConcurrency_ = newConfig->DirectoryTraversalConcurrency;
         AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
+    }
+
+    void SaveJobProxyLog(
+        TJobId jobId,
+        const NYPath::TYPath& outputPath,
+        NObjectClient::TTransactionId transactionId) override
+    {
+        auto logsPath = JobIdToLogsPath(jobId);
+
+        YT_LOG_INFO("Requested saving logs for path %v to ypath %v, transactionId %v", logsPath, outputPath, transactionId);
+
+        auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
+        auto logFileLength = logFile.GetLength();
+
+        auto buffer = TSharedMutableRef::Allocate(logFile.GetLength());
+        logFile.Read((void*)buffer.Data(), logFileLength);
+
+        NApi::TFileWriterOptions options;
+        options.TransactionId = transactionId;
+        auto writer = Bootstrap_->GetClient()->CreateFileWriter(outputPath, options);
+
+        NConcurrency::WaitFor(writer->Open())
+            .ThrowOnError();
+
+        NConcurrency::WaitFor(writer->Write(buffer))
+            .ThrowOnError();
+
+        NConcurrency::WaitFor(writer->Close())
+            .ThrowOnError();
     }
 
 private:
@@ -147,8 +184,7 @@ private:
 
     void RemoveJobLog(TJobId jobId)
     {
-        auto shardingKey = GetShardingKey(jobId);
-        auto logsPath = NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+        auto logsPath = JobIdToLogsPath(jobId);
         YT_LOG_INFO("Removing job directory (Path: %v)", logsPath);
         NFS::RemoveRecursive(logsPath);
     }
@@ -184,7 +220,10 @@ public:
         TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
     {}
 
-    void SaveJobProxyLog(TJobId /*jobId*/, const NYPath::TYPath& /*outputPath*/) override
+    void SaveJobProxyLog(
+        TJobId /*jobId*/,
+        const NYPath::TYPath& /*outputPath*/,
+        NObjectClient::TTransactionId /*transactionId*/) override
     {
         THROW_ERROR_EXCEPTION("Method SaveJobProxyLog is not supported in simple JobProxy logging mode");
     }
