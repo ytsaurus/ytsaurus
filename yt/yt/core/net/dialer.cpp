@@ -133,6 +133,7 @@ public:
         , Address_(address)
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
+        , Deadline_(Config_->ConnectTimeout ? std::optional<TInstant>(Config_->ConnectTimeout->ToDeadLine()) : std::nullopt)
         , Logger(logger.WithTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
@@ -197,6 +198,7 @@ private:
     const TNetworkAddress Address_;
     const TAsyncDialerCallback OnFinished_;
     const TGuid Id_;
+    const std::optional<TInstant> Deadline_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -287,10 +289,14 @@ private:
             return;
         }
 
-        if (Config_->EnableAggressiveReconnect) {
+        if (Config_->EnableAggressiveReconnect || Deadline_) {
+            const auto deadline = Min(
+                Deadline_ ? *Deadline_ : TInstant::Max(),
+                Config_->EnableAggressiveReconnect ? Timeout_.ToDeadLine() : TInstant::Max());
+
             TimeoutCookie_ = TDelayedExecutor::Submit(
                 BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                Timeout_);
+                deadline);
         }
     }
 
@@ -357,6 +363,16 @@ private:
 
         if (Timeout_ < Config_->MaxRto) {
             Timeout_ *= Config_->RtoScale * GetRandomVariation();
+        }
+
+        if (Deadline_ && TInstant::Now() >= *Deadline_) {
+            auto error = TError(NRpc::EErrorCode::TransportError, "Connect timed out")
+                << TErrorAttribute("Timeout", Config_->ConnectTimeout);
+            YT_LOG_ERROR(error);
+            Finished_ = true;
+            guard.Release();
+            OnFinished_(error);
+            return;
         }
 
         YT_LOG_DEBUG("Connect timeout; trying to reconnect (Timeout: %v)",
