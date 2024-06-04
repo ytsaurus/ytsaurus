@@ -95,6 +95,7 @@ The MapReduce operation supports the following additional options (default value
 * `map_selectivity_factor` (1.0) — proportion of the original amount of data that remains after the map phase (the default value is 1.0, which means the expected size of the data remains unchanged during the map phase; 2.0 means the data size doubles, and so on).
 * `intermediate_data_replication_factor` (1) — replication factor for intermediate data.
 * `intermediate_data_account` (intermediate) — account to whose quota the transaction's intermediate data goes.
+* `intermediate_data_medium` (`default`) — type of [medium](../../../../user-guide/storage/media.md) storing chunks of intermediate data.
 * `intermediate_compression_codec` (lz4) — codec used for compressing intermediate data.
 * `intermediate_data_acl` `({action=allow;subjects=[everyone];permissions=[read]})` — rights for accessing intermediate data that are set up following the map phase.
 * `map_job_io, sort_job_io, reduce_job_io` — I/O settings for the respective job types; in the `reduce_job_io` option, the `table_writer` section is added for all jobs that write to output tables.

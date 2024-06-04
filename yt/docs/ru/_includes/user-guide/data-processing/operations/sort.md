@@ -26,7 +26,7 @@
 * `intermediate_data_replication_factor` (1) — коэффициент репликации промежуточных данных;
 * `intermediate_data_account` (intermediate) — аккаунт, в квоте которого будут учитываться промежуточные данные сортировки;
 * `intermediate_compression_codec` (lz4) — кодек, используемый для сжатия промежуточных данных;
-* `intermediate_data_medium` (`default`) — тип носителя, на котором хранятся чанки промежуточных данных сортировки;
+* `intermediate_data_medium` (`default`) — [тип носителя (медиум)](../../../../user-guide/storage/media.md), на котором хранятся чанки промежуточных данных сортировки;
 * `partition_job_io, sort_job_io, merge_job_io` — IO-настройки соответствующих типов джобов; секция `table_writer` в опции `merge_job_io` добавляется ко всем джобам, которые пишут в выходные таблицы; 
 * `schema_inference_mode` (auto) — режим определения схемы. Доступные значения: auto, from_input, from_output. Подробнее можно прочитать в разделе [Схема данных](../../../../user-guide/storage/static-schema.md#schema_inference);
 * `samples_per_partition` (1000) — количество ключей для выборок из таблицы для каждой партиции (доступно только для динамических таблиц);

@@ -26,7 +26,7 @@ The Sort operation supports the following additional options (default values, if
 * `intermediate_data_replication_factor` (1) — replication factor for intermediate data.
 * `intermediate_data_account` (intermediate) — account to whose quota the transaction's intermediate data goes.
 * `intermediate_compression_codec` (lz4) — codec used for compressing intermediate data.
-* `intermediate_data_medium` (`default`) — type of medium storing chunks of intermediate data produced by sorting.
+* `intermediate_data_medium` (`default`) — type of [medium](../../../../user-guide/storage/media.md) storing chunks of intermediate data produced by sorting.
 * `partition_job_io, sort_job_io, merge_job_io` — I/O settings for the respective job types; in the `merge_job_io` option, the `table_writer` section is added for all jobs that write to output tables.
 * `schema_inference_mode` (auto) — schema definition mode. Possible values: auto, from_input, from_output. For more information, see the [Data schema](../../../../user-guide/storage/static-schema.md#schema_inference) section.
 * `samples_per_partition` (1000) — number of keys for samples from the table for each partition (only available for dynamic tables).
