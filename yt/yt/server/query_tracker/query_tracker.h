@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/client/api/client.h>
 
 #include <yt/yt/core/ypath/public.h>
@@ -26,11 +28,13 @@ struct IQueryTracker
 
 DEFINE_REFCOUNTED_TYPE(IQueryTracker)
 
+///////////////////////////////////////////////////////////////////////////////
+
 IQueryTrackerPtr CreateQueryTracker(
     TQueryTrackerDynamicConfigPtr config,
     TString selfAddress,
     IInvokerPtr controlInvoker,
-    NApi::IClientPtr stateClient,
+    NApi::NNative::IClientPtr stateClient,
     NYPath::TYPath stateRoot,
     int minRequiredStateVersion);
 
