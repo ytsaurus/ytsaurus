@@ -1553,9 +1553,9 @@ class TestChaos(ChaosTestBase):
         _validate_schema(new_schema, "//tmp/crt")
 
         new_replicas = [
-            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": False},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": False},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/t.new", "catchup": True},
             {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q.new", "catchup": False},
         ]
         new_replica_ids = [None] * len(new_replicas)
@@ -1594,7 +1594,6 @@ class TestChaos(ChaosTestBase):
             new_replica = new_replicas[data_replica_index]
             driver = get_driver(cluster=cluster_name)
 
-            new_replica_ids[data_replica_index] = self._create_chaos_table_replicas([new_replica], table_path="//tmp/crt")[0]
             create(
                 "table",
                 "//tmp/t.new",
@@ -1613,6 +1612,12 @@ class TestChaos(ChaosTestBase):
                 driver=driver
             )
             replication_progress = get("//tmp/t/@replication_progress", driver=driver)
+            new_replica_ids[data_replica_index] = self._create_chaos_table_replica(
+                new_replica,
+                table_path="//tmp/crt",
+                replication_progress=replication_progress
+            )
+
             alter_table(
                 "//tmp/t.new",
                 dynamic=True,
