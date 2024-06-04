@@ -235,8 +235,8 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto configurationGuard = ChaosAgent_->TryGetConfigurationLockGuard();
-            if (!configurationGuard) {
+            auto configGuard = ChaosAgent_->TryGetConfigLockGuard();
+            if (!configGuard) {
                 YT_LOG_DEBUG("Tablet is being reconfigured right now, skipping replication iteration");
                 return;
             }

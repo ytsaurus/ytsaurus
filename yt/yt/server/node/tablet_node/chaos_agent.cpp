@@ -103,7 +103,7 @@ public:
         SelfInvoker_.Reset();
     }
 
-    TAsyncSemaphoreGuard TryGetConfigurationLockGuard() override
+    TAsyncSemaphoreGuard TryGetConfigLockGuard() override
     {
         return TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_);
     }
