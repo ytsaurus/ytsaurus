@@ -171,10 +171,13 @@ def parse_vector(addresses, fibers):
 
 
 def parse_util_list(addresses, fibers):
+    down_cast = (str(fibers).find("(NYT::NConcurrency::NDetail::TFiberBase*)") != -1)
     for line in format_string_multiline(fibers).split('\n'):
         if line.find('[') == -1:
             continue
         address = line.split(' ')[-3].replace(']', '')
+        if down_cast:
+            address = obtain_fiber_address(address)
         addresses.append(address)
 
 def get_registered_fiber_addresses():
