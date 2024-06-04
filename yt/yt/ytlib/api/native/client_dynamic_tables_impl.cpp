@@ -2671,13 +2671,13 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
         MakeSharedRange(rows, reader->GetRowBuffer()));
 }
 
-IQueueRowsetPtr TClient::DoPullConsumer(
+IQueueRowsetPtr TClient::DoPullQueueConsumer(
     const NYPath::TRichYPath& consumerPath,
     const NYPath::TRichYPath& queuePath,
     std::optional<i64> offset,
     int partitionIndex,
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
-    const TPullConsumerOptions& options)
+    const TPullQueueConsumerOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
@@ -2708,7 +2708,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     if (offset) {
         resultOffset = *offset;
     } else {
-        // PullConsumer is supported only for consumers from current cluster.
+        // PullQueueConsumer is supported only for consumers from current cluster.
         IClientPtr consumerClusterClient = MakeStrong(this);
 
         auto subConsumerClient = CreateSubConsumerClient(consumerClusterClient, queueClusterClient, consumerPath.GetPath(), queuePath);

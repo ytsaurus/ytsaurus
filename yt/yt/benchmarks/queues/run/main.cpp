@@ -84,7 +84,7 @@ public:
         Opts_.AddLongOption("tablet-cell-bundle").StoreResult(&TabletCellBundle_).DefaultValue("default");
         Opts_.AddLongOption("mode").StoreResult(&Mode_).DefaultValue("offline");
         Opts_.AddLongOption("use-native-tablet-node-api").StoreTrue(&UseNativeTabletNodeApi_);
-        Opts_.AddLongOption("use-pull-consumer").StoreTrue(&UsePullConsumer_);
+        Opts_.AddLongOption("use-pull-queue-consumer").StoreTrue(&UsePullQueueConsumer_);
         Opts_.AddLongOption("use-yt-consumers").StoreTrue(&UseYTConsumers_);
     }
 
@@ -98,11 +98,11 @@ protected:
         partitionReaderConfig->MaxRowCount = 1'000'000;
         partitionReaderConfig->MaxDataWeight = MaxDataWeight_;
         partitionReaderConfig->UseNativeTabletNodeApi = UseNativeTabletNodeApi_;
-        partitionReaderConfig->UsePullConsumer = UsePullConsumer_;
+        partitionReaderConfig->UsePullQueueConsumer = UsePullQueueConsumer_;
         YT_LOG_INFO(
-            "Partition reader config (UseNativeTabletNodeApi: %v, UsePullConsumer: %v)",
+            "Partition reader config (UseNativeTabletNodeApi: %v, UsePullQueueConsumer: %v)",
             partitionReaderConfig->UseNativeTabletNodeApi,
-            partitionReaderConfig->UsePullConsumer);
+            partitionReaderConfig->UsePullQueueConsumer);
         auto partitionReader = (UseYTConsumers_
             ? CreateMultiQueueConsumerPartitionReader(
             partitionReaderConfig,
@@ -189,7 +189,7 @@ private:
     IClientPtr Client_;
     ISubConsumerClientPtr ConsumerClient_;
     bool UseNativeTabletNodeApi_;
-    bool UsePullConsumer_;
+    bool UsePullQueueConsumer_;
     bool UseYTConsumers_;
 
     TPeriodicExecutorPtr LagReportingExecutor_;

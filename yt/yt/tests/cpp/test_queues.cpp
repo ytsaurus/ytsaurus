@@ -342,13 +342,13 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
     }
 }
 
-TEST_W(TQueueApiPermissionsTest, PullConsumer)
+TEST_W(TQueueApiPermissionsTest, PullQueueConsumer)
 {
     auto testUser = "u1";
     auto userClient = CreateUser(testUser);
 
     auto [queue, consumer, queueNameTable] =
-        CreateQueueAndConsumer("PullConsumer");
+        CreateQueueAndConsumer("PullQueueConsumer");
 
     WriteSingleRow(queue->GetPath(), queueNameTable, {"42u", "a"});
     WriteSingleRow(queue->GetPath(), queueNameTable, {"43u", "b"});
@@ -362,7 +362,7 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     AssertPermissionDenied(testUser, queue->GetPath(), EPermission::Read);
     AssertPermissionDenied(testUser, consumer->GetPath(), EPermission::Read);
 
-    auto rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    auto rowsetOrError = WaitFor(userClient->PullQueueConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
     EXPECT_TRUE(ToString(rowsetOrError).Contains("No read permission for //tmp/consumer"));
@@ -375,21 +375,21 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
             EPermission::Read))))
         .ThrowOnError();
 
-    rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    rowsetOrError = WaitFor(userClient->PullQueueConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 
     WaitFor(Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetRichPath(), /*vital*/ false))
         .ThrowOnError();
 
-    auto rowset = WaitFor(userClient->PullConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
+    auto rowset = WaitFor(userClient->PullQueueConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
         .ValueOrThrow();
     EXPECT_FALSE(rowset->GetRows().empty());
 
     WaitFor(Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath()))
         .ThrowOnError();
 
-    rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    rowsetOrError = WaitFor(userClient->PullQueueConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 }

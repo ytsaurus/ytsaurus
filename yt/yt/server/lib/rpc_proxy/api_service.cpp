@@ -717,6 +717,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
@@ -4152,14 +4153,30 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PullConsumer)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PullQueueConsumer)
+    {
+        PullQueueConsumerImpl(request, response, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(
+        NApi::NRpcProxy::NProto::TReqPullQueueConsumer,
+        NApi::NRpcProxy::NProto::TRspPullQueueConsumer,
+        PullConsumer)
+    {
+        PullQueueConsumerImpl(request, response, context);
+    }
+
+    void PullQueueConsumerImpl(
+        NApi::NRpcProxy::NProto::TReqPullQueueConsumer* request,
+        NApi::NRpcProxy::NProto::TRspPullQueueConsumer* /*response*/,
+        const TCtxPullQueueConsumerPtr& context)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
-        TPullConsumerOptions options;
+        TPullQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
@@ -4185,7 +4202,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->PullConsumer(
+                return client->PullQueueConsumer(
                     consumerPath,
                     queuePath,
                     offset,
