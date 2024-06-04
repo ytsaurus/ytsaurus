@@ -35,6 +35,8 @@
 
 #include <yt/yt/client/chunk_client/public.h>
 
+#include <yt/yt/core/rpc/retrying_channel.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -52,6 +54,7 @@ using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NYTree;
 using namespace NYson;
+using namespace NRpc;
 
 using NYT::FromProto;
 
@@ -759,8 +762,13 @@ private:
         // TODO(max42): make customizable.
         constexpr TDuration timeout = TDuration::Seconds(60);
 
+        auto retryingChannelConfig = New<TRetryingChannelConfig>();
+
         return CreateOrchidYPathService(TOrchidOptions{
-            .Channel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses)),
+            .Channel = CreateRetryingChannel(
+                retryingChannelConfig,
+                Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses))
+            ),
             .Timeout = timeout,
         });
     }
