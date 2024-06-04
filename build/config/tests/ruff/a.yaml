@@ -1,0 +1,17 @@
+service: committeepython
+title: Python Committee
+arcanum:
+  review:
+    groups:
+      - name: python-committee
+        roles: [ "committeepython:consultant" ]
+    rules:
+      - reviewers:
+          - name: python-committee
+            assign: 1
+            ship: 1
+  auto_merge:
+    enabled: true
+    requirements:
+      - system: arcanum
+        type: comment_issues_closed
