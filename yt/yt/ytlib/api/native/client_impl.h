@@ -280,13 +280,13 @@ public: \
         const TPullQueueOptions& options = {}),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
-    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullConsumer, (
+    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueueConsumer, (
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         std::optional<i64> offset,
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
-        const TPullConsumerOptions& options = {}),
+        const TPullQueueConsumerOptions& options = {}),
         (consumerPath, queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
     IMPLEMENT_METHOD(void, RegisterQueueConsumer, (

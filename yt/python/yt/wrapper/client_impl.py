@@ -1617,6 +1617,39 @@ class YtClient(ClientState):
             max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
             format=format, raw=raw)
 
+    def pull_queue_consumer(
+            self,
+            consumer_path, queue_path, offset, partition_index,
+            max_row_count=None, max_data_weight=None, replica_consistency=None, format=None, raw=None):
+        """
+        Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
+        Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param offset: starting row index.
+        :type offset: int
+        :param partition_index: index of tablet to read from.
+        :type partition_index: int
+        :param max_row_count: maximum number of rows to read.
+        :type max_row_count: int
+        :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
+        :type max_data_weight: int
+        :param replica_consistency: requested read consistency for chaos replicas.
+        :type replica_consistency: EReplicaConsistency
+        :param format: output format.
+        :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+        :param bool raw: don't parse response to rows.
+
+        """
+        return client_api.pull_queue_consumer(
+            consumer_path, queue_path, offset, partition_index,
+            client=self,
+            max_row_count=max_row_count, max_data_weight=max_data_weight, replica_consistency=replica_consistency,
+            format=format, raw=raw)
+
     def put_file_to_cache(
             self,
             path, md5,

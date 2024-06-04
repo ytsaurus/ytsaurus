@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.rpcproxy.TReqPullConsumer;
+import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 
 /**
  * Immutable pull consumer request.
@@ -15,7 +15,7 @@ import tech.ytsaurus.rpcproxy.TReqPullConsumer;
  * @see tech.ytsaurus.client.ApiServiceClient#pullConsumer(PullConsumer)
  */
 public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer>
-        implements HighLevelRequest<TReqPullConsumer.Builder> {
+        implements HighLevelRequest<TReqPullQueueConsumer.Builder> {
     private final YPath consumerPath;
     private final YPath queuePath;
     private final int partitionIndex;
@@ -70,8 +70,8 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
      * Internal method: prepare request to send over network.
      */
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqPullConsumer.Builder, ?> requestBuilder) {
-        TReqPullConsumer.Builder builder = requestBuilder.body();
+    public void writeTo(RpcClientRequestBuilder<TReqPullQueueConsumer.Builder, ?> requestBuilder) {
+        TReqPullQueueConsumer.Builder builder = requestBuilder.body();
         builder.setConsumerPath(consumerPath.toString());
         builder.setQueuePath(queuePath.toString());
         builder.setPartitionIndex(partitionIndex);

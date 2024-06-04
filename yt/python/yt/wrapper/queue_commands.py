@@ -113,6 +113,70 @@ def pull_queue(queue_path, offset, partition_index,
         return format.load_rows(response)
 
 
+def _pull_queue_consumer_impl(consumer_path, queue_path, offset, partition_index,
+                              max_row_count=None, max_data_weight=None,
+                              replica_consistency=None,
+                              format=None, raw=None, method_name="pull_consumer", client=None):
+    if raw is None:
+        raw = get_config(client)["default_value_of_raw_option"]
+    format = _prepare_command_format(format, raw, client)
+
+    params = {
+        "consumer_path": TablePath(consumer_path, client=client),
+        "queue_path": TablePath(queue_path, client=client),
+        "output_format": format.to_yson_type(),
+    }
+    if offset is not None:
+        set_param(params, "offset", offset)
+    set_param(params, "partition_index", partition_index)
+    set_param(params, "max_row_count", max_row_count)
+    set_param(params, "max_data_weight", max_data_weight)
+    set_param(params, "replica_consistency", replica_consistency)
+
+    response = DynamicTableRequestRetrier(
+        get_config(client)["dynamic_table_retries"],
+        method_name,
+        params,
+        return_content=False,
+        client=client).run()
+
+    if raw:
+        return response
+    else:
+        return format.load_rows(response)
+
+
+def pull_queue_consumer(consumer_path, queue_path, offset, partition_index,
+                        max_row_count=None, max_data_weight=None,
+                        replica_consistency=None,
+                        format=None, raw=None, client=None):
+    """Reads rows from a single partition of a queue (i.e. any ordered dynamic table) with authorization via consumer.
+    Returns at most max_row_count consecutive rows of a single tablet with row indexes larger than the given offset.
+
+    :param consumer_path: path to consumer table.
+    :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param offset: starting row index.
+    :type offset: int
+    :param partition_index: index of tablet to read from.
+    :type partition_index: int
+    :param max_row_count: maximum number of rows to read.
+    :type max_row_count: int
+    :param max_data_weight: a hint for the maximum data weight of the returned batch in bytes.
+    :type max_data_weight: int
+    :param replica_consistency: requested read consistency for chaos replicas.
+    :type replica_consistency: EReplicaConsistency
+    :param format: output format.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param bool raw: don't parse response to rows.
+    """
+    return _pull_queue_consumer_impl(consumer_path, queue_path, offset, partition_index,
+                                     max_row_count=max_row_count, max_data_weight=max_data_weight,
+                                     replica_consistency=replica_consistency,
+                                     format=format, raw=raw, client=client, method_name="pull_queue_consumer")
+
+
 def pull_consumer(consumer_path, queue_path, offset, partition_index,
                   max_row_count=None, max_data_weight=None,
                   replica_consistency=None,
@@ -138,34 +202,10 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
     :param bool raw: don't parse response to rows.
     """
-
-    if raw is None:
-        raw = get_config(client)["default_value_of_raw_option"]
-    format = _prepare_command_format(format, raw, client)
-
-    params = {
-        "consumer_path": TablePath(consumer_path, client=client),
-        "queue_path": TablePath(queue_path, client=client),
-        "output_format": format.to_yson_type(),
-    }
-    if offset is not None:
-        set_param(params, "offset", offset)
-    set_param(params, "partition_index", partition_index)
-    set_param(params, "max_row_count", max_row_count)
-    set_param(params, "max_data_weight", max_data_weight)
-    set_param(params, "replica_consistency", replica_consistency)
-
-    response = DynamicTableRequestRetrier(
-        get_config(client)["dynamic_table_retries"],
-        "pull_consumer",
-        params,
-        return_content=False,
-        client=client).run()
-
-    if raw:
-        return response
-    else:
-        return format.load_rows(response)
+    return _pull_queue_consumer_impl(consumer_path, queue_path, offset, partition_index,
+                                     max_row_count=max_row_count, max_data_weight=max_data_weight,
+                                     replica_consistency=replica_consistency,
+                                     format=format, raw=raw, client=client, method_name="pull_consumer")
 
 
 def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None):
