@@ -34,6 +34,27 @@ class TestPrerequisite(object):
                                                                                             another_tx.transaction_id])
                 client.mkdir(TEST_DIR + "/prerequisite/test", recursive=True)
 
+
+        client = yt.create_client_with_command_params()
+        with yt.Transaction() as tx:
+            with client.Transaction(prerequisite_transaction_ids=[tx.transaction_id]):
+                client.mkdir(TEST_DIR + "/prerequisite/test2", recursive=True)
+                assert client.exists(TEST_DIR + "/prerequisite/test2")
+
+            assert yt.exists(TEST_DIR + "/prerequisite/test2")
+
+        with pytest.raises(yt.YtError):
+            with client.Transaction(prerequisite_transaction_ids=[tx.transaction_id]):
+                client.mkdir(TEST_DIR + "/prerequisite/test3", recursive=True)
+
+        assert not yt.exists(TEST_DIR + "/prerequisite/test3")
+
+        with pytest.raises(RuntimeError) as e:
+            with client.Transaction(transaction_id=tx.transaction_id, prerequisite_transaction_ids=[tx.transaction_id]):
+                pass
+
+        assert "prerequisite_transaction_ids=['{}'] must be None or empty when transaction_id is not None".format(tx.transaction_id) in str(e.value)
+
     @authors("ostyakov")
     def test_prerequisite_revision(self):
         yt.mkdir(TEST_DIR + "/prerequisite", recursive=True)
