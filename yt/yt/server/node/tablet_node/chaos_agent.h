@@ -20,6 +20,9 @@ struct IChaosAgent
 
     // Stop replication card updates.
     virtual void Disable() = 0;
+
+    virtual void ReconfigureTablet() = 0;
+    virtual NConcurrency::TAsyncSemaphoreGuard TryGetConfigurationLockGuard() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChaosAgent)
