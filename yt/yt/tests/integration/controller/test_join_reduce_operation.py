@@ -2,10 +2,10 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    get, insert_rows, write_file, read_table, write_table, join_reduce, sync_create_cells, sync_mount_table,
+    get, insert_rows, write_file, read_table, write_table, join_reduce, reduce, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import skip_if_no_descending, skip_if_old
 
 import yt_error_codes
 
@@ -1697,16 +1697,142 @@ done
             {"key": "1", "value": "6"},
         ]
 
-        with raises_yt_error("does not support foreign tables with multiple ranges"):
-            foreign_table = "<foreign=true;ranges=[{lower_limit={key=[0]};upper_limit={key=[2]}};"\
-                            "{lower_limit={key=[3]};upper_limit={key=[4]}}]>//tmp/in2"
-            join_reduce(
-                in_=[primary_table, foreign_table],
-                out="<sorted_by=[{name=key;sort_order=ascending}]>//tmp/out",
-                join_by={"name": "key", "sort_order": "ascending"},
-                command="cat",
-                spec={"reducer": {"format": "dsv"}},
+    @authors("galtsev")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    @pytest.mark.parametrize("operation", ["reduce", "join_reduce"])
+    def test_join_reduce_multiple_ranges(self, sort_order, operation):
+        skip_if_old(self.Env, (24, 2), "older versions do not support foreign tables with multiple ranges")
+
+        if sort_order == "descending":
+            skip_if_no_descending(self.Env)
+            self.skip_if_legacy_sorted_pool()
+
+        if isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool):
+            pytest.xfail("New sorted pool does not work properly yet")
+
+        def write(path, rows):
+            if sort_order == "descending":
+                rows = rows[::-1]
+            write_table(
+                path,
+                rows,
+                sorted_by=[
+                    {"name": "key", "type": "string", "sort_order": sort_order},
+                ]
             )
+
+        create("table", "//tmp/in")
+        write("//tmp/in", [
+            {"key": "0_main"},
+            {"key": "1_main_foreign"},
+            {"key": "2_main_range"},
+            {"key": "3_main_foreign_range"},
+            {"key": "8_main_foreign_range"},
+            {"key": "b_main_foreign_intersecting_ranges"},
+        ])
+
+        create("table", "//tmp/in_foreign")
+        write("//tmp/in_foreign", [
+            {"key": "1_main_foreign"},
+            {"key": "3_main_foreign_range"},
+            {"key": "4_foreign"},
+            {"key": "6_foreign_range"},
+            {"key": "8_main_foreign_range"},
+            {"key": "b_main_foreign_intersecting_ranges"},
+        ])
+
+        create("table", "//tmp/out")
+
+        if sort_order == "ascending":
+            ranges = """[
+                {lower_limit={key=["2"]}; upper_limit={key=["4"]}};
+                {lower_limit={key=["5"]}; upper_limit={key=["6"]}};
+                {lower_limit={key=["6_"]}; upper_limit={key=["7"]}};
+                {lower_limit={key=["8"]}; upper_limit={key=["9"]}};
+                {lower_limit={key=["a"]}; upper_limit={key=["b"]}};
+                {lower_limit={key=["a"]}; upper_limit={key=["c"]}};
+                {lower_limit={key=["b"]}; upper_limit={key=["d"]}};
+                {lower_limit={key=["b_main_foreign_intersecting_ranges"]}; upper_limit={key=["b_main_foreign_intersecting_ranges_"]}};
+                {lower_limit={key=["y"]}; upper_limit={key=["z"]}};
+            ]"""
+        else:
+            ranges = """[
+                {lower_limit={key=["4"]}; upper_limit={key=["2"]}};
+                {lower_limit={key=["6"]}; upper_limit={key=["5"]}};
+                {lower_limit={key=["7"]}; upper_limit={key=["6_"]}};
+                {lower_limit={key=["9"]}; upper_limit={key=["8"]}};
+                {lower_limit={key=["b"]}; upper_limit={key=["a"]}};
+                {lower_limit={key=["c"]}; upper_limit={key=["a"]}};
+                {lower_limit={key=["d"]}; upper_limit={key=["b"]}};
+                {lower_limit={key=["b_main_foreign_intersecting_ranges"]}; upper_limit={key=["b_main_foreign"]}};
+                {lower_limit={key=["z"]}; upper_limit={key=["y"]}};
+            ]"""
+
+        is_foreign = "foreign=true" if operation == "join_reduce" else ""
+
+        kwargs = {
+            "in_": [
+                "//tmp/in",
+                f"<ranges={ranges}; {is_foreign}>//tmp/in_foreign",
+            ],
+            "out": [f"<sorted_by=[{{name=key; sort_order={sort_order}}}]>//tmp/out"],
+            "command": "cat",
+            "spec": {
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv; enable_table_index=true>dsv")},
+                "data_size_per_job": 1,
+            },
+        }
+
+        by = [{"name": "key", "sort_order": sort_order}]
+
+        if operation == "join_reduce":
+            function = join_reduce
+            kwargs["join_by"] = by
+        else:
+            function = reduce
+            kwargs["reduce_by"] = by
+
+        function(**kwargs)
+
+        rows = read_table("//tmp/out")
+
+        if sort_order == "ascending":
+            expected = [
+                {"key": "0_main", "@table_index": "0"},
+                {"key": "1_main_foreign", "@table_index": "0"},
+                {"key": "2_main_range", "@table_index": "0"},
+                {"key": "3_main_foreign_range", "@table_index": "0"},
+                {"key": "3_main_foreign_range", "@table_index": "1"},
+            ] + ([] if operation == "join_reduce" else [
+                {"key": "6_foreign_range", "@table_index": "1"},
+            ]) + [
+                {"key": "8_main_foreign_range", "@table_index": "0"},
+                {"key": "8_main_foreign_range", "@table_index": "1"},
+                {"key": "b_main_foreign_intersecting_ranges", "@table_index": "0"},
+            ] + 3 * [
+                {"key": "b_main_foreign_intersecting_ranges", "@table_index": "1"},
+            ]
+        else:
+            expected = [
+                {"key": "b_main_foreign_intersecting_ranges", "@table_index": "0"},
+            ] + 3 * [
+                {"key": "b_main_foreign_intersecting_ranges", "@table_index": "1"},
+            ] + [
+                {"key": "8_main_foreign_range", "@table_index": "0"},
+                {"key": "8_main_foreign_range", "@table_index": "1"},
+            ] + ([] if operation == "join_reduce" else [
+                {"key": "6_foreign_range", "@table_index": "1"},
+            ]) + [
+                {"key": "3_main_foreign_range", "@table_index": "0"},
+                {"key": "3_main_foreign_range", "@table_index": "1"},
+                {"key": "2_main_range", "@table_index": "0"},
+                {"key": "1_main_foreign", "@table_index": "0"},
+                {"key": "0_main", "@table_index": "0"},
+            ]
+
+        assert rows == expected
+
+        assert get("//tmp/out/@sorted")
 
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):

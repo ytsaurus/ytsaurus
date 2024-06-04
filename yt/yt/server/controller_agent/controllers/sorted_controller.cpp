@@ -1119,9 +1119,6 @@ public:
                     THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
                         << TErrorAttribute("path", table->Path);
                 }
-                if (table->Path.GetNewRanges(table->Comparator).size() > 1) {
-                    THROW_ERROR_EXCEPTION("Reduce operation does not support foreign tables with multiple ranges");
-                }
                 ++foreignInputCount;
             }
         }
