@@ -181,6 +181,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueProducers_24_1)                                          (2573))  // apachee
     ((PendingRemovalUserAttribute)                                  (2574))  // cherepashka
     ((DynamizationCypressConfig)                                    (2575))  // kivedernikov
+    ((ChunkMetaLimit)                                               (2576))  // kivedernikov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov
