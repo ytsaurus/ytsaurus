@@ -979,6 +979,8 @@ public:
 
     NRpc::TServerDynamicConfigPtr RpcServer;
 
+    bool EnableFairSharePreUpdateOffloading;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);

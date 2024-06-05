@@ -84,15 +84,17 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
+void TSchedulerElement::InitializeUpdate(TInstant /*now*/, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
 {
     YT_VERIFY(Mutable_);
 
-    // NB: The order of computation must not be changed.
-    TotalResourceLimits_ = context->TotalResourceLimits;
-    SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits();
     MaybeSpecifiedResourceLimits_ = ComputeMaybeSpecifiedResourceLimits();
-    ResourceLimits_ = ComputeResourceLimits();
+    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
+        TotalResourceLimits_ = context->TotalResourceLimits;
+        // COMPAT(renadeen) this code will be refactored after we switch hahn to offloaded version of fair share preupdate.
+        SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits(nullptr);
+        ResourceLimits_ = ComputeResourceLimits();
+    }
 
     if (PersistentAttributes_.AppliedSpecifiedResourceLimits != MaybeSpecifiedResourceLimits_) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
@@ -108,6 +110,16 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
         ResourceTreeElement_->SetSpecifiedResourceLimits(MaybeSpecifiedResourceLimits_, descendantOperationElements);
         PersistentAttributes_.AppliedSpecifiedResourceLimits = MaybeSpecifiedResourceLimits_;
     }
+}
+
+void TSchedulerElement::PreUpdate(TFairSharePreUpdateContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    // NB: The order of computation must not be changed.
+    TotalResourceLimits_ = context->TotalResourceLimits;
+    SchedulingTagFilterResourceLimits_ = ComputeSchedulingTagFilterResourceLimits(context);
+    ResourceLimits_ = ComputeResourceLimits();
 }
 
 void TSchedulerElement::ComputeSatisfactionRatioAtUpdate()
@@ -510,10 +522,10 @@ bool TSchedulerElement::AreTotalResourceLimitsStable() const
     return now >= connectionTime + timeout;
 }
 
-TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() const
+TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits(TFairSharePreUpdateContext* context) const
 {
     // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
-    // the tree's nodes filter, which were computed earlier in PreUpdateBottomUp.
+    // the tree's nodes filter, which were computed earlier in PreUpdate.
     if (GetSchedulingTagFilter() == EmptySchedulingTagFilter) {
         return TotalResourceLimits_;
     }
@@ -523,7 +535,21 @@ TJobResources TSchedulerElement::ComputeSchedulingTagFilterResourceLimits() cons
         return TJobResources::Infinite();
     }
 
-    return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter());
+    auto tagFilter = TreeConfig_->NodesFilter & GetSchedulingTagFilter();
+
+    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
+        return GetHost()->GetResourceLimits(tagFilter);
+    }
+
+    auto& resourceLimitsByTagFilter = context->ResourceLimitsByTagFilter;
+    auto it = resourceLimitsByTagFilter.find(tagFilter);
+    if (it != resourceLimitsByTagFilter.end()) {
+        return it->second;
+    }
+
+    auto result = GetHost()->GetResourceLimits(tagFilter);
+    EmplaceOrCrash(resourceLimitsByTagFilter, tagFilter, result);
+    return result;
 }
 
 TJobResources TSchedulerElement::GetSchedulingTagFilterResourceLimits() const
@@ -731,7 +757,7 @@ void TSchedulerCompositeElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
+void TSchedulerCompositeElement::InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
 {
     YT_VERIFY(Mutable_);
 
@@ -739,7 +765,7 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
-        child->PreUpdateBottomUp(context);
+        child->InitializeUpdate(now, context);
 
         ResourceUsageAtUpdate_ += child->GetResourceUsageAtUpdate();
         ResourceDemand_ += child->GetResourceDemand();
@@ -754,11 +780,21 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             // Yes, but nobody uses this feature yet, so it's not really important.
             // NB(eshcherbin): |child->Attributes().UsageShare| is not calculated at this stage yet, so we do it manually.
             auto usageShare = TResourceVector::FromJobResources(child->GetResourceUsageAtUpdate(), child->GetTotalResourceLimits());
-            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, MaxComponent(usageShare));
+            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(now, MaxComponent(usageShare));
         }
     }
 
-    TSchedulerElement::PreUpdateBottomUp(context);
+    TSchedulerElement::InitializeUpdate(now, context);
+}
+
+void TSchedulerCompositeElement::PreUpdate(TFairSharePreUpdateContext* context)
+{
+    YT_VERIFY(Mutable_);
+    for (const auto& child : EnabledChildren_) {
+        child->PreUpdate(context);
+    }
+
+    TSchedulerElement::PreUpdate(context);
 }
 
 void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
@@ -1774,7 +1810,7 @@ std::optional<TDuration> TSchedulerOperationElement::GetSpecifiedFairShareStarva
 void TSchedulerOperationElement::DisableNonAliveElements()
 { }
 
-void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context)
+void TSchedulerOperationElement::InitializeUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
 {
     YT_VERIFY(Mutable_);
 
@@ -1791,7 +1827,7 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
 
-    TSchedulerElement::PreUpdateBottomUp(context);
+    TSchedulerElement::InitializeUpdate(now, context);
 
     // NB(eshcherbin): This is a hotfix, see YT-19127.
     if (Spec_->ApplySpecifiedResourceLimitsToDemand && MaybeSpecifiedResourceLimits_) {
@@ -1802,8 +1838,39 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
         PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
     }
 
-    // NB: It was moved from regular fair share update for performing split.
-    // It can be performed in fair share thread as second step of preupdate.
+    if (!StrategyHost_->IsFairSharePreUpdateOffloadingEnabled()) {
+        // NB: It was moved from regular fair share update for performing split.
+        // It can be performed in fair share thread as second step of preupdate.
+        if (context->Now >= PersistentAttributes_.LastBestAllocationShareUpdateTime + TreeConfig_->BestAllocationShareUpdatePeriod &&
+            AreTotalResourceLimitsStable())
+        {
+            auto allocationLimits = GetAdjustedResourceLimits(
+                ResourceDemand_,
+                TotalResourceLimits_,
+                GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
+            PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_);
+            PersistentAttributes_.LastBestAllocationShareUpdateTime = context->Now;
+
+            YT_LOG_DEBUG("Updated operation best allocation share (AdjustedResourceLimits: %v, TotalResourceLimits: %v, BestAllocationShare: %.6g)",
+                FormatResources(allocationLimits),
+                FormatResources(TotalResourceLimits_),
+                PersistentAttributes_.BestAllocationShare);
+        }
+    }
+
+    for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
+        for (auto [index, _] : allocationResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
+            DiskRequestMedia_.insert(index);
+        }
+    }
+}
+
+void TSchedulerOperationElement::PreUpdate(TFairSharePreUpdateContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    TSchedulerElement::PreUpdate(context);
+
     if (context->Now >= PersistentAttributes_.LastBestAllocationShareUpdateTime + TreeConfig_->BestAllocationShareUpdatePeriod &&
         AreTotalResourceLimitsStable())
     {
@@ -1818,12 +1885,6 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
             FormatResources(allocationLimits),
             FormatResources(TotalResourceLimits_),
             PersistentAttributes_.BestAllocationShare);
-    }
-
-    for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
-        for (auto [index, _] : allocationResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
-            DiskRequestMedia_.insert(index);
-        }
     }
 }
 
@@ -2371,7 +2432,7 @@ TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
     , TSchedulerRootElementFixedState(other)
 { }
 
-void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* context)
+void TSchedulerRootElement::InitializeFairShareUpdate(TInstant now, const std::optional<NVectorHdrf::TFairShareUpdateContext>& context)
 {
     YT_VERIFY(Mutable_);
 
@@ -2379,7 +2440,7 @@ void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* cont
 
     DisableNonAliveElements();
 
-    PreUpdateBottomUp(context);
+    InitializeUpdate(now, context);
 }
 
 /// Steps of fair share post update:

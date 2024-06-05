@@ -195,6 +195,8 @@ struct IFairShareTree
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
 
+    virtual const TJobResourcesByTagFilter& GetResourceLimitsByTagFilter() const = 0;
+
     //! Raised when operation considered running in tree.
     DECLARE_INTERFACE_SIGNAL(void(TOperationId), OperationRunning);
 };

@@ -393,6 +393,8 @@ TFuture<TOperationId> TNodeManager::FindOperationIdByAllocationId(TAllocationId 
 
 TJobResources TNodeManager::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TJobResources result;
     for (const auto& nodeShard : NodeShards_) {
         result += nodeShard->GetResourceLimits(filter);
@@ -402,6 +404,8 @@ TJobResources TNodeManager::GetResourceLimits(const TSchedulingTagFilter& filter
 
 TJobResources TNodeManager::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TJobResources result;
     for (const auto& nodeShard : NodeShards_) {
         result += nodeShard->GetResourceUsage(filter);

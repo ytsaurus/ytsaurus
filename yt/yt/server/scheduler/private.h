@@ -155,6 +155,8 @@ using TPreemptionStatusStatisticsVector = TEnumIndexedArray<EOperationPreemption
 using TAllocationPreemptionStatusMap = THashMap<TAllocationId, EAllocationPreemptionStatus>;
 using TAllocationPreemptionStatusMapPerOperation = THashMap<TOperationId, TAllocationPreemptionStatusMap>;
 
+using TJobResourcesByTagFilter = THashMap<TSchedulingTagFilter, TJobResources>;
+
 DECLARE_REFCOUNTED_STRUCT(TRefCountedAllocationPreemptionStatusMapPerOperation)
 
 ////////////////////////////////////////////////////////////////////////////////

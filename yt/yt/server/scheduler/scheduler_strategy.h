@@ -101,6 +101,8 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
     virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
+
+    virtual bool IsFairSharePreUpdateOffloadingEnabled() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -325,6 +327,8 @@ struct ISchedulerStrategy
     virtual void ScanPendingOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
+
+    virtual TJobResourcesByTagFilter GetResourceLimitsByTagFilter() = 0;
 
     //! These methods are used for diagnostics.
     virtual void BuildSchedulingAttributesForNode(

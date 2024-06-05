@@ -424,7 +424,6 @@ public:
         return MasterConnector_.get();
     }
 
-
     void Disconnect(const TError& error) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -434,7 +433,7 @@ public:
 
     TInstant GetConnectionTime() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return MasterConnector_->GetConnectionTime();
     }
@@ -1109,11 +1108,11 @@ public:
     // ISchedulerStrategyHost implementation
     TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto resourceLimits = NodeManager_->GetResourceLimits(filter);
 
-        {
+        if (!IsFairSharePreUpdateOffloadingEnabled()) {
             auto value = std::pair(GetCpuInstant(), resourceLimits);
             auto it = CachedResourceLimitsByTags_.find(filter);
             if (it == CachedResourceLimitsByTags_.end()) {
@@ -1128,7 +1127,7 @@ public:
 
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return NodeManager_->GetResourceUsage(filter);
     }
@@ -1817,6 +1816,8 @@ private:
 
     TExperimentAssigner ExperimentsAssigner_;
 
+    std::atomic<bool> EnableFairSharePreUpdateOffloading_ = true;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void InitOperationRuntimeParameters(
@@ -2372,6 +2373,7 @@ private:
             BackgroundThreadPool_->Configure(Config_->BackgroundThreadCount);
 
             ExperimentsAssigner_.UpdateExperimentConfigs(Config_->Experiments);
+            EnableFairSharePreUpdateOffloading_.store(Config_->EnableFairSharePreUpdateOffloading);
         }
 
         ++ConfigRevision_;
@@ -3677,11 +3679,21 @@ private:
                     .Item("exec_node_count").Value(NodeManager_->GetExecNodeCount())
                     .Item("total_node_count").Value(NodeManager_->GetTotalNodeCount())
                     .Item("nodes_memory_distribution").Value(GetExecNodeMemoryDistribution(TSchedulingTagFilter()))
+                    // TODO(renadeen): we should move this map into tree orchid.
                     .Item("resource_limits_by_tags")
-                        .DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
-                            const auto& [filter, record] = pair;
-                            if (!filter.IsEmpty()) {
-                                fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
+                        .Do([&] (TFluentAny fluent) {
+                            if (IsFairSharePreUpdateOffloadingEnabled()) {
+                                fluent.DoMapFor(Strategy_->GetResourceLimitsByTagFilter(), [] (TFluentMap fluent, const auto& pair) {
+                                    const auto& [filter, limits] = pair;
+                                    fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(limits);
+                                });
+                            } else {
+                                fluent.DoMapFor(CachedResourceLimitsByTags_, [] (TFluentMap fluent, const auto& pair) {
+                                    const auto& [filter, record] = pair;
+                                    if (!filter.IsEmpty()) {
+                                        fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
+                                    }
+                                });
                             }
                         })
                     .Item("medium_directory").Value(
@@ -4060,6 +4072,11 @@ private:
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
+    }
+
+    bool IsFairSharePreUpdateOffloadingEnabled() const override
+    {
+        return EnableFairSharePreUpdateOffloading_.load();
     }
 
     void LogOperationFinished(

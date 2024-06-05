@@ -237,6 +237,7 @@ def get_scheduler_config():
             enable_response_keeper = %true;
         };
         crash_on_allocation_heartbeat_processing_exception = %true;
+        enable_fair_share_preupdate_offloading = %true;
     };
 }
 """)
