@@ -700,7 +700,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SaveJobProxyLog));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
@@ -3327,22 +3327,22 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SaveJobProxyLog)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobProxyLog)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto outputPath = FromProto<TYPath>(request->output_path());
+        auto path = FromProto<TYPath>(request->path());
 
-        TSaveJobProxyLogOptions options;
+        TDumpJobProxyLogOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("JobId: %v, OutputPath: %v", jobId, outputPath);
+        context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
 
         ExecuteCall(
             context,
             [=] {
-                return client->SaveJobProxyLog(jobId, outputPath, options);
+                return client->DumpJobProxyLog(jobId, path, options);
             });
     }
 

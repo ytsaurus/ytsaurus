@@ -631,11 +631,11 @@ public: \
         NScheduler::TJobId jobId,
         const TAbortJobOptions& options),
         (jobId, options))
-    IMPLEMENT_METHOD(void, SaveJobProxyLog, (
+    IMPLEMENT_METHOD(void, DumpJobProxyLog, (
         NScheduler::TJobId jobId,
-        const NYPath::TYPath& outputPath,
-        const TSaveJobProxyLogOptions& options),
-        (jobId, outputPath, options))
+        const NYPath::TYPath& path,
+        const TDumpJobProxyLogOptions& options),
+        (jobId, path, options))
 
     IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
         const TGetClusterMetaOptions& options),

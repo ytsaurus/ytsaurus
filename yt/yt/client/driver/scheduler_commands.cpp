@@ -629,16 +629,16 @@ void TAbortJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSaveJobProxyLogCommand::Register(TRegistrar registrar)
+void TDumpJobProxyLogCommand::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_id", &TThis::JobId);
 
-    registrar.Parameter("output_path", &TThis::OutputPath);
+    registrar.Parameter("path", &TThis::Path);
 }
 
-void TSaveJobProxyLogCommand::DoExecute(ICommandContextPtr context)
+void TDumpJobProxyLogCommand::DoExecute(ICommandContextPtr context)
 {
-    WaitFor(context->GetClient()->SaveJobProxyLog(JobId, OutputPath))
+    WaitFor(context->GetClient()->DumpJobProxyLog(JobId, Path))
         .ThrowOnError();
 
     ProduceEmptyOutput(context);

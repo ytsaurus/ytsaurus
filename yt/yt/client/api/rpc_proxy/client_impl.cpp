@@ -1513,18 +1513,18 @@ TFuture<void> TClient::AbortJob(
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TClient::SaveJobProxyLog(
+TFuture<void> TClient::DumpJobProxyLog(
     NJobTrackerClient::TJobId jobId,
-    const NYPath::TYPath& outputPath,
-    const TSaveJobProxyLogOptions& options)
+    const NYPath::TYPath& path,
+    const TDumpJobProxyLogOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.SaveJobProxyLog();
+    auto req = proxy.DumpJobProxyLog();
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_output_path(), outputPath);
+    ToProto(req->mutable_path(), path);
 
     return req->Invoke().As<void>();
 }

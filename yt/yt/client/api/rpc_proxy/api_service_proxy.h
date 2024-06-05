@@ -121,7 +121,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortJob);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SaveJobProxyLog);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DumpJobProxyLog);
 
     // Files
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReadFile,

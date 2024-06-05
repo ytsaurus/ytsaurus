@@ -78,14 +78,14 @@ public:
         AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
     }
 
-    void SaveJobProxyLog(
+    void DumpJobProxyLog(
         TJobId jobId,
-        const NYPath::TYPath& outputPath,
+        const NYPath::TYPath& path,
         NObjectClient::TTransactionId transactionId) override
     {
         auto logsPath = JobIdToLogsPath(jobId);
 
-        YT_LOG_INFO("Requested saving logs for path %v to ypath %v, transactionId %v", logsPath, outputPath, transactionId);
+        YT_LOG_INFO("Requested saving logs for path %v to ypath %v, transactionId %v", logsPath, path, transactionId);
 
         auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
         auto logFileLength = logFile.GetLength();
@@ -95,7 +95,7 @@ public:
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
-        auto writer = Bootstrap_->GetClient()->CreateFileWriter(outputPath, options);
+        auto writer = Bootstrap_->GetClient()->CreateFileWriter(path, options);
 
         NConcurrency::WaitFor(writer->Open())
             .ThrowOnError();
@@ -220,12 +220,12 @@ public:
         TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
     {}
 
-    void SaveJobProxyLog(
+    void DumpJobProxyLog(
         TJobId /*jobId*/,
-        const NYPath::TYPath& /*outputPath*/,
+        const NYPath::TYPath& /*path*/,
         NObjectClient::TTransactionId /*transactionId*/) override
     {
-        THROW_ERROR_EXCEPTION("Method SaveJobProxyLog is not supported in simple JobProxy logging mode");
+        THROW_ERROR_EXCEPTION("Method DumpJobProxyLog is not supported in simple JobProxy logging mode");
     }
 };
 

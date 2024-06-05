@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table, save_job_proxy_log, read_file)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table, dump_job_proxy_log, read_file)
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
@@ -449,7 +449,7 @@ class TestJobProxyLogging(YTEnvSetup):
             assert os.path.exists(log_path)
 
 
-class TestSaveJobProxyLog(YTEnvSetup):
+class TestDumpJobProxyLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -480,12 +480,13 @@ class TestSaveJobProxyLog(YTEnvSetup):
 
     @authors("tagirhamitov")
     def test_rpc_method(self):
-        create("file", "//tmp/job_proxy.log")
+        path = "//tmp/job_proxy.log"
+        create("file", path)
 
         run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
         job_id = wait_breakpoint()[0]
-        save_job_proxy_log(job_id, "//tmp/job_proxy.log")
+        dump_job_proxy_log(job_id, path)
         release_breakpoint()
 
-        assert read_file("//tmp/job_proxy.log")
+        assert read_file(path)

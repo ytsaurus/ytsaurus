@@ -46,7 +46,7 @@ public:
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SaveJobProxyLog));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
     }
@@ -207,21 +207,23 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SaveJobProxyLog)
+    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpJobProxyLog)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto outputPath = FromProto<NYPath::TYPath>(request->output_path());
+        auto path = FromProto<NYPath::TYPath>(request->path());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo(
             "JobId: %v, OutputPath: %v, TransactionId: %v",
-            jobId, outputPath, transactionId);
+            jobId,
+            path,
+            transactionId);
 
         auto jobProxyLogManager = Bootstrap_->GetJobController()->GetJobProxyLogManager();
-        jobProxyLogManager->SaveJobProxyLog(jobId, outputPath, transactionId);
-        
+        jobProxyLogManager->DumpJobProxyLog(jobId, path, transactionId);
+
         context->Reply();
     }
 };

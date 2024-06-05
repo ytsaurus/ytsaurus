@@ -214,10 +214,10 @@ void TClient::DoAbortJob(
     }
 }
 
-void TClient::DoSaveJobProxyLog(
+void TClient::DoDumpJobProxyLog(
     TJobId jobId,
-    const TYPath& outputPath,
-    const TSaveJobProxyLogOptions& /*options*/)
+    const TYPath& path,
+    const TDumpJobProxyLogOptions& /*options*/)
 {
     auto allocationId = AllocationIdFromJobId(jobId);
 
@@ -239,7 +239,7 @@ void TClient::DoSaveJobProxyLog(
 
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Save JobProxy logs of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
+        attributes->Set("title", Format("Dump JobProxy logs of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
 
         NApi::TTransactionStartOptions options{
             .Attributes = std::move(attributes)
@@ -252,9 +252,9 @@ void TClient::DoSaveJobProxyLog(
     NJobProberClient::TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
         allocationBriefInfo.NodeDescriptor));
 
-    auto req = proxy.SaveJobProxyLog();
+    auto req = proxy.DumpJobProxyLog();
     ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_output_path(), outputPath);
+    ToProto(req->mutable_path(), path);
     ToProto(req->mutable_transaction_id(), transaction->GetId());
 
     WaitFor(req->Invoke())

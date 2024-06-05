@@ -663,11 +663,11 @@ public:
         NJobTrackerClient::TJobId jobId,
         const TAbortJobOptions& options),
         (override));
-    
-    MOCK_METHOD(TFuture<void>, SaveJobProxyLog, (
+
+    MOCK_METHOD(TFuture<void>, DumpJobProxyLog, (
         NJobTrackerClient::TJobId jobId,
-        const NYPath::TYPath& outputPath,
-        const TSaveJobProxyLogOptions& options),
+        const NYPath::TYPath& path,
+        const TDumpJobProxyLogOptions& options),
         (override));
 
     MOCK_METHOD(TFuture<TClusterMeta>, GetClusterMeta, (

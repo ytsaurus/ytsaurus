@@ -250,15 +250,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSaveJobProxyLogCommand
-    : public TTypedCommand<NApi::TSaveJobProxyLogOptions>
+class TDumpJobProxyLogCommand
+    : public TTypedCommand<NApi::TDumpJobProxyLogOptions>
 {
 private:
     NJobTrackerClient::TJobId JobId;
-    NYPath::TYPath OutputPath;
+    NYPath::TYPath Path;
 
 public:
-    REGISTER_YSON_STRUCT_LITE(TSaveJobProxyLogCommand);
+    REGISTER_YSON_STRUCT_LITE(TDumpJobProxyLogCommand);
 
     static void Register(TRegistrar registrar);
 
