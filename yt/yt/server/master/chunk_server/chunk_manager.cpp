@@ -5766,7 +5766,7 @@ private:
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaReplicas(
         const std::vector<TChunkId>& chunkIds,
-        const TColumnFilter& columns,
+        const TColumnFilter& columnFilter,
         const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
         std::vector<NRecords::TChunkReplicasKey> keys;
@@ -5779,7 +5779,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columns)
+            ->LookupRows<NRecords::TChunkReplicasKey>(keys, columnFilter)
             .Apply(BIND([extractReplicas] (const std::vector<std::optional<NRecords::TChunkReplicas>>& replicaRecords) {
                 std::vector<TSequoiaChunkReplica> replicas;
                 for (const auto& replicaRecord : replicaRecords) {
@@ -5807,8 +5807,8 @@ private:
     {
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);
-        TColumnFilter filter({*idMapping.ChunkId, *idMapping.LastSeenReplicas});
-        return DoGetSequoiaReplicas({chunkId}, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.LastSeenReplicas};
+        return DoGetSequoiaReplicas({chunkId}, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.LastSeenReplicas;
         });
     }
@@ -5817,8 +5817,8 @@ private:
     {
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
-        TColumnFilter filter({*idMapping.ChunkId, *idMapping.StoredReplicas});
-        return DoGetSequoiaReplicas(chunkIds, filter, [] (const NRecords::TChunkReplicas& replicaRecord) {
+        TColumnFilter columnFilter{*idMapping.ChunkId, *idMapping.StoredReplicas};
+        return DoGetSequoiaReplicas(chunkIds, columnFilter, [] (const NRecords::TChunkReplicas& replicaRecord) {
             return replicaRecord.StoredReplicas;
         });
     }
