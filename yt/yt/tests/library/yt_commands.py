@@ -952,6 +952,22 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
     return execute_command("advance_consumer", kwargs)
 
 
+def create_queue_producer_session(producer_path, queue_path, session_id, user_meta=None, **kwargs):
+    kwargs["producer_path"] = producer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["session_id"] = session_id
+    if user_meta is not None:
+        kwargs["user_meta"] = user_meta
+    return execute_command("create_queue_producer_session", kwargs, parse_yson=True)
+
+
+def remove_queue_producer_session(producer_path, queue_path, session_id, **kwargs):
+    kwargs["producer_path"] = producer_path
+    kwargs["queue_path"] = queue_path
+    kwargs["session_id"] = session_id
+    execute_command("remove_queue_producer_session", kwargs)
+
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 

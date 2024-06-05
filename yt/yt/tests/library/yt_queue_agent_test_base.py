@@ -437,6 +437,10 @@ class TestQueueAgentBase(YTEnvSetup):
             for partition_index, offset in partition_index_to_offset.items():
                 advance_consumer(consumer_path, queue_path, partition_index=partition_index, old_offset=None, new_offset=offset, client_side=client_side)
 
+    def _create_producer(self, producer_path, wait_for_mount=True, **kwargs):
+        create("queue_producer", producer_path, attributes=kwargs)
+        wait_for_tablet_state(producer_path, "mounted")
+
     @staticmethod
     def _flush_table(path, first_tablet_index=None, last_tablet_index=None):
         sync_freeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)

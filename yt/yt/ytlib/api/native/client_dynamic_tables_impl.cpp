@@ -7,6 +7,8 @@
 #include "transaction.h"
 #include "type_handler.h"
 
+#include <yt/yt/client/table_client/record_helpers.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
@@ -44,6 +46,8 @@
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
+
+#include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
@@ -2826,6 +2830,122 @@ std::vector<TListQueueConsumerRegistrationsResult> TClient::DoListQueueConsumerR
     }
 
     return result;
+}
+
+TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
+    const NYPath::TRichYPath& producerPath,
+    const NYPath::TRichYPath& queuePath,
+    const TString& sessionId,
+    const std::optional<TYsonString>& userMeta,
+    const TCreateQueueProducerSessionOptions& /*options*/)
+{
+    // NB(apachee): Current implementation does not handle RT/CRT correctly and ignores
+    // cluster in paths completely.
+
+    // XXX(apachee): Maybe everything should be moved in queue_client.
+
+    IClientPtr client = MakeStrong(this);
+
+    auto queueCluster = Connection_->GetClusterName();
+    if (!queueCluster) {
+        THROW_ERROR_EXCEPTION("Cannot serve request, "
+            "cluster connection was not properly configured with a cluster name");
+    }
+
+    auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
+
+    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey = {
+        .QueueCluster = *queueCluster,
+        .QueuePath = queuePath.GetPath(),
+        .SessionId = sessionId,
+    };
+
+    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+
+    auto sessionRowset = WaitFor(transaction->LookupRows(
+        producerPath.GetPath(),
+        nameTable,
+        keys))
+        .ValueOrThrow()
+        .Rowset;
+
+    ui64 nextSequenceNumber = 0;
+    ui64 nextEpoch = 0;
+    auto responseUserMeta = userMeta;
+
+    auto records = ToRecords<NQueueClient::NRecords::TQueueProducerSession>(sessionRowset);
+    // If rows is empty, then create new session.
+    if (!records.empty()) {
+        const auto& record = records[0];
+
+        nextSequenceNumber = record.SequenceNumber;
+        nextEpoch = record.Epoch + 1;
+        if (!responseUserMeta) {
+            responseUserMeta = record.UserMeta;
+        }
+    }
+
+    NQueueClient::NRecords::TQueueProducerSessionPartial nextRow = {
+        .Key = sessionKey,
+        .SequenceNumber = nextSequenceNumber,
+        .Epoch = nextEpoch,
+    };
+    if (userMeta) {
+        nextRow.UserMeta = userMeta;
+    }
+
+    auto nextRows = FromRecords(MakeRange(std::array{nextRow}));
+
+    transaction->WriteRows(producerPath.GetPath(), nameTable, nextRows);
+    WaitFor(transaction->Commit())
+        .ValueOrThrow();
+
+    return TCreateQueueProducerSessionResult{
+        .SequenceNumber = nextSequenceNumber,
+        .Epoch = nextEpoch,
+        .UserMeta = responseUserMeta,
+    };
+}
+
+void TClient::DoRemoveQueueProducerSession(
+    const NYPath::TRichYPath& producerPath,
+    const NYPath::TRichYPath& queuePath,
+    const TString& sessionId,
+    const TRemoveQueueProducerSessionOptions& /*options*/)
+{
+    // NB(apachee): Current implementation does not handle RT/CRT correctly and ignores
+    // cluster in paths completely.
+
+    // XXX(apachee): Maybe everything should be moved in queue_client.
+
+    IClientPtr client = MakeStrong(this);
+
+    auto queueCluster = Connection_->GetClusterName();
+    if (!queueCluster) {
+        THROW_ERROR_EXCEPTION("Cannot serve request, "
+            "cluster connection was not properly configured with a cluster name");
+    }
+
+    auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+
+    auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
+
+    NQueueClient::NRecords::TQueueProducerSessionKey sessionKey = {
+        .QueueCluster = *queueCluster,
+        .QueuePath = queuePath.GetPath(),
+        .SessionId = sessionId,
+    };
+
+    auto keys = FromRecordKeys(MakeRange(std::array{sessionKey}));
+
+    transaction->DeleteRows(producerPath.GetPath(), nameTable, keys);
+
+    WaitFor(transaction->Commit())
+        .ValueOrThrow();
 }
 
 TSyncAlienCellsResult TClient::DoSyncAlienCells(
