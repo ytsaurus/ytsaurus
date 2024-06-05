@@ -48,11 +48,17 @@ import static tech.ytsaurus.client.rows.TiTypeUtil.isSimpleType;
 import static tech.ytsaurus.client.rows.TiTypeUtil.tableSchemaToStructTiType;
 import static tech.ytsaurus.core.utils.ClassUtils.anyOfAnnotationsPresent;
 import static tech.ytsaurus.core.utils.ClassUtils.boxArray;
+import static tech.ytsaurus.core.utils.ClassUtils.castIntToActualType;
+import static tech.ytsaurus.core.utils.ClassUtils.castLongToActualType;
+import static tech.ytsaurus.core.utils.ClassUtils.castShortToActualType;
 import static tech.ytsaurus.core.utils.ClassUtils.castToType;
 import static tech.ytsaurus.core.utils.ClassUtils.getAllDeclaredFields;
 import static tech.ytsaurus.core.utils.ClassUtils.getConstructorOrDefaultFor;
 import static tech.ytsaurus.core.utils.ClassUtils.getInstanceWithoutArguments;
 import static tech.ytsaurus.core.utils.ClassUtils.getTypeDescription;
+import static tech.ytsaurus.core.utils.ClassUtils.isAssignableToInt;
+import static tech.ytsaurus.core.utils.ClassUtils.isAssignableToLong;
+import static tech.ytsaurus.core.utils.ClassUtils.isAssignableToShort;
 import static tech.ytsaurus.core.utils.ClassUtils.setFieldsAccessibleToTrue;
 import static tech.ytsaurus.core.utils.ClassUtils.unboxArray;
 
@@ -196,9 +202,9 @@ public class EntitySkiffSerializer<T> {
             if (tiType.isInt8()) {
                 serializer.serializeByte((byte) object);
             } else if (tiType.isInt16()) {
-                serializer.serializeShort((short) object);
+                serializeInt16(object, serializer);
             } else if (tiType.isInt32()) {
-                serializer.serializeInt((int) object);
+                serializeInt32(object, serializer);
             } else if (tiType.isInt64()) {
                 serializeInt64(object, serializer);
             } else if (tiType.isUint8()) {
@@ -234,13 +240,35 @@ public class EntitySkiffSerializer<T> {
         throw new IllegalStateException();
     }
 
+    private <Int16Type> void serializeInt16(
+            Int16Type object,
+            SkiffSerializer serializer
+    ) {
+        if (isAssignableToShort(object.getClass())) {
+            serializer.serializeShort(((Number) object).shortValue());
+            return;
+        }
+        throwIncorrectFieldTypeException("int16", object.getClass());
+    }
+
+    private <Int32Type> void serializeInt32(
+            Int32Type object,
+            SkiffSerializer serializer
+    ) {
+        if (isAssignableToInt(object.getClass())) {
+            serializer.serializeInt(((Number) object).intValue());
+            return;
+        }
+        throwIncorrectFieldTypeException("int32", object.getClass());
+    }
+
     private <Int64Type> void serializeInt64(
             Int64Type object,
             SkiffSerializer serializer
     ) {
         long l = 0;
-        if (object.getClass().equals(Long.class)) {
-            l = (long) object;
+        if (isAssignableToLong(object.getClass())) {
+            l = ((Number) object).longValue();
         } else if (object.getClass().equals(Instant.class)) {
             l = ((Instant) object).toEpochMilli();
         } else {
@@ -682,9 +710,9 @@ public class EntitySkiffSerializer<T> {
             if (tiType.isInt8()) {
                 return castToType(parser.parseInt8());
             } else if (tiType.isInt16()) {
-                return castToType(parser.parseInt16());
+                return deserializeInt16(clazz, parser);
             } else if (tiType.isInt32()) {
-                return castToType(parser.parseInt32());
+                return deserializeInt32(clazz, parser);
             } else if (tiType.isInt64()) {
                 return deserializeInt64(clazz, parser);
             } else if (tiType.isUint8()) {
@@ -718,10 +746,28 @@ public class EntitySkiffSerializer<T> {
         throw new IllegalStateException();
     }
 
+    private <Int16Type> Int16Type deserializeInt16(Class<Int16Type> clazz, SkiffParser parser) {
+        short int16 = parser.parseInt16();
+        if (isAssignableToShort(clazz)) {
+            return castShortToActualType(int16, clazz);
+        }
+        throwIncorrectFieldTypeException("int16", clazz);
+        return null;
+    }
+
+    private <Int32Type> Int32Type deserializeInt32(Class<Int32Type> clazz, SkiffParser parser) {
+        int int32 = parser.parseInt32();
+        if (isAssignableToInt(clazz)) {
+            return castIntToActualType(int32, clazz);
+        }
+        throwIncorrectFieldTypeException("int32", clazz);
+        return null;
+    }
+
     private <Int64Type> Int64Type deserializeInt64(Class<Int64Type> clazz, SkiffParser parser) {
         long int64 = parser.parseInt64();
-        if (clazz.equals(long.class) || clazz.equals(Long.class)) {
-            return castToType(int64);
+        if (isAssignableToLong(clazz)) {
+            return castLongToActualType(int64, clazz);
         }
         if (clazz.equals(Instant.class)) {
             return castToType(Instant.ofEpochMilli(int64));

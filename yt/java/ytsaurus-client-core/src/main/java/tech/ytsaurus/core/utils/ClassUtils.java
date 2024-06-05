@@ -237,6 +237,51 @@ public class ClassUtils {
         throw new IllegalArgumentException("Elements of array are not primitive");
     }
 
+    public static boolean isAssignableToLong(Class<?> clazz) {
+        return clazz.equals(long.class) || clazz.equals(Long.class) ||
+                isAssignableToInt(clazz);
+    }
+
+    public static boolean isAssignableToInt(Class<?> clazz) {
+        return clazz.equals(int.class) || clazz.equals(Integer.class) ||
+                isAssignableToShort(clazz);
+    }
+
+    public static boolean isAssignableToShort(Class<?> clazz) {
+        return clazz.equals(short.class) || clazz.equals(Short.class) ||
+                isAssignableToByte(clazz);
+    }
+
+    public static boolean isAssignableToByte(Class<?> clazz) {
+        return clazz.equals(byte.class) || clazz.equals(Byte.class);
+    }
+
+    public static <LongType> LongType castLongToActualType(long l, Class<LongType> clazz) {
+        if (clazz.equals(long.class) || clazz.equals(Long.class)) {
+            return castToType(l);
+        }
+        return castIntToActualType((int) l, clazz);
+    }
+
+    public static <IntType> IntType castIntToActualType(int i, Class<IntType> clazz) {
+        if (clazz.equals(int.class) || clazz.equals(Integer.class)) {
+            return castToType(i);
+        }
+        return castShortToActualType((short) i, clazz);
+    }
+
+    public static <ShortType> ShortType castShortToActualType(short s, Class<ShortType> clazz) {
+        if (clazz.equals(short.class) || clazz.equals(Short.class)) {
+            return castToType(s);
+        }
+        if (clazz.equals(byte.class) || clazz.equals(Byte.class)) {
+            return castToType((byte) s);
+        }
+        throw new IllegalArgumentException(
+                String.format("Cannot deserialize short to class %s", clazz.getCanonicalName())
+        );
+    }
+
     public static List<Type> getTypeParametersOfField(Field field) {
         Type genericType = field.getGenericType();
         if (genericType instanceof ParameterizedType) {
