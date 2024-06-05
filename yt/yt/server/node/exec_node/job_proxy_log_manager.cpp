@@ -41,6 +41,7 @@ public:
         , LogsStoragePeriod_(Config_->LogsStoragePeriod)
         , DirectoryTraversalConcurrency_(Config_->DirectoryTraversalConcurrency)
         , AsyncSemaphore_(New<NConcurrency::TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency.value_or(0)))
+        , BufferSize_(Config_->BufferSize)
     { }
 
     void Start() override
@@ -85,13 +86,8 @@ public:
     {
         auto logsPath = JobIdToLogsPath(jobId);
 
-        YT_LOG_INFO("Requested saving logs for path %v to ypath %v, transactionId %v", logsPath, path, transactionId);
-
         auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
-        auto logFileLength = logFile.GetLength();
-
-        auto buffer = TSharedMutableRef::Allocate(logFile.GetLength());
-        logFile.Read((void*)buffer.Data(), logFileLength);
+        auto buffer = TSharedMutableRef::Allocate(BufferSize_);
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
@@ -100,8 +96,16 @@ public:
         NConcurrency::WaitFor(writer->Open())
             .ThrowOnError();
 
-        NConcurrency::WaitFor(writer->Write(buffer))
-            .ThrowOnError();
+        while (true) {
+            auto bytesRead = logFile.Read((void*)buffer.Data(), BufferSize_);
+
+            if (bytesRead == 0) {
+                break;
+            }
+
+            NConcurrency::WaitFor(writer->Write(buffer.Slice(0, bytesRead)))
+                .ThrowOnError();
+        }
 
         NConcurrency::WaitFor(writer->Close())
             .ThrowOnError();
@@ -118,6 +122,8 @@ private:
 
     std::optional<int> DirectoryTraversalConcurrency_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+
+    i64 BufferSize_;
 
     void CreateShardingDirectories()
     {

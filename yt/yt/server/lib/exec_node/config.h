@@ -794,11 +794,15 @@ class TJobProxyLogManagerConfig
 {
 public:
     TString Directory;
+
     int ShardingKeyLength;
+
     TDuration LogsStoragePeriod;
 
     // Value std::nullopt means unlimited concurrency.
     std::optional<int> DirectoryTraversalConcurrency;
+
+    i64 BufferSize;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
