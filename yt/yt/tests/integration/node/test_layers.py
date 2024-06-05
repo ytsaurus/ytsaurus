@@ -1542,7 +1542,7 @@ class TestFailOperationAfterSuccessiveJobAbortsOnPrepareVolume(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 2
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": NUM_NODES,
             "default_file_replication_factor": NUM_NODES,
