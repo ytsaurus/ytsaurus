@@ -9,32 +9,32 @@ struct TDiskManagerProxyMock
 {
     virtual TFuture<THashSet<TString>> GetYtDiskDevicePaths()
     {
-        return MakeFuture<THashSet<TString>>(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture<THashSet<TString>>(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<std::vector<TDiskInfo>> GetDisks()
     {
-        return MakeFuture<std::vector<TDiskInfo>>(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture<std::vector<TDiskInfo>>(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<void> RecoverDiskById(const TString& /*diskId*/, ERecoverPolicy /*recoverPolicy*/)
     {
-        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<void> FailDiskById(const TString& /*diskId*/, const TString& /*reason*/)
     {
-        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<bool> GetHotSwapEnabledFuture()
     {
-        return MakeFuture<bool>(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture<bool>(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual TFuture<void> UpdateDiskCache()
     {
-        return MakeFuture(TError("Disk manager library is not available under this build configuration"));
+        return MakeFuture(TError(NRpc::EErrorCode::NoSuchService, "Disk manager library is not available under this build configuration"));
     }
 
     virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& /*newConfig*/)
