@@ -5736,17 +5736,34 @@ private:
         return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
     }
 
-    static TSequoiaChunkReplica ParseSequoiaReplica(TChunkId chunkId, const INodePtr& replica)
+    static TSequoiaChunkReplica ParseSequoiaReplica(TYsonPullParserCursor* cursor, TChunkId chunkId)
     {
-        const auto& replicaAsList = replica->AsList();
-        const auto& children = replicaAsList->GetChildren();
-        YT_VERIFY(children.size() == 3);
-
         TSequoiaChunkReplica chunkReplica;
         chunkReplica.ChunkId = chunkId;
-        chunkReplica.LocationUuid = TGuid::FromString(children[0]->AsString()->GetValue());
-        chunkReplica.ReplicaIndex = children[1]->AsInt64()->GetValue();
-        chunkReplica.NodeId = TNodeId(children[2]->AsUint64()->GetValue());
+
+        auto consume = [&] (EYsonItemType type, const auto& fillField) {
+            const auto& current = cursor->GetCurrent();
+            if (current.GetType() != type) {
+                THROW_ERROR_EXCEPTION("Invalid YSON item type while parsing Sequoia replicas: expected %Qlv, actual %Qlv)",
+                    type,
+                    current.GetType());
+            }
+            fillField(current);
+            cursor->Next();
+        };
+
+        consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
+        consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
+            chunkReplica.LocationUuid = TGuid::FromString(current.UncheckedAsString());
+        });
+        consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
+            chunkReplica.ReplicaIndex = current.UncheckedAsInt64();
+        });
+        consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
+            chunkReplica.NodeId = TNodeId(current.UncheckedAsUint64());
+        });
+        consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
+
         return chunkReplica;
     }
 
@@ -5774,9 +5791,15 @@ private:
                     }
 
                     auto chunkId = replicaRecord->Key.ChunkId;
-                    for (const auto& replica : ConvertToNode(extractReplicas(*replicaRecord))->AsList()->GetChildren()) {
-                        replicas.push_back(ParseSequoiaReplica(chunkId, replica));
-                    }
+                    auto extractedReplicas = extractReplicas(*replicaRecord);
+
+                    TMemoryInput input(extractedReplicas.AsStringBuf().data(), extractedReplicas.AsStringBuf().size());
+                    TYsonPullParser parser(&input, EYsonType::Node);
+                    TYsonPullParserCursor cursor(&parser);
+
+                    cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
+                        replicas.push_back(ParseSequoiaReplica(cursor, chunkId));
+                    });
                 }
 
                 return replicas;
