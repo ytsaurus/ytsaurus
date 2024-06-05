@@ -911,6 +911,7 @@
   "yt/yt/experiments/public/formats_test/CMakeLists.txt":"",
   "yt/yt/experiments/public/grpc_test/CMakeLists.txt":"",
   "yt/yt/experiments/public/gwp_asan_test/CMakeLists.txt":"",
+  "yt/yt/experiments/public/http_server/CMakeLists.txt":"",
   "yt/yt/experiments/public/hydra_stress_test/CMakeLists.txt":"",
   "yt/yt/experiments/public/in_memory_nbd_server/CMakeLists.txt":"",
   "yt/yt/experiments/public/log_compression/CMakeLists.txt":"",

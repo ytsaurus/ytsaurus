@@ -31,4 +31,5 @@ RECURSE(
     uring
     value_dictionary_compression
     ytserver_dummy
+    http_server
 )
