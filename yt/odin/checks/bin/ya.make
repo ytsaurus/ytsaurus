@@ -23,6 +23,7 @@ RECURSE(
     operations_snapshots
     proxy
     queue_agent_alerts
+    queue_api
     query_tracker_alerts
     query_tracker_yql_liveness
     query_tracker_chyt_liveness

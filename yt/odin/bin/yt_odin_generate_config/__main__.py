@@ -157,6 +157,7 @@ CHECKS_LIST = [
     "operations_satisfaction",
     "operations_snapshots",
     "proxy",
+    "queue_api",
     "queue_agent_alerts",
     "query_tracker_alerts",
     "query_tracker_yql_liveness",
