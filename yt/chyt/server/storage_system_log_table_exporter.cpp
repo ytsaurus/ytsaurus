@@ -32,8 +32,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger SystemLogTableExporterLogger("SystemLogTableExporter");
-static const NProfiling::TRegistry SystemLogTableExporterProfiler("/system_log_table_exporter");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, SystemLogTableExporterLogger, "SystemLogTableExporter");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SystemLogTableExporterProfiler, "/system_log_table_exporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,7 +199,7 @@ public:
         , NameTable_(TNameTable::FromSchema(Schema_))
         , ColumnIndexToId_(std::make_shared<const std::vector<int>>(
             GetColumnIndexToId(NameTable_, Schema_.GetColumnNames())))
-        , Logger(SystemLogTableExporterLogger.WithTag("TableName: %v", getStorageID().getFullTableName()))
+        , Logger(SystemLogTableExporterLogger().WithTag("TableName: %v", getStorageID().getFullTableName()))
         , Data_(New<TCircularChunkBuffer>(Config_->MaxBytesToKeep, Config_->MaxRowsToKeep))
     {
         DB::StorageInMemoryMetadata storageMetadata;
@@ -239,7 +239,7 @@ public:
                 getStorageID().getFullTableName(),
                 Client_,
                 Invoker_,
-                SystemLogTableExporterProfiler.WithTag("table_name", getStorageID().table_name));
+                SystemLogTableExporterProfiler().WithTag("table_name", getStorageID().table_name));
         }
     }
 

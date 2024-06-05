@@ -25,7 +25,7 @@ using NJobAgent::EstimateSizes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TRegistry ReporterProfiler("/statistics_reporter");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ReporterProfiler, "/statistics_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,7 +364,7 @@ public:
                 "distributed_queries",
                 client,
                 Reporter_->GetInvoker(),
-                ReporterProfiler.WithTag("reporter_type", "distributed_queries")))
+                ReporterProfiler().WithTag("reporter_type", "distributed_queries")))
         , SecondaryQueryHandler_(
             CreateArchiveReporter(
                 Version_,
@@ -374,7 +374,7 @@ public:
                 "secondary_queries",
                 client,
                 Reporter_->GetInvoker(),
-                ReporterProfiler.WithTag("reporter_type", "secondary_queries")))
+                ReporterProfiler().WithTag("reporter_type", "secondary_queries")))
         , AncestorQueryIdsHandler_(
             CreateArchiveReporter(
                 Version_,
@@ -384,7 +384,7 @@ public:
                 "ancestor_query_ids",
                 client,
                 Reporter_->GetInvoker(),
-                ReporterProfiler.WithTag("reporter_type", "ancestor_query_ids")))
+                ReporterProfiler().WithTag("reporter_type", "ancestor_query_ids")))
     { }
 
     void ReportQueryStatistics(const TQueryContextPtr& queryContext) override

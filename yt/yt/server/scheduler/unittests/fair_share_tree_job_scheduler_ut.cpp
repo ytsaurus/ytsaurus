@@ -28,9 +28,9 @@ using namespace NControllerAgent;
 
 // NB(eshcherbin): Set to true, when in pain.
 static constexpr bool EnableDebugLogging = false;
-static const NLogging::TLogger Logger = EnableDebugLogging
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
     ? NLogging::TLogger("TestDebug")
-    : NLogging::TLogger();
+    : NLogging::TLogger());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -322,7 +322,7 @@ class TOperationControllerStrategyHostMock
 {
 public:
     explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList allocationResourcesList)
-        : AllocationResourcesList(std::move(allocationResourcesList))
+        : AllocationResourcesList_(std::move(allocationResourcesList))
     { }
 
     TControllerEpoch GetEpoch() const override
@@ -343,7 +343,7 @@ public:
     TCompositeNeededResources GetNeededResources() const override
     {
         TJobResources totalResources;
-        for (const auto& resources : AllocationResourcesList) {
+        for (const auto& resources : AllocationResourcesList_) {
             totalResources += resources.ToJobResources();
         }
         return TCompositeNeededResources{.DefaultResources = totalResources};
@@ -355,7 +355,7 @@ public:
     TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
     {
         TJobResourcesWithQuotaList minNeededResourcesList;
-        for (const auto& resources : AllocationResourcesList) {
+        for (const auto& resources : AllocationResourcesList_) {
             bool dominated = false;
             for (const auto& minNeededResourcesElement : minNeededResourcesList) {
                 if (Dominates(resources.ToJobResources(), minNeededResourcesElement.ToJobResources())) {
@@ -383,7 +383,7 @@ public:
     }
 
 private:
-    TJobResourcesWithQuotaList AllocationResourcesList;
+    TJobResourcesWithQuotaList AllocationResourcesList_;
 };
 
 using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControllerStrategyHostMock>;
