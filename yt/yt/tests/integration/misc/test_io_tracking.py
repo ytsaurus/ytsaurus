@@ -123,7 +123,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_journal_read_quorum": 1,
@@ -623,7 +623,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_file_replication_factor": 1,
             "default_table_replication_factor": 1,
@@ -900,7 +900,7 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_file_replication_factor": 1,
@@ -2124,7 +2124,7 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_journal_read_quorum": 1,
@@ -2133,7 +2133,7 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
         }
     }
 
-    DELTA_MASTER_CONFIG_0 = {
+    DELTA_DYNAMIC_MASTER_CONFIG_0 = {
         "cypress_manager": {
             "default_table_replication_factor": 1,
             "default_journal_read_quorum": 1,

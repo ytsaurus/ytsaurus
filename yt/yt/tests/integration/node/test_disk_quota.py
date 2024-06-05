@@ -59,7 +59,7 @@ class TestDiskUsagePorto(YTEnvSetup):
         },
     }
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1
         }
@@ -263,7 +263,7 @@ class TestDiskUsagePorto(YTEnvSetup):
 ##################################################################
 
 class DiskMediumTestConfiguration(object):
-    MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1
         }
@@ -294,7 +294,7 @@ class TestDiskMediumsPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
@@ -553,7 +553,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
@@ -677,7 +677,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
@@ -781,7 +781,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumPorto(YTEnvSetup, DiskMediumTest
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
@@ -930,7 +930,7 @@ class TestDefaultDiskMediumWithUnspecifiedMediumAndMultipleSlotsPorto(YTEnvSetup
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG
     DELTA_NODE_CONFIG = {
@@ -1032,7 +1032,11 @@ class TestDiskMediumAccounting(YTEnvSetup, DiskMediumTestConfiguration):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_MASTER_CONFIG = DiskMediumTestConfiguration.MASTER_CONFIG
+    DELTA_DYNAMIC_MASTER_CONFIG = DiskMediumTestConfiguration.DELTA_DYNAMIC_MASTER_CONFIG
+
+    # COMPAT(kivedernikov)
+    DELTA_MASTER_CONFIG = DELTA_DYNAMIC_MASTER_CONFIG
+
     DELTA_SCHEDULER_CONFIG = DiskMediumTestConfiguration.SCHEDULER_CONFIG
     DELTA_CONTROLLER_AGENT_CONFIG = update(
         DiskMediumTestConfiguration.CONTROLLER_AGENT_CONFIG,

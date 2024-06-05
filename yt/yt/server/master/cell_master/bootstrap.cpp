@@ -313,6 +313,11 @@ const IConfigManagerPtr& TBootstrap::GetConfigManager() const
     return ConfigManager_;
 }
 
+const TDynamicClusterConfigPtr& TBootstrap::GetDynamicConfig() const
+{
+    return ConfigManager_->GetConfig();
+}
+
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;

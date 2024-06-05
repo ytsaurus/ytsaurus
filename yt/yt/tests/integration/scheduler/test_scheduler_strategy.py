@@ -2835,7 +2835,7 @@ class TestMinNeededResources(YTEnvSetup):
         "resource_limits": {"memory": 20 * 1024 * 1024 * 1024},
     }
 
-    DELTA_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1
         }

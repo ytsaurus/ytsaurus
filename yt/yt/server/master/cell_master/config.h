@@ -282,8 +282,6 @@ public:
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCypressServer::TCypressManagerConfigPtr CypressManager;
-
     NCellServer::TCellManagerConfigPtr CellManager;
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;

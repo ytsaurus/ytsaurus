@@ -61,7 +61,7 @@ protected:
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
     {
-        const auto& config = GetBootstrap()->GetConfig()->CypressManager;
+        const auto& config = GetBootstrap()->GetDynamicConfig()->CypressManager;
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
         auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
         auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);

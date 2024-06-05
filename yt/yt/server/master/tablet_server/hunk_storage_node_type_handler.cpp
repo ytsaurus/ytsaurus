@@ -59,7 +59,7 @@ protected:
     {
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
-        const auto& config = Bootstrap_->GetConfig()->CypressManager;
+        const auto& config = Bootstrap_->GetDynamicConfig()->CypressManager;
         auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>(
             "erasure_codec",
             config->DefaultHunkStorageErasureCodec);

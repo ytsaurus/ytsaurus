@@ -14,7 +14,7 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressManagerConfig
+class TDynamicCypressManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -32,19 +32,6 @@ public:
     int DefaultHunkStorageReadQuorum;
     int DefaultHunkStorageWriteQuorum;
 
-    REGISTER_YSON_STRUCT(TCypressManagerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TCypressManagerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDynamicCypressManagerConfig
-    : public NYTree::TYsonStruct
-{
-public:
     //! Period between Cypress access statistics commits.
     TDuration StatisticsFlushPeriod;
 

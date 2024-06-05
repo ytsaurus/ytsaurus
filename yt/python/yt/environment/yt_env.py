@@ -12,7 +12,7 @@ from .porto_helpers import PortoSubprocess, porto_available
 from .watcher import ProcessWatcher
 from .init_cluster import BatchProcessor, _initialize_world_for_local_cluster
 from .local_cypress import _synchronize_cypress_with_local_dir
-from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config
+from .local_cluster_configuration import modify_cluster_configuration, get_patched_dynamic_node_config, get_patched_dynamic_master_config
 
 from .tls_helpers import create_ca, create_certificate
 
@@ -1213,7 +1213,7 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    client.set("//sys/@config", get_dynamic_master_config(),
+                    client.set("//sys/@config", get_patched_dynamic_master_config(get_dynamic_master_config()),
                                suppress_transaction_coordinator_sync=True,
                                suppress_upstream_sync=True)
                 else:
