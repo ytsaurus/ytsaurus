@@ -1402,7 +1402,7 @@ public:
         auto buildCommonLogEventPart = [&] (const TString& schema, i64 usageQuantity, TInstant startTime, TInstant finishTime) {
             return NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
                 .Item("schema").Value(schema)
-                .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (finishTime - TInstant()).Seconds()))
+                .Item("id").Value(TGuid::Create())
                 .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
                     fluent
                         .Item("abc_id").Value(key.AbcId);
