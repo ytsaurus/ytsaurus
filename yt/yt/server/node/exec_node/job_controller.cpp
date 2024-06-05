@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "job.h"
 #include "job_info.h"
+#include "job_proxy_log_manager.h"
 #include "private.h"
 #include "scheduler_connector.h"
 #include "slot_manager.h"
@@ -154,6 +155,7 @@ public:
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
+        JobProxyLogManager_ = CreateJobProxyLogManager(Bootstrap_->GetExecNodeBootstrap());
     }
 
     void Start() override
@@ -164,6 +166,7 @@ public:
         ResourceAdjustmentExecutor_->Start();
         RecentlyRemovedJobCleaner_->Start();
         JobProxyBuildInfoUpdater_->Start();
+        JobProxyLogManager_->Start();
 
         // Get ready event before actual start.
         auto buildInfoReadyEvent = JobProxyBuildInfoUpdater_->GetExecutedEvent();
@@ -398,10 +401,16 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TJobControllerDynamicConfigPtr& /*oldConfig*/,
+        const TJobControllerDynamicConfigPtr& oldConfig,
         const TJobControllerDynamicConfigPtr& newConfig) override
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        if (newConfig->JobProxyLogManager) {
+            JobProxyLogManager_->OnDynamicConfigChanged(
+                oldConfig->JobProxyLogManager,
+                newConfig->JobProxyLogManager);
+        }
 
         DynamicConfig_.Store(newConfig);
 
@@ -530,6 +539,8 @@ private:
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
+
+    IJobProxyLogManagerPtr JobProxyLogManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -1514,6 +1525,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto operationId = job->GetOperationId();
+
+        JobProxyLogManager_->OnJobUnregistered(job->GetId());
 
         auto guard = WriterGuard(JobsLock_);
 

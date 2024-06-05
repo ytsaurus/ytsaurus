@@ -675,6 +675,8 @@ public:
     //! Adds delay before starting a job.
     std::optional<TDuration> TestResourceAcquisitionDelay;
 
+    TJobProxyLogManagerDynamicConfigPtr JobProxyLogManager;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -725,11 +727,7 @@ class TJobProxyLoggingConfig
 public:
     EJobProxyLoggingMode Mode;
 
-    std::optional<TString> Directory;
-
     NLogging::TLogManagerConfigPtr LogManagerTemplate;
-
-    std::optional<int> ShardingKeyLength;
 
     std::optional<TString> JobProxyStderrPath;
     std::optional<TString> ExecutorStderrPath;
@@ -791,6 +789,43 @@ DEFINE_REFCOUNTED_TYPE(TJobProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobProxyLogManagerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TString Directory;
+    int ShardingKeyLength;
+    TDuration LogsStoragePeriod;
+
+    // Value std::nullopt means unlimited concurrency.
+    std::optional<int> DirectoryTraversalConcurrency;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobProxyLogManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration LogsStoragePeriod;
+    // Value std::nullopt means unlimited concurrency.
+    std::optional<int> DirectoryTraversalConcurrency;
+
+    REGISTER_YSON_STRUCT(TJobProxyLogManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProxyLogManagerDynamicConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TExecNodeConfig
     : public NYTree::TYsonStruct
 {
@@ -806,6 +841,8 @@ public:
     NProfiling::TSolomonExporterConfigPtr JobProxySolomonExporter;
 
     TJobProxyConfigPtr JobProxy;
+
+    TJobProxyLogManagerConfigPtr JobProxyLogManager;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

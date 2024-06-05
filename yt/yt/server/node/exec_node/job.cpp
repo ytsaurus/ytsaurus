@@ -2652,7 +2652,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         }
     };
 
-    auto jobProxyLoggingConfig = Bootstrap_->GetConfig()->ExecNode->JobProxy->JobProxyLogging;
+    auto execNodeConfig = Bootstrap_->GetConfig()->ExecNode;
 
     // This replace logic is used for testing puproses.
     proxyConfig->Logging->UpdateWriters([&] (const IMapNodePtr& writerConfigNode) {
@@ -2663,13 +2663,13 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 
         auto fileLogWriterConfig = ConvertTo<NLogging::TFileLogWriterConfigPtr>(writerConfigNode);
 
-        if (jobProxyLoggingConfig->Mode == EJobProxyLoggingMode::Simple) {
+        if (execNodeConfig->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::Simple) {
             tryReplaceSlotIndex(fileLogWriterConfig->FileName);
         } else {
             fileLogWriterConfig->FileName = NFS::JoinPaths(
                 NFS::JoinPaths(
-                    jobProxyLoggingConfig->Directory.value(),
-                    calculateShardingKey(jobProxyLoggingConfig->ShardingKeyLength.value())
+                    execNodeConfig->JobProxyLogManager->Directory,
+                    calculateShardingKey(execNodeConfig->JobProxyLogManager->ShardingKeyLength)
                 ),
                 NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
             );

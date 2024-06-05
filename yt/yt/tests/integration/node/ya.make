@@ -8,6 +8,7 @@ TEST_SRCS(
     test_io_engine.py
     test_node_orchid.py
     test_job_proxy.py
+    test_job_proxy_log_manager.py
     test_jobs.py
     test_hot_swap.py
     test_locations.py

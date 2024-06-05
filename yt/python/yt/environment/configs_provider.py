@@ -966,16 +966,6 @@ def _build_node_configs(node_dirs,
         )
         set_at(
             config,
-            "exec_node/job_proxy/job_proxy_logging/sharding_key_length",
-            yt_config.job_proxy_logging["sharding_key_length"]
-        )
-        set_at(
-            config,
-            "exec_node/job_proxy/job_proxy_logging/directory",
-            os.path.join(logs_dir, "job_proxy-{0}".format(index))
-        )
-        set_at(
-            config,
             "exec_node/job_proxy/job_proxy_logging/log_manager_template",
             _init_logging(logs_dir, log_name, yt_config)
         )
@@ -994,6 +984,28 @@ def _build_node_configs(node_dirs,
             "exec_node/job_proxy/job_proxy_logging/executor_stderr_path",
             os.path.join(logs_dir, "ytserver_exec-{0}-stderr-slot-%slot_index%".format(index))
         )
+
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/directory",
+            os.path.join(logs_dir, "job_proxy-{0}".format(index))
+        )
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/sharding_key_length",
+            yt_config.job_proxy_log_manager["sharding_key_length"]
+        )
+        set_at(
+            config,
+            "exec_node/job_proxy_log_manager/logs_storage_period",
+            yt_config.job_proxy_log_manager["logs_storage_period"]
+        )
+        if yt_config.job_proxy_log_manager["directory_traversal_concurrency"] is not None:
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/directory_traversal_concurrency",
+                yt_config.job_proxy_log_manager["directory_traversal_concurrency"]
+            )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
