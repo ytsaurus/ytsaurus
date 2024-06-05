@@ -146,7 +146,12 @@ private:
 
     void FiberIteration()
     {
-        UpdateReplicationCard();
+        UpdateReplicationCardAndReconfigure();
+    }
+
+    void UpdateReplicationCardAndReconfigure(TReplicationEra newEra = InvalidReplicationEra)
+    {
+        UpdateReplicationCard(newEra);
 
         if (auto guard = TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_)) {
             ReconfigureTabletWriteMode();
@@ -155,20 +160,31 @@ private:
         }
     }
 
-    void UpdateReplicationCard()
+    void UpdateReplicationCard(TReplicationEra newEra = InvalidReplicationEra)
     {
         try {
             YT_LOG_DEBUG("Updating tablet replication card");
 
             const auto& replicationCardCache = Connection_->GetReplicationCardCache();
 
-            ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard({
-                    .CardId = ReplicationCardId_,
-                    .FetchOptions = {
-                        .IncludeProgress = true,
-                        .IncludeHistory = true,
-                    }
-                })).ValueOrThrow();
+            auto key = TReplicationCardCacheKey{
+                .CardId = ReplicationCardId_,
+                .FetchOptions = {
+                    .IncludeProgress = true,
+                    .IncludeHistory = true,
+                },
+            };
+
+            if (newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
+                key.RefreshEra = newEra;
+                YT_LOG_DEBUG("Forcing cached replication card update (OldEra: %v, NewEra: %v)",
+                    ReplicationCard_->Era,
+                    newEra);
+                replicationCardCache->ForceRefresh(key, ReplicationCard_);
+            }
+
+            ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard(key))
+                .ValueOrThrow();
 
             Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
 
@@ -177,6 +193,20 @@ private:
         } catch (std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to update tablet replication card");
         }
+    }
+
+    void RefreshEra(TReplicationEra newEra) override
+    {
+        YT_LOG_DEBUG("Refreshing replication card era (NewEra: %v)",
+            newEra);
+
+        WaitFor(BIND_NO_PROPAGATE(&TChaosAgent::UpdateReplicationCardAndReconfigure, MakeWeak(this), newEra)
+            .AsyncVia(Tablet_->GetEpochAutomatonInvoker())
+            .Run())
+        .ThrowOnError();
+
+        YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
+            newEra);
     }
 
     void ReconfigureTabletWriteMode()
