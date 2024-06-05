@@ -9,13 +9,13 @@ namespace NYT::NChunkServer {
 
 struct TChunkMergerViolatedCriteriaStatistics
 {
-    i64 MaxChunkCountViolatedCriteria = 0;
-    i64 MaxRowCountViolatedCriteria = 0;
-    i64 MaxDataWeightViolatedCriteria = 0;
-    i64 MaxUncompressedDataSizeViolatedCriteria = 0;
-    i64 MaxCompressedDataSizeViolatedCriteria = 0;
-    i64 MaxInputChunkDataWeightViolatedCriteria = 0;
-    i64 MaxChunkMetaViolatedCriteria = 0;
+    int MaxChunkCountViolatedCriteria = 0;
+    int MaxRowCountViolatedCriteria = 0;
+    int MaxDataWeightViolatedCriteria = 0;
+    int MaxUncompressedDataSizeViolatedCriteria = 0;
+    int MaxCompressedDataSizeViolatedCriteria = 0;
+    int MaxInputChunkDataWeightViolatedCriteria = 0;
+    int MaxChunkMetaViolatedCriteria = 0;
 
     TChunkMergerViolatedCriteriaStatistics& operator+=(const TChunkMergerViolatedCriteriaStatistics& rhs);
 };
@@ -23,19 +23,23 @@ struct TChunkMergerViolatedCriteriaStatistics
 struct TChunkMergerTraversalInfo
 {
     int ChunkCount = 0;
-    i64 ConfigVersion = 0;
-
-    TChunkMergerViolatedCriteriaStatistics ViolatedCriteriaStatistics;
+    int ConfigVersion = 0;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
 
+struct TChunkMergerTraversalStatistics
+    : public TChunkMergerTraversalInfo
+{
+    TChunkMergerViolatedCriteriaStatistics ViolatedCriteriaStatistics;
+};
+
 void FormatValue(
     TStringBuilderBase* builder,
-    const TChunkMergerTraversalInfo& traversalInfo,
+    const TChunkMergerTraversalStatistics& traversalStatistics,
     TStringBuf spec);
-TString ToString(const TChunkMergerTraversalInfo& traversalInfo);
+TString ToString(const TChunkMergerTraversalStatistics& traversalStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

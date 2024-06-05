@@ -4,6 +4,8 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NCellMaster;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkMergerViolatedCriteriaStatistics& TChunkMergerViolatedCriteriaStatistics::operator+=(
@@ -18,30 +20,36 @@ TChunkMergerViolatedCriteriaStatistics& TChunkMergerViolatedCriteriaStatistics::
     return *this;
 }
 
-void TChunkMergerTraversalInfo::Save(NCellMaster::TSaveContext& context) const
+void TChunkMergerTraversalInfo::Save(TSaveContext& context) const
 {
     using NYT::Save;
+
     Save(context, ChunkCount);
     Save(context, ConfigVersion);
 }
 
-void TChunkMergerTraversalInfo::Load(NCellMaster::TLoadContext& context)
+void TChunkMergerTraversalInfo::Load(TLoadContext& context)
 {
     using NYT::Load;
+
     Load(context, ChunkCount);
-    Load(context, ConfigVersion);
+    if (context.GetVersion() >= EMasterReign::RemovedeRedundantStatisticsFromChunkOwnerBase) {
+        Load(context, ConfigVersion);
+    } else {
+        ConfigVersion = Load<i64>(context);
+    }
 }
 
-void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalInfo& traversalInfo, TStringBuf /*spec*/)
+void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalStatistics& traversalStatistics, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{ChunkCount: %v, ConfigVersion: %v}",
-        traversalInfo.ChunkCount,
-        traversalInfo.ConfigVersion);
+        traversalStatistics.ChunkCount,
+        traversalStatistics.ConfigVersion);
 }
 
-TString ToString(const TChunkMergerTraversalInfo& traversalInfo)
+TString ToString(const TChunkMergerTraversalStatistics& traversalStatistics)
 {
-    return ToStringViaBuilder(traversalInfo);
+    return ToStringViaBuilder(traversalStatistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
