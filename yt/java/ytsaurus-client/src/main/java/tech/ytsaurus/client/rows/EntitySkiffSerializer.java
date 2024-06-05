@@ -821,13 +821,14 @@ public class EntitySkiffSerializer<T> {
     private <YsonType> YsonType deserializeYson(Class<YsonType> clazz, SkiffParser parser) {
         BufferReference ref = parser.parseYson32();
         ByteArrayInputStream inputStream = new ByteArrayInputStream(ref.getBuffer(), ref.getOffset(), ref.getLength());
+        YTreeNode node = YTreeBinarySerializer.deserialize(inputStream);
         if (YTreeNode.class.isAssignableFrom(clazz)) {
-            return castToType(YTreeBinarySerializer.deserialize(inputStream));
+            return castToType(node);
         }
         if (YsonSerializable.class.isAssignableFrom(clazz)) {
             var constructor = objectConstructorMap.computeIfAbsent(clazz, ClassUtils::getEmptyConstructor);
             YsonSerializable ysonSerializable = getInstanceWithoutArguments(constructor);
-            ysonSerializable.deserialize(inputStream);
+            ysonSerializable.deserialize(node);
             return castToType(ysonSerializable);
         }
         throwIncorrectFieldTypeException("yson", clazz);
