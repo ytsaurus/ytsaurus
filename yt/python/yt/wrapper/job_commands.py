@@ -124,7 +124,7 @@ def dump_job_proxy_log(job_id, path, client=None):
     """Dumps JobProxy logs for a specified job to cypress.
 
     :param str job_id: job id.
-    :param str output_path: ypath to save logs to.
+    :param str path: ypath to dump logs to.
     """
     params = {
         "job_id": job_id,

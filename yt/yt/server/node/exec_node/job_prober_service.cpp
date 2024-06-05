@@ -216,7 +216,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo(
-            "JobId: %v, OutputPath: %v, TransactionId: %v",
+            "JobId: %v, Path: %v, TransactionId: %v",
             jobId,
             path,
             transactionId);
