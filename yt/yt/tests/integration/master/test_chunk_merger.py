@@ -1390,6 +1390,35 @@ class TestChunkMerger(YTEnvSetup):
         wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
         assert get("//tmp/t/@chunk_ids") == chunk_ids
 
+    @authors("kivedernikov")
+    def test_max_meta_chunk_size_limiter(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        chunk = get("//tmp/t/@chunk_ids")[0]
+        pivot = get(f"#{chunk}/@master_meta_size") // 2
+        set("//sys/@config/chunk_manager/chunk_merger/max_meta_chunk_size", pivot)
+
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+        assert len(get("//tmp/t/@chunk_ids")) == 3
+
+        wait(lambda: get("//tmp/t/@chunk_merger_status") == "not_in_merge_pipeline")
+        assert len(get("//tmp/t/@chunk_ids")) == 3
+
+    @authors("kivedernikov")
+    def test_max_meta_chunk_size_limiter2(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        chunk = get("//tmp/t/@chunk_ids")[0]
+        pivot = get(f"#{chunk}/@master_meta_size") + 1
+        set("//sys/@config/chunk_manager/chunk_merger/max_meta_chunk_size", pivot)
+
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        self._wait_for_merge("//tmp/t", "deep")
+        assert len(get("//tmp/t/@chunk_ids")) == 1
+
 
 class TestChunkMergerMulticell(TestChunkMerger):
     NUM_TEST_PARTITIONS = 6

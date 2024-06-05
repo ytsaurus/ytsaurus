@@ -491,12 +491,13 @@ private:
             config->MaxDataWeight,
             config->MaxUncompressedDataSize,
             config->MaxCompressedDataSize,
-            config->MaxInputChunkDataWeight
+            config->MaxInputChunkDataWeight,
+            config->MaxChunkMeta
         };
         mergerCriteria.AssignNotNull(accountCriteria);
 
         auto satisfiedCriteriaCount = 0;
-        const auto targetSatisfiedCriteriaCount = 7;
+        const auto targetSatisfiedCriteriaCount = 8;
 
         auto& statistics = TraversalInfo_.ViolatedCriteriaStatistics;
         auto incrementSatisfiedOrViolatedCriteriaCount = [&] (bool condition, auto& violatedCriteriaCount, auto criterionName, auto formattedArguments) {
@@ -513,6 +514,14 @@ private:
                     parent->GetId());
             }
         };
+
+        incrementSatisfiedOrViolatedCriteriaCount(
+            chunk->ChunkMeta()->GetExtensionsByteSize() < mergerCriteria.MaxMetaChunkSize,
+            statistics.MaxChunkMetaViolatedCriteria,
+            "ChunkMeta",
+            Format("ChunkMetaSize: %v, MaxMetaChunkSize: %v",
+                chunk->ChunkMeta()->GetExtensionsByteSize(),
+                config->MaxChunkMeta));
 
         incrementSatisfiedOrViolatedCriteriaCount(
             CurrentRowCount_ + chunk->GetRowCount() < mergerCriteria.MaxRowCount,

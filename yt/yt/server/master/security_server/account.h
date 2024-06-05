@@ -58,16 +58,17 @@ TAccountMulticellStatistics SubtractAccountMulticellStatistics(const TAccountMul
 
 //! Changing this macro changes snapshot serialization format and requires reign promotion.
 #define FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX) \
-    XX(int, MaxChunkCount, max_chunk_count) \
-    XX(i64, MaxRowCount, max_row_count) \
-    XX(i64, MaxDataWeight, max_data_weight) \
-    XX(i64, MaxUncompressedDataSize, max_uncompressed_data_size) \
-    XX(i64, MaxCompressedDataSize, max_compressed_data_size) \
-    XX(i64, MaxInputChunkDataWeight, max_input_chunk_data_weight)
+    XX(int, MaxChunkCount, max_chunk_count, 0) \
+    XX(i64, MaxRowCount, max_row_count, 0) \
+    XX(i64, MaxDataWeight, max_data_weight, 0) \
+    XX(i64, MaxUncompressedDataSize, max_uncompressed_data_size, 0) \
+    XX(i64, MaxCompressedDataSize, max_compressed_data_size, 0) \
+    XX(i64, MaxInputChunkDataWeight, max_input_chunk_data_weight, 0) \
+    XX(i64, MaxMetaChunkSize, max_meta_chunk_size, static_cast<int>(EMasterReign::ChunkMetaLimit))
 
 struct TChunkMergerCriteria
 {
-    #define XX(type, camelCaseName, snakeCaseName) std::optional<type> camelCaseName;
+    #define XX(type, camelCaseName, snakeCaseName, reign) std::optional<type> camelCaseName;
     FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
     #undef XX
 
