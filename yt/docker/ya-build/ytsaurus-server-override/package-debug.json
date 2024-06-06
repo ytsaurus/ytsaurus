@@ -10,20 +10,11 @@
             "targets": [
                 "yt/yt/server/all",
             ],
-            "build_type": "release",
-            "thinlto": true,
+            "build_type": "debug",
             "target-platforms": [
                 "default-linux-x86_64",
             ],
             "flags": [
-                {
-                    "name": "NO_STRIP",
-                    "value": "yes",
-                },
-                {
-                    "name": "PIC",
-                    "value": "yes",
-                },
             ],
         },
     },
