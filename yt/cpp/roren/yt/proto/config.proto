@@ -30,8 +30,7 @@ message TYtPipelineConfig
     optional string TransactionId = 4;
 
     // Enable V2 optimizer for yt graph.
-    // For now V2 optimzier is unstable and not recommended to use.
-    optional bool EnableV2Optimizer = 5;
+    optional bool EnableV2Optimizer = 5 [default = true];
 
     // Configuration for particular operations.
     // In general it's recommended to avoid such configurations.
