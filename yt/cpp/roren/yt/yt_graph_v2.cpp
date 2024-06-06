@@ -2456,7 +2456,7 @@ static NYT::TNode GetOperationSpecPatch(const THashSet<TString>& transformNames,
     return result;
 }
 
-NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId nodeId, const TStartOperationContext& context) const
+NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client, TOperationNodeId nodeId, const TStartOperationContext& /*context*/) const
 {
     auto addLocalFiles = [] (const IRawParDoPtr& parDo, NYT::TUserJobSpec* spec) {
         const auto& resourceFileList = TFnAttributesOps::GetResourceFileList(parDo->GetFnAttributes());
@@ -2486,7 +2486,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
     const auto& operation = PlainGraph_->Operations[nodeId];
 
     auto operationOptions = NYT::TOperationOptions().Wait(false);
-    auto specPatch = GetOperationSpecPatch(operation->GetTransformNames(), *context.Config);
+    auto specPatch = GetOperationSpecPatch(operation->GetTransformNames(), Config_);
     if (!specPatch.IsUndefined()) {
         operationOptions.Spec(specPatch);
     }
@@ -2526,6 +2526,9 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
                         materializeIfIntermediateTable(table);
                     }
+
+                    spec.Pool(Config_.GetPool());
+
                     return client->Merge(spec, operationOptions);
                 } else {
                     NYT::TRawMapOperationSpec spec;
@@ -2570,6 +2573,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
                     spec.InputFormat(GetFormat(operation->InputTables));
                     spec.OutputFormat(GetFormat(operation->OutputTables));
+                    spec.Pool(Config_.GetPool());
 
                     NYT::IRawJobPtr job = CreateImpulseJob(mapperBuilder.Build());
                     return client->RawMap(spec, job, operationOptions);
@@ -2618,6 +2622,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
 
                 spec.InputFormat(GetFormat(operation->InputTables));
                 spec.OutputFormat(GetFormat(operation->OutputTables));
+                spec.Pool(Config_.GetPool());
 
                 auto mapperParDo = mapperBuilder.Build();
                 addLocalFiles(mapperParDo, &spec.MapperSpec_);
@@ -2734,6 +2739,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             spec.ReducerInputFormat(GetFormatWithIntermediate(Config_.GetEnableProtoFormatForIntermediates(), {}));
             spec.ReducerOutputFormat(GetFormat(reducerOutputs));
             spec.ReduceBy({"key"});
+            spec.Pool(Config_.GetPool());
 
             return client->RawMapReduce(
                 spec,
@@ -2759,6 +2765,7 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
             auto rawYtSortedWrite = std::dynamic_pointer_cast<TSortOperationNode>(operation)->GetWrite();
             spec.SortBy(rawYtSortedWrite->GetColumnsToSort());
             spec.Title(operation->GetFirstName());
+            spec.Pool(Config_.GetPool());
 
             return client->Sort(spec, operationOptions);
         }
