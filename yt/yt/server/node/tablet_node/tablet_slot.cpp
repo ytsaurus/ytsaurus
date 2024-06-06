@@ -798,9 +798,21 @@ public:
         return TabletNodeProfiler;
     }
 
+    IReconfigurableThroughputThrottlerPtr GetChunkFragmentReaderMediumThrottler(TTablet* tablet) const
+    {
+        const auto throttlersConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()
+            ->TabletNode->MediumThrottlers;
+
+        if (!throttlersConfig->EnableBlobThrottling) {
+            return GetUnlimitedThrottler();
+        }
+
+        return tablet->DistributedThrottlers()[ETabletDistributedThrottlerKind::BlobMediumRead];
+    }
+
     IChunkFragmentReaderPtr CreateChunkFragmentReader(TTablet* tablet) override
     {
-        auto mediumThrottler = tablet->DistributedThrottlers()[ETabletDistributedThrottlerKind::BlobMediumRead];
+        auto mediumThrottler = GetChunkFragmentReaderMediumThrottler(tablet);
 
         return NChunkClient::CreateChunkFragmentReader(
             tablet->GetSettings().HunkReaderConfig,
