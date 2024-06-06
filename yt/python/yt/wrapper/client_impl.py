@@ -91,7 +91,7 @@ class YtClient(ClientState):
             self,
             timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
             transaction_id=None, ping_ancestor_transactions=None, type='master', acquire=None, ping_period=None,
-            ping_timeout=None):
+            ping_timeout=None, prerequisite_transaction_ids=None):
         """
 
         It is designed to be used by with_statement::
@@ -116,7 +116,7 @@ class YtClient(ClientState):
             client=self,
             timeout=timeout, deadline=deadline, attributes=attributes, ping=ping, interrupt_on_failed=interrupt_on_failed,
             transaction_id=transaction_id, ping_ancestor_transactions=ping_ancestor_transactions, type=type,
-            acquire=acquire, ping_period=ping_period, ping_timeout=ping_timeout)
+            acquire=acquire, ping_period=ping_period, ping_timeout=ping_timeout, prerequisite_transaction_ids=prerequisite_transaction_ids)
 
     def abort_job(
             self,
