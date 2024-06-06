@@ -56,14 +56,21 @@ public:
     {
         YT_VERIFY(ForeignInputDataWeight_ >= 0);
 
-        if (SamplingConfig_ && SamplingConfig_->SamplingRate) {
+        if (GetSamplingRateImpl()) {
             InitializeSampling();
         }
     }
 
-    std::optional<double> GetSamplingRate() const override
+    // NB: Helper method to avoid calling virtual method from constructor.
+    // Even though it should be technically fine in this case.
+    std::optional<double> GetSamplingRateImpl() const
     {
         return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
+    }
+
+    std::optional<double> GetSamplingRate() const override
+    {
+        return GetSamplingRateImpl();
     }
 
     i64 GetSamplingDataWeightPerJob() const override
@@ -90,7 +97,7 @@ public:
 
     i64 GetInputSliceDataWeight() const override
     {
-        auto dataWeightPerJob = (SamplingConfig_ && SamplingConfig_->SamplingRate)
+        auto dataWeightPerJob = GetSamplingRate()
             ? GetSamplingDataWeightPerJob()
             : GetDataWeightPerJob();
 
@@ -139,6 +146,11 @@ public:
         return JobCount_ > 0
             ? DivCeil(InputRowCount_, JobCount_)
             : 1;
+    }
+
+    std::optional<i64> GetBatchRowCount() const override
+    {
+        return Spec_->BatchRowCount;
     }
 
     int GetJobCount() const override
@@ -454,7 +466,7 @@ public:
             spec,
             options,
             logger,
-            std::numeric_limits<i64>::max() / 4 /* inputRowCount */,
+            /*inputRowCount*/ std::numeric_limits<i64>::max() / 4,
             inputChunkCount,
             mergeInputTableCount,
             mergePrimaryInputTableCount,
@@ -662,9 +674,9 @@ public:
             options,
             logger,
             inputRowCount,
-            std::numeric_limits<i64>::max() / 4 /* inputChunkCount */,
-            1 /* mergeInputTableCount */,
-            1 /* primaryMergeInputTableCount */,
+            /*inputChunkCount*/ std::numeric_limits<i64>::max() / 4,
+            /*mergeInputTableCount*/ 1,
+            /*primaryMergeInputTableCount*/ 1,
             spec->Sampling)
         , Spec_(spec)
         , Options_(options)
@@ -846,18 +858,19 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        false /* canAdjustDataSizePerJob */,
-        false /* isExplicitJobCount */,
-        0 /* jobCount */,
-        dataWeightPerJob /* dataWeightPerJob */,
-        dataWeightPerJob /* primaryDataWeightPerJob */,
+        /*canAdjustDataSizePerJob*/ false,
+        /*isExplicitJobCount*/ false,
+        /*jobCount*/ 0,
+        /*dataWeightPerJob*/ dataWeightPerJob,
+        /*primaryDataWeightPerJob*/ dataWeightPerJob,
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,
-        std::numeric_limits<i64>::max() / 4 /* inputSliceDataSize */,
-        std::numeric_limits<i64>::max() / 4 /* inputSliceRowCount */,
-        0 /* foreignSliceDataWeight */,
-        std::nullopt /* samplingRate */);
+        /*inputSliceDataSize*/ std::numeric_limits<i64>::max() / 4,
+        /*inputSliceRowCount*/ std::numeric_limits<i64>::max() / 4,
+        /*batchRowCount*/ {},
+        /*foreignSliceDataWeight*/ 0,
+        /*samplingRate*/ std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
