@@ -236,14 +236,6 @@ def write_file(destination, stream,
         filename_hint = stream.filename_hint
     if size_hint is None:
         size_hint = stream.size
-    if size_hint is not None and size_hint <= 16 * MB:
-        file_writer = update(
-            {
-                "enable_early_finish": True,
-                "upload_replication_factor": 3,
-                "min_upload_replication_factor": 2,
-            },
-            get_value(file_writer, {}))
 
     params = {}
     set_param(params, "file_writer", file_writer)
