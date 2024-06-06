@@ -3019,7 +3019,7 @@ class TestDynamicTablesTtl(DynamicTablesBase):
         self._sync_wait_chunk_ids_to_change("//tmp/t")
         assert lookup_rows("//tmp/t", keys) == rows
 
-        time.sleep(6)
+        time.sleep(8)
         self._sync_wait_chunk_ids_to_change("//tmp/t")
         assert lookup_rows("//tmp/t", keys) == []
 
