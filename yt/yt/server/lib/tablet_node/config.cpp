@@ -349,9 +349,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(0.5);
 
     registrar.Parameter("precache_chunk_replicas_on_mount", &TThis::PrecacheChunkReplicasOnMount)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("register_chunk_replicas_on_stores_update", &TThis::RegisterChunkReplicasOnStoresUpdate)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_replication_progress_advance_to_barrier", &TThis::EnableReplicationProgressAdvanceToBarrier)
         .Default(true);
