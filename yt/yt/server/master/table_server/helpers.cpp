@@ -65,7 +65,7 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
 
     auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, queueAgentStageOptional);
 
-    auto getQueueAgentChannelFromClusterOrNull = [&](TString clusterName) -> IChannelPtr {
+    auto findQueueAgentChannelFromCluster = [&] (TString clusterName) -> IChannelPtr {
         // NB: instead of using cluster connection from our bootstrap, we take it
         // from the cluster directory. This works as a poor man's dynamic cluster connection
         // allowing us to reconfigure queue agent stages without need to update master config.
@@ -76,14 +76,14 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
 
     IChannelPtr queueAgentChannel = nullptr;
 
-    queueAgentChannel = getQueueAgentChannelFromClusterOrNull(*currentClusterName);
+    queueAgentChannel = findQueueAgentChannelFromCluster(*currentClusterName);
 
     if (!queueAgentChannel) {
         for (const auto& clusterName : connection->GetClusterDirectory()->GetClusterNames()) {
             if (clusterName == *currentClusterName) {
                 continue;
             }
-            queueAgentChannel = getQueueAgentChannelFromClusterOrNull(clusterName);
+            queueAgentChannel = findQueueAgentChannelFromCluster(clusterName);
             if (queueAgentChannel) {
                 break;
             }
