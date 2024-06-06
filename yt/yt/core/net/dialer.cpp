@@ -133,7 +133,6 @@ public:
         , Address_(address)
         , OnFinished_(std::move(onFinished))
         , Id_(TGuid::Create())
-        , Deadline_(Config_->ConnectTimeout ? std::optional<TInstant>(Config_->ConnectTimeout->ToDeadLine()) : std::nullopt)
         , Logger(logger.WithTag("AsyncDialerSession: %v", Id_))
         , Timeout_(Config_->MinRto * GetRandomVariation())
     { }
@@ -152,6 +151,10 @@ public:
 
         YT_VERIFY(!Dialed_);
         Dialed_ = true;
+
+        if (Config_->ConnectTimeout) {
+            Deadline_ = Config_->ConnectTimeout->ToDeadLine();
+        }
 
         Connect(guard);
     }
@@ -198,7 +201,6 @@ private:
     const TNetworkAddress Address_;
     const TAsyncDialerCallback OnFinished_;
     const TGuid Id_;
-    const std::optional<TInstant> Deadline_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -206,6 +208,7 @@ private:
     bool Dialed_ = false;
     bool Finished_ = false;
     TDuration Timeout_;
+    std::optional<TInstant> Deadline_;
     TDelayedExecutorCookie TimeoutCookie_;
     TPollablePtr Pollable_;
 
