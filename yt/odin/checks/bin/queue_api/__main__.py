@@ -20,20 +20,22 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
     queue_path = f"{temp_path}/queue_{table_index}"
     consumer_path = f"{temp_path}/consumer_{table_index}"
 
-    def cleanup():
-        def ignore_exception(functor):
-            try:
-                functor()
-            except Exception as ex:
-                logger.warning("Exception during cleanup: %s", ex)
+    def ignore_exception(functor):
+        try:
+            functor()
+        except Exception as ex:
+            logger.warning("Exception during cleanup: %s", ex)
 
-        ignore_exception(lambda: client.unregister_queue_consumer(queue_path, consumer_path))
+    def cleanup():
         ignore_exception(lambda: client.remove(queue_path, force=True))
         ignore_exception(lambda: client.remove(consumer_path, force=True))
         logger.info("Cleanup completed")
 
     logger.info("Checking Queue API for cluster %s", cluster_name)
 
+    # NB(apachee): This part of the check should be fast,
+    # but if it isn't, check will return partially available state,
+    # since this is only the setup without the use of Queue API.
     try:
         if not client.exists(temp_path):
             client.mkdir(temp_path, recursive=True)
@@ -48,12 +50,26 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
             "dynamic": True,
             "schema": queue_schema,
         })
-        client.mount_table(queue_path, sync=True)
 
+        # NB(apachee): If mounting is too slow, then either consumer creation
+        # will raise an exception (request timeout) or wait for queue mounting
+        # will timeout.
+        before_mounting_ts = datetime.now()
+        client.mount_table(queue_path, sync=False)
         client.create("queue_consumer", consumer_path)
+        queue_mount_timeout = max(10 - (datetime.now() - before_mounting_ts).total_seconds(), 0)
+        wait(lambda: client.get(f"{queue_path}/@tablet_state") == "mounted", timeout=queue_mount_timeout, error_message="Wait for queue tablet state to be mounted timed out")
 
         logger.info("Created queue %s and consumer %s", queue_path, consumer_path)
+    except Exception as ex:
+        cleanup()
+        return states.PARTIALLY_AVAILABLE_STATE, f"Check setup failed: {ex}"
 
+    logger.info("Check setup complete")
+
+    should_unregister_queue_consumer = True
+
+    try:
         client.register_queue_consumer(queue_path, consumer_path, vital=True)
 
         expected_registrations = [{
@@ -115,12 +131,18 @@ def run_check(secrets, yt_client: YtClient, logger: Logger, options, states):
         wait(lambda: check_pull_consumer(expected_rows[1], 1), error_message="Check for pull_consumer timed out", timeout=wait_timeout)
         logger.info("Pulled second row from queue %s using consumer %s", queue_path, consumer_path)
 
+        # NB(apachee): With this, unregister is called only once.
+        should_unregister_queue_consumer = False
+        client.unregister_queue_consumer(queue_path, consumer_path)
+
         cleanup()
 
         return states.FULLY_AVAILABLE_STATE
     except Exception as err:
         logger.warning("Failed to check Queue API on cluster %s", cluster_name)
 
+        if should_unregister_queue_consumer:
+            ignore_exception(lambda: client.unregister_queue_consumer(queue_path, consumer_path))
         cleanup()
 
         raise err
