@@ -1161,6 +1161,15 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *Settings_.HunkWriterConfig);
     Load(context, *Settings_.HunkWriterOptions);
 
+    // COMPAT(osidorkin)
+    if (context.GetVersion() < ETabletReign::ChunkReplicaAlwaysPrecache) {
+        const auto& mountConfig = Settings_.MountConfig;
+        if (!mountConfig->PrecacheChunkReplicasOnMount && !mountConfig->RegisterChunkReplicasOnStoresUpdate) {
+            mountConfig->PrecacheChunkReplicasOnMount = true;
+            mountConfig->RegisterChunkReplicasOnStoresUpdate = true;
+        }
+    }
+
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= ETabletReign::MountConfigExperiments) {
         auto& providedSettings = RawSettings_.Provided;
