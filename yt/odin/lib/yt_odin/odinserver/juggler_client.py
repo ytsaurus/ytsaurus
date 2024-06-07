@@ -26,6 +26,7 @@ class _JugglerRequestRetrier(Retrier):
 
         self.events = None
         self.url = url
+        self.request_timeout = request_timeout
 
         super(_JugglerRequestRetrier, self).__init__(
             retry_config,
@@ -34,11 +35,12 @@ class _JugglerRequestRetrier(Retrier):
         )
 
     def except_action(self, error, attempt):
-        logger.warning("HTTP POST request %s has failed with error %s, message: '%s'",
+        logger.warning("Juggler push: HTTP POST request %s has failed with error %s, message: '%s'",
                        self.url, str(type(error)), str(error))
 
     def action(self):
-        rsp = requests.post(self.url, data=json.dumps(self.events))
+        logger.debug("Juggler push: start POST request")
+        rsp = requests.post(self.url, data=json.dumps(self.events), timeout=self.request_timeout / 1000.0)
         rsp.raise_for_status()
 
         events_results = json.loads(rsp.content)["events"]
@@ -48,12 +50,12 @@ class _JugglerRequestRetrier(Retrier):
         failed_event_count = 0
         for event_result, event in zip(events_results, self.events):
             if event_result["code"] != 200:
-                logger.warning('Failed to push event "%s" to juggler: "%s", code: "%d"',
+                logger.warning('Juggler push: failed to push event "%s" to juggler: "%s", code: "%d"',
                                event, event_result["message"], event_result["code"])
                 failed_event_count += 1
 
         if failed_event_count == len(self.events):
-            raise JugglerError("Juggler failed to push all events in one batch. "
+            raise JugglerError("Juggler push: failed to push all events in one batch. "
                                "See log for more details.")
 
     def send_events(self, events):
