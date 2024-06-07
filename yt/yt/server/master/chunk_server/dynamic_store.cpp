@@ -109,11 +109,6 @@ TTablet* TDynamicStore::GetTablet() const
     return Tablet_;
 }
 
-void TDynamicStore::ResetTabletCompat()
-{
-    Tablet_ = nullptr;
-}
-
 void TDynamicStore::SetFlushedChunk(TChunk* chunk)
 {
     YT_VERIFY(!IsFlushed());

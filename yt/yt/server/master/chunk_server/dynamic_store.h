@@ -51,9 +51,6 @@ public:
 
     TChunkTreeStatistics GetStatistics() const;
 
-    // COMPAT(ifsmirnov)
-    void ResetTabletCompat();
-
 private:
     NTabletServer::TTablet* Tablet_ = nullptr;
     bool Flushed_ = false;
