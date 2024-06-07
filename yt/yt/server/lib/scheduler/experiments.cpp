@@ -365,7 +365,7 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
             // Pick no experiment from this dimension.
             continue;
         }
-        const auto& experiment = experimentIt->second;
+        const auto& [experimentName, experiment] = *experimentIt;
         auto [groupIt, groupUniformSample] = pickElement(
             experiment->Config->Groups,
             /*forcePick*/ true,
@@ -374,7 +374,7 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
             });
 
         result.emplace_back(TSelectedExperimentGroup{
-            .Experiment = experimentIt,
+            .Experiment = GetIteratorOrCrash(preparedExperiments.Experiments, experimentName),
             .Group = groupIt,
             .ExperimentUniformSample = experimentUniformSample,
             .GroupUniformSample = groupUniformSample
