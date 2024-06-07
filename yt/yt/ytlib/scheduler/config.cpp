@@ -2009,12 +2009,6 @@ TJobResourcesConfigPtr TJobResourcesConfig::operator-()
 
 void TCommonPreemptionConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_aggressive_starvation", &TThis::EnableAggressiveStarvation)
-        .Default();
-}
-
-void TPoolPreemptionConfig::Register(TRegistrar registrar)
-{
     registrar.Parameter("fair_share_starvation_timeout", &TThis::FairShareStarvationTimeout)
         .Alias("fair_share_preemption_timeout")
         .Default();
@@ -2022,6 +2016,14 @@ void TPoolPreemptionConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0)
         .Default();
 
+    registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
+        .Default();
+}
+
+void TPoolPreemptionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_aggressive_starvation", &TThis::EnableAggressiveStarvation)
+        .Default();
     registrar.Parameter("allow_aggressive_preemption", &TThis::AllowAggressivePreemption)
         .Alias("allow_aggressive_starvation_preemption")
         .Default();
@@ -2188,9 +2190,6 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("offloading_settings", &TThis::OffloadingSettings)
-        .Default();
-
-    registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
         .Default();
 
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
@@ -2374,6 +2373,24 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("%Qv option cannot be used without %Qv",
                 "consider_guarantees_for_single_tree",
                 "schedule_in_single_tree");
+        }
+
+        // COMPAT(eshcherbin)
+        if (spec->MaxUnpreemptibleRunningAllocationCount) {
+            if (*spec->MaxUnpreemptibleRunningAllocationCount != 0) {
+                THROW_ERROR_EXCEPTION("%Qv, %Qv or %Qv cannot be set to a non-zero value, use %Qv instead",
+                    "max_unpreemptible_allocation_count",
+                    "max_unpreemptible_job_count",
+                    "max_unpreemptable_job_count",
+                    "non_preemptible_resource_usage_threshold");
+            }
+
+            if (!spec->NonPreemptibleResourceUsageThreshold) {
+                spec->NonPreemptibleResourceUsageThreshold = New<TJobResourcesConfig>();
+            }
+            if (!spec->NonPreemptibleResourceUsageThreshold->UserSlots) {
+                spec->NonPreemptibleResourceUsageThreshold->UserSlots = *spec->MaxUnpreemptibleRunningAllocationCount;
+            }
         }
     });
 }

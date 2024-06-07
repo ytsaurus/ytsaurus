@@ -1554,7 +1554,7 @@ class YTEnvSetup(object):
             },
             # Make default settings suitable for starvation and preemption.
             "preemptive_scheduling_backoff": 500,
-            "max_unpreemptible_running_allocation_count": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
             "fair_share_starvation_timeout": 1000,
             "enable_conditional_preemption": True,
             "check_operation_for_liveness_in_preschedule": False,

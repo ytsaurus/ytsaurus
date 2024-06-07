@@ -802,13 +802,13 @@ private:
         TFairSharePostUpdateContext* fairSharePostUpdateContext,
         TAllocationSchedulerPostUpdateContext* postUpdateContext) const;
 
-    void PublishFairShareAndUpdatePreemptionAttributes(
+    void PublishFairShare(
         TSchedulerElement* element,
         TAllocationSchedulerPostUpdateContext* postUpdateContext) const;
-    void PublishFairShareAndUpdatePreemptionAttributesAtCompositeElement(
+    void PublishFairShareAtCompositeElement(
         TSchedulerCompositeElement* element,
         TAllocationSchedulerPostUpdateContext* postUpdateContext) const;
-    void PublishFairShareAndUpdatePreemptionAttributesAtOperation(
+    void PublishFairShareAtOperation(
         TSchedulerOperationElement* element,
         TAllocationSchedulerPostUpdateContext* postUpdateContext) const;
 

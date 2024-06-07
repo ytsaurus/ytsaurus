@@ -84,7 +84,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     def setup_method(self, method):
         super(TestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 0)
+        set("//sys/pool_trees/default/@config/non_preemptible_resource_usage_threshold", {"user_slots": 0})
         time.sleep(0.5)
 
     def _check_running_jobs(self, op, desired_running_jobs):

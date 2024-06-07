@@ -17,7 +17,7 @@
 - `max_ephemeral_pool_per_user` — максимальное количество эфемерных пулов для каждого пользователя. Эфемерный пул — пул, который был указан в спецификации, но для которого нет явно заведенного узла в Кипарисе;
 - `fair_share_preemption_timeout` — время пребывания операции ниже её fair_share, после которого для запуска джобов операции начнётся вытеснение;
 - `fair_share_starvation_tolerance` — толерантность, используемая при сравнении usage-ratio с fair_share: операция считается страдающей, если `usage-ratio < fair_share * tolerance`;
-- `max_unpreemptable_running_job_count` — операция не будет участвовать в вытеснении (preemption), если количество ее джобов будет меньше данного значения;
+- `non_preemptible_resource_usage_threshold` — операция не будет участвовать в вытеснении (preemption), если ее потребление ресурсов будет меньше данного значения;
 
 Атрибуты `fair_share_preemption_timeout` и `fair_share_starvation_tolerance` могут быть переопределены в спецификации операции.
 
