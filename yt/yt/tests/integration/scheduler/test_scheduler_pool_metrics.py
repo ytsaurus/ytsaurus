@@ -207,7 +207,7 @@ class TestPoolMetrics(YTEnvSetup):
             {
                 "preemption_satisfaction_threshold": 0.99,
                 "fair_share_starvation_timeout": 1000,
-                "max_unpreemptible_running_allocation_count": 0,
+                "non_preemptible_resource_usage_threshold": {"user_slots": 0},
                 "preemptive_scheduling_backoff": 0,
             })
 
@@ -787,7 +787,7 @@ class TestImproperlyPreemptedResources(YTEnvSetup):
                 "preemption_satisfaction_threshold": 0.99,
                 "fair_share_starvation_timeout": 1000,
                 "fair_share_aggressive_starvation_timeout": 1100,
-                "max_unpreemptible_running_allocation_count": 0,
+                "non_preemptible_resource_usage_threshold": {"user_slots": 0},
                 "preemptive_scheduling_backoff": 0,
             })
 

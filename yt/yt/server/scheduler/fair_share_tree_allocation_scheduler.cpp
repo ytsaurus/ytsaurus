@@ -227,10 +227,10 @@ std::optional<bool> IsPrioritySchedulingSegmentModuleAssignmentEnabled(const TSc
     switch (element->GetType()) {
         case ESchedulerElementType::Root:
             return false;
-        case ESchedulerElementType::Operation:
-            return {};
         case ESchedulerElementType::Pool:
             return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->EnablePrioritySchedulingSegmentModuleAssignment;
+        case ESchedulerElementType::Operation:
+            YT_UNIMPLEMENTED();
     }
 }
 
@@ -3002,7 +3002,17 @@ void TFairShareTreeAllocationScheduler::BuildElementYson(
         .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
             filter,
             "effective_aggressive_preemption_allowed",
-            attributes.EffectiveAggressivePreemptionAllowed);
+            attributes.EffectiveAggressivePreemptionAllowed)
+        .DoIf(!element->IsOperation(), [&] (TFluentMap fluent) {
+            fluent.ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "priority_scheduling_segment_module_assignment_enabled",
+                IsPrioritySchedulingSegmentModuleAssignmentEnabled(element));
+        })
+        .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+            filter,
+            "effective_priority_scheduling_segment_module_assignment_enabled",
+            attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled);
 }
 
 TAllocationSchedulerPostUpdateContext TFairShareTreeAllocationScheduler::CreatePostUpdateContext(TSchedulerRootElement* rootElement)
@@ -3032,8 +3042,8 @@ void TFairShareTreeAllocationScheduler::PostUpdate(
 
     InitializeStaticAttributes(fairSharePostUpdateContext, postUpdateContext);
 
-    PublishFairShareAndUpdatePreemptionAttributes(postUpdateContext->RootElement, postUpdateContext);
     UpdateEffectiveRecursiveAttributes(postUpdateContext->RootElement, postUpdateContext);
+    PublishFairShare(postUpdateContext->RootElement, postUpdateContext);
 
     ProcessUpdatedStarvationStatuses(fairSharePostUpdateContext, postUpdateContext);
 
@@ -3625,48 +3635,33 @@ void TFairShareTreeAllocationScheduler::CollectSchedulableOperationsPerPriority(
     }
 }
 
-void TFairShareTreeAllocationScheduler::PublishFairShareAndUpdatePreemptionAttributes(
+void TFairShareTreeAllocationScheduler::PublishFairShare(
     TSchedulerElement* element,
     TAllocationSchedulerPostUpdateContext* postUpdateContext) const
 {
-    // TODO(omgronny): Move EffectiveAggressivePreemptionAllowed update to UpdateEffectiveRecursiveAttributes.
-    auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
-    auto aggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
-    if (element->IsRoot()) {
-        YT_VERIFY(aggressivePreemptionAllowed);
-        attributes.EffectiveAggressivePreemptionAllowed = *aggressivePreemptionAllowed;
-    } else {
-        const auto* parent = element->GetParent();
-        YT_VERIFY(parent);
-        const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
-
-        attributes.EffectiveAggressivePreemptionAllowed = aggressivePreemptionAllowed
-            .value_or(parentAttributes.EffectiveAggressivePreemptionAllowed);
-    }
-
     switch (element->GetType()) {
         case ESchedulerElementType::Pool:
         case ESchedulerElementType::Root:
-            PublishFairShareAndUpdatePreemptionAttributesAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element), postUpdateContext);
+            PublishFairShareAtCompositeElement(static_cast<TSchedulerCompositeElement*>(element), postUpdateContext);
             break;
         case ESchedulerElementType::Operation:
-            PublishFairShareAndUpdatePreemptionAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element), postUpdateContext);
+            PublishFairShareAtOperation(static_cast<TSchedulerOperationElement*>(element), postUpdateContext);
             break;
         default:
             YT_ABORT();
     }
 }
 
-void TFairShareTreeAllocationScheduler::PublishFairShareAndUpdatePreemptionAttributesAtCompositeElement(
+void TFairShareTreeAllocationScheduler::PublishFairShareAtCompositeElement(
     TSchedulerCompositeElement* element,
     TAllocationSchedulerPostUpdateContext* postUpdateContext) const
 {
     for (const auto& child : element->EnabledChildren()) {
-        PublishFairShareAndUpdatePreemptionAttributes(child.Get(), postUpdateContext);
+        PublishFairShare(child.Get(), postUpdateContext);
     }
 }
 
-void TFairShareTreeAllocationScheduler::PublishFairShareAndUpdatePreemptionAttributesAtOperation(
+void TFairShareTreeAllocationScheduler::PublishFairShareAtOperation(
     TSchedulerOperationElement* element,
     TAllocationSchedulerPostUpdateContext* postUpdateContext) const
 {
@@ -3688,20 +3683,6 @@ void TFairShareTreeAllocationScheduler::UpdateEffectiveRecursiveAttributes(
     const TSchedulerElement* element,
     TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
-    auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
-    auto prioritySchedulingSegmentModuleAssignmentEnabled = IsPrioritySchedulingSegmentModuleAssignmentEnabled(element);
-    if (element->IsRoot()) {
-        YT_VERIFY(prioritySchedulingSegmentModuleAssignmentEnabled);
-        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = *prioritySchedulingSegmentModuleAssignmentEnabled;
-    } else {
-        const auto* parent = element->GetParent();
-        YT_VERIFY(parent);
-        const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
-
-        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = prioritySchedulingSegmentModuleAssignmentEnabled
-            .value_or(parentAttributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled);
-    }
-
     switch (element->GetType()) {
         case ESchedulerElementType::Pool:
         case ESchedulerElementType::Root:
@@ -3719,15 +3700,48 @@ void TFairShareTreeAllocationScheduler::UpdateEffectiveRecursiveAttributesAtComp
     const TSchedulerCompositeElement* element,
     TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
+    auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
+    auto prioritySchedulingSegmentModuleAssignmentEnabled = IsPrioritySchedulingSegmentModuleAssignmentEnabled(element);
+    auto aggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
+    if (element->IsRoot()) {
+        YT_VERIFY(prioritySchedulingSegmentModuleAssignmentEnabled);
+        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = *prioritySchedulingSegmentModuleAssignmentEnabled;
+
+        YT_VERIFY(aggressivePreemptionAllowed);
+        attributes.EffectiveAggressivePreemptionAllowed = *aggressivePreemptionAllowed;
+    } else {
+        const auto* parent = element->GetParent();
+        YT_VERIFY(parent);
+        const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
+
+        attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = prioritySchedulingSegmentModuleAssignmentEnabled.value_or(
+            parentAttributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled);
+
+        attributes.EffectiveAggressivePreemptionAllowed = aggressivePreemptionAllowed.value_or(parentAttributes.EffectiveAggressivePreemptionAllowed);
+    }
+
     for (const auto& child : element->EnabledChildren()) {
         UpdateEffectiveRecursiveAttributes(child.Get(), postUpdateContext);
     }
 }
 
 void TFairShareTreeAllocationScheduler::UpdateEffectiveRecursiveAttributesAtOperation(
-    const TSchedulerOperationElement* /*element*/,
-    TAllocationSchedulerPostUpdateContext* /*postUpdateContext*/)
-{ }
+    const TSchedulerOperationElement* element,
+    TAllocationSchedulerPostUpdateContext* postUpdateContext)
+{
+    auto& attributes = postUpdateContext->StaticAttributesList.AttributesOf(element);
+
+    const auto* parent = element->GetParent();
+    YT_VERIFY(parent);
+    const auto& parentAttributes = postUpdateContext->StaticAttributesList.AttributesOf(parent);
+
+    auto aggressivePreemptionAllowed = IsAggressivePreemptionAllowed(element);
+    attributes.EffectiveAggressivePreemptionAllowed = aggressivePreemptionAllowed.value_or(
+        parentAttributes.EffectiveAggressivePreemptionAllowed);
+
+    // These attributes cannot be overwritten in operations.
+    attributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled = parentAttributes.EffectivePrioritySchedulingSegmentModuleAssignmentEnabled;
+}
 
 void TFairShareTreeAllocationScheduler::ProcessUpdatedStarvationStatuses(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,

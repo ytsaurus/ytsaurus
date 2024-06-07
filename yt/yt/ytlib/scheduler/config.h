@@ -97,7 +97,15 @@ class TCommonPreemptionConfig
     : public virtual NYTree::TYsonStruct
 {
 public:
-    std::optional<bool> EnableAggressiveStarvation;
+    // The following options are applied recursively, i.e. the effective value for an element
+    // is taken from the configuration of the nearest ancestor (incl. the element itself)
+    // that has the option explicitly specified.
+    // However, if an explicit value is specified for an operation, it cannot overwrite its
+    // parent's effective value unless the operation's value is more conservative (e.g. longer timeout).
+    std::optional<double> FairShareStarvationTolerance;
+    std::optional<TDuration> FairShareStarvationTimeout;
+
+    TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
 
     REGISTER_YSON_STRUCT(TCommonPreemptionConfig);
 
@@ -108,10 +116,7 @@ class TPoolPreemptionConfig
     : public TCommonPreemptionConfig
 {
 public:
-    // The following settings override scheduler configuration is specified.
-    std::optional<TDuration> FairShareStarvationTimeout;
-    std::optional<double> FairShareStarvationTolerance;
-
+    std::optional<bool> EnableAggressiveStarvation;
     std::optional<bool> AllowAggressivePreemption;
 
     // NB(eshcherbin): Intended for testing purposes only.
@@ -298,8 +303,6 @@ public:
 
     TOffloadingSettings OffloadingSettings;
 
-    TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
-
     std::optional<bool> UsePoolSatisfactionForScheduling;
 
     std::optional<bool> AllowIdleCpuPolicy;
@@ -452,6 +455,7 @@ public:
 
     std::optional<TString> CustomProfilingTag;
 
+    // COMPAT(eshcherbin)
     std::optional<int> MaxUnpreemptibleRunningAllocationCount;
 
     bool TryAvoidDuplicatingJobs;

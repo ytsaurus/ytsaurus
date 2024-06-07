@@ -18,7 +18,7 @@ A pool tree has the following attributes:
 - `fair_share_preemption_timeout`: The time when the operation was below its fair_share, after which preemption will start to run the operation jobs.
 - `min_share_preemption_timeout`: The time when the operation was below its min-share, after which preemption will start to run the operation jobs.
 - `fair_share_starvation_tolerance`: The tolerance used when comparing usage-ratio with fair_share: an operation is considered starving if `usage-ratio < fair_share * tolerance`.
-- `max_unpreemptable_running_job_count`: The operation will not participate in preemption if the number of its jobs is less than this value.
+- `non_preemptible_resource_usage_threshold`: The operation will not participate in preemption if its resource usage is less than this value.
 
 The `fair_share_preemption_timeout`, `min_share_preemption_timeout`, and `fair_share_starvation_tolerance` attributes can be redefined in the operation specification.
 

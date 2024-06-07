@@ -82,7 +82,6 @@
         "nirvana";
     ];
     "pool" = "nirvana-sdc-lidar-maps-prod";
-    "max_unpreemptable_job_count" = 0;
     "job_shells" = [
         {
             "owners" = [

@@ -1131,7 +1131,8 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestConditionalPreemption)
 
     auto donorOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, allocationResources));
     auto donorOperationSpec = New<TStrategyOperationSpec>();
-    donorOperationSpec->MaxUnpreemptibleRunningAllocationCount = 0;
+    donorOperationSpec->NonPreemptibleResourceUsageThreshold = New<TJobResourcesConfig>();
+    donorOperationSpec->NonPreemptibleResourceUsageThreshold->UserSlots = 0;
     auto donorOperationElement = CreateTestOperationElement(
         strategyHost.Get(),
         treeScheduler,

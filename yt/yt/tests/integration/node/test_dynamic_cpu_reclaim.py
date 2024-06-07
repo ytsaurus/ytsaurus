@@ -208,7 +208,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
-        set("//sys/pool_trees/default/@config/max_unpreemptible_running_allocation_count", 0)
+        set("//sys/pool_trees/default/@config/non_preemptible_resource_usage_threshold", {"user_slots": 0})
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.1)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.1)

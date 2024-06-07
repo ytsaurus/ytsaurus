@@ -270,10 +270,6 @@ public:
 
     bool EnableAggressiveStarvation;
 
-    // TODO(eshcherbin): Remove in favor of NonPreemptibleResourceUsageThreshold.
-    //! Any operation with less than this number of running allocations cannot be preempted.
-    std::optional<int> MaxUnpreemptibleRunningAllocationCount;
-
     //! Any operation which resource usage is not greater than this cannot be preempted.
     TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
 

@@ -152,7 +152,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_allocation_count": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -1177,7 +1177,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_allocation_count": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -2060,7 +2060,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_allocation_count": 0,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
         })
 
         # NB(eshcherbin): This is done to reset node segments.

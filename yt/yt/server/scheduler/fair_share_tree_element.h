@@ -187,6 +187,9 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TSchedulerElementPostUpdateAttributes, PostUpdateAttributes);
 
+    // TODO(eshcherbin): Move this to allocation scheduler.
+    // Currently it's painful to do, because this attribute is used in operation shared state,
+    // where we don't have static attributes.
     DEFINE_BYREF_RO_PROPERTY(TJobResourcesConfigPtr, EffectiveNonPreemptibleResourceUsageThresholdConfig);
 
 protected:
@@ -246,7 +249,6 @@ public:
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
-    virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
     virtual TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const = 0;
 
@@ -507,6 +509,8 @@ public:
     virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
     virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
+    virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
+
     //! Schedule allocations related methods.
     bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
@@ -673,6 +677,8 @@ public:
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 
     //! Post fair share update methods.
+    void UpdateRecursiveAttributes() override;
+
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
@@ -852,7 +858,6 @@ public:
 
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
-    std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
@@ -1012,6 +1017,8 @@ public:
 
     //! Post update methods.
     void PostUpdate(TFairSharePostUpdateContext* postUpdateContext);
+
+    void UpdateRecursiveAttributes() override;
 
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
