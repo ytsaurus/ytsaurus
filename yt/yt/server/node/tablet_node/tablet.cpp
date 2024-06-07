@@ -912,8 +912,6 @@ void TTablet::Load(TLoadContext& context)
     // during construction. Initialize() will take care of this.
     Initialize();
 
-    auto tabletSizeProfiler = GetTabletSizeProfiler();
-
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
     SERIALIZATION_DUMP_INDENT(context) {
@@ -928,11 +926,14 @@ void TTablet::Load(TLoadContext& context)
                 if (store->IsChunk()) {
                     YT_VERIFY(store->AsChunk()->GetChunkId());
                 }
-
-                tabletSizeProfiler.AddStore(store);
             }
         }
     }
+
+    // NB: We can handle store/hunk chunk in profiling only after it's `Initialize` was called,
+    // since hunk chunks being initialized in `TTablet::Load` we handle it here, but regular stores
+    // should be handled in `TTablet::AsyncLoad`.
+    auto tabletSizeProfiler = GetTabletSizeProfiler();
 
     int hunkChunkCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "hunk_chunks[%v]", hunkChunkCount);
@@ -1204,6 +1205,8 @@ void TTablet::AsyncLoad(TLoadContext& context)
         }
     }
 
+    auto tabletSizeProfiler = GetTabletSizeProfiler();
+
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", StoreIdMap_.size());
     SERIALIZATION_DUMP_INDENT(context) {
         for (int index = 0; index < std::ssize(StoreIdMap_); ++index) {
@@ -1213,6 +1216,7 @@ void TTablet::AsyncLoad(TLoadContext& context)
                 auto store = GetStore(storeId);
                 store->AsyncLoad(context);
                 store->Initialize();
+                tabletSizeProfiler.AddStore(store);
             }
         }
     }
