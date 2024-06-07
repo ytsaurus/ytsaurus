@@ -57,12 +57,19 @@ bool operator == (const TTableKey& lhs, const TTableKey& rhs)
     return lhs.ObjectId == rhs.ObjectId;
 }
 
-TString ToString(const TTableKey& key)
+void FormatValue(TStringBuilderBase* builder, const TTableKey& key, TStringBuf spec)
 {
-    return Format("#%v@%v%v",
-        key.ObjectId,
-        key.Revision,
-        MakeShrunkFormattableView(key.Schema->GetColumnNames(), TDefaultFormatter(), 5));
+    // TODO(arkady-e1ppa): We format key twice
+    // in order to apply spec properly.
+    // Check later if this is required.
+    FormatValue(
+        builder,
+        Format(
+            "#%v@%v%v",
+            key.ObjectId,
+            key.Revision,
+            MakeShrunkFormattableView(key.Schema->GetColumnNames(), TDefaultFormatter(), 5)),
+        spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

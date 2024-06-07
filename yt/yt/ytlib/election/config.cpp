@@ -22,17 +22,15 @@ void TCellPeerConfig::Register(TRegistrar registrar)
         .Default(true);
 }
 
-TString ToString(const TCellPeerConfigPtr& config)
+void FormatValue(TStringBuilderBase* builder, const TCellPeerConfigPtr& config, TStringBuf /*spec*/)
 {
-    TStringBuilder builder;
-    builder.AppendFormat("%v", config->Address);
+    builder->AppendFormat("%v", config->Address);
     if (config->AlienCluster) {
-        builder.AppendFormat("@%v", *config->AlienCluster);
+        builder->AppendFormat("@%v", *config->AlienCluster);
     }
     if (!config->Voting) {
-        builder.AppendString(" (non-voting)");
+        builder->AppendString(" (non-voting)");
     }
-    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

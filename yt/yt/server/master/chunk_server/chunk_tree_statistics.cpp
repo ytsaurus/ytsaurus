@@ -116,9 +116,9 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TChunkTreeStatistics& statistics)
+void FormatValue(TStringBuilderBase* builder, const TChunkTreeStatistics& statistics, TStringBuf spec)
 {
-    return ConvertToYsonString(statistics, EYsonFormat::Text).ToString();
+    FormatValue(builder, ConvertToYsonString(statistics, EYsonFormat::Text), spec);
 }
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer)

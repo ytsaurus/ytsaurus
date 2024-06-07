@@ -125,7 +125,7 @@ void Serialize(const TLegacyDataSlicePtr& dataSlice, NYson::IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TLegacyDataSlicePtr& dataSlice);
+void FormatValue(TStringBuilderBase* builder, const TLegacyDataSlicePtr& dataSlice, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

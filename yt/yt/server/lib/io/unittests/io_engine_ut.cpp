@@ -360,7 +360,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         GTEST_SKIP() << "Skipping Test: Test intended for uring engines only.";
     }
 
-    static const TString ConfigTemplate = R"(
+    static constexpr TStringBuf ConfigTemplate = R"(
         {
             uring_thread_count = %v;
             read_thread_count = %v;

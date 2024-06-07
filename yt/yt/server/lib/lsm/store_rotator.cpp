@@ -40,9 +40,11 @@ struct TMemoryDigest
     }
 };
 
-TString ToString(const TMemoryDigest& memoryDigest)
+void FormatValue(TStringBuilderBase* builder, const TMemoryDigest& memoryDigest, TStringBuf /*spec*/)
 {
-    return Format("{TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}",
+    Format(
+        builder,
+        "{TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}",
         memoryDigest.TotalUsage,
         memoryDigest.PassiveUsage,
         memoryDigest.BackingUsage,

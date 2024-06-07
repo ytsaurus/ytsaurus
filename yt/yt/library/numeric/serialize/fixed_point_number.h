@@ -1,5 +1,9 @@
 #pragma once
 
+#include <yt/yt/library/numeric/fixed_point_number.h>
+
+#include <library/cpp/yt/string/format.h>
+
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/serialize.h>
@@ -29,10 +33,10 @@ void Deserialize(TFixedPointNumber<U, P>& number, NYson::TYsonPullParserCursor* 
     number = TFixedPointNumber<U, P>(doubleValue);
 }
 
-template <typename U, int P>
-TString ToString(const TFixedPointNumber<U, P>& number)
+template <class U, int P>
+void FormatValue(TStringBuilderBase* builder, const TFixedPointNumber<U, P>& number, TStringBuf spec)
 {
-    return ToString(static_cast<double>(number));
+    FormatValue(builder, static_cast<double>(number), spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

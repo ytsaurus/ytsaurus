@@ -111,7 +111,7 @@ DEFINE_REFCOUNTED_TYPE(TProgressCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TProgressCounterPtr& counter);
+void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter, TStringBuf spec);
 
 void Serialize(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
 

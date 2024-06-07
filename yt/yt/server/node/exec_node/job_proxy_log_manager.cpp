@@ -86,7 +86,7 @@ private:
     {
         YT_LOG_INFO("Start creating job proxy sharding key directories");
 
-        auto formatString = Format("%%0%dx", ShardingKeyLength_);
+        TRuntimeFormat formatString{Format("%%0%dx", ShardingKeyLength_)};
         for (int i = 0; i < Power(16, ShardingKeyLength_); i++) {
             auto dirName = Format(formatString, i);
 

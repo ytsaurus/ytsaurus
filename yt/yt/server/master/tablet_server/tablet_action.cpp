@@ -107,9 +107,11 @@ bool TTabletAction::IsFinished() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TTabletAction& action)
+void FormatValue(TStringBuilderBase* builder, const TTabletAction& action, TStringBuf /*spec*/)
 {
-    return Format("ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
+    Format(
+        builder,
+        "ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
         "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, ExpirationTimeout: %v, "
         "TableId: %v, Bundle: %v",
         action.GetId(),

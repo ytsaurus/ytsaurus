@@ -200,9 +200,9 @@ private:
     bool Finished_ = false;
 };
 
-TString ToString(const TNodePtr& node)
+void FormatValue(TStringBuilderBase* builder, const TNodePtr& node, TStringBuf spec)
 {
-    return node->GetDefaultAddress();
+    FormatValue(builder, node->GetDefaultAddress(), spec);
 }
 
 DEFINE_REFCOUNTED_TYPE(TNode)

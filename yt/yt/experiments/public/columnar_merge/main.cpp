@@ -55,7 +55,7 @@ using NTableClient::EValueType;
 
 namespace NColumnarChunkFormat {
 
-TString ToString(const TReaderStatistics& statistics);
+void FormatValue(TStringBuilderBase* builder, const TReaderStatistics& statistics, TStringBuf spec);
 
 } // namespace TReaderStatistics
 
@@ -138,9 +138,11 @@ struct TStat
     }
 };
 
-TString ToString(const TStat& stat)
+void FormatValue(TStringBuilderBase* builder, const TStat& stat, TStringBuf /*spec*/)
 {
-    return Format("RowCount: %v, MaxTimestamps: %v, Key/Value/Timestamp Weight: %v / %v / %v, Checksum: %x",
+    Format(
+        builder,
+        "RowCount: %v, MaxTimestamps: %v, Key/Value/Timestamp Weight: %v / %v / %v, Checksum: %x",
         stat.RowCount,
         stat.MaxTimestamps,
         stat.KeysWeight,
@@ -507,7 +509,7 @@ void TestVersionedScanRead(TString chunkName, TOptions options)
             .ThrowOnError();
 
         if (index == 0) {
-            auto fileNamePattern =  options.NewReader ? "%v.new.txt" : "%v.txt";
+            TRuntimeFormat fileNamePattern{options.NewReader ? "%v.new.txt" : "%v.txt"};
 
             DoRead(
                 versionedReader,
@@ -658,7 +660,7 @@ void TestVersionedLookupRead(TString chunkName, TOptions options, int nth)
         if (index < 1) {
             Cout << Format("ReaderCreationTime: %v", createReaderTimer.GetElapsedTime()) << Endl;
 
-            auto fileNamePattern = options.NewReader ? "%v.lr.lookup.txt" : "%v.lookup.txt";
+            TRuntimeFormat fileNamePattern{options.NewReader ? "%v.lr.lookup.txt" : "%v.lookup.txt"};
 
             DoRead(
                 versionedReader,

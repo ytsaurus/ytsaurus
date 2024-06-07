@@ -114,9 +114,13 @@ std::vector<DB::FieldVector> Transpose(DB::FieldVector fields)
     return result;
 }
 
-TString ToString(const TInclusionStatement& statement)
+void FormatValue(TStringBuilderBase* builder, const TInclusionStatement& statement, TStringBuf /*spec*/)
 {
-    return Format("{Columns: %v, PossibleTuples: %v}", statement.ColumnNames, statement.PossibleTuples);
+    Format(
+        builder,
+        "{Columns: %v, PossibleTuples: %v}",
+        statement.ColumnNames,
+        statement.PossibleTuples);
 }
 
 std::optional<std::vector<TString>> IdentifierTupleToColumnNames(const DB::IAST& ast)
@@ -194,8 +198,8 @@ struct TComputedColumnPopulationMatcher
                 ToUnversionedValue(field, &referenceValue);
                 YT_LOG_TRACE(
                     "Converted reference field to YT unversioned value (Value: %v, Field: %v)",
-                    field,
-                    referenceValue);
+                    referenceValue,
+                    field);
             }
 
             TUnversionedValue resultValue{};

@@ -120,9 +120,10 @@ i64 TResourceVector::GetPrimaryDataWeight() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TResourceVector& vector)
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& vector, TStringBuf /*spec*/)
 {
-    return Format(
+    Format(
+        builder,
         "{DSC: %v, DW: %v, PDW: %v}",
         vector.Values[EResourceKind::DataSliceCount],
         vector.Values[EResourceKind::DataWeight],

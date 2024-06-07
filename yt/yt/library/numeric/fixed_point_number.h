@@ -109,7 +109,6 @@ public:
 
 private:
     Underlying Value_;
-
 };
 
 template <typename U, int P>

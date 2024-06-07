@@ -32,7 +32,7 @@ struct TCumulativeStatisticsEntry
     void Persist(const NYT::TStreamPersistenceContext& context);
 };
 
-TString ToString(const TCumulativeStatisticsEntry& entry);
+void FormatValue(TStringBuilderBase* builder, const TCumulativeStatisticsEntry& entry, TStringBuf spec);
 
 void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* consumer);
 

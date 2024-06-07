@@ -391,7 +391,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     chunkSpec->mutable_chunk_meta()->mutable_extensions();
 }
 
-TString ToString(const TInputChunkPtr& inputChunk)
+void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf /*spec*/)
 {
     TString boundaryKeys;
     if (inputChunk->BoundaryKeys()) {
@@ -401,7 +401,8 @@ TString ToString(const TInputChunkPtr& inputChunk)
             inputChunk->BoundaryKeys()->MaxKey);
     }
 
-    return Format(
+    Format(
+        builder,
         "{ChunkId: %v, Replicas: %v, TableIndex: %v, ErasureCodec: %v, StripedErasure: %v, TableRowIndex: %v, "
         "RangeIndex: %v, ChunkIndex: %v, TabletIndex: %v, ChunkFormat: %v, UncompressedDataSize: %v, RowCount: %v, "
         "CompressedDataSize: %v, DataWeight: %v, MaxBlockSize: %v, LowerLimit: %v, UpperLimit: %v, "

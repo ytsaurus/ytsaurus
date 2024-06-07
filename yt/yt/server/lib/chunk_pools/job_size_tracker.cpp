@@ -71,6 +71,17 @@ public:
         bool IsLocal;
     };
 
+    // NB: We friend declare function here so that it is visible
+    // to our static analysis and therefore can be actually found
+    // during the lookup.
+    friend void FormatValue(
+        TStringBuilderBase* builder,
+        const TJobSizeTracker::TOverflowToken& token,
+        TStringBuf /*spec*/)
+    {
+        Format(builder, "{R: %v, L: %v}", token.OverflownResource, token.IsLocal);
+    }
+
     std::optional<std::any> CheckOverflow(TResourceVector extraVector) override
     {
         std::optional<TOverflowToken> result;
@@ -200,11 +211,6 @@ private:
         return result;
     }
 };
-
-TString ToString(const TJobSizeTracker::TOverflowToken& token)
-{
-    return Format("{R: %v, L: %v}", token.OverflownResource, token.IsLocal);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

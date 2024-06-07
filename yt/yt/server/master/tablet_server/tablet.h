@@ -74,7 +74,7 @@ struct TBackupCutoffDescriptor
     void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
-TString ToString(const TBackupCutoffDescriptor& descriptor);
+void FormatValue(TStringBuilderBase* builder, const TBackupCutoffDescriptor& descriptor, TStringBuf spec);
 
 void FromProto(
     TBackupCutoffDescriptor* descriptor,

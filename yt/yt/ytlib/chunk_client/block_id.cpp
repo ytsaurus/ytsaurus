@@ -18,9 +18,9 @@ TBlockId::TBlockId()
     , BlockIndex(-1)
 { }
 
-TString ToString(const TBlockId& id)
+void FormatValue(TStringBuilderBase* builder, const TBlockId& id, TStringBuf spec)
 {
-    return Format("%v:%v", id.ChunkId, id.BlockIndex);
+    FormatValue(builder, Format("%v:%v", id.ChunkId, id.BlockIndex), spec);
 }
 
 void ToProto(NProto::TBlockId* protoBlockId, const TBlockId& blockId)

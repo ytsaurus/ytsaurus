@@ -214,9 +214,9 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
     return true;
 }
 
-TString ToString(const TArtifactKey& key)
+void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf /*spec*/)
 {
-    return Format("{%v}", key.ShortDebugString());
+    Format(builder, "{%v}", key.ShortDebugString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

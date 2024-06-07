@@ -6,9 +6,9 @@ namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const DB::DataTypePtr& dataType)
+void FormatValue(NYT::TStringBuilderBase* builder, const DB::DataTypePtr& dataType, TStringBuf spec)
 {
-    return TString(dataType->getName());
+    FormatValue(builder, TStringBuf{dataType->getName()}, spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

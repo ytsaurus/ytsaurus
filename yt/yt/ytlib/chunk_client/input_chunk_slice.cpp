@@ -743,9 +743,11 @@ void TInputChunkSlice::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TInputChunkSlicePtr& slice)
+void FormatValue(TStringBuilderBase* builder, const TInputChunkSlicePtr& slice, TStringBuf /*spec*/)
 {
-    return Format("ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, PartIndex: %v",
+    Format(
+        builder,
+        "ChunkId: %v, LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v, PartIndex: %v",
         slice->GetInputChunk()->GetChunkId(),
         slice->IsLegacy ? ToString(slice->LegacyLowerLimit()) : ToString(slice->LowerLimit()),
         slice->IsLegacy ? ToString(slice->LegacyUpperLimit()) : ToString(slice->UpperLimit()),

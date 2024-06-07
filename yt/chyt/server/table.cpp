@@ -52,9 +52,9 @@ bool TTable::IsSortedDynamic() const
     return Dynamic && Schema->IsSorted();
 }
 
-TString ToString(const TTablePtr& table)
+void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf spec)
 {
-    return ToString(table->Path);
+    FormatValue(builder, table->Path, spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

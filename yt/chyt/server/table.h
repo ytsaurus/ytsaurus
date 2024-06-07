@@ -41,7 +41,7 @@ struct TTable
     bool IsSortedDynamic() const;
 };
 
-TString ToString(const TTablePtr& table);
+void FormatValue(TStringBuilderBase* builder, const TTablePtr& table, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

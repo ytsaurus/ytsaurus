@@ -194,8 +194,7 @@ private:
             // Select queries with expired leases.
             auto selectQuery = Format(
                 "[query_id], [incarnation], [assigned_tracker], [lease_transaction_id], [engine], [user], [query], [settings], [files] from [%v]",
-                StateRoot_ + "/active_queries",
-                SelfAddress_);
+                StateRoot_ + "/active_queries");
             auto selectResult = WaitFor(StateClient_->SelectRows(selectQuery))
                 .ValueOrThrow();
             queryRecords = ToRecords<TActiveQuery>(selectResult.Rowset);

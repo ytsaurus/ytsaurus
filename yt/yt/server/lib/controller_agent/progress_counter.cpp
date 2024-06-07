@@ -260,9 +260,11 @@ void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TProgressCounterPtr& counter)
+void FormatValue(TStringBuilderBase* builder, const TProgressCounterPtr& counter, TStringBuf /*spec*/)
 {
-    return Format("{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v}",
+    Format(
+        builder,
+        "{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v, B: %v}",
         counter->GetTotal(),
         counter->GetRunning(),
         counter->GetCompletedTotal(),

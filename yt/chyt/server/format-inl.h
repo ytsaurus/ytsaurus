@@ -13,39 +13,33 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TAst>
-struct TValueFormatter<TAst, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
+    requires (std::is_convertible<TAst*, DB::IAST*>::value)
+void FormatValue(TStringBuilderBase* builder, const TAst& ast, TStringBuf /*spec*/)
 {
-    static void Do(TStringBuilderBase* builder, const TAst& ast, TStringBuf /*format*/)
-    {
-        builder->AppendString(DB::serializeAST(ast));
-    }
-};
+    builder->AppendString(DB::serializeAST(ast));
+}
 
 template <class TAst>
-struct TValueFormatter<TAst*, typename std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
+    requires (std::is_convertible<TAst*, DB::IAST*>::value)
+void FormatValue(TStringBuilderBase* builder, const TAst*& ast, TStringBuf /*spec*/)
 {
-    static void Do(TStringBuilderBase* builder, const TAst* ast, TStringBuf /*format*/)
-    {
-        if (ast) {
-            builder->AppendString(DB::serializeAST(*ast));
-        } else {
-            builder->AppendChar('#');
-        }
+    if (ast) {
+        builder->AppendString(DB::serializeAST(*ast));
+    } else {
+        builder->AppendChar('#');
     }
-};
+}
 
 template <class TAst>
-struct TValueFormatter<std::shared_ptr<TAst>, std::enable_if_t<std::is_convertible<TAst*, DB::IAST*>::value>>
+    requires (std::is_convertible<TAst*, DB::IAST*>::value)
+void FormatValue(TStringBuilderBase* builder, const std::shared_ptr<TAst>& ast, TStringBuf /*spec*/)
 {
-    static void Do(TStringBuilderBase* builder, const std::shared_ptr<TAst>& ast, TStringBuf /*format*/)
-    {
-        if (ast) {
-            builder->AppendString(DB::serializeAST(*ast));
-        } else {
-            builder->AppendChar('#');
-        }
+    if (ast) {
+        builder->AppendString(DB::serializeAST(*ast));
+    } else {
+        builder->AppendChar('#');
     }
-};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -85,9 +85,10 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TPreemptedFor& preemptedFor)
+void FormatValue(TStringBuilderBase* builder, const TPreemptedFor& preemptedFor, TStringBuf /*spec*/)
 {
-    return Format(
+    Format(
+        builder,
         "{OperationId: %v, AllocationId: %v}",
         preemptedFor.OperationId,
         preemptedFor.AllocationId);

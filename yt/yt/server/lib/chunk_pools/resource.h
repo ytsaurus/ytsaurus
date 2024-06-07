@@ -39,7 +39,7 @@ struct TResourceVector
     i64 GetPrimaryDataWeight() const;
 };
 
-TString ToString(const TResourceVector& vector);
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& vector, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

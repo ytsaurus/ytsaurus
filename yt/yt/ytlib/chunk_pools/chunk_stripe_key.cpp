@@ -118,6 +118,11 @@ TString ToString(const TChunkStripeKey& key)
     }
 }
 
+void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf spec)
+{
+    FormatValue(builder, ToString(key), spec);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools

@@ -305,9 +305,11 @@ void Serialize(const TLegacyDataSlicePtr& dataSlice, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TLegacyDataSlicePtr& dataSlice)
+void FormatValue(TStringBuilderBase* builder, const TLegacyDataSlicePtr& dataSlice, TStringBuf /*spec*/)
 {
-    return Format("Type: %v, LowerLimit: %v, UpperLimit: %v, ChunkSlices: %v",
+    Format(
+        builder,
+        "Type: %v, LowerLimit: %v, UpperLimit: %v, ChunkSlices: %v",
         dataSlice->Type,
         dataSlice->IsLegacy ? ToString(dataSlice->LegacyLowerLimit()) : ToString(dataSlice->LowerLimit()),
         dataSlice->IsLegacy ? ToString(dataSlice->LegacyUpperLimit()) : ToString(dataSlice->UpperLimit()),

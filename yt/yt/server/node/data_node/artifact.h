@@ -29,7 +29,7 @@ struct TArtifactKey
     bool operator == (const TArtifactKey& other) const;
 };
 
-TString ToString(const TArtifactKey& key);
+void FormatValue(TStringBuilderBase* builder, const TArtifactKey& key, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

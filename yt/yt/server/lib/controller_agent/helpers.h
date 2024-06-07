@@ -43,7 +43,7 @@ struct TJobToRelease
     TReleaseJobFlags ReleaseFlags = {};
 };
 
-TString ToString(const TReleaseJobFlags& releaseFlags);
+void FormatValue(TStringBuilderBase* builder, const TReleaseJobFlags& releaseFlags, TStringBuf spec);
 
 struct TJobToAbort
 {

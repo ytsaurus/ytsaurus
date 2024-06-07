@@ -68,9 +68,11 @@ void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* 
         .EndMap();
 }
 
-TString ToString(const TBriefJobStatisticsPtr& briefStatistics)
+void FormatValue(TStringBuilderBase* builder, const TBriefJobStatisticsPtr& briefStatistics, TStringBuf /*spec*/)
 {
-    return Format("{PIRC: %v, PIUDS: %v, PIDW: %v, PICDS: %v, PORC: %v, POUDS: %v, POCDS: %v, IPIT: %v, OPIT: %v, JPCU: %v, T: %v}",
+    Format(
+        builder,
+        "{PIRC: %v, PIUDS: %v, PIDW: %v, PICDS: %v, PORC: %v, POUDS: %v, POCDS: %v, IPIT: %v, OPIT: %v, JPCU: %v, T: %v}",
         briefStatistics->ProcessedInputRowCount,
         briefStatistics->ProcessedInputUncompressedDataSize,
         briefStatistics->ProcessedInputDataWeight,

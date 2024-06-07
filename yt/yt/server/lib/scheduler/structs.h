@@ -88,7 +88,7 @@ struct TPreemptedFor
     bool operator==(const TPreemptedFor& other) const = default;
 };
 
-TString ToString(const TPreemptedFor& preemptedFor);
+void FormatValue(TStringBuilderBase* builder, const TPreemptedFor& preemptedFor, TStringBuf spec);
 
 void ToProto(NProto::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
 void FromProto(TPreemptedFor* preemptedFor, const NProto::TPreemptedFor& proto);

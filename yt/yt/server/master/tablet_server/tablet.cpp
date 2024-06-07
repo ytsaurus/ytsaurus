@@ -91,13 +91,21 @@ void TBackupCutoffDescriptor::Persist(const NCellMaster::TPersistenceContext& co
     Persist(context, DynamicStoreIdsToKeep);
 }
 
-TString ToString(const TBackupCutoffDescriptor& descriptor)
+void FormatValue(TStringBuilderBase* builder, const TBackupCutoffDescriptor& descriptor, TStringBuf spec)
 {
-    return Format(
-        "{%v/%v/%v}",
-        descriptor.CutoffRowIndex,
-        descriptor.NextDynamicStoreId,
-        descriptor.DynamicStoreIdsToKeep);
+    // TODO(arkady-e1ppa): We format descriptor twice
+    // (serialization and then with respect to spec)
+    // Not sure if it is required -- maybe we are free
+    // to ignore the spec. Check later and remove
+    // the second step if redundant.
+    FormatValue(
+        builder,
+        Format(
+            "{%v/%v/%v}",
+            descriptor.CutoffRowIndex,
+            descriptor.NextDynamicStoreId,
+            descriptor.DynamicStoreIdsToKeep),
+        spec);
 }
 
 void FromProto(

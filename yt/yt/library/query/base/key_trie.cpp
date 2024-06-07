@@ -635,7 +635,7 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     return result;
 }
 
-TString ToString(TKeyTriePtr node) {
+TString ToString(const TKeyTriePtr& node) {
     auto printOffset = [] (int offset) {
         TString str;
         for (int i = 0; i < offset; ++i) {
@@ -658,9 +658,9 @@ TString ToString(TKeyTriePtr node) {
 
                 for (int i = 0; i < std::ssize(node->Bounds); i += 2) {
                     str += node->Bounds[i].Included ? "[" : "(";
-                    str += Format("%k", node->Bounds[i].Value);
+                    str += Format("%kv", node->Bounds[i].Value);
                     str += ":";
-                    str += Format("%k", node->Bounds[i+1].Value);
+                    str += Format("%kv", node->Bounds[i+1].Value);
                     str += node->Bounds[i+1].Included ? "]" : ")";
                     if (i + 2 < std::ssize(node->Bounds)) {
                         str += ", ";
@@ -672,7 +672,7 @@ TString ToString(TKeyTriePtr node) {
                 for (const auto& next : node->Next) {
                     str += "\n";
                     str += printOffset(node->Offset);
-                    str += Format("%k", next.first);
+                    str += Format("%kv", next.first);
                     str += ":\n";
                     str += printNode(next.second, offset + 1);
                 }
@@ -681,6 +681,11 @@ TString ToString(TKeyTriePtr node) {
         };
 
     return printNode(node, 0);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TKeyTriePtr& node, TStringBuf spec)
+{
+    FormatValue(builder, ToString(node), spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

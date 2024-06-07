@@ -22,7 +22,7 @@ public:
 };
 DEFINE_REFCOUNTED_TYPE(TCellPeerConfig)
 
-TString ToString(const TCellPeerConfigPtr& config);
+void FormatValue(TStringBuilderBase* builder, const TCellPeerConfigPtr& config, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

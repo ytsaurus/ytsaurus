@@ -356,15 +356,15 @@ TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
-TString ToString(const TBasicYPath<Absolute>& path)
+void FormatValue(TStringBuilderBase* builder, const TBasicYPath<Absolute>& path, TStringBuf spec)
 {
-    return path.ToString();
+    FormatValue(builder, path.ToString(), spec);
 }
 
 template <bool Absolute>
-TString ToString(TBasicYPathBuf<Absolute> path)
+void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec)
 {
-    return path.ToString();
+    FormatValue(builder, path.ToString(), spec);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

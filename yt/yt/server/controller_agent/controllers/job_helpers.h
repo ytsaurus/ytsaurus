@@ -40,7 +40,7 @@ DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, NYson::IYsonConsumer* consumer);
 
-TString ToString(const TBriefJobStatisticsPtr& briefStatistics);
+void FormatValue(TStringBuilderBase* builder, const TBriefJobStatisticsPtr& briefStatistics, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

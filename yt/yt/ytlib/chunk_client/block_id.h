@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/proto/block_id.pb.h>
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +28,7 @@ struct TBlockId
     bool operator== (const TBlockId& other) const = default;
 };
 
-TString ToString(const TBlockId& id);
+void FormatValue(TStringBuilderBase* builder, const TBlockId& id, TStringBuf spec);
 
 void ToProto(NProto::TBlockId* protoBlockId, const TBlockId& blockId);
 void FromProto(TBlockId* blockId, const NProto::TBlockId& protoBlockId);

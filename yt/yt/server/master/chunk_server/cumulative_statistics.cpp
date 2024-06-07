@@ -55,9 +55,9 @@ TCumulativeStatisticsEntry TCumulativeStatisticsEntry::operator-(const TCumulati
     };
 }
 
-TString ToString(const TCumulativeStatisticsEntry& entry)
+void FormatValue(TStringBuilderBase* builder, const TCumulativeStatisticsEntry& entry, TStringBuf /*spec*/)
 {
-    return ConvertToYsonString(entry, EYsonFormat::Text).ToString();
+    FormatValue(builder, ConvertToYsonString(entry, EYsonFormat::Text), TStringBuf{"v"});
 }
 
 void Serialize(const TCumulativeStatisticsEntry& entry, IYsonConsumer* consumer)

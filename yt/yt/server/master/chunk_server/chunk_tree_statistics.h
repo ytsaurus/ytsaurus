@@ -64,7 +64,7 @@ struct TChunkTreeStatistics
     bool operator == (const TChunkTreeStatistics& other) const;
 };
 
-TString ToString(const TChunkTreeStatistics& statistics);
+void FormatValue(TStringBuilderBase* builder, const TChunkTreeStatistics& statistics, TStringBuf spec);
 
 void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* consumer);
 

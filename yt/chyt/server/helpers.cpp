@@ -569,6 +569,16 @@ TString ToString(const Block& block)
         content.Flush());
 }
 
+void FormatValue(NYT::TStringBuilderBase* builder, const Field& field, TStringBuf spec)
+{
+    FormatValue(builder, ToString(field), spec);
+}
+
+void FormatValue(NYT::TStringBuilderBase* builder, const Block& block, TStringBuf spec)
+{
+    FormatValue(builder, ToString(block), spec);
+}
+
 void PrintTo(const Field& field, std::ostream* os)
 {
     *os << ToString(field);

@@ -390,7 +390,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TReaderStatistics& statistics)
+void FormatValue(TStringBuilderBase* builder, const TReaderStatistics& statistics, TStringBuf /*spec*/)
 {
     auto ticksInSecond = DurationToCpuDuration(TDuration::Seconds(1));
     auto ticksToNanoseconds = 1000000000 / static_cast<double>(ticksInSecond);
@@ -399,7 +399,8 @@ TString ToString(const TReaderStatistics& statistics)
         return static_cast<ui64>(cpuDuration * ticksToNanoseconds);
     };
 
-    return Format(
+    Format(
+        builder,
         "RowCount: %v, "
         "Summary Init/Read Time: %vns / %vns, "
         "BuildReadWindows/GetValuesIdMapping/CreateColumnBlockHolders/GetTypesFromSchema/BuildColumnInfos/CreateRowsetBuilder/CreateBlockManager Times: %vns / %vns / %vns / %vns / %vns / %vns / %vns, "

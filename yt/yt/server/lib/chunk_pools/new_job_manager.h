@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 #include <random>
 
 namespace NYT::NChunkPools {

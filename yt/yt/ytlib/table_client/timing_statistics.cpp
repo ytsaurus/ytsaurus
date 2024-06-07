@@ -4,9 +4,10 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TTimingStatistics& statistics)
+void FormatValue(TStringBuilderBase* builder, const TTimingStatistics& statistics, TStringBuf /*spec*/)
 {
-    return Format(
+    Format(
+        builder,
         "{Wait: %v, Read: %v, Idle: %v}",
         statistics.WaitTime,
         statistics.ReadTime,

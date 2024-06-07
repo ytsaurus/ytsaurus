@@ -115,6 +115,21 @@ public:
             YT_VERIFY(!rowIndex || *rowIndex >= 0);
             YT_VERIFY(!tabletIndex || *tabletIndex >= 0);
         }
+
+        friend void FormatValue(
+            TStringBuilderBase* builder,
+            const TChunkTreeTraverser::TStackEntry& entry,
+            TStringBuf /*spec*/)
+        {
+            Format(
+                builder,
+                "{Id: %v, Kind: %v, ChildIndex: %v, LowerLimit: %v, UpperLimit: %v}",
+                entry.ChunkList->GetId(),
+                entry.ChunkList->GetKind(),
+                entry.ChildIndex,
+                entry.LowerLimit,
+                entry.UpperLimit);
+        }
     };
 
 protected:
@@ -1470,17 +1485,6 @@ public:
         }
     }
 };
-
-TString ToString(const TChunkTreeTraverser::TStackEntry& entry)
-{
-    return Format(
-        "{Id: %v, Kind: %v, ChildIndex: %v, LowerLimit: %v, UpperLimit: %v}",
-        entry.ChunkList->GetId(),
-        entry.ChunkList->GetKind(),
-        entry.ChildIndex,
-        entry.LowerLimit,
-        entry.UpperLimit);
-}
 
 void TraverseChunkTree(
     IChunkTraverserContextPtr traverserContext,
