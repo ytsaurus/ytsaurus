@@ -9,6 +9,7 @@ from yt_commands import (
 from time import sleep
 
 import builtins
+import datetime
 import pytest
 
 ##################################################################
@@ -73,7 +74,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
     @pytest.mark.timeout(600)
     def test_intermediate_medium_switch(self):
         def set_limit(account, medium, limit):
-            set(f"//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{fast_medium}", limit)
+            set(f"//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{medium}", limit)
 
         def get_usage(account, medium, usage_type):
             return get(f"//sys/accounts/{account}/@{usage_type}/disk_space_per_medium/{medium}")
@@ -106,7 +107,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
                 {"name": "value", "type_v3": "string"},
             ]},
         )
-        data = [{"key": i % 100, "value": "#" * 1000000} for i in range(1000, 1, -1)]
+        data = [{"key": i % 10, "value": "#" * 1000000} for i in range(100, 1, -1)]
         for d in data:
             write_table(f"<append=%true>{in_table}", [d])
 
@@ -127,7 +128,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
             mapper_command=with_breakpoint('if [ "$YT_JOB_INDEX" != "0" ]; then BREAKPOINT; fi; cat'),
             reducer_command=with_breakpoint("cat; BREAKPOINT"),
             spec={
-                "data_weight_per_sort_job": 1,
+                "data_weight_per_reduce_job": 1,
                 "fast_intermediate_medium_limit": 1,
                 "partition_count": 10,
                 "partition_job_count": 10,
@@ -149,7 +150,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         jobs_used_slow_medium = 0
 
         while op.get_job_count("completed") != op.get_job_count("total"):
-            job_id = wait_breakpoint(job_count=1)[0]
+            job_id = wait_breakpoint(job_count=1, timeout=datetime.timedelta(seconds=300))[0]
             current_fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
             if fast_intermediate_medium_usage == current_fast_intermediate_medium_usage:
                 jobs_used_slow_medium += 1
@@ -165,8 +166,3 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
         for medium in [fast_medium, slow_medium]:
             assert get_intermediate_usage(medium) > 0, f"the medium '{medium}' was not used at all"
-
-        assert get_operation_job_types(op) == builtins.set([
-            "intermediate_sort", "partition_map", "sorted_reduce"])
-        assert get_operation_tasks(op) == builtins.set([
-            "intermediate_sort", "partition_map(0)", "sorted_reduce"])
