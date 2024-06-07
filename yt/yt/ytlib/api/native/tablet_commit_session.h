@@ -36,11 +36,13 @@ struct ITabletCommitSession
     virtual void SubmitVersionedRow(
         NTableClient::TTypeErasedRow row) = 0;
 
-    virtual void PrepareRequests() = 0;
+    virtual TSharedRange<TUnversionedSubmittedRow> PrepareRequests() = 0;
 
     virtual void MemorizeHunkInfo(const NTableClient::THunkChunksInfo& hunkInfo) = 0;
 
     virtual TFuture<void> Invoke(int retryIndex = 0) = 0;
+
+    virtual NTabletClient::TTableMountInfoPtr GetTableMountInfo() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletCommitSession)

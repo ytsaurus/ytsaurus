@@ -59,7 +59,7 @@ protected:
 
     std::unique_ptr<IWireProtocolReader> GetSingularBatchReader()
     {
-        auto batches = Batcher_->PrepareBatches();
+        auto batches = Batcher_->PrepareBatches().Batches;
         EXPECT_EQ(1, std::ssize(batches));
 
         auto* batch = batches[0].get();
@@ -180,7 +180,7 @@ TEST_F(TTabletRequestBatcherTest, MaxRowsPerBatch)
             EWireProtocolCommand::WriteAndLockRow, rows.back(), GetPrimaryLockExclusiveMask());
     }
 
-    auto batches = Batcher_->PrepareBatches();
+    auto batches = Batcher_->PrepareBatches().Batches;
     EXPECT_EQ(4, std::ssize(batches));
 
     int rowIndex = 0;
@@ -209,7 +209,7 @@ TEST_F(TTabletRequestBatcherTest, MaxDataWeightPerBatch)
         Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteAndLockRow, rows.back(), GetPrimaryLockExclusiveMask());
     }
 
-    auto batches = Batcher_->PrepareBatches();
+    auto batches = Batcher_->PrepareBatches().Batches;
     EXPECT_EQ(4, std::ssize(batches));
 
     int rowIndex = 0;

@@ -91,7 +91,7 @@ public:
         THashMap<TTabletId, std::vector<std::unique_ptr<ITabletRequestBatcher::TBatch>>> tabletIdToBatches;
 
         for (const auto& [tabletId, tabletRequestBatcher] : TabletIdToRequestBatcher_) {
-            auto batches = tabletRequestBatcher->PrepareBatches();
+            auto batches = tabletRequestBatcher->PrepareBatches().Batches;
             auto requestCount = std::max<int>(std::ssize(batches), 1);
 
             auto* cellSignatureGenerator = GetOrCrash(

@@ -18,6 +18,14 @@ struct TTabletRequestBatcherOptions
     std::optional<i64> MaxRowsPerTablet;
 };
 
+struct TUnversionedSubmittedRow
+{
+    NTableClient::EWireProtocolCommand Command;
+    NTableClient::TUnversionedRow Row;
+    NTableClient::TLockMask Locks;
+    int SequentialId;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ITabletRequestBatcher
@@ -43,7 +51,12 @@ struct ITabletRequestBatcher
 
         void Materialize(NCompression::ECodec codec);
     };
-    virtual std::vector<std::unique_ptr<TBatch>> PrepareBatches() = 0;
+    struct TBatchesAndMergedRows
+    {
+        std::vector<std::unique_ptr<TBatch>> Batches;
+        TSharedRange<TUnversionedSubmittedRow> MergedRows;
+    };
+    virtual TBatchesAndMergedRows PrepareBatches() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITabletRequestBatcher)

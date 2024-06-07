@@ -6,7 +6,7 @@ from yt_commands import (
     create, create_secondary_index, create_dynamic_table, create_table_replica, create_table_collocation,
     authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
-    select_rows, insert_rows, delete_rows,
+    select_rows, insert_rows, delete_rows, commit_transaction, start_transaction,
     sorted_dicts, raises_yt_error,
 )
 
@@ -445,8 +445,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
 
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
-    def _insert_rows(self, rows, table="//tmp/table", update=False):
-        insert_rows(table, rows, update=update)
+    def _insert_rows(self, rows, table="//tmp/table", **kwargs):
+        insert_rows(table, rows, **kwargs)
 
     def _delete_rows(self, rows, table="//tmp/table"):
         delete_rows(table, rows)
@@ -725,6 +725,15 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             {"keyA": 0, "keyB": "bca", "valueA": 2, EMPTY_COLUMN_NAME: None},
             {"keyA": 3, "keyB": "cbc", "valueA": 4, EMPTY_COLUMN_NAME: None},
         ])
+
+    @authors("sabdenovch")
+    def test_secondary_index_consequtive_inserts_under_transaction(self):
+        self._create_basic_tables(mount=True)
+        tx = start_transaction(type="tablet")
+        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 123}], tx=tx)
+        self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 456}], tx=tx)
+        commit_transaction(tx)
+        self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 456, "valueB": None}])
 
 
 ##################################################################
