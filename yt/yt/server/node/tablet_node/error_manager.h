@@ -35,7 +35,7 @@ struct IErrorManager
 
 DEFINE_REFCOUNTED_TYPE(IErrorManager)
 
-IErrorManagerPtr CreateErrorManager(IBootstrap const* bootstrap);
+IErrorManagerPtr CreateErrorManager(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
