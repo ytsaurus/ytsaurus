@@ -68,6 +68,7 @@ private:
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, Fetch);
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, CheckPermission);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVirtualStaticTable)

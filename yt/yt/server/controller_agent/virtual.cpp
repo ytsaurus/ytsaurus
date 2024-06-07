@@ -53,6 +53,7 @@ bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
     // TODO(max42): Or DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch)?
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
     return TSupportsAttributes::DoInvoke(context);
 }
 
@@ -112,6 +113,17 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
                 chunkSpec->mutable_upper_limit()->set_row_index(chunkUpperLimit);
             }
         }
+    }
+
+    context->SetResponseInfo();
+    context->Reply();
+}
+
+DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, CheckPermission)
+{
+    if (request->has_permission()) {
+        auto permission = CheckedEnumCast<EPermission>(request->permission());
+        ValidatePermission(EPermissionCheckScope::This, permission);
     }
 
     context->SetResponseInfo();

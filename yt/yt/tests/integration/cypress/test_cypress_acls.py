@@ -5,7 +5,7 @@ from yt_commands import (
     create_account, create_user, create_group, make_ace, check_permission, check_permission_by_acl, add_member,
     remove_group, remove_user, start_transaction, lock, read_table, write_table, alter_table, map,
     set_account_disk_space_limit, raises_yt_error, gc_collect, build_snapshot, create_access_control_object_namespace,
-    create_access_control_object, get_active_primary_master_leader_address,
+    create_access_control_object, get_active_primary_master_leader_address, concatenate
 )
 
 from yt_type_helpers import make_schema
@@ -1874,6 +1874,64 @@ class TestCypressAcls(CheckPermissionBase):
             authenticated_user="George50",
         )
 
+    @authors("kivedernikov")
+    def test_permissions_concatenate(self):
+        create_user("u1")
+        create_group("g1")
+        add_member("u1", "g1")
+
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+            recursive=True,
+        )
+
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+            recursive=True,
+        )
+
+        concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
+
+        set(
+            "//tmp/t/@acl",
+            [
+                make_ace("allow", "u1", "read", columns=["a", "b"]),
+                make_ace("deny", "u1", "read", columns=["c"]),
+            ],
+        )
+
+        response1 = check_permission("u1", "read", "//tmp/t", columns=["a", "b", "c"])
+        assert response1["columns"][0]["action"] == "allow"
+        assert response1["columns"][1]["action"] == "allow"
+        assert response1["columns"][2]["action"] == "deny"
+
+        with pytest.raises(YtError):
+            concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
+
+        set(
+            "//tmp/t/@acl",
+            [
+                make_ace("allow", "u1", ["read", "write", "remove"]),
+            ],
+        )
+
+        concatenate(["//tmp/t"], "//tmp/t2", authenticated_user="u1")
 
 ##################################################################
 
