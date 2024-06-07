@@ -128,7 +128,7 @@ public:
     : PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
     , Metric_(std::move(metric))
-    , Evaluator_(NOrm::NQuery::CreateExpressionEvaluator(
+    , Evaluator_(NOrm::NQuery::CreateOrmExpressionEvaluator(
         Metric_,
         ParameterizedBalancingAttributes))
     { }

@@ -143,16 +143,14 @@ class TExpressionEvaluator
     : public IExpressionEvaluator
 {
 public:
-    TExpressionEvaluator(TString query, std::vector<TTypedAttributePath> typedAttributePaths)
-        : Query_(std::move(query))
-        , TypedAttributePaths_(std::invoke([&] {
-            ValidateAttributePaths(typedAttributePaths);
-
-            return std::move(typedAttributePaths);
-        }))
+    TExpressionEvaluator(
+        std::unique_ptr<NQueryClient::TParsedSource> parsedQuery,
+        std::vector<TColumnSchema> columns)
+        : ParsedQuery_(std::move(parsedQuery))
+        , Columns_(std::move(columns))
         , EvaluationContext_(CreateQueryEvaluationContext(
-            CreateFakeTableFilterExpression(),
-            CreateFakeTableSchema()))
+            std::get<TExpressionPtr>(ParsedQuery_->AstHead.Ast),
+            CreateTableSchema()))
     { }
 
     TErrorOr<NQueryClient::TValue> Evaluate(
@@ -163,18 +161,18 @@ public:
             if (!rowBuffer) {
                 rowBuffer = New<TRowBuffer>(TRowBufferTag());
             }
-            if (attributePayloads.size() != TypedAttributePaths_.size()) {
+            if (attributePayloads.size() != Columns_.size()) {
                 THROW_ERROR_EXCEPTION("Invalid number of attributes: expected %v, but got %v",
-                    TypedAttributePaths_.size(),
+                    Columns_.size(),
                     attributePayloads.size());
             }
 
             TObjectsHolder temporaryObjectsHolder;
             std::vector<TUnversionedValue> inputValues;
             inputValues.reserve(attributePayloads.size());
-            for (size_t index = 0; index < TypedAttributePaths_.size(); ++index) {
+            for (size_t index = 0; index < Columns_.size(); ++index) {
                 inputValues.push_back(MakeUnversionedValue(
-                    TypedAttributePaths_[index].Type,
+                    Columns_[index].GetWireType(),
                     attributePayloads[index],
                     &temporaryObjectsHolder));
             }
@@ -185,7 +183,7 @@ public:
                 rowBuffer);
         } catch (const std::exception& ex) {
             return TError("Error evaluating query")
-                << TErrorAttribute("query", Query_)
+                << TErrorAttribute("query", ParsedQuery_->Source)
                 << ex;
         }
     }
@@ -200,116 +198,157 @@ public:
     }
 
 private:
-    TObjectsHolder ObjectsHolder_;
-
-    const TString Query_;
-    const std::vector<TTypedAttributePath> TypedAttributePaths_;
+    const std::unique_ptr<NQueryClient::TParsedSource> ParsedQuery_;
+    const std::vector<TColumnSchema> Columns_;
     const std::unique_ptr<TQueryEvaluationContext> EvaluationContext_;
 
     struct TRowBufferTag
     { };
 
-    const TString& GetFakeTableColumnName(const NYPath::TYPath& attributePath) const
+    TTableSchemaPtr CreateTableSchema()
     {
-        static const TString Default = "data";
-        return attributePath.empty()
-            ? Default
-            : attributePath;
-    }
-
-    TReferenceExpressionPtr CreateFakeTableColumnReference(const NYPath::TYPath& attributePath)
-    {
-        return ObjectsHolder_.New<TReferenceExpression>(
-            NQueryClient::NullSourceLocation,
-            GetFakeTableColumnName(attributePath));
-    }
-
-    TTypedAttributePath GetMatchingAttributePath(const TYPath& queryAttributePath)
-    {
-        for (const auto& dataAttributePath : TypedAttributePaths_) {
-            if (NYPath::HasPrefix(queryAttributePath, dataAttributePath.Path)) {
-                return dataAttributePath;
-            }
-        }
-        THROW_ERROR_EXCEPTION("Attribute path %Qv refers to a forbidden attribute",
-            queryAttributePath);
-    }
-
-    TExpressionPtr CreateFakeTableAttributeSelector(const TYPath& queryAttributePath)
-    {
-        try {
-            auto typedDataAttributePath = GetMatchingAttributePath(queryAttributePath);
-            const auto& dataAttributePath = typedDataAttributePath.Path;
-            auto queryAttributePathSuffix = queryAttributePath.substr(dataAttributePath.size());
-
-            if (queryAttributePathSuffix.Empty()) {
-                return CreateFakeTableColumnReference(dataAttributePath);
-            }
-            if (typedDataAttributePath.Type != EValueType::Any) {
-                THROW_ERROR_EXCEPTION(
-                    "Attribute path of type %Qlv does not support nested attributes",
-                    typedDataAttributePath.Type);
-            }
-
-            return ObjectsHolder_.New<TFunctionExpression>(
-                NQueryClient::NullSourceLocation,
-                "try_get_any",
-                TExpressionList{
-                    CreateFakeTableColumnReference(dataAttributePath),
-                    ObjectsHolder_.New<TLiteralExpression>(
-                        NQueryClient::NullSourceLocation,
-                        std::move(queryAttributePathSuffix))});
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
-                queryAttributePath)
-                << ex;
-        }
-    }
-
-    NQueryClient::NAst::TExpressionPtr CreateFakeTableFilterExpression()
-    {
-        auto parsedQuery = ParseSource(Query_, NQueryClient::EParseMode::Expression);
-        auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
-
-        ObjectsHolder_.Merge(std::move(parsedQuery->AstHead));
-
-        auto referenceMapping = [&] (const TReference& reference) {
-            if (reference.TableName) {
-                THROW_ERROR_EXCEPTION("Table references are not supported");
-            }
-            return CreateFakeTableAttributeSelector(reference.ColumnName);
-        };
-        TQueryRewriter rewriter(std::move(referenceMapping));
-
-        return rewriter.Run(queryExpression);
-    }
-
-    TTableSchemaPtr CreateFakeTableSchema()
-    {
-        std::vector<TColumnSchema> columns;
-        for (const auto& typedPath : TypedAttributePaths_) {
-            columns.emplace_back(
-                GetFakeTableColumnName(typedPath.Path),
-                typedPath.Type);
-        }
-        return New<TTableSchema>(std::move(columns));
+        return New<TTableSchema>(Columns_);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TString& GetFakeTableColumnName(const NYPath::TYPath& attributePath)
+{
+    static const TString Default = "data";
+    return attributePath.empty()
+        ? Default
+        : attributePath;
+}
+
+TReferenceExpressionPtr CreateFakeTableColumnReference(
+    const NYPath::TYPath& attributePath,
+    TObjectsHolder* holder)
+{
+    return holder->New<TReferenceExpression>(
+        NQueryClient::NullSourceLocation,
+        GetFakeTableColumnName(attributePath));
+}
+
+TTypedAttributePath GetMatchingAttributePath(
+    const TYPath& queryAttributePath,
+    const std::vector<TTypedAttributePath>& typedAttributePaths)
+{
+    for (const auto& dataAttributePath : typedAttributePaths) {
+        if (NYPath::HasPrefix(queryAttributePath, dataAttributePath.Path)) {
+            return dataAttributePath;
+        }
+    }
+    THROW_ERROR_EXCEPTION("Attribute path %Qv refers to a forbidden attribute",
+        queryAttributePath);
+}
+
+TExpressionPtr CreateFakeTableAttributeSelector(
+    const TYPath& queryAttributePath,
+    const std::vector<TTypedAttributePath>& typedAttributePaths,
+    TObjectsHolder* holder)
+{
+    try {
+        auto typedDataAttributePath = GetMatchingAttributePath(queryAttributePath, typedAttributePaths);
+        const auto& dataAttributePath = typedDataAttributePath.Path;
+        auto queryAttributePathSuffix = queryAttributePath.substr(dataAttributePath.size());
+
+        if (queryAttributePathSuffix.Empty()) {
+            return CreateFakeTableColumnReference(dataAttributePath, holder);
+        }
+        if (typedDataAttributePath.Type != EValueType::Any) {
+            THROW_ERROR_EXCEPTION(
+                "Attribute path of type %Qlv does not support nested attributes",
+                typedDataAttributePath.Type);
+        }
+
+        return holder->New<TFunctionExpression>(
+            NQueryClient::NullSourceLocation,
+            "try_get_any",
+            TExpressionList{
+                CreateFakeTableColumnReference(dataAttributePath, holder),
+                holder->New<TLiteralExpression>(
+                    NQueryClient::NullSourceLocation,
+                    std::move(queryAttributePathSuffix))});
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error creating query selector for attribute path %Qv",
+            queryAttributePath)
+            << ex;
+    }
+}
+
+std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttributePath>& typedAttributePaths)
+{
+    std::vector<TColumnSchema> columns;
+    for (const auto& typedPath : typedAttributePaths) {
+        columns.emplace_back(GetFakeTableColumnName(typedPath.Path), typedPath.Type);
+    }
+    return std::move(columns);
+}
+
 } // namespace
 
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
     TString query,
-    std::vector<TTypedAttributePath> typedAttributePaths)
+    std::vector<TColumnSchema> columns)
 {
+    auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
+    auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    auto& objectsHolder = parsedQuery->AstHead;
+
+    std::optional<TString> tableName;
+    auto referenceMapping = [&] (const TReference& reference) {
+        if (reference.TableName) {
+            if (tableName) {
+                if (tableName != reference.TableName) {
+                    THROW_ERROR_EXCEPTION(
+                        "Query %Qv contains conflicting table names: expected %Qv, but got %Qv",
+                        tableName,
+                        reference.TableName);
+                }
+            } else {
+                tableName = reference.TableName;
+            }
+        }
+        return objectsHolder.New<TReferenceExpression>(
+            NQueryClient::NullSourceLocation,
+            reference.ColumnName);
+    };
+    TQueryRewriter rewriter(std::move(referenceMapping));
+    objectsHolder.Ast = rewriter.Run(queryExpression);
+
     return New<TExpressionEvaluator>(
-        std::move(query),
-        std::move(typedAttributePaths));
+        std::move(parsedQuery),
+        std::move(columns));
 }
 
-IExpressionEvaluatorPtr CreateExpressionEvaluator(
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
+    TString query,
+    std::vector<TTypedAttributePath> typedAttributePaths)
+{
+    ValidateAttributePaths(typedAttributePaths);
+
+    auto columns = CreateColumnsFromPaths(typedAttributePaths);
+
+    auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
+    auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
+    auto& objectsHolder = parsedQuery->AstHead;
+
+    auto referenceMapping = [&] (const TReference& reference) {
+        if (reference.TableName) {
+            THROW_ERROR_EXCEPTION("Table references are not supported");
+        }
+        return CreateFakeTableAttributeSelector(reference.ColumnName, typedAttributePaths, &objectsHolder);
+    };
+    TQueryRewriter rewriter(std::move(referenceMapping));
+    objectsHolder.Ast = rewriter.Run(queryExpression);
+
+    return New<TExpressionEvaluator>(
+        std::move(parsedQuery),
+        std::move(columns));
+}
+
+IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
     TString query,
     std::vector<TString> attributePaths)
 {
@@ -322,7 +361,8 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
             .Type = EValueType::Any,
         });
     }
-    return New<TExpressionEvaluator>(
+
+    return CreateOrmExpressionEvaluator(
         std::move(query),
         std::move(typedAttributePaths));
 }

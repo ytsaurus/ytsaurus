@@ -1,5 +1,6 @@
 #include <yt/yt/orm/library/query/expression_evaluator.h>
 
+#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -16,9 +17,9 @@ using NTableClient::EValueType;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TExpressionEvaluatorTest, Simple)
+TEST(TExpressionEvaluatorTest, OrmSimple)
 {
-    auto evaluator = CreateExpressionEvaluator("double([/meta/x]) + 5 * double([/meta/y])", {"/meta"});
+    auto evaluator = CreateOrmExpressionEvaluator("double([/meta/x]) + 5 * double([/meta/y])", {"/meta"});
     auto value = evaluator->Evaluate(
         BuildYsonStringFluently().BeginMap()
             .Item("x").Value(1.0)
@@ -29,9 +30,9 @@ TEST(TExpressionEvaluatorTest, Simple)
     EXPECT_EQ(value.Data.Double, 501);
 }
 
-TEST(TExpressionEvaluatorTest, ManyArguments)
+TEST(TExpressionEvaluatorTest, OrmManyArguments)
 {
-    auto evaluator = CreateExpressionEvaluator(
+    auto evaluator = CreateOrmExpressionEvaluator(
         "int64([/meta/x]) + int64([/lambda/y/z]) + 16 + int64([/theta])",
         {"/meta", "/lambda/y", "/theta"});
     auto value = evaluator->Evaluate({
@@ -48,11 +49,11 @@ TEST(TExpressionEvaluatorTest, ManyArguments)
     EXPECT_EQ(value.Data.Int64, 1 + 10 + 16 + 1000);
 }
 
-TEST(TExpressionEvaluatorTest, TypedAttributePaths)
+TEST(TExpressionEvaluatorTest, OrmTypedAttributePaths)
 {
     for (auto type : {EValueType::Max, EValueType::Min, EValueType::Null, EValueType::Composite}) {
         EXPECT_THROW_WITH_SUBSTRING(
-            CreateExpressionEvaluator(
+            CreateOrmExpressionEvaluator(
                 "[/meta/type]",
                 /*attributePaths*/ {
                     TTypedAttributePath{
@@ -86,7 +87,7 @@ TEST(TExpressionEvaluatorTest, TypedAttributePaths)
         },
     };
     auto createEvaluator = [&] (const TString& filter) {
-        return CreateExpressionEvaluator(filter, typedAttributePaths);
+        return CreateOrmExpressionEvaluator(filter, typedAttributePaths);
     };
 
     EXPECT_THROW_WITH_SUBSTRING(
@@ -138,6 +139,81 @@ TEST(TExpressionEvaluatorTest, TypedAttributePaths)
     EXPECT_FALSE(buildAndEvaluateExpression("abcd", 3.23, 500, "magenta", false));
     EXPECT_FALSE(buildAndEvaluateExpression("xyz", 4.12, 321, "cyan", false));
     EXPECT_TRUE(buildAndEvaluateExpression("xyz", 4.12, 321, "cyan", true));
+}
+
+TEST(TExpressionEvaluatorTest, OrmManyFunctions)
+{
+    auto evaluator = CreateOrmExpressionEvaluator(
+        "((((string([/meta/str_id]))||(\";\"))||(numeric_to_string(int64([/meta/i64_id]))))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(uint64([/meta/ui64_id])), \"\"))",
+        {"/meta"});
+    auto value = evaluator->Evaluate(
+        BuildYsonStringFluently()
+        .BeginMap()
+            .Item("str_id").Value("abacaba")
+            .Item("i64_id").Value(25)
+            .Item("ui64_id").Value(315u)
+        .EndMap()
+    ).ValueOrThrow().AsString();
+    EXPECT_EQ(value, TString("abacaba;25;315"));
+}
+
+TEST(TExpressionEvaluatorTest, Simple)
+{
+    NQueryClient::TSchemaColumns columns = {
+        {
+            "meta.x", EValueType::Int64
+        },
+        {
+            "lambda.y.z", EValueType::Double
+        },
+        {
+            "theta", EValueType::Uint64
+        }
+    };
+
+    auto evaluator = CreateExpressionEvaluator(
+        "[meta.x] + int64([lambda.y.z]) + 16 + int64([theta])",
+        std::move(columns));
+
+    auto value = evaluator->Evaluate({
+        BuildYsonStringFluently().Value(1),
+        BuildYsonStringFluently().Value(10.0),
+        BuildYsonStringFluently().Value(1000u)
+    }).ValueOrThrow();
+
+    EXPECT_EQ(value.Type, EValueType::Int64);
+    EXPECT_EQ(value.Data.Int64, 1 + 10 + 16 + 1000);
+}
+
+TEST(TExpressionEvaluatorTest, TableName)
+{
+    NQueryClient::TSchemaColumns columns = {
+        {
+            "meta.str_id", EValueType::String
+        },
+        {
+            "meta.i64_id", EValueType::Int64
+        },
+        {
+            "meta.ui64_id", EValueType::Uint64
+        }
+    };
+
+    auto evaluator = CreateExpressionEvaluator(
+        "((((p.`meta.str_id`)||(\";\"))||(numeric_to_string(p.`meta.i64_id`)))||(\";\"))||(regex_replace_first(\"u\", numeric_to_string(p.`meta.ui64_id`), \"\"))",
+        columns);
+
+    auto value = evaluator->Evaluate({
+        BuildYsonStringFluently().Value("abacaba"),
+        BuildYsonStringFluently().Value(25),
+        BuildYsonStringFluently().Value(315u)
+    }).ValueOrThrow().AsString();
+
+    EXPECT_EQ(value, TString("abacaba;25;315"));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateExpressionEvaluator("p.`meta.i64_id` + int64(s.`meta.ui64_id`)", columns),
+        "contains conflicting table names:");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

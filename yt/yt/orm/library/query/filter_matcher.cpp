@@ -30,7 +30,7 @@ public:
     TFilterMatcher(
         TString filterQuery,
         std::vector<TTypedAttributePath> attributePaths)
-        : Evaluator_(CreateExpressionEvaluator(
+        : Evaluator_(CreateOrmExpressionEvaluator(
             std::move(filterQuery),
             std::move(attributePaths)))
     { }
