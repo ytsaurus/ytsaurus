@@ -34,7 +34,6 @@ class TestPrerequisite(object):
                                                                                             another_tx.transaction_id])
                 client.mkdir(TEST_DIR + "/prerequisite/test", recursive=True)
 
-
         client = yt.create_client_with_command_params()
         with yt.Transaction() as tx:
             with client.Transaction(prerequisite_transaction_ids=[tx.transaction_id]):

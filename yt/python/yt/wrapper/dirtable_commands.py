@@ -9,6 +9,11 @@ from .client import YtClient
 from .config import get_config
 from .errors import YtError
 from .ypath import TablePath, ypath_dirname
+from .cypress_commands import concatenate, create, find_free_subpath, get_attribute, mkdir, move, remove, set_attribute
+from .file_commands import read_file, write_file
+from .run_operation_commands import run_merge
+from .table_commands import read_table
+from .transaction import Transaction
 
 import yt.yson as yson
 
@@ -128,13 +133,13 @@ def write_chunks(chunks, folder, client_config, transaction_id, for_sky_share):
 
 
 def get_file_sizes_from_table(client, yt_table):
-    row_count = client.get_attribute(yt_table, "row_count")
-    part_size = client.get_attribute(yt_table, "part_size")
+    row_count = get_attribute(yt_table, "row_count", client=client)
+    part_size = get_attribute(yt_table, "part_size", client=client)
     cur_row = 0
     res = {}
     while cur_row < row_count:
         t = TablePath(yt_table, start_index=cur_row, end_index=cur_row + 1, client=client)
-        row, = client.read_table(t, raw=False)  # There is single row
+        row, = read_table(t, raw=False, client=client)  # There is single row
         assert row["part_index"] == 0
         filename = row["filename"]
         filesize = row["filesize"]
@@ -149,13 +154,13 @@ def write_meta_file(client, yt_table, file_sizes, force):
     meta = yson.to_yson_type({
         "file_sizes": file_sizes
     })
-    client.write_file(meta_file_path, yson.dumps(meta), force_create=True)
+    write_file(meta_file_path, yson.dumps(meta), force_create=True, client=client)
 
 
 def get_file_sizes(client, yt_table):
     meta_file_path = yt_table + ".dirtable.meta"
     try:
-        meta = yson.loads(client.read_file(meta_file_path).read())
+        meta = yson.loads(read_file(meta_file_path, client=client).read())
         return meta["file_sizes"]
     except YtError:
         print("Warning: {} not found, try to get file sizes from table".format(meta_file_path))
@@ -180,24 +185,27 @@ def download_table(table_path, directory, client_config, transaction_id):
                 f.close()
 
 
-def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_count, force, prepare_for_sky_share):
-    client = YtClient(config=get_config(None))
+def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_count, force, prepare_for_sky_share,
+                           chunk_count=None, process_pool_class=mp.Pool, client=None):
+    if not chunk_count:
+        chunk_count = process_count
+
     chunks = get_chunks_to_upload(directory, recursive, part_size)
     chunks.sort(key=lambda c: (c.yt_name, c.part_index))
     file_sizes = {}
     for c in chunks:
         file_sizes[c.yt_name] = c.offset + c.data_size
 
-    with client.Transaction(attributes={"title": "dirtable upload"}, ping=True) as tx:
+    with Transaction(attributes={"title": "dirtable upload"}, client=client) as tx:
         folder = ypath_dirname(yt_table)
-        client.mkdir(folder, recursive=True)
+        mkdir(folder, recursive=True, client=client)
         if not folder.endswith("/"):
             folder = folder + "/"
 
         attributes = get_skynet_table_attributes() if prepare_for_sky_share else get_chunk_table_attributes()
-        client.create("table", yt_table, attributes=attributes, force=force)
+        create("table", yt_table, attributes=attributes, force=force, client=client)
 
-        chunks = split_chunks(chunks, process_count)
+        chunks = split_chunks(chunks, chunk_count)
 
         worker = functools.partial(
             write_chunks,
@@ -207,7 +215,7 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
             for_sky_share=prepare_for_sky_share)
         temp_tables = []
 
-        pool = mp.Pool(process_count)
+        pool = process_pool_class(process_count)
         try:
             temp_tables = [t for t in pool.map(worker, chunks)]
             pool.close()
@@ -217,11 +225,11 @@ def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_co
         finally:
             pool.join()
 
-        client.concatenate(temp_tables, yt_table)
+        concatenate(temp_tables, yt_table, client=client)
 
         for t in temp_tables:
-            client.remove(t)
-        client.set_attribute(yt_table, "part_size", part_size)
+            remove(t, client=client)
+        set_attribute(yt_table, "part_size", part_size, client=client)
         write_meta_file(client, yt_table, file_sizes, force)
 
 
@@ -235,12 +243,12 @@ def check_file_name(file_name, exact_filenames, filter_by_regexp, exclude_by_reg
     return True
 
 
-def download_directory_from_yt(directory, yt_table, process_count, exact_filenames, filter_by_regexp, exclude_by_regexp):
-    client = YtClient(config=get_config(None))
+def download_directory_from_yt(directory, yt_table, process_count, exact_filenames, filter_by_regexp,
+                               exclude_by_regexp, process_pool_class=mp.Pool, client=None):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
-    with client.Transaction(attributes={"title": "dirtable download"}, ping=True) as tx:
+    with Transaction(attributes={"title": "dirtable download"}, ping=True, client=client) as tx:
         file_sizes = get_file_sizes(client, yt_table)
         filtered = False
         if exact_filenames or filter_by_regexp or exclude_by_regexp:
@@ -255,14 +263,14 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
                     os.makedirs(os.path.dirname(full_path))
                 with open(full_path, "wb") as f:
                     f.write(b"\0" * size)
-            row_count = client.get_attribute(yt_table, "row_count")
+            row_count = get_attribute(yt_table, "row_count", client=client)
             tables = []
             if filtered:
                 tables = [TablePath(yt_table, exact_key=name, client=client) for name in file_sizes]
             else:
                 tables = [TablePath(yt_table, start_index=begin, end_index=end, client=client) for begin, end in split_range(0, row_count, process_count)]
             worker = functools.partial(download_table, directory=directory, client_config=get_config(client), transaction_id=tx.transaction_id)
-            pool = mp.Pool(process_count)
+            pool = process_pool_class(process_count)
             try:
                 pool.map(worker, tables)
                 pool.close()
@@ -281,22 +289,20 @@ def download_directory_from_yt(directory, yt_table, process_count, exact_filenam
             raise
 
 
-def list_files_from_yt(yt_table):
-    client = YtClient(config=get_config(None))
+def list_files_from_yt(yt_table, client=None):
     file_sizes = get_file_sizes(client, yt_table)
     for filename in file_sizes:
         print(filename)
 
 
-def append_single_file(yt_table, fs_path, yt_name, process_count):
+def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.Pool, client=None):
     assert os.path.isfile(fs_path), "{} must be existing file".format(fs_path)
-    client = YtClient(config=get_config(None))
-    with client.Transaction(attributes={"title": "dirtable append"}, ping=True) as tx:
+    with Transaction(attributes={"title": "dirtable append"}, ping=True, client=client) as tx:
         file_sizes = get_file_sizes(client, yt_table)
 
         assert yt_name not in file_sizes, "File {} already presents in {}".format(yt_name, yt_table)
         file_sizes[yt_name] = os.path.getsize(fs_path)
-        part_size = client.get_attribute(yt_table, "part_size")
+        part_size = get_attribute(yt_table, "part_size", client=client)
 
         file_chunks = list(get_chunks(fs_path, yt_name, part_size))
 
@@ -308,11 +314,11 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
         suffix_table = TablePath(yt_table, lower_key=yt_name, client=client)
 
         file_chunks = split_chunks(file_chunks, process_count)
-        for_sky_share = client.get_attribute(yt_table, "enable_skynet_sharing", default=False)
+        for_sky_share = get_attribute(yt_table, "enable_skynet_sharing", default=False, client=client)
         worker = functools.partial(write_chunks, folder=folder, client_config=get_config(client), transaction_id=tx.transaction_id, for_sky_share=for_sky_share)
         middle_tables = []
 
-        pool = mp.Pool(process_count)
+        pool = process_pool_class(process_count)
         try:
             middle_tables = [t for t in pool.map(worker, file_chunks)]
             pool.close()
@@ -322,15 +328,15 @@ def append_single_file(yt_table, fs_path, yt_name, process_count):
         finally:
             pool.join()
 
-        temp_concat_table = client.find_free_subpath(folder)
+        temp_concat_table = find_free_subpath(folder, client=client)
         attributes = get_skynet_table_attributes() if for_sky_share else get_chunk_table_attributes()
-        client.create("table", temp_concat_table, attributes=attributes)
-        client.run_merge(list(itertools.chain([prefix_table], middle_tables, [suffix_table])), temp_concat_table, mode="sorted")
+        create("table", temp_concat_table, attributes=attributes, client=client)
+        run_merge(list(itertools.chain([prefix_table], middle_tables, [suffix_table])), temp_concat_table, mode="sorted", client=client)
 
         for t in middle_tables:
-            client.remove(t)
-        client.move(temp_concat_table, yt_table, force=True)
-        client.set_attribute(yt_table, "part_size", part_size)
+            remove(t, client=client)
+        move(temp_concat_table, yt_table, force=True, client=client)
+        set_attribute(yt_table, "part_size", part_size, client=client)
         write_meta_file(client, yt_table, file_sizes, force=True)
 
 

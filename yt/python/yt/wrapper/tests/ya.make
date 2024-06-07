@@ -149,6 +149,7 @@ TEST_SRCS(
     test_cypress_commands.py
     test_docker_respawn.py
     test_driver.py
+    test_dirtable_commands.py
     test_download_core_dump.py
     test_dynamic_table_commands.py
     test_errors.py
