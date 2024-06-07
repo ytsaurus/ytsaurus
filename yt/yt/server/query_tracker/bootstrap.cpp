@@ -246,7 +246,6 @@ void TBootstrap::UpdateCypressNode()
     TCypressRegistrarOptions options{
         .RootPath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
         .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, SelfAddress_}},
-        .ExpireSelf = true,
         .AttributesOnStart = BuildAttributeDictionaryFluently()
             .Item("annotations").Value(Config_->CypressAnnotations)
             .Finish(),
