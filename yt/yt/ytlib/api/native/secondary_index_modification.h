@@ -1,6 +1,10 @@
-#include <yt/yt/client/api/dynamic_table_transaction.h>
+#pragma once
+
+#include "tablet_request_batcher.h"
 
 #include <yt/yt/library/query/base/query_preparer.h>
+
+#include <yt/yt/client/api/dynamic_table_transaction.h>
 
 #include <library/cpp/yt/logging/logger.h>
 
@@ -12,21 +16,18 @@ class TSecondaryIndexModifier
 {
 public:
     TSecondaryIndexModifier(
-        NTableClient::TTableSchemaPtr tableSchema,
-        NTableClient::TNameTablePtr nameTable,
-        TSharedRange<TRowModification> modifications,
-        const NTabletClient::TTableMountInfoPtr& tableMountInfo,
+        NTabletClient::TTableMountInfoPtr tableMountInfo,
         std::vector<NTabletClient::TTableMountInfoPtr> indexMountInfos,
-        NQueryClient::IExpressionEvaluatorCachePtr evaluatorCache,
-        const NLogging::TLogger& logger);
+        TRange<TUnversionedSubmittedRow> mergedModifications,
+        NQueryClient::IExpressionEvaluatorCachePtr expressionEvaluatorCache,
+        NLogging::TLogger logger);
 
-    std::vector<NTableClient::TUnversionedRow> GetLookupKeys();
+    TFuture<void> LookupRows(ITransaction* transaction);
 
-    const std::vector<int>& GetPositionToTableIdMapping() const;
-
-    void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
-
-    TSharedRange<TRowModification> ProduceModificationsForIndex(int index);
+    void OnIndexModifications(std::function<void(
+        NYPath::TYPath path,
+        NTableClient::TNameTablePtr nameTable,
+        TSharedRange<TRowModification> modifications)> enqueueModificationRequests);
 
 private:
     using TInitialRowMap = THashMap<NTableClient::TKey, NTableClient::TUnversionedRow>;
@@ -39,15 +40,15 @@ private:
         std::unique_ptr<NQueryClient::TParsedSource> Predicate;
     };
 
-    const NTableClient::TTableSchemaPtr TableSchema_;
-    const TSharedRange<TRowModification> Modifications_;
+    const NTabletClient::TTableMountInfoPtr TableMountInfo_;
+    const std::vector<NTabletClient::TTableMountInfoPtr> IndexInfos_;
+    const NTableClient::TNameTablePtr NameTable_;
+    const TRange<TUnversionedSubmittedRow> MergedModifications_;
     const NQueryClient::IExpressionEvaluatorCachePtr ExpressionEvaluatorCache_;
     const NTableClient::TRowBufferPtr RowBuffer_;
 
     const NLogging::TLogger Logger;
 
-    NTableClient::TNameTablePtr NameTable_;
-    std::vector<NTabletClient::TTableMountInfoPtr> IndexInfos_;
     std::vector<TIndexDescriptor> IndexDescriptors_;
     std::vector<int> UnfoldedColumnIndices_;
 
@@ -58,12 +59,16 @@ private:
     TInitialRowMap InitialRowMap_;
     TResultingRowMap ResultingRowMap_;
 
+    void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
+
+    TSharedRange<TRowModification> ProduceModificationsForIndex(int index);
+
     TSharedRange<TRowModification> ProduceFullSyncModifications(
         const NTableClient::TNameTableToSchemaIdMapping& indexIdMapping,
         const NTableClient::TNameTableToSchemaIdMapping& keyIndexIdMapping,
         const NTableClient::TTableSchema& indexSchema,
         std::function<bool(NTableClient::TUnversionedRow)> predicate,
-        const std::optional<NTableClient::TUnversionedValue>& empty);
+        const std::optional<NTableClient::TUnversionedValue>& empty) const;
 
     TSharedRange<TRowModification> ProduceUnfoldingModifications(
         const NTableClient::TNameTableToSchemaIdMapping& indexIdMapping,
@@ -71,7 +76,7 @@ private:
         const NTableClient::TTableSchema& indexSchema,
         std::function<bool(NTableClient::TUnversionedRow)> predicate,
         const std::optional<NTableClient::TUnversionedValue>& empty,
-        int unfoldedKeyPosition);
+        int unfoldedKeyPosition) const;
 };
 
 } // NYT::NApi::NNative

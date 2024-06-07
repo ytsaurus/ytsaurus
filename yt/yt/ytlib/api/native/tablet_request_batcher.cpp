@@ -44,7 +44,7 @@ public:
         VersionedSubmittedRows_.push_back(row);
     }
 
-    virtual std::vector<std::unique_ptr<TBatch>> PrepareBatches()
+    virtual TBatchesAndMergedRows PrepareBatches()
     {
         if (!VersionedSubmittedRows_.empty() && !UnversionedSubmittedRows_.empty()) {
             THROW_ERROR_EXCEPTION("Cannot intermix versioned and unversioned writes to a single table "
@@ -57,7 +57,7 @@ public:
             PrepareOrderedBatches();
         }
 
-        return std::move(Batches_);
+        return {std::move(Batches_), std::move(MergedRows_)};
     }
 
 private:
@@ -65,13 +65,6 @@ private:
     const TTableSchemaPtr TableSchema_;
     const TColumnEvaluatorPtr ColumnEvaluator_;
 
-    struct TUnversionedSubmittedRow
-    {
-        EWireProtocolCommand Command;
-        TUnversionedRow Row;
-        TLockMask Locks;
-        int SequentialId;
-    };
     std::vector<TUnversionedSubmittedRow> UnversionedSubmittedRows_;
 
     std::vector<TTypeErasedRow> VersionedSubmittedRows_;
@@ -79,6 +72,8 @@ private:
     std::vector<std::unique_ptr<TBatch>> Batches_;
 
     i64 TotalRowCount_ = 0;
+
+    TSharedRange<TUnversionedSubmittedRow> MergedRows_;
 
     void PrepareSortedBatches()
     {
@@ -175,6 +170,8 @@ private:
         for (const auto& submittedRow : unversionedMergedRows) {
             WriteRow(submittedRow, hasSharedWriteLocks);
         }
+
+        MergedRows_ = MakeSharedRange(std::move(unversionedMergedRows), std::move(rowBuffer));
 
         PrepareVersionedRows();
     }

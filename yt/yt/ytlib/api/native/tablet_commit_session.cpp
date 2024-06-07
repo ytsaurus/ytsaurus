@@ -69,20 +69,31 @@ public:
         TUnversionedRow row,
         TLockMask lockMask) override
     {
+        YT_VERIFY(!Prepared_);
+
         YT_VERIFY(!IsVersioned_);
+
         Batcher_->SubmitUnversionedRow(command, row, lockMask);
     }
 
     virtual void SubmitVersionedRow(TTypeErasedRow row) override
     {
+        YT_VERIFY(!Prepared_);
+
         IsVersioned_ = true;
 
         Batcher_->SubmitVersionedRow(row);
     }
 
-    virtual void PrepareRequests() override
+    virtual TSharedRange<TUnversionedSubmittedRow> PrepareRequests() override
     {
-        Batches_ = Batcher_->PrepareBatches();
+        if (Prepared_) {
+            return {};
+        }
+        Prepared_ = true;
+
+        auto prepared = Batcher_->PrepareBatches();
+        Batches_ = std::move(prepared.Batches);
 
         auto batchCount = std::ssize(Batches_);
         CellCommitSession_
@@ -91,6 +102,8 @@ public:
         CellCommitSession_
             ->GetCommitSignatureGenerator()
             ->RegisterRequests(batchCount);
+
+        return std::move(prepared.MergedRows);
     }
 
     // NB: Concurrent #Invoke calls with different retry indices are possible.
@@ -136,6 +149,11 @@ public:
         }
     }
 
+    virtual NTabletClient::TTableMountInfoPtr GetTableMountInfo() const override
+    {
+        return TableInfo_;
+    }
+
 private:
     const IClientPtr Client_;
     const TConnectionDynamicConfigPtr Config_;
@@ -160,6 +178,7 @@ private:
     std::vector<TBatchSignatures> BatchSignatures_;
 
     bool IsVersioned_ = false;
+    bool Prepared_ = false;
 
     struct TCommitContext final
     {

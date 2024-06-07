@@ -627,14 +627,14 @@ private:
         TModificationRequest(
             TTransaction* transaction,
             IConnectionPtr connection,
-            const TYPath& path,
+            TYPath path,
             TNameTablePtr nameTable,
             TChunkedMemoryPool* memoryPool,
             TSharedRange<TRowModification> modifications,
             const TModifyRowsOptions& options)
             : Transaction_(transaction)
             , Connection_(std::move(connection))
-            , Path_(path)
+            , Path_(std::move(path))
             , NameTable_(std::move(nameTable))
             , HunkMemoryPool_(memoryPool)
             , Modifications_(std::move(modifications))
@@ -973,8 +973,6 @@ private:
                 return;
             }
 
-            ProcessSecondaryIndices(tableInfo, transaction);
-
             std::optional<int> tabletIndexColumnId;
             if (!tableInfo->IsSorted()) {
                 tabletIndexColumnId = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
@@ -1193,65 +1191,12 @@ private:
         {
             return transaction->GetColumnIdMapping(tableInfo, NameTable_, kind, Options_.AllowMissingKeyColumns);
         }
-
-        void ProcessSecondaryIndices(TTableMountInfoPtr tableInfo, TTransactionPtr transaction)
-        {
-            if (tableInfo->Indices.empty()) {
-                return;
-            }
-
-            int indexTableCount = tableInfo->Indices.size();
-            std::vector<TFuture<TTableMountInfoPtr>> indexTableInfoFutures;
-            indexTableInfoFutures.reserve(indexTableCount);
-            for (const auto& indexInfo : tableInfo->Indices) {
-                indexTableInfoFutures.push_back(Connection_
-                    ->GetTableMountCache()
-                    ->GetTableInfo(FromObjectId(indexInfo.TableId)));
-            }
-
-            auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
-                .ValueOrThrow();
-            auto secondaryIndexModifier = TSecondaryIndexModifier(
-                tableInfo->Schemas[ETableSchemaKind::Write],
-                NameTable_,
-                Modifications_,
-                tableInfo,
-                std::move(indexTableInfos),
-                Connection_->GetExpressionEvaluatorCache(),
-                Logger);
-
-            auto lookupKeys = secondaryIndexModifier.GetLookupKeys();
-
-            TLookupRowsOptions options;
-            options.ColumnFilter = TColumnFilter(secondaryIndexModifier.GetPositionToTableIdMapping());
-            auto lookupRows = WaitForUnique(transaction->LookupRows(
-                Path_,
-                NameTable_,
-                MakeSharedRange(std::move(lookupKeys)),
-                options))
-                .ValueOrThrow().Rowset->GetRows();
-
-            secondaryIndexModifier.SetInitialAndResultingRows(std::move(lookupRows));
-
-            auto modifyRowsOptions = Options_;
-            modifyRowsOptions.SequenceNumber.reset();
-
-            for (int index = 0; index < indexTableCount; ++index) {
-                transaction->EnqueueModificationRequest(std::make_unique<TModificationRequest>(
-                    transaction.Get(),
-                    Connection_,
-                    FromObjectId(tableInfo->Indices[index].TableId),
-                    NameTable_,
-                    HunkMemoryPool_,
-                    secondaryIndexModifier.ProduceModificationsForIndex(index),
-                    modifyRowsOptions));
-            }
-        }
     };
 
     std::vector<std::unique_ptr<TModificationRequest>> Requests_;
     std::vector<TModificationRequest*> PendingRequests_;
     TMultiSlidingWindow<TModificationRequest*> OrderedRequestsSlidingWindow_;
+    bool SecondaryIndicesProcessed_ = false;
 
     struct TSyncReplica
     {
@@ -1818,12 +1763,101 @@ private:
         return DoPrepareRequests();
     }
 
+    void PrepareRequestsForTablesWithIndices()
+    {
+        SecondaryIndicesProcessed_ = true;
+
+        const auto& connection = Client_->GetNativeConnection();
+        THashMap<TTableId, std::vector<TUnversionedSubmittedRow>> mergedRowsByTable;
+        THashMap<TTableId, TTableMountInfoPtr> mountInfosByTable;
+        std::vector<TSharedRange<TUnversionedSubmittedRow>> holders;
+
+        for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
+            auto tableMountInfo = tabletSession->GetTableMountInfo();
+            if (tableMountInfo->Indices.empty()) {
+                continue;
+            }
+
+            auto tableId = tableMountInfo->TableId;
+            auto sessionMergedRows = tabletSession->PrepareRequests();
+            auto& tableMergedRows = mergedRowsByTable[tableId];
+            mountInfosByTable.insert({tableId, std::move(tableMountInfo)});
+
+            tableMergedRows.insert(tableMergedRows.end(), sessionMergedRows.begin(), sessionMergedRows.end());
+            holders.push_back(std::move(sessionMergedRows));
+        }
+
+        if (mergedRowsByTable.empty()) {
+            return;
+        }
+
+        std::vector<std::unique_ptr<TSecondaryIndexModifier>> indexModifiers;
+        std::vector<TFuture<void>> lookupRowsEvents;
+
+        for (auto& [tableId, mergedRows] : mergedRowsByTable) {
+            const auto& mountInfo = GetOrCrash(mountInfosByTable, tableId);
+
+            std::vector<TFuture<TTableMountInfoPtr>> indexTableInfoFutures;
+            indexTableInfoFutures.reserve(mountInfo->Indices.size());
+            for (const auto& indexInfo : mountInfo->Indices) {
+                indexTableInfoFutures.push_back(Client_
+                    ->GetNativeConnection()
+                    ->GetTableMountCache()
+                    ->GetTableInfo(FromObjectId(indexInfo.TableId)));
+            }
+
+            auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
+                .ValueOrThrow();
+            auto indexModifier = std::make_unique<TSecondaryIndexModifier>(
+                mountInfo,
+                std::move(indexTableInfos),
+                mergedRows,
+                connection->GetExpressionEvaluatorCache(),
+                Logger);
+
+            lookupRowsEvents.push_back(indexModifier->LookupRows(this));
+            indexModifiers.push_back(std::move(indexModifier));
+        }
+
+        WaitFor(AllSucceeded(std::move(lookupRowsEvents)))
+            .ThrowOnError();
+
+        for (const auto& modifier : indexModifiers) {
+            TModifyRowsOptions modifyRowsOptions{
+                .RequireSyncReplica=false,
+                .AllowMissingKeyColumns=true,
+            };
+
+            modifier->OnIndexModifications([&] (
+                TYPath path,
+                TNameTablePtr nameTable,
+                TSharedRange<TRowModification> modifications)
+            {
+                EnqueueModificationRequest(std::make_unique<TModificationRequest>(
+                    this,
+                    connection,
+                    std::move(path),
+                    std::move(nameTable),
+                    &HunkMemoryPool_,
+                    std::move(modifications),
+                    modifyRowsOptions));
+            });
+        }
+
+    }
+
     TFuture<void> DoPrepareRequests()
     {
         // Tables with local sync replicas pose a problem since modifications in such tables
         // induce more modifications that need to be taken care of.
         // Here we iterate over requests and sessions until no more new items are added.
-        if (!PendingRequests_.empty() || !PendingSessions_.empty()) {
+        auto pending = !PendingRequests_.empty() || !PendingSessions_.empty();
+        if (pending || !SecondaryIndicesProcessed_) {
+            if (!pending) {
+                PrepareRequestsForTablesWithIndices();
+                return DoPrepareRequests();
+            }
+
             decltype(PendingRequests_) pendingRequests;
             std::swap(PendingRequests_, pendingRequests);
 
