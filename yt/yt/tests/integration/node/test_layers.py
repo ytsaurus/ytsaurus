@@ -1034,6 +1034,38 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@access_method", "local")
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
+        create("file", "//tmp/empty_squashfs.img")
+        set("//tmp/squashfs.img/@access_method", "local")
+        set("//tmp/squashfs.img/@filesystem", "squashfs")
+
+    @authors("yuryalekseev")
+    def test_empty_squashfs_layer(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        with pytest.raises(YtError) as err:
+            map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command="ls $YT_ROOT_FS/dir 1>&2",
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "layer_paths": ["//tmp/empty_squashfs.img"],
+                    },
+                },
+            )
+
+        assert "empty" in str(err)
+
+        # YT-14186: Empty user layer should not disable jobs on node.
+        for node in ls("//sys/cluster_nodes"):
+            assert len(get("//sys/cluster_nodes/{}/@alerts".format(node))) == 0
+
     @authors("yuryalekseev")
     def test_squashfs_layer(self):
         self.setup_files()

@@ -7661,6 +7661,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.Executable = file.Path.GetExecutable().value_or(file.Executable);
 
                             if (file.Layer) {
+                                if (attributes.Find<i64>("chunk_count").value_or(0) == 0) {
+                                    THROW_ERROR_EXCEPTION("File %v is empty", file.Path);
+                                }
+
                                 // Get access_method and filesystem attributes only for layers.
                                 auto accessMethod = attributes.Find<TString>("access_method").value_or(ToString(ELayerAccessMethod::Local));
                                 try {
