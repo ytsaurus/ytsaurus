@@ -1,4 +1,5 @@
-I am retired on wyhash. I welcome new prince/princess to fork it and maintain a new consensus version.
+wyhash has evolved into [rapidhash](https://github.com/Nicoshev/rapidhash) !  
+With improved speed, quality and compatibility.
 ====
 
 No hash function is perfect, but some are useful.
