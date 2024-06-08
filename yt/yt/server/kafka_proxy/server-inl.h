@@ -4,6 +4,8 @@
 #include "server.h"
 #endif
 
+#include "private.h"
+
 #include <yt/yt/core/actions/bind.h>
 
 namespace NYT::NKafkaProxy {
@@ -18,7 +20,10 @@ void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
 
         typedRequest.Deserialize(requestReader, version);
 
-        auto typedResponse = handler(connectionId, typedRequest);
+        auto logger = KafkaProxyLogger
+            .WithTag("ConnectionId: %v", connectionId)
+            .WithTag("RequestType: %v", typedRequest.GetRequestType());
+        auto typedResponse = handler(connectionId, typedRequest, logger);
 
         auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
         typedResponse.Serialize(protocolWriter.get(), version);

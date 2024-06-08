@@ -16,6 +16,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
@@ -248,6 +250,8 @@ private:
 
         YT_LOG_INFO("Listening for Kafka requests (Port: %v)", Config_->Port);
         Server_->Start();
+
+        NativeConnection_->GetClusterDirectorySynchronizer()->Start();
 
         CypressRegistrar_->Start();
     }

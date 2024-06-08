@@ -130,6 +130,8 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
             if len(messages) >= message_count:
                 break
 
+            c.commit(msg)
+
         c.close()
 
         return messages
@@ -171,10 +173,12 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
             pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
 
         set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
-        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
 
         messages = self._consume_messages(queue_path, consumer_path, token, message_count=3)
         assert len(messages) == 3
+
+        assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
 
     @authors("nadya73")
     def test_unsupported_sasl_mechanism(self):
