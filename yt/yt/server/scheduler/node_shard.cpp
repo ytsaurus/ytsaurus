@@ -1226,9 +1226,18 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
     auto it = AllocationIdToScheduleEntry_.find(allocationId);
     if (it == std::end(AllocationIdToScheduleEntry_)) {
         YT_LOG_WARNING(
-            "No schedule entry for allocation, probably allocation was scheduled by controller too late (OperationId: %v, AllocationId: %v)",
+            "No schedule entry for allocation, probably allocation was scheduled by controller too late; aborting allocation in controller "
+            "(OperationId: %v, AllocationId: %v)",
             operationId,
             allocationId);
+
+        if (auto* operation = FindOperationState(operationId)) {
+            const auto& controller = operation->Controller;
+            controller->OnNonscheduledAllocationAborted(
+                allocationId,
+                EAbortReason::SchedulingTimeout,
+                operation->ControllerEpoch);
+        }
         return;
     }
 
@@ -2118,6 +2127,11 @@ void TNodeShard::OnAllocationFinished(const TAllocationPtr& allocation)
     }
 
     SetFinishedState(allocation);
+
+    if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
+        const auto& controller = operationState->Controller;
+        controller->OnAllocationFinished(allocation);
+    }
 
     UnregisterAllocation(allocation);
 }

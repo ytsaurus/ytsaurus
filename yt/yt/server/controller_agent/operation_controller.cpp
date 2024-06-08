@@ -369,6 +369,11 @@ public:
         return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnAllocationAborted, std::move(abortedAllocationSummary));
     }
 
+    void OnAllocationFinished(TFinishedAllocationSummary&& finishedAllocationSummary) override
+    {
+        return DoExecuteGuarded(&IOperationControllerSchedulerHost::OnAllocationFinished, std::move(finishedAllocationSummary));
+    }
+
     void AbandonJob(TJobId jobId) override
     {
         return DoExecuteGuarded(&IOperationController::AbandonJob, jobId);

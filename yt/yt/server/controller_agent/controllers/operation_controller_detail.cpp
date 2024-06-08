@@ -1319,6 +1319,24 @@ void TOperationControllerBase::SleepInRevive()
     }
 }
 
+//COMPAT(pogorelov)
+void TOperationControllerBase::ClearEmptyAllocationsInRevive()
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+
+    std::vector<THashMap<TAllocationId, TAllocation>::iterator> allocationIteratorsToErase;
+
+    for (auto it = begin(AllocationMap_); it != end(AllocationMap_); ++it) {
+        if (!it->second.Joblet) {
+            allocationIteratorsToErase.push_back(it);
+        }
+    }
+
+    for (auto it : allocationIteratorsToErase) {
+        AllocationMap_.erase(it);
+    }
+}
+
 TOperationControllerReviveResult TOperationControllerBase::Revive()
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -1378,7 +1396,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     ReinstallLivePreview();
 
     if (!Config->EnableJobRevival) {
-        if (HasJobUniquenessRequirements() && !JobletMap.empty()) {
+        if (HasJobUniquenessRequirements() && RunningJobCount_ != 0) {
             OnJobUniquenessViolated(TError(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
                 "Reviving operation without job revival; failing operation since \"fail_on_job_restart\" option is set in operation spec or user job spec")
@@ -1404,9 +1422,12 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     RunningJobStatisticsUpdateExecutor_->Start();
     SendRunningAllocationTimeStatisticsUpdatesExecutor_->Start();
 
-    result.RevivedAllocations.reserve(std::size(JobletMap));
+    ClearEmptyAllocationsInRevive();
 
-    for (const auto& [_, joblet] : JobletMap) {
+    result.RevivedAllocations.reserve(std::size(AllocationMap_));
+
+    for (const auto& [_, allocation] : AllocationMap_) {
+        const auto& joblet = allocation.Joblet;
         result.RevivedAllocations.push_back(TOperationControllerReviveResult::TRevivedAllocation{
             .AllocationId = AllocationIdFromJobId(joblet->JobId),
             .StartTime = joblet->StartTime,
@@ -1440,10 +1461,15 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
     YT_LOG_DEBUG("Aborting all joblets (AbortReason: %v)", abortReason);
 
     std::vector<TJobToRelease> jobsToRelease;
-    jobsToRelease.reserve(std::size(JobletMap));
+    jobsToRelease.reserve(std::size(AllocationMap_));
 
     auto now = TInstant::Now();
-    for (const auto& [_, joblet] : JobletMap) {
+    for (const auto& [_, allocation] : AllocationMap_) {
+        if (!allocation.Joblet) {
+            continue;
+        }
+        const auto& joblet = allocation.Joblet;
+
         auto jobSummary = TAbortedJobSummary(joblet->JobId, abortReason);
         jobSummary.FinishTime = now;
         UpdateJobletFromSummary(jobSummary, joblet);
@@ -1463,7 +1489,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
 
         jobsToRelease.push_back({joblet->JobId, {}});
     }
-    JobletMap.clear();
+    AllocationMap_.clear();
+    RunningJobCount_ = 0;
 
     if (!std::empty(jobsToRelease)) {
         YT_LOG_DEBUG(
@@ -2985,7 +3012,9 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
 
     if (!joblet->Revived) {
         Host->RegisterJob(
-            TStartedJobInfo{joblet->JobId, joblet->NodeDescriptor.Address});
+            TStartedJobInfo{
+                .JobId = joblet->JobId,
+            });
     }
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
@@ -3591,25 +3620,54 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
-    YT_LOG_DEBUG(
-        "Allocation aborted event processing (JobId: %v)",
-        abortedAllocationSummary.Id);
+    auto allocationIt = AllocationMap_.find(abortedAllocationSummary.Id);
 
-    auto joblet = FindJoblet(abortedAllocationSummary.Id);
-    if (!joblet) {
+    if (allocationIt == end(AllocationMap_)) {
         YT_LOG_DEBUG(
-            "Joblet is not found, ignore allocation aborted event (JobId: %v)",
-            abortedAllocationSummary.Id);
-
+            "Allocation is not found, ignore aborted allocation event (AbortedAllocationEvent: %v)",
+            abortedAllocationSummary);
         return;
     }
 
-    Host->AbortJob(
-        joblet->JobId,
-        abortedAllocationSummary.AbortReason);
+    auto& allocation = allocationIt->second;
 
-    auto jobSummary = CreateAbortedJobSummary(joblet->JobId, std::move(abortedAllocationSummary));
-    OnJobAborted(std::move(jobSummary));
+    YT_LOG_DEBUG(
+        "Aborted allocation event processing (AllocationId: %v, HasActiveJob: %v)",
+        abortedAllocationSummary.Id,
+        static_cast<bool>(allocation.Joblet));
+
+    // NB(pogorelov): Job might be not registered in job tracker (e.g. allocation not scheduled or node did not request job settlement),
+    // so joblet may still be present in allocation.
+    if (allocation.Joblet) {
+        auto jobSummary = CreateAbortedJobSummary(allocation.Joblet->JobId, std::move(abortedAllocationSummary));
+        OnJobAborted(std::move(jobSummary));
+    }
+
+    AllocationMap_.erase(allocationIt);
+}
+
+void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSummary&& finishedAllocationSummary)
+{
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    auto allocationIt = AllocationMap_.find(finishedAllocationSummary.Id);
+
+    if (allocationIt == end(AllocationMap_)) {
+        YT_LOG_DEBUG(
+            "Allocation is not found, ignore allocation aborted event (FinishedAllocationEvent: %v)",
+            finishedAllocationSummary);
+        return;
+    }
+
+    auto& allocation = allocationIt->second;
+
+    YT_LOG_DEBUG(
+        "Allocation finished event processing (AllocationId: %v)",
+        finishedAllocationSummary.Id);
+
+    YT_VERIFY(!allocation.Joblet);
+
+    AllocationMap_.erase(allocationIt);
 }
 
 void TOperationControllerBase::OnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
@@ -4405,6 +4463,17 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
     // SafeScheduleAllocation must be synchronous; context switches are prohibited.
     TForbidContextSwitchGuard contextSwitchGuard;
 
+    auto allocationIt = EmplaceOrCrash(
+        AllocationMap_,
+        context->GetAllocationId(),
+        TAllocation{
+            .Id = context->GetAllocationId(),
+        });
+
+    auto removeAllocationOnScheduleAllocationFailureGuard = Finally([&] {
+        AllocationMap_.erase(allocationIt);
+    });
+
     TWallTimer timer;
     auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
     DoScheduleAllocation(context, resourceLimits, treeId, scheduleAllocationResult.Get());
@@ -4430,6 +4499,15 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
             ScheduleAllocationStatistics_->Failed());
 
         ScheduleAllocationStatisticsLogDeadline_ = now + NProfiling::DurationToCpuDuration(Config->ScheduleAllocationStatisticsLogBackoff);
+    }
+
+    if (scheduleAllocationResult->StartDescriptor) {
+        removeAllocationOnScheduleAllocationFailureGuard.Release();
+
+        Host->RegisterAllocation(TStartedAllocationInfo{
+            .AllocationId = context->GetAllocationId(),
+            .NodeAddress = context->GetNodeDescriptor()->Address,
+        });
     }
 
     return scheduleAllocationResult;
@@ -5070,6 +5148,8 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
     // NB(coteeq): Inner lambda will abort on exception.
     GetCancelableInvoker()->Invoke(
         BIND([this, this_ = MakeStrong(this)] {
+            AbortAllJoblets(EAbortReason::OperationCompleted, /*honestly*/ true);
+
             BuildAndSaveProgress();
             FlushOperationNode(/*checkFlushResult*/ true);
 
@@ -5214,10 +5294,15 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
     YT_LOG_INFO("Operation gracefully failing");
 
     bool hasJobsToFail = false;
-    // NB: joblet abort will remove it from map invalidating iterator.
-    auto jobletMapCopy = JobletMap;
+    // NB: job abort will remove allocation from map invalidating iterator.
+    auto AllocationMap_Copy = AllocationMap_;
 
-    for (const auto& [_, joblet] : jobletMapCopy) {
+    for (const auto& [_, allocation] : AllocationMap_Copy) {
+        if (!allocation.Joblet) {
+            continue;
+        }
+        const auto& joblet = allocation.Joblet;
+
         switch (joblet->JobType) {
             // TODO(ignat): YT-11247, add helper with list of job types with user code.
             case EJobType::Map:
@@ -5255,7 +5340,7 @@ void TOperationControllerBase::GracefullyFailOperation(TError error)
 
 bool TOperationControllerBase::CheckGracefullyAbortedJobsStatusReceived()
 {
-    if (IsFailing() && JobletMap.empty()) {
+    if (IsFailing() && RunningJobCount_ == 0) {
         OnOperationFailed(std::move(OperationFailError_), /*flush*/ true);
         return true;
     }
@@ -5834,6 +5919,8 @@ void TOperationControllerBase::SafeOnJobInfoReceivedFromNode(std::unique_ptr<TJo
 
         OnJobStarted(joblet);
     }
+
+
 
     switch (jobSummary->State) {
         case EJobState::Waiting:
@@ -8194,7 +8281,8 @@ void TOperationControllerBase::Dispose()
 
     YT_VERIFY(IsFinished());
 
-    YT_VERIFY(std::empty(JobletMap));
+    YT_VERIFY(RunningJobCount_ == 0);
+
     // Check that all jobs released.
     YT_VERIFY(CompletedJobIdsReleaseQueue_.Checkpoint() == CompletedJobIdsReleaseQueue_.GetHeadCookie());
     {
@@ -8372,13 +8460,20 @@ void TOperationControllerBase::ReleaseChunkTrees(
 
 void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
 {
-    EmplaceOrCrash(JobletMap, AllocationIdFromJobId(joblet->JobId), joblet);
+    auto allocationId = AllocationIdFromJobId(joblet->JobId);
+
+    auto& allocation = GetOrCrash(AllocationMap_, allocationId);
+
+    allocation.Joblet = joblet;
+    allocation.LastJobId = joblet->JobId;
+
+    ++RunningJobCount_;
 }
 
 TJobletPtr TOperationControllerBase::FindJoblet(TAllocationId allocationId) const
 {
-    auto it = JobletMap.find(allocationId);
-    return it == JobletMap.end() ? nullptr : it->second;
+    auto it = AllocationMap_.find(allocationId);
+    return it == end(AllocationMap_) ? nullptr : it->second.Joblet;
 }
 
 TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
@@ -8388,9 +8483,19 @@ TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
 
 TJobletPtr TOperationControllerBase::GetJoblet(TJobId jobId) const
 {
-    auto joblet = FindJoblet(jobId);
-    YT_VERIFY(joblet);
+    auto joblet = GetJoblet(AllocationIdFromJobId(jobId));
+
+    YT_VERIFY(joblet->JobId == jobId);
+
     return joblet;
+}
+
+TJobletPtr TOperationControllerBase::GetJoblet(TAllocationId allocationId) const
+{
+    const auto& allocation = GetOrCrash(AllocationMap_, allocationId);
+    YT_VERIFY(allocation.Joblet);
+
+    return allocation.Joblet;
 }
 
 TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
@@ -8495,17 +8600,20 @@ void TOperationControllerBase::UnregisterJoblet(const TJobletPtr& joblet)
 {
     UnregisterJobForMonitoring(joblet);
 
-    auto allocationJobletIt = GetIteratorOrCrash(JobletMap, AllocationIdFromJobId(joblet->JobId));
-    YT_VERIFY(joblet == allocationJobletIt->second);
-    JobletMap.erase(allocationJobletIt);
+    auto& allocation = GetOrCrash(AllocationMap_, AllocationIdFromJobId(joblet->JobId));
+    YT_VERIFY(joblet == allocation.Joblet);
+    allocation.Joblet.Reset();
+
+    --RunningJobCount_;
 }
 
 std::vector<TAllocationId> TOperationControllerBase::GetAllocationIdsByTreeId(const TString& treeId)
 {
     std::vector<TAllocationId> allocationIds;
-    for (const auto& [_, joblet] : JobletMap) {
-        if (joblet->TreeId == treeId) {
-            allocationIds.push_back(AllocationIdFromJobId(joblet->JobId));
+    allocationIds.reserve(size(AllocationMap_));
+    for (const auto& [allocationId, allocation] : AllocationMap_) {
+        if (allocation.Joblet && allocation.Joblet->TreeId == treeId) {
+            allocationIds.push_back(allocationId);
         }
     }
     return allocationIds;
@@ -8742,10 +8850,10 @@ const std::vector<NScheduler::TJobShellPtr>& TOperationControllerBase::GetJobShe
 NYson::TYsonString TOperationControllerBase::DoBuildJobsYson()
 {
     return BuildYsonStringFluently<EYsonType::MapFragment>()
-        .DoFor(JobletMap, [&] (TFluentMap fluent, const std::pair<TAllocationId, TJobletPtr>& pair) {
-            const auto& joblet = pair.second;
+        .DoFor(AllocationMap_, [&] (TFluentMap fluent, const std::pair<TAllocationId, TAllocation>& pair) {
+            const auto& joblet = pair.second.Joblet;
 
-            if (joblet->IsStarted()) {
+            if (joblet && joblet->IsStarted()) {
                 fluent.Item(ToString(joblet->JobId)).BeginMap()
                     .Do([&] (TFluentMap fluent) {
                         BuildJobAttributes(
@@ -8877,9 +8985,9 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
     // leave top `MaxOrchidEntryCountPerType` for each job type.
 
     std::vector<TJobletPtr> suspiciousJoblets;
-    for (const auto& [_, joblet] : JobletMap) {
-        if (joblet->Suspicious) {
-            suspiciousJoblets.emplace_back(joblet);
+    for (const auto& [_, allocation] : AllocationMap_) {
+        if (allocation.Joblet && allocation.Joblet->Suspicious) {
+            suspiciousJoblets.emplace_back(allocation.Joblet);
         }
     }
 
@@ -8921,7 +9029,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
     YT_LOG_DEBUG(
         "Updating aggregated running job statistics (StatisticsLimit: %v, RunningJobCount: %v)",
         statisticsLimit,
-        JobletMap.size());
+        RunningJobCount_);
 
     // A lightweight structure that represents a snapshot of a joblet that is safe to be used
     // in a separate invoker. Note that job statistics and controller statistics are const-qualified,
@@ -8934,13 +9042,15 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
     };
 
     std::vector<TJobletSnapshot> snapshots;
-    snapshots.reserve(JobletMap.size());
-    for (const auto& joblet : GetValues(JobletMap)) {
-        snapshots.emplace_back(TJobletSnapshot{
-            joblet->ControllerStatistics,
-            joblet->JobStatistics,
-            joblet->GetAggregationTags(EJobState::Running),
-        });
+    snapshots.reserve(AllocationMap_.size());
+    for (const auto& [allocationId, allocation] : AllocationMap_) {
+        if (allocation.Joblet) {
+            snapshots.emplace_back(TJobletSnapshot{
+                .JobStatistics = allocation.Joblet->JobStatistics,
+                .ControllerStatistics = allocation.Joblet->ControllerStatistics,
+                .Tags = allocation.Joblet->GetAggregationTags(EJobState::Running),
+            });
+        }
     }
 
     // NB: this routine will be done in a separate thread pool.
@@ -9894,7 +10004,28 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
     Persist(context, CachedNeededResources);
     Persist(context, ChunkOriginMap);
-    Persist(context, JobletMap);
+
+    // COMPAT(pogorelov)
+    if (context.GetVersion() < ESnapshotVersion::AllocationMap) {
+        THashMap<TAllocationId, TJobletPtr> jobletMap;
+        Persist(context, jobletMap);
+
+        AllocationMap_.reserve(size(jobletMap));
+
+        for (auto& [allocationId, joblet] : jobletMap) {
+            auto lastJobId = joblet->JobId;
+            AllocationMap_.emplace(
+                allocationId,
+                TAllocation{
+                    .Joblet = std::move(joblet),
+                    .LastJobId = lastJobId,
+                });
+        }
+        RunningJobCount_ = size(jobletMap);
+    } else {
+        Persist(context, AllocationMap_);
+        Persist(context, RunningJobCount_);
+    }
 
     Persist(context, JobIndexGenerator);
     Persist(context, AggregatedFinishedJobStatistics_);
@@ -10344,7 +10475,8 @@ void TOperationControllerBase::ReportJobHasCompetitors(const TJobletPtr& joblet,
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TAllocationId allocationId)
 {
     //! NB(arkady-e1ppa): we always have one joblet per allocation.
-    auto joblet = GetOrCrash(JobletMap, allocationId);
+    const auto& joblet = GetJoblet(allocationId);
+
     bool needLaunchSpeculativeJob;
     switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
         case ETestingSpeculativeLaunchMode::None:
@@ -10635,20 +10767,29 @@ void TOperationControllerBase::RemoveRemainingJobsOnOperationFinished()
 
 void TOperationControllerBase::OnOperationReady() const
 {
-    std::vector<TStartedJobInfo> revivedJobs;
-    revivedJobs.reserve(std::size(JobletMap));
+    std::vector<TStartedAllocationInfo> revivedAllocations;
+    revivedAllocations.reserve(size(AllocationMap_));
 
-    for (const auto& [_, joblet] : JobletMap) {
-        revivedJobs.push_back({joblet->JobId, joblet->NodeDescriptor.Address});
+    for (const auto& [allocationId, allocation] : AllocationMap_) {
+        TStartedAllocationInfo revivedAllocationInfo{
+            .AllocationId = allocationId,
+            .NodeAddress = allocation.Joblet->NodeDescriptor.Address,
+        };
+
+        if (allocation.Joblet) {
+            revivedAllocationInfo.StartedJobInfo = TStartedJobInfo{
+                .JobId = allocation.Joblet->JobId,
+            };
+
+            Host->GetJobProfiler()->ProfileRevivedJob(*allocation.Joblet);
+        }
+
+        revivedAllocations.push_back(std::move(revivedAllocationInfo));
     }
 
-    YT_LOG_DEBUG("Register operation in job controller (JobCount: %v)", std::size(revivedJobs));
+    YT_LOG_DEBUG("Registering revived allocations and jobs in job tracker (AllocationCount: %v)", std::size(revivedAllocations));
 
-    Host->ReviveJobs(std::move(revivedJobs));
-
-    for (const auto& [_, joblet] : JobletMap) {
-        Host->GetJobProfiler()->ProfileRevivedJob(*joblet);
-    }
+    Host->Revive(std::move(revivedAllocations));
 }
 
 bool TOperationControllerBase::ShouldProcessJobEvents() const

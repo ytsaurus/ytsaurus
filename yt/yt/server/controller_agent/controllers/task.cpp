@@ -1,5 +1,6 @@
 #include "task.h"
 
+#include "input_manager.h"
 #include "job_info.h"
 #include "job_memory.h"
 #include "job_splitter.h"
@@ -781,18 +782,6 @@ void TTask::ScheduleJob(
     })
         .AsyncVia(TaskHost_->GetJobSpecBuildInvoker())
         .Run();
-
-    NConcurrency::TDelayedExecutor::Submit(
-        BIND([weakTaskHost = MakeWeak(TaskHost_), weakJoblet = MakeWeak(joblet)] {
-            if (auto taskHost = weakTaskHost.Lock()) {
-                if (auto joblet = weakJoblet.Lock()) {
-                    if (joblet->JobSpecProtoFuture) {
-                        taskHost->AsyncAbortJob(joblet->JobId, EAbortReason::JobSettlementTimedOut);
-                    }
-                }
-            }
-        }),
-        TaskHost_->GetConfig()->JobSettlementTimeout);
 
     if (!StartTime_) {
         StartTime_ = TInstant::Now();

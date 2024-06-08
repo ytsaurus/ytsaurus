@@ -1,6 +1,5 @@
 #pragma once
 
-#include "operation_controller_detail.h"
 #include "private.h"
 
 #include "data_flow_graph.h"
@@ -34,6 +33,18 @@ struct TJobNodeDescriptor
     NNodeTrackerClient::TNodeId Id = NNodeTrackerClient::InvalidNodeId;
     TString Address;
     double IOWeight = 0.0;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAllocation
+{
+    TAllocationId Id;
+
+    TJobletPtr Joblet;
+    TJobId LastJobId;
 
     void Persist(const TPersistenceContext& context);
 };

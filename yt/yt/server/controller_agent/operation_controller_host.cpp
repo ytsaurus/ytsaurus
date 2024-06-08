@@ -253,14 +253,19 @@ void TOperationControllerHost::UpdateRunningAllocationsStatistics(
         runningAllocationStatisticsUpdatesCount);
 }
 
+void TOperationControllerHost::RegisterAllocation(TStartedAllocationInfo allocationInfo)
+{
+    JobTrackerOperationHandler_->RegisterAllocation(std::move(allocationInfo));
+}
+
 void TOperationControllerHost::RegisterJob(TStartedJobInfo jobInfo)
 {
     JobTrackerOperationHandler_->RegisterJob(std::move(jobInfo));
 }
 
-void TOperationControllerHost::ReviveJobs(std::vector<TStartedJobInfo> jobs)
+void TOperationControllerHost::Revive(std::vector<TStartedAllocationInfo> allocations)
 {
-    JobTrackerOperationHandler_->ReviveJobs(std::move(jobs));
+    JobTrackerOperationHandler_->Revive(std::move(allocations));
 }
 
 void TOperationControllerHost::ReleaseJobs(std::vector<TJobToRelease> jobsToRelease)

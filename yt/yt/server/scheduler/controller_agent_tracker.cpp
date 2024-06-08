@@ -949,10 +949,10 @@ public:
 
                 YT_LOG_DEBUG("Handling allocation events outbox");
 
-                agent->GetAbortedAllocationEventsOutbox()->HandleStatus(
-                    request->scheduler_to_agent_aborted_allocation_events());
-                agent->GetAbortedAllocationEventsOutbox()->BuildOutcoming(
-                    response->mutable_scheduler_to_agent_aborted_allocation_events(),
+                agent->GetAllocationEventsOutbox()->HandleStatus(
+                    request->scheduler_to_agent_allocation_events());
+                agent->GetAllocationEventsOutbox()->BuildOutcoming(
+                    response->mutable_scheduler_to_agent_allocation_events(),
                     config->MaxMessageAllocationEventCount);
 
                 YT_LOG_DEBUG("Allocation events outbox handled");

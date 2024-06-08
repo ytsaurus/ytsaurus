@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/controller_agent/config.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 
@@ -13,6 +15,8 @@
 #include <yt/yt/ytlib/controller_agent/proto/output_result.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/yt/client/formats/config.h>
 

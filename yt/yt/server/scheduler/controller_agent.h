@@ -24,7 +24,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAbortedAllocationSummary = NControllerAgent::TAbortedAllocationSummary;
+using TSchedulerToAgentAllocationEvent = NControllerAgent::TSchedulerToAgentAllocationEvent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +60,7 @@ void ToProto(NProto::TScheduleAllocationRequest* protoRequest, const TScheduleAl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSchedulerToAgentAbortedAllocationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TAbortedAllocationSummary>>;
+using TSchedulerToAgentAllocationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentAllocationEvent>>;
 using TSchedulerToAgentOperationEventOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>>;
 using TScheduleAllocationRequestOutboxPtr = TIntrusivePtr<TMessageQueueOutbox<TScheduleAllocationRequestPtr>>;
 
@@ -155,7 +155,7 @@ public:
     TMessageQueueInbox* GetRunningAllocationStatisticsUpdatesInbox();
     TMessageQueueInbox* GetScheduleAllocationResponsesInbox();
 
-    const TSchedulerToAgentAbortedAllocationEventOutboxPtr& GetAbortedAllocationEventsOutbox();
+    const TSchedulerToAgentAllocationEventOutboxPtr& GetAllocationEventsOutbox();
     const TSchedulerToAgentOperationEventOutboxPtr& GetOperationEventsOutbox();
     const TScheduleAllocationRequestOutboxPtr& GetScheduleAllocationRequestsOutbox();
 
@@ -203,7 +203,7 @@ private:
     std::unique_ptr<TMessageQueueInbox> RunningAllocationStatisticsUpdatesInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleAllocationResponsesInbox_;
 
-    TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
+    TSchedulerToAgentAllocationEventOutboxPtr AllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 

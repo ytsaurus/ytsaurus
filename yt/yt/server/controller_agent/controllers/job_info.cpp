@@ -40,6 +40,18 @@ void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TAllocation::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Id);
+
+    Persist(context, Joblet);
+    Persist(context, LastJobId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJoblet::TJoblet(
     TTask* task,
     int jobIndex,

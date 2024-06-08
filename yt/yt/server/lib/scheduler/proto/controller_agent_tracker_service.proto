@@ -84,6 +84,14 @@ message TAgentToSchedulerRunningAllocationStatistics
     required uint64 preemptible_progress_start_time = 2;
 }
 
+message TSchedulerToAgentFinishedAllocationEvent
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required NYT.NProto.TGuid allocation_id = 2;
+
+    optional uint64 finish_time = 3;
+}
+
 message TSchedulerToAgentAbortedAllocationEvent
 {
     required NYT.NProto.TGuid operation_id = 1;
@@ -95,6 +103,14 @@ message TSchedulerToAgentAbortedAllocationEvent
     required bool scheduled = 4;
 
     optional uint64 finish_time = 5;
+}
+
+message TSchedulerToAgentAllocationEvent
+{
+    oneof allocation_event {
+        TSchedulerToAgentFinishedAllocationEvent finished = 1;
+        TSchedulerToAgentAbortedAllocationEvent aborted = 2;
+    }
 }
 
 message TSchedulerToAgentOperationEvent
@@ -187,7 +203,7 @@ message TReqHeartbeat
     required TAgentToSchedulerOperationEventsOutbox agent_to_scheduler_operation_events = 7;
     required TAgentToSchedulerRunningAllocationStatisticsUpdatesOutbox agent_to_scheduler_running_allocation_statistics_updates = 15;
 
-    required TEventQueueInbox scheduler_to_agent_aborted_allocation_events = 10;
+    required TEventQueueInbox scheduler_to_agent_allocation_events = 10;
     required TEventQueueInbox scheduler_to_agent_operation_events = 11;
     required TEventQueueInbox scheduler_to_agent_schedule_allocation_requests = 12;
 
@@ -197,10 +213,10 @@ message TReqHeartbeat
 
 message TRspHeartbeat
 {
-    message TSchedulerToAgentAbortedAllocationEventsOutbox
+    message TSchedulerToAgentAllocationEventsOutbox
     {
         required int64 first_item_id = 1;
-        repeated TSchedulerToAgentAbortedAllocationEvent items = 2;
+        repeated TSchedulerToAgentAllocationEvent items = 2;
     }
 
     message TSchedulerToAgentOperationEventsOutbox
@@ -212,7 +228,7 @@ message TRspHeartbeat
     required TEventQueueInbox agent_to_scheduler_operation_events = 2;
     required TEventQueueInbox agent_to_scheduler_running_allocation_statistics_updates = 11;
 
-    required TSchedulerToAgentAbortedAllocationEventsOutbox scheduler_to_agent_aborted_allocation_events = 4;
+    required TSchedulerToAgentAllocationEventsOutbox scheduler_to_agent_allocation_events = 4;
     required TSchedulerToAgentOperationEventsOutbox scheduler_to_agent_operation_events = 5;
 
     optional int32 operations_archive_version = 9;

@@ -63,7 +63,13 @@ struct TJobStartInfo
 struct TStartedJobInfo
 {
     TJobId JobId;
+};
+
+struct TStartedAllocationInfo
+{
+    TAllocationId AllocationId;
     TString NodeAddress;
+    std::optional<TStartedJobInfo> StartedJobInfo;
 };
 
 struct TJobMonitoringDescriptor

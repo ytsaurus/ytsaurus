@@ -1162,7 +1162,7 @@ private:
     TAgentToSchedulerScheduleAllocationResponseOutboxPtr ScheduleAllocationResponsesOutbox_;
     TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
 
-    std::unique_ptr<TMessageQueueInbox> AbortedAllocationEventsInbox_;
+    std::unique_ptr<TMessageQueueInbox> AllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleAllocationRequestsInbox_;
 
@@ -1354,9 +1354,9 @@ private:
             ControllerAgentProfiler.WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
-        AbortedAllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
+        AllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
-                "Kind: SchedulerToAgentAbortedAllocations, IncarnationId: %v",
+                "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
                 IncarnationId_),
             ControllerAgentProfiler.WithTag("queue", "job_events"),
             JobEventsInvoker_);
@@ -1451,7 +1451,7 @@ private:
         ScheduleAllocationResponsesOutbox_.Reset();
         RunningAllocationStatisticsUpdatesOutbox_.Reset();
 
-        AbortedAllocationEventsInbox_.reset();
+        AllocationEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleAllocationRequestsInbox_.reset();
     }
@@ -1564,7 +1564,7 @@ private:
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
         auto error = WaitFor(BIND([&, request] {
-                AbortedAllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_aborted_allocation_events());
+                AllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
@@ -1985,42 +1985,65 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto abortedAllocationSummariesPerOperationIdOrError = WaitFor(BIND([this, rsp] {
-                THashMap<TOperationId, std::vector<TAbortedAllocationSummary>> abortedAllocationSummariesPerOperationId;
-                abortedAllocationSummariesPerOperationId.reserve(rsp->scheduler_to_agent_aborted_allocation_events().items_size());
+        auto allocationEventsPerOperationIdOrError = WaitFor(BIND([this, rsp] {
+                struct TOperationAllocationEvents
+                {
+                    std::vector<TFinishedAllocationSummary> FinishedAllocations;
+                    std::vector<TAbortedAllocationSummary> AbortedAllocations;
+                };
+                THashMap<TOperationId, TOperationAllocationEvents> allocationEventsPerOperationId;
 
-                AbortedAllocationEventsInbox_->HandleIncoming<TAbortedAllocationSummary>(
-                    rsp->mutable_scheduler_to_agent_aborted_allocation_events(),
-                    [&] (TAbortedAllocationSummary&& abortedAllocationSummary) {
-                        abortedAllocationSummariesPerOperationId[abortedAllocationSummary.OperationId].push_back(
-                            std::move(abortedAllocationSummary));
+                auto handleAllocationEvent = [&] (auto&& allocationEvent) {
+                    auto& operationAllocationEvents = allocationEventsPerOperationId[allocationEvent.OperationId];
+
+                    auto& storage = TOverloaded{
+                        [&] (const TFinishedAllocationSummary&) -> auto& {
+                            return operationAllocationEvents.FinishedAllocations;
+                        },
+                        [&] (const TAbortedAllocationSummary&) -> auto& {
+                            return operationAllocationEvents.AbortedAllocations;
+                        },
+                    }(allocationEvent);
+
+                    storage.push_back(std::move(allocationEvent));
+                };
+
+                AllocationEventsInbox_->HandleIncoming<TSchedulerToAgentAllocationEvent>(
+                    rsp->mutable_scheduler_to_agent_allocation_events(),
+                    [&] (TSchedulerToAgentAllocationEvent&& allocationEvent) {
+                        std::visit(
+                            handleAllocationEvent,
+                            std::move(allocationEvent.EventSummary));
                     });
 
-                return abortedAllocationSummariesPerOperationId;
+                return allocationEventsPerOperationId;
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
 
         YT_LOG_FATAL_UNLESS(
-            abortedAllocationSummariesPerOperationIdOrError.IsOK(),
-            abortedAllocationSummariesPerOperationIdOrError,
+            allocationEventsPerOperationIdOrError.IsOK(),
+            allocationEventsPerOperationIdOrError,
             "Failed to parse scheduler message");
 
-        auto abortedAllocationSummariesPerOperationId = std::move(abortedAllocationSummariesPerOperationIdOrError.Value());
+        auto allocationEventsPerOperationId = std::move(allocationEventsPerOperationIdOrError.Value());
 
-        for (auto& [operationId, abortedAllocationSummaries] : abortedAllocationSummariesPerOperationId) {
+        for (auto& [operationId, allocationEvents] : allocationEventsPerOperationId) {
             auto operation = this->FindOperation(operationId);
             if (!operation) {
                 YT_LOG_DEBUG(
-                    "Skip allocation abort events since operation is not running (OperationId: %v, AbortedAllocationCount: %v)",
+                    "Skip allocation events since operation is not running (OperationId: %v, FinishedAllocationCount: %v, AbortedAllocationCount: %v)",
                     operationId,
-                    std::size(abortedAllocationSummaries));
+                    std::size(allocationEvents.FinishedAllocations),
+                    std::size(allocationEvents.AbortedAllocations));
                 continue;
             }
 
             const auto& jobTrackerOperationHandler = operation->GetHost()->GetJobTrackerOperationHandler();
 
-            jobTrackerOperationHandler->OnAllocationsAborted(std::move(abortedAllocationSummaries));
+            jobTrackerOperationHandler->ProcessAllocationEvents(
+                std::move(allocationEvents.FinishedAllocations),
+                std::move(allocationEvents.AbortedAllocations));
         }
     }
 

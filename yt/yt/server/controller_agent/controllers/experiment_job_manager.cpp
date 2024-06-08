@@ -1,5 +1,8 @@
 #include "experiment_job_manager.h"
+
+#include "helpers.h"
 #include "job_info.h"
+#include "task_host.h"
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 

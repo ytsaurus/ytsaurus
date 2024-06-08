@@ -15,6 +15,8 @@
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
+#include <util/generic/noncopyable.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////
@@ -111,9 +113,10 @@ private:
 
     struct TOperationInfo
     {
+        TOperationId OperationId;
         bool JobsReady = false;
         const TWeakPtr<IOperationController> OperationController;
-        THashSet<TJobId> TrackedJobIds;
+        THashSet<TAllocationId> TrackedAllocationIds;
     };
 
     struct TNoActionRequested { };
@@ -134,72 +137,86 @@ private:
         TInterruptionRequestOptions,
         TGracefulAbortRequestOptions>;
 
-    struct TJobToConfirmInfo
-    {
-        TRequestedActionInfo RequestedActionInfo;
-        const TOperationId OperationId;
-    };
-
     struct TRunningJobInfo
     {
+        const TJobId JobId;
+
         TRequestedActionInfo RequestedActionInfo;
         TInstant DisappearedFromNodeSince;
 
-        const TJobId JobId;
+        bool Confirmed = true;
     };
 
     struct TFinishedJobInfo { };
 
-    struct TAllocationInfo
+    class TAllocationInfo
+        : NNonCopyable::TMoveOnly
     {
+    public:
         const TOperationId OperationId;
-        std::optional<TRunningJobInfo> RunningJob;
-        THashMap<TJobId, TFinishedJobInfo> FinishedJobs;
+        const TAllocationId AllocationId;
+
+        //! All methods have JobTracker->GetInvoker() thread affinity.
+        TAllocationInfo(TOperationId operationId, TAllocationId allocationId);
+
+        bool IsEmpty() const noexcept;
+        bool HasJob(TJobId jobId) const noexcept;
+        bool HasRunningJob(TJobId jobId) const noexcept;
+        std::optional<EJobStage> GetJobStage(TJobId jobId) const;
+
+        bool ShouldBeRemoved() const noexcept;
+
+        const std::optional<TRunningJobInfo>& GetRunningJob() const;
+        const THashMap<TJobId, TFinishedJobInfo>& GetFinishedJobs() const;
+        bool IsFinished() const noexcept;
+        const std::optional<TSchedulerToAgentAllocationEvent>& GetPostponedEvent() const noexcept;
+
+        // Actually, sets DisappearedFromNodeSince to running job.
+        void SetDisappearedFromNodeSince(TInstant from) noexcept;
+        TRequestedActionInfo& GetMutableRunningJobRequestedActionInfo() noexcept;
+
+        void StartJob(TJobId jobId, bool confirmed);
+        bool ConfirmRunningJob() noexcept;
+        void FinishRunningJob() noexcept;
+        void EraseRunningJobOrCrash();
+        bool EraseFinishedJob(TJobId jobId);
+
+        void FinishAndClearJobs() noexcept;
+        void Finish(TSchedulerToAgentAllocationEvent&& event);
+
+        TSchedulerToAgentAllocationEvent ConsumePostponedEventOrCrash();
+        template <class TEventType>
+        TEventType ConsumePostponedEventOrCrash();
+        template <class TEvent>
+        static TEvent& GetEventOrCrash(TSchedulerToAgentAllocationEvent& event);
+
+    private:
+        std::optional<TRunningJobInfo> RunningJob_;
+        THashMap<TJobId, TFinishedJobInfo> FinishedJobs_;
+
+        bool Finished_ = false;
+
+        std::optional<TSchedulerToAgentAllocationEvent> PostponedAllocationEvent_;
     };
 
     struct TNodeJobs
     {
-        //! Empty optional implies this iterator is pointing at
-        //! Running job.
-        struct TJobIterator
-        {
-            THashMap<TAllocationId, TAllocationInfo>::iterator Allocation;
-            std::optional<THashMap<TJobId, TFinishedJobInfo>::iterator> ConcreteJob;
-        };
-
-        //! NB(arkady-e1ppa): We store iterator to allocation to be able to delete
-        //! the outer map node once it is empty without making a lookup.
-        struct TJobToConfirmIterator
-        {
-            THashMap<TAllocationId, THashMap<TJobId, TJobToConfirmInfo>>::iterator Allocation;
-            THashMap<TJobId, TJobToConfirmInfo>::iterator ConcreteJob;
-        };
-
         THashMap<TJobId, TReleaseJobFlags> JobsToRelease;
         THashMap<TJobId, EAbortReason> JobsToAbort;
-        THashMap<TAllocationId, THashMap<TJobId, TJobToConfirmInfo>> JobsToConfirm;
+
         THashMap<TAllocationId, TAllocationInfo> Allocations;
-        THashMap<TAllocationId, TAbortedAllocationSummary> AbortedAllocations;
 
-        static bool IsRunning(const TJobIterator& jobIt);
+        using TAllocationIterator = THashMap<TAllocationId, TAllocationInfo>::iterator;
 
-        //! All methods have JobTracker->GetInvoker() thread affinity.
-        std::optional<TJobToConfirmIterator> FindJobToConfirm(TJobId jobId);
-        void EraseJobToConfirm(TJobToConfirmIterator iterator);
-        TJobToConfirmIterator AddJobToConfirmOrCrash(TJobId jobId, TJobToConfirmInfo jobToConfirmInfo);
+        TAllocationInfo* FindAllocation(TAllocationId allocationId);
+        TAllocationInfo* FindAllocation(TJobId jobId);
+
+        const TAllocationInfo* FindAllocation(TAllocationId allocationId) const;
+        const TAllocationInfo* FindAllocation(TJobId jobId) const ;
+
         i64 GetJobToConfirmCount() const;
 
-        template <CInvocable<void(TJobId, TJobToConfirmInfo)> TFunction>
-        void ForEachJobToConfirm(const TFunction& func) const;
-
-        std::optional<TJobIterator> FindJob(TJobId jobId);
-        void EraseJobOrCrash(TJobId jobId);
-        void EraseJob(TJobIterator jobIt);
-        TJobIterator AddRunningJobOrCrash(TJobId jobId, TOperationId operationId, TRequestedActionInfo requestedActionInfo);
         i64 GetJobCount() const;
-
-        template <class TFunction>
-        void ForEachJob(const TFunction& func) const;
     };
 
     struct TNodeInfo
@@ -268,7 +285,7 @@ private:
 
     struct THeartbeatProcessingContext
     {
-        TCtxHeartbeatPtr Context;
+        TCtxHeartbeatPtr RpcContext;
         NLogging::TLogger Logger;
         TString NodeAddress;
         TNodeId NodeId;
@@ -282,21 +299,56 @@ private:
         THeartbeatProcessingContext Context;
     };
 
-    THeartbeatProcessingResult DoProcessHeartbeat(
-        THeartbeatProcessingContext heartbeatProcessingContext);
-
-    struct TJobsToProcessInOperationController
+    struct TOperationUpdatesProcessingContext
     {
+        const TOperationId OperationId;
         std::vector<std::unique_ptr<TJobSummary>> JobSummaries;
         std::vector<TJobToAbort> JobsToAbort;
+        std::vector<TAbortedAllocationSummary> AbortedAllocations;
+        std::vector<TFinishedAllocationSummary> FinishedAllocations;
+
+        IOperationControllerPtr OperationController;
+        NLogging::TLogger OperationLogger;
+
+        //! Should be used only in job thread.
+        TOperationInfo* OperationInfo;
+
+        void AddAllocationEvent(TSchedulerToAgentAllocationEvent&& allocationEvent);
     };
+
+    THeartbeatProcessingResult DoProcessHeartbeat(
+        THeartbeatProcessingContext heartbeatProcessingContext);
+    void DoProcessUnconfirmedJobsInHeartbeat(
+        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
+        TNodeInfo& nodeInfo,
+        THeartbeatProcessingContext& heartbeatProcessingContext,
+        THeartbeatProcessingResult& heartbeatProcessingResult);
+    //! Returns ids of jobs that should not be processed in current heartbeat.
+    THashSet<TJobId> DoProcessAbortedAndReleasedJobsInHeartbeat(
+        TNodeInfo& nodeInfo,
+        THeartbeatProcessingContext& heartbeatProcessingContext,
+        THeartbeatProcessingResult& heartbeatProcessingResult);
+    void DoProcessJobInfosInHeartbeat(
+        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
+        TNodeInfo& nodeInfo,
+        THeartbeatProcessingContext& heartbeatProcessingContext,
+        THeartbeatProcessingResult& heartbeatProcessingResult);
+    void DoProcessAllocationsInHeartbeat(
+        THashMap<TOperationId, TOperationUpdatesProcessingContext>& operationIdToUpdatesProcessingContext,
+        TNodeInfo& nodeInfo,
+        THeartbeatProcessingContext& heartbeatProcessingContext,
+        THeartbeatProcessingResult& heartbeatProcessingResult);
+    TOperationUpdatesProcessingContext& AddOperationUpdatesProcessingContext(
+        THashMap<TOperationId, TOperationUpdatesProcessingContext>& contexts,
+        THeartbeatProcessingContext& heartbeatProcessingContext,
+        THeartbeatProcessingResult& heartbeatProcessingResult,
+        TOperationId operationId);
 
     // Returns |true| iff job event was handled (not throttled).
     bool HandleJobInfo(
-        TNodeJobs::TJobIterator jobIt,
-        TNodeJobs& nodeJobs,
-        TOperationInfo& operationInfo,
-        TJobsToProcessInOperationController& jobsToProcessInOperationController,
+        TNodeJobs::TAllocationIterator allocationIt,
+        EJobStage currentJobStage,
+        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
         TCtxHeartbeat::TTypedResponse* response,
         std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
@@ -304,20 +356,16 @@ private:
         bool shouldSkipRunningJobEvents = false);
 
     bool HandleRunningJobInfo(
-        TNodeJobs::TJobIterator jobIt,
-        TNodeJobs& nodeJobs,
-        TOperationInfo& operationInfo,
-        TJobsToProcessInOperationController& jobsToProcessInOperationController,
+        TNodeJobs::TAllocationIterator allocationIt,
+        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
         TCtxHeartbeat::TTypedResponse* response,
         std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
         THeartbeatCounters& heartbeatCounters,
         bool shouldSkipRunningJobEvents);
     bool HandleFinishedJobInfo(
-        TNodeJobs::TJobIterator jobIt,
-        TNodeJobs& nodeJobs,
-        TOperationInfo& operationInfo,
-        TJobsToProcessInOperationController& jobsToProcessInOperationController,
+        TNodeJobs::TAllocationIterator allocationIt,
+        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext,
         TCtxHeartbeat::TTypedResponse* response,
         std::unique_ptr<TJobSummary>& jobSummary,
         const NLogging::TLogger& Logger,
@@ -342,17 +390,25 @@ private:
         TWeakPtr<IOperationController> operationController);
     void DoUnregisterOperation(TOperationId operationId);
 
+    void DoRegisterAllocation(TStartedAllocationInfo allocationInfo, TOperationId operationId);
     void DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationId);
 
-    void DoReviveJobs(
+    void DoRevive(
         TOperationId operationId,
-        std::vector<TStartedJobInfo> jobs);
+        std::vector<TStartedAllocationInfo> allocations);
 
     void DoReleaseJobs(
         TOperationId operationId,
         const std::vector<TJobToRelease>& jobs);
 
     void RequestJobAbortion(TJobId jobId, TOperationId operationId, EAbortReason reason);
+
+
+    [[nodiscard]] std::optional<TAllocationInfo>
+    EraseAllocationIfNeeded(
+        TNodeJobs& nodeJobs,
+        THashMap<TAllocationId, TAllocationInfo>::iterator allocationIt,
+        TOperationInfo* operationInfo = nullptr);
 
     template <class TAction>
     void TryRequestJobAction(
@@ -403,16 +459,37 @@ private:
         TNodeId nodeId,
         const TString& nodeAddress);
 
-    void OnAllocationsAborted(
+    void ProcessAllocationEvents(
         TOperationId operationId,
+        std::vector<TFinishedAllocationSummary> finishedAllocations,
         std::vector<TAbortedAllocationSummary> abortedAllocations);
+
+    template <
+        class TAllocationEvent,
+        CInvocable<void(
+            TStringBuf reason,
+            TAllocationEvent event,
+            TJobTracker::TNodeInfo* nodeInfo,
+            std::optional<TJobTracker::TNodeJobs::TAllocationIterator> maybeAllocationIterator)> TProcessEventCallback>
+    void ProcessAllocationEvent(
+        TAllocationEvent allocationEvent,
+        const TProcessEventCallback& skipAllocationEvent,
+        const NLogging::TLogger& Logger);
+
+    void ProcessFinishedAllocations(
+        std::vector<TFinishedAllocationSummary> finishedAllocations,
+        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext);
+
+    void ProcessAbortedAllocations(
+        std::vector<TAbortedAllocationSummary> abortedAllocations,
+        TOperationUpdatesProcessingContext& operationUpdatesProcessingContext);
 
     const TString& GetNodeAddressForLogging(TNodeId nodeId);
 
-    using TOperationIdToJobsToAbort = THashMap<TOperationId, std::vector<TJobToAbort>>;
-    void AbortJobs(TOperationIdToJobsToAbort jobsToAbort) const;
-
     void AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs);
+
+    void ProcessOperationContext(TOperationUpdatesProcessingContext operationUpdatesProcessingContext);
+    void ProcessOperationContexts(THashMap<TOperationId, TOperationUpdatesProcessingContext> operationUpdatesProcessingContext);
 
     void DoInitialize(IInvokerPtr cancelableInvoker);
     void SetIncarnationId(TIncarnationId incarnationId);
@@ -421,13 +498,9 @@ private:
     friend class TJobTrackerOperationHandler;
 
     class TJobTrackerNodeOrchidService;
-    friend class TJobTrackerNodeOrchidService;
-
+    class TJobTrackerAllocationOrchidService;
     class TJobTrackerJobOrchidService;
-    friend class TJobTrackerJobOrchidService;
-
     class TJobTrackerOperationOrchidService;
-    friend class TJobTrackerOperationOrchidService;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobTracker)
@@ -443,8 +516,10 @@ public:
         IInvokerPtr cancelableInvoker,
         TOperationId operationId);
 
+    void RegisterAllocation(TStartedAllocationInfo allocationInfo);
+
     void RegisterJob(TStartedJobInfo jobInfo);
-    void ReviveJobs(std::vector<TStartedJobInfo> jobs);
+    void Revive(std::vector<TStartedAllocationInfo> allocations);
     void ReleaseJobs(std::vector<TJobToRelease> jobs);
 
     void RequestJobAbortion(
@@ -458,7 +533,9 @@ public:
         TJobId jobId,
         EAbortReason reason);
 
-    void OnAllocationsAborted(std::vector<TAbortedAllocationSummary> abortedAllocations);
+    void ProcessAllocationEvents(
+        std::vector<TFinishedAllocationSummary> finishedAllocations,
+        std::vector<TAbortedAllocationSummary> abortedAllocations);
 
 private:
     TJobTracker* const JobTracker_;
