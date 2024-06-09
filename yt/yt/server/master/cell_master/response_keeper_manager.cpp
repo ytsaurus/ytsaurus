@@ -46,10 +46,6 @@ public:
         RegisterLoader(
             "ResponseKeeperManager",
             BIND_NO_PROPAGATE(&TResponseKeeperManager::Load, Unretained(this)));
-        // COMPAT(babenko)
-        RegisterLoader(
-            "TResponseKeeperManager",
-            BIND_NO_PROPAGATE(&TResponseKeeperManager::Load, Unretained(this)));
 
         RegisterMethod(BIND_NO_PROPAGATE(&TResponseKeeperManager::HydraEvictKeptResponses, Unretained(this)));
 
