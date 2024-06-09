@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR=$(dirname "$0")
-YT_PYTHON_DIR=$(realpath "${SCRIPT_DIR}/../")
+YT_PYTHON_DIR=$(realpath "${SCRIPT_DIR}/../../")
 
 docker run -it -e PYTHONPATH="/source:${PYTHONPATH}" \
  --mount type=bind,source=${YT_PYTHON_DIR}/yt,target=/source/yt \
