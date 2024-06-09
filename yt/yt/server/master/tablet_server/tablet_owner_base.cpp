@@ -81,16 +81,6 @@ void TTabletOwnerBase::TTabletOwnerAttributes::EndCopy(NCypressServer::TEndCopyC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletOwnerBase::LoadTabletStatisticsCompat(TLoadContext& context)
-{
-    using NYT::Load;
-
-    if (!HasCustomTabletOwnerAttributes()) {
-        InitializeCustomTabletOwnerAttributes();
-    }
-    Load(context, TabletOwnerAttributes_->TabletStatistics);
-}
-
 void TTabletOwnerBase::Save(TSaveContext& context) const
 {
     TChunkOwnerBase::Save(context);

@@ -82,8 +82,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, CurrentMountTransactionId);
 
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(TabletOwnerAttributes, TabletStatistics);
-    // COMPAT(gritukan)
-    void LoadTabletStatisticsCompat(NCellMaster::TLoadContext& context);
 
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, SettingsUpdateRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, RemountNeededTabletCount);
