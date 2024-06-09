@@ -18,6 +18,8 @@ ARG ODIN_RUNTIME_ROOT="/var/odin"
 ARG ODIN_CHECKS_DIR="${ODIN_RUNTIME_ROOT}/checks"
 ARG ODIN_CHECKS_DATA_DIR="${ODIN_RUNTIME_ROOT}/checks-data"
 
+ARG BUILD_TARGETS="yson_lib driver_lib driver_rpc_lib"
+
 # 1. Build native C++ YT bindings
 
 FROM ubuntu:jammy as lib-builder
@@ -73,7 +75,7 @@ WORKDIR ${ROOT}
 
 RUN mkdir -p ${BUILD_ROOT} ; cd ${BUILD_ROOT} \
     && cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${SOURCE_ROOT}/clang.toolchain ${SOURCE_ROOT} \
-    && ninja yson_lib driver_lib driver_rpc_lib
+    && ninja ${BUILD_TARGETS}
 
 RUN mkdir ${PYTHON_ROOT} \
     && cd ${SOURCE_ROOT} && pip install -e yt/python/packages \
