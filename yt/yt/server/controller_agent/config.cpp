@@ -584,7 +584,7 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     // TODO(arkady-e1ppa): remove this when all nodes are 24.1.
     registrar.Parameter("enable_graceful_abort", &TThis::EnableGracefulAbort)
         .Default(false);
-    registrar.Parameter("check_node_heartbeat_sequential_id", &TThis::CheckNodeHeartbeatSequentialId)
+    registrar.Parameter("check_node_heartbeat_sequence_number", &TThis::CheckNodeHeartbeatSequenceNumber)
         .Default(false);
 }
 

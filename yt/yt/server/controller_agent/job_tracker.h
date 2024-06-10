@@ -229,10 +229,10 @@ private:
 
         TString NodeAddress;
 
-        ui64 LastHeartbeatId = 0;
+        ui64 LastHeartbeatSequenceNumber = 0;
 
         //! |false| if heartbeat is stale.
-        bool CheckHeartbeatSequentialId(ui64 heartbeatSequentialId);
+        bool CheckHeartbeatSequenceNumber(ui64 sequenceNumber);
     };
 
     THashMap<TNodeId, TNodeInfo> RegisteredNodes_;

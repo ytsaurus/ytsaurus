@@ -411,7 +411,7 @@ public:
             _,
             registrationId,
             nodeAddress,
-            sequentialId
+            sequenceNumber
         ] = nodeInfoIt->second;
 
         if (const auto* allocation = nodeJobs.FindAllocation(jobId)) {
@@ -602,15 +602,15 @@ i64 TJobTracker::TNodeJobs::GetJobToConfirmCount() const
     return count;
 }
 
-bool TJobTracker::TNodeInfo::CheckHeartbeatSequentialId(ui64 heartbeatSequentialId)
+bool TJobTracker::TNodeInfo::CheckHeartbeatSequenceNumber(ui64 sequenceNumber)
 {
-    if (heartbeatSequentialId == 0) {
-        LastHeartbeatId = 0;
+    if (sequenceNumber == 0) {
+        LastHeartbeatSequenceNumber = 0;
         return true;
     }
 
-    if (heartbeatSequentialId > LastHeartbeatId) {
-        LastHeartbeatId = heartbeatSequentialId;
+    if (sequenceNumber > LastHeartbeatSequenceNumber) {
+        LastHeartbeatSequenceNumber = sequenceNumber;
         return true;
     }
 
@@ -1302,8 +1302,8 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
         heartbeatProcessingContext.NodeId,
         heartbeatProcessingContext.NodeAddress);
 
-    if (Config_->CheckNodeHeartbeatSequentialId && request->has_sequential_id()) {
-        if (!nodeInfo.CheckHeartbeatSequentialId(request->sequential_id())) {
+    if (Config_->CheckNodeHeartbeatSequenceNumber && request->has_sequence_number()) {
+        if (!nodeInfo.CheckHeartbeatSequenceNumber(request->sequence_number())) {
             StaleHeartbeatCount_.Increment();
         }
     }

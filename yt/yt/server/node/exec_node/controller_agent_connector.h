@@ -70,7 +70,7 @@ public:
         const NRpc::IChannelPtr Channel_;
 
         const NConcurrency::TRetryingPeriodicExecutorPtr HeartbeatExecutor_;
-        ui64 SequentialHeartbeatId_ = 0;
+        ui64 SequenceNumber_ = 0;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
@@ -84,7 +84,6 @@ public:
 
         TError SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
-        void OnHeartbeatSent(const TReqHeartbeatPtr& req);
 
         TError DoSendHeartbeat();
 

@@ -277,7 +277,10 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    OnHeartbeatSent(request);
+    {
+        request->set_sequence_number(SequenceNumber_);
+        ++SequenceNumber_;
+    }
     auto responseOrError = WaitFor(std::move(request->Invoke()));
     if (!responseOrError.IsOK()) {
         auto [minBackoff, maxBackoff] = HeartbeatExecutor_->GetBackoffInterval();
@@ -313,13 +316,6 @@ TError TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
 
     return DoSendHeartbeat();
-}
-
-void TControllerAgentConnectorPool::TControllerAgentConnector::OnHeartbeatSent(const TReqHeartbeatPtr& req)
-{
-    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetControlInvoker());
-    req->set_sequential_id(SequentialHeartbeatId_);
-    ++SequentialHeartbeatId_;
 }
 
 void TControllerAgentConnectorPool::TControllerAgentConnector::PrepareHeartbeatRequest(
