@@ -104,7 +104,7 @@ TEST(TestAllSucceededBoundedConcurrency, TestAllSucceededFail)
 
     std::vector<TCallback<TFuture<void>()>> callbacks;
     for (int i = 0; i < 9; ++i) {
-        callbacks.emplace_back(BIND([x, startingSleepCount, finishedSleepCount]() mutable {
+        callbacks.push_back(BIND([x, startingSleepCount, finishedSleepCount] () mutable {
             int cur_x = (*x)++;
             if (cur_x < 5) {
                 return;

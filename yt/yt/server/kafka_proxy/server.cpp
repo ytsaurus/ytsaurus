@@ -278,7 +278,7 @@ private:
             }
         }
 
-        auto responseHeader = [&header]() {
+        auto responseHeader = [&header] {
             auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
             TResponseHeader result;
             result.CorrelationId = header.CorrelationId;
