@@ -238,7 +238,7 @@ private:
 };
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 960);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 848);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,11 +26,13 @@ namespace NYT::NJournalServer {
 using namespace NCellMaster;
 using namespace NChunkServer;
 using namespace NChunkClient;
-using namespace NChunkClient::NProto;
 using namespace NHydra;
 using namespace NObjectServer;
 using namespace NJournalClient;
 using namespace NObjectClient;
+
+using NYT::ToProto;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,11 +51,11 @@ public:
 
     void UpdateStatistics(
         TJournalNode* trunkNode,
-        const TDataStatistics* statistics) override
+        const TChunkOwnerDataStatistics& statistics) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
 
-        trunkNode->SnapshotStatistics() = *statistics;
+        trunkNode->SnapshotStatistics() = statistics;
 
         YT_LOG_DEBUG("Journal node statistics updated (NodeId: %v, Statistics: %v)",
             trunkNode->GetId(),
@@ -62,15 +64,13 @@ public:
 
     void SealJournal(
         TJournalNode* trunkNode,
-        const TDataStatistics* statistics) override
+        const TChunkOwnerDataStatistics& statistics) override
     {
         YT_VERIFY(trunkNode->IsTrunk());
 
         auto* chunkList = trunkNode->GetChunkList();
 
-        trunkNode->SnapshotStatistics() = statistics
-            ? *statistics
-            :  chunkList->Statistics().ToDataStatistics();
+        trunkNode->SnapshotStatistics() = statistics;
 
         trunkNode->SetSealed(true);
 
@@ -84,11 +84,20 @@ public:
 
         if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::Seal(FromObjectId(trunkNode->GetId()));
-            *req->mutable_statistics() = trunkNode->SnapshotStatistics();
+            ToProto(req->mutable_statistics(), trunkNode->SnapshotStatistics());
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(req, trunkNode->GetNativeCellTag());
         }
+    }
+
+    void SealJournal(
+        TJournalNode* trunkNode) override
+    {
+        YT_VERIFY(trunkNode->IsTrunk());
+
+        auto* chunkList = trunkNode->GetChunkList();
+        SealJournal(trunkNode, chunkList->Statistics().ToDataStatistics());
     }
 
     void TruncateJournal(
@@ -122,7 +131,7 @@ public:
 
         if (trunkNode->IsForeign()) {
             auto req = TJournalYPathProxy::UpdateStatistics(FromObjectId(trunkNode->GetId()));
-            *req->mutable_statistics() = trunkNode->SnapshotStatistics();
+            ToProto(req->mutable_statistics(), trunkNode->SnapshotStatistics());
             multicellManager->PostToMaster(req, trunkNode->GetNativeCellTag());
         }
     }

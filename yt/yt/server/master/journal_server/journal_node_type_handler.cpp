@@ -274,7 +274,7 @@ protected:
             chunkManager->ScheduleChunkSeal(unsealedChunk);
         } else {
             const auto& journalManager = GetBootstrap()->GetJournalManager();
-            journalManager->SealJournal(trunkNode, nullptr);
+            journalManager->SealJournal(trunkNode);
         }
     }
 };

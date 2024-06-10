@@ -42,8 +42,8 @@ TTabletSizeConfig GetTabletSizeConfig(const TTableNode* table)
     const auto& tableConfig = table->TabletBalancerConfig();
     const auto statistics = table->ComputeTotalStatistics();
     i64 tableSize = table->GetInMemoryMode() == EInMemoryMode::Compressed
-        ? statistics.compressed_data_size()
-        : statistics.uncompressed_data_size();
+        ? statistics.CompressedDataSize
+        : statistics.UncompressedDataSize;
     bool enableVerboseLogging = tableConfig->EnableVerboseLogging || bundleConfig->EnableVerboseLogging;
 
     if (tableConfig->DesiredTabletCount) {

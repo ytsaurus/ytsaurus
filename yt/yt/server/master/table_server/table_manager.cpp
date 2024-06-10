@@ -1604,7 +1604,7 @@ private:
             }
 
             if (entry.has_data_statistics()) {
-                chunkOwner->SnapshotStatistics() = entry.data_statistics();
+                chunkOwner->SnapshotStatistics() = FromProto<NChunkServer::TChunkOwnerDataStatistics>(entry.data_statistics());
             }
 
             if (entry.has_modification_time()) {

@@ -22,6 +22,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -32,8 +33,6 @@
 #include <yt/yt/server/master/security_server/security_tags.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
-
-#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
@@ -89,8 +88,6 @@ using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
-
-using NChunkClient::NProto::TDataStatistics;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -743,7 +740,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)
-                .Value(statistics.chunk_count());
+                .Value(statistics.ChunkCount);
             return true;
 
         case EInternedAttributeKey::SnapshotStatistics:
@@ -758,17 +755,17 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::UncompressedDataSize:
             BuildYsonFluently(consumer)
-                .Value(statistics.uncompressed_data_size());
+                .Value(statistics.UncompressedDataSize);
             return true;
 
         case EInternedAttributeKey::CompressedDataSize:
             BuildYsonFluently(consumer)
-                .Value(statistics.compressed_data_size());
+                .Value(statistics.CompressedDataSize);
             return true;
 
         case EInternedAttributeKey::CompressionRatio: {
-            double ratio = statistics.uncompressed_data_size() > 0
-                ? static_cast<double>(statistics.compressed_data_size()) / statistics.uncompressed_data_size()
+            double ratio = statistics.UncompressedDataSize > 0
+                ? static_cast<double>(statistics.CompressedDataSize) / statistics.UncompressedDataSize
                 : 0;
             BuildYsonFluently(consumer)
                 .Value(ratio);
@@ -900,7 +897,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 break;
             }
 
-            TDataStatistics extraResourceUsage;
+            TChunkOwnerDataStatistics extraResourceUsage;
             auto* originator = node->GetOriginator()->As<TChunkOwnerBase>();
             switch (node->GetUpdateMode()) {
                 case EUpdateMode::Overwrite:
@@ -2005,7 +2002,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     uploadContext.SchemaMode = CheckedEnumCast<ETableSchemaMode>(request->schema_mode());
 
     if (request->has_statistics()) {
-        uploadContext.Statistics = &request->statistics();
+        uploadContext.Statistics = FromProto<TChunkOwnerDataStatistics>(request->statistics());
     }
 
     if (request->has_optimize_for()) {

@@ -112,6 +112,8 @@ class TChunkRequisitionRegistry;
 struct TChunkTreeStatistics;
 struct TAggregatedNodeStatistics;
 
+struct TChunkOwnerDataStatistics;
+
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 
 DECLARE_REFCOUNTED_CLASS(TJob)

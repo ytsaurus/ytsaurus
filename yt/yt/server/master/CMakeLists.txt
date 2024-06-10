@@ -446,6 +446,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_merger_traversal_info.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_merger.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_data_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_placement.cpp

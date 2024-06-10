@@ -11,7 +11,6 @@
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
-using namespace NChunkClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 
@@ -67,16 +66,16 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     }
 }
 
-TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
+TChunkOwnerDataStatistics TChunkTreeStatistics::ToDataStatistics() const
 {
-    TDataStatistics result;
-    result.set_uncompressed_data_size(UncompressedDataSize);
-    result.set_compressed_data_size(CompressedDataSize);
-    result.set_data_weight(DataWeight);
-    result.set_row_count(RowCount);
-    result.set_chunk_count(ChunkCount);
-    result.set_regular_disk_space(RegularDiskSpace);
-    result.set_erasure_disk_space(ErasureDiskSpace);
+    TChunkOwnerDataStatistics result;
+    result.UncompressedDataSize = UncompressedDataSize;
+    result.CompressedDataSize = CompressedDataSize;
+    result.DataWeight = DataWeight;
+    result.RowCount = RowCount;
+    result.ChunkCount = ChunkCount;
+    result.RegularDiskSpace = RegularDiskSpace;
+    result.ErasureDiskSpace = ErasureDiskSpace;
     return result;
 }
 

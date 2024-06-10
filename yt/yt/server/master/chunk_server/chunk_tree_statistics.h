@@ -1,10 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_owner_data_statistics.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
-
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/core/yson/public.h>
 
@@ -57,7 +56,7 @@ struct TChunkTreeStatistics
     void Accumulate(const TChunkTreeStatistics& other);
     void Deaccumulate(const TChunkTreeStatistics& other);
 
-    NChunkClient::NProto::TDataStatistics ToDataStatistics() const;
+    TChunkOwnerDataStatistics ToDataStatistics() const;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 
