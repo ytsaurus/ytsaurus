@@ -1581,7 +1581,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
 
         if (const auto& runningJob = allocation.GetRunningJob()) {
             // Check for jobs disappeared from nodes.
-            [&] {
+            [&, allocationId = allocationId, &allocation = allocation] {
                 auto& jobInfo = *runningJob;
 
                 //! Disapeared confirming jobs will be aborted in AbortUnconfirmedJobs.
@@ -2876,7 +2876,7 @@ void TJobTracker::ProcessAllocationEvent(
 
     auto& allocation = allocationIt->second;
 
-    allocation.Finish(TSchedulerToAgentAllocationEvent(std::move(allocationEvent)));
+    allocation.Finish(TSchedulerToAgentAllocationEvent{std::move(allocationEvent)});
 
     if (!allocation.GetRunningJob()) {
         skipAllocationEvent("Event happened on empty allocation", allocation.template ConsumePostponedEventOrCrash<TAllocationEvent>(), nodeInfo, allocationIt);

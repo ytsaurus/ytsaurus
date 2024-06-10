@@ -470,7 +470,7 @@ void TOperationControllerImpl::OnAllocationAborted(
         .Scheduled = scheduled,
     };
 
-    auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent(std::move(eventSummary)));
+    auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(eventSummary)});
     YT_LOG_TRACE(
         "%v abort notification %v (AllocationId: %v)",
         scheduled ? "Allocation" : "Nonscheduled allocation",
