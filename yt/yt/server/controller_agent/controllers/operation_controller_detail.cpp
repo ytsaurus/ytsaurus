@@ -3618,6 +3618,11 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
+    if (!ShouldProcessJobEvents()) {
+        YT_LOG_DEBUG("Stale allocation aborted event, ignored (AllocationIdId: %v)", abortedAllocationSummary.Id);
+        return;
+    }
+
     auto allocationIt = AllocationMap_.find(abortedAllocationSummary.Id);
 
     if (allocationIt == end(AllocationMap_)) {
@@ -3647,6 +3652,11 @@ void TOperationControllerBase::SafeOnAllocationAborted(TAbortedAllocationSummary
 void TOperationControllerBase::SafeOnAllocationFinished(TFinishedAllocationSummary&& finishedAllocationSummary)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    if (!ShouldProcessJobEvents()) {
+        YT_LOG_DEBUG("Stale allocation finished event, ignored (AllocationIdId: %v)", finishedAllocationSummary.Id);
+        return;
+    }
 
     auto allocationIt = AllocationMap_.find(finishedAllocationSummary.Id);
 
