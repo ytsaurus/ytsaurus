@@ -5,6 +5,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
+#include "component_discovery.h"
 
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
@@ -183,61 +184,19 @@ DEFINE_REFCOUNTED_TYPE(TPingHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInstance
-{
-    TString Type;
-    TString Address;
-    TString Version;
-    TString StartTime;
-    std::optional<TString> JobProxyVersion;
-
-    bool Banned = false;
-    bool Online = true;
-    TString State;
-    TError Error;
-};
-
 class TDiscoverVersionsHandler
     : public NHttp::IHttpHandler
+    , public TComponentDiscoverer
 {
 public:
-    TDiscoverVersionsHandler(
-        NApi::NNative::IConnectionPtr connection,
-        NApi::IClientPtr client,
-        TCoordinatorConfigPtr config);
-
-protected:
-    const NApi::NNative::IConnectionPtr Connection_;
-    const NApi::IClientPtr Client_;
-    const TCoordinatorConfigPtr Config_;
-
-    std::vector<TString> GetInstances(const NYPath::TYPath& path, bool fromSubdirectories = false);
-    std::vector<TInstance> ListComponent(const TString& component, const TString& type);
-    std::vector<TInstance> ListProxies(const TString& component, const TString& type);
-    std::vector<TInstance> GetAttributes(
-        const NYPath::TYPath& path,
-        const std::vector<TString>& instances,
-        const TString& type,
-        const NYPath::TYPath& suffix = "/orchid/service");
-    std::vector<TInstance> ListJobProxies();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDiscoverVersionsHandlerV2
-    : public TDiscoverVersionsHandler
-{
-public:
-    using TDiscoverVersionsHandler::TDiscoverVersionsHandler;
+    TDiscoverVersionsHandler(NApi::IClientPtr client, const TCoordinatorConfigPtr& config);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandlerV2)
+DEFINE_REFCOUNTED_TYPE(TDiscoverVersionsHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
