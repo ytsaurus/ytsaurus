@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/core/misc/error.h>
 
 namespace NYT::NSequoiaClient {
@@ -33,6 +35,13 @@ TYPathBase<Absolute, TUnderlying>::TYPathBase(const char* path)
 template <bool Absolute, class TUnderlying>
 TYPathBase<Absolute, TUnderlying>::TYPathBase(const TString& path)
     : Path_(path)
+{
+    Validate();
+}
+
+template <bool Absolute, class TUnderlying>
+TYPathBase<Absolute, TUnderlying>::TYPathBase(const TRawYPath& path)
+    : Path_(path.Underlying())
 {
     Validate();
 }
@@ -365,6 +374,13 @@ template <bool Absolute>
 void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec)
 {
     FormatValue(builder, path.ToString(), spec);
+}
+
+template <bool Absolute, class TUnderlying>
+void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer)
+{
+    NYTree::BuildYsonFluently(consumer)
+        .Value(path.ToString());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,8 @@
 #include "private.h"
 #include "action_helpers.h"
+#include "sequoia_service.h"
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
@@ -24,6 +27,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
+using namespace NYTree;
 
 using namespace NCypressClient::NProto;
 using namespace NCypressServer::NProto;
@@ -36,12 +40,24 @@ using NYT::ToProto;
 void WriteSequoiaNodeRows(
     TNodeId id,
     TAbsoluteYPathBuf path,
+    const TWriteSequoiaNodeRowsOptions& options,
     const ISequoiaTransactionPtr& transaction)
 {
-    transaction->WriteRow(NRecords::TPathToNodeId{
-        .Key = {.Path = path.ToMangledSequoiaPath()},
-        .NodeId = id,
-    });
+    {
+        auto record = NRecords::TPathToNodeId{
+            .Key = {.Path = path.ToMangledSequoiaPath()},
+            .NodeId = id,
+        };
+
+        if (options.RedirectPath) {
+            YT_VERIFY(TypeFromId(id) == EObjectType::SequoiaLink);
+
+            record.RedirectPath = options.RedirectPath->ToString();
+        }
+
+        transaction->WriteRow(record);
+    }
+
     transaction->WriteRow(NRecords::TNodeIdToPath{
         .Key = {.NodeId = id},
         .Path = path.ToString(),
@@ -81,19 +97,34 @@ void CreateNode(
     EObjectType type,
     TNodeId id,
     TAbsoluteYPathBuf path,
+    const IAttributeDictionary* explicitAttributes,
     const ISequoiaTransactionPtr& transaction)
 {
-    WriteSequoiaNodeRows(id, path, transaction);
+    {
+        TWriteSequoiaNodeRowsOptions options;
+        if (type == EObjectType::SequoiaLink) {
+            options.RedirectPath = TAbsoluteYPath(
+                explicitAttributes->Get<TString>(EInternedAttributeKey::TargetPath.Unintern()));
+        }
+        WriteSequoiaNodeRows(id, path, options, transaction);
+    }
+
+    IAttributeDictionaryPtr explicitAttributeHolder;
+    if (!explicitAttributes) {
+        explicitAttributeHolder = CreateEphemeralAttributes();
+        explicitAttributes = explicitAttributeHolder.Get();
+    }
 
     NCypressServer::NProto::TReqCreateNode createNodeRequest;
     createNodeRequest.set_type(ToProto<int>(type));
     ToProto(createNodeRequest.mutable_node_id(), id);
     createNodeRequest.set_path(path.ToString());
+    ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);
     transaction->AddTransactionAction(CellTagFromId(id), MakeTransactionActionData(createNodeRequest));
 }
 
 TNodeId CopyNode(
-    TNodeId sourceNodeId,
+    const NRecords::TPathToNodeId& sourceNode,
     TAbsoluteYPathBuf destinationNodePath,
     const TCopyOptions& options,
     const ISequoiaTransactionPtr& transaction)
@@ -101,6 +132,7 @@ TNodeId CopyNode(
     // TypeFromId here might break everything for Cypress->Sequoia copy.
     // Add exception somewhere to not crash all the time.
     // TODO(h0pless): Do that.
+    auto sourceNodeId = sourceNode.NodeId;
     auto sourceNodeType = TypeFromId(sourceNodeId);
     YT_VERIFY(
         sourceNodeType != EObjectType::Rootstock &&
@@ -108,7 +140,13 @@ TNodeId CopyNode(
 
     auto cellTag = CellTagFromId(sourceNodeId);
     auto destinationNodeId = transaction->GenerateObjectId(sourceNodeType, cellTag);
-    WriteSequoiaNodeRows(destinationNodeId, destinationNodePath, transaction);
+    {
+        TWriteSequoiaNodeRowsOptions options;
+        if (sourceNodeType == EObjectType::SequoiaLink) {
+            options.RedirectPath = TAbsoluteYPath(sourceNode.RedirectPath);
+        }
+        WriteSequoiaNodeRows(destinationNodeId, destinationNodePath, options, transaction);
+    }
 
     NCypressServer::NProto::TReqCloneNode cloneNodeRequest;
     ToProto(cloneNodeRequest.mutable_src_id(), sourceNodeId);

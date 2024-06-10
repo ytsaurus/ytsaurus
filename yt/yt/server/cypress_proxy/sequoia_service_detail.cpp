@@ -40,6 +40,23 @@ void TSequoiaServiceContext::SetResolveResult(TResolveResult resolveResult)
     ResolveResult_ = std::move(resolveResult);
 }
 
+TRange<TResolveStep> TSequoiaServiceContext::GetResolveHistory() const
+{
+    return ResolveHistory_;
+}
+
+void TSequoiaServiceContext::SetResolveHistory(std::vector<TResolveStep> resolveHistory)
+{
+    ResolveHistory_ = std::move(resolveHistory);
+}
+
+std::optional<TResolveStep> TSequoiaServiceContext::TryGetLastResolveStep() const
+{
+    return !ResolveHistory_.empty()
+        ? std::make_optional(ResolveHistory_.back())
+        : std::nullopt;
+}
+
 const NYTree::NProto::TYPathHeaderExt& TSequoiaServiceContext::GetYPathExt()
 {
     if (!CachedYPathExt_) {

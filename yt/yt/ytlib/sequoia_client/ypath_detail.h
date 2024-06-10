@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <library/cpp/yt/yson/consumer.h>
+
 namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +26,7 @@ public:
     explicit TYPathBase(TStringBuf path);
     explicit TYPathBase(const char* path);
     explicit TYPathBase(const TString& path);
+    explicit TYPathBase(const TRawYPath& path);
 
     //! Returns the last path segment.
     TString GetBaseName() const;
@@ -204,8 +207,12 @@ TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... 
 
 template <bool Absolute>
 void FormatValue(TStringBuilderBase* builder, const TBasicYPath<Absolute>& path, TStringBuf spec);
+
 template <bool Absolute>
 void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec);
+
+template <bool Absolute, class TUnderlying>
+void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

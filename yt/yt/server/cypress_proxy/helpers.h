@@ -17,16 +17,22 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TSharedRefArray> ExecuteVerb(
-    const ISequoiaServicePtr& service,
-    const TSharedRefArray& requestMessage,
-    const NSequoiaClient::ISequoiaClientPtr& client,
-    NLogging::TLogger logger = NLogging::TLogger(),
-    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
+bool IsLinkType(NCypressClient::EObjectType type);
+
+void ValidateLinkNodeCreation(
+    const ISequoiaServiceContextPtr& context,
+    const NCypressClient::NProto::TReqCreate& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsCreateRootstockRequest(const ISequoiaServiceContextPtr& context);
+//! Executes a given request at Sequoia. The target path might be altered after the
+//! resolving process for it to be correctly handled by master in case of forwarding.
+TFuture<TSharedRefArray> ExecuteVerb(
+    const ISequoiaServicePtr& service,
+    TSharedRefArray* requestMessage,
+    const NSequoiaClient::ISequoiaClientPtr& client,
+    NLogging::TLogger logger = NLogging::TLogger(),
+    NLogging::ELogLevel logLevel = NLogging::ELogLevel::Debug);
 
 ////////////////////////////////////////////////////////////////////////////////
 

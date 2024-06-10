@@ -34,19 +34,14 @@ static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLinkNodeTypeHandler
+class TLinkNodeTypeHandlerBase
     : public TCypressNodeTypeHandlerBase<TLinkNode>
 {
-private:
+protected:
     using TBase = TCypressNodeTypeHandlerBase<TLinkNode>;
 
 public:
     using TBase::TBase;
-
-    EObjectType GetObjectType() const override
-    {
-        return EObjectType::Link;
-    }
 
     ENodeType GetNodeType() const override
     {
@@ -65,6 +60,82 @@ private:
             trunkNode);
     }
 
+    void DoBranch(
+        const TLinkNode* originatingNode,
+        TLinkNode* branchedNode,
+        const TLockRequest& lockRequest) override
+    {
+        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+
+        branchedNode->SetTargetPath(originatingNode->GetTargetPath());
+    }
+
+    void DoMerge(
+        TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override
+    {
+        TBase::DoMerge(originatingNode, branchedNode);
+
+        originatingNode->SetTargetPath(branchedNode->GetTargetPath());
+    }
+
+    void DoClone(
+        TLinkNode* sourceNode,
+        TLinkNode* clonedTrunkNode,
+        ICypressNodeFactory* factory,
+        ENodeCloneMode mode,
+        TAccount* account) override
+    {
+        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+
+        clonedTrunkNode->SetTargetPath(sourceNode->GetTargetPath());
+    }
+
+    bool HasBranchedChangesImpl(
+        TLinkNode* originatingNode,
+        TLinkNode* branchedNode) override
+    {
+        if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
+            return true;
+        }
+
+        return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
+    }
+
+    void DoBeginCopy(
+        TLinkNode* node,
+        TBeginCopyContext* context) override
+    {
+        TBase::DoBeginCopy(node, context);
+
+        using NYT::Save;
+        Save(*context, node->GetTargetPath());
+    }
+
+    void DoEndCopy(
+        TLinkNode* trunkNode,
+        TEndCopyContext* context,
+        ICypressNodeFactory* factory) override
+    {
+        TBase::DoEndCopy(trunkNode, context, factory);
+
+        using NYT::Load;
+        trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));
+    }
+};
+
+class TCypressLinkNodeTypeHandler
+    : public TLinkNodeTypeHandlerBase
+{
+public:
+    using TLinkNodeTypeHandlerBase::TLinkNodeTypeHandlerBase;
+
+    EObjectType GetObjectType() const override
+    {
+        return EObjectType::Link;
+    }
+
+private:
     std::unique_ptr<TLinkNode> DoCreate(
         TVersionedNodeId id,
         const TCreateNodeContext& context) override
@@ -183,12 +254,15 @@ private:
         implHolder->SetTargetPath(originalTargetPath);
 
         auto sequoiaLinkPath = MangleSequoiaPath(originalLinkPath);
-        implHolder->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(NYPath::DirNameAndBaseName(originalLinkPath).second, originalLinkPath);
+        implHolder->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
+            NYPath::DirNameAndBaseName(originalLinkPath).second,
+            originalLinkPath);
 
         const auto& sequoiaQueueManager = GetBootstrap()->GetSequoiaQueueManager();
         auto pathToNodeIdRecord = NSequoiaClient::NRecords::TPathToNodeId{
             .Key = {.Path = sequoiaLinkPath},
             .NodeId = id.ObjectId,
+            .RedirectPath = originalTargetPath,
         };
         sequoiaQueueManager->EnqueueWrite(pathToNodeIdRecord);
         auto nodeIdToPathRecord = NSequoiaClient::NRecords::TNodeIdToPath{
@@ -223,75 +297,47 @@ private:
         TBase::DoDestroy(node);
     }
 
-    void DoBranch(
-        const TLinkNode* originatingNode,
-        TLinkNode* branchedNode,
-        const TLockRequest& lockRequest) override
-    {
-        TBase::DoBranch(originatingNode, branchedNode, lockRequest);
+};
 
-        branchedNode->SetTargetPath(originatingNode->GetTargetPath());
+class TSequoiaLinkNodeTypeHandler
+    : public TLinkNodeTypeHandlerBase
+{
+public:
+    using TLinkNodeTypeHandlerBase::TLinkNodeTypeHandlerBase;
+
+    EObjectType GetObjectType() const override
+    {
+        return EObjectType::SequoiaLink;
     }
 
-    void DoMerge(
-        TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override
+private:
+    std::unique_ptr<TLinkNode> DoCreate(
+        TVersionedNodeId id,
+        const TCreateNodeContext& context) override
     {
-        TBase::DoMerge(originatingNode, branchedNode);
+        auto implHolder = TBase::DoCreate(id, context);
 
-        originatingNode->SetTargetPath(branchedNode->GetTargetPath());
-    }
+        auto originalTargetPath = context.ExplicitAttributes->GetAndRemove<TString>("target_path");
+        implHolder->SetTargetPath(originalTargetPath);
 
-    void DoClone(
-        TLinkNode* sourceNode,
-        TLinkNode* clonedTrunkNode,
-        ICypressNodeFactory* factory,
-        ENodeCloneMode mode,
-        TAccount* account) override
-    {
-        TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
+        YT_LOG_DEBUG("Sequoia link created (LinkId: %v, TargetPath: %v)",
+            id,
+            originalTargetPath);
 
-        clonedTrunkNode->SetTargetPath(sourceNode->GetTargetPath());
-    }
-
-    bool HasBranchedChangesImpl(
-        TLinkNode* originatingNode,
-        TLinkNode* branchedNode) override
-    {
-        if (TBase::HasBranchedChangesImpl(originatingNode, branchedNode)) {
-            return true;
-        }
-
-        return branchedNode->GetTargetPath() != originatingNode->GetTargetPath();
-    }
-
-    void DoBeginCopy(
-        TLinkNode* node,
-        TBeginCopyContext* context) override
-    {
-        TBase::DoBeginCopy(node, context);
-
-        using NYT::Save;
-        Save(*context, node->GetTargetPath());
-    }
-
-    void DoEndCopy(
-        TLinkNode* trunkNode,
-        TEndCopyContext* context,
-        ICypressNodeFactory* factory) override
-    {
-        TBase::DoEndCopy(trunkNode, context, factory);
-
-        using NYT::Load;
-        trunkNode->SetTargetPath(Load<NYTree::TYPath>(*context));
+        return implHolder;
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateLinkNodeTypeHandler(TBootstrap* bootstrap)
+INodeTypeHandlerPtr CreateLinkNodeTypeHandler(TBootstrap* bootstrap, ELinkType type)
 {
-    return New<TLinkNodeTypeHandler>(bootstrap);
+    switch (type) {
+        case ELinkType::Cypress:
+            return New<TCypressLinkNodeTypeHandler>(bootstrap);
+        case ELinkType::Sequoia:
+            return New<TSequoiaLinkNodeTypeHandler>(bootstrap);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

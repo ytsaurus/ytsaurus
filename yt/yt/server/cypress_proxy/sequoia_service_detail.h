@@ -28,10 +28,16 @@ public:
     const TResolveResult& GetResolveResultOrThrow() const override;
     void SetResolveResult(TResolveResult resolveResult);
 
+    TRange<TResolveStep> GetResolveHistory() const override;
+    void SetResolveHistory(std::vector<TResolveStep> resolveHistory);
+
+    std::optional<TResolveStep> TryGetLastResolveStep() const override;
+
 private:
     const NSequoiaClient::ISequoiaTransactionPtr Transaction_;
 
     std::optional<TResolveResult> ResolveResult_;
+    std::vector<TResolveStep> ResolveHistory_;
 
     // TODO(danilalexeev)
     std::optional<NProfiling::TWallTimer> Timer_;

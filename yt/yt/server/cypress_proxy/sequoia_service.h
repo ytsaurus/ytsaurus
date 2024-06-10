@@ -4,21 +4,29 @@
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/path_to_node_id.record.h>
+
 #include <yt/yt/core/rpc/service_detail.h>
 
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCypressResolveResult
-{ };
-
-struct TSequoiaResolveResult
+struct TResolveStep
 {
     NSequoiaClient::TAbsoluteYPath ResolvedPrefix;
     NCypressClient::TNodeId ResolvedPrefixNodeId;
 
     NSequoiaClient::TYPath UnresolvedSuffix;
+
+    NSequoiaClient::NRecords::TPathToNodeId Payload{};
+};
+
+using TSequoiaResolveResult = TResolveStep;
+
+struct TCypressResolveResult
+{
+    NSequoiaClient::TRawYPath Path;
 };
 
 using TResolveResult = std::variant<
@@ -34,6 +42,10 @@ struct ISequoiaServiceContext
     virtual const NSequoiaClient::ISequoiaTransactionPtr& GetSequoiaTransaction() const = 0;
 
     virtual const TResolveResult& GetResolveResultOrThrow() const = 0;
+
+    virtual TRange<TResolveStep> GetResolveHistory() const = 0;
+
+    virtual std::optional<TResolveStep> TryGetLastResolveStep() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISequoiaServiceContext);
@@ -52,6 +64,10 @@ public:
     const NSequoiaClient::ISequoiaTransactionPtr& GetSequoiaTransaction() const override;
 
     const TResolveResult& GetResolveResultOrThrow() const override;
+
+    TRange<TResolveStep> GetResolveHistory() const override;
+
+    std::optional<TResolveStep> TryGetLastResolveStep() const override;
 
     const ISequoiaServiceContextPtr& GetUnderlyingContext() const;
 

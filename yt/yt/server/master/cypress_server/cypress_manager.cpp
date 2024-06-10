@@ -1072,7 +1072,8 @@ public:
         RegisterHandler(New<TBooleanNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TCypressMapNodeTypeHandler>(Bootstrap_));
         RegisterHandler(New<TListNodeTypeHandler>(Bootstrap_));
-        RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_));
+        RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_, ELinkType::Cypress));
+        RegisterHandler(CreateLinkNodeTypeHandler(Bootstrap_, ELinkType::Sequoia));
         RegisterHandler(CreateDocumentNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateShardMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceTypeHandler(Bootstrap_));

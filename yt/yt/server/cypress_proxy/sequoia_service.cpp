@@ -30,6 +30,8 @@ using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSequoiaServiceContextWrapper::TSequoiaServiceContextWrapper(
@@ -53,6 +55,17 @@ const TResolveResult& TSequoiaServiceContextWrapper::GetResolveResultOrThrow() c
     return UnderlyingContext_->GetResolveResultOrThrow();
 }
 
+TRange<TResolveStep> TSequoiaServiceContextWrapper::GetResolveHistory() const
+{
+    return UnderlyingContext_->GetResolveHistory();
+}
+
+std::optional<TResolveStep> TSequoiaServiceContextWrapper::TryGetLastResolveStep() const
+{
+    return UnderlyingContext_->TryGetLastResolveStep();
+}
+
+
 const ISequoiaServiceContextPtr& TSequoiaServiceContextWrapper::GetUnderlyingContext() const
 {
     return UnderlyingContext_;
@@ -70,35 +83,67 @@ public:
 
     void Invoke(const ISequoiaServiceContextPtr& context) override
     {
-        ISequoiaServicePtr proxy;
         const auto& resolveResult = context->GetResolveResultOrThrow();
-        if (std::holds_alternative<TCypressResolveResult>(resolveResult)) {
-            if (!IsCreateRootstockRequest(context)) {
-                context->Reply(TError(
-                    NObjectClient::EErrorCode::RequestInvolvesCypress,
-                    "Cypress request has been passed to Sequoia"));
+        static_assert(std::variant_size<std::remove_reference_t<decltype(resolveResult)>>() == 2);
+        bool isSequoiaRequest = std::holds_alternative<TSequoiaResolveResult>(resolveResult);
+
+        if (context->GetMethod() == "Create") {
+            THandlerInvocationOptions options;
+            auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(context, options);
+            if (!typedContext->DeserializeRequest()) {
                 return;
             }
 
-            // NB: For rootstock resolve cannot be performed on Сypress proxy, but the transaction has to be started there.
-            // We assume path is correct, if this is not the case - prepare in 2PC will fail and the error will be propagated
-            // to the user.
-            proxy = CreateRootstockProxy(
-                Bootstrap_,
-                context->GetSequoiaTransaction(),
-                TAbsoluteYPath(GetRequestTargetYPath(context->RequestHeader())));
-        } else {
+            auto& request = typedContext->Request();
+            auto type = FromProto<EObjectType>(request.type());
+
+            switch (type) {
+                case EObjectType::Rootstock: {
+                    if (isSequoiaRequest) {
+                        break;
+                    }
+
+                    // NB: For rootstock resolve cannot be performed on Сypress proxy, but the transaction has to be started there.
+                    // We assume path is correct, if this is not the case - prepare in 2PC will fail and the error will be propagated
+                    // to the user.
+                    auto proxy = CreateRootstockProxy(
+                        Bootstrap_,
+                        context->GetSequoiaTransaction(),
+                        TAbsoluteYPath(GetRequestTargetYPath(context->RequestHeader())));
+                    proxy->Invoke(context);
+                    return;
+                }
+
+                case EObjectType::Link: {
+                    try {
+                        ValidateLinkNodeCreation(context, request);
+                    } catch (const std::exception& ex) {
+                        context->Reply(ex);
+                        return;
+                    }
+                    break;
+                }
+
+                default:
+                    break;
+            }
+        }
+
+        if (isSequoiaRequest) {
             const auto& sequoiaResolveResult = GetOrCrash<TSequoiaResolveResult>(resolveResult);
             auto prefixNodeId = sequoiaResolveResult.ResolvedPrefixNodeId;
 
-            proxy = CreateNodeProxy(
+            auto proxy = CreateNodeProxy(
                 Bootstrap_,
                 context->GetSequoiaTransaction(),
                 prefixNodeId,
                 sequoiaResolveResult.ResolvedPrefix);
+            proxy->Invoke(context);
+        } else {
+            context->Reply(TError(
+                NObjectClient::EErrorCode::RequestInvolvesCypress,
+                "Cypress request has been passed to Sequoia"));
         }
-
-        proxy->Invoke(context);
     }
 
 private:

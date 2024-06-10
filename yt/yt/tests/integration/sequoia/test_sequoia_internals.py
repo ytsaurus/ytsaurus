@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create, ls, get, remove, build_master_snapshots, raises_yt_error,
     exists, set, copy, move, gc_collect, write_table, read_table, create_user,
-    start_transaction, abort_transaction, commit_transaction,
+    start_transaction, abort_transaction, commit_transaction, link, wait
 )
 
 from yt_sequoia_helpers import (
@@ -11,7 +11,8 @@ from yt_sequoia_helpers import (
     select_paths_from_ground,
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
-    select_cypress_transaction_prerequisites,
+    select_cypress_transaction_prerequisites, lookup_rows_in_ground,
+    mangle_sequoia_path
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -64,6 +65,9 @@ class TestSequoiaInternals(YTEnvSetup):
         "10": {"roles": ["sequoia_node_host"]},
         "11": {"roles": ["sequoia_node_host"]},
     }
+
+    def lookup_path_to_node_id(self, path):
+        return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
     @authors("h0pless")
     def test_create_table(self):
@@ -370,6 +374,44 @@ class TestSequoiaInternals(YTEnvSetup):
         assert "m" in ls(path)
         child_id = create("map_node", r"//tmp/m\@1")
         assert get(r"//tmp/m\@1/@id") == child_id
+
+    @authors("danilalexeev")
+    def test_link_through_sequoia(self):
+        id1 = create("table", "//home/t1", recursive=True)
+        link("//home/t1", "//tmp/l1")
+        link("//tmp/l1", "//tmp/l2")
+        link("//tmp/l2", "//home/l3")
+        wait(lambda: len(self.lookup_path_to_node_id('//home/l3')) == 1)
+        link("//home/l3", "//home/l4")
+        wait(lambda: len(self.lookup_path_to_node_id('//home/l4')) == 1)
+        assert get("//tmp/l1/@id") == id1
+        assert get("//tmp/l2/@id") == id1
+        assert get("//home/l3/@id") == id1
+        assert get("//home/l4/@id") == id1
+        remove("//home", force=True, recursive=True)
+
+    @authors("danilalexeev")
+    def test_cyclic_link_through_sequoia(self):
+        link("//home/l2", "//tmp/l1", force=True)
+        link("//tmp/l3", "//home/l2", force=True, recursive=True)
+        wait(lambda: len(self.lookup_path_to_node_id('//home/l2')) == 1)
+        with raises_yt_error("Failed to create link: link is cyclic"):
+            link("//tmp/l1", "//tmp/l3", force=True)
+        remove("//home", force=True, recursive=True)
+
+    @authors("danilalexeev")
+    def test_broken_links(self):
+        set("//tmp/t1", 1)
+        set("//home/t2", 2, recursive=True)
+        link("//home/t2", "//tmp/l1")
+        link("//tmp/t1", "//home/l2")
+        assert not get("//tmp/l1&/@broken")
+        assert not get("//home/l2&/@broken")
+        remove("//tmp/t1")
+        remove("//home/t2")
+        assert get("//tmp/l1&/@broken")
+        assert get("//home/l2&/@broken")
+        remove("//home", force=True, recursive=True)
 
     @authors("kvk1920", "gritukan")
     def test_create_map_node(self):

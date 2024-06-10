@@ -8,7 +8,12 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap);
+DEFINE_ENUM(ELinkType,
+    ((Cypress) (0))
+    ((Sequoia) (1))
+);
+
+INodeTypeHandlerPtr CreateLinkNodeTypeHandler(NCellMaster::TBootstrap* bootstrap, ELinkType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

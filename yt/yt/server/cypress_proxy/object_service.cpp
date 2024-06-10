@@ -254,7 +254,7 @@ private:
             const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
             auto rspFuture = ExecuteVerb(
                 sequoiaService,
-                subrequest.RequestMessage,
+                &subrequest.RequestMessage,
                 client,
                 CypressProxyLogger());
             auto rsp = WaitFor(rspFuture)

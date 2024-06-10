@@ -581,7 +581,6 @@ class TestCypress(YTEnvSetup):
             copy("#" + tx, "//tmp/t")
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_copy_simple8(self):
         create("map_node", "//tmp/a")
         create("table", "//tmp/a/t")
@@ -1342,8 +1341,7 @@ class TestCypress(YTEnvSetup):
             remove_user("u", sync=False)
         remove_user("u", force=True)
 
-    @authors("babenko", "s-v-m")
-    @not_implemented_in_sequoia
+    @authors("babenko", "s-v-m", "danilalexeev")
     def test_link1(self):
         set("//tmp/a", 1)
         link("//tmp/a", "//tmp/b")
@@ -1351,22 +1349,20 @@ class TestCypress(YTEnvSetup):
         remove("//tmp/a")
         assert get("//tmp/b&/@broken")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link2(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
         assert get("//tmp/t2") == 1
-        assert get("//tmp/t2/@type") == "int64_node"
+        wait(lambda: get("//tmp/t2/@type") == "int64_node")
         assert get("//tmp/t1/@id") == get("//tmp/t2/@id")
-        assert get("//tmp/t2&/@type") == "link"
+        assert get("//tmp/t2&/@type") == "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
         assert not get("//tmp/t2&/@broken")
 
         set("//tmp/t1", 2)
         assert get("//tmp/t2") == 2
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link3(self):
         set("//tmp/t1", 1)
         link("//tmp/t1", "//tmp/t2")
@@ -1390,16 +1386,14 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             read_table("//tmp/t2")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link5(self):
         set("//tmp/t1", 1)
         set("//tmp/t2", 2)
         with pytest.raises(YtError):
             link("//tmp/t1", "//tmp/t2")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link6(self):
         create("table", "//tmp/a")
         link("//tmp/a", "//tmp/b")
@@ -1407,7 +1401,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/a")
         assert exists("//tmp/b")
         assert exists("//tmp/b&")
-        assert exists("//tmp/b/@id")
+        wait(lambda: exists("//tmp/b/@id"))
         assert exists("//tmp/b/@row_count")
         assert exists("//tmp/b&/@target_path")
         assert not exists("//tmp/b/@x")
@@ -1450,18 +1444,16 @@ class TestCypress(YTEnvSetup):
         assert not get("//tmp/link1&/@broken")
         assert not get("//tmp/link2&/@broken")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_existing_fail(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
-        assert get("//tmp/l/@id") == id1
+        wait(lambda: get("//tmp/l/@id") == id1)
         with pytest.raises(YtError):
             link("//tmp/t2", "//tmp/l")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_ignore_existing(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1469,47 +1461,42 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t2", "//tmp/l", ignore_existing=True)
         assert get("//tmp/l/@id") == id1
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_force1(self):
         id1 = create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         link("//tmp/t2", "//tmp/l", force=True)
         assert get("//tmp/t1/@id") == id1
-        assert get("//tmp/l/@id") == id2
+        wait(lambda: get("//tmp/l/@id") == id2)
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_force2(self):
         create("table", "//tmp/t1")
         id2 = create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         remove("//tmp/t1")
-        assert get("//tmp/l&/@broken")
+        wait(lambda: get("//tmp/l&/@broken"))
         link("//tmp/t2", "//tmp/l", force=True)
-        assert get("//tmp/l/@id") == id2
+        wait(lambda: get("//tmp/l/@id") == id2, ignore_exceptions=True)
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_ignore_existing_force_fail(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
             link("//tmp/t", "//tmp/l", ignore_existing=True, force=True)
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_to_link(self):
         id = create("table", "//tmp/t")
         link("//tmp/t", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
-        assert get("//tmp/l2/@id") == id
+        wait(lambda: get("//tmp/l2/@id") == id)
         assert not get("//tmp/l2&/@broken")
         remove("//tmp/l1")
         assert get("//tmp/l2&/@broken")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_as_copy_target_fail(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1517,18 +1504,16 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             copy("//tmp/t2", "//tmp/l")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_as_copy_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         copy("//tmp/t2", "//tmp/l", force=True)
-        assert get("//tmp/l/@type") == "table"
+        wait(lambda: get("//tmp/l/@type") == "table")
         assert get("//tmp/t1/@id") == id1
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_as_move_target_fail(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1536,19 +1521,17 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             move("//tmp/t2", "//tmp/l")
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_link_as_move_target_success(self):
         id1 = create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         link("//tmp/t1", "//tmp/l")
         move("//tmp/t2", "//tmp/l", force=True)
-        assert get("//tmp/l/@type") == "table"
+        wait(lambda: get("//tmp/l/@type") == "table")
         assert not exists("//tmp/t2")
         assert get("//tmp/t1/@id") == id1
 
-    @authors("h0pless")
-    @not_implemented_in_sequoia
+    @authors("h0pless", "danilalexeev")
     def test_cyclic_link(self):
         create("map_node", "//tmp/a/b/c", recursive=True)
         link("//tmp/a/b/c", "//tmp/a/l1")
@@ -1568,8 +1551,7 @@ class TestCypress(YTEnvSetup):
             create("link", "//tmp/a/b/c/d/e", attributes={"target_path": "//tmp/a/b/c/d/e"}, recursive=True, force=True)
 
     # Test for YTADMINREQ-29192 issue.
-    @authors("h0pless")
-    @not_implemented_in_sequoia
+    @authors("h0pless", "danilalexeev")
     def test_non_cyclic_link_to_link(self):
         create("table", "//tmp/t1")
         link("//tmp/t1", "//tmp/l1")
@@ -1593,16 +1575,16 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b/x")
         assert get("//tmp/b/y") == 1
 
-    @authors("babenko")
-    @not_implemented_in_sequoia
+    @authors("babenko", "danilalexeev")
     def test_resolve_suppress_via_object_id_yt_6694(self):
         create("map_node", "//tmp/a")
         link("//tmp/a", "//tmp/b")
         id = get("//tmp/b&/@id")
-        assert get("//tmp/b/@type") == "map_node"
-        assert get("//tmp/b&/@type") == "link"
+        wait(lambda: get("//tmp/b/@type") == "map_node")
+        expected_type = "link" if not self.ENABLE_TMP_ROOTSTOCK else "sequoia_link"
+        assert get("//tmp/b&/@type") == expected_type
         assert get("#{0}/@type".format(id)) == "map_node"
-        assert get("#{0}&/@type".format(id)) == "link"
+        assert get("#{0}&/@type".format(id)) == expected_type
 
     @authors("kiselyovp")
     def test_escaped_symbols(self):

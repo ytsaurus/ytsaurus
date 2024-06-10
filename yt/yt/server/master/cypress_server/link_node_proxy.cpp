@@ -116,14 +116,13 @@ private:
     {
         try {
             const auto* linkNode = GetThisImpl();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            auto req = TYPathProxy::Exists(linkNode->ComputeEffectiveTargetPath());
-            auto rsp = ExecuteVerb(objectManager->GetRootService(), req);
-            return rsp.Apply(BIND([] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
+            const auto& client = Bootstrap_->GetRootClient();
+            auto rsp = client->NodeExists(linkNode->ComputeEffectiveTargetPath());
+            return rsp.Apply(BIND([] (const TErrorOr<bool>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     return TrueFuture;
                 }
-                return MakeFuture(!rspOrError.Value()->value());
+                return MakeFuture(!rspOrError.Value());
             }));
         } catch (const std::exception& ex) {
             return MakeFuture<bool>(ex);

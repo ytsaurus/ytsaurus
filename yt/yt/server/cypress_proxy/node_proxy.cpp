@@ -89,8 +89,11 @@ IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     Exists,
     {
         context->SetRequestInfo();
-        Reply(context, /*exists*/ false);
+        // An empty stream indicates that the object exists. Paths that end up being resolved here
+        // and must return a positive resoponse are usually those with a trailing '&'.
+        Reply(context, /*exists*/ tokenizer.GetType() == NYPath::ETokenType::EndOfStream);
     })
+
 
 void TSupportsExists::ExistsAttribute(
     const NYPath::TYPath& /*path*/,
@@ -453,6 +456,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
         type = EObjectType::SequoiaMapNode;
     }
 
+    if (type == EObjectType::Link) {
+        type = EObjectType::SequoiaLink;
+    }
+
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
     }
@@ -460,6 +467,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
     if (!IsSupportedSequoiaType(type)) {
         THROW_ERROR_EXCEPTION("Creation of %Qlv is not supported in Sequoia yet",
             type);
+    }
+
+    IAttributeDictionaryPtr explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = NYTree::FromProto(request->node_attributes());
     }
 
     auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
@@ -536,6 +548,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Create)
         type,
         childId,
         requestedChildPath,
+        explicitAttributes.Get(),
         Transaction_);
     AttachChild(intermediateParentId, childId, targetName, Transaction_);
 
@@ -614,15 +627,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    auto header = context->GetRequestHeader();
-    SetRequestTargetYPath(&header, originalSourcePath.Underlying());
-    auto updatedMessage = NRpc::SetRequestHeader(context->GetRequestMessage(), header);
-    auto sourceContext = CreateSequoiaContext(std::move(updatedMessage), Transaction_);
+    // TODO(danilalexeev): rewrite this once resolve context is seperated from rpc context.
+    auto sourceContext = CreateSequoiaContext(
+        context->GetRequestMessage(),
+        Transaction_);
 
-    ResolvePath(sourceContext.Get());
-
+    ResolvePath(sourceContext.Get(), /*method*/ {}, TRawYPath(originalSourcePath.ToString()));
     const auto& resolveResult = sourceContext->GetResolveResultOrThrow();
-    auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult);
+
+    const auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult);
     if (!payload) {
         // TODO(h0pless): Throw CrossCellAdditionalPath error once {Begin,End}Copy are working.
         THROW_ERROR_EXCEPTION("%v is not a sequoia object, Cypress-to-Sequoia copy is not supported yet",
@@ -857,7 +870,12 @@ private:
         {
             YT_ASSERT(ParentPath_);
             auto nodeId = Owner_->Transaction_->GenerateObjectId(type);
-            NCypressProxy::CreateNode(type, nodeId, YPathJoin(*ParentPath_, ChildKey_), Owner_->Transaction_);
+            NCypressProxy::CreateNode(
+                type,
+                nodeId,
+                YPathJoin(*ParentPath_, ChildKey_),
+                /*explicitAttributes*/ nullptr,
+                Owner_->Transaction_);
             return nodeId;
         }
 

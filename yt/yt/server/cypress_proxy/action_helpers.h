@@ -5,7 +5,7 @@
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -16,6 +16,11 @@
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TWriteSequoiaNodeRowsOptions
+{
+    std::optional<NSequoiaClient::TAbsoluteYPath> RedirectPath;
+};
 
 struct TCopyOptions
 {
@@ -35,6 +40,7 @@ struct TCopyOptions
 void WriteSequoiaNodeRows(
     NCypressClient::TNodeId id,
     NSequoiaClient::TAbsoluteYPathBuf path,
+    const TWriteSequoiaNodeRowsOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 void DeleteSequoiaNodeRows(
@@ -51,10 +57,11 @@ void CreateNode(
     NCypressClient::EObjectType type,
     NCypressClient::TNodeId id,
     NSequoiaClient::TAbsoluteYPathBuf path,
+    const NYTree::IAttributeDictionary* explicitAttributes,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 NCypressClient::TNodeId CopyNode(
-    NCypressClient::TNodeId sourceNodeId,
+    const NSequoiaClient::NRecords::TPathToNodeId& sourceNode,
     NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
     const TCopyOptions& options,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);

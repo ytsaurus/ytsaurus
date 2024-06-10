@@ -85,6 +85,7 @@ private:
     {
         return
             type == EObjectType::SequoiaMapNode ||
+            type == EObjectType::SequoiaLink ||
             IsScalarType(type) ||
             IsChunkOwnerType(type);
     }
@@ -116,20 +117,26 @@ private:
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
 
+        IAttributeDictionaryPtr explicitAttributes;
+        if (request->has_node_attributes()) {
+            explicitAttributes = NYTree::FromProto(request->node_attributes());
+        }
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
+
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
             /*transaction*/ nullptr,
             securityManager->GetSysAccount(),
             /*options*/ {});
-        // TODO(kvk1920): Remove const cast.
-        auto* attributes = &NYTree::EmptyAttributes();
+
         auto* node = nodeFactory->CreateNode(
             type,
             nodeId,
-            const_cast<NYTree::IAttributeDictionary*>(attributes),
-            const_cast<NYTree::IAttributeDictionary*>(attributes))->GetTrunkNode();
+            /*inheritedAttributes*/ nullptr,
+            explicitAttributes.Get())
+            ->GetTrunkNode();
 
         TCypressNode::TImmutableSequoiaProperties immutableProperties(
             /*key*/ NYPath::DirNameAndBaseName(request->path()).second,

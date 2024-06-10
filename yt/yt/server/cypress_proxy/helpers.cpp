@@ -4,6 +4,8 @@
 #include "path_resolver.h"
 #include "sequoia_service_detail.h"
 
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/yt/ytlib/sequoia_client/client.h>
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
@@ -31,6 +33,7 @@ using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NYPath;
 using namespace NRpc;
+using namespace NYTree;
 
 using NYT::FromProto;
 
@@ -90,36 +93,112 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsLinkType(NCypressClient::EObjectType type)
+{
+    return type == EObjectType::Link || type == EObjectType::SequoiaLink;
+}
+
+void ValidateLinkNodeCreation(
+    const ISequoiaServiceContextPtr& context,
+    const NCypressClient::NProto::TReqCreate& request)
+{
+    auto explicitAttributes = request.has_node_attributes()
+        ? NYTree::FromProto(request.node_attributes())
+        : CreateEphemeralAttributes();
+    // TODO(danilalexeev): In case of a master-object designator the following resolve will not produce
+    // a meaningful result. Such YPath has to be resolved by master first.
+    auto originalTargetPath = explicitAttributes->GetAndRemove<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern());
+
+    auto getCanonicalYPathView = [] (const TResolveResult& result) {
+        return Visit(result,
+            [&] (const TSequoiaResolveResult& result) {
+                TTokenizer tokenizer(result.UnresolvedSuffix.Underlying());
+                tokenizer.Advance();
+                tokenizer.Skip(ETokenType::Ampersand);
+                return result.ResolvedPrefix + TYPath(tokenizer.GetInput());
+            },
+            [&] (const TCypressResolveResult& result) {
+                return TAbsoluteYPath(result.Path);
+            });
+    };
+    auto linkPath = getCanonicalYPathView(context->GetResolveResultOrThrow());
+
+    auto checkAcyclicity = [&] (const TRawYPath& pathToResolve, const TAbsoluteYPath& forbiddenPrefix) {
+        // TODO(danilalexeev): rewrite this once resolve context is seperated from rpc context.
+        auto resolveContext = CreateSequoiaContext(
+            context->GetRequestMessage(),
+            context->GetSequoiaTransaction());
+
+        ResolvePath(
+            resolveContext.Get(),
+            /*method*/ {},
+            pathToResolve);
+        const auto& resolveResult = resolveContext->GetResolveResultOrThrow();
+
+        for (const auto& resolveStep : resolveContext->GetResolveHistory()) {
+            if (IsLinkType(TypeFromId(resolveStep.ResolvedPrefixNodeId)) &&
+                resolveStep.ResolvedPrefix == forbiddenPrefix)
+            {
+                return false;
+            }
+        }
+
+        return getCanonicalYPathView(resolveResult) != forbiddenPrefix;
+    };
+
+    if (!checkAcyclicity(originalTargetPath, linkPath)) {
+        THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
+            << TErrorAttribute("target_path", originalTargetPath)
+            << TErrorAttribute("path", linkPath);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFuture<TSharedRefArray> ExecuteVerb(
     const ISequoiaServicePtr& service,
-    const TSharedRefArray& requestMessage,
+    TSharedRefArray* requestMessage,
     const ISequoiaClientPtr& client,
     NLogging::TLogger logger,
     NLogging::ELogLevel logLevel)
 {
+    YT_VERIFY(requestMessage);
+
     TIntrusivePtr<TSequoiaServiceContext> context;
     try {
         auto transaction = WaitFor(StartCypressProxyTransaction(client))
             .ValueOrThrow();
 
         context = CreateSequoiaContext(
-            requestMessage,
-            std::move(transaction),
+            *requestMessage,
+            transaction,
             std::move(logger),
             logLevel);
-        ResolvePath(context.Get());
+        ResolvePath(
+            context.Get(),
+            context->GetMethod(),
+            TRawYPath(GetRequestTargetYPath(context->GetRequestHeader())));
     } catch (const std::exception& ex) {
         return MakeFuture(CreateErrorResponseMessage(ex));
     }
 
-    const auto& resolveResult = context->GetResolveResultOrThrow();
-    if (auto* payload = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
+    // Resolve history is not empty iff we have encountered a symlink or a scion during
+    // the resolving process, target path must be modified accordingly.
+    if (auto resolveStep = context->TryGetLastResolveStep()) {
         auto requestHeader = std::make_unique<NRpc::NProto::TRequestHeader>();
-        if (!ParseRequestHeader(requestMessage, requestHeader.get())) {
+        if (!ParseRequestHeader(*requestMessage, requestHeader.get())) {
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
-        NYTree::SetRequestTargetYPath(requestHeader.get(), payload->UnresolvedSuffix.Underlying());
+        auto newTargetPath = Visit(context->GetResolveResultOrThrow(),
+            [&] (const TSequoiaResolveResult& result) {
+                return TRawYPath(result.UnresolvedSuffix.ToString());
+            },
+            [&] (const TCypressResolveResult& result) {
+                return result.Path;
+            });
+        SetRequestTargetYPath(requestHeader.get(), newTargetPath.Underlying());
         context->SetRequestHeader(std::move(requestHeader));
+        *requestMessage = context->GetRequestMessage();
     }
 
     auto asyncResponseMessage = context->GetAsyncResponseMessage();
@@ -127,23 +206,6 @@ TFuture<TSharedRefArray> ExecuteVerb(
     service->Invoke(context);
 
     return asyncResponseMessage;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsCreateRootstockRequest(const ISequoiaServiceContextPtr& context)
-{
-    if (context->GetMethod() != "Create") {
-        return false;
-    }
-
-    THandlerInvocationOptions options;
-    auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(context, options);
-    if (!typedContext->DeserializeRequest()) {
-        THROW_ERROR_EXCEPTION("Error deserializing request");
-    }
-
-    return FromProto<EObjectType>(typedContext->Request().type()) == EObjectType::Rootstock;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +254,10 @@ TAbsoluteYPath JoinNestedNodesToPath(
 
 bool IsSupportedSequoiaType(EObjectType type)
 {
-    return IsSequoiaCompositeNodeType(type) || IsScalarType(type) || IsChunkOwnerType(type);
+    return IsSequoiaCompositeNodeType(type) ||
+        IsScalarType(type) ||
+        IsChunkOwnerType(type) ||
+        type == EObjectType::SequoiaLink;
 }
 
 bool IsSequoiaCompositeNodeType(EObjectType type)
@@ -284,6 +349,7 @@ TNodeId CreateIntermediateNodes(
             EObjectType::SequoiaMapNode,
             currentNodeId,
             currentNodePath,
+            /*explicitAttributes*/ nullptr,
             transaction);
         AttachChild(prevNodeId, currentNodeId, key, transaction);
         prevNodeId = currentNodeId;
@@ -307,7 +373,7 @@ TNodeId CopySubtree(
             sourceRootPath.Underlying().size(),
             destinationRootPath.Underlying());
         destinationNodeId = CopyNode(
-            it->NodeId,
+            *it,
             destinationNodePath,
             options,
             transaction);
