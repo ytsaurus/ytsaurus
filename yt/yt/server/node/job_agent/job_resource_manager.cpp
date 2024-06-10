@@ -295,7 +295,7 @@ public:
         return result;
     }
 
-    i32 OccupiedUserSlots() const
+    int OccupiedUserSlots() const
     {
         auto guard = ReaderGuard(ResourcesLock_);
         auto occupiedResources =

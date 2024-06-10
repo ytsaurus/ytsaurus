@@ -214,7 +214,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
         YT_LOG_DEBUG(
-            "Slot manager is already in %v state. Skipping InitializeEnvironment",
+            "Slot manager is already in (%v) state; skipping InitializeEnvironment",
             expected);
         return VoidFuture;
     }
@@ -664,7 +664,7 @@ void TSlotManager::ForceInitialize()
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Initializing)) {
         YT_LOG_DEBUG(
-            "Slot manager is already in %v state. Skipping ForceInitialize",
+            "Slot manager is already in (%v) state; skipping ForceInitialize",
             expected);
     } else {
         State_.store(ESlotManagerState::Initialized);
@@ -728,7 +728,7 @@ bool TSlotManager::Disable(TError error)
 
     if (!State_.compare_exchange_strong(expected, ESlotManagerState::Disabling)) {
         YT_LOG_DEBUG(
-            "Slot manager is already in %v state. Skipping Disable",
+            "Slot manager is already in (%v) state; skipping Disable",
             expected);
         return false;
     }
