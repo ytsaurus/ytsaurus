@@ -51,9 +51,6 @@ static inline const NLogging::TLogger Logger("Process");
 
 static constexpr pid_t InvalidProcessId = -1;
 
-static constexpr int ExecveRetryCount = 5;
-static constexpr auto ExecveRetryTimeout = TDuration::Seconds(1);
-
 static constexpr int ResolveRetryCount = 5;
 static constexpr auto ResolveRetryTimeout = TDuration::Seconds(1);
 
@@ -454,17 +451,10 @@ void TSimpleProcess::DoSpawn()
 
     SpawnActions_.push_back(TSpawnAction{
         [this] {
-            for (int retryIndex = 0; retryIndex < ExecveRetryCount; ++retryIndex) {
-                // Execve may fail, if called binary is being updated, e.g. during yandex-yt package update.
-                // So we'd better retry several times.
-                // For example see YT-6352.
-                TryExecve(ResolvedPath_.c_str(), Args_.data(), Env_.data());
-                if (retryIndex < ExecveRetryCount - 1) {
-                    Sleep(ExecveRetryTimeout);
-                }
-            }
-            // If we are still here, return failure.
-            return false;
+            // Execve may fail, if called binary is being updated, e.g. during yandex-yt package update
+            // with errno ETXTBSY - executable file is open for writing. For example see YT-6352.
+            // Initiator could retry after getting error EProcessErrorCode::CannotStartProcess.
+            return TryExecve(ResolvedPath_.c_str(), Args_.data(), Env_.data());
         },
         "Error starting child process: execve failed"
     });
@@ -491,8 +481,9 @@ void TSimpleProcess::DoSpawn()
 
 void TSimpleProcess::SpawnChild()
 {
-    // NB: fork() will cause data corruption when run concurrently with
-    // Disk IO on O_DIRECT file descriptor. Seems like vfork don't suffer from the same issue.
+    // NB: fork() copy-on-write cause undefined behaviour when run concurrently with
+    // Disk IO on O_DIRECT file descriptor. vfork don't suffer from the same issue.
+    // NB: vfork() blocks parent until child executes new program or exits.
 
 #ifdef _unix_
     int pid = vfork();
