@@ -100,6 +100,9 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     }
     UpdateYsonStructField(ThrottleDuration, dynamicConfig.ThrottleDuration);
 
+    UpdateYsonStructField(EnableUncategorizedThrottler, dynamicConfig.EnableUncategorizedThrottler);
+    UpdateYsonStructField(UncategorizedThrottler, dynamicConfig.UncategorizedThrottler);
+
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 }
 
@@ -111,6 +114,12 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Default();
+
+    registrar.Parameter("enable_uncategorized_throttler", &TThis::EnableUncategorizedThrottler)
+        .Default(false);
+
+    registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
+        .DefaultNew();
 
     registrar.Parameter("io_engine_type", &TThis::IOEngineType)
         .Default(NIO::EIOEngineType::ThreadPool);
@@ -155,6 +164,10 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("throttlers", &TThis::Throttlers)
         .Optional();
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
+        .Optional();
+    registrar.Parameter("enable_uncategorized_throttler", &TThis::EnableUncategorizedThrottler)
+        .Optional();
+    registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .Optional();
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
