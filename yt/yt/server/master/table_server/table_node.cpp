@@ -429,7 +429,7 @@ bool TTableNode::IsTrackedQueueProducerObject() const
 
 bool TTableNode::IsEmpty() const
 {
-    return ComputeTotalStatistics().chunk_count() == 0;
+    return ComputeTotalStatistics().ChunkCount == 0;
 }
 
 bool TTableNode::IsLogicallyEmpty() const

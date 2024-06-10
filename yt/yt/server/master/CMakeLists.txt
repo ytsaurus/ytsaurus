@@ -394,6 +394,7 @@ target_sources(yt-server-master PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_merger_traversal_info.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_merger.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_data_statistics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_node_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_owner_type_handler.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_placement.cpp

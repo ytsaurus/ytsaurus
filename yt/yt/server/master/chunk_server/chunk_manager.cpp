@@ -1186,29 +1186,6 @@ public:
         return chunk;
     }
 
-    TChunkTreeStatistics ConstructChunkStatistics(
-        TChunkId chunkId,
-        const TMiscExt& miscExt,
-        const TChunkInfo& chunkInfo)
-    {
-        TChunkTreeStatistics statistics;
-        statistics.RowCount = miscExt.row_count();
-        statistics.LogicalRowCount = miscExt.row_count();
-        statistics.UncompressedDataSize = miscExt.uncompressed_data_size();
-        statistics.CompressedDataSize = miscExt.compressed_data_size();
-        statistics.DataWeight = miscExt.data_weight();
-        statistics.LogicalDataWeight = miscExt.data_weight();
-        if (IsErasureChunkId(chunkId)) {
-            statistics.ErasureDiskSpace = chunkInfo.disk_space();
-        } else {
-            statistics.RegularDiskSpace = chunkInfo.disk_space();
-        }
-        statistics.ChunkCount = 1;
-        statistics.LogicalChunkCount = 1;
-        statistics.Rank = 0;
-        return statistics;
-    }
-
     void HydraPrepareCreateChunk(
         TTransaction* /*transaction*/,
         TReqCreateChunk* request,
@@ -4917,7 +4894,7 @@ private:
             schemaId);
 
         if (subresponse && subrequest->request_statistics()) {
-            *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
+            ToProto(subresponse->mutable_statistics(), chunk->GetStatistics().ToDataStatistics());
         }
     }
 
@@ -5039,7 +5016,7 @@ private:
         AttachToChunkList(parent, children);
 
         if (subrequest->request_statistics()) {
-            *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
+            ToProto(subresponse->mutable_statistics(), parent->Statistics().ToDataStatistics());
         }
 
         YT_LOG_DEBUG("Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
@@ -6438,7 +6415,7 @@ private:
                         trunkJournalNode->GetId());
                 } else {
                     const auto& journalManager = Bootstrap_->GetJournalManager();
-                    journalManager->SealJournal(trunkJournalNode, nullptr);
+                    journalManager->SealJournal(trunkJournalNode);
                 }
             }
         }

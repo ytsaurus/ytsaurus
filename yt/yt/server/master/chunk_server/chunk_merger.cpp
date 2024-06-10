@@ -1721,20 +1721,20 @@ void TChunkMerger::GuardedDisableChunkMerger()
 
 void TChunkMerger::ValidateStatistics(
     TObjectId nodeId,
-    const NChunkClient::NProto::TDataStatistics& oldStatistics,
-    const NChunkClient::NProto::TDataStatistics& newStatistics)
+    const TChunkOwnerDataStatistics& oldStatistics,
+    const TChunkOwnerDataStatistics& newStatistics)
 {
-    YT_LOG_ALERT_IF(oldStatistics.row_count() != newStatistics.row_count(),
+    YT_LOG_ALERT_IF(oldStatistics.RowCount != newStatistics.RowCount,
         "Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
         nodeId,
-        oldStatistics.row_count(),
-        newStatistics.row_count());
+        oldStatistics.RowCount,
+        newStatistics.RowCount);
 
-    YT_LOG_ALERT_IF(oldStatistics.data_weight() != newStatistics.data_weight(),
+    YT_LOG_ALERT_IF(oldStatistics.DataWeight != newStatistics.DataWeight,
         "Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
         nodeId,
-        oldStatistics.data_weight(),
-        newStatistics.data_weight());
+        oldStatistics.DataWeight,
+        newStatistics.DataWeight);
 }
 
 void TChunkMerger::RemoveNodeFromRescheduleMaps(TAccountId accountId, NCypressClient::TNodeId nodeId)

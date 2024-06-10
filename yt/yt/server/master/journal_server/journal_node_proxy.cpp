@@ -284,7 +284,7 @@ private:
         YT_VERIFY(journal->IsTrunk());
 
         const auto& journalManager = Bootstrap_->GetJournalManager();
-        journalManager->UpdateStatistics(journal->GetTrunkNode(), &request->statistics());
+        journalManager->UpdateStatistics(journal->GetTrunkNode(), FromProto<TChunkOwnerDataStatistics>(request->statistics()));
 
         context->Reply();
     }
@@ -301,7 +301,7 @@ private:
 
         auto* journal = GetThisImpl();
         const auto& journalManager = Bootstrap_->GetJournalManager();
-        journalManager->SealJournal(journal, &request->statistics());
+        journalManager->SealJournal(journal, FromProto<TChunkOwnerDataStatistics>(request->statistics()));
 
         context->Reply();
     }

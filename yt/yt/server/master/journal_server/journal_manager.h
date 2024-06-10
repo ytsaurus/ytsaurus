@@ -19,14 +19,17 @@ struct IJournalManager
 {
     virtual void UpdateStatistics(
         TJournalNode* trunkNode,
-        const NChunkClient::NProto::TDataStatistics* statistics) = 0;
+        const NChunkServer::TChunkOwnerDataStatistics& statistics) = 0;
 
     //! Marks the journal as sealed and updates its snapshot statistics.
-    //! If #statistics is |nullptr| then computes one from chunk lists.
     //! For secondary masters, this call also notifies the primary.
     virtual void SealJournal(
         TJournalNode* trunkNode,
-        const NChunkClient::NProto::TDataStatistics* statistics) = 0;
+        const NChunkServer::TChunkOwnerDataStatistics& statistics) = 0;
+
+    //! Marks the journal as sealed and updates its snapshot statistics with computed one from chunk list.
+    //! For secondary masters, this call also notifies the primary.
+    virtual void SealJournal(TJournalNode* trunkNode) = 0;
 
     virtual void TruncateJournal(
         TJournalNode* trunkNode,

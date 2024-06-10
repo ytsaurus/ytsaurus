@@ -83,6 +83,7 @@ SRCS(
     chunk_server/chunk_merger_traversal_info.cpp
     chunk_server/chunk_merger.cpp
     chunk_server/chunk_owner_base.cpp
+    chunk_server/chunk_owner_data_statistics.cpp
     chunk_server/chunk_owner_node_proxy.cpp
     chunk_server/chunk_owner_type_handler.cpp
     chunk_server/chunk_placement.cpp

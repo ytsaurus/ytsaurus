@@ -1,6 +1,8 @@
 #pragma once
 
 #include "chunk.h"
+#include "chunk_merger_traversal_info.h"
+#include "chunk_owner_data_statistics.h"
 
 #include <yt/yt/server/master/cypress_server/node.h>
 
@@ -13,8 +15,6 @@
 #include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
-
-#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -35,9 +35,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, HunkReplication);
     DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     DEFINE_BYVAL_RW_PROPERTY(int, HunkPrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, SnapshotStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, SnapshotSecurityTags);
-    DEFINE_BYREF_RW_PROPERTY(NChunkClient::NProto::TDataStatistics, DeltaStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, DeltaStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, DeltaSecurityTags);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NCompression::ECodec, CompressionCodec);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TChunkOwnerBase, NErasure::ECodec, ErasureCodec);
@@ -109,11 +109,10 @@ public:
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NCompression::ECodec> CompressionCodec;
         std::optional<NErasure::ECodec> ErasureCodec;
-        const NChunkClient::NProto::TDataStatistics* Statistics = nullptr;
+        std::optional<TChunkOwnerDataStatistics> Statistics;
         std::optional<NChunkClient::EChunkFormat> ChunkFormat;
         std::optional<NCrypto::TMD5Hasher> MD5Hasher;
         NSecurityServer::TInternedSecurityTags SecurityTags;
-
     };
 
     virtual void EndUpload(const TEndUploadContext& context);
@@ -125,9 +124,7 @@ public:
     NSecurityServer::TClusterResources GetDeltaResourceUsage() const override;
     NSecurityServer::TClusterResources GetTotalResourceUsage() const override;
 
-    NChunkClient::NProto::TDataStatistics ComputeTotalStatistics() const;
-
-    bool HasDataWeight() const;
+    TChunkOwnerDataStatistics ComputeTotalStatistics() const;
 
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
@@ -142,9 +139,9 @@ public:
 private:
     TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
-    NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
+    TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 
-    NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
+    NSecurityServer::TClusterResources GetDiskUsage(const TChunkOwnerDataStatistics& statistics) const;
 
     // COMPAT(shakurov)
     void DoFixStatistics();
