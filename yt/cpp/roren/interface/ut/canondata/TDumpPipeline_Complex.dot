@@ -1,0 +1,21 @@
+digraph pipeline {
+    "MeaningfulRead" [shape=box];
+    "MeaningfulRead" -> "first" [label = "id=0, type=\"NBigRT::TMessageBatch\""];
+    "MeaningfulRead" -> "ParDo" [label = "id=0, type=\"NBigRT::TMessageBatch\""];
+    "first" [shape=box];
+    "first" -> "StartConcurrencyBlock/Flatten" [label = "id=1, type=\"unsigned long\""];
+    "StartConcurrencyBlock/Flatten" [shape=box];
+    "StartConcurrencyBlock/Flatten" -> "second" [label = "id=2, type=\"unsigned long\""];
+    "second" [shape=box];
+    "second" -> "third" [label = "id=3, type=\"unsigned long\""];
+    "third" [shape=box];
+    "ParDo" [shape=box];
+    "ParDo" -> "ParDo2" [label = "id=4, type=\"TVector<NBigRT::TMessageBatch::TMessage, std::__y1::allocator<NBigRT::TMessageBatch::TMessage>>\""];
+    "ParDo2" [shape=box];
+    "ParDo2" -> "ParDo3" [label = "id=5, type=\"NBigRT::TMessageBatch::TMessage\""];
+    "ParDo2" -> "Size" [label = "id=5, type=\"NBigRT::TMessageBatch::TMessage\""];
+    "ParDo3" [shape=box];
+    "Size" [shape=box];
+    "Size" -> "ParDo4" [label = "id=6, type=\"unsigned long\""];
+    "ParDo4" [shape=box];
+}

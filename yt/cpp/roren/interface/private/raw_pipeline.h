@@ -75,7 +75,7 @@ public:
         return SinkOf_;
     }
 
-    const THashSet<TTransformNode*>& GetSourceFor() const
+    const TVector<TTransformNode*>& GetSourceFor() const
     {
         return SourceFor_;
     }
@@ -95,7 +95,7 @@ private:
     const TRowVtable RowVtable_;
     const int Id_;
     TTransformNode* const SinkOf_;
-    THashSet<TTransformNode*> SourceFor_;
+    TVector<TTransformNode*> SourceFor_;
     TAttributes Attributes_;
 
 private:
@@ -218,6 +218,8 @@ public:
 
     std::shared_ptr<TStartTransformGuard> StartTransformGuard(TString name);
 
+    TString DumpDot() const;
+    void Dump(NYT::NYson::IYsonConsumer* consumer) const;
 private:
     TPCollectionNodePtr AllocatePCollectionNode(TRowVtable rowVtable, TTransformNode* outputOf)
     {

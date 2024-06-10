@@ -1,0 +1,124 @@
+LIBRARY()
+
+PEERDIR(
+    bigrt/lib/consuming_system
+    bigrt/lib/processing/shard_processor/fallback
+    bigrt/lib/processing/shard_processor/stateless
+    bigrt/lib/queue/message_batch
+    bigrt/lib/supplier
+    bigrt/lib/supplier/logbroker
+    bigrt/lib/utility/liveness_checker
+    bigrt/lib/utility/logging
+    bigrt/lib/utility/profiling
+    bigrt/lib/utility/profiling/vcpu_factor
+    bigrt/lib/utility/throttler
+    bigrt/lib/utility/timers
+    bigrt/lib/writer/base
+    bigrt/lib/writer/swift
+    bigrt/lib/writer/yt_queue
+    bigrt/lib/writer/yt_dyntable
+    bigrt/lib/serializable_profile/proto
+    bigrt/lib/processing/resharder/shard_number
+    bigrt/lib/processing/state_cache/config
+    bigrt/lib/processing/state_manager/generic/proto
+    bigrt/lib/processing/state_manager/profile_manager
+    ads/bsyeti/libs/backtrace
+    ads/bsyeti/libs/tvm_manager
+    ads/bsyeti/libs/ytex/program
+    ads/bsyeti/libs/ytex/common
+    ads/bsyeti/libs/ytex/http/proto
+    grut/libs/client/factory/interface
+    kernel/yt/dynamic # TODO: must be removed
+    library/cpp/framing
+    library/cpp/safe_stats
+    yt/cpp/roren/bigrt/config
+    yt/cpp/roren/bigrt/graph
+    yt/cpp/roren/bigrt/proto
+    yt/cpp/roren/interface
+    yt/cpp/roren/transforms
+    yt/cpp/roren/library/cpu_account_invoker
+    yt/cpp/roren/library/bind_par_do
+    yt/cpp/roren/library/program
+    yt/cpp/roren/library/logger
+    yt/cpp/roren/library/tagset_saveload
+    yt/cpp/roren/library/timers
+    quality/user_sessions/rt/lib/common
+    quality/user_sessions/rt/lib/common/protos
+    quality/user_sessions/rt/lib/writers/logbroker
+    quality/user_sessions/rt/lib/yt_profiling
+    yt/yt/client
+    yt/yt/core
+    yt/yt/library/profiling
+    yt/yt/library/tvm/service
+)
+
+SRCS(
+    bigrt.cpp
+    supplier.cpp
+    processor_v2.cpp
+    processor_v3.cpp
+    sync_execution_block_v3.cpp
+    async_execution_block_v3.cpp
+    parallel_execution_block_v3.cpp
+    parallel_by_none_execution_block_v3.cpp
+    parallel_by_greedy_execution_block_v3.cpp
+    parallel_by_part_execution_block_v3.cpp
+    parallel_by_key_execution_block_v3.cpp
+    prepare_data_processor_v3.cpp
+    process_prepared_data_processor_v3.cpp
+    parse_graph_v3.cpp
+    execution_graph_v3.cpp
+    bigrt_execution_context.cpp
+    bigrt_executor.cpp
+    bigrt_memory_result.cpp
+    bind_to_dict.cpp
+    concurrency_transforms.cpp
+    clonable_pool.cpp
+    composite_bigrt_writer.cpp
+    execution_block.cpp
+    parse_graph.cpp
+    pool_weight_provider.cpp
+    profiling.cpp
+    pipeline_executor.cpp
+    reparallelize.cpp
+    table_poller.cpp
+    transforms.cpp
+    throttle.cpp
+    read_dynamic_table.cpp
+    writers.cpp
+    config_builder.cpp
+    environment.cpp
+    program.cpp
+    destination_writer.cpp
+    vcpu_metrics.cpp
+
+    stateful_impl/stateful_par_do.cpp
+    stateful_impl/state_manager_registry.cpp
+    stateful_timer_impl/stateful_timer_par_do.cpp
+)
+
+GENERATE_ENUM_SERIALIZATION(parse_graph_v3.h)
+
+END()
+
+RECURSE_FOR_TESTS(
+    ut
+    test_medium
+)
+
+RECURSE(
+    plugin
+    program
+    graph
+    graph/ut
+    test_medium/filter_pipeline
+    test_medium/metrics_pipeline
+    test_medium/in_memory_dict_resolver
+    test_medium/multiple_consuming_systems
+    test_medium/parallel_pipeline
+    test_medium/sharding_pipeline
+    test_medium/stateful_pipeline
+    test_medium/stateful_pipeline_v3
+    test_medium/write_ytdyntable_node
+    test_medium/write_ytdyntable_unversionedrow
+)

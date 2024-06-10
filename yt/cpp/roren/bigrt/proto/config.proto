@@ -1,0 +1,109 @@
+package NRoren;
+
+import "ads/bsyeti/libs/tvm_manager/proto/config.proto";
+import "ads/bsyeti/libs/profiling/solomon/proto/config.proto";
+import "ads/bsyeti/libs/ytex/http/proto/config.proto";
+import "ads/bsyeti/libs/ytex/logging/proto/config.proto";
+import "bigrt/lib/consuming_system/config/config.proto";
+import "bigrt/lib/processing/shard_processor/stateless/config/stateless_shard_processor_config.proto";
+import "bigrt/lib/processing/shard_processor/fallback/config/fallback_shard_processor_config.proto";
+import "bigrt/lib/supplier/config/supplier_config.proto";
+import "bigrt/lib/writer/swift/config/config.proto";
+import "bigrt/lib/writer/yt_queue/proto/config.proto";
+import "bigrt/lib/utility/liveness_checker/proto/config.proto";
+import "bigrt/lib/utility/throttler/proto/config.proto";
+import "grut/libs/client/factory/proto/config.proto";
+import "quality/user_sessions/rt/lib/common/protos/yt_client_config.proto";
+
+message TConsumerConfig
+{
+    // Might be left empty, defaults are sensible
+    optional NBigRT.TStatelessShardProcessorConfig StatelessShardProcessorConfig = 1;
+    optional NBigRT.TConsumingSystemConfig ConsumingSystemConfig = 2;
+    // Check bigrt/lib/processing/shard_processor/fallback/README.md
+    optional NBigRT.TFallbackShardProcessorConfig FallbackShardProcessorConfig = 4;
+    optional NBigRT.TThrottlerQuota ThrottlerQuota = 5;
+}
+
+message TRorenInputConfig
+{
+    repeated NBigRT.TSupplierConfig Suppliers = 2;
+}
+
+message TBigRtStateConfig
+{
+    optional int64 RequestStateBatchSize = 1 [default = 100];
+}
+
+message TProcessingDestinationConfig {
+    oneof Writer {
+        NBigRT.TSwiftQueueWriterConfig SwiftWriter = 1;
+        NBigRT.TYtQueueWriterConfig QytWriter = 2;
+    }
+    optional uint64 ShardsCount = 3;
+}
+
+message TParallelizationConfig
+{
+    optional uint64 ThreadCount = 1 [default = 0];
+    // Force wait for start of batch processing, so shard processor can't
+    // blow up task queue.
+    optional bool EnableWaitProcessStarted = 2 [default = true];
+    map<string, double> PoolWeights = 3;
+}
+
+message TBigRtProgramProtoConfig
+{
+    optional string MainYtCluster = 1;
+    optional string MainYtPath = 2;
+
+    // EasyInputs is more convenient way to setup single-supplier inputs.
+    map<string, NBigRT.TSupplierConfig> EasyInputs = 3;
+    map<string, TRorenInputConfig> Inputs = 4;
+
+    map<string, TProcessingDestinationConfig> Destinations = 5;
+
+    map<string, TConsumerConfig> Consumers = 6;
+
+    optional NBSYeti.NProfiling.TExporterConfig SolomonExporterConfig = 7;
+
+    optional NYTEx.NHttp.TServerConfig HttpServerConfig = 8;
+
+    optional NBSYeti.TTvmGlobalConfig TvmConfig = 9;
+
+    optional NUserSessions.NRT.TYtClientConfig YtClientConfig = 10;
+
+    optional NGrut.NClient.NProto.TClientConfig GrutConnection = 16;
+
+    optional NBigRT.TKnownHostsUpdaterConfig KnownHostsUpdaterConfig = 17;
+    optional NBigRT.TLivenessCheckerConfig LivenessCheckerConfig = 18;
+
+    // Maximum size of data that can be processed in the moment.
+    optional uint64 MaxInFlightBytes = 11 [default = 67108864];
+
+    oneof ParallelizationSettings {
+        // Number of threads that run user code.
+        // If not specified, this number will be derived from parallelization settings.
+        // Uses per shard processor thread pool, so total number of threads = Config.UserThreadCount * number of ReadMessageBatch.
+        uint64 UserThreadCount = 12;
+        // Use TwoLevelFairShareThreadPool, threads are shared among all shard processors,
+        // so total number of threads = ParallelizationConfig.ThreadCount.
+        TParallelizationConfig ParallelizationConfig = 13;
+    }
+
+    // Controls format of solomon exporter.
+    optional bool EnableDirectSolomonExporterHandler = 14 [default = false];
+
+    // Defaults for TConsumerConfig.
+    optional TConsumerConfig ConsumerDefaults = 15;
+    optional bool AutoLaunchBalancerInternalMaster = 19 [default = false];
+
+    optional bool UseProcessorV3 = 99 [default = false];
+}
+
+message TBigRtUserConfigTemplate
+{
+    required TBigRtProgramProtoConfig RorenConfig = 1;
+    optional NYTEx.NLogging.TConfig Logs = 2;
+
+}

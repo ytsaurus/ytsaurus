@@ -4,6 +4,13 @@
 #include "../executor.h" // IWYU pragma: keep for IExecutorPtr destructor
 #include "../roren.h"
 
+#include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/yt/string/format.h>
+#include <library/cpp/yt/string/string_builder.h>
+
+#include <util/string/subst.h>
+
+
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,7 +52,7 @@ TTransformNodePtr TTransformNode::Allocate(
     TTransformNodePtr result = new TTransformNode(std::move(name), std::move(transform));
 
     for (auto* input : inputs) {
-        input->SourceFor_.insert(result.Get());
+        input->SourceFor_.push_back(result.Get());
         result->SourceList_.emplace_back(input);
     }
 
@@ -201,6 +208,93 @@ TTransformNodePtr TRawPipeline::AddTransform(IRawTransformPtr transform, const s
     return transformNode;
 }
 
+// TODO(pechatnov): Move it from here.
+static TString PrettifyTypeName(TString name)
+{
+    name = CppDemangle(name);
+    SubstGlobal(name, "TBasicString<char, std::__y1::char_traits<char>>", "TString");
+    SubstGlobal(name, "NRoren::TKV", "TKV");
+    SubstGlobal(name, "NRoren::TInputPtr", "TInputPtr");
+    return name;
+}
+
+TString TRawPipeline::DumpDot() const
+{
+    NYT::TStringBuilder builder;
+    builder.AppendString("digraph pipeline {\n");
+
+    THashSet<TPCollectionNode*> visited;
+    for (const auto& transformNode : GetTransformList()) {
+        builder.AppendString(NYT::Format("    %Qv [shape=box];\n", transformNode->GetName()));
+        for (const auto& sink : transformNode->GetSinkList()) {
+            if (!visited.insert(sink.Get()).second) {
+                continue;
+            }
+            for (const auto& sinkTransformNode : sink->GetSourceFor()) {
+                const auto pcollectionTypeName = PrettifyTypeName(sink->GetRowVtable().TypeName);
+                const auto label = NYT::Format("id=%v, type=%Qv", sink->GetId(), pcollectionTypeName);
+                builder.AppendFormat("    %Qv -> %Qv [label = %Qv];\n",
+                    transformNode->GetName(), sinkTransformNode->GetName(), label);
+            }
+        }
+    }
+
+    builder.AppendString("}\n");
+    return builder.Flush();
+}
+
+void TRawPipeline::Dump(NYT::NYson::IYsonConsumer* consumer) const
+{
+    THashMap<TTransformNode*, ui64> transformIndexes;
+    for (auto [i, transformNode] : Enumerate(GetTransformList())) {
+        transformIndexes[transformNode.Get()] = i;
+    }
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("transforms");
+    {
+        consumer->OnBeginList();
+        for (const auto& transformNode : GetTransformList()) {
+            consumer->OnListItem();
+            consumer->OnBeginMap();
+            consumer->OnKeyedItem("transform_id");
+            consumer->OnUint64Scalar(transformIndexes.at(transformNode.Get()));
+            consumer->OnKeyedItem("name");
+            consumer->OnStringScalar(transformNode->GetName());
+            consumer->OnKeyedItem("type");
+            consumer->OnStringScalar(ToString(transformNode->GetRawTransform()->GetType()));
+
+            consumer->OnKeyedItem("sink_list");
+            consumer->OnBeginList();
+            for (const auto& sink : transformNode->GetSinkList()) {
+                consumer->OnListItem();
+                consumer->OnBeginMap();
+                consumer->OnKeyedItem("pcollection_id");
+                consumer->OnUint64Scalar(sink->GetId());
+                consumer->OnKeyedItem("pretty_type_name");
+                consumer->OnStringScalar(PrettifyTypeName(sink->GetRowVtable().TypeName));
+
+                consumer->OnKeyedItem("source_for");
+                consumer->OnBeginList();
+                for (const auto& sinkTransformNode : sink->GetSourceFor()) {
+                    consumer->OnListItem();
+                    consumer->OnBeginMap();
+                    consumer->OnKeyedItem("transform_id");
+                    consumer->OnUint64Scalar(transformIndexes.at(sinkTransformNode));
+                    consumer->OnEndMap();
+                }
+                consumer->OnEndList();
+
+                consumer->OnEndMap();
+            }
+            consumer->OnEndList();
+
+            consumer->OnEndMap();
+        }
+        consumer->OnEndList();
+    }
+    consumer->OnEndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TraverseInTopologicalOrder(const TRawPipelinePtr& rawPipeline, IRawPipelineVisitor* visitor)
@@ -211,8 +305,7 @@ void TraverseInTopologicalOrder(const TRawPipelinePtr& rawPipeline, IRawPipeline
     for (const auto& transformNode : rawPipeline->GetTransformList()) {
         visitor->OnTransform(transformNode.Get());
         for (const auto& sink : transformNode->GetSinkList()) {
-            if (!visited.contains(sink.Get())) {
-                visited.insert(sink.Get());
+            if (visited.insert(sink.Get()).second) {
                 visitor->OnPCollection(sink.Get());
             }
         }

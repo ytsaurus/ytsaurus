@@ -103,13 +103,14 @@ class TReadTransform
     : public NPrivate::IWithAttributes
 {
 public:
-    explicit TReadTransform(NPrivate::IRawReadPtr rawRead)
+    explicit TReadTransform(NPrivate::IRawReadPtr rawRead, const TString& name = "")
         : RawRead_(rawRead)
+        , Name_(!name.empty() ? name : "Read")
     { }
 
     TString GetName() const
     {
-        return "Read";
+        return Name_;
     }
 
     TPCollection<TOutputRow> ApplyTo(const TPipeline& pipeline) const
@@ -134,12 +135,13 @@ private:
 
 private:
     const NPrivate::IRawReadPtr RawRead_;
+    const TString Name_;
 };
 
 template <typename T>
-TReadTransform<T> DummyRead()
+TReadTransform<T> DummyRead(const TString& name = "")
 {
-    return TReadTransform<T>{MakeIntrusive<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>())};
+    return TReadTransform<T>{MakeIntrusive<NPrivate::TRawDummyRead>(NPrivate::MakeRowVtable<T>()), name};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

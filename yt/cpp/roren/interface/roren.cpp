@@ -31,6 +31,16 @@ void TPipeline::Run()
     Executor_->Run(*this);
 }
 
+TString TPipeline::DumpDot() const
+{
+    return RawPipeline_->DumpDot();
+}
+
+void TPipeline::Dump(NYT::NYson::IYsonConsumer* consumer) const
+{
+    RawPipeline_->Dump(consumer);
+}
+
 void TPipeline::Optimize()
 {
     RawPipeline_ = NPrivate::MergeParDos(RawPipeline_);

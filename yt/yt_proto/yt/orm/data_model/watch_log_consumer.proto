@@ -1,0 +1,36 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.skip_in_yp_codegen) = true;
+
+message TWatchLogConsumerMetaMixin
+{
+    optional string id = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string",
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+}
+
+message TWatchLogConsumerSpecMixin
+{
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+    optional string object_type = 1;
+}
+
+message TWatchLogConsumerStatusMixin
+{
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+    // Next timestamp to be processed.
+    // Assumes that all timestamps before it were already processed.
+    optional uint64 timestamp = 1;
+    optional string continuation_token = 2;
+}

@@ -195,6 +195,8 @@ public:
         return transform.ApplyTo(*this);
     }
 
+    TString DumpDot() const;
+    void Dump(NYT::NYson::IYsonConsumer* consumer) const;
 private:
     explicit TPipeline(IExecutorPtr executor);
 

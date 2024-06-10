@@ -1,0 +1,9 @@
+option go_package = "go.ytsaurus.tech/library/cpp/eventlog/proto;extensions";
+
+package NEventLogInternal;
+
+message TUnknownEvent {
+};
+
+message TEndOfFrameEvent {
+};

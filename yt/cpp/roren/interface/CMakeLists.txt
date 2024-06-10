@@ -28,7 +28,9 @@ target_link_libraries(cpp-roren-interface PUBLIC
   contrib-libs-cxxsupp
   yutil
   tools-enum_parser-enum_serialization_runtime
+  library-cpp-iterator
   cpp-yson-node
+  cpp-yt-string
   library-timers-timer
 )
 
