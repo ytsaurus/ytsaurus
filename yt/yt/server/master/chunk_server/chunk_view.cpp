@@ -55,8 +55,7 @@ TChunkViewModifier TChunkViewModifier::RestrictedWith(const TChunkViewModifier& 
     if (!other.ReadRange().LowerLimit().IsTrivial() || !other.ReadRange().UpperLimit().IsTrivial()) {
         copy.ReadRange_ = TLegacyReadRange(
             GetAdjustedLowerReadLimit(other.ReadRange().LowerLimit()),
-            GetAdjustedUpperReadLimit(other.ReadRange().UpperLimit())
-        );
+            GetAdjustedUpperReadLimit(other.ReadRange().UpperLimit()));
     }
 
     if (other.TransactionId_) {

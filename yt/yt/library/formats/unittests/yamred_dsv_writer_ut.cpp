@@ -284,8 +284,7 @@ TEST_F(TSchemalessWriterForYamredDsvTest, Lenval)
         "\x01\x00\x00\x00" "c"
         "\x00\x00\x00\x00" "",
 
-        13 * 4 + 4 + 1 + 9 + 4 + 1 + 0
-    );
+        13 * 4 + 4 + 1 + 9 + 4 + 1 + 0);
 
     TString output = OutputStream_.Str();
     EXPECT_EQ(expectedOutput, output)

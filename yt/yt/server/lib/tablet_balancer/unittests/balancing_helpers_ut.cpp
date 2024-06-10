@@ -332,8 +332,7 @@ INSTANTIATE_TEST_SUITE_P(
                    "{cell_index=3; memory_size=0; node_address=home}];"
             "nodes=[{node_address=home; memory_used=150}]}",
             /*moveDescriptors*/ "[{tablet_index=2; cell_index=2};"
-                "{tablet_index=3; cell_index=3}]")
-        ));
+                "{tablet_index=3; cell_index=3}]")));
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -392,8 +391,7 @@ INSTANTIATE_TEST_SUITE_P(
             "{tablet_index=3; cell_index=1;"
                 "statistics={uncompressed_data_size=100; memory_size=100; compressed_data_size=100; partition_count=1}}]}];"
             "cells=[{cell_index=1; memory_size=300}]}",
-            /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=200}]")
-        ));
+            /*reshardDescriptors*/ "[{tablets=[1;2;]; tablet_count=1; data_size=200}]")));
 
 //////////////////////////////////////////////////////////////////////////////////
 
@@ -472,8 +470,7 @@ INSTANTIATE_TEST_SUITE_P(
         "cells=[{cell_index=1; memory_size=150; node_address=home};"
                 "{cell_index=2; memory_size=0; node_address=home};"
                 "{cell_index=3; memory_size=0; node_address=home}];"
-        "nodes=[{node_address=home; memory_used=150}]}"
-    ));
+        "nodes=[{node_address=home; memory_used=150}]}"));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -544,8 +541,7 @@ INSTANTIATE_TEST_SUITE_P(
         "cells=[{cell_index=1; memory_size=150; node_address=home};"
                 "{cell_index=2; memory_size=0; node_address=home};"
                 "{cell_index=3; memory_size=0; node_address=home}];"
-        "nodes=[{node_address=home; memory_used=150}]}"
-    ));
+        "nodes=[{node_address=home; memory_used=150}]}"));
 
 ////////////////////////////////////////////////////////////////////////////////
 

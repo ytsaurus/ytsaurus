@@ -638,8 +638,7 @@ private:
             std::back_inserter(alerts),
             [] (const auto& alert) {
                 return alert.second;
-            }
-        );
+            });
         return alerts;
     }
 

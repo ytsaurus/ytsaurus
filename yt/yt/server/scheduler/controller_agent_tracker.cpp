@@ -510,8 +510,7 @@ public:
         auto agentState = agent->GetState();
         if (
             agentState != EControllerAgentState::Registered &&
-            agentState != EControllerAgentState::WaitingForInitialHeartbeat
-        ) {
+            agentState != EControllerAgentState::WaitingForInitialHeartbeat) {
             THROW_ERROR_EXCEPTION(
                 "Agent %Qv is in %Qlv state",
                 agent->GetId(),

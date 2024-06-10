@@ -44,8 +44,7 @@ YT_PREVENT_TLS_CACHING Py::Bytes EncodeStringObject(const Py::Object& obj, const
                     Format(
                         "Cannot encode unicode object %v to bytes "
                         "since \"encoding\" parameter is None",
-                        Py::Repr(obj)
-                    ),
+                        Py::Repr(obj)),
                     context);
             } else {
                 return Py::Bytes(bytesString, true);

@@ -43,8 +43,7 @@ template <class TSegment>
 TSegment ConnectSegments(const TSegment& firstSegment, const TSegment& secondSegment) {
     return TSegment(
         {firstSegment.LeftBound(), firstSegment.LeftValue()},
-        {secondSegment.RightBound(), secondSegment.RightValue()}
-    );
+        {secondSegment.RightBound(), secondSegment.RightValue()});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

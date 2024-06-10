@@ -923,8 +923,7 @@ void TOperationControllerBase::InitializeOrchid()
                 BuildYsonFluently(consumer)
                     .Do(fluentMethod);
             }),
-            Config->ControllerStaticOrchidUpdatePeriod
-        );
+            Config->ControllerStaticOrchidUpdatePeriod);
     };
 
     // Methods like BuildProgress, BuildBriefProgress and buildJobsYson build map fragment,
@@ -2863,8 +2862,7 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto lhsKey = lhs.first.AsIndex();
                     auto rhsKey = rhs.first.AsIndex();
                     return lhsKey < rhsKey;
-                }
-            );
+                });
             for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
                 addChunkTree(chunkTreeId);
             }

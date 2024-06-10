@@ -499,8 +499,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         ManagerHost_->FormatHeartbeatResourceUsage(
             ToJobResources(resourceUsage),
             ToJobResources(resourceLimits),
-            request->disk_resources()
-        ),
+            request->disk_resources()),
         request->allocations_size());
 
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);

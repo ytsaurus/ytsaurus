@@ -238,9 +238,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
             SkiffOptional(
                 CreateRepeatedVariant8Schema({
                     CreateSimpleTypeSchema(EWireType::Boolean)
-                })
-            )
-        ),
+                }))),
         "[[%true;%false;%true;];]",
         "01" "01" "0001" "0000" "0001" "ff");
 
@@ -250,9 +248,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalTypes)
             SkiffOptional(
                 CreateRepeatedVariant8Schema({
                     CreateSimpleTypeSchema(EWireType::Boolean)
-                })
-            )
-        ),
+                }))),
         "[#;]",
         "0100");
 
@@ -327,8 +323,7 @@ TEST(TYsonSkiffConverterTest, TestStruct)
     CHECK_BIDIRECTIONAL_CONVERSION(
         Struct(
             "key", String(),
-            "value", Bool()
-        ),
+            "value", Bool()),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
@@ -344,8 +339,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         Struct(
             "key", String(),
             "subkey", Int64(),
-            "value", Bool()
-        ),
+            "value", Bool()),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
@@ -357,8 +351,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         Struct(
             "key", String(),
             "subkey", Int64(),
-            "value", Bool()
-        ),
+            "value", Bool()),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
         }),
@@ -370,8 +363,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
             Struct(
                 "key", String(),
                 "subkey", Int64(),
-                "value", Bool()
-            ),
+                "value", Bool()),
             CreateTupleSchema({
                 CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
             }),
@@ -384,8 +376,7 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         Struct(
             "key", Optional(String()),
             "subkey", Int64(),
-            "value", Optional(Bool())
-        ),
+            "value", Optional(Bool())),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::Int64)->SetName("subkey"),
         }),
@@ -400,8 +391,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
         Struct(
             "key", String(),
             "subkey", Int64(),
-            "value", Bool()
-        ),
+            "value", Bool()),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
             SkiffOptional(CreateSimpleTypeSchema(EWireType::String32))->SetName("key2"),
@@ -414,8 +404,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
         Struct(
             "key", String(),
             "subkey", Int64(),
-            "value", Bool()
-        ),
+            "value", Bool()),
         CreateTupleSchema({
             CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
             CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
@@ -430,8 +419,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
             Struct(
                 "key", String(),
                 "subkey", Int64(),
-                "value", Bool()
-            ),
+                "value", Bool()),
             CreateTupleSchema({
                 CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
                 CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
@@ -448,8 +436,7 @@ TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
             Struct(
                 "key", String(),
                 "subkey", Int64(),
-                "value", Bool()
-            ),
+                "value", Bool()),
             CreateTupleSchema({
                 CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
                 SkiffOptional(CreateSimpleTypeSchema(EWireType::String32))->SetName("key2"),
@@ -513,8 +500,7 @@ TEST(TYsonSkiffConverterTest, TestTupleSkippedFields)
             CreateSimpleTypeSchema(EWireType::Int64),
             CreateSimpleTypeSchema(EWireType::Nothing)
         }),
-        "[#;15;#;]"
-    );
+        "[#;15;#;]");
     EXPECT_EQ(skiffString, "0f000000" "00000000"sv);
 }
 
@@ -534,18 +520,15 @@ TEST(TYsonSkiffConverterTest, TestDict)
         "[[\"one\";1;];[\"two\";2;];]",
         "00" "03000000" "6f6e65" "01000000" "00000000"
         "00" "03000000" "74776f" "02000000" "00000000"
-        "ff"
-    );
+        "ff");
 
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "01" "01000000" "6f" "01000000" "00000000" "ff"),
-        "Unexpected repeated_variant8 tag"
-    );
+        "Unexpected repeated_variant8 tag");
 
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "00" "01000000" "6f" "01000000" "00000000"),
-        "Premature end of stream"
-    );
+        "Premature end of stream");
 }
 
 TEST(TYsonSkiffConverterTest, TestTagged)
@@ -565,15 +548,13 @@ TEST(TYsonSkiffConverterTest, TestTagged)
         "[[\"one\";1;];[\"two\";2;];]",
         "00" "03000000" "6f6e65" "01000000" "00000000"
         "00" "03000000" "74776f" "02000000" "00000000"
-        "ff"
-    );
+        "ff");
 }
 
 TEST(TYsonSkiffConverterTest, TestOptionalVariantSimilarity)
 {
     auto logicalType = Optional(
-        VariantTuple(Null(), Int64())
-    );
+        VariantTuple(Null(), Int64()));
 
     CHECK_BIDIRECTIONAL_CONVERSION(
         logicalType,
@@ -621,8 +602,7 @@ TEST(TYsonSkiffConverterTest, TestOptionalVariantSimilarity)
             SkiffOptional(CreateSimpleTypeSchema(EWireType::Int64)),
             "#",
             ysonToSkiffConfig),
-        "value expected to be nonempty"
-    );
+        "value expected to be nonempty");
 }
 
 class TYsonSkiffConverterTestVariant
@@ -718,8 +698,7 @@ INSTANTIATE_TEST_SUITE_P(
     TYsonSkiffConverterTestVariant,
     ::testing::Combine(
         ::testing::ValuesIn({ELogicalMetatype::VariantStruct, ELogicalMetatype::VariantTuple}),
-        ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16})
-    )
+        ::testing::ValuesIn({EWireType::Variant8, EWireType::Variant16}))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

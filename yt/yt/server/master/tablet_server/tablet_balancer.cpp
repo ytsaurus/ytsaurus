@@ -397,8 +397,7 @@ private:
         auto descriptors = NTabletServer::ReassignInMemoryTablets(
             bundle,
             /*movableTablets*/ std::nullopt,
-            /*ignoreTableWiseConfig*/ false
-        );
+            /*ignoreTableWiseConfig*/ false);
 
         if (!descriptors.empty()) {
             for (auto descriptor : descriptors) {

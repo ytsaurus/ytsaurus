@@ -1080,8 +1080,7 @@ TEST(TChunkSlicerTest, StressTest)
                 MakeRow({lastKey}),
                 MakeRow({upperLimit}),
                 rowCount,
-                rowCount
-            );
+                rowCount);
 
             lastKey = upperLimit;
             totalRowCount += rowCount;

@@ -135,9 +135,8 @@ TEST(TYamredDsvParserTest, Lenval)
     TString input = TString(
         "\x01\x00\x00\x00" "a"
         "\x02\x00\x00\x00" "bc"
-        "\x03\x00\x00\x00" "d=e"
-        , 3 * 4 + 1 + 2 + 3
-    );
+        "\x03\x00\x00\x00" "d=e",
+        3 * 4 + 1 + 2 + 3);
 
     auto config = New<TYamredDsvFormatConfig>();
     config->Lenval = true;
@@ -167,9 +166,8 @@ TEST(TYamredDsvParserTest, EOM)
         "\x01\x00\x00\x00" "a"
         "\x02\x00\x00\x00" "bc"
         "\x03\x00\x00\x00" "d=e"
-        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
-        , 3 * 4 + 1 + 2 + 3 + 12
-    );
+        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00",
+        3 * 4 + 1 + 2 + 3 + 12);
 
     auto config = New<TYamredDsvFormatConfig>();
     config->Lenval = true;

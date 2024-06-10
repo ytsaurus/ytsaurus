@@ -2079,8 +2079,7 @@ private:
         YT_LOG_FATAL_UNLESS(
             snapshotOrError.IsOK(),
             snapshotOrError,
-            "Unexpected failure while making exec node job controller info snapshot"
-        );
+            "Unexpected failure while making exec node job controller info snapshot");
 
         return std::move(snapshotOrError.Value());
     }

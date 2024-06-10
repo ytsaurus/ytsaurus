@@ -24,8 +24,7 @@ TEST(TExpressionEvaluatorTest, OrmSimple)
         BuildYsonStringFluently().BeginMap()
             .Item("x").Value(1.0)
             .Item("y").Value(100.0)
-        .EndMap()
-    ).ValueOrThrow();
+        .EndMap()).ValueOrThrow();
     EXPECT_EQ(value.Type, EValueType::Double);
     EXPECT_EQ(value.Data.Double, 501);
 }
@@ -152,8 +151,7 @@ TEST(TExpressionEvaluatorTest, OrmManyFunctions)
             .Item("str_id").Value("abacaba")
             .Item("i64_id").Value(25)
             .Item("ui64_id").Value(315u)
-        .EndMap()
-    ).ValueOrThrow().AsString();
+        .EndMap()).ValueOrThrow().AsString();
     EXPECT_EQ(value, TString("abacaba;25;315"));
 }
 

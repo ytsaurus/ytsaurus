@@ -17,8 +17,7 @@ TEST(TAutoMergeTest, SimpleScenario)
     TAutoMergeDirector director(
         20 /*maxIntermediateChunkCount*/,
         5 /*maxChunkCountPerMergeJob*/,
-        Logger()
-    );
+        Logger());
 
     // Suppose that we have a single output table.
 
@@ -81,8 +80,7 @@ TEST(TAutoMergeTest, ForceFlush)
     TAutoMergeDirector director(
         20 /*maxIntermediateChunkCount*/,
         5 /*maxChunkCountPerMergeJob*/,
-        Logger()
-    );
+        Logger());
 
     // Suppose that we have three output tables.
 
@@ -118,8 +116,7 @@ TEST(TAutoMergeTest, BypassMarginalJobs)
     TAutoMergeDirector director(
         20 /*maxIntermediateChunkCount*/,
         5 /*maxChunkCountPerMergeJob*/,
-        Logger()
-    );
+        Logger());
 
     // Suppose that we have three output tables.
 
@@ -150,8 +147,7 @@ TEST(TAutoMergeTest, JobFailure)
     TAutoMergeDirector director(
         20 /*maxIntermediateChunkCount*/,
         5 /*maxChunkCountPerMergeJob*/,
-        Logger()
-    );
+        Logger());
 
     // Suppose that we have three output tables.
 

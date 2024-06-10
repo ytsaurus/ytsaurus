@@ -1157,8 +1157,7 @@ private:
 
                         const auto attributesRsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(
                                 startResponseIndex[operationId] * static_cast<int>(ERequestPart::NumOfParts) +
-                                static_cast<int>(ERequestPart::Attributes)
-                            )
+                                static_cast<int>(ERequestPart::Attributes))
                             .ValueOrThrow();
 
                         const auto secureVaultRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(
@@ -1188,11 +1187,9 @@ private:
                             chunkSize,
                             Owner_->Config_->SkipOperationsWithMalformedSpecDuringRevival,
                             Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
-                            Owner_->GetCancelableControlInvoker(EControlQueue::Operation)
-                        )
+                            Owner_->GetCancelableControlInvoker(EControlQueue::Operation))
                         .AsyncVia(Owner_->Bootstrap_->GetScheduler()->GetBackgroundInvoker())
-                        .Run()
-                    );
+                        .Run());
                 }
                 YT_LOG_INFO("Operation attributes batches for parsing formed");
 
@@ -1549,8 +1546,7 @@ private:
                 futures.push_back(
                     BIND(&TImpl::GetTransactionsAndRevivalDescriptor, MakeStrong(this))
                         .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
-                        .Run(operation, attributes)
-                );
+                        .Run(operation, attributes));
             }
             WaitFor(AllSucceeded(futures))
                 .ThrowOnError();

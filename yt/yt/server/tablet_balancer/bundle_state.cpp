@@ -608,8 +608,7 @@ THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(
             tablePath,
             cellTag,
             tableId,
-            Bundle_.Get()
-        ));
+            Bundle_.Get()));
     }
 
     return tableInfos;

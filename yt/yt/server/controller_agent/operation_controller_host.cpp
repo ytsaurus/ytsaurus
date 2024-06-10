@@ -42,8 +42,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateCompleted
     return TAgentToSchedulerOperationEvent(
         EAgentToSchedulerOperationEventType::Completed,
         operationId,
-        controllerEpoch
-    );
+        controllerEpoch);
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateSuspendedEvent(
@@ -55,8 +54,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateSuspended
         EAgentToSchedulerOperationEventType::Suspended,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateFailedEvent(
@@ -68,8 +66,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateFailedEve
         EAgentToSchedulerOperationEventType::Failed,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEvent(
@@ -81,8 +78,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEv
         EAgentToSchedulerOperationEventType::Aborted,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
 }
 
 TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
@@ -94,8 +90,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInT
     TAgentToSchedulerOperationEvent event(
         EAgentToSchedulerOperationEventType::BannedInTentativeTree,
         operationId,
-        controllerEpoch
-    );
+        controllerEpoch);
     event.TentativeTreeId = std::move(treeId);
     event.TentativeTreeAllocationIds = std::move(allocationIds);
     return event;
@@ -111,8 +106,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
         EAgentToSchedulerOperationEventType::InitializationFinished,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
     event.InitializeResult = maybeResult;
     return event;
 }
@@ -128,8 +122,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
         EAgentToSchedulerOperationEventType::PreparationFinished,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
     event.PrepareResult = maybeResult;
     return event;
 }
@@ -144,8 +137,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
         EAgentToSchedulerOperationEventType::MaterializationFinished,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
     event.MaterializeResult = maybeResult;
     return event;
 }
@@ -160,8 +152,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
         EAgentToSchedulerOperationEventType::RevivalFinished,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
     event.ReviveResult = maybeResult;
     return event;
 }
@@ -176,8 +167,7 @@ TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyCont
         EAgentToSchedulerOperationEventType::CommitFinished,
         operationId,
         controllerEpoch,
-        std::move(error)
-    );
+        std::move(error));
     event.CommitResult = maybeResult;
     return event;
 }

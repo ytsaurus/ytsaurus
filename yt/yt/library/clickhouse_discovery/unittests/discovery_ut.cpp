@@ -118,8 +118,7 @@ TEST(TDiscoveryTest, Enter)
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
-            }
-        ));
+            }));
 
     EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
@@ -197,8 +196,7 @@ TEST(TDiscoveryTest, Leave) {
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
-            }
-        ));
+            }));
 
     EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {
@@ -376,8 +374,7 @@ TEST(TDiscoveryTest, CreationRace)
         .WillOnce(InvokeWithoutArgs([&] {
                 created = true;
                 return MakeFuture(NCypressClient::TNodeId());
-            }
-        ));
+            }));
 
     EXPECT_CALL(*MockTransaction, LockNode(path + "/test_node", _, _))
         .WillOnce(InvokeWithoutArgs([&] {

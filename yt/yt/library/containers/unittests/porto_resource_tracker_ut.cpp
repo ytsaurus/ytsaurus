@@ -59,8 +59,7 @@ TPortoResourceProfilerPtr CreateDeltaPortoProfiler(IPortoExecutorPtr executor, c
         instance,
         ResourceUsageUpdatePeriod,
         true,
-        true
-    );
+        true);
 
     // Init metrics for delta tracker.
     portoResourceTracker->GetTotalStatistics();

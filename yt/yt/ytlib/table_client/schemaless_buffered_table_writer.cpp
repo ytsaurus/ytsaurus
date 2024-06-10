@@ -251,8 +251,7 @@ private:
                     NameTable_,
                     Client_,
                     /*localHostName*/ TString(), // Locality is not important during table upload.
-                    /*transaction*/ nullptr
-                );
+                    /*transaction*/ nullptr);
 
                 auto writer = WaitFor(asyncWriter)
                     .ValueOrThrow();

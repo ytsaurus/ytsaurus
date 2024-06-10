@@ -1928,8 +1928,7 @@ std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
 
             futures.push_back(processBatch
                 .AsyncVia(invoker)
-                .Run(std::move(operationDataToParseBatch))
-            );
+                .Run(std::move(operationDataToParseBatch)));
         }
 
         auto operationRequestsArray = WaitFor(AllSucceeded(futures)).ValueOrThrow();

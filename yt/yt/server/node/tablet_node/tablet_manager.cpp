@@ -5150,8 +5150,7 @@ private:
                 patch->TableConfigExperiments,
                 [] (auto* builder, const auto& experiment) {
                     FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
-                })
-        );
+                }));
 
         auto globalPatchYson = ConvertToYsonString(globalPatch).ToString();
         auto experimentsYson = ConvertToYsonString(patch->TableConfigExperiments).ToString();

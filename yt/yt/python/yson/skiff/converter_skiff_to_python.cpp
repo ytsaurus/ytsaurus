@@ -318,8 +318,7 @@ public:
                     CreateSkiffToPythonConverter(
                         fieldDescription,
                         GetAttr(field, PySchemaFieldName),
-                        validateOptionalOnRuntime)
-                );
+                        validateOptionalOnRuntime));
                 FieldNames_.push_back(fieldName);
             } else if (PyObject_IsInstance(field.ptr(), FieldMissingFromSchemaClass.get())) {
                 FieldsMissingFromSchema_.emplace_back(GetAttr(field, NameFieldName).as_string());
@@ -444,8 +443,7 @@ public:
         int i = 0;
         for (const auto& pyElementSchema: Py::List(GetAttr(pySchema, ElementsFieldName))) {
             ElementConverters_.push_back(
-                CreateSkiffToPythonConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime)
-            );
+                CreateSkiffToPythonConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime));
         }
     }
 
@@ -536,8 +534,7 @@ public:
         : RowClassName_(GetRowClassName(pySchema))
         , ValidateOptionalOnRuntime_(
             FindAttr(pySchema, SchemaRuntimeContextFieldName)
-            && GetAttr(GetAttr(pySchema, SchemaRuntimeContextFieldName), ValidateOptionalOnRuntimeFieldName).as_bool()
-        )
+            && GetAttr(GetAttr(pySchema, SchemaRuntimeContextFieldName), ValidateOptionalOnRuntimeFieldName).as_bool())
         , StructConverter_(RowClassName_, GetAttr(pySchema, StructSchemaFieldName), ValidateOptionalOnRuntime_)
     {
         auto systemColumns = Py::Tuple(GetAttr(pySchema, SystemColumnsFieldName));

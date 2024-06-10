@@ -138,8 +138,7 @@ ISpytDiscoveryPtr CreateDiscoveryV1(
 {
     return New<TSpytDiscoveryV1>(
         queryClient,
-        discoveryPath
-    );
+        discoveryPath);
 }
 
 ISpytDiscoveryPtr CreateDiscoveryV2(
@@ -152,8 +151,7 @@ ISpytDiscoveryPtr CreateDiscoveryV2(
         std::move(connection),
         std::move(discoveryGroup),
         std::move(channelFactory),
-        std::move(logger)
-    );
+        std::move(logger));
 }
 
 }

@@ -3629,8 +3629,7 @@ private:
                         Bootstrap_
                         ->GetClient()
                         ->GetNativeConnection()
-                        ->GetMediumDirectory()
-                    )
+                        ->GetMediumDirectory())
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())

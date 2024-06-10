@@ -419,8 +419,7 @@ void ValidateTableSchemaUpdate(
             false  /* EnableDynamicTableDropColumn */
         },
         isTableDynamic,
-        isTableEmpty
-    );
+        isTableEmpty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

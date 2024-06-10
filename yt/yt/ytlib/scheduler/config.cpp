@@ -1153,12 +1153,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
         auto memoryDigestLowerLimit = static_cast<double>(totalTmpfsSize) / spec->MemoryLimit;
         spec->UserJobMemoryDigestDefaultValue = std::min(
             1.0,
-            std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit)
-        );
+            std::max(spec->UserJobMemoryDigestDefaultValue, memoryDigestLowerLimit));
         spec->UserJobMemoryDigestLowerBound = std::min(
             1.0,
-            std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit)
-        );
+            std::max(spec->UserJobMemoryDigestLowerBound, memoryDigestLowerLimit));
         spec->UserJobMemoryDigestDefaultValue = std::max(spec->UserJobMemoryDigestLowerBound, spec->UserJobMemoryDigestDefaultValue);
 
         for (const auto& [variableName, _] : spec->Environment) {

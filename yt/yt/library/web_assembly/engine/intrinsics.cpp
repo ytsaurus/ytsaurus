@@ -41,8 +41,7 @@ struct TMakeIntrinsic<TResult(TArgs...)>
         (void*)Intrinsic##intrinsic, \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
             std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(intrinsic) >::Get()) \
-        }) \
-    );
+        }));
 
 #define DEFINE_WEB_ASSEMBLY_SYSCALL_STUB(name, result, ...) \
     result name(__VA_ARGS__) \

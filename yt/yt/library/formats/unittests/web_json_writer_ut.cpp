@@ -816,12 +816,12 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             })},
             {"dict", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
-                SimpleLogicalType(ESimpleLogicalValueType::String)
-            )},
+                SimpleLogicalType(ESimpleLogicalValueType::String)),
+            },
             {"tagged", TaggedLogicalType(
                 "MyTag",
-                SimpleLogicalType(ESimpleLogicalValueType::Int64)
-            )},
+                SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+            },
             {"timestamp", SimpleLogicalType(ESimpleLogicalValueType::Timestamp)},
             {"date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
             {"datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
@@ -1376,11 +1376,11 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
                 VariantStructLogicalType({
                     {"a", DictLogicalType(
                         SimpleLogicalType(ESimpleLogicalValueType::Int64),
-                        SimpleLogicalType(ESimpleLogicalValueType::String)
-                    )},
+                        SimpleLogicalType(ESimpleLogicalValueType::String)),
+                    },
                     {"b", SimpleLogicalType(ESimpleLogicalValueType::Any)},
-                })
-            )},
+                })),
+            },
             {"field2", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"field3", MakeLogicalType(ESimpleLogicalValueType::Int64, false)},
         })},

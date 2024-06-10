@@ -387,8 +387,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, false, false}
-    );
+        /*isVersioned*/ {false, false, false});
 
     DataSizePerJob_ = 2_KB;
 
@@ -423,8 +422,7 @@ TEST_F(TOrderedChunkPoolTest, LargeChunksPreciseSlicing)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, false, false}
-    );
+        /*isVersioned*/ {false, false, false});
 
     DataSizePerJob_ = 2_KB;
 
@@ -459,8 +457,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountBasic)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, false, false}
-    );
+        /*isVersioned*/ {false, false, false});
 
     Options_.KeepOutputOrder = true;
     // This should have no effect!
@@ -499,8 +496,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, true, false}
-    );
+        /*isVersioned*/ {false, true, false});
 
     Options_.KeepOutputOrder = true;
     // This should have no effect!
@@ -537,8 +533,7 @@ TEST_F(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, false, false}
-    );
+        /*isVersioned*/ {false, false, false});
 
     Options_.KeepOutputOrder = true;
     // This should have no effect!
@@ -579,8 +574,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 {
     InitTables(
         /*isTeleportable*/ {true, true, true},
-        /*isVersioned*/ {false, false, false}
-    );
+        /*isVersioned*/ {false, false, false});
 
     Options_.KeepOutputOrder = true;
     Options_.MinTeleportChunkSize = 2_KB;
@@ -663,8 +657,7 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 {
     InitTables(
         /*isTeleportable*/ {false},
-        /*isVersioned*/ {false}
-    );
+        /*isVersioned*/ {false});
 
     DataSizePerJob_ = 2_KB;
     InputSliceDataSize_ = 2_KB;
@@ -696,8 +689,7 @@ TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
 {
     InitTables(
         /*isTeleportable*/ {true},
-        /*isVersioned*/ {false}
-    );
+        /*isVersioned*/ {false});
 
     ExplicitJobCount_ = 1;
     DataSizePerJob_ = 1_KB;
@@ -750,8 +742,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     InitTables(
         /*isTeleportable*/ {false},
-        /*isVersioned*/ {false}
-    );
+        /*isVersioned*/ {false});
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 

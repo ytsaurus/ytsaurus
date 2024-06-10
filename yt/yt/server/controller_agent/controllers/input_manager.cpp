@@ -431,8 +431,7 @@ void TInputManager::Prepare()
                 if (
                     table->Path.Attributes().Contains("upper_limit") ||
                     table->Path.Attributes().Contains("lower_limit") ||
-                    table->Path.Attributes().Contains("ranges")
-                ) {
+                    table->Path.Attributes().Contains("ranges")) {
                     error = TError("Input file path must not contain row selectors");
                 }
 

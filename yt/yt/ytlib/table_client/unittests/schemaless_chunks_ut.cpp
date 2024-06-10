@@ -1590,8 +1590,7 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
             "<strict=%true;unique_keys=%true>["
             "{name = k0; type = string; sort_order = ascending};"
             "{name = k1; type = string; sort_order = ascending};"
-            "{name = v; type = string; }; ]")))
-        ),
+            "{name = v; type = string; }; ]")))),
         ::testing::Values(16_MB, 256),  // max data weight per read
         ::testing::Values(10000, 4)  // max rows per read
 ));

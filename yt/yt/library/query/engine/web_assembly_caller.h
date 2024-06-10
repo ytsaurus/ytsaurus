@@ -29,7 +29,7 @@ public:
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
 #endif
-        )
+    )
         , Module_(std::move(module))
         , FunctionName_(function)
         , RuntimeType_(NWebAssembly::TFunctionTypeBuilder</*IsIntrinsic*/ false, TPIResult(TPIArgs...)>::Get())

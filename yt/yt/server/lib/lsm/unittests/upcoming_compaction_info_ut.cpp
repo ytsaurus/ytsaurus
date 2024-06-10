@@ -147,8 +147,7 @@ INSTANTIATE_TEST_SUITE_P(
             .Result = {
                 .Reason = EStoreCompactionReason::None,
             }
-        }
-    ));
+        }));
 
 TEST_P(TUpcomingCompactionInfoTest, GetUpcomingCompactionInfo)
 {

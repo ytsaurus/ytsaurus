@@ -188,8 +188,7 @@ TEST(TFilterMatcherTest, HashInFilter)
                     .Item("ttl").Value(1)
                 .EndMap()
             .EndList()
-        .EndMap()
-    ).ValueOrThrow());
+        .EndMap()).ValueOrThrow());
 
     auto matcherSpecRecordsHash = CreateFilterMatcher("[/spec/records] = #", {"/spec/records"});
     EXPECT_TRUE(matcherSpecRecordsHash->Match(TYsonStringBuf("#")).ValueOrThrow());
@@ -201,8 +200,7 @@ TEST(TFilterMatcherTest, HashInFilter)
                 .Item("class").Value("my_class")
                 .Item("ttl").Value(1)
             .EndMap()
-        .EndList()
-    ).ValueOrThrow());
+        .EndList()).ValueOrThrow());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,16 +326,13 @@ TEST(TFilterMatcherTest, FullAttributePaths)
                         BuildYsonStringFluently()
                             .BeginMap()
                                 .Item("id").Value(15)
-                            .EndMap()
-                    )
+                            .EndMap())
                     .Item("labels").Value(
                         BuildYsonStringFluently()
                             .BeginMap()
                                 .Item("a").Value("1")
-                            .EndMap()
-                    )
-                .EndMap()
-        ).ValueOrThrow());
+                            .EndMap())
+                .EndMap()).ValueOrThrow());
     }
 }
 

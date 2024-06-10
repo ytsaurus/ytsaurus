@@ -253,8 +253,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp /*currentTimestamp*/,
-        const TWriterProfilerPtr& writerProfiler
-    ) {
+        const TWriterProfilerPtr& writerProfiler) {
         ISchemalessChunkWriterPtr tableWriter;
 
         auto updateProfilerGuard = Finally([&] {

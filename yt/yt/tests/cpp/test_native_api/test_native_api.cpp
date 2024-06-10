@@ -542,8 +542,7 @@ public:
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]"
-        );
+            "{name=v5;type=int64}]");
 
         ReplicatorClient_ = CreateClient(ReplicatorUserName);
     }
@@ -662,8 +661,7 @@ public:
             "{name=k2;type=int64;sort_order=ascending};"
             "{name=v3;type=int64;required=%true};"
             "{name=v4;type=int64};"
-            "{name=v5;type=int64}]"
-        );
+            "{name=v5;type=int64}]");
 
         ReplicatorClient_ = CreateClient(ReplicatorUserName);
     }

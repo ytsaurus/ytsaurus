@@ -518,8 +518,7 @@ TBlockManagerFactory CreateSyncBlockWindowManagerFactory(
 {
     return [blockCache = std::move(blockCache), chunkMeta = std::move(chunkMeta), chunkId] (
         std::vector<TGroupBlockHolder> blockHolders,
-        TRange<TSpanMatching> /*windowsList*/
-    ) mutable -> std::unique_ptr<IBlockManager> {
+        TRange<TSpanMatching> /*windowsList*/) mutable -> std::unique_ptr<IBlockManager> {
         return std::make_unique<TSyncBlockWindowManager>(
             std::move(blockHolders),
             std::move(blockCache),

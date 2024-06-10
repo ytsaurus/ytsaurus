@@ -67,8 +67,7 @@ public:
             key,
             [this] (const TKey& key, const TKeyBound& partitionLowerBound) {
                 return !Comparator_.TestKey(key, partitionLowerBound);
-            }
-        );
+            });
 
         YT_VERIFY(partitionsIt != PartitionLowerBounds_.begin());
         return partitionsIt - PartitionLowerBounds_.begin() - 1;

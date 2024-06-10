@@ -462,8 +462,8 @@ void TContext::SetContentDispositionAndMimeType()
         TString filename;
         if (Descriptor_->CommandName == "download" ||
             Descriptor_->CommandName == "read_table" ||
-            Descriptor_->CommandName == "read_file"
-        ) {
+            Descriptor_->CommandName == "read_file")
+        {
             if (auto pathNode = DriverRequest_.Parameters->FindChild("path")) {
                 filename = "yt_" + pathNode->GetValue<TString>();
             }

@@ -320,8 +320,7 @@ public:
             "//tmp/multi_lookup_test", // tablePath
             "[" // schema
             "{name=k0;type=int64;sort_order=ascending};"
-            "{name=v1;type=int64};]"
-        );
+            "{name=v1;type=int64};]");
     }
 
     static void TearDownTestCase()

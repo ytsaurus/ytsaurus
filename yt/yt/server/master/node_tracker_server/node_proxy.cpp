@@ -767,8 +767,7 @@ private:
         return CreateOrchidYPathService(TOrchidOptions{
             .Channel = CreateRetryingChannel(
                 retryingChannelConfig,
-                Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses))
-            ),
+                Bootstrap_->GetNodeChannelFactory()->CreateChannel(std::move(nodeAddresses))),
             .Timeout = timeout,
         });
     }

@@ -302,8 +302,7 @@ private:
         node->RefObject();
         node->SetNodeAddresses(TNodeAddressMap{std::pair(
             EAddressType::InternalRpc,
-            TAddressMap{std::pair(DefaultNetworkName, name)}
-        )});
+            TAddressMap{std::pair(DefaultNetworkName, name)})});
         return node;
     }
 
@@ -681,8 +680,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::tuple(4, 20, 2, 5, 8),
         std::tuple(6, 30, 4, 9, 5),
-        std::tuple(10, 50, 4, 5, 25)
-    ));
+        std::tuple(10, 50, 4, 5, 25)));
 
 /*
     Test settings description:
@@ -701,8 +699,7 @@ INSTANTIATE_TEST_SUITE_P(
             "{a=[1;2;];}",
             "{n1=[a;]; n2=[a;];}",
             1,
-            "{n1=[]; n2=[];}")
-    ));
+            "{n1=[]; n2=[];}")));
 
 INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
@@ -749,8 +746,7 @@ INSTANTIATE_TEST_SUITE_P(
             "{a=[1;2;3;]; b=[4;5;6;]; c=[7;8;9;]}",
             "{n1=[a;b;c]; n2=[a;b;c]; n3=[a;b;c]}",
             6,
-            "{n1=[1;2;3;4;5;6;]; n2=[1;2;7;8;9;]; n3=[3;4;5;6;8;9]}")
-    ));
+            "{n1=[1;2;3;4;5;6;]; n2=[1;2;7;8;9;]; n3=[3;4;5;6;8;9]}")));
 
 
 ////////////////////////////////////////////////////////////////////////////////

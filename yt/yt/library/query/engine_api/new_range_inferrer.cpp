@@ -330,8 +330,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                                 currentLower),
                             TConstraint::Make(
                                 TValueBound{lowerValue, true},
-                                TValueBound{upperValue, false}
-                            ),
+                                TValueBound{upperValue, false}),
                             TConstraint::Make(
                                 TValueBound{upperValue, false},
                                 TValueBound{upperValue, true},

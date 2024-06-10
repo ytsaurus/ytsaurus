@@ -1290,8 +1290,7 @@ private:
             std::move(tagSet),
             std::move(volumeCreateTimeGuard),
             std::move(volumeMeta),
-            std::move(volumeProperties)
-        );
+            std::move(volumeProperties));
     }
 
     TVolumeMeta DoCreateOverlayVolume(
@@ -1376,8 +1375,7 @@ private:
             std::move(tagSet),
             std::move(volumeCreateTimeGuard),
             std::move(volumeMeta),
-            std::move(volumeProperties)
-        );
+            std::move(volumeProperties));
     }
 
     void DoRemoveVolume(NProfiling::TTagSet tagSet, const TVolumeId& volumeId)

@@ -239,8 +239,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::tuple(EIOEngineType::ThreadPool, "{ max_bytes_per_write = 65536; }"),
         std::tuple(EIOEngineType::ThreadPool, "{ max_bytes_per_write = 65536; enable_pwritev = %false; }"),
-        std::tuple(EIOEngineType::Uring, "{ }")
-    )
+        std::tuple(EIOEngineType::Uring, "{ }"))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

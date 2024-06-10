@@ -197,10 +197,8 @@ TEST(TQueryOptimizerTest, OptimizeStringTryGetString)
                 TExpressionList{
                     objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "meta"),
                     objectsHolder.New<TLiteralExpression>(NQueryClient::TSourceLocation(), "/id")
-                }
-            )
-        }
-    );
+                })
+        });
 
     select.push_back(
         objectsHolder.New<TAliasExpression>(

@@ -112,8 +112,7 @@ void SortAllocationsWithPreemptionInfo(std::vector<TAllocationWithPreemptionInfo
             }
 
             return lhs.Allocation->GetStartTime() < rhs.Allocation->GetStartTime();
-        }
-    );
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

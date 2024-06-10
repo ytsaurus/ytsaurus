@@ -267,8 +267,7 @@ TEST_F(TControlThreadTest, TestSingleOperation)
     std::vector<TOperationDescription> operations = {
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(/* cpu */ 1, 2_GB, 0), /* count */ 100),
-            earliestTime
-        )
+            earliestTime)
     };
 
     TStatisticsOutputMock statisticsOutput(earliestTime);
@@ -303,12 +302,10 @@ TEST_F(TControlThreadTest, TestTwoComplementaryOperations)
     std::vector<TOperationDescription> operations = {
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(1, 2_GB, 0), /* count */ 100),
-            earliestTime
-        ),
+            earliestTime),
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(2, 1_GB, 1), /* count */ 100),
-            earliestTime
-        )
+            earliestTime)
     };
 
     TStatisticsOutputMock statisticsOutput(earliestTime);
@@ -351,13 +348,11 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(2, 2_GB, 0), /* count */ 100),
             /* startTime */ earliestTime,
-            /* pool */ "test10"
-        ),
+            /* pool */ "test10"),
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(2, 2_GB, 1), /* count */ 100),
             /* startTime */ earliestTime + TDuration::Seconds(20),
-            /* pool */ "test20"
-        )
+            /* pool */ "test20")
     };
 
     TStatisticsOutputMock statisticsOutput(earliestTime);

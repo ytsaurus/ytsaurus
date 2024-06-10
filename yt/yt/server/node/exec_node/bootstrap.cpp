@@ -198,8 +198,7 @@ public:
         SetNodeByYPath(
             GetOrchidRoot(),
             "/exec_node",
-            CreateVirtualNode(GetOrchidService(this))
-        );
+            CreateVirtualNode(GetOrchidService(this)));
 
         SetNodeByYPath(
             GetOrchidRoot(),

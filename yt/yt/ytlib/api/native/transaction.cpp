@@ -367,8 +367,7 @@ public:
                 THROW_ERROR_EXCEPTION(
                     "Queue cluster %Qv was not found for path %v",
                     *queueCluster,
-                    queuePath
-                );
+                    queuePath);
             }
 
             auto queueClientOptions = TClientOptions::FromUser(Client_->GetOptions().GetAuthenticatedUser());

@@ -311,8 +311,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     return createChunkReaderFromSpecAsync(chunkSpec, nullptr).Apply(
                         BIND([=] (const ISchemalessChunkReaderPtr& reader) -> IReaderBasePtr {
                             return wrapReader(reader);
-                        })
-                    );
+                        }));
                 });
 
                 auto canCreateReader = BIND([=] {

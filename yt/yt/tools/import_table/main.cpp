@@ -134,13 +134,11 @@ void ImportFiles(int argc, const char** argv)
     modChooser.AddMode(
         "huggingface",
         ImportFilesFromHuggingface,
-        "-- import files from huggingface"
-    );
+        "-- import files from huggingface");
     modChooser.AddMode(
         "s3",
         ImportFilesFromS3,
-        "-- import files from S3"
-    );
+        "-- import files from S3");
 
     modChooser.Run(argc, argv);
 }

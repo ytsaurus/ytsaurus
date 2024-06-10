@@ -2694,8 +2694,7 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
             THROW_ERROR_EXCEPTION(
                 "Queue cluster %Qv was not found for path %v",
                 *queueCluster,
-                queuePath
-            );
+                queuePath);
         }
 
         auto queueClientOptions = TClientOptions::FromUser(Options_.GetAuthenticatedUser());
@@ -2719,14 +2718,12 @@ IQueueRowsetPtr TClient::DoPullQueueConsumer(
                 "Consumer partition was not found during offset calculation (PartitionIndex: %v, ConsumerPath: %v, QueuePath: %v)",
                 partitionIndex,
                 consumerPath,
-                queuePath
-            );
+                queuePath);
 
             THROW_ERROR_EXCEPTION(
                 "Failed to calculate current offset for consumer %v for queue %v",
                 consumerPath,
-                queuePath
-            );
+                queuePath);
         }
         resultOffset = partitions[0].NextRowIndex;
     }

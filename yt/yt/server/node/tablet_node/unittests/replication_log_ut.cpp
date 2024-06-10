@@ -25,8 +25,7 @@ TEST(TReplicationLogTest, TestDeleteMessagesBuilding)
             TColumnSchema("key1", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("key2", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("value1", EValueType::String)
-        }
-    );
+        });
 
     versionedRowBuilder.AddKey(MakeUnversionedInt64Value(1, 0));
     versionedRowBuilder.AddKey(MakeUnversionedInt64Value(2, 1));

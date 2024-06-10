@@ -49,8 +49,7 @@ public:
         NConcurrency::TDelayedExecutor::Submit(
             BIND(&TJobProxyLogManager::RemoveJobLog, MakeStrong(this), jobId),
             LogsStoragePeriod_,
-            Bootstrap_->GetStorageHeavyInvoker()
-        );
+            Bootstrap_->GetStorageHeavyInvoker());
     }
 
     TString GetShardingKey(TJobId jobId) override
@@ -107,8 +106,7 @@ private:
                 &TJobProxyLogManager::TraverseShardingDirectoryAndScheduleRemovals,
                 MakeStrong(this),
                 currentTime,
-                std::move(shardingDirPath)
-            ));
+                std::move(shardingDirPath)));
         }
     }
 
@@ -137,8 +135,7 @@ private:
                 NConcurrency::TDelayedExecutor::Submit(
                     removeLogsAction,
                     jobLogsDirModificationTime + LogsStoragePeriod_,
-                    Bootstrap_->GetStorageHeavyInvoker()
-                );
+                    Bootstrap_->GetStorageHeavyInvoker());
             }
         }
 

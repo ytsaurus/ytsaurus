@@ -285,8 +285,7 @@ private:
                             .TabletCellBundle = slot->GetTabletCellBundleName(),
                         },
                         storeId,
-                    }
-                );
+                    });
             }
             ++index;
         }

@@ -242,8 +242,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
                         std::move(converter), \
                         isPySchemaOptional, \
                         isTiSchemaOptional, \
-                        IsValidateOptionalOnRuntime \
-                    ); \
+                        IsValidateOptionalOnRuntime); \
                 }
 
                 CASE(EWireType::Int8)
@@ -267,8 +266,7 @@ TPythonToSkiffConverter CreatePrimitivePythonToSkiffConverterImpl(TString descri
                     std::move(converter), \
                     isPySchemaOptional, \
                     isTiSchemaOptional, \
-                    IsValidateOptionalOnRuntime \
-                ); \
+                    IsValidateOptionalOnRuntime); \
             }
 
         CASE(EPythonType::Bytes, EWireType::String32)
@@ -356,9 +354,7 @@ public:
                     CreatePythonToSkiffConverter(
                         fieldDescription,
                         GetAttr(field, PySchemaFieldName),
-                        validateOptionalOnRuntime
-                    )
-                );
+                        validateOptionalOnRuntime));
                 FieldNames_.push_back(fieldName);
             }
         }
@@ -394,9 +390,7 @@ public:
             CreatePythonToSkiffConverter(
                 Description_ + ".<list-element>",
                 GetAttr(pySchema, ItemFieldName),
-                validateOptionalOnRuntime
-            )
-        )
+                validateOptionalOnRuntime))
     { }
 
     void operator() (PyObject* obj, TCheckedInDebugSkiffWriter* writer)
@@ -433,8 +427,7 @@ public:
         int i = 0;
         for (const auto& pyElementSchema : Py::List(GetAttr(pySchema, ElementsFieldName))) {
             ElementConverters_.push_back(
-                CreatePythonToSkiffConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime)
-            );
+                CreatePythonToSkiffConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime));
             i += 1;
         }
     }
@@ -508,8 +501,7 @@ public:
         : RowClassName_(GetRowClassName(pySchema))
         , ValidateOptionalOnRuntime_(
             FindAttr(pySchema, SchemaRuntimeContextFieldName)
-            && GetAttr(GetAttr(pySchema, SchemaRuntimeContextFieldName), ValidateOptionalOnRuntimeFieldName).as_bool()
-        )
+            && GetAttr(GetAttr(pySchema, SchemaRuntimeContextFieldName), ValidateOptionalOnRuntimeFieldName).as_bool())
         , StructConverter_(RowClassName_, GetAttr(pySchema, StructSchemaFieldName), ValidateOptionalOnRuntime_)
     {
         auto otherColumnsField = GetAttr(GetAttr(pySchema, StructSchemaFieldName), OtherColumnsFieldFieldName);

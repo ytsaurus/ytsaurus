@@ -276,9 +276,9 @@ TEST(TYamrLenvalParserTest, Simple)
         "\xff\xff\xff\xff" "\x01\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
-        "\x06\x00\x00\x00" "value2"
-        , 2 * (2 * 4 + 4 + 6) + 8 // all i32 + lengths of keys
-    );
+        "\x06\x00\x00\x00" "value2",
+
+        2 * (2 * 4 + 4 + 6) + 8); // all i32 + lengths of keys
 
     auto config = New<TYamrFormatConfig>();
     config->Lenval = true;
@@ -318,9 +318,9 @@ TEST(TYamrLenvalParserTest, SimpleWithSubkey)
 
         "\x04\x00\x00\x00" "key2"
         "\x07\x00\x00\x00" "subkey2"
-        "\x06\x00\x00\x00" "value2"
-        , 2 * (3 * 4 + 4 + 7 + 6) // all i32 + lengths of keys
-    );
+        "\x06\x00\x00\x00" "value2",
+
+        2 * (3 * 4 + 4 + 7 + 6)); // all i32 + lengths of keys
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
@@ -347,9 +347,8 @@ TEST(TYamrLenvalParserTest, EmptyFields)
     TString input = TString(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
-        "\x00\x00\x00\x00"
-        , 3 * 4
-    );
+        "\x00\x00\x00\x00",
+        3 * 4);
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
@@ -363,9 +362,8 @@ TEST(TYamrLenvalParserTest, HugeLength)
     TString input = TString(
         "\xFF\xFF\xFF\xFF"
         "\x00\x00\x00\x00"
-        "\x00\x00\x00\x00"
-        , 3 * 4
-    );
+        "\x00\x00\x00\x00",
+        3 * 4);
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
@@ -411,9 +409,9 @@ TEST(TYamrLenvalParserTest, SimpleEndOfMessage)
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
 
-        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     auto config = New<TYamrFormatConfig>();
     config->Lenval = true;
@@ -441,9 +439,8 @@ TEST(TYamrLenvalParserTest, EmptyFieldsWithEOM)
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
-        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
-        , 3 * 4 + 12
-    );
+        "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00",
+        3 * 4 + 12);
 
     auto config = New<TYamrFormatConfig>();
     config->HasSubkey = true;
@@ -469,9 +466,9 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
         "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
-        "\x06\x00\x00\x00" "value2"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\x06\x00\x00\x00" "value2",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     TString input2 = TString(
         "\x04\x00\x00\x00" "key1"
@@ -483,9 +480,9 @@ TEST(TYamrParserTest, IncorrectPlaceOfEOM)
 
         "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
 
-        "\x06\x00\x00\x00" "value2"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\x06\x00\x00\x00" "value2",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     EXPECT_THROW(ParseYamr(input1, GetNullYsonConsumer(), config), std::exception);
     EXPECT_THROW(ParseYamr(input2, GetNullYsonConsumer(), config), std::exception);
@@ -508,9 +505,9 @@ TEST(TYamrParserTest, IncorrectEOM)
         "\xfb\xff\xff\xff" "\x01\x00\x00\x00\x00\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
-        "\x06\x00\x00\x00" "value2"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\x06\x00\x00\x00" "value2",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     // Row count mismatch
     TString input2 = TString(
@@ -522,9 +519,9 @@ TEST(TYamrParserTest, IncorrectEOM)
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
 
-        "\xfb\xff\xff\xff" "\x03\x00\x00\x00\x00\x00\x00\x00"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\xfb\xff\xff\xff" "\x03\x00\x00\x00\x00\x00\x00\x00",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     // Missing EOM marker
     TString input3 = TString(
@@ -534,18 +531,16 @@ TEST(TYamrParserTest, IncorrectEOM)
         "\xff\xff\xff\xff" "\x01\x00\x00\x00"
 
         "\x04\x00\x00\x00" "key2"
-        "\x06\x00\x00\x00" "value2"
+        "\x06\x00\x00\x00" "value2",
 
-        , 2 * (2 * 4 + 4 + 6) + 8 // all i32 + lengths of keys
-    );
+        2 * (2 * 4 + 4 + 6) + 8); // all i32 + lengths of keys
 
     // Missing EOM marker with empty fields
     TString input4 = TString(
         "\x00\x00\x00\x00"
         "\x00\x00\x00\x00"
-        "\x00\x00\x00\x00"
-        , 3 * 4
-    );
+        "\x00\x00\x00\x00",
+        3 * 4);
 
     EXPECT_THROW(ParseYamr(input1, GetNullYsonConsumer(), config), std::exception);
     EXPECT_THROW(ParseYamr(input2, GetNullYsonConsumer(), config), std::exception);
@@ -570,9 +565,9 @@ TEST(TYamrParserTest, UnsupportedEOMInTextMode)
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
 
-        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     EXPECT_THROW(ParseYamr(input, GetNullYsonConsumer(), config), std::exception);
 }
@@ -593,9 +588,9 @@ TEST(TYamrParserTest, UnexpectedEOM)
         "\x04\x00\x00\x00" "key2"
         "\x06\x00\x00\x00" "value2"
 
-        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00"
-        , 2 * (2 * 4 + 4 + 6) + 8 + 12 // all i32 + lengths of keys
-    );
+        "\xfb\xff\xff\xff" "\x02\x00\x00\x00\x00\x00\x00\x00",
+
+        2 * (2 * 4 + 4 + 6) + 8 + 12); // all i32 + lengths of keys
 
     EXPECT_THROW(ParseYamr(input, GetNullYsonConsumer(), config), std::exception);
 }

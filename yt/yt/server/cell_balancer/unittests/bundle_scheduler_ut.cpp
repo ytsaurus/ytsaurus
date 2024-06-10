@@ -4904,8 +4904,7 @@ INSTANTIATE_TEST_SUITE_P(
     TBundleSchedulerTest,
     ::testing::Values(
         std::tuple(EZoneSetup::Simple, 1),
-        std::tuple(EZoneSetup::MultiCluster, 3)
-    )
+        std::tuple(EZoneSetup::MultiCluster, 3))
 );
 
 INSTANTIATE_TEST_SUITE_P(
@@ -4913,8 +4912,7 @@ INSTANTIATE_TEST_SUITE_P(
     TNodeTagsFilterManager,
     ::testing::Values(
         std::tuple(EZoneSetup::Simple, 1),
-        std::tuple(EZoneSetup::MultiCluster, 3)
-    )
+        std::tuple(EZoneSetup::MultiCluster, 3))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

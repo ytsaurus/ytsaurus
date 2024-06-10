@@ -163,8 +163,7 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
                         OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
                     }
                 })
-                .AsyncVia(Invoker_)
-            );
+                .AsyncVia(Invoker_));
         })
         .AsyncVia(Invoker_);
 }

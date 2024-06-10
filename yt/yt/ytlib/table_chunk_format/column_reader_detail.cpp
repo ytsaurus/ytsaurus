@@ -265,8 +265,7 @@ int TColumnReaderBase::FindSegmentByRowIndex(i64 rowIndex) const
         rowIndex,
         [] (i64 index, const NProto::TSegmentMeta& segmentMeta) {
             return index < segmentMeta.chunk_row_count();
-        }
-    );
+        });
 
     return std::distance(ColumnMeta_.segments().begin(), it);
 }
@@ -285,8 +284,7 @@ int TColumnReaderBase::FindFirstBlockSegment() const
         CurrentBlockIndex_,
         [] (const NProto::TSegmentMeta& segmentMeta, int blockIndex) {
             return segmentMeta.block_index() < blockIndex;
-        }
-    );
+        });
     YT_VERIFY(it != ColumnMeta_.segments().end());
     return std::distance(ColumnMeta_.segments().begin(), it);
 }
@@ -299,8 +297,7 @@ int TColumnReaderBase::FindLastBlockSegment() const
         CurrentBlockIndex_,
         [] (int blockIndex, const NProto::TSegmentMeta& segmentMeta) {
             return blockIndex < segmentMeta.block_index();
-        }
-    );
+        });
 
     YT_VERIFY(it != ColumnMeta_.segments().begin());
     return std::distance(ColumnMeta_.segments().begin(), it - 1);

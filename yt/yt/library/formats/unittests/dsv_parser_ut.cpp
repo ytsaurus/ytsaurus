@@ -122,9 +122,9 @@ TEST(TDsvParserTest, UnescapedZeroInInput)
     StrictMock<TMockYsonConsumer> Mock;
 
     TString input = TString("a\0b=v", 5);
-    EXPECT_ANY_THROW(
+    EXPECT_ANY_THROW({
         ParseDsv(input, &Mock);
-    );
+    });
 }
 
 TEST(TDsvParserTest, ZerosAreNotTerminals)
@@ -150,9 +150,9 @@ TEST(TDsvParserTest, UnterminatedRecord)
     NiceMock<TMockYsonConsumer> Mock;
 
     TString input = "a=b";
-    EXPECT_ANY_THROW(
+    EXPECT_ANY_THROW({
         ParseDsv(input, &Mock);
-    );
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -342,9 +342,9 @@ TEST_F(TTskvParserTest, NotFinishedLinePrefix)
 {
     TString input = "tsk";
 
-    EXPECT_ANY_THROW(
-        ParseDsv(input, &ErrorMock, Config)
-    );
+    EXPECT_ANY_THROW({
+        ParseDsv(input, &ErrorMock, Config);
+    });
 }
 
 TEST_F(TTskvParserTest, WrongLinePrefix)
@@ -354,9 +354,9 @@ TEST_F(TTskvParserTest, WrongLinePrefix)
         "tZkv\tc=d\te=f\n"
         "tskv\ta=b\n";
 
-    EXPECT_ANY_THROW(
+    EXPECT_ANY_THROW({
         ParseDsv(input, &ErrorMock, Config);
-    );
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

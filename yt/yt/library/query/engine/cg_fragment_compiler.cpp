@@ -722,8 +722,7 @@ struct TComparerManager
                 Value* rhsValues,
                 Value* startIndex,
                 Value* finishIndex,
-                Value* labelsArray
-            ) {
+                Value* labelsArray) {
                 UniversalLabels = CodegenLessComparerBody(
                     builder,
                     lhsValues,
@@ -881,8 +880,7 @@ Function* TComparerManager::GetHasher(
                 Value* values,
                 Value* startIndex,
                 Value* finishIndex,
-                Value* labelsArray
-            ) {
+                Value* labelsArray) {
                 HashLabels = CodegenHasherBody(
                     builder,
                     values,
@@ -894,8 +892,7 @@ Function* TComparerManager::GetHasher(
 
         emplaced.first->second = MakeFunction<THasherFunction>(module, "Hasher", [&] (
             TCGBaseContext& builder,
-            Value* row
-        ) {
+            Value* row) {
             Value* result;
             if (start == finish) {
                 result = builder->getInt64(0);
@@ -950,8 +947,7 @@ Function* TComparerManager::GetEqComparer(
         emplaced.first->second = MakeFunction<TComparerFunction>(module, "EqComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
-            Value* rhsRow
-        ) {
+            Value* rhsRow) {
             Value* result;
             if (start == finish) {
                 result = builder->getInt8(1);
@@ -1010,8 +1006,7 @@ Function* TComparerManager::GetLessComparer(
         emplaced.first->second = MakeFunction<TComparerFunction>(module, "LessComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
-            Value* rhsRow
-        ) {
+            Value* rhsRow) {
             Value* result;
             if (start == finish) {
                 result = builder->getInt8(0);
@@ -1070,8 +1065,7 @@ Function* TComparerManager::GetTernaryComparer(
         emplaced.first->second = MakeFunction<TTernaryComparerFunction>(module, "TernaryComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
-            Value* rhsRow
-        ) {
+            Value* rhsRow) {
             Value* result;
             if (start == finish) {
                 result = builder->getInt32(0);
@@ -1116,8 +1110,7 @@ Function* TComparerManager::CodegenOrderByComparerFunction(
     return MakeFunction<char(TPIValue*, TPIValue*)>(module, "OrderByComparer", [&] (
         TCGBaseContext& builder,
         Value* lhsValues,
-        Value* rhsValues
-    ) {
+        Value* rhsValues) {
         Type* type = TValueTypeBuilder::Get(builder->getContext());
         lhsValues = builder->CreateGEP(type, lhsValues, builder->getInt64(offset));
         rhsValues = builder->CreateGEP(type, rhsValues, builder->getInt64(offset));
@@ -2490,8 +2483,7 @@ TLlvmClosure MakeConsumer(TCGOperatorContext& builder, llvm::Twine name, size_t 
             TCGOperatorContext& builder,
             Value* buffer,
             Value* rows,
-            Value* size
-        ) {
+            Value* size) {
             TCGContext innerBuilder(builder, buffer);
             Value* more = CodegenForEachRow(
                 innerBuilder,
@@ -2522,8 +2514,7 @@ TLlvmClosure MakeConsumerWithPIConversion(
             TCGOperatorContext& builder,
             Value* buffer,
             Value* rows,
-            Value* size
-        ) {
+            Value* size) {
             TCGContext innerBuilder(builder, buffer);
             Value* more = CodegenForEachRow(
                 innerBuilder,
@@ -2604,8 +2595,7 @@ size_t MakeCodegenMultiJoinOp(
         auto collectRows = MakeClosure<void(TMultiJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* joinClosure,
-            Value* /*buffer*/
-        ) {
+            Value* /*buffer*/) {
             Value* keyPtrs = builder->CreateAlloca(
                 TTypeBuilder<TPIValue*>::Get(builder->getContext()),
                 builder->getInt64(parameters.size()));
@@ -2993,8 +2983,7 @@ size_t MakeCodegenArrayJoinOp(
             auto predicate = MakeClosure<bool(TExpressionContext*, TPIValue*)>(builder, "arrayJoinPredicate", [&] (
                 TCGOperatorContext& builder,
                 Value* buffer,
-                Value* unfoldedValues
-            ) {
+                Value* unfoldedValues) {
                 TCGContext innerBuilder(builder, buffer);
 
                 auto rowBuilder = TCGExprContext::Make(
@@ -3164,8 +3153,7 @@ size_t MakeCodegenOnceOp(
         auto onceWrapper = MakeClosure<TBool(TExpressionContext*, TPIValue*)>(builder, "OnceWrapper", [&] (
             TCGOperatorContext& builder,
             Value* buffer,
-            Value* values
-        ) {
+            Value* values) {
             TCGContext innerBuilder(builder, buffer);
             innerBuilder->CreateRet(builder[consumerSlot](innerBuilder, values));
         });
@@ -3225,8 +3213,7 @@ TGroupOpSlots MakeCodegenGroupOp(
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "GroupCollect", [&] (
             TCGOperatorContext& builder,
             Value* groupByClosure,
-            Value* buffer
-        ) {
+            Value* buffer) {
             Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
             size_t keySize = keyTypes.size();
@@ -3451,8 +3438,7 @@ size_t MakeCodegenGroupTotalsOp(
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TExpressionContext*)>(builder, "GroupTotalsCollect", [&] (
             TCGOperatorContext& builder,
-            Value* buffer
-        ) {
+            Value* buffer) {
             Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
 
             auto keySize = std::ssize(keyTypes);
@@ -3600,8 +3586,7 @@ size_t MakeCodegenOrderOp(
 
         auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
-            Value* topCollector
-        ) {
+            Value* topCollector) {
             Value* newValues = CodegenAllocateValues(builder, schemaSize + exprIds.size());
 
             Type* closureType = TClosureTypeBuilder::Get(
@@ -3763,8 +3748,7 @@ void MakeCodegenWriteOp(
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (
             TCGOperatorContext& builder,
-            Value* writeRowClosure
-        ) {
+            Value* writeRowClosure) {
             builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
                 Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
 
@@ -3845,8 +3829,7 @@ TCGQueryImage CodegenQuery(
         TCGBaseContext& baseBuilder,
         Value* literals,
         Value* opaqueValuesPtr,
-        Value* executionContextPtr
-    ) {
+        Value* executionContextPtr) {
         std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
 
         TCGOperatorContext builder(
@@ -3887,8 +3870,7 @@ TCGExpressionImage CodegenStandaloneExpression(
         Value* opaqueValuesPtr,
         Value* resultPtr,
         Value* inputRow,
-        Value* buffer
-    ) {
+        Value* buffer) {
         auto builder = TCGExprContext::Make(
             TCGOpaqueValuesContext(baseBuilder, literals, opaqueValuesPtr),
             *fragmentInfos,
@@ -3925,8 +3907,7 @@ TCGAggregateImage CodegenAggregate(
         auto* initFunction = MakeFunction<TCGPIAggregateInitSignature>(cgModule, initName.c_str(), [&] (
             TCGBaseContext& builder,
             Value* buffer,
-            Value* resultPtr
-        ) {
+            Value* resultPtr) {
             codegenAggregate.Initialize(builder, buffer)
                 .StoreToValue(builder, resultPtr, "writeResult");
             builder->CreateRetVoid();
@@ -3945,8 +3926,7 @@ TCGAggregateImage CodegenAggregate(
             TCGBaseContext& builder,
             Value* buffer,
             Value* statePtr,
-            Value* newValuesPtr
-        ) {
+            Value* newValuesPtr) {
             auto state = TCGValue::LoadFromAggregate(builder, statePtr, stateType);
             std::vector<TCGValue> newValues;
             newValues.reserve(argumentTypes.size());
@@ -3974,8 +3954,7 @@ TCGAggregateImage CodegenAggregate(
             TCGBaseContext& builder,
             Value* buffer,
             Value* dstStatePtr,
-            Value* statePtr
-        ) {
+            Value* statePtr) {
             auto state = TCGValue::LoadFromAggregate(builder, statePtr, stateType);
             auto dstState = TCGValue::LoadFromAggregate(builder, dstStatePtr, stateType);
 
@@ -3997,8 +3976,7 @@ TCGAggregateImage CodegenAggregate(
             TCGBaseContext& builder,
             Value* buffer,
             Value* resultPtr,
-            Value* statePtr
-        ) {
+            Value* statePtr) {
             auto result = codegenAggregate.Finalize(
                 builder,
                 buffer,

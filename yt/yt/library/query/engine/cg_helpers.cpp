@@ -97,8 +97,7 @@ TCGExprContext TCGExprContext::Make(
             fragmentInfos,
             buffer,
             rowValues,
-            expressionClosurePtr
-        ));
+            expressionClosurePtr));
 }
 
 TCGExprContext TCGExprContext::Make(
@@ -149,8 +148,7 @@ TCGExprContext TCGExprContext::Make(
             fragmentInfos,
             buffer,
             rowValues,
-            expressionClosurePtr
-        ));
+            expressionClosurePtr));
 }
 
 Value* TCGExprContext::GetExpressionClosurePtr()

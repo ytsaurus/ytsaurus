@@ -2669,10 +2669,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             fileLogWriterConfig->FileName = NFS::JoinPaths(
                 NFS::JoinPaths(
                     execNodeConfig->JobProxyLogManager->Directory,
-                    calculateShardingKey(execNodeConfig->JobProxyLogManager->ShardingKeyLength)
-                ),
-                NFS::JoinPaths(ToString(GetId()), "job_proxy.log")
-            );
+                    calculateShardingKey(execNodeConfig->JobProxyLogManager->ShardingKeyLength)),
+                NFS::JoinPaths(ToString(GetId()), "job_proxy.log"));
         }
 
         return writerConfig->BuildFullConfig(fileLogWriterConfig);
@@ -3180,8 +3178,7 @@ bool TJob::IsFatalError(const TError& error)
         error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
         (
             error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) &&
-            !AbortJobIfAccountLimitExceeded_
-        ) ||
+            !AbortJobIfAccountLimitExceeded_) ||
         error.FindMatching(NSecurityClient::EErrorCode::NoSuchAccount) ||
         error.FindMatching(NChunkClient::EErrorCode::NoSuchMedium) ||
         error.FindMatching(NNodeTrackerClient::EErrorCode::NoSuchNetwork) ||

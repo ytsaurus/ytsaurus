@@ -1856,8 +1856,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
-        "0000" "00" "00"
-    );
+        "0000" "00" "00");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1868,8 +1867,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
-        "0000" "00" "01""03000000""00000000"
-    );
+        "0000" "00" "01""03000000""00000000");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1882,8 +1880,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
         "0000" "01""01000000""00000000" "01""02000000""00000000"
-        "0000" "00" "00"
-    );
+        "0000" "00" "00");
 
     EXPECT_THROW_WITH_SUBSTRING(skiffWrite({{0, 0, {}}}, rowAndRangeIndex), "index requested but reader did not return it");
     EXPECT_THROW_WITH_SUBSTRING(skiffWrite({{0, {}, 0}}, rowAndRangeIndex), "index requested but reader did not return it");
@@ -1910,8 +1907,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
-        "0000" "00" "00"
-    );
+        "0000" "00" "00");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1922,8 +1918,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
 
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
-        "0000" "00" "01""03000000""00000000"
-    );
+        "0000" "00" "01""03000000""00000000");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1936,8 +1931,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "01""00000000""00000000" "01""00000000""00000000"
         "0000" "00" "00"
         "0000" "01""01000000""00000000" "01""02000000""00000000"
-        "0000" "00" "00"
-    );
+        "0000" "00" "00");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1950,8 +1944,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "02" "02"
         "0000" "02" "02"
         "0000" "02" "02"
-        "0000" "02" "02"
-    );
+        "0000" "02" "02");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1964,8 +1957,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "02" "01""00000000""00000000"
         "0000" "02" "00"
         "0000" "02" "01""03000000""00000000"
-        "0000" "02" "00"
-    );
+        "0000" "02" "00");
 
     EXPECT_STREQ(
         skiffWrite({
@@ -1978,8 +1970,7 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         "0000" "01""00000000""00000000" "02"
         "0000" "00" "02"
         "0000" "01""01000000""00000000" "02"
-        "0000" "00" "02"
-    );
+        "0000" "00" "02");
 }
 
 TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
@@ -2050,8 +2041,7 @@ TEST(TSkiffWriter, TestComplexType)
                         StructLogicalType({
                             {"x", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
                             {"y", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
-                        })
-                    )
+                        }))
                 }
             })),
         });
@@ -2107,8 +2097,7 @@ TEST(TSkiffWriter, TestEmptyComplexType)
                 StructLogicalType({
                     {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                     {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))
-            ),
+                }))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2154,8 +2143,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
                 StructLogicalType({
                     {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                     {"value",   SimpleLogicalType(ESimpleLogicalValueType::String)},
-                }))
-            ),
+                }))),
         });
         auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
@@ -2206,8 +2194,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
             StructLogicalType({
                 {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"value", SimpleLogicalType(ESimpleLogicalValueType::String)},
-            }))
-        ),
+            }))),
     });
 
     auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
@@ -2252,8 +2239,7 @@ TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
     TStringStream resultStream;
     EXPECT_THROW_WITH_SUBSTRING(
         CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()}),
-        "cannot be represented with Skiff schema"
-    );
+        "cannot be represented with Skiff schema");
 }
 
 TEST(TSkiffWriter, TestMissingComplexColumn)
@@ -2272,8 +2258,7 @@ TEST(TSkiffWriter, TestMissingComplexColumn)
         auto nameTable = New<TNameTable>();
         EXPECT_THROW_WITH_SUBSTRING(
             CreateSkiffWriter(requiredSkiffSchema, nameTable, &Cnull, std::vector{New<TTableSchema>()}),
-            "cannot be represented with Skiff schema"
-        );
+            "cannot be represented with Skiff schema");
     }
 
     {
@@ -2923,8 +2908,7 @@ TEST(TSkiffParser, TestSparseComplexType)
                 StructLogicalType({
                     {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
                     {"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })
-            ))
+                })))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
 
@@ -2972,8 +2956,7 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
                 StructLogicalType({
                     {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
                     {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
-                })
-            ))
+                })))
         }));
     auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
 
@@ -3017,8 +3000,7 @@ TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
     TCollectingValueConsumer collectedRows;
     EXPECT_THROW_WITH_SUBSTRING(
         CreateParserForSkiff(skiffSchema, &collectedRows),
-        "cannot be represented with Skiff schema"
-    );
+        "cannot be represented with Skiff schema");
 }
 
 TEST(TSkiffParser, TestEmptyColumns)

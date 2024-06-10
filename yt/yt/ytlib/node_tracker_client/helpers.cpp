@@ -130,8 +130,7 @@ TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient
                 locationResources.limit(),
                 mediumIndex,
                 mediumName);
-        })
-    );
+        }));
 }
 
 TString FormatResourceUsage(

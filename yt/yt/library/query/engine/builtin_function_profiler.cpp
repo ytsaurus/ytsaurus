@@ -411,8 +411,7 @@ private:
             },
             [&] (TCGExprContext& /*builder*/) {
                 return argument;
-            }
-        );
+            });
     }
 };
 
@@ -951,8 +950,7 @@ public:
                 },
                 [&] (TCGBaseContext& /*builder*/){
                     return aggregate;
-                }
-            );
+                });
         } else {
             YT_UNIMPLEMENTED();
         }
@@ -989,8 +987,7 @@ public:
                 },
                 [&] (TCGBaseContext& /*builder*/) {
                     return PackValues(builder, buffer, dstDataUnpacked, argumentTypes);
-                }
-            );
+                });
         } else {
             YT_UNIMPLEMENTED();
         }

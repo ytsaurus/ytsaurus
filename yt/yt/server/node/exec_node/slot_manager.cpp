@@ -410,8 +410,7 @@ IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequ
             NumaNodeStates_.end(),
             [] (const auto& lhs, const auto& rhs) {
                 return lhs.FreeCpuCount < rhs.FreeCpuCount;
-            }
-        );
+            });
 
         if (bestNumaNodeIt->FreeCpuCount >= cpuRequest.cpu()) {
             numaNodeAffinity = bestNumaNodeIt->NumaNodeInfo;

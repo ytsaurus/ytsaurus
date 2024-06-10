@@ -329,8 +329,7 @@ private:
         auto error = NYT::TError(
             "Got status code %v %v",
             ToUnderlying(statusCode),
-            ToHttpString(statusCode)
-        );
+            ToHttpString(statusCode));
         auto responseBody = response->ReadAll();
         try {
             const auto xml = ParseXmlDocument(responseBody);

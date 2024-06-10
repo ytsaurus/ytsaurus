@@ -379,8 +379,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
         {
             auto guard = Guard(chunk->PeersLock);
             if (blockCounter.DistributedAt != 0 &&
-                currentTick - blockCounter.DistributedAt >= config->BlockRedistributionTicks
-            ) {
+                currentTick - blockCounter.DistributedAt >= config->BlockRedistributionTicks) {
                 if (chunk->PeersAllocatedAt == blockCounter.DistributedAt) {
                     YT_LOG_DEBUG("Resetting chunk peers (ChunkId: %v, Reason: Period)", chunk->GetKey());
                     chunk->Peers = {};

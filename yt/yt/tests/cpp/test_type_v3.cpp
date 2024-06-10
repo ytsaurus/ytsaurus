@@ -155,36 +155,28 @@ TEST_F(TTypeV3Test, TestCreateDynamicTable)
             *TTableSchema(std::vector<TColumnSchema>({
                 {"key", keyType, ESortOrder::Ascending},
                 {"value", valueType},
-            })).SetUniqueKeys(true)
-        );
+            })).SetUniqueKeys(true));
     };
 
     EXPECT_NO_THROW(
         createKvDynamicTable(
             SimpleLogicalType(ESimpleLogicalValueType::String),
-            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
-        )
-    );
+            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))));
 
     EXPECT_NO_THROW(
         createKvDynamicTable(
             SimpleLogicalType(ESimpleLogicalValueType::String),
-            DecimalLogicalType(3, 2)
-        )
-    );
+            DecimalLogicalType(3, 2)));
 
     EXPECT_NO_THROW(
         createKvDynamicTable(
             ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-            SimpleLogicalType(ESimpleLogicalValueType::String)
-        )
-    );
+            SimpleLogicalType(ESimpleLogicalValueType::String)));
 
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         createKvDynamicTable(
             DecimalLogicalType(3, 2),
-            SimpleLogicalType(ESimpleLogicalValueType::String)
-        ),
+            SimpleLogicalType(ESimpleLogicalValueType::String)),
         std::exception,
         "Dynamic table cannot have key column of type");
 }
@@ -221,8 +213,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
             {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64), ESortOrder::Ascending},
             {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
         }).SetUniqueKeys(true),
-        {{"optimize_for", optimizeFor}}
-    );
+        {{"optimize_for", optimizeFor}});
 
     auto nameTable = New<TNameTable>();
 
@@ -253,8 +244,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
                     std::vector<TLegacyKey>({
                         NNamedValue::MakeRow(nameTable, {{"key", 1}})
                     }),
-                    nameTable
-                )))
+                    nameTable)))
             .ValueOrThrow()
             .Rowset;
 
@@ -281,8 +271,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestLookup)
             NNamedValue::MakeRow(nameTable, {
                 {"value", EValueType::Composite, "[1;2;3]"}
             })
-        })
-    );
+        }));
 }
 
 TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
@@ -298,8 +287,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
             {"key", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"value", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })),
-        {{"optimize_for", optimizeFor}}
-    );
+        {{"optimize_for", optimizeFor}});
 
     auto nameTable = New<TNameTable>();
 
@@ -331,8 +319,7 @@ TEST_P(TTypeV3TestWithOptimizedFor, TestOrdered)
                 NNamedValue::MakeRow(nameTable, {
                     {"value", EValueType::Composite, "[1;2;3]"}
                 })
-            })
-        );
+            }));
     };
 
     //

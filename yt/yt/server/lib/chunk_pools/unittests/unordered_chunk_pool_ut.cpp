@@ -401,8 +401,7 @@ TEST_F(TUnorderedChunkPoolTest, UnorderedMergeSimple)
 {
     InitTables(
         {true, true, true} /*isTeleportable*/,
-        {false, false, false} /*isVersioned*/
-    );
+        {false, false, false} /*isVersioned*/);
 
     DataSizePerJob_ = 2_KB;
     Options_.MinTeleportChunkDataWeight = 3_KB;
@@ -440,8 +439,7 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe1)
 {
     InitTables(
         /*isTeleprotable*/ {false},
-        /*isVersion*/ {false}
-    );
+        /*isVersion*/ {false});
 
     DataSizePerJob_ = 2047;
     InputSliceDataSize_ = 1500;
@@ -470,8 +468,7 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe2)
 {
     InitTables(
         /*isTeleprotable*/ {false},
-        /*isVersion*/ {false}
-    );
+        /*isVersion*/ {false});
 
     DataSizePerJob_ = 2047;
     InputSliceDataSize_ = 800;
@@ -500,8 +497,7 @@ TEST_F(TUnorderedChunkPoolTest, OneStripe3)
 {
     InitTables(
         /*isTeleprotable*/ {false},
-        /*isVersion*/ {false}
-    );
+        /*isVersion*/ {false});
 
     DataSizePerJob_ = 2048;
     InputSliceDataSize_ = 800;
@@ -530,8 +526,7 @@ TEST_F(TUnorderedChunkPoolTest, InputChunksAreSliced)
 {
     InitTables(
         {false} /*isTeleportable*/,
-        {false} /*isVersioned*/
-    );
+        {false} /*isVersioned*/);
 
     DataSizePerJob_ = 2_KB / 5;
     IsExplicitJobCount_ = true; // TODO(max42): consider what happens with false here.
@@ -567,8 +562,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
 {
     InitTables(
         {false} /*isTeleportable*/,
-        {false} /*isVersioned*/
-    );
+        {false} /*isVersioned*/);
 
     DataSizePerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
@@ -608,8 +602,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
 {
     InitTables(
         {false} /*isTeleportable*/,
-        {false} /*isVersioned*/
-    );
+        {false} /*isVersioned*/);
 
     DataSizePerJob_ = 5_KB;
     IsExplicitJobCount_ = true;
@@ -648,8 +641,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
 {
     InitTables(
         {false} /*isTeleportable*/,
-        {false} /*isVersioned*/
-    );
+        {false} /*isVersioned*/);
 
     InputSliceRowCount_ = 500;
     IsExplicitJobCount_ = true;
@@ -696,8 +688,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
     InitTables(
         {false} /*isTeleportable*/,
-        {false} /*isVersioned*/
-    );
+        {false} /*isVersioned*/);
 
     constexpr int chunkCount = 25;
     constexpr int maxJobLosts = 50;

@@ -160,8 +160,7 @@ std::vector<TPartRange> TParityPartSplitInfo::SplitRangesByStripesAndAlignToPari
         ranges.end(),
         [] (TPartRange left, TPartRange right) {
             return left.End <= right.Begin;
-        }
-    ));
+        }));
 
     std::vector<TPartRange> result;
 
@@ -641,8 +640,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
             auto it = std::upper_bound(
                 partInfos[0].first_block_index_per_stripe().begin(),
                 partInfos[0].first_block_index_per_stripe().end(),
-                blockIndex
-            );
+                blockIndex);
 
             stripeIndex = (it - partInfos[0].first_block_index_per_stripe().begin()) - 1;
             YT_VERIFY(stripeIndex >= 0);
@@ -655,8 +653,7 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
                 partInfos.end(),
                 [&] (const TPartInfo& partInfo) {
                     return partInfo.first_block_index_per_stripe(stripeIndex) <= blockIndex;
-                }
-            );
+                });
 
             partIndex = (it - partInfos.begin() - 1);
             while (partIndex > 0 && GetStripeBlockCount(placementExt, partIndex, stripeIndex) == 0) {

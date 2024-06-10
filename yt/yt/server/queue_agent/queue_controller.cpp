@@ -1186,8 +1186,7 @@ private:
                         "Error getting safe trim row count by timestamp %v, not trimming partition %v",
                         maxTimestampToTrim,
                         partitionIndex)
-                        << safeTrimRowCountOrError
-                    );
+                        << safeTrimRowCountOrError);
                 } else {
                     Context.Partitions[partitionIndex].Update({
                         .MaxTrimmedRowCount = safeTrimRowCountOrError.Value(),
@@ -1289,8 +1288,7 @@ private:
                 if (!trimmingResult.IsOK()) {
                     Context.Partitions[partitionIndex].SetError(TError(
                         "Error occurred while executing trimming request for partition %v", partitionIndex)
-                        << trimmingResult
-                    );
+                        << trimmingResult);
                 }
             }
         }

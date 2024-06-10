@@ -650,8 +650,7 @@ std::vector<NChunkClient::NProto::TChunkSpec> GetChunkSpecs(
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
             req->set_fetch_parity_replicas(true);
         },
-        Logger
-    );
+        Logger);
 
     chunkSpecFetcher->Add(
         userObject.ObjectId,

@@ -88,8 +88,7 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple("1", "5", std::vector<TString>{"2", "4", "6"}),
         std::tuple("5", "8", std::vector<TString>{"2", "4", "6"}),
         std::tuple("5", "8", std::vector<TString>{"2", "4"}),
-        std::tuple("5", "8", std::vector<TString>{"2", "4", "5"})
-    )
+        std::tuple("5", "8", std::vector<TString>{"2", "4", "5"}))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

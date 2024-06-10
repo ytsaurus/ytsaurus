@@ -690,8 +690,7 @@ TEST(TProtobufFormat, TestConfigParsingEmbedded) {
     auto schema = BuildEmbeddedSchema();
 
     EXPECT_NO_THROW(
-        ParseAndValidateConfig(config->Attributes().ToMap(), {schema})
-    );
+        ParseAndValidateConfig(config->Attributes().ToMap(), {schema}));
 }
 
 TEST(TProtobufFormat, TestConfigParsing)
@@ -707,16 +706,13 @@ TEST(TProtobufFormat, TestConfigParsing)
         "Error parsing \"file_descriptor_set\" in protobuf config");
 
     EXPECT_NO_THROW(ParseAndValidateConfig(
-        CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap()
-    ));
+        CreateAllFieldsConfig(EProtoFormatType::Structured)->Attributes().ToMap()));
 
     EXPECT_NO_THROW(ParseAndValidateConfig(
-        CreateAllFieldsConfig(EProtoFormatType::FileDescriptorLegacy)->Attributes().ToMap()
-    ));
+        CreateAllFieldsConfig(EProtoFormatType::FileDescriptorLegacy)->Attributes().ToMap()));
 
     EXPECT_NO_THROW(ParseAndValidateConfig(
-        CreateAllFieldsConfig(EProtoFormatType::FileDescriptor)->Attributes().ToMap()
-    ));
+        CreateAllFieldsConfig(EProtoFormatType::FileDescriptor)->Attributes().ToMap()));
 
     auto embeddedInsideNonembeddedConfig = BuildYsonNodeFluently()
         .BeginMap()
@@ -3314,15 +3310,19 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createWriter(New<TTableSchema>(), config_struct_with_int64));
 
     auto schema_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
-        {"repeated", ListLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::Int64)
-        )},
+        {
+            "repeated",
+            ListLogicalType(
+                SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+        },
     });
 
     auto schema_list_optional_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
-        {"repeated", ListLogicalType(
-            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
-        )},
+        {
+            "repeated",
+            ListLogicalType(
+                OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+        },
     });
 
     auto config_repeated_int64 = BuildYsonNodeFluently()
@@ -3363,8 +3363,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_optional_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", OptionalLogicalType(
-            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
-        )},
+            ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
 
     // Optional list is OK.
@@ -3373,8 +3372,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     auto schema_optional_optional_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"field", OptionalLogicalType(
-            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
-        )},
+            OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
 
     auto config_int64 = BuildYsonNodeFluently()

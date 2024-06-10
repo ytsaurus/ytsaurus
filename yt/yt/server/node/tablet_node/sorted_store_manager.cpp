@@ -636,8 +636,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         const ITransactionPtr& transaction,
         const IThroughputThrottlerPtr& throttler,
         TTimestamp currentTimestamp,
-        const TWriterProfilerPtr& writerProfiler
-    ) {
+        const TWriterProfilerPtr& writerProfiler) {
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
         auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);

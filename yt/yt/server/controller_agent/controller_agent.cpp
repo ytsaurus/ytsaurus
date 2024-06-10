@@ -2193,8 +2193,7 @@ private:
                     Bootstrap_
                         ->GetClient()
                         ->GetNativeConnection()
-                        ->GetMediumDirectory()
-                )
+                        ->GetMediumDirectory())
                 .Item("snapshot_version").Value(ToUnderlying(GetCurrentSnapshotVersion()))
                 .Item("snapshotted_operation_ids")
                     .BeginAttributes()

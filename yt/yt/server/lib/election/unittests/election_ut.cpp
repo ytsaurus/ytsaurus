@@ -486,34 +486,28 @@ INSTANTIATE_TEST_SUITE_P(
         TElectionTestData(
             -1,
             TStatus(EPeerState::Following, 0, TEpochId(), {0, 1}),
-            TStatus(EPeerState::Following, 0, TEpochId(), {0, 2})
-        ),
+            TStatus(EPeerState::Following, 0, TEpochId(), {0, 2})),
         TElectionTestData(
             1,
-            TStatus(EPeerState::Leading, 1, OtherEpoch, {0, 1})
-        ),
+            TStatus(EPeerState::Leading, 1, OtherEpoch, {0, 1})),
         TElectionTestData(
             -1,
-            TStatus(EPeerState::Leading, 1, OtherEpoch, {-1, -1})
-        ),
+            TStatus(EPeerState::Leading, 1, OtherEpoch, {-1, -1})),
         // all followers
         TElectionTestData(
             -1,
             TStatus(EPeerState::Following, 1, OtherEpoch, {0, 1}),
-            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2})
-        ),
+            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2})),
         // all leaders
         TElectionTestData(
             2,
             TStatus(EPeerState::Leading, 1, OtherEpoch, {0, 1}),
-            TStatus(EPeerState::Leading, 2, OtherEpoch, {0, 2})
-        ),
+            TStatus(EPeerState::Leading, 2, OtherEpoch, {0, 2})),
         // potential leader should recognize itself as a leader
         TElectionTestData(
             -1,
             TStatus(EPeerState::Following, 2, OtherEpoch, {0, 1}),
-            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2})
-        )
+            TStatus(EPeerState::Following, 2, OtherEpoch, {0, 2}))
 ));
 
 ////////////////////////////////////////////////////////////////////////////////

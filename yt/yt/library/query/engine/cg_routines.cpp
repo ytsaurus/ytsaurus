@@ -3700,8 +3700,7 @@ struct TMakeWebAssemblyIntrinsic<TResult(TArgs...)>
         (void*)Intrinsic##intrinsic, \
         WAVM::IR::FunctionType(WAVM::IR::FunctionType::Encoding{ \
             std::bit_cast<WAVM::Uptr>(NWebAssembly::TFunctionTypeBuilder<true, decltype(NRoutines::intrinsic) >::Get()) \
-        }) \
-    );
+        }));
 
 ////////////////////////////////////////////////////////////////////////////////
 

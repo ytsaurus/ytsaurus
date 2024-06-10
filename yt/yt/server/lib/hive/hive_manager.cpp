@@ -1648,8 +1648,7 @@ private:
                     avenueEnvelopes,
                     [] (auto* builder, const auto& envelope) {
                         builder->AppendFormat("%v", GetSiblingAvenueEndpointId(envelope.SrcEndpointId));
-                    }
-                ));
+                    }));
         } else {
             YT_LOG_DEBUG("Posting reliable outcoming messages "
                 "(SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v, Avenues: %v)",
@@ -1669,8 +1668,7 @@ private:
                                 envelope.FirstMessageId,
                                 envelope.FirstMessageId + ssize(envelope.MessagesToPost) - 1);
                         }
-                    }
-                ));
+                    }));
         }
 
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(

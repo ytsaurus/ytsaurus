@@ -602,8 +602,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30",
         "<id=3;ts=4> 4",
         {3},
-        {2}
-    ));
+        {2}));
     EXPECT_EQ(expected, actual);
 
     DeleteRows(std::get<1>(preparedKey), std::get<0>(preparedKey), 5);
@@ -622,8 +621,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30;",
         "<id=3;ts=4> 4",
         {6},
-        {2, 5}
-    ));
+        {2, 5}));
     EXPECT_EQ(expected, actual);
 
     options.RetentionConfig->MinDataVersions = 1;
@@ -634,8 +632,7 @@ TEST_F(TLookupFilterTest, TestFilteredOutTimestamps)
         "<id=0> 30; <id=1> 30; <id=2> 30;",
         "",
         {6},
-        {2, 5}
-    ));
+        {2, 5}));
     EXPECT_EQ(expected, actual);
 }
 

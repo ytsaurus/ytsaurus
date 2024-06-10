@@ -365,8 +365,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
             uring_thread_count = %v;
             read_thread_count = %v;
             simulated_max_bytes_per_write = 512;
-        }
-    )";
+        })";
 
     const int FullTestIterationCount = 3;
 
@@ -491,8 +490,7 @@ INSTANTIATE_TEST_SUITE_P(
 
         std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
         std::tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
-        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate)
-    )
+        std::tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate))
 );
 
 TEST_P(TIOEngineTest, Lock)

@@ -119,9 +119,7 @@ YT_PREVENT_TLS_CACHING void CheckFieldType(const Py::Object& value, NSkiff::EWir
             if (wireType == NSkiff::EWireType::Uint64 &&
                 (
                     PyObject_RichCompareBool(Zero, valueAsLongLong.ptr(), Py_LE) != 1 ||
-                    PyObject_RichCompareBool(valueAsLongLong.ptr(), UnsignedInt64Max, Py_LT) != 1
-                )
-            )
+                    PyObject_RichCompareBool(valueAsLongLong.ptr(), UnsignedInt64Max, Py_LT) != 1))
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
                     << TErrorAttribute("expected_type", "uint64")
@@ -130,9 +128,7 @@ YT_PREVENT_TLS_CACHING void CheckFieldType(const Py::Object& value, NSkiff::EWir
             if (wireType == NSkiff::EWireType::Int64 &&
                 (
                     PyObject_RichCompareBool(SignedInt64Min, valueAsLongLong.ptr(), Py_LE) != 1 ||
-                    PyObject_RichCompareBool(valueAsLongLong.ptr(), SignedInt64Max, Py_LE) != 1
-                )
-            )
+                    PyObject_RichCompareBool(valueAsLongLong.ptr(), SignedInt64Max, Py_LE) != 1))
             {
                 THROW_ERROR_EXCEPTION("Invalid value passed to SkiffRecord, it must be in range [0, 2^64 - 1]")
                     << TErrorAttribute("expected_type", "int64")

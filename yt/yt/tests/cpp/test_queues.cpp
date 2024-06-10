@@ -418,29 +418,25 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
         testing::FieldsAre(firstQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), false, std::nullopt),
-        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt)
-    ));
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt)));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, /*consumerPath*/ {}))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
         testing::FieldsAre(firstQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), false, std::nullopt),
         testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt),
-        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::vector{1, 5, 4, 3})
-    ));
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::vector{1, 5, 4, 3})));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
         testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt),
-        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::vector{1, 5, 4, 3})
-    ));
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::vector{1, 5, 4, 3})));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), secondConsumer->GetRichPath()))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt)
-    ));
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), true, std::nullopt)));
 
     WaitFor(Client_->UnregisterQueueConsumer(firstQueue->GetRichPath(), secondConsumer->GetPath()))
         .ThrowOnError();
@@ -456,26 +452,22 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(firstQueue->GetRichPath(), /*consumerPath*/ {}))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::nullopt)
-    ));
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::nullopt)));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(secondQueue->GetRichPath(), /*consumerPath*/ {}))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)
-    ));
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, firstConsumer->GetRichPath()))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)
-    ));
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::nullopt)
-    ));
+        testing::FieldsAre(firstQueue->GetRichPathWithCluster(), secondConsumer->GetRichPathWithCluster(), false, std::nullopt)));
 
     WaitFor(Client_->UnregisterQueueConsumer(firstQueue->GetRichPath(), secondConsumer->GetPath()))
         .ThrowOnError();
@@ -487,8 +479,7 @@ TEST_W(TListRegistrationsTest, ListQueueConsumerRegistrations)
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(secondQueue->GetRichPath(), /*consumerPath*/ {}))
         .ValueOrThrow();
     EXPECT_THAT(registrations, testing::UnorderedElementsAre(
-        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)
-    ));
+        testing::FieldsAre(secondQueue->GetRichPathWithCluster(), firstConsumer->GetRichPathWithCluster(), true, std::nullopt)));
 
     registrations = WaitFor(Client_->ListQueueConsumerRegistrations(/*queuePath*/ {}, secondConsumer->GetRichPath()))
         .ValueOrThrow();
