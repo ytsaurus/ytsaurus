@@ -94,6 +94,10 @@ public:
     //! Configuration for various per-location throttlers.
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
+    //! Configuration for uncategorized throttler.
+    bool EnableUncategorizedThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
+
     //! IO engine type.
     NIO::EIOEngineType IOEngineType;
 
@@ -147,6 +151,9 @@ public:
 
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
     std::optional<TDuration> ThrottleDuration;
+
+    std::optional<bool> EnableUncategorizedThrottler;
+    NConcurrency::TThroughputThrottlerConfigPtr UncategorizedThrottler;
 
     std::optional<i64> CoalescedReadMaxGapSize;
 
