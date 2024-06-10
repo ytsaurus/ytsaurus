@@ -106,7 +106,7 @@ IYPathServicePtr CreateService(
             }
 
             default:
-                THROW_ERROR_EXCEPTION("Invalid remote addresses type %lv", manifest->RemoteAddresses->GetType());
+                THROW_ERROR_EXCEPTION("Invalid remote addresses type %Qlv", manifest->RemoteAddresses->GetType());
         }
 
         return CreateOrchidYPathService(TOrchidOptions{

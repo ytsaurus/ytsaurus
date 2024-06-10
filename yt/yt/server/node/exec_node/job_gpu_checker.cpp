@@ -23,7 +23,7 @@ TJobGpuChecker::TJobGpuChecker(
     : Context_(std::move(context))
     , Logger(std::move(logger))
 {
-    YT_LOG_DEBUG("Creating %lv job GPU checker", Context_.GpuCheckType);
+    YT_LOG_DEBUG("Creating job GPU checker (Type: %v)", Context_.GpuCheckType);
 }
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
@@ -46,7 +46,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     RunCheck_.Fire();
 
     {
-        YT_LOG_INFO("Verifying %lv GPU check command", Context_.GpuCheckType);
+        YT_LOG_INFO("Verifying GPU check command (Type: %v)", Context_.GpuCheckType);
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
@@ -79,7 +79,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     checkCommand->Path = Context_.GpuCheckBinaryPath;
     checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
 
-    YT_LOG_INFO("Running %lv GPU check commands", Context_.GpuCheckType);
+    YT_LOG_INFO("Running GPU check commands (Type: %v)", Context_.GpuCheckType);
 
     if (Context_.TestExtraGpuCheckCommandFailure) {
         YT_LOG_INFO("Testing extra GPU check command failed");
@@ -126,7 +126,7 @@ void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std:
 
 TJobGpuChecker::~TJobGpuChecker()
 {
-    YT_LOG_DEBUG("Destroying %lv job GPU checker", Context_.GpuCheckType);
+    YT_LOG_DEBUG("Destroying job GPU checker (Type: %v)", Context_.GpuCheckType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

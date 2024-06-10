@@ -293,7 +293,7 @@ void TUserJobSensor::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->Source == EUserJobSensorSource::Statistics && !config->Path) {
-            THROW_ERROR_EXCEPTION("Parameter \"path\" is required for sensor with %lv source",
+            THROW_ERROR_EXCEPTION("Parameter \"path\" is required for sensor with %Qlv source",
                 config->Source);
         }
     });

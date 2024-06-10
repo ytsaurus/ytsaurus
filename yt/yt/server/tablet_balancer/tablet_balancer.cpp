@@ -959,7 +959,7 @@ void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bund
         const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
             "Parameterized balancing via move failed with an exception "
-            "(BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
+            "(BundleName: %v, Group: %v, GroupType: %v, GroupMetric: %v)",
             bundle->Name,
             groupName,
             groupConfig->Type,
@@ -988,7 +988,7 @@ void TTabletBalancer::TryBalanceViaReshardParameterized(
         const auto& groupConfig = GetOrCrash(bundle->Config->Groups, groupName);
         YT_LOG_ERROR(ex,
             "Parameterized balancing via reshard failed with an exception "
-            "(BundleName: %v, Group: %v, GroupType: %lv, GroupMetric: %v)",
+            "(BundleName: %v, Group: %v, GroupType: %v, GroupMetric: %v)",
             bundle->Name,
             groupName,
             groupConfig->Type,

@@ -6345,7 +6345,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
 
                 auto atomicity = attributes->Get<EAtomicity>("atomicity");
                 if (atomicity != Spec_->Atomicity) {
-                    THROW_ERROR_EXCEPTION("Output table %lv atomicity %Qv does not match spec atomicity %Qlv",
+                    THROW_ERROR_EXCEPTION("Output table %v atomicity %Qv does not match spec atomicity %Qlv",
                         path,
                         atomicity,
                         Spec_->Atomicity);
@@ -7434,12 +7434,12 @@ void TOperationControllerBase::InferInputRanges()
 
 TError TOperationControllerBase::GetAutoMergeError() const
 {
-    return TError("Automatic output merge is not supported for %lv operations", OperationType);
+    return TError("Automatic output merge is not supported for %Qlv operations", OperationType);
 }
 
 TError TOperationControllerBase::GetUseChunkSliceStatisticsError() const
 {
-    return TError("Fetching chunk slice statistics is not supported for %lv operations", OperationType);
+    return TError("Fetching chunk slice statistics is not supported for %Qlv operations", OperationType);
 }
 
 void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResult* result)

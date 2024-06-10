@@ -599,7 +599,7 @@ void TSmoothMovementData::ValidateWriteToTablet() const
     }
 
     THROW_ERROR_EXCEPTION("Cannot write into tablet since it is a "
-        "smooth movement %lv in stage %Qlv",
+        "smooth movement %Qlv in stage %Qlv",
         Role_,
         Stage_);
 }

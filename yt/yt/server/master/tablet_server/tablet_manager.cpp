@@ -351,7 +351,7 @@ public:
         objectManager->RefObject(tablet);
 
         YT_LOG_DEBUG(
-            "Tablet created (TableId: %v, TabletId: %v, Type: %lv, Account: %v)",
+            "Tablet created (TableId: %v, TabletId: %v, Type: %v, Account: %v)",
             table->GetId(),
             tablet->GetId(),
             type,

@@ -224,7 +224,7 @@ const NLogging::TLogger* TSchedulerStrategyHost::GetEventLogger()
 void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
 {
     if (!alert.IsOK()) {
-        YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %lv)", alertType);
+        YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
     }
 }
 
