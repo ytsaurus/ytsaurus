@@ -220,13 +220,10 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
         }
 
         auto block = std::move(entry.Block);
+        block.Data = TrackMemory(session->Options.MemoryUsageTracker, std::move(block.Data), true);
 
-        if (session->Options.TrackMemoryAfterSessionCompletion) {
-            block.Data = TrackMemory(session->Options.MemoryUsageTracker, std::move(block.Data), true);
-
-            if (delayBeforeFree) {
-                block.Data = WrapBlockWithDelayedReferenceHolder(std::move(block.Data), *delayBeforeFree);
-            }
+        if (delayBeforeFree) {
+            block.Data = WrapBlockWithDelayedReferenceHolder(std::move(block.Data), *delayBeforeFree);
         }
 
         blocks[originalEntryIndex] = std::move(block);
@@ -718,7 +715,6 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         }
         session->Options.MemoryUsageTracker = options.MemoryUsageTracker;
         session->Options.UseDedicatedAllocations = true;
-        session->Options.TrackMemoryAfterSessionCompletion = options.TrackMemoryAfterSessionCompletion;
     } catch (const std::exception& ex) {
         return MakeFuture<std::vector<TBlock>>(ex);
     }

@@ -1052,8 +1052,6 @@ public:
     //! If |true|, node will abort when location becomes disabled.
     bool AbortOnLocationDisabled;
 
-    bool TrackMemoryAfterSessionCompletion;
-
     bool TrackSystemJobsMemory;
 
     //! Publish disabled locations to master.

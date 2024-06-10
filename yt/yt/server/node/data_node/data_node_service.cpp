@@ -860,7 +860,6 @@ private:
             options.ChunkReaderStatistics = chunkReaderStatistics;
             options.ReadSessionId = readSessionId;
             options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
-            options.TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion;
 
             if (context->GetTimeout() && context->GetStartTime()) {
                 options.Deadline =
@@ -1002,7 +1001,6 @@ private:
         options.FetchFromDisk = !netThrottling && !diskThrottling;
         options.ChunkReaderStatistics = chunkReaderStatistics;
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
-        options.TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion;
 
         if (context->GetTimeout() && context->GetStartTime()) {
             options.Deadline =
@@ -1140,7 +1138,6 @@ private:
                         TClientChunkReadOptions options{
                             .WorkloadDescriptor = workloadDescriptor,
                             .ReadSessionId = readSessionId,
-                            .TrackMemoryAfterSessionCompletion = GetDynamicConfig()->TrackMemoryAfterSessionCompletion,
                             .MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker()
                         };
                         if (auto future = guard.GetChunk()->PrepareToReadChunkFragments(options, useDirectIO)) {

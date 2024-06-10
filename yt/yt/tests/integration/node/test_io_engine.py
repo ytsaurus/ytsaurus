@@ -116,7 +116,6 @@ class TestIoEngine(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "track_memory_after_session_completion": True,
                 "testing_options": {
                     "delay_before_blob_session_block_free": 100000,
                 },
@@ -384,7 +383,6 @@ class TestIoEngine(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "track_memory_after_session_completion": True,
                 "testing_options": {
                     "delay_before_blob_session_block_free": 100000,
                 },
