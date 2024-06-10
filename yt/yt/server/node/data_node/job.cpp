@@ -539,12 +539,6 @@ private:
         chunkReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
-        chunkReadOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackMemoryAfterSessionCompletion;
 
         TRefCountedChunkMetaPtr meta;
         {
@@ -920,12 +914,6 @@ private:
         IChunkReader::TReadBlocksOptions readBlocksOptions{
             .ClientOptions = TClientChunkReadOptions{
                 .WorkloadDescriptor = workloadDescriptor,
-                .TrackMemoryAfterSessionCompletion = Bootstrap_
-                    ->GetDataNodeBootstrap()
-                    ->GetDynamicConfigManager()
-                    ->GetConfig()
-                    ->DataNode
-                    ->TrackMemoryAfterSessionCompletion,
                 .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
             },
         };
@@ -1112,12 +1100,6 @@ private:
             IChunkReader::TReadBlocksOptions readBlocksOptions{
                 .ClientOptions = TClientChunkReadOptions{
                     .WorkloadDescriptor = workloadDescriptor,
-                    .TrackMemoryAfterSessionCompletion = Bootstrap_
-                        ->GetDataNodeBootstrap()
-                        ->GetDynamicConfigManager()
-                        ->GetConfig()
-                        ->DataNode
-                        ->TrackMemoryAfterSessionCompletion,
                     .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
                 },
             };
@@ -2050,12 +2032,6 @@ private:
                 /*band*/ 0,
                 /*instant*/ {},
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
-            .TrackMemoryAfterSessionCompletion = Bootstrap_
-                ->GetDataNodeBootstrap()
-                ->GetDynamicConfigManager()
-                ->GetConfig()
-                ->DataNode
-                ->TrackMemoryAfterSessionCompletion,
             .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker()
         };
 
@@ -2547,13 +2523,8 @@ private:
             bodyChunkReplicas);
 
         IChunkReader::TReadBlocksOptions readBlocksOptions;
-        readBlocksOptions.ClientOptions.TrackMemoryAfterSessionCompletion = Bootstrap_
-            ->GetDataNodeBootstrap()
-            ->GetDynamicConfigManager()
-            ->GetConfig()
-            ->DataNode
-            ->TrackMemoryAfterSessionCompletion;
         readBlocksOptions.ClientOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
+
         auto& workloadDescriptor = readBlocksOptions.ClientOptions.WorkloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
         workloadDescriptor.Annotations = {Format("Autotomy of chunk %v", BodyChunkId_)};

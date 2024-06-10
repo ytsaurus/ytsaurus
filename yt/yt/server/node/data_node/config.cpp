@@ -964,9 +964,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_location_disabled", &TThis::AbortOnLocationDisabled)
         .Default(false);
 
-    registrar.Parameter("track_memory_after_session_completion", &TThis::TrackMemoryAfterSessionCompletion)
-        .Default(true);
-
     registrar.Parameter("track_system_jobs_memory", &TThis::TrackSystemJobsMemory)
         .Default(true);
 

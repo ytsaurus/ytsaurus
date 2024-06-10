@@ -23,7 +23,6 @@ struct TClientChunkReadOptions
     NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Heavy;
     int MultiplexingParallelism = 1;
     bool UseDedicatedAllocations = false;
-    bool TrackMemoryAfterSessionCompletion = true;
 
     TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
     NTableClient::TKeyFilterStatisticsPtr KeyFilterStatistics;
