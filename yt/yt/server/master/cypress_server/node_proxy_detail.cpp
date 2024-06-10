@@ -2543,7 +2543,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
 
-    if (key == "primary_medium") {
+    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
         auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
         if (!optionalPrimaryMediumIndex) {
             return {};
@@ -2553,7 +2553,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString(medium->GetName());
     }
 
-    if (key == "hunk_primary_medium") {
+    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
         auto optionalHunkPrimaryMediumIndex = InheritedAttributes_.HunkPrimaryMediumIndex.ToOptional();
         if (!optionalHunkPrimaryMediumIndex) {
             return {};
@@ -2563,7 +2563,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString(medium->GetName());
     }
 
-    if (key == "media") {
+    if (key == EInternedAttributeKey::Media.Unintern()) {
         auto optionalReplication = InheritedAttributes_.Media.ToOptional();
         if (!optionalReplication) {
             return {};
@@ -2572,7 +2572,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
     }
 
-    if (key == "hunk_media") {
+    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
         auto optionalReplication = InheritedAttributes_.HunkMedia.ToOptional();
         if (!optionalReplication) {
             return {};
@@ -2581,7 +2581,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
     }
 
-    if (key == "tablet_cell_bundle") {
+    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
         auto optionalCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
         if (!optionalCellBundle) {
             return {};
@@ -2590,7 +2590,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
         return ConvertToYsonString((*optionalCellBundle)->GetName());
     }
 
-    if (key == "chaos_cell_bundle") {
+    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
         auto optionalCellBundle = InheritedAttributes_.ChaosCellBundle.ToOptional();
         if (!optionalCellBundle) {
             return {};
@@ -2606,14 +2606,14 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
-        if (key == "compression_codec") { \
+        if (key == EInternedAttributeKey::CompressionCodec.Unintern()) { \
             const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
             ValidateCompressionCodec( \
                 value, \
                 chunkManagerConfig->DeprecatedCodecIds, \
                 chunkManagerConfig->DeprecatedCodecNameToAlias); \
         } \
-        if (key == "erasure_codec") { \
+        if (key == EInternedAttributeKey::ErasureCodec.Unintern()) { \
             ValidateErasureCodec( \
                 value, \
                 Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->ForbiddenErasureCodecs); \
@@ -2626,7 +2626,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
 #undef XX
 
-    if (key == "primary_medium") {
+    if (key == EInternedAttributeKey::PrimaryMedium.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& mediumName = ConvertTo<TString>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
@@ -2634,7 +2634,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
-    if (key == "hunk_primary_medium") {
+    if (key == EInternedAttributeKey::HunkPrimaryMedium.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& mediumName = ConvertTo<TString>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
@@ -2642,7 +2642,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
-    if (key == "media") {
+    if (key == EInternedAttributeKey::Media.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
         TChunkReplication replication;
@@ -2652,7 +2652,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
-    if (key == "hunk_media") {
+    if (key == EInternedAttributeKey::HunkMedia.Unintern()) {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
         TChunkReplication replication;
@@ -2662,7 +2662,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
-    if (key == "tablet_cell_bundle") {
+    if (key == EInternedAttributeKey::TabletCellBundle.Unintern()) {
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
@@ -2670,7 +2670,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return;
     }
 
-    if (key == "chaos_cell_bundle") {
+    if (key == EInternedAttributeKey::ChaosCellBundle.Unintern()) {
         auto bundleName = ConvertTo<TString>(value);
         const auto& chaosManager = Bootstrap_->GetChaosManager();
         auto* bundle = chaosManager->GetChaosCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
