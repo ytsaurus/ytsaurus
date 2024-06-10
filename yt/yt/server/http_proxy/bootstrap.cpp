@@ -8,6 +8,7 @@
 #include "http_authenticator.h"
 #include "private.h"
 #include "zookeeper_bootstrap_proxy.h"
+#include "solomon_proxy.h"
 
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
 #include <yt/yt/server/http_proxy/profilers.h>
@@ -49,6 +50,8 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
+
+#include <yt/yt/library/profiling/solomon/proxy.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 
@@ -216,11 +219,15 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     HostsHandler_ = New<THostsHandler>(Coordinator_);
     ClusterConnectionHandler_ = New<TClusterConnectionHandler>(RootClient_);
     PingHandler_ = New<TPingHandler>(Coordinator_);
-    DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(
-        Coordinator_,
-        Connection_,
+    DiscoverVersionsHandler_ = New<TDiscoverVersionsHandler>(
         RootClient_,
-        Config_->Coordinator);
+        TComponentDiscoveryOptions{.ProxyDeathAgeCallback = BIND(&TCoordinator::GetDeathAge, Coordinator_)});
+
+    SolomonProxy_ = CreateSolomonProxy(
+        Config_->SolomonProxy,
+        TComponentDiscoveryOptions{.ProxyDeathAgeCallback = BIND(&TCoordinator::GetDeathAge, Coordinator_)},
+        RootClient_,
+        Poller_);
 
     ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
     ClickHouseHandler_->Start();
@@ -518,7 +525,9 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
         server->AddHandler("/login/", CypressCookieLoginHandler_);
     }
 
-    server->AddHandler("/internal/discover_versions/v2", AllowCors(DiscoverVersionsHandlerV2_));
+    server->AddHandler("/internal/discover_versions/v2", AllowCors(DiscoverVersionsHandler_));
+
+    SolomonProxy_->Register("/solomon_proxy", server);
 
     server->AddHandler("/version", AllowCors(MakeStrong(this)));
     server->AddHandler("/service", AllowCors(MakeStrong(this)));
