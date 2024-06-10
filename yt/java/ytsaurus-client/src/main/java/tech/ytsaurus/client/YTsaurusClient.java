@@ -313,7 +313,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
                                     .setBalancerPort(curCluster.port)
                                     .setRole(proxyRole)
                                     .setProxyNetworkName(proxyNetworkName)
-                                    .setUseTLS(useTLS)
+                                    .setUseTLS(useTLS || curCluster.useTLS)
                                     .setTvmOnly(tvmOnly)
                                     .setIgnoreBalancers(ignoreBalancers)
                                     .setToken(auth.getToken().orElse(null))
@@ -612,6 +612,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYTsaurusCl
          * @param cluster address of YT cluster http balancer, examples:
          *                "hahn"
          *                "localhost:8054"
+         *                "http://my.ytsaurus.cluster/"
+         *                "https://my.ytsaurus.cluster/"
          */
         public TBuilder setCluster(String cluster) {
             setClusters(cluster);

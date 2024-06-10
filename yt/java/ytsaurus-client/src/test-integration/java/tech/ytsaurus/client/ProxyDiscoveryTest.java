@@ -34,6 +34,24 @@ public class ProxyDiscoveryTest {
         );
     }
 
+    @Test
+    public void testSetUseTLSForHttps() {
+        testDiscoveryProxyURI(
+                "https://some.address.org/",
+                false,
+                "https://some.address.org:443/api/v4/discover_proxies?type=rpc"
+        );
+    }
+
+    @Test
+    public void testDoNotSetUseTLSForHttp() {
+        testDiscoveryProxyURI(
+                "http://some.address.org/",
+                false,
+                "http://some.address.org:80/api/v4/discover_proxies?type=rpc"
+        );
+    }
+
     private void testDiscoveryProxyURI(String cluster, boolean useTLS, String expectedDiscoveryProxiesURI) {
         try (var client = YTsaurusClient.builder()
                 .setCluster(cluster)

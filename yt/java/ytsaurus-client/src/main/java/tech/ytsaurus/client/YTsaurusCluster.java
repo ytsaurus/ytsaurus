@@ -23,6 +23,7 @@ public class YTsaurusCluster {
     final List<String> addresses;
     @Nullable
     final String proxyRole;
+    final boolean useTLS;
 
     public YTsaurusCluster(
             String name,
@@ -31,11 +32,12 @@ public class YTsaurusCluster {
             List<String> addresses,
             @Nullable String proxyRole
     ) {
-        this.name = removeHttp(name);
+        this.name = cleanupName(name);
         this.balancerFqdn = balancerFqdn;
         this.port = port;
         this.addresses = addresses;
         this.proxyRole = proxyRole;
+        this.useTLS = useTLS(name);
     }
 
     public YTsaurusCluster(String name, String balancerFqdn, int port, List<String> addresses) {
@@ -47,11 +49,12 @@ public class YTsaurusCluster {
     }
 
     public YTsaurusCluster(String name) {
-        this.name = removeHttp(name);
+        this.name = cleanupName(name);
         this.balancerFqdn = getFqdn(name);
         this.port = getPort(name);
         this.addresses = new ArrayList<>();
         this.proxyRole = null;
+        this.useTLS = useTLS(name);
     }
 
     public String getName() {
@@ -72,7 +75,7 @@ public class YTsaurusCluster {
     }
 
     private static String getFqdnFromUnbracketed(String name) {
-        name = removeHttp(name);
+        name = cleanupName(name);
         int index = name.indexOf(":");
         if (index < 0) {
             if (name.contains(".")) {
@@ -87,7 +90,7 @@ public class YTsaurusCluster {
 
     @Nullable
     private static Integer getPort(String name) {
-        name = removeHttp(name);
+        name = cleanupName(name);
         int index = name.lastIndexOf(":");
         if (index < 0) {
             return null;
@@ -95,13 +98,21 @@ public class YTsaurusCluster {
         return Integer.parseInt(name.substring(index + 1));
     }
 
-    private static String removeHttp(String name) {
+    private static String cleanupName(String name) {
+        name = name.trim();
         for (String prefix : httpPrefixes) {
             if (name.startsWith(prefix)) {
-                return name.substring(prefix.length());
+                name = name.substring(prefix.length());
             }
         }
+        if (name.endsWith("/")) {
+            name = name.substring(0, name.length() - 1);
+        }
         return name;
+    }
+
+    private static boolean useTLS(String name) {
+        return name.startsWith("https://");
     }
 
     static @Nullable
