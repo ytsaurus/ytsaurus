@@ -188,20 +188,12 @@ ESecurityAction CheckAccessControl(
     }
 
     for (const auto& accessControlObject: *accessControlObjectList) {
-        auto aclOrError = WaitFor(client->GetNode(Format(
-            "%v/%v/@principal_acl",
+        auto path = Format(
+            "%v/%v/principal",
             QueriesAcoNamespacePath,
-            NYPath::ToYPathLiteral(accessControlObject))));
+            NYPath::ToYPathLiteral(accessControlObject));
 
-        if (!aclOrError.IsOK()) {
-            THROW_ERROR_EXCEPTION(
-                "Error while fetching access control object queries/%v. "
-                "Please make sure it exists",
-                accessControlObject)
-                << aclOrError;
-        }
-
-        auto securityAction = WaitFor(client->CheckPermissionByAcl(user, permission, ConvertToNode(aclOrError.Value())))
+        auto securityAction = WaitFor(client->CheckPermission(user, path, permission))
             .ValueOrThrow()
             .Action;
 
@@ -438,31 +430,25 @@ std::vector<TQuery> PartialRecordsToQueries(const auto& partialRecords)
     return queries;
 }
 
-std::vector<TString> ValidateAccessControlObjects(EQueryTrackerAPIVersion version, const std::optional<TString>& accessControlObject, const std::vector<TString>& accessControlObjects)
+std::optional<std::vector<TString>> ValidateAccessControlObjects(const std::optional<TString>& accessControlObject, const std::optional<std::vector<TString>>& accessControlObjects)
 {
-    if (version < EQueryTrackerAPIVersion::MultipleAco) {
-        if (!accessControlObjects.empty()) {
-            THROW_ERROR_EXCEPTION("Parameter access_control_objects shouldn't be specified in query versions smaller than %v, actual version is %v",
-                EQueryTrackerAPIVersion::MultipleAco,
-                version);
-        }
+    if (!accessControlObjects && !accessControlObject) {
+        return std::nullopt;
+    }
 
-        if (accessControlObject) {
-            return { *accessControlObject };
-        }
-        return {};
+    if (accessControlObjects && accessControlObject) {
+        THROW_ERROR_EXCEPTION("Only one of access_control_objects, access_control_object should be specified.");
     }
 
     if (accessControlObject) {
-        THROW_ERROR_EXCEPTION("Parameter access_control_object shouldn't be specified in query versions since %v, actual version is %v",
-            EQueryTrackerAPIVersion::MultipleAco,
-            version);
+        return std::vector<TString>({ *accessControlObject });
     }
-    if (accessControlObjects.size() > MaxAccessControlObjectsPerQuery) {
+
+    if (accessControlObjects->size() > MaxAccessControlObjectsPerQuery) {
         THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::TooMuchAco,
             "Too many ACOs in query: limit is %v, actual count is %v",
                 MaxAccessControlObjectsPerQuery,
-                accessControlObjects.size());
+                accessControlObjects->size());
     }
     return accessControlObjects;
 }
@@ -477,10 +463,6 @@ void ConvertAcoToOldFormat(TQuery& query)
 
     if (accessControlObjectList->size() == 1) {
         query.AccessControlObject = (*accessControlObjectList)[0];
-    } else {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::TooMuchAco,
-            "Too old request version to return multiple ACOs")
-            << TErrorAttribute("access_control_objects", accessControlObjectList->size());
     }
 }
 
@@ -536,13 +518,13 @@ void TQueryTrackerProxy::StartQuery(
 
     static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
-    YT_LOG_DEBUG("Starting query (QueryId: %v, Version: %v, Draft: %v)", queryId, options.Version, options.Draft);
+    YT_LOG_DEBUG("Starting query (QueryId: %v, Draft: %v)", queryId, options.Draft);
 
     auto rowBuffer = New<TRowBuffer>();
     auto transaction = WaitFor(StateClient_->StartTransaction(ETransactionType::Tablet, {}))
         .ValueOrThrow();
 
-    auto accessControlObjects = ValidateAccessControlObjects(options.Version, options.AccessControlObject, options.AccessControlObjects);
+    auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects).value_or(std::vector<TString>{});
     VerifyAllAccessControlObjectsExist(accessControlObjects, StateClient_);
 
     // Draft queries go directly to finished query tables (regular and ordered by start time),
@@ -646,7 +628,7 @@ void TQueryTrackerProxy::AbortQuery(
 
     ValidateQueryPermissions(queryId, StateRoot_, transaction->GetStartTimestamp(), user, StateClient_, EPermission::Administer, Logger);
 
-    YT_LOG_DEBUG("Aborting query (QueryId: %v, Version: %v, AbortMessage: %v)", queryId, options.Version, options.AbortMessage);
+    YT_LOG_DEBUG("Aborting query (QueryId: %v, AbortMessage: %v)", queryId, options.AbortMessage);
 
     {
         const auto& idMapping = TActiveQueryDescriptor::Get()->GetIdMapping();
@@ -758,9 +740,8 @@ IUnversionedRowsetPtr TQueryTrackerProxy::ReadQueryResult(
     const TString& user)
 {
     YT_LOG_DEBUG(
-        "Reading query result (QueryId: %v, Version: %v, ResultIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
+        "Reading query result (QueryId: %v, ResultIndex: %v, LowerRowIndex: %v, UpperRowIndex: %v)",
         queryId,
-        options.Version,
         resultIndex,
         options.LowerRowIndex,
         options.UpperRowIndex);
@@ -843,7 +824,7 @@ TQuery TQueryTrackerProxy::GetQuery(
         : WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
 
-    YT_LOG_DEBUG("Getting query (QueryId: %v, Version: %v, Timestamp: %v, Attributes: %v)", queryId, options.Version, timestamp, options.Attributes);
+    YT_LOG_DEBUG("Getting query (QueryId: %v, Timestamp: %v, Attributes: %v)", queryId, timestamp, options.Attributes);
 
     options.Attributes.ValidateKeysOnly();
 
@@ -853,10 +834,8 @@ TQuery TQueryTrackerProxy::GetQuery(
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
 
-    if (options.Version < EQueryTrackerAPIVersion::MultipleAco) {
-        if (!lookupKeys || std::find(lookupKeys->begin(), lookupKeys->end(), "access_control_object") != lookupKeys->end()) {
-            ConvertAcoToOldFormat(query);
-        }
+    if (!lookupKeys || std::find(lookupKeys->begin(), lookupKeys->end(), "access_control_object") != lookupKeys->end()) {
+        ConvertAcoToOldFormat(query);
     }
 
     return query;
@@ -870,9 +849,8 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         .ValueOrThrow();
 
     YT_LOG_DEBUG(
-        "Listing queries (Version: %v, Timestamp: %v, State: %v, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
+        "Listing queries (Timestamp: %v, State: %v, CursorDirection: %v, FromTime: %v, ToTime: %v, CursorTime: %v,"
         "Substr: %v, User: %v, Engine: %v, Limit: %v, Attributes: %v)",
-        options.Version,
         timestamp,
         options.StateFilter,
         options.CursorDirection,
@@ -1089,11 +1067,9 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         result = std::vector(queries.begin(), queries.end() + std::min(options.Limit, queries.size()));
     }
 
-    if (options.Version < EQueryTrackerAPIVersion::MultipleAco) {
-        if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {
-            for (auto& query: result) {
-                ConvertAcoToOldFormat(query);
-            }
+    if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {
+        for (auto& query: result) {
+            ConvertAcoToOldFormat(query);
         }
     }
 
@@ -1120,23 +1096,24 @@ void TQueryTrackerProxy::AlterQuery(
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
 
-    auto accessControlObjects = ValidateAccessControlObjects(options.Version, options.AccessControlObject, options.AccessControlObjects);
+    auto accessControlObjects = ValidateAccessControlObjects(options.AccessControlObject, options.AccessControlObjects);
 
     YT_LOG_DEBUG(
-        "Altering query (QueryId: %v, Version: %v, State: %v, HasAnnotations: %v, HasAccessControlObjects: %v)",
+        "Altering query (QueryId: %v, State: %v, HasAnnotations: %v, HasAccessControlObjects: %v)",
         queryId,
-        options.Version,
         *query.State,
         static_cast<bool>(options.Annotations),
-        !accessControlObjects.empty());
+        static_cast<bool>(accessControlObjects));
 
-    if (!options.Annotations && accessControlObjects.empty()) {
+    if (!options.Annotations && !accessControlObjects) {
         WaitFor(transaction->Commit())
             .ThrowOnError();
         return;
     }
 
-    VerifyAllAccessControlObjectsExist(accessControlObjects, StateClient_);
+    if (accessControlObjects) {
+        VerifyAllAccessControlObjectsExist(*accessControlObjects, StateClient_);
+    }
 
     if (IsFinishedState(*query.State)) {
         auto rowBuffer = New<TRowBuffer>();
@@ -1149,7 +1126,9 @@ void TQueryTrackerProxy::AlterQuery(
                 record.Annotations = ConvertToYsonString(options.Annotations);
                 filterFactors = GetFilterFactors(record);
             }
-            record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+            if (accessControlObjects) {
+                record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+            }
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
@@ -1166,7 +1145,9 @@ void TQueryTrackerProxy::AlterQuery(
             if (options.Annotations) {
                 record.FilterFactors = filterFactors;
             }
-            record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+            if (accessControlObjects) {
+                record.AccessControlObjects = ConvertToYsonString(accessControlObjects);
+            }
 
             std::vector rows{
                 record.ToUnversionedRow(rowBuffer, TFinishedQueryByStartTimeDescriptor::Get()->GetIdMapping()),

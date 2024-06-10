@@ -243,7 +243,7 @@ class TestAccessControl(YTEnvSetup):
         remove("//sys/access_control_object_namespaces/queries/aco1")
         q_u1.get(authenticated_user="u1")
         q_u1.get(authenticated_user="superuser_u3")
-        with raises_yt_error("Error while fetching access control object queries/aco1"):
+        with raises_yt_error():
             q_u1.get(authenticated_user="u2")
 
     @authors("krock21")
@@ -490,15 +490,11 @@ class TestMultipleAccessControl(YTEnvSetup):
     @authors("mpereskokova")
     def test_start_query(self, query_tracker):
         create_user("u1")
-        create_access_control_object("yet_another_nobody", "queries")
 
-        with raises_yt_error():
-            start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody"])
         start_query("mock", "run_forever", authenticated_user="u1", access_control_object="nobody")
-
+        start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody"])
         with raises_yt_error():
-            start_query("mock", "run_forever", authenticated_user="u1", access_control_object="nobody", version=1)
-        start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody"], version=1)
+            start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody"], access_control_object="nobody")
 
     @authors("mpereskokova")
     def test_alter_aco(self, query_tracker):
@@ -519,15 +515,13 @@ class TestMultipleAccessControl(YTEnvSetup):
             q.get(authenticated_user="u1")
 
         with raises_yt_error(AuthorizationErrorCode):
-            q.alter(authenticated_user="u1", access_control_objects=["aco", "nobody"], version=1)
-        with raises_yt_error():
-            q.alter(authenticated_user="u2", access_control_objects=["aco", "nobody"])
-        q.alter(authenticated_user="u2", access_control_objects=["aco", "nobody"], version=1)
+            q.alter(authenticated_user="u1", access_control_objects=["aco", "nobody"])
+        q.alter(authenticated_user="u2", access_control_objects=["aco", "nobody"])
 
-        q.get(authenticated_user="u1", version=1)
+        q.get(authenticated_user="u1")
 
-        q.alter(authenticated_user="u2", access_control_objects=[], version=1)
-        with raises_yt_error():
+        q.alter(authenticated_user="u2", access_control_objects=[])
+        with raises_yt_error(AuthorizationErrorCode):
             q.get(authenticated_user="u1")
 
     @authors("mpereskokova")
@@ -536,19 +530,13 @@ class TestMultipleAccessControl(YTEnvSetup):
         create_access_control_object("yet_another_nobody", "queries")
 
         q1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_object="nobody")
-        q2 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody", "yet_another_nobody"], version=1)
+        q2 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody", "yet_another_nobody"])
 
         query = q1.get(authenticated_user="u1")
         assert query["access_control_object"] == "nobody"
-
-        with raises_yt_error():
-            q2.get(authenticated_user="u1")
-
-        query = q1.get(authenticated_user="u1", version=1)
-        assert "access_control_object" not in query
         assert query["access_control_objects"] == ["nobody"]
 
-        query = q2.get(authenticated_user="u1", version=1)
+        query = q2.get(authenticated_user="u1")
         assert "access_control_object" not in query
         assert query["access_control_objects"] == ["nobody", "yet_another_nobody"]
 
@@ -558,7 +546,7 @@ class TestMultipleAccessControl(YTEnvSetup):
         create_user("u2")
         create_access_control_object("yet_another_nobody", "queries")
         create_access_control_object(
-            "aco1",
+            "aco",
             "queries",
             attributes={
                 "principal_acl": [
@@ -567,14 +555,11 @@ class TestMultipleAccessControl(YTEnvSetup):
                 ]
             })
 
-        q1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody", "yet_another_nobody"], version=1)
-        q2 = start_query("mock", "run_forever", authenticated_user="u2", access_control_objects=["aco1"], version=1)
+        q1 = start_query("mock", "run_forever", authenticated_user="u1", access_control_objects=["nobody", "yet_another_nobody"])
+        q2 = start_query("mock", "run_forever", authenticated_user="u2", access_control_objects=["aco"])
 
-        with raises_yt_error():
-            list_queries(authenticated_user="u1")
+        expect_queries([q1, q2], list_queries(authenticated_user="u1"))
         expect_queries([q2], list_queries(authenticated_user="u2"))
-        expect_queries([q1, q2], list_queries(authenticated_user="u1", version=1))
-        expect_queries([q2], list_queries(authenticated_user="u2", version=1))
 
 
 # Separate list to fit 480 seconds limit for a test class.

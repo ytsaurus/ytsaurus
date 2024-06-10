@@ -42,13 +42,6 @@ void TStartQueryCommand::Register(TRegistrar registrar)
         })
         .Optional(/*init*/ false);
 
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
-
     registrar.ParameterWithUniversalAccessor<INodePtr>(
         "settings",
         [] (TThis* command) -> auto& {
@@ -77,7 +70,7 @@ void TStartQueryCommand::Register(TRegistrar registrar)
         })
         .Optional(/*init*/ false);
 
-    registrar.ParameterWithUniversalAccessor<std::vector<TString>>(
+    registrar.ParameterWithUniversalAccessor<std::optional<std::vector<TString>>>(
         "access_control_objects",
         [] (TThis* command) -> auto& {
             return command->Options.AccessControlObjects;
@@ -110,13 +103,6 @@ void TAbortQueryCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Optional(/*init*/ false);
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 }
 
 void TAbortQueryCommand::DoExecute(ICommandContextPtr context)
@@ -141,13 +127,6 @@ void TGetQueryResultCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Optional(/*init*/ false);
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 }
 
 void TGetQueryResultCommand::DoExecute(ICommandContextPtr context)
@@ -173,13 +152,6 @@ void TReadQueryResultCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Optional(/*init*/ false);
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 
     registrar.ParameterWithUniversalAccessor<std::optional<std::vector<TString>>>(
         "columns",
@@ -241,13 +213,6 @@ void TGetQueryCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Optional(/*init*/ false);
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 }
 
 void TGetQueryCommand::DoExecute(ICommandContextPtr context)
@@ -268,13 +233,6 @@ void TListQueriesCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Default("production");
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 
     registrar.ParameterWithUniversalAccessor<std::optional<TInstant>>(
         "from_time",
@@ -380,7 +338,7 @@ void TAlterQueryCommand::Register(TRegistrar registrar)
         })
         .Optional(/*init*/ false);
 
-    registrar.ParameterWithUniversalAccessor<std::vector<TString>>(
+    registrar.ParameterWithUniversalAccessor<std::optional<std::vector<TString>>>(
         "access_control_objects",
         [] (TThis* command) -> auto& {
             return command->Options.AccessControlObjects;
@@ -393,13 +351,6 @@ void TAlterQueryCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Default("production");
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 }
 
 void TAlterQueryCommand::DoExecute(ICommandContextPtr context)
@@ -419,13 +370,6 @@ void TGetQueryTrackerInfoCommand::Register(TRegistrar registrar)
             return command->Options.QueryTrackerStage;
         })
         .Default("production");
-
-    registrar.ParameterWithUniversalAccessor<EQueryTrackerAPIVersion>(
-        "version",
-        [] (TThis* command) -> auto& {
-            return command->Options.Version;
-        })
-        .Default(EQueryTrackerAPIVersion::TheBigBang);
 
     registrar.ParameterWithUniversalAccessor<TAttributeFilter>(
         "attributes",

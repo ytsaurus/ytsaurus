@@ -10,15 +10,9 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EQueryTrackerAPIVersion,
-    ((TheBigBang)   (0))
-    ((MultipleAco)   (1))
-);
-
 struct TQueryTrackerOptions
 {
     TString QueryTrackerStage = "production";
-    EQueryTrackerAPIVersion Version = EQueryTrackerAPIVersion::TheBigBang;
 };
 
 DEFINE_ENUM(EContentType,
@@ -49,7 +43,7 @@ struct TStartQueryOptions
     NYTree::IMapNodePtr Annotations;
     std::vector<TQueryFilePtr> Files;
     std::optional<TString> AccessControlObject; // deprecated after MultipleAco API Version
-    std::vector<TString> AccessControlObjects;
+    std::optional<std::vector<TString>> AccessControlObjects;
 };
 
 struct TAbortQueryOptions
@@ -146,7 +140,7 @@ struct TAlterQueryOptions
 {
     NYTree::IMapNodePtr Annotations;
     std::optional<TString> AccessControlObject; // deprecated after MultipleAco API Version
-    std::vector<TString> AccessControlObjects;
+    std::optional<std::vector<TString>> AccessControlObjects;
 };
 
 struct TGetQueryTrackerInfoOptions

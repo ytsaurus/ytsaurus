@@ -51,7 +51,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 9);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -61,7 +61,6 @@ private:
         ToProto(rpcResponse->mutable_query_id(), queryId);
 
         TStartQueryOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         if (rpcRequest.has_settings()) {
             options.Settings = ConvertToNode(TYsonStringBuf(rpcRequest.settings()));
         }
@@ -71,9 +70,9 @@ private:
         if (rpcRequest.has_access_control_object()) {
             options.AccessControlObject = rpcRequest.access_control_object();
         }
-        for (const auto& aco : rpcRequest.access_control_objects()) {
-            options.AccessControlObjects.emplace_back(aco);
-        }
+        options.AccessControlObjects = rpcRequest.has_access_control_objects()
+            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            : std::nullopt;
 
         options.Draft = rpcRequest.draft();
 
@@ -89,7 +88,7 @@ private:
         auto query = rpcRequest.query();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, User: %v", queryId, options.Version, user);
+        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         QueryTracker_->StartQuery(queryId, engine, query, options, user);
@@ -99,7 +98,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, AbortQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqAbortQuery::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TReqAbortQuery::GetDescriptor()->field_count() == 3);
         YT_VERIFY(NRpcProxy::NProto::TRspAbortQuery::GetDescriptor()->field_count() == 0);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -108,14 +107,13 @@ private:
         FromProto(&queryId, rpcRequest.query_id());
 
         TAbortQueryOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         options.AbortMessage = rpcRequest.has_abort_message()
             ? std::make_optional(rpcRequest.abort_message())
             : std::nullopt;
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, User: %v", queryId, options.Version, user);
+        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         QueryTracker_->AbortQuery(queryId, options, user);
@@ -125,7 +123,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryResult)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryResult::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryResult::GetDescriptor()->field_count() == 3);
         YT_VERIFY(NRpcProxy::NProto::TRspGetQueryResult::GetDescriptor()->field_count() == 6);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -137,7 +135,7 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, ResultIndex: %v, User: %v", queryId, ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version()), resultIndex, user);
+        context->SetRequestInfo("QueryId: %v, ResultIndex: %v, User: %v", queryId, resultIndex, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         auto queryResult = QueryTracker_->GetQueryResult(queryId, resultIndex, user);
@@ -156,7 +154,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, ReadQueryResult)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqReadQueryResult::GetDescriptor()->field_count() == 7);
+        YT_VERIFY(NRpcProxy::NProto::TReqReadQueryResult::GetDescriptor()->field_count() == 6);
         YT_VERIFY(NRpcProxy::NProto::TRspReadQueryResult::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -166,7 +164,6 @@ private:
         FromProto(&queryId, rpcRequest.query_id());
 
         TReadQueryResultOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         options.LowerRowIndex = rpcRequest.has_lower_row_index()
             ? std::make_optional(rpcRequest.lower_row_index())
             : std::nullopt;
@@ -180,7 +177,7 @@ private:
         auto resultIndex = rpcRequest.result_index();
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, ResultIndex: %v, User: %v", queryId, options.Version, resultIndex, user);
+        context->SetRequestInfo("QueryId: %v, ResultIndex: %v, User: %v", queryId, resultIndex, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         auto rowset = QueryTracker_->ReadQueryResult(queryId, resultIndex, options, user);
@@ -195,7 +192,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 5);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQuery::GetDescriptor()->field_count() == 4);
         YT_VERIFY(NRpcProxy::NProto::TRspGetQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -205,7 +202,6 @@ private:
         FromProto(&queryId, rpcRequest.query_id());
 
         TGetQueryOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         options.Attributes = rpcRequest.has_attributes()
             ? FromProto<TAttributeFilter>(rpcRequest.attributes())
             : TAttributeFilter();
@@ -215,7 +211,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, User: %v", queryId, options.Version, user);
+        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         auto query = QueryTracker_->GetQuery(queryId, options, user);
@@ -226,14 +222,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, ListQueries)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 12);
+        YT_VERIFY(NRpcProxy::NProto::TReqListQueries::GetDescriptor()->field_count() == 11);
         YT_VERIFY(NRpcProxy::NProto::TRspListQueries::GetDescriptor()->field_count() == 3);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         TListQueriesOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         options.FromTime = rpcRequest.has_from_time()
             ? std::make_optional(TInstant::FromValue(rpcRequest.from_time()))
             : std::nullopt;
@@ -272,7 +267,7 @@ private:
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("Version %v, User: %v", options.Version, context->GetAuthenticationIdentity().User);
+        context->SetRequestInfo("User: %v", context->GetAuthenticationIdentity().User);
 
         auto result = QueryTracker_->ListQueries(options, user);
 
@@ -287,7 +282,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, AlterQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqAlterQuery::GetDescriptor()->field_count() == 6);
+        YT_VERIFY(NRpcProxy::NProto::TReqAlterQuery::GetDescriptor()->field_count() == 5);
         YT_VERIFY(NRpcProxy::NProto::TRspAlterQuery::GetDescriptor()->field_count() == 0);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -296,8 +291,6 @@ private:
         FromProto(&queryId, rpcRequest.query_id());
 
         TAlterQueryOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
-
         options.Annotations = rpcRequest.has_annotations()
             ? ConvertToNode(TYsonStringBuf(rpcRequest.annotations()))->AsMap()
             : nullptr;
@@ -306,13 +299,13 @@ private:
             ? std::make_optional(rpcRequest.access_control_object())
             : std::nullopt;
 
-        for (const auto& aco : rpcRequest.access_control_objects()) {
-            options.AccessControlObjects.emplace_back(aco);
-        }
+        options.AccessControlObjects = rpcRequest.has_access_control_objects()
+            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            : std::nullopt;
 
         auto user = context->GetAuthenticationIdentity().User;
 
-        context->SetRequestInfo("QueryId: %v, Version %v, User: %v", queryId, options.Version, user);
+        context->SetRequestInfo("QueryId: %v, User: %v", queryId, user);
         context->SetResponseInfo("QueryId: %v", queryId);
 
         QueryTracker_->AlterQuery(queryId, options, user);
@@ -322,14 +315,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
+        YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 2);
         YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 3);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
 
         TGetQueryTrackerInfoOptions options;
-        options.Version = ConvertQueryTrackerAPIVersionFromProto(rpcRequest.version());
         if (rpcRequest.has_attributes()) {
             options.Attributes = FromProto<TAttributeFilter>(rpcRequest.attributes());
         }

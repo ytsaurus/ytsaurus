@@ -1879,32 +1879,6 @@ NQueryTrackerClient::EQueryState ConvertQueryStateFromProto(
     YT_ABORT();
 }
 
-NProto::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionToProto(
-    NApi::EQueryTrackerAPIVersion queryState)
-{
-    switch (queryState) {
-        case NApi::EQueryTrackerAPIVersion::TheBigBang:
-            return NProto::EQueryTrackerAPIVersion::QTAPIV_BIG_BANG;
-        case NApi::EQueryTrackerAPIVersion::MultipleAco:
-            return NProto::EQueryTrackerAPIVersion::QTAPIV_MULTIPLE_ACO;
-    }
-    YT_ABORT();
-}
-
-NApi::EQueryTrackerAPIVersion ConvertQueryTrackerAPIVersionFromProto(
-    NProto::EQueryTrackerAPIVersion proto)
-{
-    switch (proto) {
-        case NProto::EQueryTrackerAPIVersion::QTAPIV_BIG_BANG:
-            return NApi::EQueryTrackerAPIVersion::TheBigBang;
-        case NProto::EQueryTrackerAPIVersion::QTAPIV_MULTIPLE_ACO:
-            return NApi::EQueryTrackerAPIVersion::MultipleAco;
-        case NProto::EQueryTrackerAPIVersion::QTAPIV_UNKNOWN:
-            THROW_ERROR_EXCEPTION("Protobuf contains unknown value for query state");
-    }
-    YT_ABORT();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto

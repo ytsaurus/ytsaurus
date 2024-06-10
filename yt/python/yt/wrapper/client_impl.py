@@ -154,14 +154,12 @@ class YtClient(ClientState):
     def abort_query(
             self,
             query_id,
-            version=None, message=None, stage=None):
+            message=None, stage=None):
         """
         Abort query.
 
         :param query_id: id of a query to abort
         :type query_id: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param message: optional message to be shown in query abort error
         :type message: str or None
         :param stage: query tracker stage, defaults to "production"
@@ -171,7 +169,7 @@ class YtClient(ClientState):
         return client_api.abort_query(
             query_id,
             client=self,
-            version=version, message=message, stage=stage)
+            message=message, stage=stage)
 
     def abort_transaction(
             self,
@@ -255,7 +253,7 @@ class YtClient(ClientState):
     def alter_query(
             self,
             query_id,
-            version=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None):
+            stage=None, annotations=None, access_control_object=None, access_control_objects=None):
         """
         Alter query.
 
@@ -263,8 +261,6 @@ class YtClient(ClientState):
         :type query_id: str
         :param stage: query tracker stage, defaults to "production"
         :type stage: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param annotations: a dictionary of annotations
         :type stage: dict or None
         :param access_control_object: access control object name
@@ -276,8 +272,7 @@ class YtClient(ClientState):
         return client_api.alter_query(
             query_id,
             client=self,
-            version=version, stage=stage, annotations=annotations, access_control_object=access_control_object,
-            access_control_objects=access_control_objects)
+            stage=stage, annotations=annotations, access_control_object=access_control_object, access_control_objects=access_control_objects)
 
     def alter_replication_card(
             self,
@@ -1059,14 +1054,12 @@ class YtClient(ClientState):
     def get_query(
             self,
             query_id,
-            version=None, attributes=None, stage=None, format=None):
+            attributes=None, stage=None, format=None):
         """
         Get query.
 
         :param query_id: id of a query to get
         :type query_id: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param attributes: optional attribute filter
         :type attributes: list or None
         :param stage: query tracker stage, defaults to "production"
@@ -1076,19 +1069,17 @@ class YtClient(ClientState):
         return client_api.get_query(
             query_id,
             client=self,
-            version=version, attributes=attributes, stage=stage, format=format)
+            attributes=attributes, stage=stage, format=format)
 
     def get_query_result(
             self,
             query_id,
-            version=None, result_index=None, stage=None, format=None):
+            result_index=None, stage=None, format=None):
         """
         Get query result.
 
         :param query_id: id of a query to get result
         :type query_id: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param result_index: index of a result to get, defaults to 0
         :type result_index: int
         :param stage: query tracker stage, defaults to "production"
@@ -1098,7 +1089,7 @@ class YtClient(ClientState):
         return client_api.get_query_result(
             query_id,
             client=self,
-            version=version, result_index=result_index, stage=stage, format=format)
+            result_index=result_index, stage=stage, format=format)
 
     def get_supported_features(
             self,
@@ -1400,17 +1391,17 @@ class YtClient(ClientState):
 
     def list_queries(
             self,
-            version=None, user=None, engine=None, state=None, filter=None, from_time=None, to_time=None,
-            cursor_time=None, cursor_direction=None, limit=None, attributes=None, stage=None, format=None):
+            user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
+            cursor_direction=None, limit=None, attributes=None, stage=None, format=None):
         """
         List operations that satisfy given options.
 
         """
         return client_api.list_queries(
             client=self,
-            version=version, user=user, engine=engine, state=state, filter=filter, from_time=from_time,
-            to_time=to_time, cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit,
-            attributes=attributes, stage=stage, format=format)
+            user=user, engine=engine, state=state, filter=filter, from_time=from_time, to_time=to_time,
+            cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
+            stage=stage, format=format)
 
     def list_queue_consumer_registrations(
             self,
@@ -1795,14 +1786,12 @@ class YtClient(ClientState):
     def read_query_result(
             self,
             query_id,
-            version=None, result_index=None, stage=None, format=None, raw=None):
+            result_index=None, stage=None, format=None, raw=None):
         """
         Read query result.
 
         :param query_id: id of a query to read result
         :type query_id: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param result_index: index of a result to read, defaults to 0
         :type result_index: int
         :param stage: query tracker stage, defaults to "production"
@@ -1812,7 +1801,7 @@ class YtClient(ClientState):
         return client_api.read_query_result(
             query_id,
             client=self,
-            version=version, result_index=result_index, stage=stage, format=format, raw=raw)
+            result_index=result_index, stage=stage, format=format, raw=raw)
 
     def read_table(
             self,
@@ -2661,7 +2650,7 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            version=None, settings=None, files=None, stage=None, annotations=None, access_control_object=None,
+            settings=None, files=None, stage=None, annotations=None, access_control_object=None,
             access_control_objects=None):
         """
         Start query.
@@ -2670,8 +2659,6 @@ class YtClient(ClientState):
         :type engine: str
         :param query: text of a query
         :type query: str
-        :param version: query tracker API version, defaults to 0
-        :type version: int
         :param settings: a dictionary of settings
         :type settings: dict or None
         :param files: a YSON list of files, each of which is represented by a map with keys "name", "content", "type". Field "type" is one of "raw_inline_data", "url"
@@ -2689,8 +2676,8 @@ class YtClient(ClientState):
         return client_api.start_query(
             engine, query,
             client=self,
-            version=version, settings=settings, files=files, stage=stage, annotations=annotations,
-            access_control_object=access_control_object, access_control_objects=access_control_objects)
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
+            access_control_objects=access_control_objects)
 
     def start_transaction(
             self,

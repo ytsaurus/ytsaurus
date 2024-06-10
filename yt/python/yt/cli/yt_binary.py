@@ -1240,7 +1240,6 @@ def add_start_query_parser(add_parser):
     parser = add_parser("start-query", start_query)
     parser.add_argument("engine", type=str, help='engine of a query, one of "ql", "yql", "chyt", "spyt"')
     parser.add_argument("query", type=str, help="query text")
-    parser.add_argument("--version", type=int, help='query tracker API version')
     add_structured_argument(parser, "--settings", help="additional settings of a query in structured form")
     add_structured_argument(parser, "--files", help='query files, a YSON list of files, each of which is represented by a map with keys "name", "content", "type".'
                                                     'Field "type" is one of "raw_inline_data", "url"')
@@ -1252,7 +1251,6 @@ def add_start_query_parser(add_parser):
 def add_abort_query_parser(add_parser):
     parser = add_parser("abort-query", yt.abort_query)
     parser.add_argument("query_id", type=str, help="query id")
-    parser.add_argument("--version", type=int, help='query tracker API version')
     parser.add_argument("--message", type=str, help="optional abort message")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
 
@@ -1265,7 +1263,6 @@ def read_query_result(**kwargs):
 def add_read_query_result_parser(add_parser):
     parser = add_parser("read-query-result", read_query_result)
     parser.add_argument("query_id", type=str, help="query id")
-    parser.add_argument("--version", type=int, help='query tracker API version')
     parser.add_argument("--result-index", type=int, help="index of query result, defaults to 0")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
     add_format_argument(parser, help="output format")
@@ -1282,7 +1279,6 @@ def get_query(**kwargs):
 def add_get_query_parser(add_parser):
     parser = add_parser("get-query", get_query)
     parser.add_argument("query_id", type=str, help="query id")
-    parser.add_argument("--version", type=int, help='query tracker API version')
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
     add_structured_format_argument(parser)
@@ -1299,7 +1295,6 @@ def get_query_result(**kwargs):
 def add_get_query_result_parser(add_parser):
     parser = add_parser("get-query-result", get_query_result)
     parser.add_argument("query_id", type=str, help="query id")
-    parser.add_argument("--version", type=int, help='query tracker API version')
     parser.add_argument("--result-index", type=int, help="index of query result, defaults to 0")
     parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
     add_structured_format_argument(parser)
@@ -1315,7 +1310,6 @@ def list_queries(**kwargs):
 
 def add_list_queries_parser(add_parser):
     parser = add_parser("list-queries", list_queries)
-    parser.add_argument("--version", type=int, help='query tracker API version')
     parser.add_argument("--user", help="filter queries by user")
     parser.add_argument("--engine", help="filter queries by engine")
     parser.add_argument("--state", help="filter queries by state")
@@ -1335,7 +1329,6 @@ def add_list_queries_parser(add_parser):
 
 def add_alter_query_parser(add_parser):
     parser = add_parser("alter-query", yt.alter_query)
-    parser.add_argument("--version", type=int, help='query tracker API version')
     add_structured_argument(parser, "--annotations", help='a YSON map of annotations')
     parser.add_argument("--access-control-object", type=str, help='optional access control object name (deprecated)')
     add_structured_argument(parser, "--access-control-objects", help='access control objects, a YSON list of ACO names')
