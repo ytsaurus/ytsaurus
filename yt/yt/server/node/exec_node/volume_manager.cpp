@@ -1640,7 +1640,13 @@ public:
         , TmpfsLayerCacheCounters(ExecNodeProfiler
             .WithTag("cache_name", CacheName_)
             .WithGlobal())
-    {  }
+    {
+        if (Bootstrap_) {
+            Bootstrap_->SubscribePopulateAlerts(BIND(
+                &TTmpfsLayerCache::PopulateTmpfsAlert,
+                MakeWeak(this)));
+        }
+    }
 
     TLayerPtr FindLayer(const TArtifactKey& artifactKey)
     {
@@ -1676,12 +1682,6 @@ public:
         }
 
         auto path = NFS::CombinePaths(NFs::CurrentWorkingDirectory(), Format("%v_tmpfs_layers", CacheName_));
-
-        if (Bootstrap_) {
-            Bootstrap_->SubscribePopulateAlerts(BIND(
-                &TTmpfsLayerCache::PopulateTmpfsAlert,
-                MakeWeak(this)));
-        }
 
         {
             YT_LOG_DEBUG("Cleanup tmpfs layer cache volume (Path: %v)", path);
