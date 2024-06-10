@@ -236,14 +236,12 @@ TSessionId CreateChunk(
     auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TChunkServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
-    GenerateMutationId(batchReq);
-    SetSuppressUpstreamSync(&batchReq->Header(), true);
-    // COMPAT(shakurov): prefer proto ext (above).
-    batchReq->set_suppress_upstream_sync(true);
-    batchReq->Header().set_logical_request_weight(1);
+    auto req = proxy.CreateChunk();
+    GenerateMutationId(req);
+    auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+    multicellSyncExt->set_suppress_upstream_sync(true);
+    req->Header().set_logical_request_weight(1);
 
-    auto* req = batchReq->add_create_chunk_subrequests();
     ToProto(req->mutable_transaction_id(), transactionId);
     req->set_type(static_cast<int>(chunkType));
     req->set_account(options->Account);
@@ -258,15 +256,14 @@ TSessionId CreateChunk(
     }
     req->set_consistent_replica_placement_hash(options->ConsistentChunkReplicaPlacementHash);
 
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    auto rspOrError = WaitFor(req->Invoke());
     THROW_ERROR_EXCEPTION_IF_FAILED(
-        GetCumulativeError(batchRspOrError),
+        rspOrError,
         NChunkClient::EErrorCode::MasterCommunicationFailed,
         "Error creating chunk");
 
-    const auto& batchRsp = batchRspOrError.Value();
-    const auto& rsp = batchRsp->create_chunk_subresponses(0);
-    auto sessionId = FromProto<TSessionId>(rsp.session_id());
+    const auto& rsp = rspOrError.Value();
+    auto sessionId = FromProto<TSessionId>(rsp->session_id());
 
     YT_LOG_DEBUG("Chunk created (MediumIndex: %v)",
         sessionId.MediumIndex);

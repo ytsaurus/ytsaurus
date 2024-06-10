@@ -2813,13 +2813,9 @@ private:
         auto channel = client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Leader, cellTag);
 
         TChunkServiceProxy proxy(channel);
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
 
-        auto* req = batchReq->add_confirm_chunk_subrequests();
         ToProto(req->mutable_chunk_id(), TailChunkId_);
         req->mutable_chunk_info();
         ToProto(req->mutable_legacy_replicas(), writtenReplicas);
@@ -2830,6 +2826,8 @@ private:
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
         req->set_location_uuids_supported(true);
+        auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        multicellSyncExt->set_suppress_upstream_sync(true);
 
         bool useLocationUuids = std::all_of(writtenReplicas.begin(), writtenReplicas.end(), [] (const auto& replica) {
             return replica.GetChunkLocationUuid() != InvalidChunkLocationUuid;
@@ -2843,9 +2841,9 @@ private:
             }
         }
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             "Error confirming tail chunk %v",
             TailChunkId_);
 

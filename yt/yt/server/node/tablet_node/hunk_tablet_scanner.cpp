@@ -357,17 +357,19 @@ private:
                 /*cellTag*/ CellTagFromId(Tablet_->GetId()));
             TChunkServiceProxy proxy(masterChannel);
 
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            SetSuppressUpstreamSync(&batchReq->Header(), true);
-            // COMPAT(shakurov): prefer proto ext (above).
-            batchReq->set_suppress_upstream_sync(true);
+            std::vector<TSessionId> chunkIds;
+            chunkIds.reserve(chunkCount);
+
+            std::vector<TFuture<TChunkServiceProxy::TRspCreateChunkPtr>> requestResults;
+            requestResults.reserve(chunkCount);
 
             for (int index = 0; index < chunkCount; ++index) {
-                auto* request = batchReq->add_create_chunk_subrequests();
+                auto request = proxy.CreateChunk();
+                GenerateMutationId(request);
                 auto chunkType = writerOptions->ErasureCodec == NErasure::ECodec::None
                     ? EObjectType::JournalChunk
                     : EObjectType::ErasureJournalChunk;
+
                 request->set_type(ToProto<int>(chunkType));
                 request->set_account(writerOptions->Account);
                 ToProto(request->mutable_transaction_id(), transactionId);
@@ -378,22 +380,18 @@ private:
                 request->set_write_quorum(writerOptions->WriteQuorum);
                 request->set_movable(true);
                 request->set_vital(true);
-            }
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
+                requestResults.push_back(request->Invoke());
+            }
+            auto rspsOrError = WaitFor(AllSucceeded(requestResults));
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
+                rspsOrError,
                 "Error creating chunks");
+            auto rsps = rspsOrError.Value();
 
-            std::vector<TSessionId> chunkIds;
-            chunkIds.reserve(chunkCount);
-
-            const auto& batchRsp = batchRspOrError.Value();
-            for (int index = 0; index < chunkCount; ++index) {
-                const auto& rsp = batchRsp->create_chunk_subresponses(index);
-                chunkIds.push_back(FromProto<TSessionId>(rsp.session_id()));
+            for (const auto& rsp : rsps) {
+                chunkIds.push_back(FromProto<TSessionId>(rsp->session_id()));
             }
-
             return chunkIds;
         }
 

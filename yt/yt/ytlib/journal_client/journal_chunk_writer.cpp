@@ -339,8 +339,13 @@ private:
         YT_VERIFY(!replicas.empty());
         YT_VERIFY(Nodes_.size() == replicas.size());
 
-        auto batchReq = CreateExecuteBatchRequest();
-        auto* req = batchReq->add_confirm_chunk_subrequests();
+        auto cellTag = CellTagFromId(ChunkId_);
+        auto masterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
+        TChunkServiceProxy proxy(masterChannel);
+
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
+
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->mutable_chunk_info();
         ToProto(req->mutable_legacy_replicas(), replicas);
@@ -358,9 +363,9 @@ private:
         NChunkClient::NProto::TMiscExt miscExt;
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
+            rspOrError,
             "Error confirming chunk %v",
             ChunkId_);
 
@@ -597,23 +602,6 @@ private:
             auto* codec = NErasure::GetCodec(options->ErasureCodec);
             return codec->GetTotalPartCount();
         }
-    }
-
-    TChunkServiceProxy::TReqExecuteBatchPtr CreateExecuteBatchRequest()
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        auto cellTag = CellTagFromId(ChunkId_);
-        auto masterChannel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-        TChunkServiceProxy proxy(masterChannel);
-
-        auto batchReq = proxy.ExecuteBatch();
-        GenerateMutationId(batchReq);
-        SetSuppressUpstreamSync(&batchReq->Header(), true);
-        // COMPAT(shakurov): prefer proto ext (above).
-        batchReq->set_suppress_upstream_sync(true);
-
-        return batchReq;
     }
 
     void OnFailed(const TError& error)

@@ -362,22 +362,21 @@ private:
 
             DataStatistics_ = rspOrError.Value()->statistics();
         } else {
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            batchReq->set_suppress_upstream_sync(true);
-            auto* req = batchReq->add_confirm_chunk_subrequests();
+            auto req = proxy.ConfirmChunk();
+            GenerateMutationId(req);
             fillRequest(req);
+            auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+            multicellSyncExt->set_suppress_upstream_sync(true);
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
+                rspOrError,
                 NChunkClient::EErrorCode::MasterCommunicationFailed,
                 "Failed to confirm chunk %v",
                 SessionId_.ChunkId);
 
-            const auto& batchRsp = batchRspOrError.Value();
-            const auto& rsp = batchRsp->confirm_chunk_subresponses(0);
-            DataStatistics_ = rsp.statistics();
+            const auto& rsp = rspOrError.Value();
+            DataStatistics_ = rsp->statistics();
         }
 
         Closed_ = true;
