@@ -49,6 +49,9 @@ ControllerMemoryLimitExceeded = 4416
 ContainerDoesNotExist = 12004
 RequestQueueSizeLimitExceeded = 108
 SpecVersionMismatch = 3300
+InvalidEpoch = 3101
+ZombieEpoch = 3102
+InvalidRowSequenceNumbers = 3103
 
 
 class Scheduler(object):

@@ -723,6 +723,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListQueueConsumerRegistrations));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateQueueProducerSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveQueueProducerSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PushQueueProducer));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -4064,6 +4065,70 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PushQueueProducer)
+    {
+        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        auto producerPath = FromProto<TRichYPath>(request->producer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+
+        auto sessionId = FromProto<TString>(request->session_id());
+
+        TPushQueueProducerOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number);
+        if (request->has_user_meta()) {
+            options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
+        }
+
+        context->SetRequestInfo(
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v, "
+            "Epoch: %v, TransactionId: %v",
+            producerPath,
+            queuePath,
+            sessionId,
+            request->epoch(),
+            transactionId);
+
+        auto transaction = GetTransactionOrThrow(
+            context,
+            request,
+            transactionId,
+            /*options*/ std::nullopt,
+            /*searchInPool*/ true);
+
+        auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
+            request->rowset_descriptor(),
+            MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+
+        ExecuteCall(
+            context,
+            [
+                =,
+                producerPath = std::move(producerPath),
+                queuePath = std::move(queuePath),
+                sessionId = std::move(sessionId),
+                rowset = std::move(rowset),
+                options = std::move(options)
+            ] {
+                auto rowsetRows = rowset->GetRows();
+
+                return transaction->PushQueueProducer(
+                    producerPath,
+                    queuePath,
+                    sessionId,
+                    request->epoch(),
+                    rowset->GetNameTable(),
+                    rowsetRows,
+                    options);
+            },
+            [] (const auto& context, const auto& pushQueueProducerResult) {
+                auto* response = &context->Response();
+                response->set_last_sequence_number(pushQueueProducerResult.LastSequenceNumber);
+                response->set_skipped_row_count(pushQueueProducerResult.SkippedRowCount);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceConsumer)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -4330,9 +4395,9 @@ private:
         auto producerPath = FromProto<TRichYPath>(request->producer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
         auto sessionId = FromProto<TString>(request->session_id());
-        std::optional<NYson::TYsonString> userMeta;
+        std::optional<TYsonString> userMeta;
         if (request->has_user_meta()) {
-            userMeta = TYsonString(FromProto<TString>(request->user_meta()));
+            userMeta = TYsonString(request->user_meta());
         }
 
         TCreateQueueProducerSessionOptions options;
