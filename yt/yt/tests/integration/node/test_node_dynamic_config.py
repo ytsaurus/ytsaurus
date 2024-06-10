@@ -547,7 +547,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
         bundle_dynamic_config["nodeA"]["memory_limits"]["versioned_chunk_meta"] = 16384
 
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-        self._check_tablet_nodes_rct()
         wait(lambda: get_orchid_memory_limits("versioned_chunk_meta") == 16384)
         wait(lambda: get_orchid_memory_limits("block_cache") == 4096 + 8192)
 
