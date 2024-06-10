@@ -38,15 +38,10 @@ THuggingfaceClient::THuggingfaceClient(
     const std::optional<TString>& token,
     NConcurrency::IPollerPtr poller,
     const std::optional<TString>& urlOverride)
-    : Token_(token)
+    : Url_(urlOverride.value_or(DefaultHuggingfaceUrl))
+    , Token_(token)
     , Client_(CreateHttpClient(std::move(poller), MaxRedirectCount))
-{
-    if (urlOverride) {
-        Url_ = *urlOverride;
-    } else {
-        Url_ = DefaultHuggingfaceUrl;
-    }
-}
+{ }
 
 std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& dataset, const TString& config, const TString& split)
 {
@@ -55,7 +50,7 @@ std::vector<TString> THuggingfaceClient::GetParquetFileUrls(const TString& datas
         headers->Set("Authorization", "Bearer " + *Token_);
     }
 
-    auto url = NYT::Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, config, split);
+    auto url = Format("%v/api/datasets/%v/parquet/%v/%v", Url_, dataset, config, split);
     auto response = NConcurrency::WaitFor(Client_->Get(url, headers))
         .ValueOrThrow();
 

@@ -23,9 +23,9 @@ public:
 private:
     static constexpr int MaxRedirectCount = 10;
 
+    const TString Url_;
     const std::optional<TString> Token_;
     const NHttp::IClientPtr Client_;
-    TString Url_;
 
     std::vector<TString> ParseParquetFileUrls(TStringBuf data);
 };
