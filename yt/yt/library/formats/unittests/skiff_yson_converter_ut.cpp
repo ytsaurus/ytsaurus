@@ -524,7 +524,7 @@ TEST(TYsonSkiffConverterTest, TestDict)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "01" "01000000" "6f" "01000000" "00000000" "ff"),
-        "Unexpected repeated_variant8 tag");
+        "Unexpected \"repeated_variant8\" tag");
 
     EXPECT_THROW_WITH_SUBSTRING(
         ConvertHexToTextYson(logicalType, skiffSchema, "00" "01000000" "6f" "01000000" "00000000"),
