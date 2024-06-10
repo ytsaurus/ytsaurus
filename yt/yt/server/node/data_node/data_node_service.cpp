@@ -798,17 +798,39 @@ private:
         context->Reply();
     }
 
+    template <class TContext, class TRequest>
+    TChunkReadOptions CreateChunkReadOptions(
+        const TIntrusivePtr<TContext>& context,
+        const TRequest* request,
+        bool fetchFromCache,
+        bool fetchFromDisk,
+        TChunkReaderStatisticsPtr chunkReaderStatistics)
+    {
+        TChunkReadOptions options;
+        options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
+        options.PopulateCache = request->populate_cache();
+        options.BlockCache = Bootstrap_->GetBlockCache();
+        options.FetchFromCache = fetchFromCache;
+        options.FetchFromDisk = fetchFromDisk;
+        options.ChunkReaderStatistics = chunkReaderStatistics;
+        options.ReadSessionId = request->has_read_session_id()
+            ? FromProto<TReadSessionId>(request->read_session_id())
+            : TReadSessionId{};
+        options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+        return options;
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
-        bool populateCache = request->populate_cache();
-        bool fetchFromCache = request->fetch_from_cache();
-        bool fetchFromDisk = request->fetch_from_disk();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto readSessionId = request->has_read_session_id()
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
+        bool populateCache = request->populate_cache();
+        bool fetchFromCache = request->fetch_from_cache();
+        bool fetchFromDisk = request->fetch_from_disk();
 
         SetSessionIdAllocationTag(GetOrCreateTraceContext("GetBlockSet"), ToString(readSessionId));
 
@@ -851,15 +873,12 @@ private:
         std::vector<TBlock> blocks;
         bool readFromP2P = false;
         if (fetchFromCache || fetchFromDisk) {
-            TChunkReadOptions options;
-            options.WorkloadDescriptor = workloadDescriptor;
-            options.PopulateCache = populateCache;
-            options.BlockCache = Bootstrap_->GetBlockCache();
-            options.FetchFromCache = fetchFromCache && !netThrottling;
-            options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
-            options.ChunkReaderStatistics = chunkReaderStatistics;
-            options.ReadSessionId = readSessionId;
-            options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+            TChunkReadOptions options = CreateChunkReadOptions(
+                context,
+                request,
+                fetchFromCache && !netThrottling,
+                fetchFromDisk && !netThrottling && !diskThrottling,
+                chunkReaderStatistics);
 
             if (context->GetTimeout() && context->GetStartTime()) {
                 options.Deadline =
@@ -992,15 +1011,12 @@ private:
         response->set_net_queue_size(netQueueSize);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
-
-        TChunkReadOptions options;
-        options.WorkloadDescriptor = workloadDescriptor;
-        options.PopulateCache = populateCache;
-        options.BlockCache = Bootstrap_->GetBlockCache();
-        options.FetchFromCache = !netThrottling;
-        options.FetchFromDisk = !netThrottling && !diskThrottling;
-        options.ChunkReaderStatistics = chunkReaderStatistics;
-        options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+        auto options = CreateChunkReadOptions(
+            context,
+            request,
+            !netThrottling,
+            !netThrottling && !diskThrottling,
+            chunkReaderStatistics);
 
         if (context->GetTimeout() && context->GetStartTime()) {
             options.Deadline =
