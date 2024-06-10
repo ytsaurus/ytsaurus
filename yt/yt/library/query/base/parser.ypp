@@ -21,12 +21,18 @@
 
     #include <yt/yt/library/query/base/ast.h>
 
-    namespace NYT { namespace NQueryClient { namespace NAst {
-        using namespace NTableClient;
+    namespace NYT::NQueryClient::NAst {
 
-        class TLexer;
-        class TParser;
-    } } }
+    ////////////////////////////////////////////////////////////////////////////////
+
+    using namespace NTableClient;
+
+    class TLexer;
+    class TParser;
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    } // namespace NYT::NQueryClient::NAst
 }
 
 %code {
@@ -230,7 +236,7 @@ parse-query
         offset-clause[offset]
         limit-clause[limit]
         {
-            head->Ast = TQuery {
+            head->Ast = TQuery{
                 .Table = std::move($from),
                 .WithIndex = std::move($withIndex),
                 .Joins = std::move($joins),
@@ -253,7 +259,7 @@ parse-query
 parse-job-query
     : select-clause[select] where-clause[where]
         {
-            head->Ast = TQuery {
+            head->Ast = TQuery{
                 .SelectExprs = std::move($select),
                 .WherePredicate = std::move($where),
             };
@@ -978,9 +984,7 @@ const-range-list
 
 %%
 
-namespace NYT {
-namespace NQueryClient {
-namespace NAst {
+namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -999,6 +1003,4 @@ void TParser::error(const location_type& location, const std::string& message)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NAst
-} // namespace NQueryClient
-} // namespace NYT
+} // namespace NAst::NQueryClient::NYT
