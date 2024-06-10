@@ -347,3 +347,40 @@ public:
     size_t rname::DoRead(void* buf, size_t len) {                \
         return Impl_->Read(buf, len);                            \
     }
+
+template <class T>
+struct TInputHolder {
+    static inline T Set(T t) noexcept {
+        return t;
+    }
+};
+
+template <class T>
+struct TInputHolder<TAutoPtr<T>> {
+    inline T* Set(TAutoPtr<T> v) noexcept {
+        V_ = v;
+
+        return V_.Get();
+    }
+
+    TAutoPtr<T> V_;
+};
+
+
+// Decompressing input streams without signature verification
+template <class TInput, class TDecompressor>
+class TLzDecompressInput: public TInputHolder<TInput>, public IInputStream {
+public:
+    inline TLzDecompressInput(TInput in)
+        : Impl_(this->Set(in))
+    {
+    }
+
+private:
+    size_t DoRead(void* buf, size_t len) override {
+        return Impl_.Read(buf, len);
+    }
+
+private:
+    TDecompressorBaseImpl<TDecompressor> Impl_;
+};
