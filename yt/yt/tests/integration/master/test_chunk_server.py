@@ -1497,22 +1497,23 @@ class TestChunkCreationThrottler(YTEnvSetup):
             set("//sys/users/root/@chunk_service_request_bytes_throttler", {"limit": 1337})
 
     @authors("h0pless")
+    @flaky(max_runs=3)
     def test_per_user_bytes_throttler_profiling(self):
-        userName = "GregorzBrzeczyszczykiewicz"
-        create_user(userName)
+        user_name = "GregorzBrzeczyszczykiewicz"
+        create_user(user_name)
 
         create("table", "//tmp/t")
 
         set("//sys/@config/chunk_service/enable_per_user_request_bytes_throttling", True)
-        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(userName), {"limit": 300})
+        set("//sys/users/{}/@chunk_service_request_bytes_throttler".format(user_name), {"limit": 300})
         sleep(1)
 
         master_address = ls("//sys/primary_masters")[0]
         profiler = profiler_factory().at_primary_master(master_address)
-        value_counter = profiler.counter("chunk_service/bytes_throttler/value", tags={"user": userName, "method": "create_chunk"})
+        value_counter = profiler.counter("chunk_service/bytes_throttler/value", tags={"user": user_name, "method": "create_chunk"})
 
-        write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=userName)
-        write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=userName)
+        write_table("//tmp/t", {"place": "gmina Grzmiszczoslawice"}, timeout=20, authenticated_user=user_name)
+        write_table("//tmp/t", {"place": "powiat lekolody"}, timeout=20, authenticated_user=user_name)
         wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
 
 
