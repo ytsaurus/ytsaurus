@@ -791,7 +791,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartPipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StopPipeline));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PausePipeline));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineStatus));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetPipelineState));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetFlowView));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery));
@@ -6077,11 +6077,11 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineStatus)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetPipelineState)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        TGetPipelineStatusOptions options;
+        TGetPipelineStateOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
@@ -6090,7 +6090,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->GetPipelineStatus(pipelinePath, options);
+                return client->GetPipelineState(pipelinePath, options);
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();

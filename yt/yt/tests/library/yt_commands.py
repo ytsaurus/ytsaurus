@@ -3609,10 +3609,10 @@ def pause_pipeline(pipeline_path, **kwargs):
     return execute_command("pause_pipeline", kwargs)
 
 
-def get_pipeline_status(pipeline_path, **kwargs):
+def get_pipeline_state(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
     try:
-        return execute_command("get_pipeline_status", kwargs, parse_yson=True).lower()
+        return execute_command("get_pipeline_state", kwargs, parse_yson=True).lower()
     except YtResponseError:
         return "unknown"
 

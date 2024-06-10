@@ -873,9 +873,9 @@ public: \
         const NYPath::TYPath& pipelinePath,
         const TPausePipelineOptions& options),
         (pipelinePath, options))
-    IMPLEMENT_METHOD(TPipelineStatus, GetPipelineStatus, (
+    IMPLEMENT_METHOD(TPipelineState, GetPipelineState, (
         const NYPath::TYPath& pipelinePath,
-        const TGetPipelineStatusOptions& options),
+        const TGetPipelineStateOptions& options),
         (pipelinePath, options))
     IMPLEMENT_METHOD(TGetFlowViewResult, GetFlowView, (
         const NYPath::TYPath& pipelinePath,
