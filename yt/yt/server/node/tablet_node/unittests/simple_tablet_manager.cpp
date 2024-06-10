@@ -156,6 +156,11 @@ TTablet* TSimpleTabletManager::FindTablet(const TTabletId& id) const
     return TabletMap_.Get(id);
 }
 
+TTablet* TSimpleTabletManager::FindOrphanedTablet(TTabletId /*id*/) const
+{
+    return nullptr;
+}
+
 TTablet* TSimpleTabletManager::GetTablet(const TTabletId& id) const
 {
     auto* tablet = FindTablet(id);

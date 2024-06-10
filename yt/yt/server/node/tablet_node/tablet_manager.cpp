@@ -349,6 +349,17 @@ public:
         return tablet;
     }
 
+    TTablet* FindOrphanedTablet(TTabletId id) const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (auto it = OrphanedTablets_.find(id); it != OrphanedTablets_.end()) {
+            return it->second.get();
+        }
+
+        return nullptr;
+    }
+
     ITabletCellWriteManagerHostPtr GetTabletCellWriteManagerHost() override
     {
         return this;

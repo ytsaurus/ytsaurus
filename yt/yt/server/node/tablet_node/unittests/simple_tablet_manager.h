@@ -46,6 +46,7 @@ public:
     void OnTabletRowUnlocked(TTablet* tablet) override;
     TTablet* GetTabletOrThrow(TTabletId id) override;
     TTablet* FindTablet(const TTabletId& id) const override;
+    TTablet* FindOrphanedTablet(TTabletId id) const override;
     TTablet* GetTablet(const TTabletId& id) const override;
     const NHydra::TReadOnlyEntityMap<TTablet>& Tablets() const override;
     ITransactionManagerPtr GetTransactionManager() const override;
