@@ -47,7 +47,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) = 0;
 
-    virtual THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs) = 0;
+    virtual THashSet<NChunkClient::TChunkId> FilterHotChunkIds(const std::vector<NChunkClient::TChunkId>& chunkIds) = 0;
 
     virtual void RegisterJobChunks(
         TJobId jobId,

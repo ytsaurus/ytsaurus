@@ -28,7 +28,7 @@ void PrepareProxiedChunkReading(
 THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(NControllerAgent::NProto::TJobSpec* jobSpecProto);
 
 void PatchInterruptDescriptor(
-    const THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
+    const THashMap<NChunkClient::TChunkId, TRefCountedChunkSpecPtr>& chunkIdToOriginalSpec,
     NChunkClient::TInterruptDescriptor& interruptDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////

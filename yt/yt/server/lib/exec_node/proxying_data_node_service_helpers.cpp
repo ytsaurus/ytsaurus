@@ -104,8 +104,8 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> GetProxiableChunkSpecs(
 
 void PrepareProxiedChunkReading(
     TNodeId nodeId,
-    const THashSet<TChunkId>& hotChunks,
-    const THashSet<TChunkId>& eligibleChunks,
+    const THashSet<TChunkId>& hotChunkIds,
+    const THashSet<TChunkId>& eligibleChunkIds,
     TTableInputSpec* tableSpec)
 {
     // 1. Chunks for which proxying is enabled are added to the new list - proxied_chunk_specs.
@@ -124,11 +124,11 @@ void PrepareProxiedChunkReading(
         auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
         auto proxiedChunkId = MakeProxiedChunkId(chunkId);
 
-        if (!eligibleChunks.contains(proxiedChunkId)) {
+        if (!eligibleChunkIds.contains(proxiedChunkId)) {
             continue;
         }
 
-        if (!hotChunks.contains(proxiedChunkId) && !chunkSpec.use_proxying_data_node_service()) {
+        if (!hotChunkIds.contains(proxiedChunkId) && !chunkSpec.use_proxying_data_node_service()) {
             continue;
         }
 
@@ -161,13 +161,13 @@ void PrepareProxiedChunkReading(
 
 void PrepareProxiedChunkReading(
     TNodeId nodeId,
-    const THashSet<TChunkId>& hotChunks,
-    const THashSet<TChunkId>& eligibleChunks,
+    const THashSet<TChunkId>& hotChunkIds,
+    const THashSet<TChunkId>& eligibleChunkIds,
     TJobSpecExt* jobSpecExt)
 {
     auto patchTableSpecs = [&] (auto* tableSpecs) {
         for (auto& tableSpec : *tableSpecs) {
-            PrepareProxiedChunkReading(nodeId, hotChunks, eligibleChunks, &tableSpec);
+            PrepareProxiedChunkReading(nodeId, hotChunkIds, eligibleChunkIds, &tableSpec);
         }
     };
 
@@ -202,7 +202,7 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* job
 
                 // For unpatched chunks, must explicitly set use_proxying_data_node_service = false.
                 newChunkSpec.set_use_proxying_data_node_service(false);
-                newChunkSpecs.push_back(newChunkSpec);
+                newChunkSpecs.push_back(std::move(newChunkSpec));
                 chunkIdToOriginalSpec.emplace(chunkId, New<TRefCountedChunkSpec>(chunkSpec));
             } else {
                 const auto& proxiedChunkSpec = proxiedChunkSpecIt->second;
@@ -246,7 +246,7 @@ THashMap<TChunkId, TRefCountedChunkSpecPtr> PatchProxiedChunkSpecs(TJobSpec* job
 }
 
 void PatchInterruptDescriptor(
-    const THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkIdToOriginalSpec,
+    const THashMap<TChunkId, TRefCountedChunkSpecPtr>& chunkIdToOriginalSpec,
     TInterruptDescriptor& interruptDescriptor)
 {
     auto restoreOriginalChunkSpecs = [&] (std::vector<TDataSliceDescriptor>& descriptors) {

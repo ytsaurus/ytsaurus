@@ -470,12 +470,12 @@ private:
         TProbeBatch Next;
     };
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-
     const TReplicationReaderConfigPtr ReaderConfig_;
     const TRemoteReaderOptionsPtr ReaderOptions_;
     const TChunkId ChunkId_;
     const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
     THashMap<TString, TProbeNodeState> States_;
 
@@ -1618,7 +1618,7 @@ private:
         const IChannelPtr& channel,
         const TString& address,
         const TPeer& peer,
-        std::vector<int> blockIndexes)
+        const std::vector<int>& blockIndexes)
     {
         auto probeBlockSetResponseFuture = ChunkProber_->ProbeBlockSet(
             TChunkProber::TProbeRequest{
