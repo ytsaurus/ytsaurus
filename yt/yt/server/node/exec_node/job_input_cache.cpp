@@ -68,7 +68,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override;
 
-    THashSet<NChunkClient::TChunkId> FilterHotChunks(const std::vector<NChunkClient::TChunkId>& chunkSpecs) override;
+    THashSet<NChunkClient::TChunkId> FilterHotChunkIds(const std::vector<NChunkClient::TChunkId>& chunkIds) override;
 
     void RegisterJobChunks(
         TJobId jobId,
@@ -182,11 +182,11 @@ void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
     Config_.Store(config);
 }
 
-THashSet<TChunkId> TJobInputCache::FilterHotChunks(const std::vector<TChunkId>& chunkSpecs)
+THashSet<TChunkId> TJobInputCache::FilterHotChunkIds(const std::vector<TChunkId>& chunkIds)
 {
     auto guard = ReaderGuard(Lock_);
 
-    THashSet<TChunkId> hotChunks;
+    THashSet<TChunkId> hotChunkIds;
 
     auto threshold = Config_.Acquire()->JobCountThreshold;
 
@@ -194,14 +194,14 @@ THashSet<TChunkId> TJobInputCache::FilterHotChunks(const std::vector<TChunkId>& 
         return {};
     }
 
-    for (const auto& chunkId : chunkSpecs) {
+    for (const auto& chunkId : chunkIds) {
         auto chunkIt = ChunkIdToJobIds_.find(chunkId);
-        if (chunkIt && std::ssize(chunkIt->second) >= threshold.value()) {
-            EmplaceOrCrash(hotChunks, chunkId);
+        if (!chunkIt.IsEnd() && std::ssize(chunkIt->second) >= *threshold) {
+            EmplaceOrCrash(hotChunkIds, chunkId);
         }
     }
 
-    return hotChunks;
+    return hotChunkIds;
 }
 
 void TJobInputCache::RegisterJobChunks(

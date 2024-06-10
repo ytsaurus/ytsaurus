@@ -2120,7 +2120,7 @@ void TJob::RunJobProxy()
     InitializeJobProbe();
 
     auto eligibleChunks = GetKeys(ProxiableChunks_.Load());
-    auto hotChunks = JobInputCache_->FilterHotChunks(eligibleChunks);
+    auto hotChunks = JobInputCache_->FilterHotChunkIds(eligibleChunks);
 
     PrepareProxiedChunkReading(
         Bootstrap_->GetNodeId(),
@@ -2539,11 +2539,11 @@ std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDir
 
     if (JobInputCache_->IsEnabled()) {
         UseJobInputCache_.store(true);
-        auto chunks = GetProxiableChunkSpecs(jobSpecExt, GetType());
-        ProxiableChunks_.Store(chunks);
+        auto chunkSpecs = GetProxiableChunkSpecs(jobSpecExt, GetType());
+        ProxiableChunks_.Store(chunkSpecs);
         JobInputCache_->RegisterJobChunks(
             Id_,
-            std::move(chunks));
+            std::move(chunkSpecs));
     }
 
     YT_LOG_INFO("Finish preparing node directory");
