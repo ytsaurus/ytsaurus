@@ -1255,9 +1255,10 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
 
     auto result = New<TControllerScheduleAllocationResult>();
     if (response.success()) {
-        result->StartDescriptor.emplace(
-            allocationId,
-            FromProto<TJobResourcesWithQuota>(response.resource_limits()));
+        result->StartDescriptor.emplace(TAllocationStartDescriptor{
+            .Id = allocationId,
+            .ResourceLimits = FromProto<TJobResourcesWithQuota>(response.resource_limits()),
+            });
         FromProto(
             &(result->StartDescriptor->AllocationAttributes),
             response.allocation_attributes());
