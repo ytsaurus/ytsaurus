@@ -931,19 +931,15 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         if (!isSuperuser) {
             placeholdersFluentMap.Item("User").Value(user);
 
-            if (acosForUser.empty()) {
-                builder.AddWhereConjunct("user = {User}");
-            } else {
-                TStringBuilder conditionBuilder;
-                TDelimitedStringBuilderWrapper delimitedBuilder(&conditionBuilder, " OR ");
+            TStringBuilder conditionBuilder;
+            TDelimitedStringBuilderWrapper delimitedBuilder(&conditionBuilder, " OR ");
 
-                delimitedBuilder->AppendString("user = {User}");
-                for (const auto& aco : acosForUser) {
-                    delimitedBuilder->AppendString(Format("list_contains(access_control_objects, \"%v\")", aco));
-                }
-
-                builder.AddWhereConjunct(conditionBuilder.Flush());
+            delimitedBuilder->AppendString("user = {User}");
+            for (const auto& aco : acosForUser) {
+                delimitedBuilder->AppendString(Format("list_contains(access_control_objects, \"%v\")", aco));
             }
+
+            builder.AddWhereConjunct(conditionBuilder.Flush());
         }
 
         placeholderValues = ConvertToYsonString(placeholdersFluentMap.EndMap());
