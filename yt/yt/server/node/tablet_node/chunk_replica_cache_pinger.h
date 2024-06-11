@@ -9,8 +9,6 @@ namespace NYT::NTabletNode {
 struct IChunkReplicaCachePinger
     : public virtual TRefCounted
 {
-    virtual ~IChunkReplicaCachePinger() = default;
-
     virtual void Start() = 0;
 };
 
