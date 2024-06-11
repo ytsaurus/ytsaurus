@@ -50,6 +50,16 @@
 // TQueryCoordinateTest
 // TQueryEvaluateTest
 
+namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TSchemafulPipe)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTableClient
+
 namespace NYT::NQueryClient {
 namespace {
 
@@ -2081,6 +2091,199 @@ protected:
         return EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::Native);
     }
 
+    TSchemafulPipePtr RunOnNodeThread(
+        TConstQueryPtr query,
+        const std::vector<TString>& rows,
+        EExecutionBackend executionBackend)
+    {
+        i64 progress = 0;
+
+        auto owningBatch = std::vector<TOwningRow>();
+
+        auto readRows = [&] (const TRowBatchReadOptions& options) {
+            i64 size = std::min(options.MaxRowsPerRead, std::ssize(rows) - progress);
+
+            owningBatch.resize(size);
+            auto batch = std::vector<TRow>(size);
+
+            for (i64 index = 0; index < size; ++index) {
+                owningBatch[index] = YsonToSchemafulRow(rows[progress + index], *query->GetReadSchema(), true);
+                batch[index] = owningBatch[index];
+            }
+
+            progress += size;
+
+            return (size == 0)
+                ? nullptr
+                : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(batch)));
+        };
+
+        auto readerMock = New<NiceMock<TReaderMock>>();
+        EXPECT_CALL(*readerMock, Read(_))
+            .WillRepeatedly(Invoke(readRows));
+        ON_CALL(*readerMock, GetReadyEvent())
+            .WillByDefault(Return(VoidFuture));
+
+        auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+
+        Evaluator_->Run(
+            query,
+            readerMock,
+            pipe->GetWriter(),
+            /*joinProfiler*/ nullptr,
+            FunctionProfilers_,
+            AggregateProfilers_,
+            GetDefaultMemoryChunkProvider(),
+            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+
+        return pipe;
+    }
+
+    TSchemafulPipePtr RunOnNode(
+        TConstQueryPtr nodeQuery,
+        const std::vector<std::vector<TString>>& tabletData,
+        EExecutionBackend executionBackend)
+    {
+        int partCount = std::ssize(tabletData);
+
+        auto [query, bottomQuery] = GetDistributedQueryPattern(nodeQuery);
+
+        int partIndex = 0;
+
+        auto nextReader = [&, bottomQuery = bottomQuery] () -> ISchemafulUnversionedReaderPtr {
+            if (partIndex == partCount) {
+                return nullptr;
+            }
+
+            auto pipe = RunOnNodeThread(
+                bottomQuery,
+                tabletData[partIndex],
+                executionBackend);
+
+            ++partIndex;
+
+            return pipe->GetReader();
+        };
+
+        auto reader = query->IsOrdered()
+            ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
+            : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
+
+        auto pipe = New<TSchemafulPipe>(GetDefaultMemoryChunkProvider());
+
+        Evaluator_->Run(
+            query,
+            reader,
+            pipe->GetWriter(),
+            /*joinProfiler*/ nullptr,
+            FunctionProfilers_,
+            AggregateProfilers_,
+            GetDefaultMemoryChunkProvider(),
+            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+
+        return pipe;
+    }
+
+    TSharedRange<TUnversionedRow> RunOnCoordinator(
+        TQueryPtr primary,
+        const std::vector<std::vector<std::vector<TString>>>& tabletsData,
+        EExecutionBackend executionBackend)
+    {
+        int tabletCount = std::ssize(tabletsData);
+
+        auto [frontQuery, nodeQuery] = GetDistributedQueryPattern(primary);
+
+        int tabletIndex = 0;
+
+        auto nextReader = [&, nodeQuery = nodeQuery] () -> ISchemafulUnversionedReaderPtr {
+            if (tabletIndex == tabletCount) {
+                return nullptr;
+            }
+
+            auto pipe = RunOnNode(nodeQuery, tabletsData[tabletIndex], executionBackend);
+
+            ++tabletIndex;
+
+            return pipe->GetReader();
+        };
+
+        auto reader = frontQuery->IsOrdered()
+            ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
+            : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
+
+        auto [writer, asyncResultRowset] = CreateSchemafulRowsetWriter(frontQuery->GetTableSchema());
+
+        Evaluator_->Run(
+            frontQuery,
+            reader,
+            writer,
+            /*joinProfiler*/ nullptr,
+            FunctionProfilers_,
+            AggregateProfilers_,
+            GetDefaultMemoryChunkProvider(),
+            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+
+        auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
+
+        return rows;
+    }
+
+    void EvaluateFullCoordinatedGroupByImpl(
+        const TString& queryString,
+        const TDataSplit& dataSplit,
+        const std::vector<std::vector<std::vector<TString>>>& data,
+        const TResultMatcher& resultMatcher,
+        EExecutionBackend executionBackend)
+    {
+        auto query = Prepare(queryString, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+        auto rows = RunOnCoordinator(query, data, executionBackend);
+
+        resultMatcher(rows, *query->GetTableSchema());
+    }
+
+    std::vector<std::vector<std::vector<TString>>> RandomSplitData(const std::vector<TString>& data)
+    {
+        auto result = std::vector<std::vector<std::vector<TString>>>();
+
+        result.emplace_back();
+        result.back().emplace_back();
+
+        for (auto& row : data) {
+            if (rand() % 400 == 0) {
+                result.emplace_back();
+                result.back().emplace_back();
+            }
+
+            if (rand() % 400 == 0) {
+                result.back().emplace_back();
+            }
+
+            result.back().back().emplace_back(row);
+        }
+
+        return result;
+    }
+
+    void EvaluateFullCoordinatedGroupBy(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<TString>& data,
+        const TResultMatcher& resultMatcher,
+        int iterations = 100)
+    {
+        for (int i = 0; i < iterations; ++i) {
+            auto sources = RandomSplitData(data);
+            EvaluateFullCoordinatedGroupByImpl(query, dataSplit, sources, resultMatcher, EExecutionBackend::Native);
+        }
+
+        if (EnableWebAssemblyInUnitTests()) {
+            for (int i = 0; i < iterations; ++i) {
+                auto sources = RandomSplitData(data);
+                EvaluateFullCoordinatedGroupByImpl(query, dataSplit, sources, resultMatcher, EExecutionBackend::WebAssembly);
+            }
+        }
+    }
+
     const IEvaluatorPtr Evaluator_ = CreateEvaluator(New<TExecutorConfig>());
 
     StrictMock<TPrepareCallbacksMock> PrepareMock_;
@@ -2981,6 +3184,58 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
             split,
             source,
             OrderedResultMatcher(result, {"av"}));
+    }
+}
+
+TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
+{
+    auto split = MakeSplit({
+        {"k0", EValueType::Int64, ESortOrder::Ascending},
+        {"k1", EValueType::Int64, ESortOrder::Ascending},
+        {"v", EValueType::Int64},
+    });
+
+    auto source = [] {
+        auto source = std::vector<TString>();
+        int k0 = 0;
+        for (int cardinality = 0; cardinality < 100; ++cardinality) {
+            int k1 = 0;
+            for (int identical = 0; identical < 3; ++identical) {
+                for (int value = 0; value < cardinality; ++value) {
+                    source.push_back(Format("k0=%v;k1=%v;v=%v", k0, k1, value));
+                    ++k1;
+                }
+            }
+            ++k0;
+        }
+        return source;
+    }();
+
+    {
+        auto resultSplit = MakeSplit({
+            {"av", EValueType::Uint64},
+        });
+
+        auto resultRows = std::vector<TString>();
+        for (int i = 1; i < 100; ++i) {
+            resultRows.push_back(Format("av=%vu", i));
+        }
+
+        auto result = YsonToRows(resultRows, resultSplit);
+
+        EvaluateFullCoordinatedGroupBy(
+            "cardinality(v) as av FROM [//t] group by k0",
+            split,
+            source,
+            OrderedResultMatcher(result, {"av"}),
+            /*iterations*/ 1);
+
+        EvaluateFullCoordinatedGroupBy(
+            "cardinality(v) as av FROM [//t] group by k0 limit 10000",
+            split,
+            source,
+            ResultMatcher(result),
+            /*iterations*/ 1);
     }
 }
 
