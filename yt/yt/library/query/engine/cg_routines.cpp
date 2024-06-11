@@ -3137,7 +3137,7 @@ void LastSeenReplicaSetMerge(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unversionedValue, INodePtr value)
+void NodeToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unversionedValue, const INodePtr& value)
 {
     if (!value) {
         unversionedValue.Type = EValueType::Null;
@@ -3151,20 +3151,20 @@ void ToWasmUnversionedValue(TExpressionContext* context, TUnversionedValue& unve
     unversionedValue.Data.String = ConvertPointerFromHostToWasm(data, unversionedValue.Length);
 }
 
-INodePtr FromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
+INodePtr NodeFromWasmUnversionedValue(const TUnversionedValue& unversionedValue)
 {
     if (unversionedValue.Type == EValueType::Null) {
         return nullptr;
     }
     auto data = ConvertPointerFromWasmToHost(unversionedValue.Data.String, unversionedValue.Length);
-    auto stringBuf = TStringBuf{data, unversionedValue.Length};
-    auto ysonString = NYson::TYsonString{stringBuf};
-    return NYT::NYTree::ConvertToNode(ysonString);
+    auto stringBuf = TStringBuf(data, unversionedValue.Length);
+    auto ysonString = NYson::TYsonString(stringBuf);
+    return ConvertToNode(ysonString);
 }
 
 void RemoveRecursively(INodePtr node)
 {
-    INodePtr parent = node->GetParent();
+    auto parent = node->GetParent();
     while (parent) {
         if (parent->GetType() != ENodeType::Map) {
             break;
@@ -3181,7 +3181,7 @@ void RemoveRecursively(INodePtr node)
     }
 }
 
-INodePtr DictSum(INodePtr stateRoot, INodePtr deltaRoot)
+INodePtr DictSum(const INodePtr& stateRoot, const INodePtr& deltaRoot)
 {
     if (!deltaRoot || deltaRoot->GetType() != ENodeType::Map) {
         return stateRoot;
@@ -3195,7 +3195,7 @@ INodePtr DictSum(INodePtr stateRoot, INodePtr deltaRoot)
         return nullptr;
     }
 
-    auto oldStateRoot = NYT::NYTree::ConvertToNode(stateRoot);
+    auto oldStateRoot = ConvertToNode(stateRoot);
     std::vector<std::pair<IMapNodePtr, IMapNodePtr>> traversal;
     traversal.push_back({stateRoot->AsMap(), deltaRoot->AsMap()});
     while (!traversal.empty()) {
@@ -3232,10 +3232,10 @@ void DictSumIteration(
     TUnversionedValue* state,
     TUnversionedValue* delta)
 {
-    auto stateNode = FromWasmUnversionedValue(*state);
-    auto deltaNode = FromWasmUnversionedValue(*delta);
-    auto resultNode = DictSum(std::move(stateNode), std::move(deltaNode));
-    ToWasmUnversionedValue(context, *result, resultNode);
+    auto stateNode = NodeFromWasmUnversionedValue(*state);
+    auto deltaNode = NodeFromWasmUnversionedValue(*delta);
+    auto resultNode = DictSum(stateNode, deltaNode);
+    NodeToWasmUnversionedValue(context, *result, resultNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
