@@ -309,9 +309,9 @@ public:
         }
 
         if (auto delay = GetDynamicConfig()->TestResourceAcquisitionDelay) {
-            YT_LOG_DEBUG("Performing a testing delay before resource acquisition (Delay: %v)", delay);
+            YT_LOG_DEBUG("Performing testing delay before resource acquisition (Delay: %v)", delay);
             TDelayedExecutor::WaitForDuration(*delay);
-            YT_LOG_DEBUG("Finished a testing delay before resource acquisition");
+            YT_LOG_DEBUG("Finished testing delay before resource acquisition");
         }
 
         Bootstrap_->GetJobInvoker()->Invoke(BIND(

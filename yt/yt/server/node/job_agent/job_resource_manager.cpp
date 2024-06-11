@@ -1808,7 +1808,7 @@ void TResourceHolder::PrepareResourcesRelease() noexcept
     if (State_ >= EResourcesState::Releasing) {
         // In case of preemption, we become Releasing
         // before we finish the allocation.
-        // Thus upon allocation compelition/abortion
+        // Thus upon allocation completion/abortion
         // job will be evicted and this function will
         // be called again.
         return;
