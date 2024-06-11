@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from yt.wrapper import config, YtClient
+from yt.wrapper.ypath import ypath_join
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
@@ -219,8 +220,8 @@ def build_arguments_parser():
     parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
     parser.add_argument("--root", type=str, default=DEFAULT_ROOT,
                         help="Root directory for state tables; defaults to {}".format(DEFAULT_ROOT))
-    parser.add_argument("--tablet-cell-bundle", type=str, default=DEFAULT_TABLET_CELL_BUNDLE,
-                        help="Tablet cell bundle for queue agent state tables; defaults to {}".format(DEFAULT_TABLET_CELL_BUNDLE))
+    parser.add_argument("--override-tablet-cell-bundle", type=str, default=None,
+                        help="Tablet cell bundle for queue agent state tables; optional")
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
     parser.add_argument("--force", action="store_true", default=False)
 
@@ -231,15 +232,58 @@ def build_arguments_parser():
     return parser
 
 
+# COMPAT(apachee): Creates missing tables for compatability with
+# previous version of init_queue_agent_state.
+def _create_missing_tables(client, root, migration):
+    if not client.exists(root):
+        # This case is handled by migrationlib
+        return
+    root_attributes = client.get("{0}/@".format(root))
+    if "version" in root_attributes:
+        # Everything should already be fine
+        return
+
+    for table, table_info in migration.initial_table_infos.items():
+        table_path = ypath_join(root, table)
+        if not client.exists(table_path):
+            table_info.create_dynamic_table(client, table_path)
+
+
+# NB(apachee): Irreversibly changes tablet_cell_bundle for
+# all tables and conversion of QA state migration.
+def _prepare_migration(tablet_cell_bundle=None):
+    if not tablet_cell_bundle:
+        return MIGRATION
+
+    for table in INITIAL_TABLE_INFOS.values():
+        table.attributes["tablet_cell_bundle"] = tablet_cell_bundle
+
+    for transform in TRANSFORMS.values():
+        for conversion in transform:
+            if conversion.table_info and conversion.table_info.attributes.get("tablet_cell_bundle") is not None:
+                conversion.table_info.attributes["tablet_cell_bundle"] = tablet_cell_bundle
+
+    return Migration(
+        initial_table_infos=INITIAL_TABLE_INFOS,
+        initial_version=INITIAL_VERSION,
+        transforms=TRANSFORMS,
+        actions=ACTIONS,
+    )
+
+
 def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
+
+    migration = _prepare_migration(args.override_tablet_cell_bundle)
+
+    _create_missing_tables(client, args.root, migration)
 
     target_version = args.target_version
     if args.latest:
         target_version = MIGRATION.get_latest_version()
 
-    MIGRATION.run(
+    migration.run(
         client,
         tables_path=args.root,
         shard_count=args.shard_count,
