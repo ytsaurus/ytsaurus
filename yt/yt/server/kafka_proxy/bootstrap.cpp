@@ -76,9 +76,9 @@ public:
         : Config_(std::move(config))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
-            AbortOnUnrecognizedOptions(Logger, Config_);
+            AbortOnUnrecognizedOptions(Logger(), Config_);
         } else {
-            WarnForUnrecognizedOptions(Logger, Config_);
+            WarnForUnrecognizedOptions(Logger(), Config_);
         }
     }
 

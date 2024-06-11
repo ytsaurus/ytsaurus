@@ -20,9 +20,9 @@ void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
 
         typedRequest.Deserialize(requestReader, version);
 
-        auto logger = KafkaProxyLogger
+        auto logger = KafkaProxyLogger()
             .WithTag("ConnectionId: %v", connectionId)
-            .WithTag("RequestType: %v", typedRequest.GetRequestType());
+            .WithTag("RequestType: %v", typedRequest.RequestType);
         auto typedResponse = handler(connectionId, typedRequest, logger);
 
         auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
@@ -31,7 +31,7 @@ void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
         return protocolWriter->Finish();
     };
 
-    RegisterHandler(TRequest::GetRequestType(), BIND(typedHandler));
+    RegisterHandler(TRequest::RequestType, BIND(typedHandler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

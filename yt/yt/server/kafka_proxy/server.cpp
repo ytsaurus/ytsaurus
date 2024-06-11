@@ -58,7 +58,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_KAFKA_HANDLER(method) \
-    TRsp##method Do##method([[maybe_unused]] const TConnectionId& connectionId, [[maybe_unused]] const TReq##method& request, const NLogging::TLogger& Logger = KafkaProxyLogger)
+    TRsp##method Do##method([[maybe_unused]] const TConnectionId& connectionId, [[maybe_unused]] const TReq##method& request, const NLogging::TLogger& Logger)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -116,18 +116,18 @@ public:
     }
 
 private:
-    std::atomic<bool> Started_ = false;
-
     const TKafkaProxyConfigPtr Config_;
 
     const NNative::IConnectionPtr NativeConnection_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const IAuthenticationManagerPtr AuthenticationManager_;
 
-    IAuthenticationManagerPtr AuthenticationManager_;
+    const IPollerPtr Poller_;
+    const IPollerPtr Acceptor_;
+    const IListenerPtr Listener_;
 
-    IPollerPtr Poller_;
-    IPollerPtr Acceptor_;
-    IListenerPtr Listener_;
+    std::atomic<bool> Started_ = false;
+
 
     struct TConnectionState final
     {
@@ -240,7 +240,12 @@ private:
         // For SaslHandshake v0 tokens are sent as opaque packets without wrapping the messages with Kafka protocol headers.
         // SaslHandshake v1 is not supported for now.
         if (expectedRequestType && *expectedRequestType == ERequestType::SaslAuthenticate) {
-            auto response = DoSaslAuthenticate(connection->GetConnectionId(), TReqSaslAuthenticate{.AuthBytes = request.ToString()});
+            auto response = DoSaslAuthenticate(
+                connection->GetConnectionId(),
+                TReqSaslAuthenticate{.AuthBytes = request.ToString()},
+                Logger()
+                    .WithTag("ConnectionId: %v", connection->GetConnectionId())
+                    .WithTag("RequestType: %v", ERequestType::SaslAuthenticate));
 
             auto builder = TSharedRefArrayBuilder(1);
             if (response.ErrorCode != NKafka::EErrorCode::None) {
@@ -301,8 +306,8 @@ private:
 
             return builder.Finish();
         } else {
-            THROW_ERROR_EXCEPTION("Incoming message has invalid type, ignored (Type: %x)",
-                    static_cast<int>(header.RequestType));
+            THROW_ERROR_EXCEPTION("Incoming message has invalid type %x, ignored",
+                static_cast<int>(header.RequestType));
         }
     }
 
@@ -341,7 +346,8 @@ private:
 
     DECLARE_KAFKA_HANDLER(ApiVersions)
     {
-        YT_LOG_DEBUG("Start to handle ApiVersions request (ClientSoftwareName: %Qv)", request.ClientSoftwareName);
+        YT_LOG_DEBUG("Start to handle ApiVersions request (ClientSoftwareName: %v)",
+            request.ClientSoftwareName);
 
         TRspApiVersions response;
         response.ApiKeys = std::vector<TRspApiKey>{
@@ -433,12 +439,16 @@ private:
     {
         static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
 
-        YT_LOG_DEBUG("Start to handle SaslHandshake request (Mechanism: %v)", request.Mechanism);
+        YT_LOG_DEBUG("Start to handle SaslHandshake request (Mechanism: %v)",
+            request.Mechanism);
 
         TRspSaslHandshake response;
         response.Mechanisms = {OAuthBearerSaslMechanism};
         if (request.Mechanism != OAuthBearerSaslMechanism) {
-            YT_LOG_DEBUG("Unsupported sasl mechanism (Requested: %v, Expected: %v)", request.Mechanism, OAuthBearerSaslMechanism);
+            YT_LOG_DEBUG("Unsupported sasl mechanism (Requested: %v, Expected: %v)",
+                request.Mechanism,
+                OAuthBearerSaslMechanism);
+
             response.ErrorCode = NKafka::EErrorCode::UnsupportedSaslMechanism;
         }
 
@@ -483,7 +493,9 @@ private:
         auto authenticator = AuthenticationManager_->GetTokenAuthenticator();
         auto authResultOrError = WaitFor(authenticator->Authenticate(TTokenCredentials{.Token = std::move(token)}));
         if (!authResultOrError.IsOK()) {
-            auto error = TError("Failed to authenticate") << authResultOrError;
+            auto error = TError("Failed to authenticate user")
+                << TErrorAttribute("connection_id", connectionId)
+                << authResultOrError;
             YT_LOG_DEBUG(error);
             fillError(ToString(error));
             return response;
@@ -492,14 +504,16 @@ private:
         connectionState->UserName = authResultOrError.Value().Login;
         connectionState->ExpectedRequestType = std::nullopt;
 
-        YT_LOG_DEBUG("Authentication successfull (UserName: %v)", *connectionState->UserName);
+        YT_LOG_DEBUG("Authentication successfull (UserName: %v)",
+            *connectionState->UserName);
 
         return response;
     }
 
     DECLARE_KAFKA_HANDLER(Metadata)
     {
-        YT_LOG_DEBUG("Start to handle Metadata request (TopicsSize: %v)", request.Topics.size());
+        YT_LOG_DEBUG("Start to handle Metadata request (TopicsSize: %v)",
+            request.Topics.size());
 
         auto userName = GetConnectionState(connectionId)->UserName;
         if (!userName) {
@@ -556,7 +570,8 @@ private:
 
     DECLARE_KAFKA_HANDLER(FindCoordinator)
     {
-        YT_LOG_DEBUG("Start to handle FindCoordinator request (Key: %v)", request.Key);
+        YT_LOG_DEBUG("Start to handle FindCoordinator request (Key: %v)",
+            request.Key);
 
         TRspFindCoordinator response;
         response.NodeId = 0;
@@ -568,7 +583,10 @@ private:
 
     DECLARE_KAFKA_HANDLER(JoinGroup)
     {
-        YT_LOG_DEBUG("Start to handle JoinGroup request (GroupId: %Qv, MemberId: %Qv, ProtocolType: %Qv)", request.GroupId, request.MemberId, request.ProtocolType);
+        YT_LOG_DEBUG("Start to handle JoinGroup request (GroupId: %v, MemberId: %v, ProtocolType: %v)",
+            request.GroupId,
+            request.MemberId,
+            request.ProtocolType);
 
         TRspJoinGroup response;
         // TODO(nadya73): fill it with normal data.
@@ -581,7 +599,9 @@ private:
 
     DECLARE_KAFKA_HANDLER(SyncGroup)
     {
-        YT_LOG_DEBUG("Start to handle SyncGroup request (GroupId: %v, MemberId: %v)", request.GroupId, request.MemberId);
+        YT_LOG_DEBUG("Start to handle SyncGroup request (GroupId: %v, MemberId: %v)",
+            request.GroupId,
+            request.MemberId);
 
         TRspSyncGroup response;
         TRspSyncGroupAssignment assignment;
@@ -595,7 +615,9 @@ private:
 
     DECLARE_KAFKA_HANDLER(Heartbeat)
     {
-        YT_LOG_DEBUG("Start to handle Heartbreat request (GroupId: %v, MemberId: %v)", request.GroupId, request.MemberId);
+        YT_LOG_DEBUG("Start to handle Heartbreat request (GroupId: %v, MemberId: %v)",
+            request.GroupId,
+            request.MemberId);
 
         TRspHeartbeat response;
 
@@ -631,7 +653,9 @@ private:
 
         auto transactionOrError = WaitFor(client->StartTransaction(ETransactionType::Tablet));
         if (!transactionOrError.IsOK()) {
-            YT_LOG_DEBUG(transactionOrError, "Failed to start transaction (GroupId: %v)", request.GroupId);
+            YT_LOG_DEBUG(transactionOrError,
+                "Failed to start transaction (GroupId: %v)",
+                request.GroupId);
             fillResponse();
             return response;
         }
@@ -646,8 +670,12 @@ private:
                 auto advanceResultOrError = WaitFor(transaction->AdvanceConsumer(
                     consumerPath, queuePath, partition.PartitionIndex, /*oldOffset*/ std::nullopt, partition.CommittedOffset, TAdvanceConsumerOptions{}));
                 if (!advanceResultOrError.IsOK()) {
-                    YT_LOG_DEBUG(advanceResultOrError, "Failed to advance consumer (ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, Offset: %v)",
-                        consumerPath, queuePath, partition.PartitionIndex, partition.CommittedOffset);
+                    YT_LOG_DEBUG(advanceResultOrError,
+                        "Failed to advance consumer (ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, Offset: %v)",
+                        consumerPath,
+                        queuePath,
+                        partition.PartitionIndex,
+                        partition.CommittedOffset);
                     if (advanceResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                         fillResponse(NKafka::EErrorCode::TopicAuthorizationFailed);
                     } else {
@@ -661,7 +689,9 @@ private:
 
         auto commitResultOrError = WaitFor(transaction->Commit());
         if (!commitResultOrError.IsOK()) {
-            YT_LOG_DEBUG(commitResultOrError, "Failed to commit transaction (GroupId: %v)", request.GroupId);
+            YT_LOG_DEBUG(commitResultOrError,
+                "Failed to commit transaction (GroupId: %v)",
+                request.GroupId);
             if (commitResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                 fillResponse(NKafka::EErrorCode::TopicAuthorizationFailed);
             } else {
@@ -677,7 +707,8 @@ private:
 
     DECLARE_KAFKA_HANDLER(OffsetFetch)
     {
-        YT_LOG_DEBUG("Start to handle OffsetFetch request (GroupId: %v)", request.GroupId);
+        YT_LOG_DEBUG("Start to handle OffsetFetch request (GroupId: %v)",
+            request.GroupId);
 
         auto userName = GetConnectionState(connectionId)->UserName;
         if (!userName) {
@@ -704,7 +735,7 @@ private:
             auto partitionsOrError = WaitFor(subConsumerClient->CollectPartitions(topic.PartitionIndexes));
 
             if (!partitionsOrError.IsOK()) {
-                YT_LOG_DEBUG("Failed to get partitions: %v", partitionsOrError);
+                YT_LOG_DEBUG(partitionsOrError, "Failed to get partitions");
                 for (auto partitionIndex : topic.PartitionIndexes) {
                     topicResponse.Partitions.push_back(TRspOffsetFetchTopicPartition{
                         // TODO(nadya73): add type check.
@@ -730,7 +761,9 @@ private:
 
     DECLARE_KAFKA_HANDLER(Fetch)
     {
-        YT_LOG_DEBUG("Start to handle Fetch request (TopicsSize: %v)", request.Topics.size());
+        YT_LOG_DEBUG("Start to handle Fetch request (TopicCount: %v)",
+            request.Topics.size());
+
         // TODO(nadya73): log requested offsets.
 
         auto userName = GetConnectionState(connectionId)->UserName;
@@ -775,7 +808,7 @@ private:
 
                         auto offset = rowsetOrError.Value()->GetStartOffset();
 
-                        for (const auto& row : rows) {
+                        for (auto row : rows) {
                             topicPartitionResponse.Records->push_back(TRecord{
                                 .FirstOffset = offset,
                                 .MagicByte = 1,
@@ -799,7 +832,8 @@ private:
 
     DECLARE_KAFKA_HANDLER(Produce)
     {
-        YT_LOG_DEBUG("Start to handle Produce request (TopicsCount: %v)", request.TopicData.size());
+        YT_LOG_DEBUG("Start to handle Produce request (TopicsCount: %v)",
+            request.TopicData.size());
 
         auto userName = GetConnectionState(connectionId)->UserName;
         if (!userName) {
@@ -827,7 +861,9 @@ private:
 
             auto transactionOrError = WaitFor(client->StartTransaction(ETransactionType::Tablet));
             if (!transactionOrError.IsOK()) {
-                YT_LOG_DEBUG(transactionOrError, "Failed to produce rows (Topic: %v)", topic.Name);
+                YT_LOG_DEBUG(transactionOrError,
+                    "Failed to produce rows (Topic: %v)",
+                    topic.Name);
                 fillError();
                 continue;
             }
@@ -844,7 +880,7 @@ private:
                         messages.push_back(NKafka::NRecords::TKafkaMessagePartial{
                             .TabletIndex = partition.Index,
                             .MessageKey = message.Key,
-                            .MessageValue = message.Value
+                            .MessageValue = message.Value,
                         });
                     }
                 }
@@ -856,7 +892,9 @@ private:
             auto commitResultOrError = WaitFor(transaction->Commit());
 
             if (!commitResultOrError.IsOK()) {
-                YT_LOG_DEBUG(commitResultOrError, "Failed to produce rows (Topic: %v)", topic.Name);
+                YT_LOG_DEBUG(commitResultOrError,
+                    "Failed to produce rows (Topic: %v)",
+                    topic.Name);
 
                 if (commitResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                     fillError(NKafka::EErrorCode::TopicAuthorizationFailed);

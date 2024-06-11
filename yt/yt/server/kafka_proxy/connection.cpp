@@ -44,9 +44,9 @@ public:
         , RequestHandler_(std::move(requestHandler))
         , FailHandler_(std::move(failHandler))
         , PacketEncoder_(GetKafkaPacketTranscoderFactory()->CreateEncoder(
-            KafkaProxyLogger))
+            KafkaProxyLogger()))
         , PacketDecoder_(GetKafkaPacketTranscoderFactory()->CreateDecoder(
-            KafkaProxyLogger,
+            KafkaProxyLogger(),
             /*verifyChecksum*/ false))
     { }
 
@@ -186,12 +186,12 @@ private:
                     fragment.begin(),
                     fragment.size(),
                     MakeStrong(this));
-                fragments.emplace_back(std::move(sharedFragment));
+                fragments.push_back(std::move(sharedFragment));
             } else {
                 auto clonedFragment = TSharedMutableRef::Allocate<TKafkaConnectionTag>(
                     fragment.size());
                 memcpy(clonedFragment.begin(), fragment.begin(), fragment.size());
-                fragments.emplace_back(std::move(clonedFragment));
+                fragments.push_back(std::move(clonedFragment));
             }
 
             PacketEncoder_->NextFragment();
