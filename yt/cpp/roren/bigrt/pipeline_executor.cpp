@@ -181,6 +181,7 @@ void TBigRtPipelineExecutor::Start(const TPipeline& pipeline)
             },
             .TvmManager = Env_->TvmManager,
             .LbPqLib = Env_->PQLib,
+            .ProfilerTags = csProfilerTags,
         };
         if (Env_->Config->UseProcessorV3 || !Env_->Config->LegacyThreadCount.has_value()) {
             supplierFactoriesData.HeavyInvoker = Env_->ThreadPool->GetInvoker(getPoolName(inputTag), "supplier");
