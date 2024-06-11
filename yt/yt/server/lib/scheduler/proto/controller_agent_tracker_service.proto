@@ -132,6 +132,7 @@ message TScheduleAllocationResponse
     required NYT.NProto.TGuid allocation_id = 1;
     required bool success = 2;
     optional TJobResourcesWithQuota resource_limits = 3;
+    optional TAllocationAttributes allocation_attributes = 10;
     repeated TFailedCounter failed = 4;
     required uint64 duration = 5;
     optional uint64 next_duration_estimate = 6;

@@ -596,6 +596,13 @@ private:
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
+            std::optional<NScheduler::TAllocationAttributes> allocationAttributes;
+            if (GetDynamicConfig()->DisableLegacyAllocationPreparation) {
+                YT_VERIFY(startInfoProto.has_allocation_attributes());
+                auto& attributes = allocationAttributes.emplace();
+                FromProto(&attributes, startInfoProto.allocation_attributes());
+            }
+
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
@@ -608,6 +615,7 @@ private:
                 allocationId,
                 operationId,
                 FromNodeResources(startInfoProto.resource_limits()),
+                std::move(allocationAttributes),
                 agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());
 
@@ -619,36 +627,37 @@ private:
                     agentDescriptor);
 
                 allocation->Abort(MakeJobsDisabledError());
-            } else {
-                YT_LOG_INFO(
-                    "Allocation created (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
-                    operationId,
-                    allocationId,
-                    agentDescriptor);
-
-                allocation->SubscribeAllocationPrepared(BIND_NO_PROPAGATE(
-                    &TJobController::OnAllocationPrepared,
-                    MakeStrong(this))
-                        .Via(Bootstrap_->GetJobInvoker()));
-
-                allocation->SubscribeAllocationFinished(
-                    BIND_NO_PROPAGATE(&TJobController::OnAllocationFinished, MakeStrong(this))
-                        .Via(Bootstrap_->GetJobInvoker()));
-
-                allocation->SubscribeJobSettled(
-                    BIND_NO_PROPAGATE(&TJobController::OnJobSettled, MakeStrong(this))
-                            .Via(Bootstrap_->GetJobInvoker()));
-                allocation->SubscribeJobPrepared(
-                    BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeStrong(this))
-                        .Via(Bootstrap_->GetJobInvoker()));
-                allocation->SubscribeJobFinished(
-                    BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeStrong(this))
-                        .Via(Bootstrap_->GetJobInvoker()));
-
-                EmplaceOrCrash(IdToAllocations_, allocationId, allocation);
-
-                allocation->Start();
+                continue;
             }
+
+            YT_LOG_INFO(
+                "Allocation created (OperationId: %v, AllocationId: %v, ControllerAgentDescriptor: %v)",
+                operationId,
+                allocationId,
+                agentDescriptor);
+
+            allocation->SubscribeAllocationPrepared(BIND_NO_PROPAGATE(
+                &TJobController::OnAllocationPrepared,
+                MakeStrong(this))
+                    .Via(Bootstrap_->GetJobInvoker()));
+
+            allocation->SubscribeAllocationFinished(
+                BIND_NO_PROPAGATE(&TJobController::OnAllocationFinished, MakeStrong(this))
+                    .Via(Bootstrap_->GetJobInvoker()));
+
+            allocation->SubscribeJobSettled(
+                BIND_NO_PROPAGATE(&TJobController::OnJobSettled, MakeStrong(this))
+                        .Via(Bootstrap_->GetJobInvoker()));
+            allocation->SubscribeJobPrepared(
+                BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeStrong(this))
+                    .Via(Bootstrap_->GetJobInvoker()));
+            allocation->SubscribeJobFinished(
+                BIND_NO_PROPAGATE(&TJobController::OnJobFinished, MakeStrong(this))
+                    .Via(Bootstrap_->GetJobInvoker()));
+
+            EmplaceOrCrash(IdToAllocations_, allocationId, allocation);
+
+            allocation->Start();
         }
     }
 
@@ -1480,9 +1489,9 @@ private:
             if (!IdToAllocations_.contains(allocationId) || allocation->GetState() != EAllocationState::Waiting) {
                 YT_LOG_DEBUG("No such allocation, it seems to be aborted (AllocationId: %v)", allocationId);
                 continue;
-            } else {
-                YT_LOG_DEBUG("Trying to start allocation (AllocationId: %v)", allocationId);
             }
+
+            YT_LOG_DEBUG("Trying to start allocation (AllocationId: %v)", allocationId);
 
             try {
                 if (!resourceAcquiringContext.TryAcquireResourcesFor(allocation->GetResourceHolder())) {

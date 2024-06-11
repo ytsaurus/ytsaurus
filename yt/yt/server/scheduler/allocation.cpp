@@ -18,8 +18,7 @@ TAllocation::TAllocation(
     TControllerEpoch controllerEpoch,
     TExecNodePtr node,
     TInstant startTime,
-    const TJobResources& resourceLimits,
-    const TDiskQuota& diskQuota,
+    const TAllocationStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode,
     TString treeId,
     int schedulingIndex,
@@ -35,9 +34,10 @@ TAllocation::TAllocation(
     , RevivalNodeAddress_(std::move(revivalNodeAddress))
     , StartTime_(startTime)
     , TreeId_(std::move(treeId))
-    , ResourceUsage_(resourceLimits)
-    , ResourceLimits_(resourceLimits)
-    , DiskQuota_(diskQuota)
+    , ResourceUsage_(startDescriptor.ResourceLimits.ToJobResources())
+    , ResourceLimits_(startDescriptor.ResourceLimits.ToJobResources())
+    , DiskQuota_(startDescriptor.ResourceLimits.DiskQuota())
+    , AllocationAttributes_(startDescriptor.AllocationAttributes)
     , PreemptionMode_(preemptionMode)
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)

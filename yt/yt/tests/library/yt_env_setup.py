@@ -822,6 +822,10 @@ class YTEnvSetup(object):
         if "node" in cls.ARTIFACT_COMPONENTS.get("23_2", []):
             config["%true"]["exec_node"]["controller_agent_connector"]["use_job_tracker_service_to_settle_jobs"] = True
 
+        # COMPAT(arkady-e1ppa)
+        if any(component in cls.ARTIFACT_COMPONENTS.get("23_2", []) for component in ["scheduler", "controller_agent"]):
+            config["%true"]["exec_node"]["job_controller"]["disable_legacy_allocation_preparation"] = False
+
         return config
 
     @classmethod

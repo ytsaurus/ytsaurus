@@ -461,6 +461,9 @@ private:
     std::optional<double> UserJobMemoryMultiplier_;
     std::optional<double> JobProxyMemoryMultiplier_;
 
+    std::optional<TDuration> InferWaitingForResourcesTimeout(
+        const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec);
+
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,
         double jobProxyMemoryReserveFactor,

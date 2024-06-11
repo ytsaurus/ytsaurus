@@ -451,7 +451,7 @@ public:
 
     ISlotPtr AcquireUserSlot(
         const TJobResources& neededResources,
-        const TJobResourceAttributes& resourceAttributes)
+        const NScheduler::TAllocationAttributes& allocationAttributes)
     {
         YT_VERIFY(Bootstrap_->IsExecNode());
 
@@ -459,13 +459,15 @@ public:
         diskRequest.set_disk_space(neededResources.DiskSpaceRequest);
         diskRequest.set_inode_count(neededResources.InodeRequest);
 
-        if (resourceAttributes.MediumIndex) {
-            diskRequest.set_medium_index(resourceAttributes.MediumIndex.value());
+        const auto& allocationDiskRequest = allocationAttributes.DiskRequest;
+
+        if (allocationDiskRequest.MediumIndex) {
+            diskRequest.set_medium_index(allocationDiskRequest.MediumIndex.value());
         }
 
         NScheduler::NProto::TCpuRequest cpuRequest;
         cpuRequest.set_cpu(neededResources.Cpu);
-        cpuRequest.set_allow_idle_cpu_policy(resourceAttributes.AllowIdleCpuPolicy);
+        cpuRequest.set_allow_idle_cpu_policy(allocationAttributes.AllowIdleCpuPolicy);
 
         YT_LOG_INFO(
             "Acquiring slot (DiskRequest: %v, CpuRequest: %v)",
@@ -694,15 +696,14 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         const auto neededResources = resourceHolder->GetResourceUsage();
-        const auto& resourceAttributes = resourceHolder->ResourceAttributes_;
-        auto portCount = resourceHolder->PortCount_;
+        const auto& allocationAttributes = resourceHolder->AllocationAttributes_;
 
         const auto& Logger = resourceHolder->GetLogger();
 
         YT_LOG_DEBUG(
             "Trying to acquire resources (NeededResources: %v, PortCount: %v)",
             FormatResources(neededResources),
-            portCount);
+            allocationAttributes.PortCount);
 
         ISlotPtr userSlot;
         std::vector<ISlotPtr> gpuSlots;
@@ -721,13 +722,13 @@ public:
                 neededResources);
         });
 
-        if (resourceAttributes.CudaToolkitVersion) {
+        if (allocationAttributes.CudaToolkitVersion) {
             YT_VERIFY(Bootstrap_->IsExecNode());
 
             Bootstrap_
                 ->GetExecNodeBootstrap()
                 ->GetGpuManager()
-                ->VerifyCudaToolkitDriverVersion(resourceAttributes.CudaToolkitVersion.value());
+                ->VerifyCudaToolkitDriverVersion(allocationAttributes.CudaToolkitVersion.value());
         }
 
         i64 userMemory = neededResources.UserMemory;
@@ -768,8 +769,8 @@ public:
             return false;
         }
 
-        if (portCount > 0) {
-            YT_LOG_INFO("Allocating ports (PortCount: %v)", portCount);
+        if (allocationAttributes.PortCount > 0) {
+            YT_LOG_INFO("Allocating ports (PortCount: %v)", allocationAttributes.PortCount);
 
             try {
                 THashSet<int> freePorts;
@@ -777,18 +778,18 @@ public:
                     auto guard = ReaderGuard(ResourcesLock_);
                     freePorts = FreePorts_;
                 }
-                ports = AllocateFreePorts(portCount, freePorts, Logger);
+                ports = AllocateFreePorts(allocationAttributes.PortCount, freePorts, Logger);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", portCount);
+                YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", allocationAttributes.PortCount);
                 return false;
             }
 
-            if (std::ssize(ports) < portCount) {
+            if (std::ssize(ports) < allocationAttributes.PortCount) {
                 ports.clear();
 
                 YT_LOG_DEBUG(
                     "Not enough bindable free ports (PortCount: %v, FreePortCount: %v)",
-                    portCount,
+                    allocationAttributes.PortCount,
                     ports.size());
                 return false;
             }
@@ -822,7 +823,7 @@ public:
             if (neededResources.UserSlots > 0) {
                 YT_VERIFY(Bootstrap_->IsExecNode());
 
-                userSlot = AcquireUserSlot(neededResources, resourceAttributes);
+                userSlot = AcquireUserSlot(neededResources, allocationAttributes);
             }
 
             if (neededResources.Gpu > 0) {
@@ -1585,7 +1586,7 @@ void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResource
 
     Ports_ = std::move(acquiredResources.Ports);
 
-    YT_VERIFY(PortCount_ == std::ssize(Ports_));
+    YT_VERIFY(AllocationAttributes_.PortCount == std::ssize(Ports_));
 
     acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
     acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
@@ -1748,8 +1749,7 @@ TJobResources TResourceHolder::GetFreeResources() const noexcept
 
 void TResourceHolder::UpdateResourceDemand(
     const NClusterNode::TJobResources& resources,
-    const NClusterNode::TJobResourceAttributes& resourceAttributes,
-    int portCount)
+    const NScheduler::TAllocationAttributes& allocationAttributes)
 {
     auto guard = WriterGuard(ResourcesLock_);
 
@@ -1759,11 +1759,10 @@ void TResourceHolder::UpdateResourceDemand(
     YT_LOG_DEBUG(
         "Resource demand updated (NewRecourceDemand: %v, NewPortCount: %v)",
         FormatResources(resources),
-        portCount);
+        allocationAttributes.PortCount);
 
     BaseResourceUsage_ = resources;
-    ResourceAttributes_ = resourceAttributes;
-    PortCount_ = portCount;
+    AllocationAttributes_ = allocationAttributes;
 }
 
 TJobResources TResourceHolder::GetResourceUsage(bool excludeReleasing) const noexcept
@@ -1782,13 +1781,6 @@ std::pair<TJobResources, TJobResources> TResourceHolder::GetDetailedResourceUsag
     auto guard = ReaderGuard(ResourcesLock_);
 
     return std::pair(BaseResourceUsage_, AdditionalResourceUsage_);
-}
-
-const TJobResourceAttributes& TResourceHolder::GetResourceAttributes() const noexcept
-{
-    auto guard = ReaderGuard(ResourcesLock_);
-
-    return ResourceAttributes_;
 }
 
 const NLogging::TLogger& TResourceHolder::GetLogger() const noexcept

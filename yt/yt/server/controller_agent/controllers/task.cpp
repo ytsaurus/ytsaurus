@@ -674,9 +674,28 @@ void TTask::ScheduleJob(
 
     joblet->JobInterruptible = IsJobInterruptible();
 
-    scheduleAllocationResult->StartDescriptor.emplace(
-        AllocationIdFromJobId(joblet->JobId),
-        neededResources);
+    TAllocationStartDescriptor startDescriptor{
+        .Id = AllocationIdFromJobId(joblet->JobId),
+        .ResourceLimits = neededResources,
+        .AllocationAttributes = TAllocationAttributes{
+            .WaitingForResourcesOnNodeTimeout = InferWaitingForResourcesTimeout(
+                context->GetScheduleAllocationSpec()),
+        },
+    };
+
+    if (userJobSpec) {
+        auto& attributes = startDescriptor.AllocationAttributes;
+
+        attributes.CudaToolkitVersion = userJobSpec->CudaToolkitVersion;
+        if (auto& diskRequest = userJobSpec->DiskRequest) {
+            attributes.DiskRequest.MediumIndex = diskRequest->MediumIndex;
+            attributes.DiskRequest.DiskSpace = diskRequest->DiskSpace;
+            attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
+        }
+        attributes.PortCount = userJobSpec->PortCount;
+    }
+
+    scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
@@ -1630,6 +1649,21 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
     }
 }
 
+std::optional<TDuration> TTask::InferWaitingForResourcesTimeout(
+    const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec)
+{
+    if (TaskHost_->GetSpec()->WaitingJobTimeout && allocationSpec.has_waiting_for_resources_on_node_timeout()) {
+        return std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout()));
+    }
+    if (TaskHost_->GetSpec()->WaitingJobTimeout) {
+        return *TaskHost_->GetSpec()->WaitingJobTimeout;
+    }
+    if (allocationSpec.waiting_for_resources_on_node_timeout()) {
+        return FromProto<TDuration>(allocationSpec.waiting_for_resources_on_node_timeout());
+    }
+    return std::nullopt;
+}
+
 TJobResources TTask::ApplyMemoryReserve(
     const TExtendedJobResources& jobResources,
     double jobProxyMemoryReserveFactor,
@@ -1791,16 +1825,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
         jobSpecExt->set_is_traced(true);
     }
 
-    std::optional<TDuration> waitingJobTimeout;
-    if (TaskHost_->GetSpec()->WaitingJobTimeout && scheduleAllocationSpec.has_waiting_for_resources_on_node_timeout()) {
-        waitingJobTimeout = std::max(*TaskHost_->GetSpec()->WaitingJobTimeout, FromProto<TDuration>(scheduleAllocationSpec.waiting_for_resources_on_node_timeout()));
-    } else if (TaskHost_->GetSpec()->WaitingJobTimeout) {
-        waitingJobTimeout = *TaskHost_->GetSpec()->WaitingJobTimeout;
-    } else if (scheduleAllocationSpec.waiting_for_resources_on_node_timeout()) {
-        waitingJobTimeout = FromProto<TDuration>(scheduleAllocationSpec.waiting_for_resources_on_node_timeout());
-    }
-
-    if (waitingJobTimeout) {
+    if (auto waitingJobTimeout = InferWaitingForResourcesTimeout(scheduleAllocationSpec)) {
         jobSpecExt->set_waiting_job_timeout(ToProto<i64>(*waitingJobTimeout));
     }
 

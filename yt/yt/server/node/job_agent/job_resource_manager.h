@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/scheduler/structs.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
@@ -163,16 +165,13 @@ public:
 
     std::pair<NClusterNode::TJobResources, NClusterNode::TJobResources> GetDetailedResourceUsage() const noexcept;
 
-    const NClusterNode::TJobResourceAttributes& GetResourceAttributes() const noexcept;
-
     NClusterNode::TJobResources GetResourceLimits() const noexcept;
 
     NClusterNode::TJobResources GetFreeResources() const noexcept;
 
     void UpdateResourceDemand(
         const NClusterNode::TJobResources& jobResources,
-        const NClusterNode::TJobResourceAttributes& resourceAttributes,
-        int portCount);
+        const NScheduler::TAllocationAttributes& allocationAttributes);
 
     const NLogging::TLogger& GetLogger() const noexcept;
 
@@ -197,13 +196,13 @@ private:
 
     TJobResourceManager::TImpl* const ResourceManagerImpl_;
 
-    int PortCount_ = 0;
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
 
     NClusterNode::TJobResources BaseResourceUsage_;
     NClusterNode::TJobResources AdditionalResourceUsage_;
-    NClusterNode::TJobResourceAttributes ResourceAttributes_;
+    // COMPAT(arkady-e1ppa): Merge this struct with BaseResourceUsage
+    // when scheduler and node are 24.2.
+    NScheduler::TAllocationAttributes AllocationAttributes_;
 
     std::vector<int> Ports_;
 

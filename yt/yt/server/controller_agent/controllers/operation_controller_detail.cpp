@@ -5030,6 +5030,10 @@ void TOperationControllerBase::TryScheduleJob(
 
         task->ScheduleJob(context, resourceLimits, treeId, IsTreeTentative(treeId), IsTreeProbing(treeId), scheduleAllocationResult);
         if (scheduleAllocationResult->StartDescriptor) {
+            scheduleAllocationResult
+                ->StartDescriptor
+                ->AllocationAttributes
+                .AllowIdleCpuPolicy = IsIdleCpuPolicyAllowedInTree(treeId);
             RegisterTestingSpeculativeJobIfNeeded(task, scheduleAllocationResult->StartDescriptor->Id);
             UpdateTask(task);
             return;

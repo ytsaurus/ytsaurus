@@ -776,8 +776,12 @@ protected:
             /*controllerEpoch*/ TControllerEpoch(0),
             execNode,
             startTime,
-            allocationResources.ToJobResources(),
-            allocationResources.DiskQuota(),
+            TAllocationStartDescriptor{
+                .Id = allocationId,
+                .ResourceLimits = TJobResourcesWithQuota{
+                    allocationResources.ToJobResources(),
+                    allocationResources.DiskQuota()},
+            },
             /*preemptionMode*/ EPreemptionMode::Normal,
             /*treeId*/ "",
             /*schedulingIndex*/ UndefinedSchedulingIndex);

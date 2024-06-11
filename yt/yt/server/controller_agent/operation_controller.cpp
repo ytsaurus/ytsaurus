@@ -106,8 +106,12 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
         ToProto(allocationProto->mutable_allocation_id(), allocation.AllocationId);
         allocationProto->set_start_time(ToProto<ui64>(allocation.StartTime));
         allocationProto->set_preemptible_progress_start_time(ToProto<ui64>(allocation.PreemptibleProgressStartTime));
-        ToProto(allocationProto->mutable_resource_limits(), allocation.ResourceLimits);
-        ToProto(allocationProto->mutable_disk_quota(), allocation.DiskQuota);
+        ToProto(
+            allocationProto->mutable_resource_limits(),
+            TJobResourcesWithQuota(
+                allocation.ResourceLimits,
+                allocation.DiskQuota));
+
         allocationProto->set_tree_id(allocation.TreeId);
         allocationProto->set_node_id(ToProto<ui32>(allocation.NodeId));
         allocationProto->set_node_address(allocation.NodeAddress);
