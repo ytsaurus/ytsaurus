@@ -641,9 +641,11 @@ private:
         }
     }
 
-    void WaitP2PBarriers(const TReqGetBlockSet* request)
+    TFuture<void> WaitP2PBarriers(const TReqGetBlockSet* request)
     {
         const auto& p2pBlockCache = Bootstrap_->GetP2PBlockCache();
+        std::vector<TFuture<void>> barrierFutures;
+
         for (const auto& barrier : request->wait_barriers()) {
             if (static_cast<TNodeId>(barrier.if_node_id()) != Bootstrap_->GetNodeId()) {
                 continue;
@@ -656,10 +658,11 @@ private:
                 YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)",
                     p2pSessionId,
                     barrier.iteration());
-                WaitFor(barrierFuture)
-                    .ThrowOnError();
+                barrierFutures.push_back(barrierFuture);
             }
         }
+
+        return AllSucceeded(barrierFutures);
     }
 
     void AddBlockPeers(
@@ -830,11 +833,18 @@ private:
             ? FromProto<TReadSessionId>(request->read_session_id())
             : TReadSessionId{};
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
+
+        if (context->GetTimeout() && context->GetStartTime()) {
+            options.Deadline =
+                *context->GetStartTime() +
+                *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
+        }
+
         return options;
     }
 
     template <class TContext, class TResponse>
-    void PrepareGetBlocksResponse(
+    TFuture<void> PrepareGetBlocksResponse(
         const TIntrusivePtr<TContext>& context,
         TResponse* response,
         TGetBlockResponseBillet responseBillet,
@@ -894,9 +904,9 @@ private:
         if (blocksSize > 0) {
             context->SetComplete();
             const auto& netThrottler = Bootstrap_->GetOutThrottler(responseBillet.WorkloadDescriptor);
-            context->ReplyFrom(netThrottler->Throttle(blocksSize));
+            return netThrottler->Throttle(blocksSize);
         } else {
-            context->Reply();
+            return VoidFuture;
         }
     }
 
@@ -946,67 +956,93 @@ private:
         response->set_net_queue_size(netQueueSize);
 
         SuggestAllyReplicas(context);
-        WaitP2PBarriers(request);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        std::vector<TBlock> blocks;
-        bool readFromP2P = false;
-        if (fetchFromCache || fetchFromDisk) {
-            TChunkReadOptions options = PrepareChunkReadOptions(
+        struct TReadBlocksResult {
+            bool ReadFromP2P;
+            std::vector<TBlock> Blocks;
+        };
+
+        auto readBlocks = BIND([=, this, this_ = MakeStrong(this)] () {
+            bool readFromP2P = false;
+            TFuture<std::vector<TBlock>> blocksFuture;
+
+            if (fetchFromCache || fetchFromDisk) {
+                TChunkReadOptions options = PrepareChunkReadOptions(
+                    context,
+                    request,
+                    fetchFromCache && !netThrottling,
+                    fetchFromDisk && !netThrottling && !diskThrottling,
+                    chunkReaderStatistics);
+
+                if (!chunk && options.FetchFromCache) {
+                    readFromP2P = true;
+
+                    auto blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
+                    chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
+                        GetByteSize(blocks),
+                        std::memory_order::relaxed);
+                    blocksFuture = MakeFuture(blocks);
+                } else if (chunk) {
+                    blocksFuture = chunk->ReadBlockSet(
+                        blockIndexes,
+                        options);
+                } else {
+                    blocksFuture = MakeFuture(std::vector<TBlock>());
+                }
+            } else {
+                blocksFuture = MakeFuture(std::vector<TBlock>());
+            }
+
+            return blocksFuture
+                .Apply(BIND([readFromP2P = readFromP2P] (const std::vector<TBlock>& blocks) {
+                    return TReadBlocksResult{
+                        .ReadFromP2P = readFromP2P,
+                        .Blocks = blocks,
+                    };
+                }));
+        });
+
+        TFuture<TReadBlocksResult> blocksFuture = WaitP2PBarriers(request)
+            .Apply(readBlocks);
+
+        // Usually, when subscribing, there are more free fibers than when calling wait for,
+        // and the lack of free fibers during a forced context switch leads to the creation
+        // of a new fiber and an increase in the number of stacks.
+        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (const TReadBlocksResult& result) {
+            auto readFromP2P = result.ReadFromP2P;
+            auto blocks = result.Blocks;
+
+            // NB: P2P manager might steal blocks and assign null values.
+            const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
+            bool throttledLargeBlock = false;
+            auto blockPeers = p2pSnooper->OnBlockRead(
+                chunkId,
+                blockIndexes,
+                &blocks,
+                &throttledLargeBlock,
+                readFromP2P);
+            AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
+
+            return PrepareGetBlocksResponse(
                 context,
-                request,
-                fetchFromCache && !netThrottling,
-                fetchFromDisk && !netThrottling && !diskThrottling,
-                chunkReaderStatistics);
+                response,
+                TGetBlockResponseBillet{
+                    .Chunk = chunk,
+                    .WorkloadDescriptor = workloadDescriptor,
+                    .HasCompleteChunk = hasCompleteChunk,
+                    .NetThrottling = netThrottling,
+                    .NetQueueSize = netQueueSize,
+                    .DiskThrottling = diskThrottling,
+                    .DiskQueueSize = diskQueueSize,
+                    .ThrottledLargeBlock = throttledLargeBlock,
+                    .ChunkReaderStatistics = chunkReaderStatistics,
+                },
+                std::move(blocks));
+        });
 
-            if (context->GetTimeout() && context->GetStartTime()) {
-                options.Deadline =
-                    *context->GetStartTime() +
-                    *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
-            }
-
-            if (!chunk && options.FetchFromCache) {
-                readFromP2P = true;
-
-                blocks = Bootstrap_->GetP2PBlockCache()->LookupBlocks(chunkId, blockIndexes);
-                chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
-                    GetByteSize(blocks),
-                    std::memory_order::relaxed);
-            } else if (chunk) {
-                auto blocksFuture = chunk->ReadBlockSet(
-                    blockIndexes,
-                    options);
-                blocks = WaitFor(blocksFuture)
-                    .ValueOrThrow();
-            }
-        }
-
-        // NB: P2P manager might steal blocks and assign null values.
-        const auto& p2pSnooper = Bootstrap_->GetP2PSnooper();
-        bool throttledLargeBlock = false;
-        auto blockPeers = p2pSnooper->OnBlockRead(
-            chunkId,
-            blockIndexes,
-            &blocks,
-            &throttledLargeBlock,
-            readFromP2P);
-        AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
-        PrepareGetBlocksResponse(
-            context,
-            response,
-            TGetBlockResponseBillet{
-                .Chunk = chunk,
-                .WorkloadDescriptor = workloadDescriptor,
-                .HasCompleteChunk = hasCompleteChunk,
-                .NetThrottling = netThrottling,
-                .NetQueueSize = netQueueSize,
-                .DiskThrottling = diskThrottling,
-                .DiskQueueSize = diskQueueSize,
-                .ThrottledLargeBlock = throttledLargeBlock,
-                .ChunkReaderStatistics = chunkReaderStatistics,
-            },
-            blocks);
+        context->ReplyFrom(blocksFuture.Apply(onBlocksRead));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
@@ -1057,38 +1093,35 @@ private:
             !netThrottling && !diskThrottling,
             chunkReaderStatistics);
 
-        if (context->GetTimeout() && context->GetStartTime()) {
-            options.Deadline =
-                *context->GetStartTime() +
-                *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
-        }
-
-        std::vector<TBlock> blocks;
-        if (chunk) {
-            auto blocksFuture = chunk->ReadBlockRange(
+        auto blocksFuture = chunk
+            ? chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
-                options);
+                options)
+            : MakeFuture(std::vector<TBlock>());
 
-            blocks = WaitFor(blocksFuture)
-                .ValueOrThrow();
-        }
+        // Usually, when subscribing, there are more free fibers than when calling wait for,
+        // and the lack of free fibers during a forced context switch leads to the creation
+        // of a new fiber and an increase in the number of stacks.
+        auto onBlocksRead = BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) {
+            return PrepareGetBlocksResponse(
+                context,
+                response,
+                TGetBlockResponseBillet{
+                    .Chunk = chunk,
+                    .WorkloadDescriptor = workloadDescriptor,
+                    .HasCompleteChunk = hasCompleteChunk,
+                    .NetThrottling = netThrottling,
+                    .NetQueueSize = netQueueSize,
+                    .DiskThrottling = diskThrottling,
+                    .DiskQueueSize = diskQueueSize,
+                    .ThrottledLargeBlock = false,
+                    .ChunkReaderStatistics = chunkReaderStatistics,
+                },
+                blocks);
+        });
 
-        PrepareGetBlocksResponse(
-            context,
-            response,
-            TGetBlockResponseBillet{
-                .Chunk = chunk,
-                .WorkloadDescriptor = workloadDescriptor,
-                .HasCompleteChunk = hasCompleteChunk,
-                .NetThrottling = netThrottling,
-                .NetQueueSize = netQueueSize,
-                .DiskThrottling = diskThrottling,
-                .DiskQueueSize = diskQueueSize,
-                .ThrottledLargeBlock = false,
-                .ChunkReaderStatistics = chunkReaderStatistics,
-            },
-            blocks);
+        context->ReplyFrom(blocksFuture.Apply(onBlocksRead));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
