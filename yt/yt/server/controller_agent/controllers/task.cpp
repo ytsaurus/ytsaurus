@@ -543,6 +543,12 @@ void TTask::ScheduleJob(
         joblet->OutputCookie = ExtractCookie(localityNodeId);
         if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
+
+            if (TaskHost_->IsCompleted()) {
+                TaskHost_->OnOperationCompleted(/*interrupted*/ false);
+                YT_LOG_DEBUG("Completed operation while trying to schedule a job");
+            }
+
             scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::EmptyInput);
             return;
         }

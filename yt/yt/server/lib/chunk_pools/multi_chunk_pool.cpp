@@ -247,7 +247,10 @@ public:
         }
 
         YT_VERIFY(poolIndex != -1);
-        YT_VERIFY(cookie != IChunkPoolOutput::NullCookie);
+
+        if (cookie == IChunkPoolOutput::NullCookie) {
+            return IChunkPoolOutput::NullCookie;
+        }
 
         TCookieDescriptor cookieDescriptor(poolIndex, cookie);
         auto cookieIt = CookieDescriptorToExternalCookie_.find(cookieDescriptor);

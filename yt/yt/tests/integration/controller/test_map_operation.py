@@ -1943,8 +1943,7 @@ done
         assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
         assert directions[("map", "auto_merge")]["job_data_statistics"]["data_weight"] == 2
         assert directions[("map", "auto_merge")]["teleport_data_statistics"]["data_weight"] == 0
-        assert directions[("auto_merge", "output")]["job_data_statistics"]["data_weight"] == 2
-        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["data_weight"] == 0
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["data_weight"] + directions[("auto_merge", "output")]["teleport_data_statistics"]["data_weight"] == 2
 
     @authors("gritukan")
     def test_data_flow_graph(self):
