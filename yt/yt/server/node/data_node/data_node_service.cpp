@@ -255,6 +255,19 @@ public:
     }
 
 private:
+    struct TGetBlockResponseBillet
+    {
+        IChunkPtr Chunk;
+        TWorkloadDescriptor WorkloadDescriptor;
+        bool HasCompleteChunk;
+        bool NetThrottling;
+        long NetQueueSize;
+        bool DiskThrottling;
+        long DiskQueueSize;
+        bool ThrottledLargeBlock;
+        const TChunkReaderStatisticsPtr ChunkReaderStatistics;
+    };
+
     const TDataNodeConfigPtr Config_;
     const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     IBootstrap* const Bootstrap_;
@@ -799,12 +812,12 @@ private:
     }
 
     template <class TContext, class TRequest>
-    TChunkReadOptions CreateChunkReadOptions(
+    TChunkReadOptions PrepareChunkReadOptions(
         const TIntrusivePtr<TContext>& context,
         const TRequest* request,
         bool fetchFromCache,
         bool fetchFromDisk,
-        TChunkReaderStatisticsPtr chunkReaderStatistics)
+        TChunkReaderStatisticsPtr chunkReaderStatistics) const
     {
         TChunkReadOptions options;
         options.WorkloadDescriptor = GetRequestWorkloadDescriptor(context);
@@ -818,6 +831,73 @@ private:
             : TReadSessionId{};
         options.MemoryUsageTracker = Bootstrap_->GetReadBlockMemoryUsageTracker();
         return options;
+    }
+
+    template <class TContext, class TResponse>
+    void PrepareGetBlocksResponse(
+        const TIntrusivePtr<TContext>& context,
+        TResponse* response,
+        TGetBlockResponseBillet responseBillet,
+        const std::vector<NChunkClient::TBlock>& blocks) const
+    {
+        auto netThrottling = responseBillet.NetThrottling;
+
+        if (!netThrottling) {
+            SetRpcAttachedBlocks(response, blocks);
+        }
+
+        auto blocksSize = GetByteSize(response->Attachments());
+        if (blocksSize == 0 && responseBillet.ThrottledLargeBlock) {
+            netThrottling = true;
+        }
+
+        response->set_net_throttling(netThrottling);
+
+        auto chunkReaderStatistics = responseBillet.ChunkReaderStatistics;
+        auto bytesReadFromDisk =
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
+        auto chunk = responseBillet.Chunk;
+        const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+        if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
+            ioTracker->Enqueue(
+                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
+                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
+        }
+
+        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
+
+        int blocksWithData = std::count_if(
+            response->Attachments().begin(),
+            response->Attachments().end(),
+            [] (const auto& block) -> bool { return static_cast<bool>(block); });
+
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, "
+            "NetThrottling: %v, NetQueueSize: %v, "
+            "DiskThrottling: %v, DiskQueueSize: %v, "
+            "ThrottledLargeBlock: %v, "
+            "BlocksWithData: %v, BlocksSize: %v",
+            responseBillet.HasCompleteChunk,
+            netThrottling,
+            responseBillet.NetQueueSize,
+            responseBillet.DiskThrottling,
+            responseBillet.DiskQueueSize,
+            responseBillet.ThrottledLargeBlock,
+            blocksWithData,
+            blocksSize);
+
+        // NB: We throttle only heavy responses that contain a non-empty attachment
+        // as we want responses containing the information about disk/net throttling
+        // to be delivered immediately.
+        if (blocksSize > 0) {
+            context->SetComplete();
+            const auto& netThrottler = Bootstrap_->GetOutThrottler(responseBillet.WorkloadDescriptor);
+            context->ReplyFrom(netThrottler->Throttle(blocksSize));
+        } else {
+            context->Reply();
+        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
@@ -873,7 +953,7 @@ private:
         std::vector<TBlock> blocks;
         bool readFromP2P = false;
         if (fetchFromCache || fetchFromDisk) {
-            TChunkReadOptions options = CreateChunkReadOptions(
+            TChunkReadOptions options = PrepareChunkReadOptions(
                 context,
                 request,
                 fetchFromCache && !netThrottling,
@@ -912,62 +992,21 @@ private:
             &throttledLargeBlock,
             readFromP2P);
         AddBlockPeers(response->mutable_peer_descriptors(), blockPeers);
-
-        if (!netThrottling) {
-            SetRpcAttachedBlocks(response, blocks);
-        }
-
-        auto blocksSize = GetByteSize(response->Attachments());
-        if (blocksSize == 0 && throttledLargeBlock) {
-            netThrottling = true;
-        }
-        response->set_net_throttling(netThrottling);
-
-        auto bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
-            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
-        const auto& ioTracker = Bootstrap_->GetIOTracker();
-        if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
-            ioTracker->Enqueue(
-                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
-                MakeReadIOTags("GetBlockSet", chunk->GetLocation(), context, chunkId));
-        }
-
-        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
-
-        int blocksWithData = 0;
-        for (const auto& block : response->Attachments()) {
-            if (block) {
-                ++blocksWithData;
-            }
-        }
-
-        context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
-            "NetThrottling: %v, NetQueueSize: %v, "
-            "DiskThrottling: %v, DiskQueueSize: %v, "
-            "ThrottledLargeBlock: %v, "
-            "BlocksWithData: %v, BlocksWithPeers: %v, BlocksSize: %v",
-            hasCompleteChunk,
-            netThrottling,
-            netQueueSize,
-            diskThrottling,
-            diskQueueSize,
-            throttledLargeBlock,
-            blocksWithData,
-            response->peer_descriptors_size(),
-            blocksSize);
-
-        // NB: We throttle only heavy responses that contain a non-empty attachment
-        // as we want responses containing the information about disk/net throttling
-        // to be delivered immediately.
-        if (blocksSize > 0) {
-            context->SetComplete();
-            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-            context->ReplyFrom(netThrottler->Throttle(blocksSize));
-        } else {
-            context->Reply();
-        }
+        PrepareGetBlocksResponse(
+            context,
+            response,
+            TGetBlockResponseBillet{
+                .Chunk = chunk,
+                .WorkloadDescriptor = workloadDescriptor,
+                .HasCompleteChunk = hasCompleteChunk,
+                .NetThrottling = netThrottling,
+                .NetQueueSize = netQueueSize,
+                .DiskThrottling = diskThrottling,
+                .DiskQueueSize = diskQueueSize,
+                .ThrottledLargeBlock = throttledLargeBlock,
+                .ChunkReaderStatistics = chunkReaderStatistics,
+            },
+            blocks);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockRange)
@@ -1011,7 +1050,7 @@ private:
         response->set_net_queue_size(netQueueSize);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
-        auto options = CreateChunkReadOptions(
+        auto options = PrepareChunkReadOptions(
             context,
             request,
             !netThrottling,
@@ -1024,58 +1063,32 @@ private:
                 *context->GetTimeout() * GetDynamicConfig()->TestingOptions->BlockReadTimeoutFraction;
         }
 
+        std::vector<TBlock> blocks;
         if (chunk) {
             auto blocksFuture = chunk->ReadBlockRange(
                 firstBlockIndex,
                 blockCount,
                 options);
 
-            auto blocks = WaitFor(blocksFuture)
+            blocks = WaitFor(blocksFuture)
                 .ValueOrThrow();
-
-            if (!netThrottling) {
-                SetRpcAttachedBlocks(response, blocks);
-            }
         }
 
-        auto bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
-            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
-        const auto& ioTracker = Bootstrap_->GetIOTracker();
-        if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
-            ioTracker->Enqueue(
-                TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = 1},
-                MakeReadIOTags("GetBlockRange", chunk->GetLocation(), context, chunkId));
-        }
-
-        ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
-
-        int blocksWithData = static_cast<int>(response->Attachments().size());
-        auto blocksSize = GetByteSize(response->Attachments());
-
-        context->SetResponseInfo(
-            "HasCompleteChunk: %v, "
-            "NetThrottling: %v, NetQueueSize: %v, "
-            "DiskThrottling: %v, DiskQueueSize: %v, "
-            "BlocksWithData: %v, BlocksSize: %v",
-            hasCompleteChunk,
-            netThrottling,
-            netQueueSize,
-            diskThrottling,
-            diskQueueSize,
-            blocksWithData,
-            blocksSize);
-
-        // NB: We throttle only heavy responses that contain a non-empty attachment
-        // as we want responses containing the information about disk/net throttling
-        // to be delivered immediately.
-        if (blocksSize > 0) {
-            context->SetComplete();
-            const auto& netThrottler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-            context->ReplyFrom(netThrottler->Throttle(blocksSize));
-        } else {
-            context->Reply();
-        }
+        PrepareGetBlocksResponse(
+            context,
+            response,
+            TGetBlockResponseBillet{
+                .Chunk = chunk,
+                .WorkloadDescriptor = workloadDescriptor,
+                .HasCompleteChunk = hasCompleteChunk,
+                .NetThrottling = netThrottling,
+                .NetQueueSize = netQueueSize,
+                .DiskThrottling = diskThrottling,
+                .DiskQueueSize = diskQueueSize,
+                .ThrottledLargeBlock = false,
+                .ChunkReaderStatistics = chunkReaderStatistics,
+            },
+            blocks);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkFragmentSet)
