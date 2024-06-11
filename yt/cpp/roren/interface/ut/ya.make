@@ -9,9 +9,9 @@ SRCS(
 )
 
 PEERDIR(
-    yt/cpp/roren/bigrt
     yt/cpp/roren/interface
     yt/cpp/roren/interface/ut/proto
+    yt/yt/core
 )
 
 END()
