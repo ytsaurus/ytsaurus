@@ -3740,12 +3740,17 @@ class TestTabletOrchid(DynamicTablesBase):
         actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        def check_zero_passive():
+            memory_stats = get_stats()
+            return memory_stats["total"]["tablet_dynamic"]["passive"] == 0
+
+        wait(check_zero_passive)
+
         memory_stats = get_stats()
         total = memory_stats["total"]
         assert total["tablet_dynamic"]["usage"] > 0
         assert total["tablet_dynamic"]["active"] == 0
         assert total["tablet_dynamic"]["backing"] > 0
-        assert total["tablet_dynamic"]["passive"] == 0
         assert total["tablet_dynamic"]["limit"] > 0
         assert total["tablet_static"]["usage"] > 0
         assert total["tablet_static"]["limit"] > 0
