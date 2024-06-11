@@ -952,41 +952,6 @@ public:
             .Run();
     }
 
-    TFuture<std::vector<TErrorOr<TJobStartInfo>>> SettleJobs(const std::vector<TSettleJobRequest>& requests)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(Connected_);
-
-        std::vector<TFuture<TJobStartInfo>> asyncJobInfos;
-        asyncJobInfos.reserve(std::size(requests));
-        for (const auto& request : requests) {
-            YT_LOG_DEBUG(
-                "Settling job (OperationId: %v, AllocationId: %v)",
-                request.OperationId,
-                request.AllocationId);
-
-            auto operation = FindOperation(request.OperationId);
-            if (!operation) {
-                asyncJobInfos.push_back(MakeFuture<TJobStartInfo>(TError(
-                    "No such operation %v",
-                    request.OperationId)));
-                continue;
-            }
-
-            auto controller = operation->GetController();
-            auto asyncJobInfo = BIND(
-                &IOperationController::SettleJob,
-                controller,
-                request.AllocationId)
-                .AsyncVia(controller->GetCancelableInvoker(EOperationControllerQueue::GetJobSpec))
-                .Run();
-
-            asyncJobInfos.push_back(asyncJobInfo);
-        }
-
-        return AllSet(asyncJobInfos);
-    }
-
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -2452,12 +2417,6 @@ TFuture<void> TControllerAgent::CompleteOperation(const TOperationPtr& operation
 TFuture<void> TControllerAgent::TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
 {
     return Impl_->TerminateOperation(operation, controllerFinalState);
-}
-
-TFuture<std::vector<TErrorOr<TJobStartInfo>>> TControllerAgent::SettleJobs(
-    const std::vector<TSettleJobRequest>& requests)
-{
-    return Impl_->SettleJobs(requests);
 }
 
 TFuture<TOperationInfo> TControllerAgent::BuildOperationInfo(TOperationId operationId)

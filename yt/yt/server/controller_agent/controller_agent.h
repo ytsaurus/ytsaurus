@@ -154,9 +154,6 @@ public:
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState);
 
-    //! Extracts job ids and specs for given allocations; nulls indicate failures.
-    TFuture<std::vector<TErrorOr<TJobStartInfo>>> SettleJobs(const std::vector<TSettleJobRequest>& requests);
-
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId);
 
     //! Returns the total number of online exec nodes.
