@@ -51,9 +51,11 @@ void TOwningBoundaryKeys::Persist(const TStreamPersistenceContext& context)
     Persist(context, MaxKey);
 }
 
-TString ToString(const TOwningBoundaryKeys& keys)
+void FormatValue(TStringBuilderBase* builder, const TOwningBoundaryKeys& keys, TStringBuf /*spec*/)
 {
-    return Format("MinKey: %v, MaxKey: %v",
+    Format(
+        builder,
+        "MinKey: %v, MaxKey: %v",
         keys.MinKey,
         keys.MaxKey);
 }

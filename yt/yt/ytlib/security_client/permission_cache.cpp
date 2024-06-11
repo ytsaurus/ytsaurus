@@ -60,10 +60,9 @@ bool TPermissionKey::operator == (const TPermissionKey& other) const
         Vital == other.Vital;
 }
 
-TString ToString(const TPermissionKey& key)
+void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TStringBuf /*spec*/)
 {
-    TStringBuilder builder;
-    builder.AppendFormat(
+    builder->AppendFormat(
         "%v:%v:%v",
         key.Object ? TStringBuf(*key.Object) : key.Acl->AsStringBuf(),
         key.User,
@@ -76,19 +75,17 @@ TString ToString(const TPermissionKey& key)
         if (!value) {
             return;
         }
-        builder.AppendString(isFirst ? ":{" : ", ");
+        builder->AppendString(isFirst ? ":{" : ", ");
         isFirst = false;
-        builder.AppendFormat(format, value);
+        builder->AppendFormat(format, value);
     };
 
     append("Columns: %v", key.Columns);
     append("Vital: %v", key.Vital);
 
     if (!isFirst) {
-        builder.AppendString("}");
+        builder->AppendString("}");
     }
-
-    return builder.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,11 +15,6 @@ void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& de
         descriptor.BlockOffset);
 }
 
-TString ToString(const TChunkFragmentDescriptor& descriptor)
-{
-    return ToStringViaBuilder(descriptor);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO

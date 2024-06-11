@@ -16,8 +16,7 @@ NProto::TCellStatistics  operator +  (const NProto::TCellStatistics& lhs, const 
 
 namespace NProto {
 
-void FormatValue(TStringBuilderBase* builder, const TCellStatistics& statistics, TStringBuf /*format*/);
-TString ToString(const TCellStatistics& statistics);
+void FormatValue(TStringBuilderBase* builder, const TCellStatistics& statistics, TStringBuf /*spec*/);
 
 } // namespace NProto
 

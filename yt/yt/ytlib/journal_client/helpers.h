@@ -34,7 +34,6 @@ struct TChunkReplicaDescriptor
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChunkReplicaDescriptor& replica, TStringBuf spec);
-TString ToString(const TChunkReplicaDescriptor& replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 

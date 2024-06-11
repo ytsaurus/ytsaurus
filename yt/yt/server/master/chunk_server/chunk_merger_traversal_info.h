@@ -39,7 +39,6 @@ void FormatValue(
     TStringBuilderBase* builder,
     const TChunkMergerTraversalStatistics& traversalStatistics,
     TStringBuf spec);
-TString ToString(const TChunkMergerTraversalStatistics& traversalStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

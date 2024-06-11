@@ -21,8 +21,7 @@ struct TSessionId
     int MediumIndex;
 };
 
-void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf format);
-TString ToString(TSessionId id);
+void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf spec);
 
 void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId);
 void FromProto(TSessionId* sessionId, const NProto::TSessionId& protoSessionId);

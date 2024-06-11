@@ -39,7 +39,6 @@ struct THunkChunkRef
 void Serialize(const THunkChunkRef& ref, NYson::IYsonConsumer* consumer);
 
 void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringBuf spec);
-TString ToString(const THunkChunkRef& ref);
 
 ////////////////////////////////////////////////////////////////////////////////
 

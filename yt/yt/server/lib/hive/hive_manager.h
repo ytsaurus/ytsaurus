@@ -44,8 +44,7 @@ struct THiveEdge
     TCellId DestinationCellId;
 };
 
-void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf format);
-TString ToString(const THiveEdge& edge);
+void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

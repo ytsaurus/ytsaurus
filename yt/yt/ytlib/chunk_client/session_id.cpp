@@ -31,18 +31,13 @@ void ToProto(NProto::TSessionId* protoSessionId, TSessionId sessionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, TSessionId id, TStringBuf /*spec*/)
 {
     if (id.MediumIndex == AllMediaIndex) {
         builder->AppendFormat("%v@*", id.ChunkId);
     } else {
         builder->AppendFormat("%v@%v", id.ChunkId, id.MediumIndex);
     }
-}
-
-TString ToString(TSessionId id)
-{
-    return ToStringViaBuilder(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

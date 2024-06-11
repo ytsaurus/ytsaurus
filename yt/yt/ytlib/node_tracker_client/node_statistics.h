@@ -54,8 +54,6 @@ namespace NProto {
 
 void FormatValue(TStringBuilderBase* builder, const TNodeStatistics& statistics, TStringBuf /*spec*/);
 
-TString ToString(const TNodeStatistics& statistics);
-
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

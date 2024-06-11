@@ -86,16 +86,11 @@ TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs
     return lhs;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{PriorityPenalty: %.3f, RegularPenalty: %.3f}",
         penalty.PriorityPenalty,
         penalty.RegularPenalty);
-}
-
-TString ToString(const TNodeMovePenalty& penalty)
-{
-    return ToStringViaBuilder(penalty);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

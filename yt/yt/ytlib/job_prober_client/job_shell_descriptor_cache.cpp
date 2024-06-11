@@ -47,7 +47,7 @@ TJobShellDescriptorKey::operator size_t() const
     return result;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptorKey& key, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptorKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{User: %v, JobId: %v, ShellName: %v}",
         key.User,
@@ -55,23 +55,13 @@ void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptorKey& key,
         key.ShellName);
 }
 
-TString ToString(const TJobShellDescriptorKey& key)
-{
-    return ToStringViaBuilder(key);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{NodeDescriptor: %v, Subcontainer: %v}",
         descriptor.NodeDescriptor,
         descriptor.Subcontainer);
-}
-
-TString ToString(const TJobShellDescriptor& descriptor)
-{
-    return ToStringViaBuilder(descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

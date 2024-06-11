@@ -228,19 +228,14 @@ using TChunkRepairQueueIterator = TChunkRepairQueue::iterator;
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaIndex value, TStringBuf spec);
-TString ToString(TChunkPtrWithReplicaIndex value);
 
 void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaInfo value, TStringBuf spec);
-TString ToString(TChunkPtrWithReplicaInfo value);
 
 void FormatValue(TStringBuilderBase* builder, TChunkPtrWithReplicaAndMediumIndex value, TStringBuf spec);
-TString ToString(TChunkPtrWithReplicaAndMediumIndex value);
 
 void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaIndex value, TStringBuf spec);
-TString ToString(TChunkLocationPtrWithReplicaIndex value);
 
 void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaInfo value, TStringBuf spec);
-TString ToString(TChunkLocationPtrWithReplicaInfo value);
 
 //! Serializes node id, replica index, medium index.
 void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value);

@@ -102,25 +102,23 @@ bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TChunkStripeKey& key)
+void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf /*spec*/)
 {
-    using NYT::ToString;
-
     if (key.IsIndex()) {
-        return "index@" + ToString(key.AsIndex());
-    } else if (key.IsBoundaryKeys()) {
-        auto boundaryKeys = key.AsBoundaryKeys();
-        return "bnd_keys@{" + ToString(boundaryKeys.MinKey) + ", " + ToString(boundaryKeys.MaxKey) + "}";
-    } else if (key.IsOutputOrderEntry()) {
-        return ToString(key.AsOutputOrderEntry());
-    } else {
-        YT_ABORT();
+        builder->AppendFormat("index@%v", key.AsIndex());
+        return;
     }
-}
+    if (key.IsBoundaryKeys()) {
+        auto boundaryKeys = key.AsBoundaryKeys();
+        builder->AppendFormat("bnd_keys@{%v, %v}", boundaryKeys.MinKey, boundaryKeys.MaxKey);
+        return;
+    }
+    if (key.IsOutputOrderEntry()) {
+        builder->AppendFormat("%v" ,key.AsOutputOrderEntry());
+        return;
+    }
 
-void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf spec)
-{
-    FormatValue(builder, ToString(key), spec);
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

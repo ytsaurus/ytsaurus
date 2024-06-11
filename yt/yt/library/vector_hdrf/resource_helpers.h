@@ -31,10 +31,9 @@ void Deserialize(TResourceVolume& volume, NYson::TYsonPullParserCursor* cursor);
 
 void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer);
 
-void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /* format */);
-TString ToString(const TResourceVolume& volume);
+void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TStringBuf /*spec*/);
 
-void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

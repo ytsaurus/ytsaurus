@@ -17,7 +17,6 @@ struct TChunkFragmentDescriptor
 };
 
 void FormatValue(TStringBuilderBase* builder, const TChunkFragmentDescriptor& descriptor, TStringBuf spec);
-TString ToString(const TChunkFragmentDescriptor& descriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

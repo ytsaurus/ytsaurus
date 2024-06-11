@@ -35,9 +35,7 @@ void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf /*format*/);
-
-TString ToString(const TDiskResources& diskResources);
+void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf /*spec*/);
 
 TString ToString(
     const TDiskResources& diskResources,

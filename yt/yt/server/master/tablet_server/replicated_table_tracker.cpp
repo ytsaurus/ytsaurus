@@ -111,11 +111,6 @@ void FormatValue(TStringBuilderBase* builder, const TClusterStateCacheKey& key, 
     builder->AppendFormat("%v", key.ClusterName);
 }
 
-TString ToString(const TClusterStateCacheKey& key)
-{
-    return ToStringViaBuilder(key);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBundleHealthCacheKey
@@ -145,11 +140,6 @@ void FormatValue(TStringBuilderBase* builder, const TBundleHealthCacheKey& key, 
     builder->AppendFormat("%v@%v",
         key.BundleName,
         key.ClusterName);
-}
-
-TString ToString(const TBundleHealthCacheKey& key)
-{
-    return ToStringViaBuilder(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

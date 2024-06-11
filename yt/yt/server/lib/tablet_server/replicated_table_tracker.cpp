@@ -55,11 +55,6 @@ void FormatValue(
         command.TargetMode);
 }
 
-TString ToString(const TChangeReplicaModeCommand& command)
-{
-    return ToStringViaBuilder(command);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
@@ -406,11 +401,6 @@ void FormatValue(TStringBuilderBase* builder, const TBundleHealthKey& key, TStri
     builder->AppendFormat("%v@%v",
         key.BundleName,
         key.ClusterKey);
-}
-
-TString ToString(const TBundleHealthKey& key)
-{
-    return ToStringViaBuilder(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

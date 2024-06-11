@@ -47,9 +47,10 @@ void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, RangeIndex_);
 }
 
-TString ToString(const TInputStreamDescriptor& descriptor)
+void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf /*spec*/)
 {
-    return Format(
+    Format(
+        builder,
         "{Teleportable: %v, Primary: %v, Versioned: %v, TableIndex: %v, RangeIndex: %v}",
         descriptor.IsTeleportable(),
         descriptor.IsPrimary(),

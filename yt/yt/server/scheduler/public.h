@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <library/cpp/yt/string/format.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////

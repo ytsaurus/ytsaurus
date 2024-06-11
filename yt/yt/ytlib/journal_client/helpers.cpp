@@ -339,11 +339,6 @@ void FormatValue(TStringBuilderBase* builder, const TChunkReplicaDescriptor& rep
     }
 }
 
-TString ToString(const TChunkReplicaDescriptor& replica)
-{
-    return ToStringViaBuilder(replica);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQuorumSessionBase

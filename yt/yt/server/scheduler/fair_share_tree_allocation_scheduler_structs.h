@@ -22,8 +22,7 @@ struct TRunningAllocationStatistics
     double PreemptibleGpuTime = 0.0;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*format*/);
-TString ToString(const TRunningAllocationStatistics& statistics);
+void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*spec*/);
 TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics);
 void Serialize(const TRunningAllocationStatistics& statistics, NYson::IYsonConsumer* consumer);
 

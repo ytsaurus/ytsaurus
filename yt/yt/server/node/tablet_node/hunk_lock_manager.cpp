@@ -83,11 +83,6 @@ void FormatValue(TStringBuilderBase* builder, const THunkStoreLockingState& ref,
         ref.TransientLockCount);
 }
 
-TString ToString(const THunkStoreLockingState& ref)
-{
-    return ToStringViaBuilder(ref);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class THunkLockManager

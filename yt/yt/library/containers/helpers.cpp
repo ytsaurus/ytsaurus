@@ -6,14 +6,9 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TDevice& device, TStringBuf /* format */)
+void FormatValue(TStringBuilderBase* builder, const TDevice& device, TStringBuf /*spec*/)
 {
     builder->AppendString(device.DeviceName);
-}
-
-TString ToString(const TDevice& device)
-{
-    return ToStringViaBuilder(device);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

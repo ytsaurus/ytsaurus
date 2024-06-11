@@ -30,11 +30,6 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
     FormatValue(builder, ref.ToBase(), spec);
 }
 
-TString ToString(const THunkChunkRef& ref)
-{
-    return ToStringViaBuilder(ref);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(lukyan): Remove dynamic_cast. Return false or nullptr from IStore. Implement corresponding functions in

@@ -62,7 +62,7 @@ void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResources, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Locations: [%v], DefaultMediumIndex: %v}",
@@ -73,11 +73,6 @@ void FormatValue(TStringBuilderBase* builder, const TDiskResources& diskResource
                 locationResources.MediumIndex);
         }),
         diskResources.DefaultMediumIndex);
-}
-
-TString ToString(const TDiskResources& diskResources)
-{
-    return ToStringViaBuilder(diskResources);
 }
 
 TString ToString(

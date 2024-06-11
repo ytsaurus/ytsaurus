@@ -39,7 +39,7 @@ struct TPermissionKey
     bool operator == (const TPermissionKey& other) const;
 
     // Formatter.
-    friend TString ToString(const TPermissionKey& key);
+    friend void FormatValue(TStringBuilderBase* builder, const TPermissionKey& key, TStringBuf /*spec*/);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

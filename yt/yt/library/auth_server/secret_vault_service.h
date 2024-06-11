@@ -89,7 +89,6 @@ void FormatValue(
     TStringBuilder* builder,
     const ISecretVaultService::TSecretSubrequest& subrequest,
     TStringBuf spec);
-TString ToString(const ISecretVaultService::TSecretSubrequest& subrequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

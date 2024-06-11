@@ -19,7 +19,6 @@ struct TYPathRewrite
 };
 
 void FormatValue(TStringBuilderBase* builder, const TYPathRewrite& rewrite, TStringBuf /*spec*/);
-TString ToString(const TYPathRewrite& rewrite);
 
 TYPathRewrite MakeYPathRewrite(
     const NYPath::TYPath& originalPath,

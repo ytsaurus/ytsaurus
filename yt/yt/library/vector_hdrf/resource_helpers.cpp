@@ -119,12 +119,7 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVolume& volume, TSt
         volume.GetNetwork());
 }
 
-TString ToString(const TResourceVolume& volume)
-{
-    return ToStringViaBuilder(volume);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format)
+void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf spec)
 {
     auto getResourceSuffix = [] (EJobResourceType resourceType) {
         const auto& resourceNames = TEnumTraits<EJobResourceType>::GetDomainNames();
@@ -146,7 +141,7 @@ void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVec
         }
         isFirst = false;
 
-        FormatValue(builder, resourceVector[resourceType], format);
+        FormatValue(builder, resourceVector[resourceType], spec);
         builder->AppendChar(getResourceSuffix(resourceType));
     }
     builder->AppendChar(']');

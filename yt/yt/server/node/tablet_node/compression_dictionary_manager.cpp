@@ -330,11 +330,6 @@ void FormatValue(TStringBuilderBase* builder, const TCompressionDictionaryCacheK
         key.SchemaId);
 }
 
-TString ToString(const TCompressionDictionaryCacheKey& key)
-{
-    return ToStringViaBuilder(key);
-}
-
 void Serialize(const TCompressionDictionaryCacheKey& key, NYT::NYson::IYsonConsumer* consumer)
 {
     NYT::NYTree::BuildYsonFluently(consumer)

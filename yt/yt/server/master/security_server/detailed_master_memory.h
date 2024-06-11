@@ -67,7 +67,6 @@ void FormatValue(
     TStringBuilderBase* builder,
     const TDetailedMasterMemory& detailedMasterMemory,
     TStringBuf spec);
-TString ToString(const TDetailedMasterMemory& detailedMasterMemory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

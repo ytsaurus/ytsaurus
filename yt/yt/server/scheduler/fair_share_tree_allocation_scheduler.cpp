@@ -896,18 +896,13 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{AllocationId: %v, PreemptionStatus: %v, OperationId: %v}",
         allocationInfo.Allocation->GetId(),
         allocationInfo.PreemptionStatus,
         allocationInfo.OperationElement->GetId());
-}
-
-TString ToString(const TAllocationWithPreemptionInfo& allocationInfo)
-{
-    return ToStringViaBuilder(allocationInfo);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

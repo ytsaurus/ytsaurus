@@ -262,8 +262,7 @@ struct TAllocationWithPreemptionInfo
     bool operator ==(const TAllocationWithPreemptionInfo& other) const = default;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*format*/);
-TString ToString(const TAllocationWithPreemptionInfo& allocationInfo);
+void FormatValue(TStringBuilderBase* builder, const TAllocationWithPreemptionInfo& allocationInfo, TStringBuf /*spec*/);
 
 using TAllocationWithPreemptionInfoSet = THashSet<TAllocationWithPreemptionInfo>;
 using TAllocationWithPreemptionInfoSetMap = THashMap<int, TAllocationWithPreemptionInfoSet>;

@@ -22,11 +22,6 @@ void FormatValue(TStringBuilderBase* builder, const TNodeStatistics& statistics,
         statistics.available_tablet_slots() + statistics.used_tablet_slots());
 }
 
-TString ToString(const TNodeStatistics& statistics)
-{
-    return ToStringViaBuilder(statistics);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient::NProto

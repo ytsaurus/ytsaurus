@@ -305,6 +305,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
         if (scheduledResourcesIt != scheduledResourcesMap.end()) {
+            static_assert(CFormattable<std::optional<EAllocationSchedulingStage>>);
             TWithTagGuard guard(
                 writer,
                 "scheduling_stage",

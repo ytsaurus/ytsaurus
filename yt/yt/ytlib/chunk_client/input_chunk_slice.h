@@ -46,9 +46,7 @@ struct TLegacyInputSliceLimit
     void Persist(const NTableClient::TPersistenceContext& context);
 };
 
-TString ToString(const TLegacyInputSliceLimit& limit);
-
-void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf spec);
 
 bool IsTrivial(const TLegacyInputSliceLimit& limit);
 
@@ -83,9 +81,7 @@ struct TInputSliceLimit
     void Persist(const NTableClient::TPersistenceContext& context);
 };
 
-TString ToString(const TInputSliceLimit& limit);
-
-void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf format);
+void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf spec);
 
 bool IsTrivial(const TInputSliceLimit& limit);
 

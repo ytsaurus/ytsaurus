@@ -226,18 +226,13 @@ TMasterMemoryLimits TMasterMemoryLimits::Infinity()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{Total: %v, ChunkHost: %v, PerCell: %v}",
         limits.Total,
         limits.ChunkHost,
         limits.PerCell);
-}
-
-TString ToString(const TMasterMemoryLimits& limits)
-{
-    return ToStringViaBuilder(limits);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

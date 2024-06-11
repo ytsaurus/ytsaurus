@@ -29,8 +29,7 @@ struct TJobShellDescriptorKey
     operator size_t() const;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptorKey& key, TStringBuf format);
-TString ToString(const TJobShellDescriptorKey& key);
+void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptorKey& key, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,8 +40,7 @@ struct TJobShellDescriptor
     TString Subcontainer;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf format);
-TString ToString(const TJobShellDescriptor& descriptor);
+void FormatValue(TStringBuilderBase* builder, const TJobShellDescriptor& descriptor, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

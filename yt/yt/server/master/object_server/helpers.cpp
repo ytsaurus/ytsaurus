@@ -21,11 +21,6 @@ void FormatValue(TStringBuilderBase* builder, const TYPathRewrite& rewrite, TStr
         rewrite.Rewritten);
 }
 
-TString ToString(const TYPathRewrite& rewrite)
-{
-    return ToStringViaBuilder(rewrite);
-}
-
 TYPathRewrite MakeYPathRewrite(
     const TYPath& originalPath,
     TObjectId targetObjectId,

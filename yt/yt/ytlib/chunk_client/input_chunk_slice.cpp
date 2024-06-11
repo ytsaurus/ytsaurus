@@ -111,12 +111,7 @@ void TLegacyInputSliceLimit::Persist(const TPersistenceContext& context)
     Persist(context, Key);
 }
 
-TString ToString(const TLegacyInputSliceLimit& limit)
-{
-    return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{RowIndex: %v, Key: %v}",
         limit.RowIndex,
@@ -239,12 +234,7 @@ void Serialize(const TInputSliceLimit& limit, IYsonConsumer* consumer)
         .EndMap();
 }
 
-TString ToString(const TInputSliceLimit& limit)
-{
-    return ToStringViaBuilder(limit);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf /*spec*/)
 {
     if (!limit.RowIndex && !limit.KeyBound) {
         builder->AppendChar('#');

@@ -25,8 +25,6 @@ void FormatValue(
     const TChangeReplicaModeCommand& command,
     TStringBuf spec);
 
-TString ToString(const TChangeReplicaModeCommand& command);
-
 void ToProto(
     NReplicatedTableTrackerClient::NProto::TChangeReplicaModeCommand* protoCommand,
     const TChangeReplicaModeCommand& command);

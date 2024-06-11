@@ -55,9 +55,11 @@ struct TResourceLimitsKey
     }
 
     // Formatter.
-    friend TString ToString(const TResourceLimitsKey& key)
+    friend void FormatValue(TStringBuilderBase* builder, const TResourceLimitsKey& key, TStringBuf /*spec*/)
     {
-        return Format("%v:%v:%v:%v",
+        Format(
+            builder,
+            "%v:%v:%v:%v",
             key.Account,
             key.MediumName,
             key.TabletCellBundle,

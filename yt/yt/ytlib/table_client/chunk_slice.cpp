@@ -36,9 +36,9 @@ constexpr static auto SlicerYieldPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TChunkSlice& slice)
+void FormatValue(TStringBuilderBase* builder, const TChunkSlice& slice, TStringBuf /*spec*/)
 {
-    return Format("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v",
+    builder->AppendFormat("LowerLimit: %v, UpperLimit: %v, RowCount: %v, DataWeight: %v",
         slice.LowerLimit,
         slice.UpperLimit,
         slice.RowCount,

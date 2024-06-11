@@ -68,14 +68,9 @@ static constexpr auto ReadOnlyCheckPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf /*spec*/)
 {
     builder->AppendFormat("%v->%v", edge.SourceCellId, edge.DestinationCellId);
-}
-
-TString ToString(const THiveEdge& edge)
-{
-    return ToStringViaBuilder(edge);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -51,8 +51,7 @@ struct TMasterMemoryLimits
     bool operator==(const TMasterMemoryLimits& that) const noexcept = default;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*format*/);
-TString ToString(const TMasterMemoryLimits& limits);
+void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*spec*/);
 
 // NB: this serialization requires access to multicell manager and cannot be
 // easily integrated into yson serialization framework.

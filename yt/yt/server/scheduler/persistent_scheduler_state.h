@@ -25,8 +25,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPersistentPoolState)
 
-TString ToString(const TPersistentPoolStatePtr& state);
-void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& state, TStringBuf /*format*/);
+void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& state, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

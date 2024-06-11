@@ -146,18 +146,13 @@ void TOutputOrder::Persist(const NTableClient::TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TOutputOrder::TEntry& entry, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TOutputOrder::TEntry& entry, TStringBuf /*spec*/)
 {
     if (entry.IsCookie()) {
         builder->AppendFormat("cookie@", entry.GetCookie());
     } else {
         builder->AppendFormat("chunk@", entry.GetTeleportChunk());
     }
-}
-
-TString ToString(const TOutputOrder::TEntry& entry)
-{
-    return ToStringViaBuilder(entry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

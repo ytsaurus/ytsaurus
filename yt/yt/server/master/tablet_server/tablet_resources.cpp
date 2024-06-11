@@ -111,16 +111,11 @@ TTabletResources operator-(const TTabletResources& value)
         .SetTabletStaticMemory(-value.TabletStaticMemory);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{TabletCount: %v, TabletStaticMemory: %v}",
         resources.TabletCount,
         resources.TabletStaticMemory);
-}
-
-TString ToString(const TTabletResources& resources)
-{
-    return ToStringViaBuilder(resources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

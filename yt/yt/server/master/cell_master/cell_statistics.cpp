@@ -27,17 +27,12 @@ NProto::TCellStatistics operator +  (const NProto::TCellStatistics& lhs, const N
 
 namespace NProto {
 
-void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const NProto::TCellStatistics& statistics, TStringBuf /*spec*/)
 {
     builder->AppendFormat("ChunkCount: %v, LostVitalChunkCount: %v, OnlineNodeCount: %v",
         statistics.chunk_count(),
         statistics.lost_vital_chunk_count(),
         statistics.online_node_count());
-}
-
-TString ToString(const NProto::TCellStatistics& statistics)
-{
-    return ToStringViaBuilder(statistics);
 }
 
 } // namespace NProto

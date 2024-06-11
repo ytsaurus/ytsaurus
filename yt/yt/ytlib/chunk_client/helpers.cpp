@@ -1086,11 +1086,6 @@ void FormatValue(
         allyReplicas.Revision);
 }
 
-TString ToString(const TAllyReplicasInfo& allyReplicas)
-{
-    return ToStringViaBuilder(allyReplicas);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsLargeEnoughChunkSize(i64 chunkSize, i64 chunkSizeThreshold)

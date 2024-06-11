@@ -40,8 +40,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletAction)
 
 bool IsTabletActionFinished(ETabletActionState state);
 
-void FormatValue(TStringBuilderBase* builder, const TActionDescriptor& descriptor, TStringBuf /*format*/);
-TString ToString(const TActionDescriptor& descriptor);
+void FormatValue(TStringBuilderBase* builder, const TActionDescriptor& descriptor, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

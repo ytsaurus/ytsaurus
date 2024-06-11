@@ -10,7 +10,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics& statistics, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "{TotalCpuTime: %v, PreemptibleCpuTime: %v, TotalGpuTime: %v, PreemptibleGpuTime: %v}",
@@ -18,11 +18,6 @@ void FormatValue(TStringBuilderBase* builder, const TRunningAllocationStatistics
         statistics.PreemptibleCpuTime,
         statistics.TotalGpuTime,
         statistics.PreemptibleGpuTime);
-}
-
-TString ToString(const TRunningAllocationStatistics& statistics)
-{
-    return ToStringViaBuilder(statistics);
 }
 
 TString FormatRunningAllocationStatisticsCompact(const TRunningAllocationStatistics& statistics)

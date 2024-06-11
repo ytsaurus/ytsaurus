@@ -43,7 +43,7 @@ bool IsTabletActionFinished(ETabletActionState state)
         state == ETabletActionState::Failed;
 }
 
-void FormatValue(TStringBuilderBase* builder, const TActionDescriptor& descriptor, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TActionDescriptor& descriptor, TStringBuf /*spec*/)
 {
     Visit(descriptor,
         [&] (const TMoveDescriptor& descriptor) {
@@ -59,11 +59,6 @@ void FormatValue(TStringBuilderBase* builder, const TActionDescriptor& descripto
                 descriptor.TabletCount,
                 descriptor.DataSize);
         });
-}
-
-TString ToString(const TActionDescriptor& descriptor)
-{
-    return ToStringViaBuilder(descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

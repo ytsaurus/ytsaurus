@@ -78,11 +78,8 @@ struct TParameterizedResharderConfig
     TParameterizedResharderConfig MergeWith(const TParameterizedBalancingConfigPtr& groupConfig) const;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf format);
-void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf format);
-
-TString ToString(const TParameterizedReassignSolverConfig& config);
-TString ToString(const TParameterizedResharderConfig& config);
+void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolverConfig& config, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

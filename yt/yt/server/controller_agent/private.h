@@ -78,9 +78,7 @@ struct TJobMonitoringDescriptor
     int Index;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*format*/);
-
-TString ToString(const TJobMonitoringDescriptor& descriptor);
+void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/);
 
 struct TLivePreviewTableBase;
 

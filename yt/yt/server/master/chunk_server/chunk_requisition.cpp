@@ -61,11 +61,6 @@ void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TString
         policy.GetDataPartsOnly());
 }
 
-TString ToString(TReplicationPolicy policy)
-{
-    return ToStringViaBuilder(policy);
-}
-
 void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
@@ -189,11 +184,6 @@ void FormatValue(TStringBuilderBase* builder, const TChunkReplication& replicati
             }));
 }
 
-TString ToString(const TChunkReplication& replication)
-{
-    return ToStringViaBuilder(replication);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TSerializableChunkReplication::TSerializableChunkReplication(
@@ -302,11 +292,6 @@ void FormatValue(TStringBuilderBase* builder, const TRequisitionEntry& entry, TS
         entry.MediumIndex,
         entry.ReplicationPolicy,
         entry.Committed);
-}
-
-TString ToString(const TRequisitionEntry& entry)
-{
-    return ToStringViaBuilder(entry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -515,11 +500,6 @@ void FormatValue(TStringBuilderBase* builder, const TChunkRequisition& requisiti
             [] (TStringBuilderBase* builder, const TRequisitionEntry& entry) {
                 FormatValue(builder, entry);
             }));
-}
-
-TString ToString(const TChunkRequisition& requisition)
-{
-    return ToStringViaBuilder(requisition);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

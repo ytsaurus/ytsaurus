@@ -35,9 +35,7 @@ struct TDetailedFairShare
     TResourceVector Total = {};
 };
 
-TString ToString(const TDetailedFairShare& detailedFairShare);
-
-void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */);
+void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

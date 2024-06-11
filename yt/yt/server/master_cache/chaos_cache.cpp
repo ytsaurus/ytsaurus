@@ -35,16 +35,11 @@ TChaosCacheKey::operator size_t() const
         FetchOptions);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*spec*/)
 {
     builder->AppendFormat("{CardId: %v, FetchOptions: %v}",
         key.CardId,
         key.FetchOptions);
-}
-
-TString ToString(const TChaosCacheKey& key)
-{
-    return ToStringViaBuilder(key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

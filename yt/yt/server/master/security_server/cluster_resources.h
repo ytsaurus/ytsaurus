@@ -111,8 +111,7 @@ private:
 void ToProto(NProto::TClusterResources* protoResources, const TClusterResources& resources);
 void FromProto(TClusterResources* resources, const NProto::TClusterResources& protoResources);
 
-void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/);
-TString ToString(const TClusterResources& resources);
+void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -682,7 +682,7 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*spec*/)
 {
     builder->AppendString(TStringBuf("{DiskSpace: ["));
     auto firstDiskSpace = true;
@@ -701,11 +701,6 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& reso
         resources.GetTabletCount(),
         resources.GetTabletStaticMemory(),
         resources.MasterMemory());
-}
-
-TString ToString(const TClusterResourceLimits& resources)
-{
-    return ToStringViaBuilder(resources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

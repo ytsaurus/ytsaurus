@@ -98,22 +98,12 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedReassignSolver
         config.Metric);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfig& config, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "EnableReshardByDefault: %v, Metric: %v",
         config.EnableReshardByDefault,
         config.Metric);
-}
-
-TString ToString(const TParameterizedReassignSolverConfig& config)
-{
-    return ToStringViaBuilder(config);
-}
-
-TString ToString(const TParameterizedResharderConfig& config)
-{
-    return ToStringViaBuilder(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -180,11 +180,6 @@ void FormatValue(TStringBuilderBase* builder, const TDetailedMasterMemory& detai
     builder->AppendFormat("%v", detailedMasterMemory.DetailedMasterMemory_);
 }
 
-TString ToString(const TDetailedMasterMemory& detailedMasterMemory)
-{
-    return ToStringViaBuilder(detailedMasterMemory);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

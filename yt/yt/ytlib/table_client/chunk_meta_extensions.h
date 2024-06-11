@@ -52,7 +52,7 @@ struct TOwningBoundaryKeys
     bool operator==(const TOwningBoundaryKeys& other) const = default;
 };
 
-TString ToString(const TOwningBoundaryKeys& keys);
+void FormatValue(TStringBuilderBase* builder, const TOwningBoundaryKeys& keys, TStringBuf spec);
 
 void Serialize(const TOwningBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
 void Deserialize(TOwningBoundaryKeys& key, const NYTree::INodePtr& node);

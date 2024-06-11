@@ -42,8 +42,7 @@ TTabletResources& operator-=(TTabletResources& lhs, const TTabletResources& rhs)
 
 TTabletResources operator-(const TTabletResources& value);
 
-void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*format*/);
-TString ToString(const TTabletResources& resources);
+void FormatValue(TStringBuilderBase* builder, const TTabletResources& resources, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,11 +47,6 @@ void FormatValue(TStringBuilderBase* builder, const TChunkMergerTraversalStatist
         traversalStatistics.ConfigVersion);
 }
 
-TString ToString(const TChunkMergerTraversalStatistics& traversalStatistics)
-{
-    return ToStringViaBuilder(traversalStatistics);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

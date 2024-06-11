@@ -634,7 +634,7 @@ TRichClusterResources::TRichClusterResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*spec*/)
 {
     builder->AppendString(TStringBuf("{DiskSpace: ["));
     auto firstDiskSpace = true;
@@ -656,11 +656,6 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
         resources.GetTabletStaticMemory(),
         resources.GetChunkHostCellMasterMemory(),
         resources.DetailedMasterMemory());
-}
-
-TString ToString(const TClusterResources& resources)
-{
-    return ToStringViaBuilder(resources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

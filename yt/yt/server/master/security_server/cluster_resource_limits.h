@@ -146,8 +146,7 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*format*/);
-TString ToString(const TClusterResourceLimits& resources);
+void FormatValue(TStringBuilderBase* builder, const TClusterResourceLimits& resources, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

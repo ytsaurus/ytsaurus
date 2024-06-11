@@ -21,8 +21,7 @@ struct TChaosCacheKey
     bool operator == (const TChaosCacheKey& other) const = default;
 };
 
-void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*format*/);
-TString ToString(const TChaosCacheKey& key);
+void FormatValue(TStringBuilderBase* builder, const TChaosCacheKey& key, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

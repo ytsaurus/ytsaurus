@@ -17,11 +17,6 @@ void FormatValue(
         subrequest.TvmId);
 }
 
-TString ToString(const ISecretVaultService::TSecretSubrequest& subrequest)
-{
-    return ToStringViaBuilder(subrequest);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth

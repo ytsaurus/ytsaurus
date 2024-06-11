@@ -27,6 +27,7 @@ target_link_libraries(yt-library-numeric PUBLIC
   contrib-libs-cxxsupp
   yutil
   cpp-yt-small_containers
+  cpp-yt-string
 )
 
 target_sources(yt-library-numeric PRIVATE

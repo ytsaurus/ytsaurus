@@ -59,11 +59,6 @@ void FormatValue(TStringBuilderBase* builder, const TTypeSet& typeSet, TStringBu
     }
 }
 
-TString ToString(const TTypeSet& typeSet)
-{
-    return ToStringViaBuilder(typeSet);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

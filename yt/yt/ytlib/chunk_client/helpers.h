@@ -324,8 +324,6 @@ void FormatValue(
     TStringBuilderBase* builder,
     const TAllyReplicasInfo& allyReplicas,
     TStringBuf spec);
-TString ToString(
-    const TAllyReplicasInfo& allyReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,6 @@ private:
     std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
 };
 
-TString ToString(const TChunkStripeKey& key);
 void FormatValue(TStringBuilderBase* builder, const TChunkStripeKey& key, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////

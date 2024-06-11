@@ -63,19 +63,6 @@ void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaInfo v
     }
 }
 
-#define DEFINE_TO_STRING(TType) \
-TString ToString(TType value) \
-{ \
-    return ToStringViaBuilder(value); \
-}
-
-DEFINE_TO_STRING(TChunkPtrWithReplicaIndex)
-DEFINE_TO_STRING(TChunkPtrWithReplicaInfo)
-DEFINE_TO_STRING(TChunkPtrWithReplicaAndMediumIndex)
-DEFINE_TO_STRING(TChunkLocationPtrWithReplicaIndex)
-DEFINE_TO_STRING(TChunkLocationPtrWithReplicaInfo)
-#undef DEFINE_TO_STRING
-
 void ToProto(ui64* protoValue, TNodePtrWithReplicaAndMediumIndex value)
 {
     TChunkReplicaWithMedium replica(

@@ -31,7 +31,7 @@ private:
     bool IsVersioned_;
 };
 
-TString ToString(const TInputStreamDescriptor& descriptor);
+void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

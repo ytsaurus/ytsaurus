@@ -23,8 +23,7 @@ struct TNodeMovePenalty
 bool operator <(const TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
 TNodeMovePenalty& operator +=(TNodeMovePenalty& lhs, const TNodeMovePenalty& rhs);
 
-void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*format*/);
-TString ToString(const TNodeMovePenalty& penalty);
+void FormatValue(TStringBuilderBase* builder, const TNodeMovePenalty& penalty, TStringBuf /*spec*/);
 
 ////////////////////////////////////////////////////////////////////////////////
 

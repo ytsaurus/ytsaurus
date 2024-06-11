@@ -10,17 +10,12 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/)
 {
     builder->AppendFormat(
         "%v/%v",
         descriptor.IncarnationId,
         descriptor.Index);
-}
-
-TString ToString(const TJobMonitoringDescriptor& descriptor)
-{
-    return ToStringViaBuilder(descriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

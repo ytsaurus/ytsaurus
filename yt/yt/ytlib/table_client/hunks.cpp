@@ -232,11 +232,6 @@ void FormatValue(TStringBuilderBase* builder, const THunkChunkRef& ref, TStringB
         ref.TotalHunkLength);
 }
 
-TString ToString(const THunkChunkRef& ref)
-{
-    return ToStringViaBuilder(ref);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(
