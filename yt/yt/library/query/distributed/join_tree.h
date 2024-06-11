@@ -13,7 +13,7 @@ struct IJoinTreeNode
 {
     virtual TConstQueryPtr GetQuery() const = 0;
 
-    virtual std::optional<NObjectClient::TObjectId> GetTableId() const = 0;
+    virtual NObjectClient::TObjectId GetTableId() const = 0;
 
     virtual std::pair<IJoinTreeNodePtr, IJoinTreeNodePtr> GetChildren() const = 0;
 };

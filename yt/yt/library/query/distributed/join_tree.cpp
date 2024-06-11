@@ -17,18 +17,6 @@ using TTypeLookup = THashMap<TString, TLogicalTypePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsColumnSubset(const TColumnSet& subset, const TColumnSet& set)
-{
-    for (const auto& column : subset) {
-        if (!set.contains(column)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TReferencingExpression
 {
     TConstExpressionPtr Expression;
@@ -38,6 +26,18 @@ struct TReferencingExpression
 using TReferencingExpressions = std::vector<TReferencingExpression>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool IsColumnSubset(const TColumnSet& subset, const TColumnSet& set)
+{
+    for (const auto& column : subset) {
+        if (!set.contains(column)) {
+            return false;
+        }
+    }
+    return true;
+}
 
 TConstGroupClausePtr ResetCommonPrefixInGroupClause(const TConstGroupClausePtr& group)
 {
@@ -52,6 +52,8 @@ TConstGroupClausePtr ResetCommonPrefixInGroupClause(const TConstGroupClausePtr& 
     modifiedGroup->CommonPrefixWithPrimaryKey = 0;
 
     return modifiedGroup;
+}
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,58 +76,54 @@ public:
         const TJoinTreeNodePtr Right;
         const TJoinClausePtr MutableJoin;
 
-        TColumnSet NeededColumns = {};
+        TColumnSet NeededColumns;
     };
 
-    std::variant<TInner, TLeaf> Body;
-    TQueryPtr MutableQuery;
-    TProjectClausePtr MutableProject;
-    TOrderClausePtr MutableOrder;
-    TColumnSet AvailableColumns;
-
-    TJoinTreeNode(TJoinTreeNodePtr left, TJoinTreeNodePtr right)
-        : Body(TInner{std::move(left), std::move(right), New<TJoinClause>()})
-        , MutableQuery(New<TQuery>())
+    TJoinTreeNode(TJoinTreeNodePtr left, TJoinTreeNodePtr right, TJoinClausePtr joinClause)
+        : Body_(TInner{std::move(left), std::move(right), std::move(joinClause), {}})
+        , MutableQuery_(New<TQuery>())
     { }
 
-    TJoinTreeNode(
-        TTableId tableId,
-        const TMappedSchema& schema,
-        bool shuffled)
-        : Body(TLeaf{tableId, schema})
-        , MutableQuery(shuffled ? New<TQuery>() : nullptr)
+    TJoinTreeNode(TTableId tableId, const TMappedSchema& schema, bool shuffled)
+        : Body_(TLeaf{tableId, schema})
+        , MutableQuery_(shuffled ? New<TQuery>() : nullptr)
     {
         if (shuffled) {
-            MutableQuery->Schema = schema;
+            MutableQuery_->Schema = schema;
         }
     }
 
-    virtual TConstQueryPtr GetQuery() const override
+    TConstQueryPtr GetQuery() const override
     {
-        return MutableQuery;
+        return MutableQuery_;
     }
 
-    virtual std::optional<TTableId> GetTableId() const override
+    TTableId GetTableId() const override
     {
-        if (auto* leafNode = std::get_if<TLeaf>(&Body)) {
+        if (auto* leafNode = std::get_if<TLeaf>(&Body_)) {
             return leafNode->TableId;
         }
 
-        return std::nullopt;
+        return {};
     }
 
-    virtual std::pair<IJoinTreeNodePtr, IJoinTreeNodePtr> GetChildren() const override
+    std::pair<IJoinTreeNodePtr, IJoinTreeNodePtr> GetChildren() const override
     {
-        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+        if (auto* innerNode = std::get_if<TInner>(&Body_)) {
             return {innerNode->Left, innerNode->Right};
         }
         return {};
     }
 
+    void SetGroupClause(TConstGroupClausePtr groupClause)
+    {
+        MutableQuery_->GroupClause = std::move(groupClause);
+    }
+
     const TColumnSet& PullUpAvailableColumns()
     {
         return *Visit(
-            Body,
+            Body_,
             [&] (const TLeaf& leafNode) {
                 for (const auto& desc : leafNode.Schema.Mapping) {
                     AvailableColumns.insert(desc.Name);
@@ -151,7 +149,7 @@ public:
     std::pair<TReferencingExpressions::iterator, TConstExpressionPtr> PushDownPredicate(
         TReferencingExpressions& predicateFragments)
     {
-        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+        if (auto* innerNode = std::get_if<TInner>(&Body_)) {
             YT_VERIFY(!innerNode->MutableJoin->IsLeft);
 
             innerNode->Left->PushDownPredicate(predicateFragments);
@@ -177,8 +175,8 @@ public:
             });
 
 
-        if (MutableQuery) {
-            MutableQuery->WhereClause = predicate;
+        if (MutableQuery_) {
+            MutableQuery_->WhereClause = predicate;
             predicateFragments.erase(it, predicateFragments.end());
 
             return {predicateFragments.end(), nullptr};
@@ -189,7 +187,7 @@ public:
 
     void AddJoinEquationsToChildrenProject()
     {
-        auto* innerNode = std::get_if<TInner>(&Body);
+        auto* innerNode = std::get_if<TInner>(&Body_);
         if (!innerNode) {
             return;
         }
@@ -217,7 +215,7 @@ public:
 
     void CollectAndPushDownNeededColumns(const TColumnSet& neededColumns)
     {
-        auto* inner = std::get_if<TInner>(&Body);
+        auto* inner = std::get_if<TInner>(&Body_);
         if (!inner) {
             return;
         }
@@ -236,11 +234,11 @@ public:
             }
         }
 
-        if (auto where = MutableQuery->WhereClause) {
+        if (auto where = MutableQuery_->WhereClause) {
             harvester.Visit(where);
         }
 
-        if (auto group = MutableQuery->GroupClause) {
+        if (auto group = MutableQuery_->GroupClause) {
             for (const auto& groupItem : group->GroupItems) {
                 harvester.Visit(groupItem.Expression);
             }
@@ -257,7 +255,7 @@ public:
             harvester.Visit(join->SelfEquations[index].Expression);
             harvester.Visit(join->ForeignEquations[index]);
         }
-        MutableQuery->JoinClauses = {std::move(join)};
+        MutableQuery_->JoinClauses = {std::move(join)};
 
         inner->Left->CollectAndPushDownNeededColumns(inner->NeededColumns);
         inner->Right->CollectAndPushDownNeededColumns(inner->NeededColumns);
@@ -265,11 +263,11 @@ public:
 
     void AddParentNeededColumnsToProject(const TColumnSet& neededColumns, const TTypeLookup& typeLookup)
     {
-        if (!MutableQuery) {
+        if (!MutableQuery_) {
             return;
         }
 
-        if (!MutableQuery->GroupClause) {
+        if (!MutableQuery_->GroupClause) {
             if (!MutableProject) {
                 MutableProject = New<TProjectClause>();
             }
@@ -291,10 +289,10 @@ public:
             }
         }
 
-        MutableQuery->ProjectClause = std::move(MutableProject);
-        MutableQuery->OrderClause = std::move(MutableOrder);
+        MutableQuery_->ProjectClause = std::move(MutableProject);
+        MutableQuery_->OrderClause = std::move(MutableOrder);
 
-        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+        if (auto* innerNode = std::get_if<TInner>(&Body_)) {
             innerNode->Left->AddParentNeededColumnsToProject(innerNode->NeededColumns, typeLookup);
             innerNode->Right->AddParentNeededColumnsToProject(innerNode->NeededColumns, typeLookup);
         }
@@ -302,42 +300,12 @@ public:
 
     void SetReadSchemas()
     {
-        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+        if (auto* innerNode = std::get_if<TInner>(&Body_)) {
             innerNode->Left->SetReadSchemas();
             innerNode->Right->SetReadSchemas();
 
-            MutableQuery->Schema = innerNode->Left->GetOutSchema();
-            MutableQuery->Schema = innerNode->Right->GetOutSchema();
-        }
-    }
-
-    TMappedSchema GetOutSchema() const
-    {
-        if (MutableQuery) {
-            auto columns = MutableQuery->GetTableSchema()->Columns();
-            int orderedPrefix = MutableQuery->OrderClause
-                ? MutableQuery->OrderClause->OrderItems.size()
-                : 0;
-
-            TMappedSchema mappedSchema;
-
-            for (int index = 0; index < orderedPrefix; ++index) {
-                columns[index].SetSortOrder(ESortOrder::Ascending);
-            }
-
-            mappedSchema.Mapping.reserve(columns.size());
-
-            for (int index = 0; index < std::ssize(columns); ++index) {
-                mappedSchema.Mapping.push_back({.Name = columns[index].Name(), .Index = index});
-            }
-
-            mappedSchema.Original = New<TTableSchema>(std::move(columns));
-
-            return mappedSchema;
-        } else if (auto* leaf = std::get_if<TLeaf>(&Body)) {
-            return leaf->Schema;
-        } else {
-            YT_ABORT();
+            MutableQuery_->Schema = innerNode->Left->GetOutSchema();
+            MutableQuery_->Schema = innerNode->Right->GetOutSchema();
         }
     }
 
@@ -345,7 +313,7 @@ public:
     {
         AvailableColumns.clear();
 
-        if (auto* innerNode = std::get_if<TInner>(&Body)) {
+        if (auto* innerNode = std::get_if<TInner>(&Body_)) {
             innerNode->NeededColumns.clear();
             innerNode->Left->Cleanup();
             innerNode->Right->Cleanup();
@@ -375,6 +343,43 @@ public:
         }
 
         return columnsForTopQuery;
+    }
+
+private:
+    std::variant<TInner, TLeaf> Body_;
+    TQueryPtr MutableQuery_;
+    TProjectClausePtr MutableProject;
+    TOrderClausePtr MutableOrder;
+    TColumnSet AvailableColumns;
+
+    TMappedSchema GetOutSchema() const
+    {
+        if (MutableQuery_) {
+            auto columns = MutableQuery_->GetTableSchema()->Columns();
+            int orderedPrefix = MutableQuery_->OrderClause
+                ? MutableQuery_->OrderClause->OrderItems.size()
+                : 0;
+
+            TMappedSchema mappedSchema;
+
+            for (int index = 0; index < orderedPrefix; ++index) {
+                columns[index].SetSortOrder(ESortOrder::Ascending);
+            }
+
+            mappedSchema.Mapping.reserve(columns.size());
+
+            for (int index = 0; index < std::ssize(columns); ++index) {
+                mappedSchema.Mapping.push_back({.Name = columns[index].Name(), .Index = index});
+            }
+
+            mappedSchema.Original = New<TTableSchema>(std::move(columns));
+
+            return mappedSchema;
+        } else if (auto* leaf = std::get_if<TLeaf>(&Body_)) {
+            return leaf->Schema;
+        } else {
+            YT_ABORT();
+        }
     }
 };
 
@@ -435,6 +440,9 @@ public:
     }
 
 private:
+    const TConstQueryPtr OriginalQuery_;
+    const TJoinTreeNodePtr Root_;
+
     static void PopulateTypeLookupFromSchema(const TMappedSchema& schema, TTypeLookup* typeLookup)
     {
         for (const auto& descriptor : schema.Mapping) {
@@ -442,9 +450,6 @@ private:
             (*typeLookup)[descriptor.Name] = column.LogicalType();
         }
     }
-
-    TConstQueryPtr OriginalQuery_;
-    TJoinTreeNodePtr Root_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinTree)
@@ -480,12 +485,8 @@ IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& p
     auto totalPredicate = query->WhereClause;
 
     for (const auto& joinClause : query->JoinClauses) {
-        root = New<TJoinTreeNode>(std::move(root), New<TJoinTreeNode>(
-            joinClause->ForeignObjectId,
-            joinClause->Schema,
-            /*shuffled*/ false));
+        auto newJoin = New<TJoinClause>();
 
-        const auto& newJoin = std::get<TJoinTreeNode::TInner>(root->Body).MutableJoin;
         newJoin->CommonKeyPrefix = joinClause->ForeignKeyPrefix;
         newJoin->ForeignKeyPrefix = joinClause->ForeignKeyPrefix;
 
@@ -503,12 +504,20 @@ IJoinTreePtr MakeIndexJoinTree(const TConstQueryPtr& query, const TDataSource& p
                 expr = TSelfifyRewriter{.JoinClause = joinClause}.Visit(expr);
             }
         }
+
+        root = New<TJoinTreeNode>(
+            std::move(root),
+            New<TJoinTreeNode>(
+                joinClause->ForeignObjectId,
+                joinClause->Schema,
+                /*shuffled*/ false),
+            std::move(newJoin));
     }
 
     std::vector<TConstExpressionPtr> predicateFragments;
     CollectOperands(&predicateFragments, totalPredicate);
 
-    root->MutableQuery->GroupClause = ResetCommonPrefixInGroupClause(query->GroupClause);
+    root->SetGroupClause(ResetCommonPrefixInGroupClause(query->GroupClause));
 
     auto joinTree = New<TJoinTree>(query, std::move(root));
     joinTree->Prepare(std::move(predicateFragments));
