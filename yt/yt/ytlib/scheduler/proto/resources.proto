@@ -48,4 +48,13 @@ message TJobResourcesWithQuota
     optional TDiskQuota disk_quota = 7;
 }
 
+message TAllocationAttributes
+{
+    optional int64 waiting_for_resources_on_node_timeout = 1; // Duration
+    optional string cuda_toolkit_version = 2;
+    required bool allow_idle_cpu_policy = 3;
+    required int64 port_count = 4;
+    required TDiskRequest disk_request = 5;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

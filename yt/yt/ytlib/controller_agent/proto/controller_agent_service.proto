@@ -187,11 +187,10 @@ message TReviveOperationResult
         required NYT.NProto.TGuid allocation_id = 1;
         required uint64 start_time = 2; // TInstant
         optional uint64 preemptible_progress_start_time = 8; // TInstant
-        required NScheduler.NProto.TJobResources resource_limits = 3;
+        required NScheduler.NProto.TJobResourcesWithQuota resource_limits = 3;
         required string tree_id = 4;
         required uint32 node_id = 5;
         required string node_address = 6;
-        required NScheduler.NProto.TDiskQuota disk_quota = 7;
     }
 
     required bytes attributes = 1; // YSON

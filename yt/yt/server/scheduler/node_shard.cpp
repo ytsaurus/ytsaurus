@@ -1258,6 +1258,9 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
         result->StartDescriptor.emplace(
             allocationId,
             FromProto<TJobResourcesWithQuota>(response.resource_limits()));
+        FromProto(
+            &(result->StartDescriptor->AllocationAttributes),
+            response.allocation_attributes());
     }
     for (const auto& protoCounter : response.failed()) {
         result->Failed[static_cast<EScheduleAllocationFailReason>(protoCounter.reason())] = protoCounter.value();
@@ -2060,6 +2063,8 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         ToProto(startInfo->mutable_allocation_id(), allocation->GetId());
         ToProto(startInfo->mutable_operation_id(), allocation->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(allocation->ResourceUsage());
+
+        ToProto(startInfo->mutable_allocation_attributes(), allocation->AllocationAttributes());
 
         if (Config_->SendFullControllerAgentDescriptorsForAllocations) {
             SetControllerAgentDescriptor(agent, startInfo->mutable_controller_agent_descriptor());

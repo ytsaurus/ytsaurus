@@ -25,6 +25,7 @@ public:
         TAllocationId id,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
+        std::optional<NScheduler::TAllocationAttributes> attributes,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
     ~TAllocation();
@@ -80,6 +81,10 @@ private:
     const double RequestedCpu_;
     const i64 RequestedMemory_;
 
+    // NB(arkady-e1ppa): "optional" is a COMPAT
+    // Remove when scheduler and nodes both are 24.2.
+    std::optional<NScheduler::TAllocationAttributes> Attributes_;
+
     TControllerAgentDescriptor ControllerAgentDescriptor_;
     // TODO before commit: maybe strong?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
@@ -107,6 +112,10 @@ private:
 
     void TransferResourcesToJob();
 
+    void PrepareAllocationFromAttributes(const NScheduler::TAllocationAttributes& attributes);
+    void LegacyPrepareAllocationFromStartInfo(
+        TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo& jobInfo);
+
     friend void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TAllocationPtr& allocation);
 };
 
@@ -116,6 +125,7 @@ TAllocationPtr CreateAllocation(
     TAllocationId id,
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceUsage,
+    std::optional<NScheduler::TAllocationAttributes> attributes,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
 

@@ -128,18 +128,6 @@ void Serialize(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobResourceAttributes
-{
-    bool AllowIdleCpuPolicy = false;
-
-    std::optional<TString> CudaToolkitVersion;
-
-    // TODO(pogorelov): MediumIndex should be provided by disk request in job resources, and should not be placed here.
-    std::optional<i64> MediumIndex;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TNodeResourceManager
     : public TRefCounted
 {

@@ -1746,24 +1746,10 @@ private:
                 const auto& scheduleJobResult = *response.Result;
                 ToProto(protoResponse->mutable_allocation_id(), response.AllocationId);
                 ToProto(protoResponse->mutable_operation_id(), response.OperationId);
-                protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch.Underlying());
-                protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
                 if (scheduleJobResult.StartDescriptor) {
-                    const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
-                    YT_ASSERT(response.AllocationId == startDescriptor.Id);
-                    ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+                    YT_ASSERT(response.AllocationId == scheduleJobResult.StartDescriptor->Id);
                 }
-                protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
-                if (scheduleJobResult.NextDurationEstimate) {
-                    protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
-                }
-                for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
-                    if (scheduleJobResult.Failed[reason] > 0) {
-                        auto* protoCounter = protoResponse->add_failed();
-                        protoCounter->set_reason(static_cast<int>(reason));
-                        protoCounter->set_value(scheduleJobResult.Failed[reason]);
-                    }
-                }
+                ToProto(protoResponse, scheduleJobResult);
             });
     }
 

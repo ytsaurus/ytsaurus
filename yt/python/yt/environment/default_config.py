@@ -706,6 +706,7 @@ def get_dynamic_node_config():
                 operation_infos_request_period = 1000;
 
                 unknown_operation_jobs_removal_delay = 5000;
+                disable_legacy_allocation_preparation = %true;
             };
 
             controller_agent_connector = {

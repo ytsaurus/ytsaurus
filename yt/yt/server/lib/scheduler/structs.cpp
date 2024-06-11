@@ -10,14 +10,67 @@ namespace NYT::NScheduler {
 
 using namespace NControllerAgent;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TAllocationStartDescriptor::TAllocationStartDescriptor(
-    TAllocationId id,
-    const TJobResourcesWithQuota& resourceLimits)
-    : Id(id)
-    , ResourceLimits(resourceLimits)
-{ }
+void ToProto(
+    NProto::TAllocationAttributes* protoAttributes,
+    const TAllocationAttributes& attributes)
+{
+    if (auto timeout = attributes.WaitingForResourcesOnNodeTimeout) {
+        protoAttributes->set_waiting_for_resources_on_node_timeout(ToProto<i64>(*timeout));
+    }
+    if (const auto& cudaToolkitVersion = attributes.CudaToolkitVersion) {
+        protoAttributes->set_cuda_toolkit_version(*cudaToolkitVersion);
+    }
+    {
+        auto& diskRequest =
+            (*protoAttributes->mutable_disk_request() = {});
+        if (auto& diskSpace = attributes.DiskRequest.DiskSpace) {
+            diskRequest.set_disk_space(ToProto<i64>(*diskSpace));
+        }
+        if (auto& mediumIndex = attributes.DiskRequest.MediumIndex) {
+            diskRequest.set_medium_index(ToProto<i32>(*mediumIndex));
+        }
+        if (auto& inodeCount = attributes.DiskRequest.InodeCount) {
+            diskRequest.set_inode_count(ToProto<i64>(*inodeCount));
+        }
+    }
+
+    protoAttributes->set_allow_idle_cpu_policy(attributes.AllowIdleCpuPolicy);
+    protoAttributes->set_port_count(ToProto<i64>(attributes.PortCount));
+}
+
+void FromProto(
+    TAllocationAttributes* attributes,
+    const NProto::TAllocationAttributes& protoAttributes)
+{
+    if (protoAttributes.has_waiting_for_resources_on_node_timeout()) {
+        attributes->WaitingForResourcesOnNodeTimeout
+            = FromProto<TDuration>(protoAttributes.waiting_for_resources_on_node_timeout());
+    }
+    if (protoAttributes.has_cuda_toolkit_version()) {
+        attributes->CudaToolkitVersion
+            = FromProto<TString>(protoAttributes.cuda_toolkit_version());
+    }
+    {
+        auto& diskRequest =
+            (attributes->DiskRequest = {});
+        if (protoAttributes.disk_request().has_disk_space()) {
+            diskRequest.DiskSpace = FromProto<i64>(protoAttributes.disk_request().disk_space());
+        }
+        if (protoAttributes.disk_request().has_medium_index()) {
+            diskRequest.MediumIndex = FromProto<i32>(protoAttributes.disk_request().medium_index());
+        }
+        if (protoAttributes.disk_request().has_inode_count()) {
+            diskRequest.InodeCount = FromProto<i64>(protoAttributes.disk_request().inode_count());
+        }
+    }
+    attributes->AllowIdleCpuPolicy = protoAttributes.allow_idle_cpu_policy();
+    attributes->PortCount = protoAttributes.port_count();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +94,35 @@ bool TControllerScheduleAllocationResult::IsScheduleStopNeeded() const
     return
         Failed[EScheduleAllocationFailReason::NotEnoughChunkLists] > 0 ||
         Failed[EScheduleAllocationFailReason::JobSpecThrottling] > 0;
+}
+
+void ToProto(
+    NScheduler::NProto::TScheduleAllocationResponse* protoResponse,
+    const TControllerScheduleAllocationResult& scheduleJobResult)
+{
+    protoResponse->set_controller_epoch(scheduleJobResult.ControllerEpoch.Underlying());
+    protoResponse->set_success(static_cast<bool>(scheduleJobResult.StartDescriptor));
+
+    if (scheduleJobResult.StartDescriptor) {
+        const auto& startDescriptor = *scheduleJobResult.StartDescriptor;
+        ToProto(protoResponse->mutable_resource_limits(), startDescriptor.ResourceLimits);
+
+        ToProto(
+            protoResponse->mutable_allocation_attributes(),
+            startDescriptor.AllocationAttributes);
+    }
+
+    protoResponse->set_duration(ToProto<i64>(scheduleJobResult.Duration));
+    if (scheduleJobResult.NextDurationEstimate) {
+        protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
+    }
+    for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+        if (scheduleJobResult.Failed[reason] > 0) {
+            auto* protoCounter = protoResponse->add_failed();
+            protoCounter->set_reason(static_cast<int>(reason));
+            protoCounter->set_value(scheduleJobResult.Failed[reason]);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

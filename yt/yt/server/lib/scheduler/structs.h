@@ -18,14 +18,37 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAllocationAttributes
+{
+    struct TDiskRequest
+    {
+        std::optional<i64> DiskSpace;
+        std::optional<i64> InodeCount;
+        std::optional<i32> MediumIndex;
+    };
+
+    std::optional<TDuration> WaitingForResourcesOnNodeTimeout;
+    std::optional<TString> CudaToolkitVersion;
+    TDiskRequest DiskRequest;
+    bool AllowIdleCpuPolicy = false;
+    int PortCount = 0;
+};
+
+void ToProto(
+    NProto::TAllocationAttributes* protoAttributes,
+    const TAllocationAttributes& attributes);
+
+void FromProto(
+    TAllocationAttributes* attributes,
+    const NProto::TAllocationAttributes& protoAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TAllocationStartDescriptor
 {
-    TAllocationStartDescriptor(
-        TAllocationId id,
-        const TJobResourcesWithQuota& resourceLimits);
-
     const TAllocationId Id;
     const TJobResourcesWithQuota ResourceLimits;
+    TAllocationAttributes AllocationAttributes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,6 +69,10 @@ struct TControllerScheduleAllocationResult
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerScheduleAllocationResult)
+
+void ToProto(
+    NProto::TScheduleAllocationResponse* protoResponse,
+    const TControllerScheduleAllocationResult& scheduleJobResult);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -65,6 +65,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TJobResources, ResourceUsage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
     DEFINE_BYREF_RO_PROPERTY(TDiskQuota, DiskQuota);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationAttributes, AllocationAttributes);
 
     //! Temporary flag used during heartbeat allocations processing to mark found allocations.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
@@ -111,8 +112,7 @@ public:
         TControllerEpoch controllerEpoch,
         TExecNodePtr node,
         TInstant startTime,
-        const TJobResources& resourceLimits,
-        const TDiskQuota& diskQuota,
+        const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         TString treeId,
         int schedulingIndex,
