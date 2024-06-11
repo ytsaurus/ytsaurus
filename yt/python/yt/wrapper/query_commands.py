@@ -139,7 +139,7 @@ def get_query(query_id, attributes=None, stage=None, format=None, client=None):
     return make_formatted_request("get_query", params, format=format, client=client)
 
 
-def alter_query(query_id, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
+def alter_query(query_id, stage=None, annotations=None, access_control_objects=None, client=None):
     """Alter query.
 
     :param query_id: id of a query to get
@@ -148,8 +148,6 @@ def alter_query(query_id, stage=None, annotations=None, access_control_object=No
     :type stage: str
     :param annotations: a dictionary of annotations
     :type stage: dict or None
-    :param access_control_object: access control object name
-    :type access_control_object: str or None
     :param access_control_objects: list access control object names
     :type access_control_objects: list or None
     """
@@ -158,7 +156,6 @@ def alter_query(query_id, stage=None, annotations=None, access_control_object=No
         "query_id": query_id,
         "stage": get_value(stage, "production"),
     }
-    set_param(params, "access_control_object", access_control_object)
     set_param(params, "annotations", annotations)
     set_param(params, "access_control_objects", access_control_objects)
 

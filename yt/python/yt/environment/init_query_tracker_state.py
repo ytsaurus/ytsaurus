@@ -476,7 +476,7 @@ def get_access_control_objects_mapper(table):
         result = dict([(key, row.get(key)) for key in column_names])
 
         aco = row.get("access_control_object")
-        if aco is None :
+        if aco is None:
             result["access_control_objects"] = yson.YsonList([])
         else:
             result["access_control_objects"] = yson.YsonList([aco])

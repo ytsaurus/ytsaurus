@@ -445,7 +445,7 @@ std::optional<std::vector<TString>> ValidateAccessControlObjects(const std::opti
     }
 
     if (accessControlObjects->size() > MaxAccessControlObjectsPerQuery) {
-        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::TooMuchAco,
+        THROW_ERROR_EXCEPTION(NQueryTrackerClient::EErrorCode::TooManyAcos,
             "Too many ACOs in query: limit is %v, actual count is %v",
                 MaxAccessControlObjectsPerQuery,
                 accessControlObjects->size());
@@ -1211,7 +1211,7 @@ TGetQueryTrackerInfoResult TQueryTrackerProxy::GetQueryTrackerInfo(
         supportedFeatures = BuildYsonStringFluently()
             .BeginMap()
                 .Item("access_control").Value(true)
-                .Item("supported_multiple_aco").Value(true)
+                .Item("multiple_aco").Value(true)
             .EndMap();
     }
 

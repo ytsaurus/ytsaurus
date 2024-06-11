@@ -456,12 +456,12 @@ class TestAccessControl(YTEnvSetup):
     @authors("aleksandr.gaev")
     def test_get_query_tracker_info(self, query_tracker):
         assert get_query_tracker_info() == \
-            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'supported_multiple_aco': True}, 'access_control_objects': ['everyone-share', 'nobody']}
+            {'cluster_name': 'primary', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': ['everyone-share', 'nobody']}
 
         assert get_query_tracker_info(attributes=[]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["cluster_name"]) == {'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {'cluster_name': '', 'supported_features': {'access_control': True, 'supported_multiple_aco': True}, 'access_control_objects': []}
+            {'cluster_name': '', 'supported_features': {'access_control': True, 'multiple_aco': True}, 'access_control_objects': []}
         assert get_query_tracker_info(attributes=["access_control_objects"]) == {'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone-share', 'nobody']}
 
 
@@ -720,11 +720,11 @@ class TestAccessControlList(YTEnvSetup):
 
         expect_queries([q_u1, q_u2, q_u3], list_queries(filter="aco:"))
         expect_queries([q_u1], list_queries(filter="aco_list_by_aco1"))
-        expect_queries([q_u1], list_queries(filter="aco:[\"aco_list_by_aco1\";]"))
+        expect_queries([q_u1], list_queries(filter="aco:aco_list_by_aco1"))
         expect_queries([q_u2], list_queries(filter="aco_list_by_aco2"))
-        expect_queries([q_u2], list_queries(filter="aco:[\"aco_list_by_aco2\";]"))
+        expect_queries([q_u2], list_queries(filter="aco:aco_list_by_aco2"))
         expect_queries([q_u3], list_queries(filter="aco_list_by_aco3"))
-        expect_queries([q_u3], list_queries(filter="aco:[\"aco_list_by_aco3\";]"))
+        expect_queries([q_u3], list_queries(filter="aco:aco_list_by_aco3"))
 
     @authors("mpereskokova")
     def test_list_sql_injection(self, query_tracker):

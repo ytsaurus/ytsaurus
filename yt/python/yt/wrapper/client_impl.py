@@ -253,7 +253,7 @@ class YtClient(ClientState):
     def alter_query(
             self,
             query_id,
-            stage=None, annotations=None, access_control_object=None, access_control_objects=None):
+            stage=None, annotations=None, access_control_objects=None):
         """
         Alter query.
 
@@ -263,8 +263,6 @@ class YtClient(ClientState):
         :type stage: str
         :param annotations: a dictionary of annotations
         :type stage: dict or None
-        :param access_control_object: access control object name
-        :type access_control_object: str or None
         :param access_control_objects: list access control object names
         :type access_control_objects: list or None
 
@@ -272,7 +270,7 @@ class YtClient(ClientState):
         return client_api.alter_query(
             query_id,
             client=self,
-            stage=stage, annotations=annotations, access_control_object=access_control_object, access_control_objects=access_control_objects)
+            stage=stage, annotations=annotations, access_control_objects=access_control_objects)
 
     def alter_replication_card(
             self,
