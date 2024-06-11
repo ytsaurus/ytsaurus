@@ -13,7 +13,7 @@ from .flow_commands import (  # noqa
     get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec)
 from .queue_commands import (  # noqa
     register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer, pull_queue_consumer, advance_consumer)
-from .query_commands import start_query, abort_query, read_query_result, get_query, get_query_result, list_queries  # noqa
+from .query_commands import start_query, abort_query, alter_query, read_query_result, get_query, get_query_result, list_queries  # noqa
 from .run_operation_commands import (  # noqa
     run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce,
     run_join_reduce, run_remote_copy, run_operation)

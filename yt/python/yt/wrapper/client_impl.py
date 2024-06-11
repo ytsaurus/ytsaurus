@@ -250,6 +250,28 @@ class YtClient(ClientState):
             client=self,
             client_side=client_side)
 
+    def alter_query(
+            self,
+            query_id,
+            stage=None, annotations=None, access_control_objects=None):
+        """
+        Alter query.
+
+        :param query_id: id of a query to get
+        :type query_id: str
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+        :param annotations: a dictionary of annotations
+        :type stage: dict or None
+        :param access_control_objects: list access control object names
+        :type access_control_objects: list or None
+
+        """
+        return client_api.alter_query(
+            query_id,
+            client=self,
+            stage=stage, annotations=annotations, access_control_objects=access_control_objects)
+
     def alter_replication_card(
             self,
             replication_card_id,
@@ -2626,7 +2648,8 @@ class YtClient(ClientState):
     def start_query(
             self,
             engine, query,
-            settings=None, files=None, stage=None, annotations=None, access_control_object=None):
+            settings=None, files=None, stage=None, annotations=None, access_control_object=None,
+            access_control_objects=None):
         """
         Start query.
 
@@ -2644,12 +2667,15 @@ class YtClient(ClientState):
         :type stage: dict or None
         :param access_control_object: access control object name
         :type access_control_object: str or None
+        :param access_control_objects: list access control object names
+        :type access_control_objects: list or None
 
         """
         return client_api.start_query(
             engine, query,
             client=self,
-            settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object)
+            settings=settings, files=files, stage=stage, annotations=annotations, access_control_object=access_control_object,
+            access_control_objects=access_control_objects)
 
     def start_transaction(
             self,

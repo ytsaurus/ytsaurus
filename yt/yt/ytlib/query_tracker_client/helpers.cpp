@@ -2,11 +2,30 @@
 
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
+#include <yt/yt/core/ytree/convert.h>
+
 namespace NYT::NQueryTrackerClient {
 
 using namespace NQueryTrackerClient::NRecords;
 using namespace NYTree;
 using namespace NYson;
+
+namespace {
+
+TString FormatAcoList(std::optional<TYsonString> accessControlObjects) {
+    if (!accessControlObjects) {
+        return "[]";
+    }
+
+    auto accessControlObjectsList = ConvertTo<std::vector<TString>>(accessControlObjects);
+    for (size_t i = 0; i < accessControlObjectsList.size(); i++) {
+        accessControlObjectsList[i] = Format("aco:%v", accessControlObjectsList[i]);
+    }
+
+    return ConvertToYsonString(accessControlObjectsList, EYsonFormat::Text).ToString();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,26 +33,26 @@ using namespace NYson;
 
 TString GetFilterFactors(const TActiveQueryPartial& record)
 {
-    return Format("%v %v aco:%v",
+    return Format("%v %v acos:%v",
         record.Query,
         (record.Annotations && *record.Annotations) ? ConvertToYsonString(*record.Annotations, EYsonFormat::Text).ToString() : "",
-        (record.AccessControlObject && *record.AccessControlObject) ? **record.AccessControlObject : "");
+        FormatAcoList(record.AccessControlObjects));
 }
 
 TString GetFilterFactors(const TFinishedQueryPartial& record)
 {
-    return Format("%v %v aco:%v",
+    return Format("%v %v acos:%v",
         record.Query,
         (record.Annotations && *record.Annotations) ? ConvertToYsonString(*record.Annotations, EYsonFormat::Text).ToString() : "",
-        (record.AccessControlObject && *record.AccessControlObject) ? **record.AccessControlObject : "");
+        FormatAcoList(record.AccessControlObjects));
 }
 
 TString GetFilterFactors(const TFinishedQuery& record)
 {
-    return Format("%v %v aco:%v",
+    return Format("%v %v acos:%v",
         record.Query,
         record.Annotations ? ConvertToYsonString(record.Annotations, EYsonFormat::Text).ToString() : "",
-        record.AccessControlObject ? *record.AccessControlObject : "");
+        FormatAcoList(record.AccessControlObjects));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

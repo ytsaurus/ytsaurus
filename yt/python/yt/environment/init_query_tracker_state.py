@@ -4,6 +4,8 @@ from yt.wrapper import YtClient, config
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
+import yt.yson as yson
+
 import argparse
 import logging
 
@@ -466,6 +468,116 @@ TRANSFORMS[7] = [
     ),
 ]
 
+
+def get_access_control_objects_mapper(table):
+    column_names = table.user_columns
+
+    def access_control_objects_mapper(row):
+        result = dict([(key, row.get(key)) for key in column_names])
+
+        aco = row.get("access_control_object")
+        if aco is None:
+            result["access_control_objects"] = yson.YsonList([])
+        else:
+            result["access_control_objects"] = yson.YsonList([aco])
+
+        yield result
+
+    return access_control_objects_mapper
+
+
+ACTIVE_QUERIES_TABLE_V8 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string", {"lock": "client"}),
+        ("query", "string", {"lock": "client"}),
+        ("files", "any", {"lock": "client"}),
+        ("settings", "any", {"lock": "client"}),
+        ("user", "string", {"lock": "client"}),
+        ("access_control_objects", "any", {"lock": "client"}),
+        ("start_time", "timestamp", {"lock": "client"}),
+        ("filter_factors", "string", {"lock": "client"}),
+        ("state", "string", {"lock": "common"}),
+        ("incarnation", "int64", {"lock": "query_tracker"}),
+        ("ping_time", "timestamp", {"lock": "query_tracker"}),
+        ("lease_transaction_id", "string", {"lock": "query_tracker"}),
+        ("assigned_tracker", "string", {"lock": "query_tracker"}),
+        ("progress", "any", {"lock": "query_tracker_progress"}),
+        ("error", "any", {"lock": "query_tracker"}),
+        ("result_count", "int64", {"lock": "query_tracker"}),
+        ("finish_time", "timestamp", {"lock": "common"}),
+        ("abort_request", "any", {"lock": "client"}),
+        ("annotations", "any", {"lock": "client"}),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+FINISHED_QUERIES_TABLE_V8 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string"),
+        ("query", "string"),
+        ("files", "any"),
+        ("settings", "any"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("start_time", "timestamp"),
+        ("state", "string"),
+        ("progress", "any"),
+        ("error", "any"),
+        ("result_count", "int64"),
+        ("finish_time", "timestamp"),
+        ("annotations", "any"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+FINISHED_QUERIES_TABLE_BY_START_TIME_V8 = TableInfo(
+    [
+        ("start_time", "timestamp"),
+        ("query_id", "string")
+    ],
+    [
+        ("engine", "string"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("state", "string"),
+        ("filter_factors", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+    },
+)
+
+TRANSFORMS[8] = [
+    Conversion(
+        "active_queries",
+        table_info=ACTIVE_QUERIES_TABLE_V8,
+        mapper=get_access_control_objects_mapper(ACTIVE_QUERIES_TABLE_V8),
+    ),
+    Conversion(
+        "finished_queries",
+        table_info=FINISHED_QUERIES_TABLE_V8,
+        mapper=get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_V8)
+    ),
+    Conversion(
+        "finished_queries_by_start_time",
+        table_info=FINISHED_QUERIES_TABLE_BY_START_TIME_V8,
+        mapper=get_access_control_objects_mapper(FINISHED_QUERIES_TABLE_BY_START_TIME_V8)
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
@@ -494,6 +606,31 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     )
 
 
+# Warning! This function does NOT perform actual transformations, it only creates tables with required version schemas.
+def create_tables_required_version(client, version, override_tablet_cell_bundle="default", shard_count=1, state_path=DEFAULT_STATE_PATH):
+    """ Creates query tracker tables of required version """
+
+    MIGRATION.create_tables(
+        client=client,
+        target_version=version,
+        tables_path=state_path,
+        shard_count=shard_count,
+        override_tablet_cell_bundle=override_tablet_cell_bundle
+    )
+
+
+def run_migration(client, version, force=True, shard_count=1, state_path=DEFAULT_STATE_PATH):
+    """Run query tracker migration to the required version """
+
+    MIGRATION.run(
+        client=client,
+        tables_path=state_path,
+        target_version=version,
+        shard_count=shard_count,
+        force=force,
+    )
+
+
 def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform query tracker state")
     parser.add_argument("--force", action="store_true", default=False)
@@ -517,13 +654,7 @@ def main():
     if args.latest:
         target_version = MIGRATION.get_latest_version()
 
-    MIGRATION.run(
-        client=client,
-        tables_path=args.state_path,
-        target_version=target_version,
-        shard_count=args.shard_count,
-        force=args.force,
-    )
+    run_migration(client, target_version, args.force, args.shard_count, args.state_path)
 
 
 if __name__ == "__main__":

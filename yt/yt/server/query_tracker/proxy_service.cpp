@@ -51,7 +51,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 8);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 9);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -70,6 +70,10 @@ private:
         if (rpcRequest.has_access_control_object()) {
             options.AccessControlObject = rpcRequest.access_control_object();
         }
+        options.AccessControlObjects = rpcRequest.has_access_control_objects()
+            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            : std::nullopt;
+
         options.Draft = rpcRequest.draft();
 
         for (const auto& requestFile : rpcRequest.files()) {
@@ -278,7 +282,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, AlterQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqAlterQuery::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TReqAlterQuery::GetDescriptor()->field_count() == 5);
         YT_VERIFY(NRpcProxy::NProto::TRspAlterQuery::GetDescriptor()->field_count() == 0);
 
         auto rpcRequest = request->rpc_proxy_request();
@@ -293,6 +297,10 @@ private:
 
         options.AccessControlObject = rpcRequest.has_access_control_object()
             ? std::make_optional(rpcRequest.access_control_object())
+            : std::nullopt;
+
+        options.AccessControlObjects = rpcRequest.has_access_control_objects()
+            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
             : std::nullopt;
 
         auto user = context->GetAuthenticationIdentity().User;
