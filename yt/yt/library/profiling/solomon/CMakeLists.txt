@@ -13,6 +13,7 @@
 # changes in this file.
 
 find_package(linux-headers-generic REQUIRED)
+add_subdirectory(proxy_example)
 
 get_built_tool_path(
   TOOL_protoc_bin
@@ -58,8 +59,10 @@ target_sources(library-profiling-solomon PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/percpu.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/producer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/remote.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp
