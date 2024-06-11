@@ -56,5 +56,6 @@ target_sources(library-query-engine_api PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/position_independent_value_transfer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/range_inferrer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine_api/top_collector.cpp
 )
 

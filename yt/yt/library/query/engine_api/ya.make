@@ -18,6 +18,7 @@ SRCS(
     position_independent_value.cpp
     position_independent_value_transfer.cpp
     range_inferrer.cpp
+    top_collector.cpp
 )
 
 ADDINCL(

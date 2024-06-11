@@ -2,6 +2,7 @@
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/library/query/engine_api/evaluation_helpers.h>
+#include <yt/yt/library/query/engine_api/top_collector.h>
 
 #include <yt/yt/library/web_assembly/api/type_builder.h>
 
@@ -44,7 +45,7 @@ namespace NYT::NWebAssembly {
 
     XX(NQueryClient::TWriteOpClosure*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TGroupByClosure*, EWebAssemblyValueType::UintPtr)
-    XX(NQueryClient::TTopCollector*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TTopCollectorBase*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinClosure*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TArrayJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TMultiJoinParameters*, EWebAssemblyValueType::UintPtr)
@@ -62,7 +63,7 @@ namespace NYT::NWebAssembly {
     XX(unsigned long(*)(NTableClient::TUnversionedValue const*), EWebAssemblyValueType::UintPtr)
     XX(void(*)(void**, NQueryClient::TGroupByClosure*, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
     XX(void(*)(void**, NQueryClient::TMultiJoinClosure*, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
-    XX(void(*)(void**, NQueryClient::TTopCollector*), EWebAssemblyValueType::UintPtr)
+    XX(void(*)(void**, NQueryClient::TTopCollectorBase*), EWebAssemblyValueType::UintPtr)
     XX(void(*)(void**, NQueryClient::TWriteOpClosure*), EWebAssemblyValueType::UintPtr)
     XX(void(*)(void**, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue*), EWebAssemblyValueType::UintPtr)

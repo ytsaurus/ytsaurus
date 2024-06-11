@@ -1647,7 +1647,7 @@ void AllocatePermanentRow(
     *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);
 }
 
-void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
+void AddRowToCollector(TTopCollectorBase* topCollector, TPIValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -1656,7 +1656,7 @@ void OrderOpHelper(
     TExecutionContext* context,
     TComparerFunction* comparerFunction,
     void** collectRowsClosure,
-    void (*collectRowsFunction)(void** closure, TTopCollector* topCollector),
+    void (*collectRowsFunction)(void** closure, TTopCollectorBase* topCollector),
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction,
     size_t rowSize)
@@ -1669,9 +1669,11 @@ void OrderOpHelper(
         YT_LOG_DEBUG("Finalizing order helper");
     });
 
-    auto limit = context->Offset + context->Limit;
-
-    TTopCollector topCollector(limit, comparer, rowSize, context->MemoryChunkProvider);
+    auto topCollector = TTopCollector(
+        context->Offset + context->Limit,
+        comparer,
+        rowSize,
+        context->MemoryChunkProvider);
     collectRows(collectRowsClosure, &topCollector);
     auto rows = topCollector.GetRows();
 
