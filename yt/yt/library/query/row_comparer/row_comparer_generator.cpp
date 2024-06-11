@@ -417,21 +417,21 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
 Value* TComparerBuilder::CreateMin(Value* lhs, Value* rhs, EValueType type)
 {
     YT_VERIFY(lhs->getType() == rhs->getType());
-    return CreateSelect(CreateCmp(lhs, rhs, type, /*isLessThan=*/ true), lhs, rhs);
+    return CreateSelect(CreateCmp(lhs, rhs, type, /*isLessThan*/ true), lhs, rhs);
 }
 
 void TComparerBuilder::BuildCmp(Value* lhs, Value* rhs, EValueType type, int index)
 {
     auto* trueBB = CreateBB("cmp.lower");
     auto* falseBB = CreateBB("cmp.not.lower");
-    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan=*/ true), trueBB, falseBB);
+    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan*/ true), trueBB, falseBB);
     SetInsertPoint(trueBB);
     CreateRet(getInt32(-(index + 1)));
     SetInsertPoint(falseBB);
 
     trueBB = CreateBB("cmp.greater");
     falseBB = CreateBB("cmp.equal");
-    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan=*/ false), trueBB, falseBB);
+    CreateCondBr(CreateCmp(lhs, rhs, type, /*isLessThan*/ false), trueBB, falseBB);
     SetInsertPoint(trueBB);
     CreateRet(getInt32(index + 1));
     SetInsertPoint(falseBB);

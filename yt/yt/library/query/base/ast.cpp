@@ -691,7 +691,7 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
 
     if (query.WherePredicate) {
         builder->AppendString(" WHERE ");
-        FormatExpression(builder, *query.WherePredicate, /*expandAliases=*/true);
+        FormatExpression(builder, *query.WherePredicate, /*expandAliases*/ true);
     }
 
     if (query.GroupExprs) {
@@ -786,14 +786,14 @@ TString FormatQuery(const TQuery& query)
 TString InferColumnName(const TExpression& expr)
 {
     TStringBuilder builder;
-    FormatExpression(&builder, expr, /*expandAliases=*/ false, /*isFinal=*/ true);
+    FormatExpression(&builder, expr, /*expandAliases*/ false, /*isFinal*/ true);
     return builder.Flush();
 }
 
 TString InferColumnName(const TReference& ref)
 {
     TStringBuilder builder;
-    FormatReference(&builder, ref, /*isFinal=*/ true);
+    FormatReference(&builder, ref, /*isFinal*/ true);
     return builder.Flush();
 }
 

@@ -504,7 +504,7 @@ private:
                     IsLargeEnoughChunkWeight(chunk->GetDataWeight(), MinTeleportChunkDataWeight_)))
             {
                 if (Sampler_.Sample()) {
-                    ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
+                    ChunkTeleported_.Fire(chunk, /*tag*/ std::any{});
                 } else {
                     // Drop this teleport chunk.
                 }
@@ -717,7 +717,7 @@ private:
 
         auto jobStub = std::make_unique<TNewJobStub>();
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
-            jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
+            jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
         }
         jobStub->Finalize();
 
@@ -797,7 +797,7 @@ private:
             addedStripeIndexes.push_back(stripeIndex);
 
             for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
-                jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
+                jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
             }
         }
 

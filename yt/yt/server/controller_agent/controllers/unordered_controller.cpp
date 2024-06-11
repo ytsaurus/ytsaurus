@@ -225,7 +225,7 @@ public:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
-            Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, /*tableIndex=*/0);
+            Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
         }
     };
 

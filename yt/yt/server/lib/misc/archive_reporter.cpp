@@ -147,7 +147,7 @@ public:
         Batcher_->UpdateSettings(
             newReporterConfig->ReportingPeriod,
             TBatchSizeLimiter(newReporterConfig->MaxItemsInBatch),
-            /*allowEmptyBatches=*/false);
+            /*allowEmptyBatches*/ false);
         SetEnabled(newReporterConfig->Enabled);
 
         ReporterConfig_.Store(newReporterConfig);

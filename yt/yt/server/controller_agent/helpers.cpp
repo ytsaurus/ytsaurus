@@ -86,7 +86,7 @@ void Deserialize(std::vector<TLegacyOwningKey>& keys, INodePtr node)
     }
 } // namespace
 
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TLegacyOwningKey>)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/ 8, std::vector<TLegacyOwningKey>)
 
 }
 

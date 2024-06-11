@@ -792,7 +792,7 @@ TSharedRange<TRowRange> CreateLightRangeInferrer(
         TRowRange(MinKey(), MaxKey()),
         keyTrie,
         rowBuffer,
-        /*insertUndefined=*/ false,
+        /*insertUndefined*/ false,
         options.RangeExpansionLimit);
 
     TRowRanges resultRanges(mutableRanges.begin(), mutableRanges.end());

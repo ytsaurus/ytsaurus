@@ -584,7 +584,7 @@ private:
                         job->AddDataSlice(
                             exactForeignDataSlice,
                             inputCookie,
-                            /*isPrimary=*/false);
+                            /*isPrimary*/ false);
                         ++jobIndex;
                     } else {
                         // This job and all the subsequent jobs are entirely to the right of foreign data slice.

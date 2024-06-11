@@ -562,7 +562,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
 
 TEST_F(TMultiChunkPoolOutputTest, TestFinalize)
 {
-    InitPools({2, 1}, /*finalize=*/false);
+    InitPools({2, 1}, /*finalize*/ false);
 
     for (int cookie = 0; cookie < 3; ++cookie) {
         EXPECT_EQ(Pool_->Extract(), cookie);
@@ -575,7 +575,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestFinalize)
 
 TEST_F(TMultiChunkPoolOutputTest, TestAddPoolOutput)
 {
-    InitPools({3, 2, 1}, /*finalize=*/false, /*poolsToAdd=*/2);
+    InitPools({3, 2, 1}, /*finalize*/ false, /*poolsToAdd*/ 2);
 
     for (int cookie = 0; cookie < 5; ++cookie) {
         EXPECT_EQ(Pool_->Extract(), cookie);

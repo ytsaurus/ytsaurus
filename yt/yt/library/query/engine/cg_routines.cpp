@@ -3610,7 +3610,7 @@ int CompareAny(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 void ValidateYsonHelper(const char* offset, ui32 length)
 {
     auto* data = ConvertPointerFromWasmToHost(offset, length);
-    ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit=*/ 256);
+    ValidateYson(TYsonStringBuf(TStringBuf(data, length)), /*nestingLevelLimit*/ 256);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

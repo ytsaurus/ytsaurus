@@ -1075,7 +1075,7 @@ public:
         TConcatenateNodesOptions options)
     {
         Options_ = std::move(options);
-        TransactionId_ = Client_->GetTransactionId(options, /*allowNullTransaction=*/true);
+        TransactionId_ = Client_->GetTransactionId(options, /*allowNullTransaction*/ true);
         Append_ = dstPath.GetAppend();
 
         try {
@@ -1560,7 +1560,7 @@ private:
             auto schemasCompatibility = CheckTableSchemaCompatibility(
                 inputTableSchema,
                 *OutputTableSchema_,
-                /*ignoreSortOrder*/false);
+                /*ignoreSortOrder*/ false);
             if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
                 YT_LOG_DEBUG(schemasCompatibility.second,
                     "Input table schema and output table schema are incompatible; "

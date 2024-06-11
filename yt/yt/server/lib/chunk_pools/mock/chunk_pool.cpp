@@ -38,7 +38,7 @@ const TProgressCounterPtr& TChunkPoolOutputMockBase::GetDataSliceCounter() const
 
 void TChunkPoolOutputMockBase::TeleportChunk(TInputChunkPtr teleportChunk)
 {
-    ChunkTeleported_.Fire(std::move(teleportChunk), /*tag=*/std::any{});
+    ChunkTeleported_.Fire(std::move(teleportChunk), /*tag*/ std::any{});
 }
 
 void TChunkPoolOutputMockBase::Complete()

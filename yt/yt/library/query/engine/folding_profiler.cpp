@@ -822,7 +822,7 @@ size_t TExpressionProfiler::Profile(
     }
 
     int index = Variables_->AddOpaque<TSharedRange<TPIRowRange>>(
-        CopyAndConvertToPI(betweenExpr->Ranges, /*captureValues=*/ false));
+        CopyAndConvertToPI(betweenExpr->Ranges, /*captureValues*/ false));
     fragments->DebugInfos.emplace_back(betweenExpr, argIds);
     fragments->Items.emplace_back(
         MakeCodegenBetweenExpr(std::move(argIds), index, ComparerManager_),
@@ -887,7 +887,7 @@ size_t TExpressionProfiler::Profile(
     }
 
     int index = Variables_->AddOpaque<TSharedRange<TRange<TPIValue>>>(
-        CopyAndConvertToPI(transformExpr->Values, /*captureValues=*/ false));
+        CopyAndConvertToPI(transformExpr->Values, /*captureValues*/ false));
     int hashtableIndex = Variables_->AddOpaque<std::unique_ptr<TLookupRowInRowsetWebAssemblyContext>>();
 
     fragments->DebugInfos.emplace_back(transformExpr, argIds, defaultExprId);

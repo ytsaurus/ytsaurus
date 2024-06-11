@@ -256,8 +256,8 @@ TConstExpressionPtr EliminatePredicate(
 
     auto getBounds = [] (const TRowRange& keyRange, size_t keyPartIndex) -> std::pair<TBound, TBound> {
         auto lower = keyPartIndex < keyRange.first.GetCount()
-            ? TBound(keyRange.first[keyPartIndex], /*included=*/ true)
-            : TBound(MakeUnversionedSentinelValue(EValueType::Min), /*included=*/ false);
+            ? TBound(keyRange.first[keyPartIndex], /*included*/ true)
+            : TBound(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ false);
 
         YT_VERIFY(keyPartIndex < keyRange.second.GetCount());
         auto upper = TBound(keyRange.second[keyPartIndex], keyPartIndex + 1 < keyRange.second.GetCount());
@@ -314,35 +314,35 @@ TConstExpressionPtr EliminatePredicate(
 
                         switch (opcode) {
                             case EBinaryOp::Equal:
-                                bounds.emplace_back(value, /*included=*/ true);
-                                bounds.emplace_back(value, /*included=*/ true);
+                                bounds.emplace_back(value, /*included*/ true);
+                                bounds.emplace_back(value, /*included*/ true);
                                 break;
 
                             case EBinaryOp::NotEqual:
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included=*/ true);
-                                bounds.emplace_back(value, /*included=*/ false);
-                                bounds.emplace_back(value, /*included=*/ false);
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included=*/ true);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                                bounds.emplace_back(value, /*included*/ false);
+                                bounds.emplace_back(value, /*included*/ false);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
                                 break;
 
                             case EBinaryOp::Less:
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included=*/ true);
-                                bounds.emplace_back(value, /*included=*/ false);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                                bounds.emplace_back(value, /*included*/ false);
                                 break;
 
                             case EBinaryOp::LessOrEqual:
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included=*/ true);
-                                bounds.emplace_back(value, /*included=*/ true);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Min), /*included*/ true);
+                                bounds.emplace_back(value, /*included*/ true);
                                 break;
 
                             case EBinaryOp::Greater:
-                                bounds.emplace_back(value, /*included=*/ false);
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included=*/ true);
+                                bounds.emplace_back(value, /*included*/ false);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
                                 break;
 
                             case EBinaryOp::GreaterOrEqual:
-                                bounds.emplace_back(value, /*included=*/ true);
-                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included=*/ true);
+                                bounds.emplace_back(value, /*included*/ true);
+                                bounds.emplace_back(MakeUnversionedSentinelValue(EValueType::Max), /*included*/ true);
                                 break;
 
                             default:

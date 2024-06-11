@@ -1030,7 +1030,7 @@ public:
         ValidateEnabled();
 
         try {
-            EnsureJobProxyFinished(slotIndex, /*kill =*/ true);
+            EnsureJobProxyFinished(slotIndex, /*kill */ true);
             Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes")

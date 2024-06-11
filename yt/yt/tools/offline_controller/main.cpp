@@ -525,7 +525,7 @@ void GuardedMain(int argc, char** argv)
     auto controller = CreateOperationController(operation);
 
     if (rct) {
-        Cerr << TRefCountedTracker::Get()->GetDebugInfo(/*sortByColumn=*/2/*bytesAlive*/) << Endl;
+        Cerr << TRefCountedTracker::Get()->GetDebugInfo(/*sortByColumn*/2/*bytesAlive*/) << Endl;
     }
 
     if (loop) {

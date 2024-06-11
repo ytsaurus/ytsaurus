@@ -576,7 +576,7 @@ private:
 
         i64 totalTeleportChunkSize = 0;
         for (const auto& teleportChunk : TeleportChunks_) {
-            ChunkTeleported_.Fire(teleportChunk, /*tag=*/std::any{});
+            ChunkTeleported_.Fire(teleportChunk, /*tag*/ std::any{});
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 

@@ -734,7 +734,7 @@ struct TCastEliminator
                 YT_VERIFY(literal->Value.Type() == EValueType::String);
                 auto asUnversionedValue = TUnversionedValue(literal->Value);
                 asUnversionedValue.Type = EValueType::Any;
-                ValidateYson(TYsonStringBuf(asUnversionedValue.AsStringBuf()), /*nestingLevelLimit=*/ 256);
+                ValidateYson(TYsonStringBuf(asUnversionedValue.AsStringBuf()), /*nestingLevelLimit*/ 256);
                 return New<TLiteralExpression>(EValueType::Any, TOwningValue(asUnversionedValue));
             }
         }
@@ -1547,7 +1547,7 @@ public:
             } else {
                 auto argExpression = typer.second(type);
                 TConstAggregateFunctionExpressionPtr expr = New<TAggregateFunctionExpression>(
-                    MakeLogicalType(GetLogicalType(type), /*required=*/ false),
+                    MakeLogicalType(GetLogicalType(type), /*required*/ false),
                     subexpressionName,
                     std::vector{argExpression},
                     type,
@@ -1835,7 +1835,7 @@ TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
             return columnReference;
         };
 
-        return {TTypeSet({GetWireType(columnType)}), std::move(generator), /*IsConstant=*/ false};
+        return {TTypeSet({GetWireType(columnType)}), std::move(generator), /*IsConstant*/ false};
     }
 
     auto resolved = ResolveNestedTypes(columnType, reference);
@@ -1983,7 +1983,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             return expr;
         };
 
-        return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
+        return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
     } else if (const auto* aggregateItem = descriptor->As<TAggregateTypeInferrer>()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
@@ -2155,7 +2155,7 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
             lhs.Generator(argTypes.first),
             rhs.Generator(argTypes.second));
     };
-    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
 struct TBinaryOpGenerator
@@ -2307,7 +2307,7 @@ TUntypedExpression TBuilderCtx::OnInOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnBetweenOp(
@@ -2332,7 +2332,7 @@ TUntypedExpression TBuilderCtx::OnBetweenOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnTransformOp(
@@ -2461,7 +2461,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
     TExpressionGenerator generator = [result] (EValueType /*type*/) mutable {
         return result;
     };
-    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
@@ -2604,7 +2604,7 @@ TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
         return result;
     };
 
-    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{TTypeSet({resultType}), std::move(generator), /*IsConstant*/ false};
 }
 
 TUntypedExpression TBuilderCtx::OnLikeOp(const NAst::TLikeExpression* likeExpr)
@@ -2658,7 +2658,7 @@ TUntypedExpression TBuilderCtx::OnLikeOp(const NAst::TLikeExpression* likeExpr)
         return result;
     };
 
-    return TUntypedExpression{TTypeSet({EValueType::Boolean}), std::move(generator), /*IsConstant=*/ false};
+    return TUntypedExpression{TTypeSet({EValueType::Boolean}), std::move(generator), /*IsConstant*/ false};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

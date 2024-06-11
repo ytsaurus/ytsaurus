@@ -259,9 +259,9 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key=*/TOutputOrder::TEntry(teleportChunk), /*tableIndex=*/0);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TOutputOrder::TEntry(teleportChunk), /*tableIndex*/ 0);
             } else {
-                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, /*tableIndex=*/0);
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
             }
         }
 

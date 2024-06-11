@@ -288,7 +288,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
         GetType(),
         GetJobTrackerAddress(),
         GetStartTime(),
-        /*jobDuration=*/ TInstant::Now() - GetStartTime(),
+        /*jobDuration*/ TInstant::Now() - GetStartTime(),
         baseResourceUsage,
         additionalResourceUsage);
 }

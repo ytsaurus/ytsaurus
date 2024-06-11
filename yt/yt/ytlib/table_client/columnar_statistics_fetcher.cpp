@@ -38,7 +38,7 @@ TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
         client,
         options.Logger)
     , Options_(std::move(options))
-    , ColumnFilterDictionary_(/*sortColumns=*/false)
+    , ColumnFilterDictionary_(/*sortColumns*/ false)
 { }
 
 void TColumnarStatisticsFetcher::ProcessDynamicStore(int chunkIndex)

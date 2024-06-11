@@ -3094,7 +3094,7 @@ protected:
             if (key.GetCount() == 0) {
                 continue;
             }
-            auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /*isInclusive*/true, /*isUpper*/false);
+            auto upperBound = TKeyBound::FromRow(RowBuffer->CaptureRow(key), /*isInclusive*/ true, /*isUpper*/ false);
             partitionKeys.emplace_back(upperBound);
         }
 
@@ -3105,7 +3105,7 @@ protected:
     {
         const auto& finalPartitions = GetFinalPartitions();
         YT_VERIFY(finalPartitions.size() == partitionKeys.size() + 1);
-        finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/*isUpper*/false);
+        finalPartitions[0]->LowerBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
         for (int finalPartitionIndex = 1; finalPartitionIndex < std::ssize(finalPartitions); ++finalPartitionIndex) {
             const auto& partition = finalPartitions[finalPartitionIndex];
             const auto& partitionKey = partitionKeys[finalPartitionIndex - 1];
@@ -4470,7 +4470,7 @@ private:
     void InitJobSpecTemplates()
     {
         {
-            RootPartitionJobSpecTemplate.set_type(static_cast<int>(GetPartitionJobType(/*isRoot=*/true)));
+            RootPartitionJobSpecTemplate.set_type(static_cast<int>(GetPartitionJobType(/*isRoot*/ true)));
 
             auto* jobSpecExt = RootPartitionJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
 
@@ -4837,7 +4837,7 @@ private:
         fluent
             .Do(BIND(&TMapReduceController::BuildPartitionsProgressYson, Unretained(this)))
             // TODO(gritukan): What should I do here?
-            .Item(JobTypeAsKey(GetPartitionJobType(/*isRoot=*/true))).Value(GetPartitionJobCounter())
+            .Item(JobTypeAsKey(GetPartitionJobType(/*isRoot*/ true))).Value(GetPartitionJobCounter())
             .Item(JobTypeAsKey(GetIntermediateSortJobType())).Value(IntermediateSortJobCounter)
             .Item(JobTypeAsKey(GetFinalSortJobType())).Value(FinalSortJobCounter)
             .Item(JobTypeAsKey(GetSortedMergeJobType())).Value(SortedMergeJobCounter)

@@ -412,7 +412,7 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
             for (auto key : keys) {
                 prefixKeys.push_back(permanentBuffer->CaptureRow(
                     MakeRange(key.Begin(), foreignKeyPrefix),
-                    /*captureValues=*/ false));
+                    /*captureValues*/ false));
             }
             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
             dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));

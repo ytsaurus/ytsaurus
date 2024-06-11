@@ -148,7 +148,7 @@ TYsonString MergeAttributeValuesAsNodes(
             auto parentNode = NYTree::FindNodeByYPath(rootNode, attributeValue.Path);
             if (!parentNode) {
                 parentNode = NYTree::GetEphemeralNodeFactory()->CreateMap();
-                SetNodeByYPath(rootNode, attributeValue.Path, parentNode, /*force*/true);
+                SetNodeByYPath(rootNode, attributeValue.Path, parentNode, /*force*/ true);
             }
             THROW_ERROR_EXCEPTION_UNLESS(parentNode->GetType() == NYTree::ENodeType::Map,
                 "Cannot merge etc node into non-map node %v",
@@ -167,7 +167,7 @@ TYsonString MergeAttributeValuesAsNodes(
             rootNode = node->AsMap();
         } else {
             RemoveEntitiesOnPath(rootNode, attributeValue.Path);
-            SetNodeByYPath(rootNode, attributeValue.Path, node, /*force*/true);
+            SetNodeByYPath(rootNode, attributeValue.Path, node, /*force*/ true);
         }
     }
 
