@@ -1707,7 +1707,7 @@ done
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
 
-        if isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool):
+        if isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool) and sort_order == "ascending":
             pytest.xfail("New sorted pool does not work properly yet")
 
         def write(path, rows):

@@ -7700,15 +7700,16 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                                 YT_ABORT();
                         }
                     }
+                    auto chunkSlice = CreateInputChunkSlice(inputChunk);
+                    chunkSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                     auto& dataSlice = result.back().emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
-                        inputChunk,
-                        GetKeyPrefix(inputChunk->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
-                        GetKeyPrefixSuccessor(inputChunk->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
+                        *chunkSlice,
+                        table->Comparator,
+                        TKeyBound::FromRow() >= GetKeyPrefix(inputChunk->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
+                        TKeyBound::FromRow() <= GetKeyPrefix(inputChunk->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
                     dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
 
                     YT_VERIFY(table->Comparator);
-
-                    dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                 }
             }
         }
