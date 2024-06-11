@@ -76,7 +76,11 @@ public class CypressTest extends YTsaurusClientTestBase {
 
         long start = System.currentTimeMillis();
         yt.existsNode(tablePath.toString()).join();
-        Assert.assertTrue("No delay", System.currentTimeMillis() - start < 1000);
+        long noDelayExecutionTime = System.currentTimeMillis() - start;
+        Assert.assertTrue(
+                String.format("No delay, exec time: %d ms", noDelayExecutionTime),
+                noDelayExecutionTime < 1000
+        );
     }
 
     @SuppressWarnings("checkstyle:AvoidNestedBlocks")
