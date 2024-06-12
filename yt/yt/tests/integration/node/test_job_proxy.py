@@ -459,6 +459,8 @@ class TestDumpJobProxyLog(YTEnvSetup):
     NUM_CONTROLLER_AGENTS = 1
     USE_DYNAMIC_TABLES = True
 
+    JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
+
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_controller": {
@@ -467,11 +469,6 @@ class TestDumpJobProxyLog(YTEnvSetup):
                     "cpu": 5,
                     "memory": 5 * 1024 ** 3,
                 }
-            },
-            "job_proxy": {
-                "job_proxy_logging": {
-                    "mode": "per_job_directory",
-                },
             },
         },
         "job_resource_manager": {
@@ -500,6 +497,18 @@ class TestDumpJobProxyLog(YTEnvSetup):
         },
     }
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                },
+            },
+        },
+    }
+
     def setup_method(self, method):
         super(TestDumpJobProxyLog, self).setup_method(method)
         sync_create_cells(1)
@@ -522,4 +531,22 @@ class TestDumpJobProxyLog(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        assert read_file(path)
+        for line in read_file(path).decode("utf-8").split("\n"):
+            if "Job spec received" in line:
+                assert job_id in line
+
+    @authors("tagirhamitov")
+    def test_rpc_method_after_job_finished(self):
+        path = "//tmp/job_proxy.log"
+        create("file", path)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+        release_breakpoint()
+        op.track()
+
+        dump_job_proxy_log(job_id, op.id, path)
+
+        for line in read_file(path).decode("utf-8").split("\n"):
+            if "Job spec received" in line:
+                assert job_id in line
