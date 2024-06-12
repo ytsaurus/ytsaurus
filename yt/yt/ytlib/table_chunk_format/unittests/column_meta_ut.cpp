@@ -1,6 +1,8 @@
-#include "helpers.h"
-
 #include <yt/yt/ytlib/table_chunk_format/column_meta.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -9,7 +11,13 @@
 #include <google/protobuf/util/message_differencer.h>
 
 namespace NYT::NTableChunkFormat {
+
 namespace {
+
+using namespace NTableClient;
+
+using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +30,7 @@ TEST(TColumnMetaTest, SegmentMetaExtensionsCount)
     descriptorPool->FindAllExtensions(descriptor, &allExtensions);
 
     // This will remind keeping TSegmentMeta syncronyzed with NProto::TSegmentMeta.
-    EXPECT_EQ(TSegmentMeta::GetExtensionsCount(), ssize(allExtensions));
+    EXPECT_EQ(TSegmentMeta::GetExtensionCount(), ssize(allExtensions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

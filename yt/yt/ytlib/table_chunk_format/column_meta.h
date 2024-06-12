@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/transaction_client/public.h>
+
 #include <yt_proto/yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 namespace NYT::NTableChunkFormat {
@@ -10,7 +12,7 @@ namespace NYT::NTableChunkFormat {
 
 struct TTimestampSegmentMeta
 {
-    ui64 MinTimestamp;
+    NTransactionClient::TTimestamp MinTimestamp;
     ui32 ExpectedWritesPerRow;
     ui32 ExpectedDeletesPerRow;
 };
@@ -80,10 +82,10 @@ void FromProto(
 
 struct TSegmentMeta
 {
-    i32 Version;
-    i32 Type;
+    int Version;
+    int Type;
     i64 RowCount;
-    i32 BlockIndex;
+    int BlockIndex;
     i64 Offset;
     i64 ChunkRowCount;
     i64 Size;
@@ -98,7 +100,7 @@ struct TSegmentMeta
 
     //! This function is used for keeping TSegmentMeta syncronized with NProto::TSegmentMeta.
     //! Returns count of extensions that were added into TSegmentMeta.
-    static i32 GetExtensionsCount();
+    static int GetExtensionCount();
 };
 
 struct TColumnMeta
@@ -111,7 +113,6 @@ struct TColumnMeta
 void ToProto(
     NProto::TSegmentMeta* protoSegmentMeta,
     const TSegmentMeta& segmentMeta);
-
 void FromProto(
     TSegmentMeta* segmentMeta,
     const NProto::TSegmentMeta& protoSegmentMeta);
@@ -119,7 +120,6 @@ void FromProto(
 void ToProto(
     NProto::TColumnMeta* protoColumnMeta,
     const TColumnMeta& columnMeta);
-
 void FromProto(
     TColumnMeta* columnMeta,
     const NProto::TColumnMeta& protoColumnMeta);

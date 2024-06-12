@@ -1701,22 +1701,6 @@ public:
         }
     }
 
-    // To remove potential users data from error and secure them.
-    TError SanitizeError(TError error)
-    {
-        static const std::vector<TString> ForbiddenAttributes = {
-            "lhs_value",
-            "rhs_value",
-        };
-
-        for (const auto& attribute : ForbiddenAttributes) {
-            if (error.MutableAttributes()->Contains(attribute)) {
-                error.MutableAttributes()->Remove(attribute);
-            }
-        }
-        return error;
-    }
-
     void ProcessJobHeartbeat(TNode* node, const TCtxJobHeartbeatPtr& context) override
     {
         YT_VERIFY(IsLeader() || IsFollower());

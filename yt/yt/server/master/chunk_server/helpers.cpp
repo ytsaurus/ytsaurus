@@ -1287,6 +1287,21 @@ TJobPtr MummifyJob(const TJobPtr& job)
     return New<TMummyJob>(*job);
 }
 
+TError SanitizeError(TError error)
+{
+    static const std::vector<TString> ForbiddenAttributes = {
+        "lhs_value",
+        "rhs_value",
+    };
+
+    for (const auto& attribute : ForbiddenAttributes) {
+        if (error.MutableAttributes()->Contains(attribute)) {
+            error.MutableAttributes()->Remove(attribute);
+        }
+    }
+    return error;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

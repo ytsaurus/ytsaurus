@@ -182,7 +182,7 @@ DEFINE_ENUM(EMasterReign,
     ((PendingRemovalUserAttribute)                                  (2574))  // cherepashka
     ((DynamizationCypressConfig)                                    (2575))  // kivedernikov
     ((ChunkMetaLimit)                                               (2576))  // kivedernikov
-    ((RemovedeRedundantStatisticsFromChunkOwnerBase)                (2577))  // cherepashka
+    ((RemovedRedundantStatisticsFromChunkOwnerBase)                 (2577))  // cherepashka
     ((SerializationOfDataStatistics)                                (2578))  // cherepashka
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko

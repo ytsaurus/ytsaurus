@@ -1,6 +1,6 @@
-#include <yt/yt/ytlib/table_chunk_format/unittests/helpers.h>
-
 #include <yt/yt/ytlib/table_client/helpers.h>
+
+#include <yt/yt/client/table_client/unittests/helpers/helpers.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
@@ -9,9 +9,10 @@
 #include <google/protobuf/util/message_differencer.h>
 
 namespace NYT::NTableClient {
+
 namespace {
 
-TEST(TChunkMetaExtensions, TBoundaryKeysExtParsing)
+TEST(TChunkMetaExtensionsTest, BoundaryKeysExtParsing)
 {
     NProto::TBoundaryKeysExt expectedBoundaryKeysExt;
     expectedBoundaryKeysExt.set_min("MIN");
@@ -20,17 +21,17 @@ TEST(TChunkMetaExtensions, TBoundaryKeysExtParsing)
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(NYT::ToProto<NProto::TBoundaryKeysExt>(parsedBoundaryKeys), expectedBoundaryKeysExt));
 }
 
-TEST(TChunkMetaExtensions, TColumnMetaExtension)
+TEST(TChunkMetaExtensionsTest, ColumnMetaExtensionParsing)
 {
     NProto::TColumnMetaExt expectedColumnMetaExt;
     auto* column = expectedColumnMetaExt.add_columns();
-    *column->add_segments() = NTableChunkFormat::CreateSimpleSegmentMeta();
+    *column->add_segments() = CreateSimpleSegmentMeta();
 
     auto parsedColumnMeta = NYT::FromProto<TColumnMetaExtension>(expectedColumnMetaExt);
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(NYT::ToProto<NProto::TColumnMetaExt>(parsedColumnMeta), expectedColumnMetaExt));
 }
 
-TEST(TChunkMetaExtensions, TKeyColumnsExtension)
+TEST(TChunkMetaExtensionsTest, KeyColumnsExtensionParsing)
 {
     NProto::TKeyColumnsExt expectedKeyColumnsExt;
     *expectedKeyColumnsExt.add_names() = "k1";
@@ -40,7 +41,7 @@ TEST(TChunkMetaExtensions, TKeyColumnsExtension)
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(NYT::ToProto<NProto::TKeyColumnsExt>(parsedKeyColumns), expectedKeyColumnsExt));
 }
 
-TEST(TChunkMetaExtensions, TSamplesExtension)
+TEST(TChunkMetaExtensionsTest, SamplesExtensionParsing)
 {
     NProto::TSamplesExt expectedSamplesExt;
     *expectedSamplesExt.add_entries() = "e1";
@@ -53,6 +54,7 @@ TEST(TChunkMetaExtensions, TSamplesExtension)
     auto parsedSamples = NYT::FromProto<TSamplesExtension>(expectedSamplesExt);
     EXPECT_TRUE(google::protobuf::util::MessageDifferencer::Equals(NYT::ToProto<NProto::TSamplesExt>(parsedSamples), expectedSamplesExt));
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
