@@ -633,9 +633,10 @@ public: \
         (jobId, options))
     IMPLEMENT_METHOD(void, DumpJobProxyLog, (
         NScheduler::TJobId jobId,
+        NScheduler::TOperationId operationId,
         const NYPath::TYPath& path,
         const TDumpJobProxyLogOptions& options),
-        (jobId, path, options))
+        (jobId, operationId, path, options))
 
     IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
         const TGetClusterMetaOptions& options),

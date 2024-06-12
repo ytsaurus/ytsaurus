@@ -2508,7 +2508,8 @@ message TRspAbortJob
 message TReqDumpJobProxyLog
 {
     required NYT.NProto.TGuid job_id = 1;
-    required string path = 2; // YPath
+    required NYT.NProto.TGuid operation_id = 2;
+    required string path = 3; // YPath
 }
 
 message TRspDumpJobProxyLog

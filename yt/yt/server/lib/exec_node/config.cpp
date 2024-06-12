@@ -889,7 +889,7 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0);
 
     registrar.Parameter("buffer_size", &TThis::BufferSize)
-        .Default(1024 * 1024)
+        .Default(1_MB)
         .GreaterThan(0);
 }
 

@@ -120,14 +120,16 @@ def abort_job(job_id, interrupt_timeout=None, client=None):
     return make_request("abort_job", params, client=client)
 
 
-def dump_job_proxy_log(job_id, path, client=None):
+def dump_job_proxy_log(job_id, operation_id, path, client=None):
     """Dumps JobProxy logs for a specified job to cypress.
 
     :param str job_id: job id.
+    :param str operation_id: operation id.
     :param str path: ypath to dump logs to.
     """
     params = {
         "job_id": job_id,
+        "operation_id": operation_id,
         "path": path
     }
     return make_request("dump_job_proxy_log", params, client=client)

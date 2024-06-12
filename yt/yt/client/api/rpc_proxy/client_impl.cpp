@@ -1515,6 +1515,7 @@ TFuture<void> TClient::AbortJob(
 
 TFuture<void> TClient::DumpJobProxyLog(
     NJobTrackerClient::TJobId jobId,
+    NJobTrackerClient::TOperationId operationId,
     const NYPath::TYPath& path,
     const TDumpJobProxyLogOptions& options)
 {
@@ -1524,6 +1525,7 @@ TFuture<void> TClient::DumpJobProxyLog(
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_operation_id(), operationId);
     ToProto(req->mutable_path(), path);
 
     return req->Invoke().As<void>();

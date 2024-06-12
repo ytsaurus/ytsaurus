@@ -307,6 +307,7 @@ public:
 
     TFuture<void> DumpJobProxyLog(
         NJobTrackerClient::TJobId jobId,
+        NJobTrackerClient::TOperationId operationId,
         const NYPath::TYPath& path,
         const NApi::TDumpJobProxyLogOptions& options) override;
 

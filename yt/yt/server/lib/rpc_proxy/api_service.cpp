@@ -3332,6 +3332,7 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         auto jobId = FromProto<TJobId>(request->job_id());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
         auto path = FromProto<TYPath>(request->path());
 
         TDumpJobProxyLogOptions options;
@@ -3342,7 +3343,7 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->DumpJobProxyLog(jobId, path, options);
+                return client->DumpJobProxyLog(jobId, operationId, path, options);
             });
     }
 

@@ -663,8 +663,9 @@ def abort_job(job_id, **kwargs):
     execute_command("abort_job", kwargs)
 
 
-def dump_job_proxy_log(job_id, path, **kwargs):
+def dump_job_proxy_log(job_id, operation_id, path, **kwargs):
     kwargs["job_id"] = job_id
+    kwargs["operation_id"] = operation_id
     kwargs["path"] = path
     execute_command("dump_job_proxy_log", kwargs)
 

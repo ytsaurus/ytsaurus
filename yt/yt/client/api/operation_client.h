@@ -450,6 +450,7 @@ struct IOperationClient
 
     virtual TFuture<void> DumpJobProxyLog(
         NJobTrackerClient::TJobId jobId,
+        NJobTrackerClient::TOperationId operationId,
         const NYPath::TYPath& path,
         const TDumpJobProxyLogOptions& = {}) = 0;
 };

@@ -4,8 +4,6 @@
 #include "config.h"
 #include "helpers.h"
 
-#include <yt/yt/client/api/transaction.h>
-
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 #include <yt/yt/ytlib/controller_agent/job_prober_service_proxy.h>
 
@@ -14,6 +12,8 @@
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
+
+#include <yt/yt/client/api/transaction.h>
 
 namespace NYT::NApi::NNative {
 
@@ -216,30 +216,21 @@ void TClient::DoAbortJob(
 
 void TClient::DoDumpJobProxyLog(
     TJobId jobId,
+    TOperationId operationId,
     const TYPath& path,
     const TDumpJobProxyLogOptions& /*options*/)
 {
-    auto allocationId = AllocationIdFromJobId(jobId);
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    auto allocationBriefInfo = WaitFor(GetAllocationBriefInfo(
-        *SchedulerOperationProxy_,
-        allocationId,
-        NScheduler::TAllocationInfoToRequest{
-            .OperationId = true,
-            .OperationAcl = true,
-            .NodeDescriptor = true,
-        }))
+    auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read))
         .ValueOrThrow();
 
-    ValidateOperationAccess(
-        allocationBriefInfo.OperationId,
-        *allocationBriefInfo.OperationAcl,
-        jobId,
-        EPermissionSet(EPermission::Manage));
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Dump JobProxy logs of job %v of operation %v", jobId, allocationBriefInfo.OperationId));
+        attributes->Set("title", Format("Dump JobProxy logs of job %v of operation %v", jobId, operationId));
 
         NApi::TTransactionStartOptions options{
             .Attributes = std::move(attributes)
@@ -249,10 +240,7 @@ void TClient::DoDumpJobProxyLog(
             .ValueOrThrow();
     }();
 
-    NJobProberClient::TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
-        allocationBriefInfo.NodeDescriptor));
-
-    auto req = proxy.DumpJobProxyLog();
+    auto req = jobProberServiceProxy.DumpJobProxyLog();
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_path(), path);
     ToProto(req->mutable_transaction_id(), transaction->GetId());

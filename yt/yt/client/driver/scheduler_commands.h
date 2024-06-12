@@ -255,6 +255,7 @@ class TDumpJobProxyLogCommand
 {
 private:
     NJobTrackerClient::TJobId JobId;
+    NJobTrackerClient::TOperationId OperationId;
     NYPath::TYPath Path;
 
 public:

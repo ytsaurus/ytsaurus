@@ -4,7 +4,10 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
-    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table, dump_job_proxy_log, read_file)
+    wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
+    dump_job_proxy_log, read_file, sync_create_cells, update_controller_agent_config)
+
+import yt.environment.init_operations_archive as init_operations_archive
 
 from yt.common import YtError, update_inplace
 from yt.wrapper import YtClient
@@ -453,6 +456,8 @@ class TestDumpJobProxyLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+    USE_DYNAMIC_TABLES = True
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -478,15 +483,43 @@ class TestDumpJobProxyLog(YTEnvSetup):
         },
     }
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestDumpJobProxyLog, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def teardown_method(self, method):
+        remove("//sys/operations_archive", force=True)
+        super(TestDumpJobProxyLog, self).teardown_method(method)
+
     @authors("tagirhamitov")
     def test_rpc_method(self):
         path = "//tmp/job_proxy.log"
         create("file", path)
 
-        run_test_vanilla(with_breakpoint("BREAKPOINT"))
-
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
         job_id = wait_breakpoint()[0]
-        dump_job_proxy_log(job_id, path)
+        dump_job_proxy_log(job_id, op.id, path)
         release_breakpoint()
+        op.track()
 
         assert read_file(path)

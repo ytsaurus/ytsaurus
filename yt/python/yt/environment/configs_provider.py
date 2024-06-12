@@ -1006,11 +1006,12 @@ def _build_node_configs(node_dirs,
                 "exec_node/job_proxy_log_manager/directory_traversal_concurrency",
                 yt_config.job_proxy_log_manager["directory_traversal_concurrency"]
             )
-        set_at(
-            config,
-            "exec_node/job_proxy_log_manager/buffer_size",
-            yt_config.job_proxy_log_manager["buffer_size"]
-        )
+        if "buffer_size" in yt_config.job_proxy_log_manager:
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/buffer_size",
+                yt_config.job_proxy_log_manager["buffer_size"]
+            )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
         set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
