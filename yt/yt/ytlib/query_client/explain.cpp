@@ -132,7 +132,6 @@ void GetFrontQueryInfo(
 
 void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query)
 {
-    const auto& keyColumns = query->GetKeyColumns();
     const auto& predicate = query->WhereClause;
 
     std::vector<TRange<TConstJoinClausePtr>> groupedJoins;
