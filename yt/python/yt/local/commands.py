@@ -208,7 +208,6 @@ def start(master_count=1,
         "sharding_key_length": 3,
         "logs_storage_period": "7d",
         "directory_traversal_concurrency": None,
-        "buffer_size": 1024 * 1024,
     }
 
     yt_config = LocalYtConfig(

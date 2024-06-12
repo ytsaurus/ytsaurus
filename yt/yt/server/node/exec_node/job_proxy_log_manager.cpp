@@ -41,7 +41,7 @@ public:
         , LogsStoragePeriod_(Config_->LogsStoragePeriod)
         , DirectoryTraversalConcurrency_(Config_->DirectoryTraversalConcurrency)
         , AsyncSemaphore_(New<NConcurrency::TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency.value_or(0)))
-        , BufferSize_(Config_->BufferSize)
+        , DumpJobProxyLogBufferSize_(Config_->DumpJobProxyLogBufferSize)
     { }
 
     void Start() override
@@ -87,7 +87,7 @@ public:
         auto logsPath = JobIdToLogsPath(jobId);
 
         auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
-        auto buffer = TSharedMutableRef::Allocate(BufferSize_);
+        auto buffer = TSharedMutableRef::Allocate(DumpJobProxyLogBufferSize_);
 
         NApi::TFileWriterOptions options;
         options.TransactionId = transactionId;
@@ -97,7 +97,7 @@ public:
             .ThrowOnError();
 
         while (true) {
-            auto bytesRead = logFile.Read((void*)buffer.Data(), BufferSize_);
+            auto bytesRead = logFile.Read((void*)buffer.Data(), DumpJobProxyLogBufferSize_);
 
             if (bytesRead == 0) {
                 break;
@@ -123,7 +123,7 @@ private:
     std::optional<int> DirectoryTraversalConcurrency_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
-    i64 BufferSize_;
+    i64 DumpJobProxyLogBufferSize_;
 
     void CreateShardingDirectories()
     {

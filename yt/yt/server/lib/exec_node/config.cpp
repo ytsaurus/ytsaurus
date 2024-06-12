@@ -888,7 +888,7 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(0);
 
-    registrar.Parameter("buffer_size", &TThis::BufferSize)
+    registrar.Parameter("dump_job_proxy_log_buffer_size", &TThis::DumpJobProxyLogBufferSize)
         .Default(1_MB)
         .GreaterThan(0);
 }

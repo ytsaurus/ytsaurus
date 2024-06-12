@@ -802,7 +802,7 @@ public:
     // Value std::nullopt means unlimited concurrency.
     std::optional<int> DirectoryTraversalConcurrency;
 
-    i64 BufferSize;
+    i64 DumpJobProxyLogBufferSize;
 
     REGISTER_YSON_STRUCT(TJobProxyLogManagerConfig);
 
