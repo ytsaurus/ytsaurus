@@ -1480,7 +1480,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithBatchSc
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
-                result->StartDescriptor.emplace(TAllocationId(TGuid::Create()), operationAllocationResources);
+                result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
             }));
@@ -1688,7 +1688,7 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableChildSetWithoutBatc
             .Times(2)
             .WillRepeatedly(testing::Invoke([&] (auto /*context*/, auto /*allocationLimits*/, auto /*diskResourceLimits*/, auto /*treeId*/, auto /*poolPath*/, auto /*treeConfig*/) {
                 auto result = New<TControllerScheduleAllocationResult>();
-                result->StartDescriptor.emplace(TAllocationId(TGuid::Create()), operationAllocationResources);
+                result->StartDescriptor.emplace(TAllocationStartDescriptor{TAllocationId(TGuid::Create()), operationAllocationResources, TAllocationAttributes{}});
                 return MakeFuture<TControllerScheduleAllocationResultPtr>(
                     TErrorOr<TControllerScheduleAllocationResultPtr>(result));
             }));

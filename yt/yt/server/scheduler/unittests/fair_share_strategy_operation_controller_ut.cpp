@@ -585,7 +585,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
                 Sleep(TDuration::Seconds(2));
 
                 auto result = New<TControllerScheduleAllocationResult>();
-                result->StartDescriptor.emplace(firstAllocationId, /*resourceLimits*/ TJobResources());
+                result->StartDescriptor.emplace(TAllocationStartDescriptor{firstAllocationId, /*resourceLimits*/ TJobResources(), TAllocationAttributes{}});
                 return result;
             })
                 .AsyncVia(actionQueue->GetInvoker())
@@ -596,7 +596,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
                 Sleep(TDuration::MilliSeconds(10));
 
                 auto result = New<TControllerScheduleAllocationResult>();
-                result->StartDescriptor.emplace(secondAllocationId, /*resourceLimits*/ TJobResources());
+                result->StartDescriptor.emplace(TAllocationStartDescriptor{secondAllocationId, /*resourceLimits*/ TJobResources(), TAllocationAttributes{}});
                 return result;
             })
                 .AsyncVia(actionQueue->GetInvoker())
