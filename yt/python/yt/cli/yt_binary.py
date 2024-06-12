@@ -2478,7 +2478,7 @@ def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path to part of the spec")
-    add_hybrid_argument(parser, "spec", group_required=False,
+    add_hybrid_argument(parser, "value", group_required=False,
                         help="new spec attribute value")
 
 
