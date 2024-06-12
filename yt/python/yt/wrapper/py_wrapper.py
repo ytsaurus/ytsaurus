@@ -526,6 +526,7 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
         if get_config(client)["pickling"]["load_additional_dill_types"]:
             pickler.load_types()
         if is_running_interactively():
+            dump_kwargs["recurse"] = True
             dump_kwargs["byref"] = False
 
     with open(function_filename, "wb") as fout:
