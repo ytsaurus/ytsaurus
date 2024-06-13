@@ -1294,14 +1294,12 @@ private:
         const IClientBasePtr& client,
         const TString& accountName)
     {
-        auto accountPath = Format("//sys/accounts/bundle_system_quotas/%v", NYPath::ToYPathLiteral(accountName));
-
-        TCreateNodeOptions createOptions;
+        TCreateObjectOptions createOptions;
         createOptions.Attributes = CreateEphemeralAttributes();
         createOptions.Attributes->Set("parent_name", "bundle_system_quotas");
         createOptions.Attributes->Set("name", accountName);
 
-        WaitFor(client->CreateNode(accountPath, EObjectType::Account, createOptions))
+        WaitFor(client->CreateObject(EObjectType::Account, createOptions))
             .ThrowOnError();
     }
 
