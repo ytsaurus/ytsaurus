@@ -6,6 +6,8 @@
 
 namespace NYT::NTableChunkFormat {
 
+using namespace NTransactionClient;
+
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -26,7 +28,7 @@ void FromProto(
     TTimestampSegmentMeta* timestampSegmentMeta,
     const NProto::TTimestampSegmentMeta& protoTimestampSegmentMeta)
 {
-    FromProto(&timestampSegmentMeta->MinTimestamp, protoTimestampSegmentMeta.min_timestamp());
+    timestampSegmentMeta->MinTimestamp = FromProto<TTimestamp>(protoTimestampSegmentMeta.min_timestamp());
     FromProto(&timestampSegmentMeta->ExpectedWritesPerRow, protoTimestampSegmentMeta.expected_writes_per_row());
     FromProto(&timestampSegmentMeta->ExpectedDeletesPerRow, protoTimestampSegmentMeta.expected_deletes_per_row());
 }
@@ -97,14 +99,14 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i32 TSegmentMeta::GetExtensionsCount()
+int TSegmentMeta::GetExtensionCount()
 {
-    i32 extensionsCounter = 0;
+    int count = 0;
     #define XX(name, Name) \
-        ++extensionsCounter;
+        ++count;
     ITERATE_SEGMENT_META_EXTENSIONS(XX)
     #undef XX
-    return extensionsCounter;
+    return count;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

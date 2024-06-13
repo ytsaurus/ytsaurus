@@ -342,6 +342,11 @@ TChunkOwnerDataStatistics TChunkOwnerBase::ComputeUpdateStatistics() const
     return updateStatistics;
 }
 
+bool TChunkOwnerBase::HasDataWeight() const
+{
+    return SnapshotStatistics_.IsDataWeightValid() && DeltaStatistics_.IsDataWeightValid();
+}
+
 void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
 {
     TCypressNode::CheckInvariants(bootstrap);

@@ -164,6 +164,9 @@ std::vector<TInstant> GenerateChunkCreationTimeHistogramBucketBounds(TInstant no
 
 TJobPtr MummifyJob(const TJobPtr& job);
 
+// Removes potential users data from error.
+TError SanitizeError(TError error);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

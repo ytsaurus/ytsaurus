@@ -1,5 +1,4 @@
 #include "chunk_owner_data_statistics.h"
-#include "private.h"
 
 #include <yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -14,6 +13,11 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TChunkOwnerDataStatistics::IsDataWeightValid() const
+{
+    return DataWeight != -1;
+}
+
 TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOwnerDataStatistics& other)
 {
     UncompressedDataSize += other.UncompressedDataSize;
@@ -22,7 +26,12 @@ TChunkOwnerDataStatistics& TChunkOwnerDataStatistics::operator+= (const TChunkOw
     RowCount += other.RowCount;
     RegularDiskSpace += other.RegularDiskSpace;
     ErasureDiskSpace += other.ErasureDiskSpace;
-    DataWeight += other.DataWeight;
+
+    if (!IsDataWeightValid() || !other.IsDataWeightValid()) {
+        DataWeight = -1;
+    } else {
+        DataWeight += other.DataWeight;
+    }
 
     return *this;
 }
@@ -43,7 +52,10 @@ bool TChunkOwnerDataStatistics::operator== (const TChunkOwnerDataStatistics& oth
         ChunkCount == other.ChunkCount &&
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
-        DataWeight == other.DataWeight;
+        (
+            !IsDataWeightValid() ||
+            !other.IsDataWeightValid() ||
+            DataWeight == other.DataWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -231,7 +231,6 @@ void FromProto(
 void ToProto(
     NProto::TBoundaryKeysExt* protoBoundaryKeysExt,
     const TBoundaryKeysExtension& boundaryKeys);
-
 void FromProto(
     TBoundaryKeysExtension* boundaryKeys,
     const NProto::TBoundaryKeysExt& protoBoundaryKeysExt);
@@ -239,7 +238,6 @@ void FromProto(
 void ToProto(
     NProto::TColumnMetaExt* protoColumnMetaExt,
     const TColumnMetaExtension& columnMetaExtension);
-
 void FromProto(
     TColumnMetaExtension* columnMetaExtension,
     const NProto::TColumnMetaExt& protoColumnMetaExt);
@@ -247,7 +245,6 @@ void FromProto(
 void ToProto(
     NProto::TKeyColumnsExt* protoKeyColumnsExt,
     const TKeyColumnsExtension& keyColumns);
-
 void FromProto(
     TKeyColumnsExtension* keyColumns,
     const NProto::TKeyColumnsExt& protoKeyColumnsExt);
@@ -255,7 +252,6 @@ void FromProto(
 void ToProto(
     NProto::TSamplesExt* protoSamplesExtension,
     const TSamplesExtension& samplesExtension);
-
 void FromProto(
     TSamplesExtension* samplesExtension,
     const NProto::TSamplesExt& protoSamplesExtension);

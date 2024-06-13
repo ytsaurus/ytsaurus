@@ -18,6 +18,7 @@ target_link_libraries(unittester-ytlib-table-chunk-format PUBLIC
   library-cpp-cpuid_check
   cpp-testing-gtest
   cpp-testing-gtest_main
+  table_client-unittests-helpers
   client-unittests-mock
   yt-core-test_framework
   yt-yt-ytlib

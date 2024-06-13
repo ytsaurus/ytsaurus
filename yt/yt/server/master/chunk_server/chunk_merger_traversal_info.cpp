@@ -33,7 +33,7 @@ void TChunkMergerTraversalInfo::Load(TLoadContext& context)
     using NYT::Load;
 
     Load(context, ChunkCount);
-    if (context.GetVersion() >= EMasterReign::RemovedeRedundantStatisticsFromChunkOwnerBase) {
+    if (context.GetVersion() >= EMasterReign::RemovedRedundantStatisticsFromChunkOwnerBase) {
         Load(context, ConfigVersion);
     } else {
         ConfigVersion = Load<i64>(context);
