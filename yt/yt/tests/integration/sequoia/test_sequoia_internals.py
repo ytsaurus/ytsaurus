@@ -343,10 +343,13 @@ class TestSequoiaInternals(YTEnvSetup):
     @authors("danilalexeev")
     def test_set_map_force(self):
         create("map_node", "//tmp/m/m", recursive=True)
-        with pytest.raises(YtError, match="forbidden"):
+        node_id = get("//tmp/m/@id")
+        with raises_yt_error("forbidden"):
             set("//tmp/m", {"a": 0})
         set("//tmp/m", {"a": 0}, force=True)
         assert ls("//tmp/m") == ["a"]
+        assert exists(f"#{node_id}")
+        assert get("//tmp/m/@id") == node_id
 
     @authors("danilalexeev")
     def test_nodes_different_cell_tags(self):
