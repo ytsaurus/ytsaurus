@@ -69,6 +69,17 @@ class TestSequoiaInternals(YTEnvSetup):
     def lookup_path_to_node_id(self, path):
         return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [{"path": mangle_sequoia_path(path)}])
 
+    @authors("kvk1920")
+    def test_map_not_set_doesnt_cause_detach(self):
+        set("//tmp/m1/m2/m3", {"abcde": 4}, recursive=True, force=True)
+        assert get("//tmp/m1") == {"m2": {"m3": {"abcde": 4}}}
+        m2_id = get("//tmp/m1/m2/@id")
+        set("//tmp/m1/m2", {}, force=True)
+        assert get("//tmp/m1") == {"m2": {}}
+        assert get("//tmp/m1/m2/@id") == m2_id
+        # Should not crash.
+        remove("//tmp/m1/m2")
+
     @authors("h0pless")
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)
