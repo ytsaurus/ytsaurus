@@ -520,8 +520,13 @@ class TestDumpJobProxyLog(YTEnvSetup):
         remove("//sys/operations_archive", force=True)
         super(TestDumpJobProxyLog, self).teardown_method(method)
 
+    def validate_dumped_logs(path, job_id):
+        for line in read_file(path).decode("utf-8").split("\n"):
+            if "Job spec received" in line:
+                assert job_id in line
+
     @authors("tagirhamitov")
-    def test_rpc_method(self):
+    def test_dump_for_running_job(self):
         path = "//tmp/job_proxy.log"
         create("file", path)
 
@@ -531,12 +536,10 @@ class TestDumpJobProxyLog(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        for line in read_file(path).decode("utf-8").split("\n"):
-            if "Job spec received" in line:
-                assert job_id in line
+        self.validate_dumped_logs(path, job_id)
 
     @authors("tagirhamitov")
-    def test_rpc_method_after_job_finished(self):
+    def test_dump_for_finished_job(self):
         path = "//tmp/job_proxy.log"
         create("file", path)
 
@@ -546,7 +549,4 @@ class TestDumpJobProxyLog(YTEnvSetup):
         op.track()
 
         dump_job_proxy_log(job_id, op.id, path)
-
-        for line in read_file(path).decode("utf-8").split("\n"):
-            if "Job spec received" in line:
-                assert job_id in line
+        self.validate_dumped_logs(path, job_id)

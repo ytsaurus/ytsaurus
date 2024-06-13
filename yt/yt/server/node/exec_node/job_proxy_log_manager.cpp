@@ -3,6 +3,11 @@
 #include "bootstrap.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
+#include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
@@ -10,10 +15,6 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/api/file_writer.h>
-#include <yt/yt/server/lib/exec_node/config.h>
-#include <yt/yt/server/lib/scheduler/helpers.h>
-#include <yt/yt/server/node/cluster_node/config.h>
-#include <yt/yt/server/node/exec_node/job_controller.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -96,6 +97,7 @@ public:
         NConcurrency::WaitFor(writer->Open())
             .ThrowOnError();
 
+        // TODO: Support compressed logs.
         while (true) {
             auto bytesRead = logFile.Read((void*)buffer.Data(), DumpJobProxyLogBufferSize_);
 

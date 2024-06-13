@@ -452,7 +452,7 @@ struct IOperationClient
         NJobTrackerClient::TJobId jobId,
         NJobTrackerClient::TOperationId operationId,
         const NYPath::TYPath& path,
-        const TDumpJobProxyLogOptions& = {}) = 0;
+        const TDumpJobProxyLogOptions& options = {}) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
