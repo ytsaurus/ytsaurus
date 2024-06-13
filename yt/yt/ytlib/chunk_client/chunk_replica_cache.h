@@ -29,7 +29,7 @@ public:
         TChunkId chunkId,
         const TFuture<TAllyReplicasInfo>& future) = 0;
 
-    virtual void PingChunk(TChunkId chunkId) = 0;
+    virtual void PingChunks(const std::vector<TChunkId>& chunkIds) = 0;
 
     virtual void UpdateReplicas(
         TChunkId chunkId,

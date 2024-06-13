@@ -256,15 +256,20 @@ public:
         CacheSizeGauge_.Update(Entries_.size());
     }
 
-    void PingChunk(TChunkId chunkId) override
+    void PingChunks(const std::vector<TChunkId>& chunkIds) override
     {
-        YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
-
+        auto now = TInstant::Now();
         auto mapGuard = ReaderGuard(EntriesLock_);
-        auto it = Entries_.find(chunkId);
-        if (it != Entries_.end()) {
-            auto entryGuard = Guard(it->second->Lock);
-            it->second->LastAccessTime = TInstant::Now();
+
+        for (const auto& chunkId : chunkIds) {
+            YT_VERIFY(IsPhysicalChunkType(TypeFromId(chunkId)));
+
+            if (auto it = Entries_.find(chunkId); it != Entries_.end()) {
+                auto entryGuard = Guard(it->second->Lock);
+                if (it->second->LastAccessTime < now) {
+                    it->second->LastAccessTime = now;
+                }
+            }
         }
     }
 
