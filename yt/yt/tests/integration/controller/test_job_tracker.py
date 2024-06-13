@@ -128,6 +128,8 @@ class TestJobTracker(YTEnvSetup):
         operation_info = self._get_operation_info(op)
         assert len(operation_info["allocations"]) == 1
 
+        wait(lambda: len(self._list_jobs(op)) != 0)
+
         job_ids = self._list_jobs(op)
         assert len(job_ids) == 1
 

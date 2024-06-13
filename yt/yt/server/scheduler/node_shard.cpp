@@ -1809,11 +1809,13 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     switch (allocationState) {
         case EAllocationState::Finished: {
             if (auto error = FromProto<TError>(allocationStatus->result().error());
-                ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+                !error.IsOK())
             {
-                YT_LOG_DEBUG("Node has failed to get allocation spec, abort allocation");
+                YT_LOG_DEBUG("Allocation aborted, storage scheduled");
 
-                OnAllocationAborted(allocation, error, EAbortReason::GetSpecFailed);
+                auto abortReason = ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler);
+
+                OnAllocationAborted(allocation, error, abortReason);
             } else {
                 YT_LOG_DEBUG("Allocation finished, storage scheduled");
 
