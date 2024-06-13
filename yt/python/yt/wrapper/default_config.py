@@ -3,6 +3,7 @@ from __future__ import print_function
 from . import common
 from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, _validate_operation_link_pattern  # noqa
 from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
+from .errors import YtConfigError
 from .mappings import VerifiedDict
 
 import yt.logger as logger
@@ -868,16 +869,14 @@ def _update_from_env_patch(config):
             patches = yson._loads_from_native_str(os.environ["YT_CONFIG_PATCHES"],
                                                   yson_type="list_fragment",
                                                   always_create_attributes=False)
-        except yson.YsonError:
-            print("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
-            raise
+        except yson.YsonError as e:
+            raise YtConfigError("Failed to parse YT config patches from 'YT_CONFIG_PATCHES' environment variable") from e
 
         try:
             for patch in reversed(list(patches)):
                 common.update_inplace(config, patch)
-        except:  # noqa
-            print("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable", file=sys.stderr)
-            raise
+        except Exception as e:  # noqa
+            raise YtConfigError("Failed to apply config from 'YT_CONFIG_PATCHES' environment variable") from e
 
 
 class ConfigParserV2:
@@ -932,9 +931,8 @@ class _ConfigFSHelper:
         try:
             with open(path, "rb") as f:
                 return f.read()
-        except Exception:
-            print("Failed to read YT config from " + path, file=sys.stderr)
-            raise
+        except Exception as e:
+            raise YtConfigError("Failed to read YT config from " + path) from e
 
 
 def _get_config_path(fs_helper):
@@ -981,9 +979,8 @@ def _update_from_file(config, config_profile=None, fs_helper=None):
     config_content = fs_helper.read(config_path)
     try:
         parsed_config = load_func(config_content)
-    except Exception:
-        print("Failed to parse YT config from " + config_path, file=sys.stderr)
-        raise
+    except Exception as e:
+        raise YtConfigError("Failed to parse YT config from " + config_path) from e
 
     config_version = parsed_config.get("config_version")
     if ConfigParserV2.VERSION == config_version:
