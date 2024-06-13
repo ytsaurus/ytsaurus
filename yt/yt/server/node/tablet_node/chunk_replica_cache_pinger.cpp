@@ -28,7 +28,7 @@ class TSlotChunksPinger
 public:
     void PingSlotChunks(const ITabletSlotPtr& slot, const IChunkReplicaCachePtr& chunkReplicaCache)
     {
-        Logger = TabletNodeLogger().WithTag("CellId: %v", slot->GetCellId());
+        Logger = TabletNodeLogger.WithTag("CellId: %v", slot->GetCellId());
 
         YT_LOG_DEBUG("Chunk replica cache pinger scans slot");
         chunkReplicaCache->PingChunks(CollectChunks(slot));
