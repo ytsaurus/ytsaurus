@@ -1578,6 +1578,11 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
         auto& [allocationId, allocation] = *allocationIt;
 
         bool shouldTryErase = false;
+        auto addAllocationToTryToErase = [&](TNodeJobs::TAllocationIterator allocationIt, TOperationInfo* operationInfo) {
+            if (!std::exchange(shouldTryErase, true)) {
+                operationInfoToAllocationsToTryToErase[operationInfo].push_back(allocationIt);
+            }
+        };
 
         if (const auto& runningJob = allocation.GetRunningJob()) {
             // Check for jobs disappeared from nodes.
@@ -1622,8 +1627,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                 });
 
                 allocation.EraseRunningJobOrCrash();
-                operationInfoToAllocationsToTryToErase[context.OperationInfo].push_back(allocationIt);
-                shouldTryErase = true;
+                addAllocationToTryToErase(allocationIt,context.OperationInfo);
             }();
         }
 
@@ -1682,8 +1686,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                     YT_VERIFY(!allocation.GetRunningJob());
 
                     context.AbortedAllocations.push_back(allocation.ConsumePostponedEventOrCrash<TAbortedAllocationSummary>());
-                    operationInfoToAllocationsToTryToErase[context.OperationInfo].push_back(allocationIt);
-                    shouldTryErase = true;
+                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
                 }
             } else {
                 if (const auto& runningJob = allocation.GetRunningJob()) {
@@ -1706,8 +1709,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
                         allocationId);
 
                     context.FinishedAllocations.push_back(allocation.ConsumePostponedEventOrCrash<TFinishedAllocationSummary>());
-                    operationInfoToAllocationsToTryToErase[context.OperationInfo].push_back(allocationIt);
-                    shouldTryErase = true;
+                    addAllocationToTryToErase(allocationIt,context.OperationInfo);
                 }
             }
         }
