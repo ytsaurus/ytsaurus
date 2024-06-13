@@ -1735,7 +1735,7 @@ TEST_F(TVersionedRowMergerTest, DeleteIncreasedTtlColumn)
 
 TEST_F(TVersionedRowMergerTest, WatermarkBasic)
 {
-    auto watermarkData = TWatermarkRuntimeData();
+    auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
     watermarkData.Watermark = 11;
     auto runtimeData = ConvertToYsonString(watermarkData);
@@ -1790,7 +1790,7 @@ TEST_F(TVersionedRowMergerTest, InvalidWatermarkDataFormat)
 
 TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
 {
-    auto watermarkData = TWatermarkRuntimeData();
+    auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
     watermarkData.Watermark = 12;
     auto runtimeData = ConvertToYsonString(watermarkData);
@@ -1821,7 +1821,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
     config->MinDataTtl = TDuration::Zero();
     config->MaxDataTtl = TDuration::Seconds(5);
 
-    auto watermarkData = TWatermarkRuntimeData();
+    auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
     watermarkData.Watermark = 12;
     auto runtimeData = ConvertToYsonString(watermarkData);
@@ -1868,7 +1868,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkRemovalRespectsMinDataTtl)
     config->MinDataTtl = TDuration::Seconds(5);
     config->MaxDataTtl = TDuration::Seconds(10);
 
-    auto watermarkData = TWatermarkRuntimeData();
+    auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
     watermarkData.Watermark = 100;
     auto runtimeData = ConvertToYsonString(watermarkData);

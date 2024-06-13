@@ -553,9 +553,9 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
 
             if (customRuntimeData) {
                 try {
-                    watermarkRuntimeData = ConvertTo<TWatermarkRuntimeData>(customRuntimeData);
+                    auto watermarkRuntimeDataConfig = ConvertTo<TWatermarkRuntimeDataConfig>(customRuntimeData);
 
-                    auto columnSchema = tableSchema->GetColumnOrThrow(watermarkRuntimeData->ColumnName);
+                    auto columnSchema = tableSchema->GetColumnOrThrow(watermarkRuntimeDataConfig.ColumnName);
                     if (!columnSchema.IsOfV1Type(ESimpleLogicalValueType::Uint64)) {
                         THROW_ERROR_EXCEPTION(
                             "Unexpected type for watermark column %Qv: expected %Qlv, got %Qlv",
@@ -564,9 +564,12 @@ std::unique_ptr<IVersionedRowMerger> CreateVersionedRowMerger(
                             *columnSchema.LogicalType());
                     }
 
-                    watermarkRuntimeData->ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeData->ColumnName);
-                } catch (const std::exception& e) {
-                    YT_LOG_ERROR(e, "Failed to prepare watermark runtime data");
+                    watermarkRuntimeData = TWatermarkRuntimeData{
+                        .Watermark = watermarkRuntimeDataConfig.Watermark,
+                        .ColumnIndex = tableSchema->GetColumnIndex(watermarkRuntimeDataConfig.ColumnName)
+                    };
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to prepare watermark runtime data");
                     watermarkRuntimeData = std::nullopt;
                 }
             }
