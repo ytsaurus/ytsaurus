@@ -126,6 +126,8 @@ public:
 
     TChunkOwnerDataStatistics ComputeTotalStatistics() const;
 
+    bool HasDataWeight() const;
+
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
     void Save(NCellMaster::TSaveContext& context) const override;

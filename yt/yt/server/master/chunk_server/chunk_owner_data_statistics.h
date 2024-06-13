@@ -20,6 +20,8 @@ struct TChunkOwnerDataStatistics
     TChunkOwnerDataStatistics& operator+=(const TChunkOwnerDataStatistics& rhs);
     TChunkOwnerDataStatistics operator+(const TChunkOwnerDataStatistics& rhs) const;
 
+    bool IsDataWeightValid() const;
+
     template <class TContext>
     void Save(TContext& context) const;
     template <class TContext>
