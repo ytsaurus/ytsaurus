@@ -1763,7 +1763,7 @@ class TestFileConfig:
         def get_home_dir(self):
             return self._homedir
 
-    @authors("thenno")
+    @authors("nedenvr")
     @pytest.mark.parametrize(
         "global_config,user_config,result",
         [
@@ -1809,7 +1809,7 @@ class TestFileConfig:
         )
         assert _get_config_path(fs_helper) == result
 
-    @authors("thenno")
+    @authors("nedenvr")
     @pytest.mark.parametrize(
         "config_format,dumper",
         [
@@ -1837,7 +1837,7 @@ class TestFileConfig:
         yt_config["config_format"] = default_config["config_format"]
         assert yt_config == default_config
 
-    @authors("thenno")
+    @authors("nedenvr")
     def test_unknown_version(self):
         user_config = "/home/user/.yt/config"
         fs_helper = self._MockConfigFSHelper(
@@ -1854,7 +1854,7 @@ class TestFileConfig:
         with pytest.raises(yt.YtError, match="Unknown config's version"):
             _update_from_file(yt_config, fs_helper=fs_helper)
 
-    @authors("thenno")
+    @authors("nedenvr")
     @pytest.mark.parametrize(
         "config_format,dumper",
         [
@@ -1888,7 +1888,7 @@ class TestFileConfig:
         with pytest.raises(yt.YtError, match=error):
             _update_from_file(yt_config, fs_helper=fs_helper)
 
-    @authors("thenno")
+    @authors("nedenvr")
     @pytest.mark.parametrize(
         "config_format,dumper",
         [
@@ -1939,7 +1939,7 @@ class TestFileConfig:
         yt_config["config_profile"] = default_config["config_profile"]
         assert yt_config == default_config
 
-    @authors("thenno")
+    @authors("nedenvr")
     @pytest.mark.parametrize(
         "profile,expected_token",
         [
