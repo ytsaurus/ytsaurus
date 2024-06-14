@@ -450,6 +450,9 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             command="read x; if (($YT_JOB_INDEX < 8)); then head -c {} /dev/urandom | base64 -w 0; echo -ne '\n'; else echo $x; fi".format(10 * max_chunk_size_or_weight),
             spec=spec,
         )
+
+        op.track()
+
         self._verify_auto_merge_job_types(op)
         assert get("//tmp/t_out/@chunk_count") == 10
         chunk_ids = get("//tmp/t_out/@chunk_ids")
