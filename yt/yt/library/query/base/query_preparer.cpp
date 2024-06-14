@@ -34,6 +34,8 @@ struct TQueryPreparerBufferTag
 { };
 
 constexpr ssize_t MaxQueryLimit = 10000000;
+constexpr ssize_t MaxJoinNumber = 200;
+constexpr ssize_t MaxMultiJoinGroupNumber = 15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3503,6 +3505,19 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
+
+    if (std::ssize(query->JoinClauses) > MaxJoinNumber) {
+        THROW_ERROR_EXCEPTION("The number of joins exceeds the allowed maximum. Consider rewriting the query.")
+            << TErrorAttribute("join_number", std::ssize(query->JoinClauses))
+            << TErrorAttribute("max_join_number", MaxMultiJoinGroupNumber);
+    }
+
+    auto joinGroups = GetJoinGroups(query->JoinClauses, query->GetRenamedSchema());
+    if (std::ssize(joinGroups) > MaxMultiJoinGroupNumber) {
+        THROW_ERROR_EXCEPTION("The number of multi-join groups exceeds the allowed maximum. Consider rewriting the query.")
+            << TErrorAttribute("multi_join_group_number", std::ssize(joinGroups))
+            << TErrorAttribute("max_multi_join_group_number", MaxMultiJoinGroupNumber);
+    }
 
     if (ast.Limit) {
         if (*ast.Limit > MaxQueryLimit) {

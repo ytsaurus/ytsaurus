@@ -1845,7 +1845,6 @@ protected:
             .ValueOrThrow().first;
     }
 
-
     TQueryPtr Prepare(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
@@ -9900,6 +9899,60 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
 
     Evaluate("a FROM [//t] group by a order by a limit 4", split, source,  ResultMatcher(result)),
     SUCCEED();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TQueryEvaluateTest, BigJoin1)
+{
+    auto splits = std::map<TString, TDataSplit>();
+    auto sources = std::vector<std::vector<TString>>();
+
+    const int bigJoinNumber = 220;
+
+    for (int i = 0; i < bigJoinNumber; ++i) {
+        splits[Format("//a_%v", i)] = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        sources.push_back({"a=0;b=1"});
+    }
+
+    auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+    auto result = YsonToRows({}, resultSplit);
+
+    auto query = TString("a_0.a from [//a_0] as a_0 ");
+    for (int i = 1; i < bigJoinNumber; ++i) {
+        query += Format("join [//a_%v] as a_%v on (a_%v.b) = (a_%v.a) ", i, i, 0, i);
+    }
+    query += "limit 1";
+
+    EXPECT_THROW_THAT(
+        Evaluate(query, splits, sources, ResultMatcher(result)),
+        HasSubstr("The number of joins exceeds the allowed maximum."));
+}
+
+TEST_F(TQueryEvaluateTest, BigJoin2)
+{
+    auto splits = std::map<TString, TDataSplit>();
+    auto sources = std::vector<std::vector<TString>>();
+
+    const int bigMultiJoinGroupNumber = 18;
+
+    for (int i = 0; i < bigMultiJoinGroupNumber; ++i) {
+        splits[Format("//a_%v", i)] = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+        sources.push_back({"a=0;b=1"});
+    }
+
+    auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
+    auto result = YsonToRows({}, resultSplit);
+
+    auto query = TString("a_0.a from [//a_0] as a_0 ");
+    for (int i = 1; i < bigMultiJoinGroupNumber; ++i) {
+        query += Format("join [//a_%v] as a_%v on (a_%v.b) = (a_%v.a) ", i, i, i-1, i);
+    }
+    query += "limit 1";
+
+    EXPECT_THROW_THAT(
+        Evaluate(query, splits, sources, ResultMatcher(result)),
+        HasSubstr("The number of multi-join groups exceeds the allowed maximum."));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
