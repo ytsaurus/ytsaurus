@@ -26,4 +26,5 @@ target_sources(library-containers-cri PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cri/cri_api.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cri/cri_executor.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cri/config.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/containers/cri/image_cache.cpp
 )
