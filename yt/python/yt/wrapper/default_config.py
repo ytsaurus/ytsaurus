@@ -1,5 +1,7 @@
 from __future__ import print_function
 
+from typing import Optional, Tuple
+
 from . import common
 from .config_remote_patch import RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean, _validate_operation_link_pattern  # noqa
 from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
@@ -890,17 +892,17 @@ class ConfigParserV2:
 
     def extract(self):
         if self._PROFILES_KEY not in self._config:
-            raise common.YtError("Missing {0} key in YT config".format(self._PROFILES_KEY))
+            raise YtConfigError("Missing {0} key in YT config".format(self._PROFILES_KEY))
         profiles = self._config[self._PROFILES_KEY]
         if not isinstance(profiles, dict):
-            raise common.YtError("Profiles should be dict, not {0}".format(type(profiles)))
+            raise YtConfigError("Profiles should be dict, not {0}".format(type(profiles)))
         current_profile = self._profile
         if current_profile is None:
             current_profile = self._config.get(self._DEFAULT_PROFILE_KEY)
             if current_profile is None:
-                raise common.YtError("Profile has not been set and there is no default profile in the config")
+                raise YtConfigError("Profile has not been set and there is no default profile in the config")
         if current_profile not in profiles:
-            raise common.YtError("Unknown profile {0}. Known profiles: {1}".format(
+            raise YtConfigError("Unknown profile {0}. Known profiles: {1}".format(
                 current_profile,
                 ",".join(profiles.keys())),
             )
@@ -908,14 +910,16 @@ class ConfigParserV2:
         return profile
 
 
-class _ConfigFSHelper:
-    """
-    Helper class for _update_from_file that will be overridden in tests.
-    """
-    def is_file(self, path):
+class _ConfigFSLoader:
+    def __init__(self, current_path: Optional[str], user_path: Optional[str], global_path: Optional[str]):
+        self._current_path = current_path
+        self._user_path = user_path
+        self._global_path = global_path
+
+    def _is_file(self, path: str) -> bool:
         return os.path.isfile(path)
 
-    def validate(self, path):
+    def _is_readable(self, path: str) -> bool:
         try:
             with open(path, "r"):
                 pass
@@ -924,35 +928,42 @@ class _ConfigFSHelper:
             pass
         return False
 
-    def get_home_dir(self):
-        return common.get_home_dir()
-
-    def read(self, path):
+    def read_config(self) -> Tuple[Optional[bytes], Optional[str]]:
+        path = self._get_config_path()
+        if path is None:
+            return None, None
         try:
             with open(path, "rb") as f:
-                return f.read()
+                return f.read(), path
         except Exception as e:
             raise YtConfigError("Failed to read YT config from " + path) from e
 
+    def _get_config_path(self) -> Optional[str]:
+        if self._current_path is not None and self._is_file(self._current_path):
+            return self._current_path
 
-def _get_config_path(fs_helper):
-    home = fs_helper.get_home_dir()
-    config_path = DEFAULT_GLOBAL_CONFIG_PATH
-    if home:
-        home_config_path = os.path.join(home, DEFAULT_USER_CONFIG_REL_PATH)
-        if fs_helper.is_file(home_config_path):
-            config_path = home_config_path
-    if not fs_helper.validate(config_path):
-        config_path = None
-    return config_path
+        config_path = self._global_path
+
+        if self._user_path:
+            if self._is_file(self._user_path):
+                config_path = self._user_path
+        if not self._is_readable(config_path):
+            config_path = None
+        return config_path
 
 
-def _update_from_file(config, config_profile=None, fs_helper=None):
-    # type: (yt.wrapper.mappings.VerifiedDict, str, _ConfigFSHelper) -> None
-    if fs_helper is None:
-        fs_helper = _ConfigFSHelper()
+def _update_from_file(
+    config: VerifiedDict,
+    config_profile: Optional[str] = None,
+    global_config_path: str = DEFAULT_GLOBAL_CONFIG_PATH,
+    user_config_path: Optional[str] = None,
+):
+    if user_config_path is None:
+        homedir = common.get_home_dir()
+        if homedir is not None:
+            user_config_path = os.path.join(homedir, DEFAULT_USER_CONFIG_REL_PATH)
 
-    # These options should be processed before reading config file
+    # These options should be processed before reading config file.
     for opt_name in ["YT_CONFIG_PATH", "YT_CONFIG_FORMAT", "YT_CONFIG_PROFILE"]:
         if opt_name in os.environ:
             config[SHORTCUTS[opt_name[3:]]] = os.environ[opt_name]
@@ -960,11 +971,13 @@ def _update_from_file(config, config_profile=None, fs_helper=None):
     if config_profile is None:
         config_profile = config["config_profile"]
 
-    config_path = config["config_path"]
-    if config_path is None or not fs_helper.is_file(config_path):
-        config_path = _get_config_path(fs_helper)
-
-    if not config_path:
+    fs_helper = _ConfigFSLoader(
+        current_path=config["config_path"],
+        user_path=user_config_path,
+        global_path=global_config_path,
+    )
+    content, path = fs_helper.read_config()
+    if content is None:
         return
 
     config_format = config["config_format"]
@@ -976,17 +989,16 @@ def _update_from_file(config, config_profile=None, fs_helper=None):
     if load_func is None:
         raise common.YtError("Incorrect config_format '%s'" % config_format)
 
-    config_content = fs_helper.read(config_path)
     try:
-        parsed_config = load_func(config_content)
+        parsed_config = load_func(content)
     except Exception as e:
-        raise YtConfigError("Failed to parse YT config from " + config_path) from e
+        raise YtConfigError("Failed to parse YT config from " + path) from e
 
     config_version = parsed_config.get("config_version")
     if ConfigParserV2.VERSION == config_version:
         parsed_config = ConfigParserV2(config=parsed_config, profile=config_profile).extract()
     elif config_version is None:
-        # Just a fallback to the old format.
+        # Just a fallback to the plain format.
         # All keys are stored at the top level of the config.
         pass
     else:
