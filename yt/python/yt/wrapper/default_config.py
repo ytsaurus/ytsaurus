@@ -990,21 +990,21 @@ def _update_from_file(
         raise common.YtError("Incorrect config_format '%s'" % config_format)
 
     try:
-        parsed_config = load_func(content)
+        parsed_data = load_func(content)
     except Exception as e:
         raise YtConfigError("Failed to parse YT config from " + path) from e
 
-    config_version = parsed_config.get("config_version")
+    config_version = parsed_data.get("config_version")
     if ConfigParserV2.VERSION == config_version:
-        parsed_config = ConfigParserV2(config=parsed_config, profile=config_profile).extract()
+        config_from_file = ConfigParserV2(config=parsed_data, profile=config_profile).extract()
     elif config_version is None:
         # Just a fallback to the plain format.
         # All keys are stored at the top level of the config.
-        pass
+        config_from_file = parsed_data
     else:
         raise common.YtError("Unknown config's version {0}".format(config_version))
 
-    common.update_inplace(config, parsed_config)
+    common.update_inplace(config, config_from_file)
 
 
 def get_config_from_env(config_profile=None):

@@ -1755,7 +1755,7 @@ class TestFileConfig:
             for file_ in files:
                 path = tmp_path + os.path.sep + file_.file_name
                 self._files = {file_.file_name: path}
-                with open(path, 'bw') as f:
+                with open(path, "bw") as f:
                     f.write(file_.content)
                 if not file_.is_readable:
                     old_perm = os.stat(path).st_mode
