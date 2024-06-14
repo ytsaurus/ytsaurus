@@ -50,6 +50,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (FinalMode)
     (MergeMode)
     (TotalsMode)
+    (QueryIsOrdered)
 );
 
 //! Computes a strong structural hash used to cache query fragments.
@@ -1260,6 +1261,8 @@ void TQueryProfiler::Profile(
     Fold(finalMode);
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
+    Fold(EFoldingObjectType::QueryIsOrdered);
+    Fold(query->IsOrdered());
 
     if (auto groupClause = query->GroupClause.Get()) {
         Fold(EFoldingObjectType::GroupOp);

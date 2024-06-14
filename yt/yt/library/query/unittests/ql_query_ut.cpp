@@ -874,6 +874,45 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     EXPECT_NE(id1, id2);
 }
 
+TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
+{
+    TDataSplit dataSplit;
+
+    SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xeeeeeeee));
+
+    auto schema = New<TTableSchema>(std::vector{
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64),
+    });
+
+    dataSplit.TableSchema = schema;
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(dataSplit)));
+
+    llvm::FoldingSetNodeID id1;
+    {
+        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
+
+        TCGVariables variables;
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    llvm::FoldingSetNodeID id2;
+    {
+        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
+
+        TCGVariables variables;
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+            return {};
+        });
+    }
+
+    EXPECT_NE(id1, id2);
+}
+
 TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 {
     {
