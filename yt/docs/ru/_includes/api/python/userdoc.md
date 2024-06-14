@@ -119,29 +119,29 @@ client = yt.YtClient(config=my_config)
 {
     "default_profile"="dev";
     "profiles"={
-        "main": {
-            "token_path": "/etc/token";
-            "proxy": {
-                "url": "cluster-url";
+        "main"={
+            "token_path"="/etc/token";
+            "proxy"={
+                "url"="cluster-url";
             };
-            "prefix": "//main",
+            "prefix"="//main";
         };
-        "dev": {
-            "token_path": "/etc/token-dev";
-            "proxy": {
-                "url": "cluster-url";
+        "dev"={
+            "token_path"="/etc/token-dev";
+            "proxy"={
+                "url"="cluster-url";
             };
-            "prefix": "//dev";
-            "pool": "dev";
+            "prefix"="//dev";
+            "pool"="dev";
         };
-        "external": {
-            "token_path": "/etc/token-external";
-            "proxy": {
-                "url": "external-url";
+        "external"={
+            "token_path"="/etc/token-external";
+            "proxy"={
+                "url"="external-url";
             };
         };
     };
-    "config_version": 2;
+    "config_version"=2;
 }
 ```
 
