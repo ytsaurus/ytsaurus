@@ -1215,7 +1215,7 @@ void TChunkLocation::InitializeUuid()
     }
 }
 
-std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
+TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
     bool incrementCounter) const
 {
@@ -1231,7 +1231,7 @@ std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
     if (throttled && incrementCounter) {
         ReportThrottledRead();
     }
-    return {throttled, readQueueSize};
+    return TChunkLocation::TDiskThrottlingResult{.Enabled = throttled, .QueueSize = readQueueSize};
 }
 
 void TChunkLocation::ReportThrottledRead() const

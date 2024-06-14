@@ -401,9 +401,15 @@ public:
     //! Returns |true| if writes were throttled (within some recent time interval).
     bool IsWriteThrottling() const;
 
+    struct TDiskThrottlingResult
+    {
+        bool Enabled;
+        i64 QueueSize;
+    };
+
     //! Returns whether reads must be throttled
     //! and the total number of bytes to read from disk including those accounted by out throttler.
-    std::tuple<bool, i64> CheckReadThrottling(
+    TDiskThrottlingResult CheckReadThrottling(
         const TWorkloadDescriptor& workloadDescriptor,
         bool incrementCounter = true) const;
 
