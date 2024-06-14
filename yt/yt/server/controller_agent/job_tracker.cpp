@@ -1046,8 +1046,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         .Run();
 
     auto jobInfoOrError = WaitFor(
-        asyncJobInfo,
-        NRpc::TDispatcher::Get()->GetHeavyInvoker());
+        asyncJobInfo);
 
     // NB(pogorelov): Allocation may finish concurrently.
     allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
@@ -1062,6 +1061,8 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
 
         THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
     }
+
+    SwitchTo(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
     if (!jobInfoOrError.IsOK() || !jobInfoOrError.Value().JobSpecBlob) {
         auto error = !jobInfoOrError.IsOK()
