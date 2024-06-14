@@ -11,6 +11,7 @@ import copy
 import datetime
 import types
 
+from ...type_info.type_base import Primitive
 
 try:
     import typing
@@ -112,7 +113,15 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     return Annotated[py_type, Annotation(ti_type, to_yt_type=to_yt_type, from_yt_type=from_yt_type)]
 
 
-def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
+_Enum = typing.TypeVar('_Enum', bound=enum.Enum)
+
+
+def create_yt_enum(
+    py_type: typing.Type[_Enum],
+    ti_type: typing.Optional[Primitive] = None,
+    to_yt_type: typing.Optional[typing.Callable[[_Enum], typing.Any]] = None,
+    from_yt_type: typing.Optional[typing.Callable[[typing.Any], _Enum]] = None,
+) -> typing.Type[_Enum]:
     """
     Create enum for yt_dataclass.
     yt_enum supports only typed enums
@@ -138,13 +147,22 @@ def create_yt_enum(py_type, ti_type, to_yt_type=None, from_yt_type=None):
             d: YtAnotherCustomEnum
     """
 
-    def _default_from_yt_type(value):
+    if ti_type is None:
+        default_ti_types = _get_default_ti_types()
+        for base_type in py_type.mro():
+            ti_type = default_ti_types.get(base_type)
+            if ti_type is not None:
+                break
+        if ti_type is None:
+            raise YtError(f"Enum {py_type} doesn't have default ti_type representation. Set the ti_type param explicitly")
+
+    def _default_from_yt_type(value: typing.Any) -> _Enum:
         return py_type(value)
 
-    def _default_unicode_from_yt_type(value):
+    def _default_unicode_from_yt_type(value: bytes) -> _Enum:
         return py_type(value.decode("utf-8"))
 
-    def get_converter():
+    def get_converter() -> typing.Callable[[typing.Any], _Enum]:
         if from_yt_type is not None:
             return from_yt_type
         elif issubclass(py_type, str):
@@ -239,6 +257,19 @@ def _get_py_time_types():
         datetime.timedelta,
     )
     return _get_py_time_types._info
+
+
+def _get_default_ti_types() -> typing.Dict[type, Primitive]:
+    return {
+        int: ti.Int64,
+        str: ti.Utf8,
+        bytes: ti.String,
+        float: ti.Double,
+        bool: ti.Bool,
+        datetime.date: ti.Date,
+        datetime.datetime: ti.Timestamp,
+        datetime.timedelta: ti.Interval,
+    }
 
 
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
