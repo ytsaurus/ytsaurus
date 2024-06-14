@@ -5,7 +5,7 @@ from yt_commands import (
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
-    get_singular_chunk_id, get_chunk_replication_factor,
+    get_operation, get_singular_chunk_id, get_chunk_replication_factor,
     create_dynamic_table, get_driver, alter_table)
 
 from yt_type_helpers import (
@@ -116,6 +116,50 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 7
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("single_chunk_teleport_strategy", ["disabled", "enabled"])
+    @pytest.mark.parametrize("force_transform", [False, True])
+    def test_unordered_merge_teleport_single_input_chunk(self, single_chunk_teleport_strategy, force_transform):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        t_in = "//tmp/t_in"
+        create("table", t_in)
+
+        key_values = [{"key" + str(i): "value" + str(i)} for i in range(1)]
+        for kv in key_values:
+            write_table("<append=true>" + t_in, kv)
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        op = merge(
+            mode="unordered",
+            combine_chunks=True,
+            in_=t_in,
+            out=t_out,
+            spec={
+                "single_chunk_teleport_strategy": single_chunk_teleport_strategy,
+                "force_transform": force_transform,
+            },
+        )
+
+        op.track()
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 2
+        if single_chunk_teleport_strategy == "enabled" and force_transform is False:
+            assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 0
+            assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 1
+        else:
+            assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
+            assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 0
 
     @authors("panin", "ignat")
     def test_unordered_combine(self):

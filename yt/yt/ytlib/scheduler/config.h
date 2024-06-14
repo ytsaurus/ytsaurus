@@ -1552,10 +1552,11 @@ class TUnorderedMergeOperationSpec
     , public TMergeOperationSpec
 {
 public:
+    ESingleChunkTeleportStrategy SingleChunkTeleportStrategy;
+
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
 
-    static void Register(TRegistrar /*registrar*/)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);
