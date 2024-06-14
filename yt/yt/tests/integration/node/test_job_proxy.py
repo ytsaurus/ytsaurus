@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
-    dump_job_proxy_log, read_file, sync_create_cells, update_controller_agent_config)
+    dump_job_proxy_log, read_file, sync_create_cells, update_nodes_dynamic_config)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
@@ -399,10 +399,26 @@ class TestJobProxyProfiling(YTEnvSetup):
         wait(lambda: profiler.get_all("resource_tracker/thread_count") == [])
 
 
+def log_path_from_job_id(job_id):
+    sharding_key = job_id.split("-")[0]
+    if len(sharding_key) < 8:
+        sharding_key = "0"
+    else:
+        sharding_key = sharding_key[0]
+    return os.path.join(
+        "logs/job_proxy-0",
+        sharding_key,
+        job_id,
+        "job_proxy.log"
+    )
+
+
 class TestJobProxyLogging(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+
+    JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
     DELTA_NODE_CONFIG = {
         "exec_node": {
@@ -412,11 +428,6 @@ class TestJobProxyLogging(YTEnvSetup):
                     "cpu": 5,
                     "memory": 5 * 1024 ** 3,
                 }
-            },
-            "job_proxy": {
-                "job_proxy_logging": {
-                    "mode": "per_job_directory",
-                },
             },
         },
         "job_resource_manager": {
@@ -437,18 +448,7 @@ class TestJobProxyLogging(YTEnvSetup):
         assert len(job_ids) == job_count
 
         for job_id in job_ids:
-            sharding_key = job_id.split("-")[0]
-            if len(sharding_key) < 8:
-                sharding_key = "0"
-            else:
-                sharding_key = sharding_key[0]
-            log_path = os.path.join(
-                self.path_to_run,
-                "logs/job_proxy-0",
-                sharding_key,
-                job_id,
-                "job_proxy.log"
-            )
+            log_path = os.path.join(self.path_to_run, log_path_from_job_id(job_id))
             assert os.path.exists(log_path)
 
 
@@ -520,7 +520,7 @@ class TestDumpJobProxyLog(YTEnvSetup):
         remove("//sys/operations_archive", force=True)
         super(TestDumpJobProxyLog, self).teardown_method(method)
 
-    def validate_dumped_logs(path, job_id):
+    def validate_dumped_logs(self, path, job_id):
         for line in read_file(path).decode("utf-8").split("\n"):
             if "Job spec received" in line:
                 assert job_id in line
@@ -550,3 +550,29 @@ class TestDumpJobProxyLog(YTEnvSetup):
 
         dump_job_proxy_log(job_id, op.id, path)
         self.validate_dumped_logs(path, job_id)
+
+    @authors("tagirhamitov")
+    def test_dump_for_missing_job(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy_log_manager": {
+                        "logs_storage_period": "0s",
+                    },
+                }
+            }
+        })
+        path = "//tmp/job_proxy.log"
+        create("file", path)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+        release_breakpoint()
+        op.track()
+
+        log_path = os.path.join(self.path_to_run, log_path_from_job_id(job_id))
+        wait(lambda: not os.path.exists(log_path))
+
+        with pytest.raises(YtError) as e:
+            dump_job_proxy_log(job_id, op.id, path)
+            assert "Logs not found for JobId" in e
