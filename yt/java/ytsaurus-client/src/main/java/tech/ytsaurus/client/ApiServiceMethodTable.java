@@ -10,6 +10,7 @@ import tech.ytsaurus.rpc.TReqDiscover;
 import tech.ytsaurus.rpc.TRspDiscover;
 import tech.ytsaurus.rpcproxy.TReqAbortJob;
 import tech.ytsaurus.rpcproxy.TReqAbortOperation;
+import tech.ytsaurus.rpcproxy.TReqAbortQuery;
 import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
 import tech.ytsaurus.rpcproxy.TReqAdvanceConsumer;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
@@ -33,6 +34,7 @@ import tech.ytsaurus.rpcproxy.TReqGetJob;
 import tech.ytsaurus.rpcproxy.TReqGetJobStderr;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
 import tech.ytsaurus.rpcproxy.TReqGetOperation;
+import tech.ytsaurus.rpcproxy.TReqGetQueryResult;
 import tech.ytsaurus.rpcproxy.TReqGetTablePivotKeys;
 import tech.ytsaurus.rpcproxy.TReqGetTabletInfos;
 import tech.ytsaurus.rpcproxy.TReqLinkNode;
@@ -57,6 +59,7 @@ import tech.ytsaurus.rpcproxy.TReqResumeOperation;
 import tech.ytsaurus.rpcproxy.TReqSelectRows;
 import tech.ytsaurus.rpcproxy.TReqSetNode;
 import tech.ytsaurus.rpcproxy.TReqStartOperation;
+import tech.ytsaurus.rpcproxy.TReqStartQuery;
 import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.rpcproxy.TReqSuspendOperation;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
@@ -68,6 +71,7 @@ import tech.ytsaurus.rpcproxy.TReqWriteFile;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TRspAbortJob;
 import tech.ytsaurus.rpcproxy.TRspAbortOperation;
+import tech.ytsaurus.rpcproxy.TRspAbortQuery;
 import tech.ytsaurus.rpcproxy.TRspAbortTransaction;
 import tech.ytsaurus.rpcproxy.TRspAdvanceConsumer;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
@@ -91,6 +95,7 @@ import tech.ytsaurus.rpcproxy.TRspGetJob;
 import tech.ytsaurus.rpcproxy.TRspGetJobStderr;
 import tech.ytsaurus.rpcproxy.TRspGetNode;
 import tech.ytsaurus.rpcproxy.TRspGetOperation;
+import tech.ytsaurus.rpcproxy.TRspGetQueryResult;
 import tech.ytsaurus.rpcproxy.TRspGetTablePivotKeys;
 import tech.ytsaurus.rpcproxy.TRspGetTabletInfos;
 import tech.ytsaurus.rpcproxy.TRspLinkNode;
@@ -115,6 +120,7 @@ import tech.ytsaurus.rpcproxy.TRspResumeOperation;
 import tech.ytsaurus.rpcproxy.TRspSelectRows;
 import tech.ytsaurus.rpcproxy.TRspSetNode;
 import tech.ytsaurus.rpcproxy.TRspStartOperation;
+import tech.ytsaurus.rpcproxy.TRspStartQuery;
 import tech.ytsaurus.rpcproxy.TRspStartTransaction;
 import tech.ytsaurus.rpcproxy.TRspSuspendOperation;
 import tech.ytsaurus.rpcproxy.TRspTrimTable;
@@ -292,6 +298,15 @@ public class ApiServiceMethodTable {
             "RegisterQueueConsumer",
             TReqRegisterQueueConsumer::newBuilder, TRspRegisterQueueConsumer.parser()
     );
+
+    public static final RpcMethodDescriptor<TReqStartQuery.Builder, TRspStartQuery> START_QUERY =
+            apiServiceMethod("StartQuery", TReqStartQuery::newBuilder, TRspStartQuery.parser());
+
+    public static final RpcMethodDescriptor<TReqAbortQuery.Builder, TRspAbortQuery> ABORT_QUERY =
+            apiServiceMethod("AbortQuery", TReqAbortQuery::newBuilder, TRspAbortQuery.parser());
+
+    public static final RpcMethodDescriptor<TReqGetQueryResult.Builder, TRspGetQueryResult> GET_QUERY_RESULT =
+            apiServiceMethod("GetQueryResult", TReqGetQueryResult::newBuilder, TRspGetQueryResult.parser());
 
     public static final RpcMethodDescriptor<TReqReadTable.Builder, TRspReadTable> READ_TABLE =
             apiServiceMethod("ReadTable", TReqReadTable::newBuilder, TRspReadTable.parser());

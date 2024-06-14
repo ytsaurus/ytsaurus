@@ -5,6 +5,7 @@ import java.util.List;
 import tech.ytsaurus.client.ApiServiceClient;
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.client.request.AbortOperation;
+import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
@@ -23,6 +24,7 @@ import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
 import tech.ytsaurus.client.request.GetTabletInfos;
 import tech.ytsaurus.client.request.ListJobs;
@@ -30,9 +32,12 @@ import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.QueryResult;
+import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
+import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
@@ -233,5 +238,25 @@ class SyncApiServiceClientImpl
     @Override
     public QueueRowset pullConsumer(PullConsumer req) {
         return client.pullConsumer(req).join();
+    }
+
+    @Override
+    public void registerQueueConsumer(RegisterQueueConsumer req) {
+        client.registerQueueConsumer(req).join();
+    }
+
+    @Override
+    public GUID startQuery(StartQuery req) {
+        return client.startQuery(req).join();
+    }
+
+    @Override
+    public void abortQuery(AbortQuery req) {
+        client.abortQuery(req);
+    }
+
+    @Override
+    public QueryResult getQueryResult(GetQueryResult req) {
+        return client.getQueryResult(req).join();
     }
 }

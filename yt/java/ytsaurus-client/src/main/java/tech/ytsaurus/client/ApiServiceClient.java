@@ -8,6 +8,7 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.client.request.AbortOperation;
+import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
@@ -26,6 +27,7 @@ import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
 import tech.ytsaurus.client.request.GetTabletInfos;
 import tech.ytsaurus.client.request.ListJobs;
@@ -34,10 +36,12 @@ import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
+import tech.ytsaurus.client.request.StartQuery;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
@@ -311,6 +315,29 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<QueueRowset> pullConsumer(PullConsumer req);
 
     CompletableFuture<Void> registerQueueConsumer(RegisterQueueConsumer req);
+
+    /**
+     * Request to start query.
+     *
+     * @return query id.
+     * @see StartQuery
+     */
+    CompletableFuture<GUID> startQuery(StartQuery req);
+
+    /**
+     * Request to abort query.
+     *
+     * @see AbortQuery
+     */
+    CompletableFuture<Void> abortQuery(AbortQuery req);
+
+    /**
+     * Request to get query result.
+     *
+     * @return metadata about query result.
+     * @see GetQueryResult
+     */
+    CompletableFuture<QueryResult> getQueryResult(GetQueryResult req);
 
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
 
