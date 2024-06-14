@@ -756,12 +756,12 @@ public:
     {
         Bootstrap_->VerifyPersistentStateRead();
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!config->Enable) {
             return false;
         }
 
-        auto probability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+        auto probability = config->ReplicasPercentage;
         return CanHaveSequoiaReplicas(chunkId, probability);
     }
 
@@ -2475,7 +2475,7 @@ public:
             replicas.resize(::NErasure::MaxTotalPartCount);
         }
 
-        if (!CanHaveSequoiaReplicas(chunkId) || !GetDynamicConfig()->FetchReplicasFromSequoia) {
+        if (!CanHaveSequoiaReplicas(chunkId) || !GetDynamicConfig()->SequoiaChunkReplicas->FetchReplicasFromSequoia) {
             return MakeFuture(replicas);
         }
 
@@ -2507,7 +2507,7 @@ public:
             result[chunkId] = TChunkLocationPtrWithReplicaInfoList();
         }
 
-        if (!GetDynamicConfig()->FetchReplicasFromSequoia) {
+        if (!GetDynamicConfig()->SequoiaChunkReplicas->FetchReplicasFromSequoia) {
             return MakeFuture(std::move(result));
         }
 
@@ -2944,8 +2944,8 @@ private:
     {
         YT_VERIFY(!HasMutationContext());
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!config->Enable) {
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
 
@@ -2964,8 +2964,8 @@ private:
     {
         YT_VERIFY(!HasMutationContext());
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        if (!config->SequoiaManager->Enable) {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!config->Enable) {
             return MakeFuture<std::vector<NRecords::TLocationReplicas>>({});
         }
 
@@ -3511,7 +3511,7 @@ private:
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(request->replicas());
 
-        const auto& config = GetDynamicConfig();
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             AddConfirmReplicas(chunk, replicas);
         }
@@ -3538,7 +3538,7 @@ private:
             node->ValidateRegistered();
         }
 
-        const auto& config = GetDynamicConfig();
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
         }
@@ -5630,7 +5630,7 @@ private:
         SequoiaReplicaRemovalExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
             BIND(&TChunkManager::OnSequoiaReplicaRemoval, MakeWeak(this)),
-            GetDynamicConfig()->SequoiaReplicaRemovalPeriod);
+            GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
         SequoiaReplicaRemovalExecutor_->Start();
     }
 
@@ -5797,7 +5797,7 @@ private:
             return;
         }
 
-        auto config = GetDynamicConfig();
+        auto config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (!config->EnableChunkPurgatory) {
             YT_LOG_DEBUG("Sequoia chunk purgatory is disabled (PurgatorySize: %v)",
                 SequoiaChunkPurgatory_.size());
@@ -5808,10 +5808,10 @@ private:
             SequoiaChunkPurgatory_.size());
 
         std::vector<TChunkId> chunkIds;
-        chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->SequoiaReplicaRemovalBatchSize));
+        chunkIds.reserve(std::min<ssize_t>(std::ssize(SequoiaChunkPurgatory_), config->RemovalBatchSize));
         for (const auto& [chunkId, replicas] : SequoiaChunkPurgatory_) {
             chunkIds.push_back(chunkId);
-            if (std::ssize(chunkIds) >= config->SequoiaReplicaRemovalBatchSize) {
+            if (std::ssize(chunkIds) >= config->RemovalBatchSize) {
                 break;
             }
         }
@@ -6715,7 +6715,7 @@ private:
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
 
         if (SequoiaReplicaRemovalExecutor_) {
-            SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaReplicaRemovalPeriod);
+            SequoiaReplicaRemovalExecutor_->SetPeriod(GetDynamicConfig()->SequoiaChunkReplicas->RemovalPeriod);
         }
     }
 
