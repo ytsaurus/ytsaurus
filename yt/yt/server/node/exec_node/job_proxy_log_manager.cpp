@@ -87,7 +87,11 @@ public:
     {
         auto logsPath = JobIdToLogsPath(jobId);
 
-        THROW_ERROR_EXCEPTION_IF(!NFS::Exists(logsPath), "Logs not found for JobId %v", jobId);
+        if (!NFS::Exists(logsPath)) {
+            THROW_ERROR_EXCEPTION("Job directory is not found")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("path", logsPath);
+        }
 
         auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
         auto buffer = TSharedMutableRef::Allocate(DumpJobProxyLogBufferSize_);

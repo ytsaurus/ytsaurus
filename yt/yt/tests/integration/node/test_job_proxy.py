@@ -573,6 +573,5 @@ class TestDumpJobProxyLog(YTEnvSetup):
         log_path = os.path.join(self.path_to_run, log_path_from_job_id(job_id))
         wait(lambda: not os.path.exists(log_path))
 
-        with pytest.raises(YtError) as e:
+        with pytest.raises(YtError, match="Job directory is not found"):
             dump_job_proxy_log(job_id, op.id, path)
-            assert "Logs not found for JobId" in e

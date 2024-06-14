@@ -15,11 +15,6 @@ BASE_NODE_CONFIG = {
                 "memory": 5 * 1024 ** 3,
             }
         },
-        "job_proxy": {
-            "job_proxy_logging": {
-                "mode": "per_job_directory",
-            },
-        },
     },
     "job_resource_manager": {
         "resource_limits": {
@@ -35,6 +30,8 @@ class TestJobProxyLogManagerBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
+
+    JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
     def job_proxy_log_exists(self, job_id):
         sharding_key = job_id.split("-")[0]
