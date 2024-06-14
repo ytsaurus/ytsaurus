@@ -356,6 +356,43 @@ void TDynamicAllyReplicaManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Parameter("removal_period", &TThis::RemovalPeriod)
+        .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("removal_batch_size", &TThis::RemovalBatchSize)
+        .Default(1000);
+
+    registrar.Parameter("replicas_percentage", &TThis::ReplicasPercentage)
+        .Default(0)
+        .InRange(0, 100);
+
+    registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
+        .Default(false);
+
+    registrar.Parameter("store_sequoia_replicas_on_master", &TThis::StoreSequoiaReplicasOnMaster)
+        .Default(true);
+
+    registrar.Parameter("processed_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
+        .Default(true);
+
+    registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
+        .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
+            THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
+                "new Sequoia replicas");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicChunkAutotomizerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("transaction_update_period", &TThis::TransactionUpdatePeriod)
@@ -603,6 +640,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_autotomizer", &TThis::ChunkAutotomizer)
         .DefaultNew();
 
+    registrar.Parameter("sequoia_chunk_replicas", &TThis::SequoiaChunkReplicas)
+        .DefaultNew();
+
     registrar.Parameter("finished_jobs_queue_size", &TThis::FinishedJobsQueueSize)
         .GreaterThanOrEqual(0)
         .Default(50'000);
@@ -628,32 +668,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
 
-    registrar.Parameter("sequoia_chunk_probability", &TThis::SequoiaChunkProbability)
-        .Default(0)
-        .InRange(0, 100);
-
-    registrar.Parameter("sequoia_replica_removal_period", &TThis::SequoiaReplicaRemovalPeriod)
-        .Default(TDuration::Seconds(1));
-
-    registrar.Parameter("sequoia_replica_removal_batch_size", &TThis::SequoiaReplicaRemovalBatchSize)
-        .Default(1000);
-
-    registrar.Parameter("sequoia_chunk_replicas_percentage", &TThis::SequoiaChunkReplicasPercentage)
-        .Default(0)
-        .InRange(0, 100);
-
-    registrar.Parameter("fetch_replicas_from_sequoia", &TThis::FetchReplicasFromSequoia)
-        .Default(false);
-
-    registrar.Parameter("store_sequoia_replicas_on_master", &TThis::StoreSequoiaReplicasOnMaster)
-        .Default(true);
-
-    registrar.Parameter("processed_removed_sequoia_replicas_on_master", &TThis::ProcessRemovedSequoiaReplicasOnMaster)
-        .Default(true);
-
-    registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
-        .Default(true)
-        .DontSerializeDefault();
 
     registrar.Parameter("removal_job_schedule_delay", &TThis::RemovalJobScheduleDelay)
         .Default(TDuration::Minutes(3))
@@ -694,11 +708,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
                 auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
-        }
-
-        if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
-            THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
-                "new sequoia replicas");
         }
     });
 }

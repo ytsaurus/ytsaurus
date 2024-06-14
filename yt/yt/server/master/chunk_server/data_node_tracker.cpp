@@ -149,9 +149,9 @@ public:
             }
         }
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto isSequoiaEnabled = config->SequoiaManager->Enable;
-        auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
+        auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
         auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
@@ -259,9 +259,9 @@ public:
             }
         }
 
-        const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto isSequoiaEnabled = config->SequoiaManager->Enable;
-        auto sequoiaChunkProbability = config->ChunkManager->SequoiaChunkReplicasPercentage;
+        const auto& sequoiaChunkReplicasConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
+        auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
+        auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
         auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] () {
             auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
