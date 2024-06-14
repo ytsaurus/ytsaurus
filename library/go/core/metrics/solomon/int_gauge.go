@@ -14,7 +14,7 @@ var (
 	_ Metric           = (*IntGauge)(nil)
 )
 
-// IntGauge tracks single float64 value.
+// IntGauge tracks single int64 value.
 type IntGauge struct {
 	name       string
 	metricType metricType
