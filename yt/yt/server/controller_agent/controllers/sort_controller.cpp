@@ -3239,7 +3239,7 @@ private:
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
-                    ValidateOutputSchemaCompatibility(/*ignoreSortOrder*/ true, /*forbidExtraComputedColumns*/ false);
+                    ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;

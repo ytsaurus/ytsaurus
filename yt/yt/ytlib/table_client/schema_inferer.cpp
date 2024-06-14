@@ -21,7 +21,10 @@ public:
 
     void AddInputTableSchema(const NYPath::TYPath& path, const TTableSchema& tableSchema, ETableSchemaMode /*schemaMode*/) override
     {
-        const auto& [compatibility, error] = CheckTableSchemaCompatibility(tableSchema, *OutputTableSchema_, /*ignoreSortOrder*/ true);
+        const auto& [compatibility, error] = CheckTableSchemaCompatibility(
+            tableSchema,
+            *OutputTableSchema_,
+            {.IgnoreSortOrder=true});
         if (compatibility != ESchemaCompatibility::FullyCompatible) {
             THROW_ERROR_EXCEPTION("Schema of output table %v is not compatible with schema of input table %v",
                 OutputPath_,
