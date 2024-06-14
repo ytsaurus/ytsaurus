@@ -886,7 +886,7 @@ class ConfigParserV2:
     _PROFILES_KEY = "profiles"
     _DEFAULT_PROFILE_KEY = "default_profile"
 
-    def __init__(self, config, profile):
+    def __init__(self, config: dict, profile: str):
         self._config = config
         self._profile = profile
 
