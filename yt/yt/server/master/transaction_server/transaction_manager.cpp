@@ -1431,9 +1431,9 @@ public:
         LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
 
-    bool UsesNonMirroredTransactions(const TCtxStartCypressTransactionPtr& context)
+    TTransactionId FindUsedNonMirroredTransaction(const TCtxStartCypressTransactionPtr& context)
     {
-        std::optional<TTransactionId> mirroredSample, nonMirroredSample;
+        TTransactionId mirroredSample, nonMirroredSample;
 
         auto onCypressTransaction = [&] (TTransactionId transactionId) {
             YT_ASSERT(IsCypressTransactionType(TypeFromId(transactionId)));
@@ -1476,17 +1476,17 @@ public:
                 "Attempt to start Cypress transaction which depends on both mirrored and "
                 "non-mirrored transaction (MirroredTransactionId: %v, "
                 "NonMirroredTransactionId: %v, Title: %v)",
-                *mirroredSample,
-                *nonMirroredSample,
+                mirroredSample,
+                nonMirroredSample,
                 YT_PROTO_OPTIONAL(context->Request(), title));
             THROW_ERROR_EXCEPTION(
                 "Cypress transaction cannot depend on both mirrored and non-mirrored "
                 "transactions at the same time")
-                << TErrorAttribute("mirrored_transaction_id", *mirroredSample)
-                << TErrorAttribute("non_mirrored_transaction_id", *nonMirroredSample);
+                << TErrorAttribute("mirrored_transaction_id", mirroredSample)
+                << TErrorAttribute("non_mirrored_transaction_id", nonMirroredSample);
         }
 
-        return nonMirroredSample.has_value();
+        return nonMirroredSample;
     }
 
     void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) override
@@ -1494,14 +1494,16 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (IsMirroringToSequoiaEnabled()) {
-            if (!UsesNonMirroredTransactions(context)) {
+            auto nonMirroredTransactionId = FindUsedNonMirroredTransaction(context);
+            if (!nonMirroredTransactionId) {
                 StartCypressTransactionInSequoiaAndReply(Bootstrap_, context);
                 return;
             }
 
             YT_LOG_WARNING(
                 "Mirroring to Sequoia is enabled but non-mirrored Cypress transaction is "
-                "started");
+                "started (TransactionId: %v)",
+                nonMirroredTransactionId);
         }
 
         auto hydraRequest = BuildStartCypressTransactionRequest(
