@@ -170,7 +170,7 @@ public:
         TAllTypesMessage row;
         for (; reader->IsValid(); reader->Next()) {
             reader->MoveRow(&row);
-            row.SetStringField(row.GetStringField() + " mapped");
+            row.set_string_field(row.string_field() + " mapped");
             writer->AddRow(row);
         }
     }
@@ -188,7 +188,7 @@ public:
         TAllTypesMessageProto3 row;
         for (; reader->IsValid(); reader->Next()) {
             reader->MoveRow(&row);
-            row.SetStringField(row.GetStringField() + " mapped");
+            row.set_string_field(row.string_field() + " mapped");
             writer->AddRow(row);
         }
     }
@@ -203,13 +203,13 @@ void ComplexTypesProtobufMapperDo(TReader* reader, TWriter* writer)
     for (; reader->IsValid(); reader->Next()) {
         if (reader->GetTableIndex() == 0) {
             auto row = reader->template MoveRow<TRowMixedSerializationOptions>();
-            row.MutableUrlRow_1()->SetHost(row.GetUrlRow_1().GetHost() + ".mapped");
-            row.MutableUrlRow_2()->SetHost(row.GetUrlRow_2().GetHost() + ".mapped");
+            row.mutable_url_row_1()->set_host(row.url_row_1().host() + ".mapped");
+            row.mutable_url_row_2()->set_host(row.url_row_2().host() + ".mapped");
             writer->AddRow(row, 0);
         } else {
             Y_ENSURE(reader->GetTableIndex() == 1);
             auto row = reader->template MoveRow<TRowSerializedRepeatedFields>();
-            row.AddInts(40000);
+            row.add_ints(40000);
             writer->AddRow(row, 1);
         }
     }
@@ -250,13 +250,13 @@ public:
     {
         for (; reader->IsValid(); reader->Next()) {
             auto row = reader->MoveRow<TRowWithTypeOptions>();
-            auto any = NodeFromYsonString(row.GetAnyField());
+            auto any = NodeFromYsonString(row.any_field());
             any["new"] = "delete";
-            row.SetAnyField(NodeToYsonString(any));
-            row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
-            auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
-            otherColumns["NewColumn"] = "BrandNew";
-            row.SetOtherColumnsField(NodeToYsonString(otherColumns));
+            row.set_any_field(NodeToYsonString(any));
+            row.add_repeated_enum_int_field(TRowWithTypeOptions::BLUE);
+            auto otherColumns = NodeFromYsonString(row.other_columns_field());
+            otherColumns["new_column"] = "BrandNew";
+            row.set_other_columns_field(NodeToYsonString(otherColumns));
             writer->AddRow(row);
         }
     }
@@ -273,9 +273,9 @@ public:
     {
         for (; reader->IsValid(); reader->Next()) {
             const auto& urlRow = reader->GetRow();
-            if (urlRow.GetHttpCode() == 200) {
+            if (urlRow.http_code() == 200) {
                 TGoodUrl goodUrl;
-                goodUrl.SetUrl(urlRow.GetHost() + urlRow.GetPath());
+                goodUrl.set_url(urlRow.host() + urlRow.path());
                 writer->AddRow(goodUrl, 1);
             }
             writer->AddRow(urlRow, 0);
@@ -296,12 +296,12 @@ public:
         i32 total = 0;
         for (; reader->IsValid(); reader->Next()) {
             const auto& urlRow = reader->GetRow();
-            if (!hostRow.HasHost()) {
-                hostRow.SetHost(urlRow.GetHost());
+            if (!hostRow.has_host()) {
+                hostRow.set_host(urlRow.host());
             }
-            total += urlRow.GetHttpCode();
+            total += urlRow.http_code();
         }
-        hostRow.SetHttpCodeTotal(total);
+        hostRow.set_http_code_total(total);
         writer->AddRow(hostRow);
     }
 };
@@ -564,7 +564,7 @@ REGISTER_REDUCER(TReducerThatCountsOutputTables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIdTRowVer2Mapper : public IMapper<TTableReader<NProtoBuf::Message>, TTableWriter<TRowVer2>>
+class TIdTRowVer2Mapper : public IMapper<TTableReader<Message>, TTableWriter<TRowVer2>>
 {
     void Do(TReader* reader, TWriter* writer) override
     {
@@ -1040,14 +1040,14 @@ TEST(Operations, TestReadProtobufFileInJob)
     auto workingDir = fixture.GetWorkingDir();
 
     TAllTypesMessage message;
-    message.SetFixed32Field(2134242);
-    message.SetSfixed32Field(422142);
-    message.SetBoolField(true);
-    message.SetStringField("42");
-    message.SetBytesField("36 popugayev");
-    message.SetEnumField(EEnum::One);
-    message.MutableMessageField()->SetKey("key");
-    message.MutableMessageField()->SetValue("value");
+    message.set_fixed32_field(2134242);
+    message.set_sfixed32_field(422142);
+    message.set_bool_field(true);
+    message.set_string_field("42");
+    message.set_bytes_field("36 popugayev");
+    message.set_enum_field(EEnum::One);
+    message.mutable_message_field()->set_key("key");
+    message.mutable_message_field()->set_value("value");
 
     {
         auto writer = client->CreateTableWriter<TAllTypesMessage>(workingDir + "/input");
@@ -1068,14 +1068,14 @@ TEST(Operations, TestReadProtobufFileInJob)
         auto reader = client->CreateTableReader<TAllTypesMessage>(workingDir + "/output");
         EXPECT_TRUE(reader->IsValid());
         const auto& row = reader->GetRow();
-        EXPECT_EQ(message.GetFixed32Field(), row.GetFixed32Field());
-        EXPECT_EQ(message.GetSfixed32Field(), row.GetSfixed32Field());
-        EXPECT_EQ(message.GetBoolField(), row.GetBoolField());
-        EXPECT_EQ(message.GetStringField(), row.GetStringField());
-        EXPECT_EQ(message.GetBytesField(), row.GetBytesField());
-        EXPECT_EQ(message.GetEnumField(), row.GetEnumField());
-        EXPECT_EQ(message.GetMessageField().GetKey(), row.GetMessageField().GetKey());
-        EXPECT_EQ(message.GetMessageField().GetValue(), row.GetMessageField().GetValue());
+        EXPECT_EQ(message.fixed32_field(), row.fixed32_field());
+        EXPECT_EQ(message.sfixed32_field(), row.sfixed32_field());
+        EXPECT_EQ(message.bool_field(), row.bool_field());
+        EXPECT_EQ(message.string_field(), row.string_field());
+        EXPECT_EQ(message.bytes_field(), row.bytes_field());
+        EXPECT_EQ(message.enum_field(), row.enum_field());
+        EXPECT_EQ(message.message_field().key(), row.message_field().key());
+        EXPECT_EQ(message.message_field().value(), row.message_field().value());
     }
 }
 
@@ -1207,9 +1207,9 @@ void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf, bool en
     auto outputTable = TRichYPath(workingDir + "/output");
     {
         auto writer = client->CreateTableWriter<TNode>(inputTable);
-        writer->AddRow(TNode()("StringField", "raz"));
-        writer->AddRow(TNode()("StringField", "dva"));
-        writer->AddRow(TNode()("StringField", "tri"));
+        writer->AddRow(TNode()("string_field", "raz"));
+        writer->AddRow(TNode()("string_field", "dva"));
+        writer->AddRow(TNode()("string_field", "tri"));
         writer->Finish();
     }
     TMapOperationSpec spec;
@@ -1228,9 +1228,9 @@ void MapWithProtobuf(bool useDeprecatedAddInput, bool useClientProtobuf, bool en
     client->Map(spec, new TProtobufMapper, TOperationOptions().Spec(specNode));
 
     TVector<TNode> expected = {
-        TNode()("StringField", "raz mapped"),
-        TNode()("StringField", "dva mapped"),
-        TNode()("StringField", "tri mapped"),
+        TNode()("string_field", "raz mapped"),
+        TNode()("string_field", "dva mapped"),
+        TNode()("string_field", "tri mapped"),
     };
     auto actual = ReadTable(client, outputTable.Path_);
     EXPECT_EQ(expected, actual);
@@ -1246,9 +1246,9 @@ TEST(Operations, ProtobufMapProto3)
     auto outputTable = TRichYPath(workingDir + "/output");
     {
         auto writer = client->CreateTableWriter<TNode>(inputTable);
-        writer->AddRow(TNode()("StringField", "raz"));
-        writer->AddRow(TNode()("StringField", "dva"));
-        writer->AddRow(TNode()("StringField", "tri"));
+        writer->AddRow(TNode()("string_field", "raz"));
+        writer->AddRow(TNode()("string_field", "dva"));
+        writer->AddRow(TNode()("string_field", "tri"));
         writer->Finish();
     }
     auto spec = TMapOperationSpec()
@@ -1258,9 +1258,9 @@ TEST(Operations, ProtobufMapProto3)
     client->Map(spec, new TProtobufMapperProto3);
 
     TVector<TNode> expected = {
-        TNode()("StringField", "raz mapped"),
-        TNode()("StringField", "dva mapped"),
-        TNode()("StringField", "tri mapped"),
+        TNode()("string_field", "raz mapped"),
+        TNode()("string_field", "dva mapped"),
+        TNode()("string_field", "tri mapped"),
     };
     auto actual = ReadTable(client, outputTable.Path_);
     EXPECT_EQ(expected, actual);
@@ -1305,17 +1305,17 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
             .Add(TNode()("name", "HttpCode")("type", "int32")));
 
     auto schema1 = TTableSchema()
-        .AddColumn(TColumnSchema().Name("UrlRow_1").RawTypeV3(urlRowRawTypeV3))
-        .AddColumn(TColumnSchema().Name("UrlRow_2").Type(VT_STRING));
+        .AddColumn(TColumnSchema().Name("url_row_1").RawTypeV3(urlRowRawTypeV3))
+        .AddColumn(TColumnSchema().Name("url_row_2").Type(VT_STRING));
 
     auto schema2 = TTableSchema()
         .AddColumn(TColumnSchema()
-            .Name("Ints")
+            .Name("ints")
             .RawTypeV3(TNode()
                 ("type_name", "list")
                 ("item", "int64")))
         .AddColumn(TColumnSchema()
-            .Name("UrlRows")
+            .Name("url_rows")
             .RawTypeV3(TNode()
                 ("type_name", "list")
                 ("item", urlRowRawTypeV3)));
@@ -1327,17 +1327,17 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
 
     {
         // TRowMixedSerializationOptions.
-        // UrlRow_2 has the same value as UrlRow_1.
+        // url_row_2 has the same value as url_row_1.
         auto writer = client->CreateTableWriter<TNode>(inputTable1);
         writer->AddRow(TNode()
-            ("UrlRow_1", TNode()("Host", "ya.ru")("Path", "/mail")("HttpCode", 404))
-            ("UrlRow_2",
+            ("url_row_1", TNode()("Host", "ya.ru")("Path", "/mail")("HttpCode", 404))
+            ("url_row_2",
                     "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
                     "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
                     "\x18" "\xA8\x06"));
         writer->AddRow(TNode()
-            ("UrlRow_1", TNode()("Host", "ya.ru")("Path", "/maps")("HttpCode", 300))
-            ("UrlRow_2",
+            ("url_row_1", TNode()("Host", "ya.ru")("Path", "/maps")("HttpCode", 300))
+            ("url_row_2",
                 "\x0A" "\x05" "\x79\x61\x2E\x72\x75"
                 "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
                 "\x18" "\xD8\x04"));
@@ -1348,13 +1348,13 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
         // TRowSerializedRepeatedFields.
         auto writer = client->CreateTableWriter<TNode>(inputTable2);
         writer->AddRow(TNode()
-            ("Ints", TNode().Add(-1).Add(-2))
-            ("UrlRows", TNode()
+            ("ints", TNode().Add(-1).Add(-2))
+            ("url_rows", TNode()
                 .Add(TNode()("Host", "yandex.ru")("Path", "/mail")("HttpCode", 200))
                 .Add(TNode()("Host", "google.com")("Path", "/mail")("HttpCode", 404))));
         writer->AddRow(TNode()
-            ("Ints", TNode().Add(1).Add(2))
-            ("UrlRows", TNode()
+            ("ints", TNode().Add(1).Add(2))
+            ("url_rows", TNode()
                 .Add(TNode()("Host", "yandex.ru")("Path", "/maps")("HttpCode", 200))
                 .Add(TNode()("Host", "google.com")("Path", "/maps")("HttpCode", 404))));
         writer->Finish();
@@ -1377,14 +1377,14 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
 
     TVector<TNode> expectedContent1 = {
         TNode()
-            ("UrlRow_1", TNode()("Host", "ya.ru.mapped")("Path", "/mail")("HttpCode", 404))
-            ("UrlRow_2",
+            ("url_row_1", TNode()("Host", "ya.ru.mapped")("Path", "/mail")("HttpCode", 404))
+            ("url_row_2",
                 "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
                 "\x12" "\x05" "\x2F\x6D\x61\x69\x6C"
                 "\x18" "\xA8\x06"),
         TNode()
-            ("UrlRow_1", TNode()("Host", "ya.ru.mapped")("Path", "/maps")("HttpCode", 300))
-            ("UrlRow_2",
+            ("url_row_1", TNode()("Host", "ya.ru.mapped")("Path", "/maps")("HttpCode", 300))
+            ("url_row_2",
                 "\x0A" "\x0C" "\x79\x61\x2E\x72\x75\x2E\x6D\x61\x70\x70\x65\x64"
                 "\x12" "\x05" "\x2F\x6D\x61\x70\x73"
                 "\x18" "\xD8\x04"),
@@ -1392,13 +1392,13 @@ void TestProtobufMap_ComplexTypes(bool useOneOfMapper)
 
     TVector<TNode> expectedContent2 = {
         TNode()
-            ("Ints", TNode().Add(-1).Add(-2).Add(40000))
-            ("UrlRows", TNode()
+            ("ints", TNode().Add(-1).Add(-2).Add(40000))
+            ("url_rows", TNode()
                 .Add(TNode()("Host", "yandex.ru")("Path", "/mail")("HttpCode", 200))
                 .Add(TNode()("Host", "google.com")("Path", "/mail")("HttpCode", 404))),
         TNode()
-            ("Ints", TNode().Add(1).Add(2).Add(40000))
-            ("UrlRows", TNode()
+            ("ints", TNode().Add(1).Add(2).Add(40000))
+            ("url_rows", TNode()
                 .Add(TNode()("Host", "yandex.ru")("Path", "/maps")("HttpCode", 200))
                 .Add(TNode()("Host", "google.com")("Path", "/maps")("HttpCode", 404)))
     };
@@ -1429,34 +1429,34 @@ TEST(Operations, ProtobufMap_TypeOptions)
     auto schema = TTableSchema()
         .Strict(false)
         .AddColumn(TColumnSchema()
-            .Name("ColorIntField").Type(EValueType::VT_INT64))
+            .Name("color_int_field").Type(EValueType::VT_INT64))
         .AddColumn(TColumnSchema()
-            .Name("ColorStringField").Type(EValueType::VT_STRING))
+            .Name("color_string_field").Type(EValueType::VT_STRING))
         .AddColumn(TColumnSchema()
-            .Name("AnyField").Type(EValueType::VT_ANY))
+            .Name("any_field").Type(EValueType::VT_ANY))
         .AddColumn(TColumnSchema()
-            .Name("EmbeddedField").RawTypeV3(TNode()
+            .Name("embedded_field").RawTypeV3(TNode()
                 ("type_name", "optional")
                 ("item", TNode()
                     ("type_name", "struct")
                     ("members", TNode()
                         .Add(TNode()
-                            ("name", "ColorIntField")
+                            ("name", "color_int_field")
                             ("type", "int64"))
                         .Add(TNode()
-                            ("name", "ColorStringField")
+                            ("name", "color_string_field")
                             ("type", "string"))
                         .Add(TNode()
-                            ("name", "AnyField")
+                            ("name", "any_field")
                             ("type", TNode()
                                 ("type_name", "optional")
                                 ("item", "yson")))))))
         .AddColumn(TColumnSchema()
-            .Name("RepeatedEnumIntField").RawTypeV3(TNode()
+            .Name("repeated_enum_int_field").RawTypeV3(TNode()
                 ("type_name", "list")
                 ("item", "int64")))
         .AddColumn(TColumnSchema()
-            .Name("UnknownSchematizedColumn").Type(EValueType::VT_BOOLEAN));
+            .Name("unknown_schematized_column").Type(EValueType::VT_BOOLEAN));
 
     auto inputTable = TRichYPath(workingDir + "/input").Schema(schema);
     auto outputTable = TRichYPath(workingDir + "/output").Schema(schema);
@@ -1464,27 +1464,27 @@ TEST(Operations, ProtobufMap_TypeOptions)
     {
         auto writer = client->CreateTableWriter<TNode>(inputTable);
         writer->AddRow(TNode()
-            ("ColorIntField", -1)
-            ("ColorStringField", "BLUE")
-            ("AnyField", TNode()("x", TNode()("y", 12)))
-            ("UnknownSchematizedColumn", true)
-            ("UnknownUnschematizedColumn", 1234)
-            ("EmbeddedField", TNode()
-                ("ColorIntField", 0)
-                ("ColorStringField", "RED")
-                ("AnyField", TNode()("key", "value")))
-            ("RepeatedEnumIntField", TNode().Add(0).Add(1).Add(-1)));
+            ("color_int_field", -1)
+            ("color_string_field", "BLUE")
+            ("any_field", TNode()("x", TNode()("y", 12)))
+            ("unknown_schematized_column", true)
+            ("unknown_unschematized_column", 1234)
+            ("embedded_field", TNode()
+                ("color_int_field", 0)
+                ("color_string_field", "RED")
+                ("any_field", TNode()("key", "value")))
+            ("repeated_enum_int_field", TNode().Add(0).Add(1).Add(-1)));
         writer->AddRow(TNode()
-            ("ColorIntField", 0)
-            ("ColorStringField", "RED")
-            ("AnyField", TNode()("z", 0))
-            ("UnknownSchematizedColumn", false)
-            ("UnknownUnschematizedColumn", "some-string")
-            ("EmbeddedField", TNode()
-                ("ColorIntField", -1)
-                ("ColorStringField", "WHITE")
-                ("AnyField", "hooray"))
-            ("RepeatedEnumIntField", TNode().Add(1)));
+            ("color_int_field", 0)
+            ("color_string_field", "RED")
+            ("any_field", TNode()("z", 0))
+            ("unknown_schematized_column", false)
+            ("unknown_unschematized_column", "some-string")
+            ("embedded_field", TNode()
+                ("color_int_field", -1)
+                ("color_string_field", "WHITE")
+                ("any_field", "hooray"))
+            ("repeated_enum_int_field", TNode().Add(1)));
         writer->Finish();
     }
 
@@ -1498,40 +1498,40 @@ TEST(Operations, ProtobufMap_TypeOptions)
     EXPECT_EQ(std::ssize(actualRows), 2);
     {
         const auto& row = actualRows[0];
-        EXPECT_EQ(row["ColorIntField"], -1);
-        EXPECT_EQ(row["ColorStringField"], "BLUE");
+        EXPECT_EQ(row["color_int_field"], -1);
+        EXPECT_EQ(row["color_string_field"], "BLUE");
         EXPECT_EQ(
-            row["AnyField"],
+            row["any_field"],
             TNode()
                 ("x", TNode()("y", 12))
                 ("new", "delete"));
-        EXPECT_EQ(row["UnknownSchematizedColumn"], true);
-        EXPECT_EQ(row["UnknownUnschematizedColumn"], 1234);
+        EXPECT_EQ(row["unknown_schematized_column"], true);
+        EXPECT_EQ(row["unknown_unschematized_column"], 1234);
         EXPECT_EQ(
-            row["EmbeddedField"],
+            row["embedded_field"],
             TNode()
-                ("ColorIntField", 0)
-                ("ColorStringField", "RED")
-                ("AnyField", TNode()("key", "value")));
-        EXPECT_EQ(row["RepeatedEnumIntField"], TNode().Add(0).Add(1).Add(-1).Add(1));
-        EXPECT_EQ(row["NewColumn"], "BrandNew");
+                ("color_int_field", 0)
+                ("color_string_field", "RED")
+                ("any_field", TNode()("key", "value")));
+        EXPECT_EQ(row["repeated_enum_int_field"], TNode().Add(0).Add(1).Add(-1).Add(1));
+        EXPECT_EQ(row["new_column"], "BrandNew");
     }
     {
         const auto& row = actualRows[1];
-        EXPECT_EQ(row["ColorIntField"], 0);
-        EXPECT_EQ(row["ColorStringField"], "RED");
+        EXPECT_EQ(row["color_int_field"], 0);
+        EXPECT_EQ(row["color_string_field"], "RED");
         EXPECT_EQ(
-            row["AnyField"],
+            row["any_field"],
             TNode()
                 ("z", 0)
                 ("new", "delete"));
-        EXPECT_EQ(row["UnknownSchematizedColumn"], false);
-        EXPECT_EQ(row["UnknownUnschematizedColumn"], "some-string");
-        EXPECT_EQ(row["EmbeddedField"], TNode()
-            ("ColorIntField", -1)
-            ("ColorStringField", "WHITE")
-            ("AnyField", "hooray"));
-        EXPECT_EQ(row["RepeatedEnumIntField"], TNode().Add(1).Add(1));
+        EXPECT_EQ(row["unknown_schematized_column"], false);
+        EXPECT_EQ(row["unknown_unschematized_column"], "some-string");
+        EXPECT_EQ(row["embedded_field"], TNode()
+            ("color_int_field", -1)
+            ("color_string_field", "WHITE")
+            ("any_field", "hooray"));
+        EXPECT_EQ(row["repeated_enum_int_field"], TNode().Add(1).Add(1));
     }
 }
 
@@ -1680,9 +1680,9 @@ void TestMapReduceMapOutput()
     {
         auto writer = client->CreateTableWriter<TUrlRow>(workingDir + "/input");
         TUrlRow row;
-        row.SetHost("http://example.com");
-        row.SetPath("/index.php");
-        row.SetHttpCode(200);
+        row.set_host("http://example.com");
+        row.set_path("/index.php");
+        row.set_http_code(200);
         writer->AddRow(row);
         writer->Finish();
     }
@@ -3556,9 +3556,9 @@ TEST(Operations, ProtobufColumnFilter)
 
     const auto dynamicTable = workingDir + "/dynamic_input";
     const auto schema = TTableSchema()
-        .AddColumn(TColumnSchema().Name("String_1").Type(VT_STRING).SortOrder(SO_ASCENDING))
-        .AddColumn(TColumnSchema().Name("Uint32_2").Type(VT_UINT32))
-        .AddColumn(TColumnSchema().Name("Extra").Type(VT_STRING));
+        .AddColumn(TColumnSchema().Name("string_1").Type(VT_STRING).SortOrder(SO_ASCENDING))
+        .AddColumn(TColumnSchema().Name("uint32_2").Type(VT_UINT32))
+        .AddColumn(TColumnSchema().Name("extra").Type(VT_STRING));
     client->Create(
         dynamicTable,
         NT_TABLE,
@@ -3566,7 +3566,7 @@ TEST(Operations, ProtobufColumnFilter)
 
     client->MountTable(dynamicTable);
     WaitForTabletsState(client, dynamicTable, TS_MOUNTED);
-    client->InsertRows(dynamicTable, {TNode()("String_1", "str")("Uint32_2", 1U)("Extra", "extra")});
+    client->InsertRows(dynamicTable, {TNode()("string_1", "str")("uint32_2", 1U)("extra", "extra")});
     client->UnmountTable(dynamicTable);
     WaitForTabletsState(client, dynamicTable, TS_UNMOUNTED);
 
@@ -3578,7 +3578,7 @@ TEST(Operations, ProtobufColumnFilter)
                 .AddOutput<TRowVer2>(outputTable),
             new TIdTRowVer2Mapper),
         {},
-        {TNode()("String_1", "str")("Uint32_2", 1U)});
+        {TNode()("string_1", "str")("uint32_2", 1U)});
 }
 
 

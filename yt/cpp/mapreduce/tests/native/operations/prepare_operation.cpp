@@ -220,7 +220,7 @@ public:
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();
-            if (row.GetKey() == Pattern_) {
+            if (row.key() == Pattern_) {
                 writer->AddRow(row);
             }
         }
@@ -247,7 +247,7 @@ public:
     {
         for (const auto& cursor : *reader) {
             auto row = cursor.GetRow();
-            if (row.GetKey() == Pattern_) {
+            if (row.key() == Pattern_) {
                 writer->AddRow(row);
             }
         }
@@ -256,13 +256,13 @@ public:
     void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const override
     {
         preparer
-            .InputColumnRenaming(0, {{Column_, "Key"}})
+            .InputColumnRenaming(0, {{Column_, "key"}})
             .InputDescription<TGrepperRecord>(0)
             .OutputDescription<TGrepperRecord>(0, /* inferSchema */ false);
         auto schema = context.GetInputSchema(0);
         for (auto& column : schema.MutableColumns()) {
             if (column.Name() == Column_) {
-                column.Name("Key");
+                column.Name("key");
             }
         }
         preparer.OutputSchema(0, schema);
@@ -487,9 +487,9 @@ void TestPrecedenceOverInference()
         }
         auto writer = client->CreateTableWriter<TRow>(path);
         TRow row;
-        row.SetHost("ya.ru");
-        row.SetPath("search");
-        row.SetHttpCode(404);
+        row.set_host("ya.ru");
+        row.set_path("search");
+        row.set_http_code(404);
         writer->AddRow(row);
         writer->Finish();
     }
@@ -563,8 +563,8 @@ TEST(PrepareOperation, JobPreparerOldWay)
         TNode()("keyColumn", ":-(")("value", ":-(")
     };
     TVector<TNode> expected = {
-        TNode()("Key", "we want it")("value", ":)"),
-        TNode()("Key", "we want it")("value", ":-)"),
+        TNode()("key", "we want it")("value", ":)"),
+        TNode()("key", "we want it")("value", ":-)"),
     };
     {
         auto writer = client->CreateTableWriter<TNode>(inputTable.Schema(
@@ -578,8 +578,8 @@ TEST(PrepareOperation, JobPreparerOldWay)
     auto pattern = "we want it";
     client->Map(
         new TGrepperOld(pattern),
-        TStructuredTablePath(inputTable.RenameColumns({{"keyColumn", "Key"}}), TGrepperRecord::descriptor()),
-        TStructuredTablePath(outputTable.RenameColumns({{"keyColumn", "Key"}}), TGrepperRecord::descriptor()));
+        TStructuredTablePath(inputTable.RenameColumns({{"keyColumn", "key"}}), TGrepperRecord::descriptor()),
+        TStructuredTablePath(outputTable.RenameColumns({{"keyColumn", "key"}}), TGrepperRecord::descriptor()));
 
     auto reader = client->CreateTableReader<TNode>(outputTable);
     TVector<TNode> result;
@@ -606,8 +606,8 @@ TEST(PrepareOperation, JobPreparer)
         TNode()("keyColumn", ":-(")("value", ":-(")
     };
     TVector<TNode> expected = {
-        TNode()("Key", "we want it")("value", ":)"),
-        TNode()("Key", "we want it")("value", ":-)"),
+        TNode()("key", "we want it")("value", ":)"),
+        TNode()("key", "we want it")("value", ":-)"),
     };
     {
         auto writer = client->CreateTableWriter<TNode>(inputTable.Schema(
@@ -636,7 +636,7 @@ TEST(PrepareOperation, JobPreparer)
     TTableSchema schema;
     Deserialize(schema, client->Get(outputTable.Path_ + "/@schema"));
     EXPECT_EQ(schema, TTableSchema()
-        .AddColumn("Key", EValueType::VT_STRING)
+        .AddColumn("key", EValueType::VT_STRING)
         .AddColumn("value", EValueType::VT_STRING));
 }
 
@@ -707,9 +707,9 @@ void TestSchemaInference(bool setOperationOptions)
     {
         auto writer = client->CreateTableWriter<TRow>(workingDir + "/input");
         TRow row;
-        row.SetHost("build01-myt.yandex.net");
-        row.SetPath("~/.virmc");
-        row.SetHttpCode(3213);
+        row.set_host("build01-myt.yandex.net");
+        row.set_path("~/.virmc");
+        row.set_http_code(3213);
         writer->AddRow(row);
         writer->Finish();
     }

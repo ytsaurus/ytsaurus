@@ -15,6 +15,8 @@
 
 #include <yt/cpp/mapreduce/io/proto_table_reader.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 #include <library/cpp/yson/node/node_io.h>
@@ -46,7 +48,7 @@ NTi::TTypePtr GetRowType<TUrlRowWithColumnNames>()
     static auto type = NTi::Struct({
         {"Host_ColumnName", NTi::String()},
         {"Path_KeyColumnName", NTi::String()},
-        {"HttpCode", NTi::Int32()},
+        {"http_code", NTi::Int32()},
     });
     return type;
 }
@@ -70,25 +72,25 @@ TEST_P(TProtobufTableIoTest, ReadingWritingProtobufAllTypesProto3)
 
     auto path = TRichYPath(workingDir + "/proto_table");
     TAllTypesMessageProto3 message;
-    message.SetDoubleField(42.4242);
-    message.SetFloatField(3.14159);
-    message.SetInt64Field(-4200);
+    message.set_double_field(42.4242);
+    message.set_float_field(3.14159);
+    message.set_int64_field(-4200);
     // OmittedInt64Field is not set deliberately.
-    message.SetUint64Field(4200);
-    message.SetSint64Field(-4242);
-    message.SetFixed64Field(432101234);
-    message.SetSfixed64Field(41112222);
-    message.SetInt32Field(-3124232);
-    message.SetUint32Field(12321342);
-    message.SetSint32Field(-42442);
-    message.SetFixed32Field(2134242);
-    message.SetSfixed32Field(422142);
-    message.SetBoolField(true);
-    message.SetStringField("42");
-    message.SetBytesField("36 popugayev");
-    message.SetEnumField(EEnumProto3::OneProto3);
-    message.MutableMessageField()->SetKey("key");
-    message.MutableMessageField()->SetValue("value");
+    message.set_uint64_field(4200);
+    message.set_sint64_field(-4242);
+    message.set_fixed64_field(432101234);
+    message.set_sfixed64_field(41112222);
+    message.set_int32_field(-3124232);
+    message.set_uint32_field(12321342);
+    message.set_sint32_field(-42442);
+    message.set_fixed32_field(2134242);
+    message.set_sfixed32_field(422142);
+    message.set_bool_field(true);
+    message.set_string_field("42");
+    message.set_bytes_field("36 popugayev");
+    message.set_enum_field(EEnumProto3::OneProto3);
+    message.mutable_message_field()->set_key("key");
+    message.mutable_message_field()->set_value("value");
 
     {
         auto writer = client->CreateTableWriter<TAllTypesMessageProto3>(path);
@@ -99,26 +101,26 @@ TEST_P(TProtobufTableIoTest, ReadingWritingProtobufAllTypesProto3)
         auto reader = client->CreateTableReader<TAllTypesMessageProto3>(path);
         EXPECT_TRUE(reader->IsValid());
         const auto& row = reader->GetRow();
-        ASSERT_NEAR(message.GetDoubleField(), row.GetDoubleField(), 1e-6);
-        ASSERT_NEAR(message.GetFloatField(), row.GetFloatField(), 1e-6);
-        EXPECT_EQ(message.GetInt64Field(), row.GetInt64Field());
-        EXPECT_EQ(message.GetOmittedInt64Field(), row.GetOmittedInt64Field());
-        EXPECT_EQ(message.GetOmittedInt64Field(), 0);
-        EXPECT_EQ(message.GetUint64Field(), row.GetUint64Field());
-        EXPECT_EQ(message.GetSint64Field(), row.GetSint64Field());
-        EXPECT_EQ(message.GetFixed64Field(), row.GetFixed64Field());
-        EXPECT_EQ(message.GetSfixed64Field(), row.GetSfixed64Field());
-        EXPECT_EQ(message.GetInt32Field(), row.GetInt32Field());
-        EXPECT_EQ(message.GetUint32Field(), row.GetUint32Field());
-        EXPECT_EQ(message.GetSint32Field(), row.GetSint32Field());
-        EXPECT_EQ(message.GetFixed32Field(), row.GetFixed32Field());
-        EXPECT_EQ(message.GetSfixed32Field(), row.GetSfixed32Field());
-        EXPECT_EQ(message.GetBoolField(), row.GetBoolField());
-        EXPECT_EQ(message.GetStringField(), row.GetStringField());
-        EXPECT_EQ(message.GetBytesField(), row.GetBytesField());
-        EXPECT_EQ(message.GetEnumField(), row.GetEnumField());
-        EXPECT_EQ(message.GetMessageField().GetKey(), row.GetMessageField().GetKey());
-        EXPECT_EQ(message.GetMessageField().GetValue(), row.GetMessageField().GetValue());
+        ASSERT_NEAR(message.double_field(), row.double_field(), 1e-6);
+        ASSERT_NEAR(message.float_field(), row.float_field(), 1e-6);
+        EXPECT_EQ(message.int64_field(), row.int64_field());
+        EXPECT_EQ(message.omitted_int64_field(), row.omitted_int64_field());
+        EXPECT_EQ(message.omitted_int64_field(), 0);
+        EXPECT_EQ(message.uint64_field(), row.uint64_field());
+        EXPECT_EQ(message.sint64_field(), row.sint64_field());
+        EXPECT_EQ(message.fixed64_field(), row.fixed64_field());
+        EXPECT_EQ(message.sfixed64_field(), row.sfixed64_field());
+        EXPECT_EQ(message.int32_field(), row.int32_field());
+        EXPECT_EQ(message.uint32_field(), row.uint32_field());
+        EXPECT_EQ(message.sint32_field(), row.sint32_field());
+        EXPECT_EQ(message.fixed32_field(), row.fixed32_field());
+        EXPECT_EQ(message.sfixed32_field(), row.sfixed32_field());
+        EXPECT_EQ(message.bool_field(), row.bool_field());
+        EXPECT_EQ(message.string_field(), row.string_field());
+        EXPECT_EQ(message.bytes_field(), row.bytes_field());
+        EXPECT_EQ(message.enum_field(), row.enum_field());
+        EXPECT_EQ(message.message_field().key(), row.message_field().key());
+        EXPECT_EQ(message.message_field().value(), row.message_field().value());
         reader->Next();
         EXPECT_TRUE(!reader->IsValid());
     }
@@ -133,24 +135,24 @@ TEST_P(TProtobufTableIoTest, ReadingWritingProtobufAllTypes)
 
     auto path = TRichYPath(workingDir + "/proto_table");
     TAllTypesMessage message;
-    message.SetDoubleField(42.4242);
-    message.SetFloatField(3.14159);
-    message.SetInt64Field(-4200);
-    message.SetUint64Field(4200);
-    message.SetSint64Field(-4242);
-    message.SetFixed64Field(432101234);
-    message.SetSfixed64Field(41112222);
-    message.SetInt32Field(-3124232);
-    message.SetUint32Field(12321342);
-    message.SetSint32Field(-42442);
-    message.SetFixed32Field(2134242);
-    message.SetSfixed32Field(422142);
-    message.SetBoolField(true);
-    message.SetStringField("42");
-    message.SetBytesField("36 popugayev");
-    message.SetEnumField(EEnum::One);
-    message.MutableMessageField()->SetKey("key");
-    message.MutableMessageField()->SetValue("value");
+    message.set_double_field(42.4242);
+    message.set_float_field(3.14159);
+    message.set_int64_field(-4200);
+    message.set_uint64_field(4200);
+    message.set_sint64_field(-4242);
+    message.set_fixed64_field(432101234);
+    message.set_sfixed64_field(41112222);
+    message.set_int32_field(-3124232);
+    message.set_uint32_field(12321342);
+    message.set_sint32_field(-42442);
+    message.set_fixed32_field(2134242);
+    message.set_sfixed32_field(422142);
+    message.set_bool_field(true);
+    message.set_string_field("42");
+    message.set_bytes_field("36 popugayev");
+    message.set_enum_field(EEnum::One);
+    message.mutable_message_field()->set_key("key");
+    message.mutable_message_field()->set_value("value");
 
     {
         auto writer = client->CreateTableWriter<TAllTypesMessage>(path);
@@ -161,24 +163,24 @@ TEST_P(TProtobufTableIoTest, ReadingWritingProtobufAllTypes)
         auto reader = client->CreateTableReader<TAllTypesMessage>(path);
         EXPECT_TRUE(reader->IsValid());
         const auto& row = reader->GetRow();
-        ASSERT_NEAR(message.GetDoubleField(), row.GetDoubleField(), 1e-6);
-        ASSERT_NEAR(message.GetFloatField(), row.GetFloatField(), 1e-6);
-        EXPECT_EQ(message.GetInt64Field(), row.GetInt64Field());
-        EXPECT_EQ(message.GetUint64Field(), row.GetUint64Field());
-        EXPECT_EQ(message.GetSint64Field(), row.GetSint64Field());
-        EXPECT_EQ(message.GetFixed64Field(), row.GetFixed64Field());
-        EXPECT_EQ(message.GetSfixed64Field(), row.GetSfixed64Field());
-        EXPECT_EQ(message.GetInt32Field(), row.GetInt32Field());
-        EXPECT_EQ(message.GetUint32Field(), row.GetUint32Field());
-        EXPECT_EQ(message.GetSint32Field(), row.GetSint32Field());
-        EXPECT_EQ(message.GetFixed32Field(), row.GetFixed32Field());
-        EXPECT_EQ(message.GetSfixed32Field(), row.GetSfixed32Field());
-        EXPECT_EQ(message.GetBoolField(), row.GetBoolField());
-        EXPECT_EQ(message.GetStringField(), row.GetStringField());
-        EXPECT_EQ(message.GetBytesField(), row.GetBytesField());
-        EXPECT_EQ(message.GetEnumField(), row.GetEnumField());
-        EXPECT_EQ(message.GetMessageField().GetKey(), row.GetMessageField().GetKey());
-        EXPECT_EQ(message.GetMessageField().GetValue(), row.GetMessageField().GetValue());
+        ASSERT_NEAR(message.double_field(), row.double_field(), 1e-6);
+        ASSERT_NEAR(message.float_field(), row.float_field(), 1e-6);
+        EXPECT_EQ(message.int64_field(), row.int64_field());
+        EXPECT_EQ(message.uint64_field(), row.uint64_field());
+        EXPECT_EQ(message.sint64_field(), row.sint64_field());
+        EXPECT_EQ(message.fixed64_field(), row.fixed64_field());
+        EXPECT_EQ(message.sfixed64_field(), row.sfixed64_field());
+        EXPECT_EQ(message.int32_field(), row.int32_field());
+        EXPECT_EQ(message.uint32_field(), row.uint32_field());
+        EXPECT_EQ(message.sint32_field(), row.sint32_field());
+        EXPECT_EQ(message.fixed32_field(), row.fixed32_field());
+        EXPECT_EQ(message.sfixed32_field(), row.sfixed32_field());
+        EXPECT_EQ(message.bool_field(), row.bool_field());
+        EXPECT_EQ(message.string_field(), row.string_field());
+        EXPECT_EQ(message.bytes_field(), row.bytes_field());
+        EXPECT_EQ(message.enum_field(), row.enum_field());
+        EXPECT_EQ(message.message_field().key(), row.message_field().key());
+        EXPECT_EQ(message.message_field().value(), row.message_field().value());
         reader->Next();
         EXPECT_TRUE(!reader->IsValid());
     }
@@ -193,9 +195,9 @@ TEST_P(TProtobufTableIoTest, UntypedProtobufWriter)
 
     {
         TUrlRow row;
-        row.SetHost("http://www.example.com");
-        row.SetPath("/index.php");
-        row.SetHttpCode(200);
+        row.set_host("http://www.example.com");
+        row.set_path("/index.php");
+        row.set_http_code(200);
         const Message* ptrWithoutType = &row;
 
         auto writer = client->CreateTableWriter(workingDir + "/urls", *TUrlRow::descriptor());
@@ -207,9 +209,9 @@ TEST_P(TProtobufTableIoTest, UntypedProtobufWriter)
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/index.php");
-        EXPECT_EQ(row.GetHttpCode(), 200);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/index.php");
+        EXPECT_EQ(row.http_code(), 200);
     }
     reader->Next();
     EXPECT_TRUE(!reader->IsValid());
@@ -225,8 +227,8 @@ TEST_P(TProtobufTableIoTest, ProtobufVersions)
     {
         const auto writer = client->CreateTableWriter<TRowVer1>(workingDir + "/ver1");
         TRowVer1 data;
-        data.SetString_1("Ver1_String_1");
-        data.SetUint32_2(0x12);
+        data.set_string_1("Ver1_String_1");
+        data.set_uint32_2(0x12);
         writer->AddRow(data);
         writer->Finish();
     }
@@ -237,11 +239,11 @@ TEST_P(TProtobufTableIoTest, ProtobufVersions)
         EXPECT_TRUE(reader->IsValid());
         {
             const auto& data = reader->GetRow();
-            EXPECT_TRUE(data.HasString_1());
-            EXPECT_EQ(data.GetString_1(), "Ver1_String_1");
-            EXPECT_TRUE(data.HasUint32_2());
-            EXPECT_EQ(data.GetUint32_2(), static_cast<ui32>(0x12));
-            EXPECT_TRUE(!data.HasFixed64_3());
+            EXPECT_TRUE(data.has_string_1());
+            EXPECT_EQ(data.string_1(), "Ver1_String_1");
+            EXPECT_TRUE(data.has_uint32_2());
+            EXPECT_EQ(data.uint32_2(), static_cast<ui32>(0x12));
+            EXPECT_TRUE(!data.has_fixed64_3());
             EXPECT_EQ(data.unknown_fields().field_count(), 0);
         }
         reader->Next();
@@ -251,9 +253,9 @@ TEST_P(TProtobufTableIoTest, ProtobufVersions)
     {
         const auto writer = client->CreateTableWriter<TRowVer2>(workingDir + "/ver2");
         TRowVer2 data;
-        data.SetString_1("Ver2_String_1");
-        data.SetUint32_2(0x22);
-        data.SetFixed64_3(0x23);
+        data.set_string_1("Ver2_String_1");
+        data.set_uint32_2(0x22);
+        data.set_fixed64_3(0x23);
         writer->AddRow(data);
         writer->Finish();
     }
@@ -264,10 +266,10 @@ TEST_P(TProtobufTableIoTest, ProtobufVersions)
         EXPECT_TRUE(reader->IsValid());
         {
             const auto& data = reader->GetRow();
-            EXPECT_TRUE(data.HasString_1());
-            EXPECT_EQ(data.GetString_1(), "Ver2_String_1");
-            EXPECT_TRUE(data.HasUint32_2());
-            EXPECT_EQ(data.GetUint32_2(), static_cast<ui32>(0x22));
+            EXPECT_TRUE(data.has_string_1());
+            EXPECT_EQ(data.string_1(), "Ver2_String_1");
+            EXPECT_TRUE(data.has_uint32_2());
+            EXPECT_EQ(data.uint32_2(), static_cast<ui32>(0x22));
             //no unknown fields supported
             EXPECT_EQ(data.unknown_fields().field_count(), 0);
         }
@@ -309,9 +311,9 @@ void TestProtobufSerializationModes(
     };
 
     auto schema = TTableSchema();
-    auto column1 = TColumnSchema().Name("UrlRow_1");
+    auto column1 = TColumnSchema().Name("url_row_1");
     setType(mode1, column1);
-    auto column2 = TColumnSchema().Name("UrlRow_2");
+    auto column2 = TColumnSchema().Name("url_row_2");
     setType(mode2, column2);
     schema.AddColumn(column1).AddColumn(column2);
 
@@ -327,21 +329,19 @@ void TestProtobufSerializationModes(
             TRichYPath(workingDir + "/table").Schema(schema));
         for (const auto& [host, path, code] : firstValuesInRows) {
             TRow row;
-            auto& embedded1 = *row.MutableUrlRow_1();
-            embedded1.SetHost(host);
-            embedded1.SetPath(path);
-            embedded1.SetHttpCode(code);
-            auto& embedded2 = *row.MutableUrlRow_2();
-            embedded2.SetHost(host);
-            embedded2.SetPath(path);
-            embedded2.SetHttpCode(code + 1);
+            auto& embedded1 = *row.mutable_url_row_1();
+            embedded1.set_host(host);
+            embedded1.set_path(path);
+            embedded1.set_http_code(code);
+            auto& embedded2 = *row.mutable_url_row_2();
+            embedded2.set_host(host);
+            embedded2.set_path(path);
+            embedded2.set_http_code(code + 1);
             writer->AddRow(row);
 
-            TString embedded1Serialized;
-            Y_PROTOBUF_SUPPRESS_NODISCARD embedded1.SerializeToString(&embedded1Serialized);
-            TString embedded2Serialized;
-            Y_PROTOBUF_SUPPRESS_NODISCARD embedded2.SerializeToString(&embedded2Serialized);
-            protobufSerializedValues.push_back(TVector<TString>{embedded1Serialized, embedded2Serialized});
+            TString embedded1Serialized = SerializeProtoToString(embedded1);
+            TString embedded2Serialized = SerializeProtoToString(embedded2);
+            protobufSerializedValues.push_back(TVector<TString>{FromProto<TString>(embedded1Serialized), FromProto<TString>(embedded2Serialized)});
 
             nodeSerializedValues.push_back(TVector<TNode>{
                 TNode()(columnNames.Host, host)(columnNames.Path, path)(columnNames.HttpCode, code),
@@ -369,16 +369,16 @@ void TestProtobufSerializationModes(
     {
         auto reader = client->CreateTableReader<TNode>(workingDir + "/table");
         EXPECT_TRUE(reader->IsValid());
-        EXPECT_TRUE(reader->GetRow().HasKey("UrlRow_1"));
-        EXPECT_TRUE(reader->GetRow().HasKey("UrlRow_2"));
-        checkValue(reader->GetRow()["UrlRow_1"], mode1, 0, 0);
-        checkValue(reader->GetRow()["UrlRow_2"], mode2, 0, 1);
+        EXPECT_TRUE(reader->GetRow().HasKey("url_row_1"));
+        EXPECT_TRUE(reader->GetRow().HasKey("url_row_2"));
+        checkValue(reader->GetRow()["url_row_1"], mode1, 0, 0);
+        checkValue(reader->GetRow()["url_row_2"], mode2, 0, 1);
         reader->Next();
         EXPECT_TRUE(reader->IsValid());
-        EXPECT_TRUE(reader->GetRow().HasKey("UrlRow_1"));
-        EXPECT_TRUE(reader->GetRow().HasKey("UrlRow_2"));
-        checkValue(reader->GetRow()["UrlRow_1"], mode1, 1, 0);
-        checkValue(reader->GetRow()["UrlRow_2"], mode2, 1, 1);
+        EXPECT_TRUE(reader->GetRow().HasKey("url_row_1"));
+        EXPECT_TRUE(reader->GetRow().HasKey("url_row_2"));
+        checkValue(reader->GetRow()["url_row_1"], mode1, 1, 0);
+        checkValue(reader->GetRow()["url_row_2"], mode2, 1, 1);
         reader->Next();
         EXPECT_TRUE(!reader->IsValid());
     }
@@ -388,14 +388,14 @@ void TestProtobufSerializationModes(
     for (const auto& [host, path, code] : firstValuesInRows) {
         EXPECT_TRUE(reader->IsValid());
         const auto& row = reader->GetRow();
-        const auto& embedded1 = row.GetUrlRow_1();
-        EXPECT_EQ(embedded1.GetHost(), host);
-        EXPECT_EQ(embedded1.GetPath(), path);
-        EXPECT_EQ(embedded1.GetHttpCode(), code);
-        const auto& embedded2 = row.GetUrlRow_2();
-        EXPECT_EQ(embedded2.GetHost(), host);
-        EXPECT_EQ(embedded2.GetPath(), path);
-        EXPECT_EQ(embedded2.GetHttpCode(), code + 1);
+        const auto& embedded1 = row.url_row_1();
+        EXPECT_EQ(embedded1.host(), host);
+        EXPECT_EQ(embedded1.path(), path);
+        EXPECT_EQ(embedded1.http_code(), code);
+        const auto& embedded2 = row.url_row_2();
+        EXPECT_EQ(embedded2.host(), host);
+        EXPECT_EQ(embedded2.path(), path);
+        EXPECT_EQ(embedded2.http_code(), code + 1);
         reader->Next();
     }
     EXPECT_TRUE(!reader->IsValid());
@@ -431,7 +431,7 @@ TEST_P(TProtobufTableIoTest, ProtobufSerializationMode_MixedOptions_ColumnNames)
         EWrapperFieldFlag::SERIALIZATION_YT,
         EWrapperFieldFlag::SERIALIZATION_PROTOBUF,
         GetParam(),
-        {"Host_ColumnName", "Path_KeyColumnName", "HttpCode"});
+        {"Host_ColumnName", "Path_KeyColumnName", "http_code"});
 }
 
 TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
@@ -442,47 +442,47 @@ TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
     TConfig::Get()->ProtobufFormatWithDescriptors = GetParam();
 
     auto schema = TTableSchema()
-        .AddColumn(TColumnSchema().Name("Ints").Type(NTi::List(NTi::Int64())))
-        .AddColumn(TColumnSchema().Name("UrlRows").Type(NTi::List(GetRowType<TUrlRow>())))
-        .AddColumn(TColumnSchema().Name("PackedInts").Type(NTi::List(NTi::Int64())));
+        .AddColumn(TColumnSchema().Name("ints").Type(NTi::List(NTi::Int64())))
+        .AddColumn(TColumnSchema().Name("url_rows").Type(NTi::List(GetRowType<TUrlRow>())))
+        .AddColumn(TColumnSchema().Name("packed_ints").Type(NTi::List(NTi::Int64())));
 
     {
         auto writer = client->CreateTableWriter<TRowSerializedRepeatedFields>(
             TRichYPath(workingDir + "/table").Schema(schema));
         {
             TRowSerializedRepeatedFields row;
-            row.AddInts(1);
-            row.AddInts(2);
-            row.AddInts(3);
-            row.AddPackedInts(-1);
-            row.AddPackedInts(-2);
-            row.AddPackedInts(-3);
-            auto& urlRow1 = *row.AddUrlRows();
-            urlRow1.SetHost("http://www.example.com");
-            urlRow1.SetPath("/");
-            urlRow1.SetHttpCode(303);
-            auto& urlRow2 = *row.AddUrlRows();
-            urlRow2.SetHost("http://www.example.com");
-            urlRow2.SetPath("/");
-            urlRow2.SetHttpCode(307);
+            row.add_ints(1);
+            row.add_ints(2);
+            row.add_ints(3);
+            row.add_packed_ints(-1);
+            row.add_packed_ints(-2);
+            row.add_packed_ints(-3);
+            auto& urlRow1 = *row.add_url_rows();
+            urlRow1.set_host("http://www.example.com");
+            urlRow1.set_path("/");
+            urlRow1.set_http_code(303);
+            auto& urlRow2 = *row.add_url_rows();
+            urlRow2.set_host("http://www.example.com");
+            urlRow2.set_path("/");
+            urlRow2.set_http_code(307);
             writer->AddRow(row);
         }
         {
             TRowSerializedRepeatedFields row;
-            row.AddInts(101);
-            row.AddInts(201);
-            row.AddInts(301);
-            row.AddPackedInts(-101);
-            row.AddPackedInts(-201);
-            row.AddPackedInts(-301);
-            auto& urlRow1 = *row.AddUrlRows();
-            urlRow1.SetHost("http://www.example.com");
-            urlRow1.SetPath("/index.php");
-            urlRow1.SetHttpCode(200);
-            auto& urlRow2 = *row.AddUrlRows();
-            urlRow2.SetHost("http://www.example.com");
-            urlRow2.SetPath("/index.php");
-            urlRow2.SetHttpCode(201);
+            row.add_ints(101);
+            row.add_ints(201);
+            row.add_ints(301);
+            row.add_packed_ints(-101);
+            row.add_packed_ints(-201);
+            row.add_packed_ints(-301);
+            auto& urlRow1 = *row.add_url_rows();
+            urlRow1.set_host("http://www.example.com");
+            urlRow1.set_path("/index.php");
+            urlRow1.set_http_code(200);
+            auto& urlRow2 = *row.add_url_rows();
+            urlRow2.set_host("http://www.example.com");
+            urlRow2.set_path("/index.php");
+            urlRow2.set_http_code(201);
             writer->AddRow(row);
         }
         writer->Finish();
@@ -494,9 +494,9 @@ TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
         EXPECT_EQ(
             reader->GetRow(),
             TNode()
-                ("Ints", TNode().Add(1).Add(2).Add(3))
-                ("PackedInts", TNode().Add(-1).Add(-2).Add(-3))
-                ("UrlRows", TNode()
+                ("ints", TNode().Add(1).Add(2).Add(3))
+                ("packed_ints", TNode().Add(-1).Add(-2).Add(-3))
+                ("url_rows", TNode()
                     .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 303))
                     .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 307))));
         reader->Next();
@@ -504,9 +504,9 @@ TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
         EXPECT_EQ(
             reader->GetRow(),
             TNode()
-                ("Ints", TNode().Add(101).Add(201).Add(301))
-                ("PackedInts", TNode().Add(-101).Add(-201).Add(-301))
-                ("UrlRows", TNode()
+                ("ints", TNode().Add(101).Add(201).Add(301))
+                ("packed_ints", TNode().Add(-101).Add(-201).Add(-301))
+                ("url_rows", TNode()
                     .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200))
                     .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 201))));
         reader->Next();
@@ -517,37 +517,37 @@ TEST_P(TProtobufTableIoTest, ProtobufRepeatedSerialization)
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
+        TVector<int> ints(row.ints().begin(), row.ints().end());
         EXPECT_EQ(ints, (TVector<int>{1, 2, 3}));
-        TVector<int> packedInts(row.GetPackedInts().begin(), row.GetPackedInts().end());
+        TVector<int> packedInts(row.packed_ints().begin(), row.packed_ints().end());
         EXPECT_EQ(packedInts, (TVector<int>{-1, -2, -3}));
-        EXPECT_EQ(static_cast<int>(row.UrlRowsSize()), 2);
-        const auto& urlRow1 = row.GetUrlRows(0);
-        EXPECT_EQ(urlRow1.GetHost(), "http://www.example.com");
-        EXPECT_EQ(urlRow1.GetPath(), "/");
-        EXPECT_EQ(urlRow1.GetHttpCode(), 303);
-        const auto& urlRow2 = row.GetUrlRows(1);
-        EXPECT_EQ(urlRow2.GetHost(), "http://www.example.com");
-        EXPECT_EQ(urlRow2.GetPath(), "/");
-        EXPECT_EQ(urlRow2.GetHttpCode(), 307);
+        EXPECT_EQ(static_cast<int>(row.url_rows_size()), 2);
+        const auto& urlRow1 = row.url_rows(0);
+        EXPECT_EQ(urlRow1.host(), "http://www.example.com");
+        EXPECT_EQ(urlRow1.path(), "/");
+        EXPECT_EQ(urlRow1.http_code(), 303);
+        const auto& urlRow2 = row.url_rows(1);
+        EXPECT_EQ(urlRow2.host(), "http://www.example.com");
+        EXPECT_EQ(urlRow2.path(), "/");
+        EXPECT_EQ(urlRow2.http_code(), 307);
     }
     reader->Next();
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
+        TVector<int> ints(row.ints().begin(), row.ints().end());
         EXPECT_EQ(ints, (TVector<int>{101, 201, 301}));
-        TVector<int> packedInts(row.GetPackedInts().begin(), row.GetPackedInts().end());
+        TVector<int> packedInts(row.packed_ints().begin(), row.packed_ints().end());
         EXPECT_EQ(packedInts, (TVector<int>{-101, -201, -301}));
-        EXPECT_EQ(static_cast<int>(row.UrlRowsSize()), 2);
-        const auto& urlRow1 = row.GetUrlRows(0);
-        EXPECT_EQ(urlRow1.GetHost(), "http://www.example.com");
-        EXPECT_EQ(urlRow1.GetPath(), "/index.php");
-        EXPECT_EQ(urlRow1.GetHttpCode(), 200);
-        const auto& urlRow2 = row.GetUrlRows(1);
-        EXPECT_EQ(urlRow2.GetHost(), "http://www.example.com");
-        EXPECT_EQ(urlRow2.GetPath(), "/index.php");
-        EXPECT_EQ(urlRow2.GetHttpCode(), 201);
+        EXPECT_EQ(static_cast<int>(row.url_rows_size()), 2);
+        const auto& urlRow1 = row.url_rows(0);
+        EXPECT_EQ(urlRow1.host(), "http://www.example.com");
+        EXPECT_EQ(urlRow1.path(), "/index.php");
+        EXPECT_EQ(urlRow1.http_code(), 200);
+        const auto& urlRow2 = row.url_rows(1);
+        EXPECT_EQ(urlRow2.host(), "http://www.example.com");
+        EXPECT_EQ(urlRow2.path(), "/index.php");
+        EXPECT_EQ(urlRow2.http_code(), 201);
     }
     reader->Next();
     EXPECT_TRUE(!reader->IsValid());
@@ -561,7 +561,7 @@ TEST_P(TProtobufTableIoTest, ForbiddenRepeatedInProtobuf)
     TConfig::Get()->ProtobufFormatWithDescriptors = GetParam();
 
     auto schema = TTableSchema()
-        .AddColumn(TColumnSchema().Name("Ints").Type(NTi::List(NTi::Int64())));
+        .AddColumn(TColumnSchema().Name("ints").Type(NTi::List(NTi::Int64())));
 
     auto run = [&] {
         auto writer = client->CreateTableWriter<TBadProtobufSerializedRow>(
@@ -571,7 +571,7 @@ TEST_P(TProtobufTableIoTest, ForbiddenRepeatedInProtobuf)
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         run(),
         yexception,
-        "Repeated field \"NYT.NTesting.TBadProtobufSerializedRow.Ints\" must have flag \"SERIALIZATION_YT\"");
+        "Repeated field \"NYT.NTesting.TBadProtobufSerializedRow.ints\" must have flag \"SERIALIZATION_YT\"");
 }
 
 TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
@@ -584,34 +584,34 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
     auto schema = TTableSchema()
         .Strict(false)
         .AddColumn(TColumnSchema()
-            .Name("ColorIntField").Type(EValueType::VT_INT64))
+            .Name("color_int_field").Type(EValueType::VT_INT64))
         .AddColumn(TColumnSchema()
-            .Name("ColorStringField").Type(EValueType::VT_STRING))
+            .Name("color_string_field").Type(EValueType::VT_STRING))
         .AddColumn(TColumnSchema()
-            .Name("AnyField").Type(EValueType::VT_ANY))
+            .Name("any_field").Type(EValueType::VT_ANY))
         .AddColumn(TColumnSchema()
-            .Name("EmbeddedField").RawTypeV3(TNode()
+            .Name("embedded_field").RawTypeV3(TNode()
                 ("type_name", "optional")
                 ("item", TNode()
                     ("type_name", "struct")
                     ("members", TNode()
                         .Add(TNode()
-                            ("name", "ColorIntField")
+                            ("name", "color_int_field")
                             ("type", "int64"))
                         .Add(TNode()
-                            ("name", "ColorStringField")
+                            ("name", "color_string_field")
                             ("type", "string"))
                         .Add(TNode()
-                            ("name", "AnyField")
+                            ("name", "any_field")
                             ("type", TNode()
                                 ("type_name", "optional")
                                 ("item", "yson")))))))
         .AddColumn(TColumnSchema()
-            .Name("RepeatedEnumIntField").RawTypeV3(TNode()
+            .Name("repeated_enum_int_field").RawTypeV3(TNode()
                 ("type_name", "list")
                 ("item", "int64")))
         .AddColumn(TColumnSchema()
-            .Name("UnknownSchematizedColumn").Type(EValueType::VT_BOOLEAN));
+            .Name("unknown_schematized_column").Type(EValueType::VT_BOOLEAN));
 
     auto node1 = TNode()("x", TNode()("y", 12));
     auto node2 = TNode()("key", "value");
@@ -623,36 +623,36 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
             TRichYPath(workingDir + "/table").Schema(schema));
         {
             TRowWithTypeOptions row;
-            row.SetColorIntField(TRowWithTypeOptions::RED);
-            row.SetColorStringField(TRowWithTypeOptions::BLUE);
-            row.SetAnyField(NodeToYsonString(node1));
-            row.SetOtherColumnsField(NodeToYsonString(
+            row.set_color_int_field(TRowWithTypeOptions::RED);
+            row.set_color_string_field(TRowWithTypeOptions::BLUE);
+            row.set_any_field(NodeToYsonString(node1));
+            row.set_other_columns_field(NodeToYsonString(
                 TNode()
-                    ("UnknownSchematizedColumn", true)
-                    ("UnknownUnschematizedColumn", 1234)));
-            auto& embedded = *row.MutableEmbeddedField();
-            embedded.SetColorIntField(TRowWithTypeOptions::WHITE);
-            embedded.SetColorStringField(TRowWithTypeOptions::RED);
-            embedded.SetAnyField(NodeToYsonString(node2));
-            row.AddRepeatedEnumIntField(TRowWithTypeOptions::WHITE);
-            row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
-            row.AddRepeatedEnumIntField(TRowWithTypeOptions::RED);
+                    ("unknown_schematized_column", true)
+                    ("unknown_unschematized_column", 1234)));
+            auto& embedded = *row.mutable_embedded_field();
+            embedded.set_color_int_field(TRowWithTypeOptions::WHITE);
+            embedded.set_color_string_field(TRowWithTypeOptions::RED);
+            embedded.set_any_field(NodeToYsonString(node2));
+            row.add_repeated_enum_int_field(TRowWithTypeOptions::WHITE);
+            row.add_repeated_enum_int_field(TRowWithTypeOptions::BLUE);
+            row.add_repeated_enum_int_field(TRowWithTypeOptions::RED);
             writer->AddRow(row);
         }
         {
             TRowWithTypeOptions row;
-            row.SetColorIntField(TRowWithTypeOptions::WHITE);
-            row.SetColorStringField(TRowWithTypeOptions::RED);
-            row.SetAnyField(NodeToYsonString(node3));
-            row.SetOtherColumnsField(NodeToYsonString(
+            row.set_color_int_field(TRowWithTypeOptions::WHITE);
+            row.set_color_string_field(TRowWithTypeOptions::RED);
+            row.set_any_field(NodeToYsonString(node3));
+            row.set_other_columns_field(NodeToYsonString(
                 TNode()
-                    ("UnknownSchematizedColumn", false)
-                    ("UnknownUnschematizedColumn", "some-string")));
-            auto& embedded = *row.MutableEmbeddedField();
-            embedded.SetColorIntField(TRowWithTypeOptions::RED);
-            embedded.SetColorStringField(TRowWithTypeOptions::WHITE);
-            embedded.SetAnyField(NodeToYsonString(node4));
-            row.AddRepeatedEnumIntField(TRowWithTypeOptions::BLUE);
+                    ("unknown_schematized_column", false)
+                    ("unknown_unschematized_column", "some-string")));
+            auto& embedded = *row.mutable_embedded_field();
+            embedded.set_color_int_field(TRowWithTypeOptions::RED);
+            embedded.set_color_string_field(TRowWithTypeOptions::WHITE);
+            embedded.set_any_field(NodeToYsonString(node4));
+            row.add_repeated_enum_int_field(TRowWithTypeOptions::BLUE);
             writer->AddRow(row);
         }
         writer->Finish();
@@ -664,16 +664,16 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
         EXPECT_EQ(
             reader->GetRow(),
             TNode()
-                ("ColorIntField", -1)
-                ("ColorStringField", "BLUE")
-                ("AnyField", node1)
-                ("UnknownSchematizedColumn", true)
-                ("UnknownUnschematizedColumn", 1234)
-                ("EmbeddedField", TNode()
-                    ("ColorIntField", 0)
-                    ("ColorStringField", "RED")
-                    ("AnyField", node2))
-                ("RepeatedEnumIntField", TNode()
+                ("color_int_field", -1)
+                ("color_string_field", "BLUE")
+                ("any_field", node1)
+                ("unknown_schematized_column", true)
+                ("unknown_unschematized_column", 1234)
+                ("embedded_field", TNode()
+                    ("color_int_field", 0)
+                    ("color_string_field", "RED")
+                    ("any_field", node2))
+                ("repeated_enum_int_field", TNode()
                     .Add(0)
                     .Add(1)
                     .Add(-1)));
@@ -682,16 +682,16 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
         EXPECT_EQ(
             reader->GetRow(),
             TNode()
-                ("ColorIntField", 0)
-                ("ColorStringField", "RED")
-                ("AnyField", node3)
-                ("UnknownSchematizedColumn", false)
-                ("UnknownUnschematizedColumn", "some-string")
-                ("EmbeddedField", TNode()
-                    ("ColorIntField", -1)
-                    ("ColorStringField", "WHITE")
-                    ("AnyField", node4))
-                ("RepeatedEnumIntField", TNode().Add(1)));
+                ("color_int_field", 0)
+                ("color_string_field", "RED")
+                ("any_field", node3)
+                ("unknown_schematized_column", false)
+                ("unknown_unschematized_column", "some-string")
+                ("embedded_field", TNode()
+                    ("color_int_field", -1)
+                    ("color_string_field", "WHITE")
+                    ("any_field", node4))
+                ("repeated_enum_int_field", TNode().Add(1)));
         reader->Next();
         EXPECT_TRUE(!reader->IsValid());
     }
@@ -700,21 +700,21 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetColorIntField(), TRowWithTypeOptions::RED);
-        EXPECT_EQ(row.GetColorStringField(), TRowWithTypeOptions::BLUE);
-        EXPECT_EQ(NodeFromYsonString(row.GetAnyField()), node1);
-        auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
-        EXPECT_TRUE(otherColumns.HasKey("UnknownSchematizedColumn"));
-        EXPECT_EQ(otherColumns["UnknownSchematizedColumn"], true);
-        EXPECT_TRUE(otherColumns.HasKey("UnknownUnschematizedColumn"));
-        EXPECT_EQ(otherColumns["UnknownUnschematizedColumn"], 1234);
-        const auto& embedded = row.GetEmbeddedField();
-        EXPECT_EQ(embedded.GetColorIntField(), TRowWithTypeOptions::WHITE);
-        EXPECT_EQ(embedded.GetColorStringField(), TRowWithTypeOptions::RED);
-        EXPECT_EQ(NodeFromYsonString(embedded.GetAnyField()), node2);
+        EXPECT_EQ(row.color_int_field(), TRowWithTypeOptions::RED);
+        EXPECT_EQ(row.color_string_field(), TRowWithTypeOptions::BLUE);
+        EXPECT_EQ(NodeFromYsonString(row.any_field()), node1);
+        auto otherColumns = NodeFromYsonString(row.other_columns_field());
+        EXPECT_TRUE(otherColumns.HasKey("unknown_schematized_column"));
+        EXPECT_EQ(otherColumns["unknown_schematized_column"], true);
+        EXPECT_TRUE(otherColumns.HasKey("unknown_unschematized_column"));
+        EXPECT_EQ(otherColumns["unknown_unschematized_column"], 1234);
+        const auto& embedded = row.embedded_field();
+        EXPECT_EQ(embedded.color_int_field(), TRowWithTypeOptions::WHITE);
+        EXPECT_EQ(embedded.color_string_field(), TRowWithTypeOptions::RED);
+        EXPECT_EQ(NodeFromYsonString(embedded.any_field()), node2);
 
         TVector<TRowWithTypeOptions::Color> colors;
-        for (auto intColor : row.GetRepeatedEnumIntField()) {
+        for (auto intColor : row.repeated_enum_int_field()) {
             colors.push_back(static_cast<TRowWithTypeOptions::Color>(intColor));
         }
         EXPECT_EQ(
@@ -729,21 +729,21 @@ TEST_P(TProtobufTableIoTest, ProtobufWithTypeOption)
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetColorIntField(), TRowWithTypeOptions::WHITE);
-        EXPECT_EQ(row.GetColorStringField(), TRowWithTypeOptions::RED);
-        EXPECT_EQ(NodeFromYsonString(row.GetAnyField()), node3);
-        auto otherColumns = NodeFromYsonString(row.GetOtherColumnsField());
-        EXPECT_TRUE(otherColumns.HasKey("UnknownSchematizedColumn"));
-        EXPECT_EQ(otherColumns["UnknownSchematizedColumn"], false);
-        EXPECT_TRUE(otherColumns.HasKey("UnknownUnschematizedColumn"));
-        EXPECT_EQ(otherColumns["UnknownUnschematizedColumn"], "some-string");
-        const auto& embedded = row.GetEmbeddedField();
-        EXPECT_EQ(embedded.GetColorIntField(), TRowWithTypeOptions::RED);
-        EXPECT_EQ(embedded.GetColorStringField(), TRowWithTypeOptions::WHITE);
-        EXPECT_EQ(NodeFromYsonString(embedded.GetAnyField()), node4);
+        EXPECT_EQ(row.color_int_field(), TRowWithTypeOptions::WHITE);
+        EXPECT_EQ(row.color_string_field(), TRowWithTypeOptions::RED);
+        EXPECT_EQ(NodeFromYsonString(row.any_field()), node3);
+        auto otherColumns = NodeFromYsonString(row.other_columns_field());
+        EXPECT_TRUE(otherColumns.HasKey("unknown_schematized_column"));
+        EXPECT_EQ(otherColumns["unknown_schematized_column"], false);
+        EXPECT_TRUE(otherColumns.HasKey("unknown_unschematized_column"));
+        EXPECT_EQ(otherColumns["unknown_unschematized_column"], "some-string");
+        const auto& embedded = row.embedded_field();
+        EXPECT_EQ(embedded.color_int_field(), TRowWithTypeOptions::RED);
+        EXPECT_EQ(embedded.color_string_field(), TRowWithTypeOptions::WHITE);
+        EXPECT_EQ(NodeFromYsonString(embedded.any_field()), node4);
 
         TVector<TRowWithTypeOptions::Color> colors;
-        for (auto intColor : row.GetRepeatedEnumIntField()) {
+        for (auto intColor : row.repeated_enum_int_field()) {
             colors.push_back(static_cast<TRowWithTypeOptions::Color>(intColor));
         }
         EXPECT_EQ(
@@ -773,9 +773,9 @@ void TestProtobufSchemaInferring(bool setWriterOptions, bool WithDescriptors)
     {
         auto writer = client->CreateTableWriter<TRowVer2>(workingDir + "/table", options);
         TRowVer2 row;
-        row.SetString_1("abc");
-        row.SetUint32_2(40 + 2);
-        row.SetFixed64_3(8888);
+        row.set_string_1("abc");
+        row.set_uint32_2(40 + 2);
+        row.set_fixed64_3(8888);
         writer->AddRow(row);
         writer->Finish();
     }
@@ -785,9 +785,9 @@ void TestProtobufSchemaInferring(bool setWriterOptions, bool WithDescriptors)
     EXPECT_TRUE(AreSchemasEqual(
         actualSchema,
         TTableSchema()
-            .AddColumn(TColumnSchema().Name("String_1").Type(EValueType::VT_STRING))
-            .AddColumn(TColumnSchema().Name("Uint32_2").Type(EValueType::VT_UINT32))
-            .AddColumn(TColumnSchema().Name("Fixed64_3").Type(EValueType::VT_UINT64))));
+            .AddColumn(TColumnSchema().Name("string_1").Type(EValueType::VT_STRING))
+            .AddColumn(TColumnSchema().Name("uint32_2").Type(EValueType::VT_UINT32))
+            .AddColumn(TColumnSchema().Name("fixed64_3").Type(EValueType::VT_UINT64))));
 }
 
 TEST_P(TProtobufTableIoTest, ProtobufSchemaInferring_Config)
@@ -816,8 +816,8 @@ TEST_P(TProtobufTableIoTest, ProtobufWriteRead_Enum)
 
         for (const EEnum& enumField : expected) {
             TAllTypesMessage row;
-            row.SetEnumField(enumField);
-            row.SetEnumIntField(enumField);
+            row.set_enum_field(enumField);
+            row.set_enum_int_field(enumField);
             writer->AddRow(row);
         }
 
@@ -832,9 +832,9 @@ TEST_P(TProtobufTableIoTest, ProtobufWriteRead_Enum)
             TAllTypesMessage row;
             ReadMessageFromNode(reader->GetRow(), &row);
 
-            EXPECT_EQ(row.GetEnumField(), row.GetEnumIntField());
+            EXPECT_EQ(row.enum_field(), row.enum_int_field());
 
-            actual.push_back(row.GetEnumField());
+            actual.push_back(row.enum_field());
         }
     }
 
@@ -854,9 +854,9 @@ TEST_P(TProtobufTableIoTest, ProtoClashingEnums_YT_13714)
     auto testTable = workingDir + "/table";
 
     TClashingEnumMessage originalRow;
-    originalRow.SetEnum1(TClashingEnumMessage1::ClashingEnumValueOne);
-    originalRow.SetEnum2(TClashingEnumMessage2::ClashingEnumValueTwo);
-    originalRow.SetEnum3(ClashingEnumValueThree);
+    originalRow.set_enum1(TClashingEnumMessage1::ClashingEnumValueOne);
+    originalRow.set_enum2(TClashingEnumMessage2::ClashingEnumValueTwo);
+    originalRow.set_enum3(ClashingEnumValueThree);
     {
         auto writer = client->CreateTableWriter<TClashingEnumMessage>(testTable);
         writer->AddRow(originalRow);
@@ -870,7 +870,7 @@ TEST_P(TProtobufTableIoTest, ProtoClashingEnums_YT_13714)
     }
 
     EXPECT_EQ(std::ssize(readValues), 1);
-    EXPECT_EQ(readValues[0].ShortUtf8DebugString(), originalRow.ShortUtf8DebugString());
+    EXPECT_EQ(readValues[0].ShortDebugString(), originalRow.ShortDebugString());
 }
 
 TEST_P(TProtobufTableIoTest, Proto3Optional)
@@ -888,8 +888,8 @@ TEST_P(TProtobufTableIoTest, Proto3Optional)
     auto testTable = workingDir + "/table";
 
     TWithOptional row;
-    row.SetOptionalField(42);
-    row.SetNonOptionalField(12);
+    row.set_optional_field(42);
+    row.set_non_optional_field(12);
 
     {
         auto writer = client->CreateTableWriter<TWithOptional>(
@@ -904,24 +904,24 @@ TEST_P(TProtobufTableIoTest, Proto3Optional)
     Deserialize(schema, client->Get(testTable + "/@schema"));
 
     EXPECT_EQ(schema, TTableSchema()
-        .AddColumn(TColumnSchema().Name("OptionalField").Type(NTi::Optional(NTi::Int64())))
+        .AddColumn(TColumnSchema().Name("optional_field").Type(NTi::Optional(NTi::Int64())))
         .AddColumn(TColumnSchema().Name("Dummy").Type(
             NTi::Optional(
                 NTi::Variant(
                     NTi::Struct({
-                        {"FieldInsideOneof", NTi::Int64()},
+                        {"_fieldInsideOneof", NTi::Int64()},
                     })
                 )
             )
         ))
-        .AddColumn(TColumnSchema().Name("EmbeddedField").Type(
+        .AddColumn(TColumnSchema().Name("embedded_field").Type(
             NTi::Optional(
                 NTi::Struct({
-                    {"OptionalField", NTi::Optional(NTi::Int64())},
+                    {"optional_field", NTi::Optional(NTi::Int64())},
                 })
             )
         ))
-        .AddColumn(TColumnSchema().Name("NonOptionalField").Type(NTi::Optional(NTi::Int64())))
+        .AddColumn(TColumnSchema().Name("non_optional_field").Type(NTi::Optional(NTi::Int64())))
     );
 
     TVector<TWithOptional> readValues;
@@ -931,7 +931,7 @@ TEST_P(TProtobufTableIoTest, Proto3Optional)
     }
 
     EXPECT_EQ(std::ssize(readValues), 1);
-    EXPECT_EQ(readValues[0].ShortUtf8DebugString(), row.ShortUtf8DebugString());
+    EXPECT_EQ(readValues[0].ShortDebugString(), row.ShortDebugString());
 }
 
 INSTANTIATE_TEST_SUITE_P(WithDescriptors, TProtobufTableIoTest, ::testing::Values(true));
