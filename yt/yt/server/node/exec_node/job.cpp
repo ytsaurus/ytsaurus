@@ -1199,10 +1199,14 @@ TBriefJobInfo TJob::GetBriefInfo() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto [
-        baseResourceUsage,
-        additionalResourceUsage
-    ] = ResourceHolder_->GetDetailedResourceUsage();
+    NClusterNode::TJobResources baseResourceUsage{};
+    NClusterNode::TJobResources additionalResourceUsage{};
+    std::vector<int> jobPorts;
+
+    if (ResourceHolder_) {
+        std::tie(baseResourceUsage, additionalResourceUsage) = ResourceHolder_->GetDetailedResourceUsage();
+        jobPorts = GetPorts();
+    }
 
     return TBriefJobInfo(
         GetId(),
@@ -1218,7 +1222,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetOperationId(),
         baseResourceUsage,
         additionalResourceUsage,
-        GetPorts(),
+        std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
         ExecAttributes_);
@@ -2205,6 +2209,10 @@ IUserSlotPtr TJob::GetUserSlot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (!ResourceHolder_) {
+        return nullptr;
+    }
+
     const auto& userSlot = ResourceHolder_->GetUserSlot();
 
     return StaticPointerCast<IUserSlot>(userSlot);
@@ -2413,9 +2421,9 @@ void TJob::Cleanup()
 
     if (!Allocation_) {
         ResourceHolder_->ReleaseBaseResources();
-    } else {
-        ResourceHolder_.Reset();
     }
+
+    ResourceHolder_.Reset();
 
     if (UseJobInputCache_.load()) {
         JobInputCache_->UnregisterJobChunks(Id_);
