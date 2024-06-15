@@ -61,12 +61,18 @@ static void VerifyLocalMode(TStringBuf proxy, const IClientBasePtr& client)
             << "; are you trying to run tests on a real cluster?");
 }
 
-IClientPtr CreateTestClient(TString proxy, const TCreateClientOptions& options)
+IClientPtr CreateTestClient(TString proxy, TCreateClientOptions options)
 {
     if (proxy.empty()) {
         proxy = TTestFixture::GetYtProxy();
     }
     Y_ENSURE(!proxy.empty(), "YT_PROXY env variable must be set or 'proxy' argument nonempty");
+
+    auto useCoreHttpClient = GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT");
+    if (!useCoreHttpClient.empty()) {
+        options.UseCoreHttpClient(true);
+    }
+
     auto client = CreateClient(proxy, options);
     VerifyLocalMode(proxy, client);
     client->Remove("//testing", TRemoveOptions().Recursive(true).Force(true));

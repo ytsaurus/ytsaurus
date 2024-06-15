@@ -28,7 +28,6 @@ IF (NOT OPENSOURCE)
         io/ut
         library
         tools
-        tests_core_http
     )
 ENDIF()
 

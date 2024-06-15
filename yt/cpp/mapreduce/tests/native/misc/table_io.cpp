@@ -2,14 +2,13 @@
 
 #include <yt/cpp/mapreduce/tests/native/proto_lib/row.pb.h>
 
-#include <yt/cpp/mapreduce/interface/config.h>
+#include <yt/cpp/mapreduce/http/abortable_http_response.h>
+#include <yt/cpp/mapreduce/http/host_manager.h>
 
+#include <yt/cpp/mapreduce/interface/config.h>
 #include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/serialize.h>
-
-#include <yt/cpp/mapreduce/http/abortable_http_response.h>
-#include <yt/cpp/mapreduce/http/host_manager.h>
 
 #include <yt/cpp/mapreduce/io/proto_table_reader.h>
 
@@ -20,6 +19,8 @@
 #include <util/generic/scope.h>
 
 #include <util/random/fast.h>
+
+#include <util/system/env.h>
 
 #include <type_traits>
 
@@ -1033,16 +1034,28 @@ TEST(TableIo, CompressionCodecIdentity)
 
 TEST(TableIo, CompressionCodecGzip)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_GZIP);
 }
 
 TEST(TableIo, CompressionCodecBrotli)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_BROTLI);
 }
 
 TEST(TableIo, CompressionCodecZLz4)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_Z_LZ4);
 }
 
