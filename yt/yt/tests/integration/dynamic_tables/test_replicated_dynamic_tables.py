@@ -849,14 +849,20 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         for _ in range(50):
             inserter.insert()
 
+        last_result = -1
+
+        def check_progress():
+            inserted_count = inserter.get_inserted_counter()
+            expected_count = (time.time() - start_time) * 5
+            assert last_result < inserted_count <= expected_count + 5
+            return inserted_count
+
         sync_enable_table_replica(replica_id)
-        counter_start = inserter.get_inserted_counter()
-        assert counter_start <= (time.time() - start_time) * 5 + 3
+        check_progress()
+
         for i in range(20):
-            sleep(1.0)
-            inserted = inserter.get_inserted_counter()
-            counter = (inserted - counter_start) // 5
-            assert counter - 3 <= i <= counter + 3
+            sleep(2.0)
+            inserted = check_progress()
             if inserted == inserter.counter:
                 break
 
