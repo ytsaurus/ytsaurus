@@ -479,6 +479,11 @@ public:
         return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
     }
 
+    IJobProxyLogManagerPtr GetJobProxyLogManager() const override
+    {
+        return JobProxyLogManager_;
+    }
+
 private:
     NClusterNode::IBootstrapBase* const Bootstrap_;
     TAtomicIntrusivePtr<TJobControllerDynamicConfig> DynamicConfig_;

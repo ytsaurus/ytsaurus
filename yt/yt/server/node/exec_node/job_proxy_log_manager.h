@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NExecNode {
@@ -20,6 +22,11 @@ struct IJobProxyLogManager
     virtual void OnDynamicConfigChanged(
         TJobProxyLogManagerDynamicConfigPtr oldConfig,
         TJobProxyLogManagerDynamicConfigPtr newConfig) = 0;
+
+    virtual void DumpJobProxyLog(
+        TJobId jobId,
+        const NYPath::TYPath& path,
+        NObjectClient::TTransactionId transactionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobProxyLogManager);

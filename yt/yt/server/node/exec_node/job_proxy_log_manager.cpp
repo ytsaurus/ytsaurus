@@ -6,6 +6,15 @@
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/file_client/file_chunk_output.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/client/api/file_writer.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -33,6 +42,7 @@ public:
         , LogsStoragePeriod_(Config_->LogsStoragePeriod)
         , DirectoryTraversalConcurrency_(Config_->DirectoryTraversalConcurrency)
         , AsyncSemaphore_(New<NConcurrency::TAsyncSemaphore>(Config_->DirectoryTraversalConcurrency.value_or(0)))
+        , DumpJobProxyLogBufferSize_(Config_->DumpJobProxyLogBufferSize)
     { }
 
     void Start() override
@@ -69,6 +79,45 @@ public:
         AsyncSemaphore_->SetTotal(DirectoryTraversalConcurrency_.value_or(0));
     }
 
+    void DumpJobProxyLog(
+        TJobId jobId,
+        const NYPath::TYPath& path,
+        NObjectClient::TTransactionId transactionId) override
+    {
+        auto logsPath = JobIdToLogsPath(jobId);
+
+        if (!NFS::Exists(logsPath)) {
+            THROW_ERROR_EXCEPTION("Job directory is not found")
+                << TErrorAttribute("job_id", jobId)
+                << TErrorAttribute("path", logsPath);
+        }
+
+        auto logFile = TFile(NFS::CombinePaths(logsPath, "job_proxy.log"), OpenExisting | RdOnly);
+        auto buffer = TSharedMutableRef::Allocate(DumpJobProxyLogBufferSize_);
+
+        NApi::TFileWriterOptions options;
+        options.TransactionId = transactionId;
+        auto writer = Bootstrap_->GetClient()->CreateFileWriter(path, options);
+
+        NConcurrency::WaitFor(writer->Open())
+            .ThrowOnError();
+
+        // TODO: Support compressed logs.
+        while (true) {
+            auto bytesRead = logFile.Read((void*)buffer.Data(), DumpJobProxyLogBufferSize_);
+
+            if (bytesRead == 0) {
+                break;
+            }
+
+            NConcurrency::WaitFor(writer->Write(buffer.Slice(0, bytesRead)))
+                .ThrowOnError();
+        }
+
+        NConcurrency::WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
 private:
     IBootstrap* const Bootstrap_;
 
@@ -80,6 +129,8 @@ private:
 
     std::optional<int> DirectoryTraversalConcurrency_;
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+
+    i64 DumpJobProxyLogBufferSize_;
 
     void CreateShardingDirectories()
     {
@@ -144,10 +195,15 @@ private:
 
     void RemoveJobLog(TJobId jobId)
     {
-        auto shardingKey = GetShardingKey(jobId);
-        auto logsPath = NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
+        auto logsPath = JobIdToLogsPath(jobId);
         YT_LOG_INFO("Removing job directory (Path: %v)", logsPath);
         NFS::RemoveRecursive(logsPath);
+    }
+
+    TString JobIdToLogsPath(TJobId jobId)
+    {
+        auto shardingKey = GetShardingKey(jobId);
+        return NFS::CombinePaths({Directory_, shardingKey, ToString(jobId)});
     }
 };
 
@@ -174,6 +230,14 @@ public:
         TJobProxyLogManagerDynamicConfigPtr /*oldConfig*/,
         TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
     {}
+
+    void DumpJobProxyLog(
+        TJobId /*jobId*/,
+        const NYPath::TYPath& /*path*/,
+        NObjectClient::TTransactionId /*transactionId*/) override
+    {
+        THROW_ERROR_EXCEPTION("Method DumpJobProxyLog is not supported in simple JobProxy logging mode");
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockJobProxyLogManager);

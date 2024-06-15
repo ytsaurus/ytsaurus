@@ -895,6 +895,10 @@ void TJobProxyLogManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("directory_traversal_concurrency", &TThis::DirectoryTraversalConcurrency)
         .Default()
         .GreaterThan(0);
+
+    registrar.Parameter("dump_job_proxy_log_buffer_size", &TThis::DumpJobProxyLogBufferSize)
+        .Default(1_MB)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
