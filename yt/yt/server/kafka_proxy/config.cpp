@@ -39,11 +39,20 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 
+    registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
+        .Default();
+
     registrar.Parameter("client_cache", &TThis::ClientCache)
         .DefaultNew();
 
     registrar.Parameter("auth", &TThis::Auth)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
+            dynamicConfigPath = Format("%v/@config", KafkaProxiesRootPath);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

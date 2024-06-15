@@ -183,6 +183,13 @@ private:
         }
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+
+        SetupClusterConnectionDynamicConfigUpdate(
+            NativeConnection_,
+            NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectory,
+            /*staticClusterConnectionNode*/ nullptr,
+            Logger());
+
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
@@ -260,8 +267,7 @@ private:
         const TKafkaProxyDynamicConfigPtr& /*oldConfig*/,
         const TKafkaProxyDynamicConfigPtr& newConfig)
     {
-        // TODO(nadya73): uncomment it after filling dynamic config.
-        // ReconfigureNativeSingletons(Config_, newConfig);
+        ReconfigureNativeSingletons(Config_, newConfig);
 
         Poller_->Reconfigure(newConfig->PollerThreadCount);
         Acceptor_->Reconfigure(newConfig->AcceptorThreadCount);
