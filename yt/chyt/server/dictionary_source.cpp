@@ -53,7 +53,7 @@ public:
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), host->GetRootClient())
-        , Logger(ClickHouseYtLogger.WithTag("Path: %v", Path_))
+        , Logger(ClickHouseYtLogger().WithTag("Path: %v", Path_))
     { }
 
     DB::QueryPipeline loadAll() override

@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/clickhouse_functions/public.h>
 
+#include <library/cpp/yt/misc/global.h>
+
 #include <Common/COW.h>
 #include <Common/CurrentMetrics.h>
 #include <Common/ProfileEvents.h>
@@ -19,15 +21,15 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! General-purpose logger for our code.
-inline const NLogging::TLogger ClickHouseYtLogger("ClickHouseYT");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ClickHouseYtLogger, "ClickHouseYT");
 //! Logger which is used by ClickHouse native code.
-inline const NLogging::TLogger ClickHouseNativeLogger("ClickHouseNative");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, ClickHouseNativeLogger, "ClickHouseNative");
 //! Root profiler for all metrics.
-inline const NProfiling::TProfiler ClickHouseProfiler("/clickhouse");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseProfiler, "/clickhouse");
 //! Profiler for our own metrics.
-inline const NProfiling::TProfiler ClickHouseYtProfiler = ClickHouseProfiler.WithPrefix("/yt");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseYtProfiler, ClickHouseProfiler().WithPrefix("/yt"));
 //! Profiler exporting raw ClickHouse metrics.
-inline const NProfiling::TProfiler ClickHouseNativeProfiler = ClickHouseProfiler.WithPrefix("/native");
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, ClickHouseNativeProfiler, ClickHouseProfiler().WithPrefix("/native"));
 
 // Set 0 to not see graceful exits in failed jobs.
 constexpr int GracefulInterruptionExitCode = 0;

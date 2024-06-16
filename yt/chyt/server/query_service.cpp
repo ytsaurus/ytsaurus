@@ -235,11 +235,11 @@ class TQueryService
     : public TServiceBase
 {
 public:
-    explicit TQueryService(THost* host, const IInvokerPtr& invoker)
+    TQueryService(THost* host, const IInvokerPtr& invoker)
         : TServiceBase(
             invoker,
             TQueryServiceProxy::GetDescriptor(),
-            ClickHouseYtLogger)
+            ClickHouseYtLogger())
         , Host_(host)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteQuery));

@@ -25,7 +25,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ClickHouseYtLogger;
+static constexpr auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -109,7 +109,7 @@ THealthChecker::THealthChecker(
         Host_->HasUserDefinedSqlObjectStorage());
 
     for (int i = 0; i < std::ssize(Config_->Queries); ++i) {
-        QueryIndexToStatus_.push_back(ClickHouseYtProfiler
+        QueryIndexToStatus_.push_back(ClickHouseYtProfiler()
             .WithTag("query_index", ToString(i))
             .Gauge("/health_checker/success"));
     }

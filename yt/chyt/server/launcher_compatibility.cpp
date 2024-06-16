@@ -6,9 +6,10 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ClickHouseYtLogger;
-
+static constexpr auto& Logger = ClickHouseYtLogger;
 static constexpr int MinLauncherVersion = 0;
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ValidateLauncherCompatibility(TLauncherConfigPtr launcherConfig)
 {

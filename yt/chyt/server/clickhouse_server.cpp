@@ -55,7 +55,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
 
-static const auto& Logger = ClickHouseYtLogger;
+static constexpr auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,9 +101,9 @@ public:
     {
         SetupServers();
 
-        ClickHouseNativeProfiler.AddProducer("", MakeStrong(this));
+        ClickHouseNativeProfiler().AddProducer("", MakeStrong(this));
 
-        for (auto& server : Servers_) {
+        for (const auto& server : Servers_) {
             server->start();
         }
     }
@@ -161,14 +161,14 @@ private:
     // Fake Poco::Util::Application instance for proper SSLManager initialization.
     std::unique_ptr<Poco::Util::ServerApplication> PocoApplication_;
 
-    Poco::AutoPtr<Poco::Channel> LogChannel;
+    Poco::AutoPtr<Poco::Channel> LogChannel_;
 
     std::unique_ptr<DB::ServerAsynchronousMetrics> AsynchronousMetrics_;
 
     std::unique_ptr<Poco::ThreadPool> ServerPool_;
     std::vector<std::unique_ptr<DB::TCPServer>> Servers_;
 
-    std::atomic<bool> Cancelled_ { false };
+    std::atomic<bool> Cancelled_ = false;
 
     std::shared_ptr<DB::IDatabase> SystemDatabase_;
 
@@ -176,11 +176,11 @@ private:
 
     void SetupLogger()
     {
-        LogChannel = CreateLogChannel(ClickHouseNativeLogger);
+        LogChannel_ = CreateLogChannel(ClickHouseNativeLogger());
 
         auto& rootLogger = Poco::Logger::root();
         rootLogger.close();
-        rootLogger.setChannel(LogChannel);
+        rootLogger.setChannel(LogChannel_);
         rootLogger.setLevel(Config_->LogLevel);
     }
 

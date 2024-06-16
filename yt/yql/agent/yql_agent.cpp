@@ -240,7 +240,7 @@ private:
     {
         static const auto EmptyMap = TYsonString(TString("{}"));
 
-        const auto& Logger = YqlAgentLogger.WithTag("QueryId: %v", queryId);
+        const auto& Logger = YqlAgentLogger().WithTag("QueryId: %v", queryId);
 
         const auto& yqlRequest = request.yql_request();
 
