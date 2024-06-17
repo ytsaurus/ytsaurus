@@ -284,7 +284,16 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run()
         .Apply(BIND(&TSlotManager::InitMedia, MakeStrong(this), Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory())
-        .AsyncVia(Bootstrap_->GetJobInvoker()));
+            .AsyncVia(Bootstrap_->GetJobInvoker()))
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            if (error.IsOK()) {
+                CompleteInitialization();
+            } else {
+                FailInitialization(error);
+            }
+        })
+            .Via(Bootstrap_->GetJobInvoker()))
+        .ToUncancelable();
 }
 
 void TSlotManager::OnDynamicConfigChanged(
@@ -1001,6 +1010,10 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    const auto& nativeConnection = Bootstrap_->GetClient()->GetNativeConnection();
+    WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
+        .ThrowOnError();
+
     auto guard = ReaderGuard(LocationsLock_);
 
     for (const auto& location : Locations_) {
@@ -1048,94 +1061,102 @@ bool TSlotManager::ShouldSetUserId() const
     return !StaticConfig_->DoNotSetUserId;
 }
 
+void TSlotManager::CompleteInitialization()
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    VerifyCurrentState(ESlotManagerState::Initializing);
+
+    YT_LOG_INFO("Slot manager async initialization finished");
+    State_.store(ESlotManagerState::Initialized);
+}
+
+void TSlotManager::FailInitialization(TError error)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    VerifyCurrentState(ESlotManagerState::Initializing);
+
+    auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
+        << std::move(error);
+
+    YT_LOG_WARNING(wrappedError, "Initialization failed");
+
+    {
+        auto guard = WriterGuard(AlertsLock_);
+        // Could be either porto failure (volume manager -> can resurrect?)
+        // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
+        Alerts_.SetAlertError(std::move(wrappedError));
+    }
+
+    SetDisableState();
+}
+
 void TSlotManager::AsyncInitialize()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    try {
-        YT_LOG_INFO("Slot manager async initialization started");
+    YT_LOG_INFO("Slot manager async initialization started");
 
-        std::vector<TFuture<void>> initLocationFutures;
-        for (const auto& location : Locations_) {
-            initLocationFutures.push_back(location->Initialize());
-        }
-
-        YT_LOG_INFO("Waiting for all locations to initialize");
-
-        {
-            auto error = WaitFor(AllSet(initLocationFutures));
-            YT_LOG_FATAL_UNLESS(
-                error.IsOK(),
-                error,
-                "Shutdown encountered");
-        }
-        YT_LOG_INFO("Locations initialization finished");
-
-        // To this moment all old processed must have been killed, so we can safely clean up old volumes
-        // during root volume manager initialization.
-        auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
-        JobEnvironmentType_ = environmentConfig->Type;
-        if (environmentConfig->Type == EJobEnvironmentType::Porto) {
-            auto volumeManager = WaitFor(CreatePortoVolumeManager(
-                Bootstrap_->GetConfig()->DataNode,
-                Bootstrap_->GetDynamicConfigManager(),
-                CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
-                Bootstrap_->GetControlInvoker(),
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
-                Bootstrap_))
-                    .ValueOrThrow(
-                        EErrorCode::PortoVolumeManagerFailure,
-                        "Failed to initialize volume manager");
-
-            RootVolumeManager_.Store(volumeManager);
-        }
-
-        auto dynamicConfig = DynamicConfig_.Acquire();
-        auto timeout = dynamicConfig->SlotReleaseTimeout;
-        auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
-            .WithTimeout(timeout));
-
-        YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
-        YT_LOG_FATAL_IF(std::ssize(FreeSlots_) != SlotCount_,
-            "Some slots are still acquired (FreeSlots: %v, SlotCount: %v)",
-            std::ssize(FreeSlots_),
-            SlotCount_);
-
-        NumaNodeStates_.clear();
-
-        for (const auto& numaNode : StaticConfig_->NumaNodes) {
-            NumaNodeStates_.push_back(TNumaNodeState{
-                .NumaNodeInfo = TNumaNodeInfo{
-                    .NumaNodeId = numaNode->NumaNodeId,
-                    .CpuSet = numaNode->CpuSet
-                },
-                .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
-            });
-        }
-
-        UpdateAliveLocations();
-
-        VerifyCurrentState(ESlotManagerState::Initializing);
-
-        YT_LOG_INFO("Slot manager async initialization finished");
-        State_.store(ESlotManagerState::Initialized);
-    } catch (const std::exception& ex) {
-        // Failed to init volume manager or some of locations.
-        // Anything else?
-        auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
-            << ex;
-
-        YT_LOG_WARNING(wrappedError, "Initialization failed");
-
-        {
-            auto guard = WriterGuard(AlertsLock_);
-            // Could be either porto failure (volume manager -> can resurrect?)
-            // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
-            Alerts_.SetAlertError(std::move(wrappedError));
-        }
-
-        SetDisableState();
+    std::vector<TFuture<void>> initLocationFutures;
+    for (const auto& location : Locations_) {
+        initLocationFutures.push_back(location->Initialize());
     }
+
+    YT_LOG_INFO("Waiting for all locations to initialize");
+
+    {
+        auto error = WaitFor(AllSet(initLocationFutures));
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Shutdown encountered");
+    }
+    YT_LOG_INFO("Locations initialization finished");
+
+    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // during root volume manager initialization.
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(StaticConfig_->JobEnvironment);
+    JobEnvironmentType_ = environmentConfig->Type;
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        auto volumeManager = WaitFor(CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode,
+            Bootstrap_->GetDynamicConfigManager(),
+            CreateVolumeChunkCacheAdapter(Bootstrap_->GetChunkCache()),
+            Bootstrap_->GetControlInvoker(),
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TmpfsLayers),
+            Bootstrap_))
+                .ValueOrThrow(
+                    EErrorCode::PortoVolumeManagerFailure,
+                    "Failed to initialize volume manager");
+
+        RootVolumeManager_.Store(volumeManager);
+    }
+
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto timeout = dynamicConfig->SlotReleaseTimeout;
+    auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
+        .WithTimeout(timeout));
+
+    YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
+    YT_LOG_FATAL_IF(std::ssize(FreeSlots_) != SlotCount_,
+        "Some slots are still acquired (FreeSlots: %v, SlotCount: %v)",
+        std::ssize(FreeSlots_),
+        SlotCount_);
+
+    NumaNodeStates_.clear();
+
+    for (const auto& numaNode : StaticConfig_->NumaNodes) {
+        NumaNodeStates_.push_back(TNumaNodeState{
+            .NumaNodeInfo = TNumaNodeInfo{
+                .NumaNodeId = numaNode->NumaNodeId,
+                .CpuSet = numaNode->CpuSet
+            },
+            .FreeCpuCount = static_cast<double>(numaNode->CpuCount),
+        });
+    }
+
+    UpdateAliveLocations();
 }
 
 int TSlotManager::DoAcquireSlot(ESlotType slotType)
