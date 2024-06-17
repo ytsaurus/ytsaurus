@@ -12,7 +12,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortJob;
 import tech.ytsaurus.rpcproxy.TReqAbortOperation;
 import tech.ytsaurus.rpcproxy.TReqAbortQuery;
 import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
-import tech.ytsaurus.rpcproxy.TReqAdvanceConsumer;
+import tech.ytsaurus.rpcproxy.TReqAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
@@ -73,7 +73,7 @@ import tech.ytsaurus.rpcproxy.TRspAbortJob;
 import tech.ytsaurus.rpcproxy.TRspAbortOperation;
 import tech.ytsaurus.rpcproxy.TRspAbortQuery;
 import tech.ytsaurus.rpcproxy.TRspAbortTransaction;
-import tech.ytsaurus.rpcproxy.TRspAdvanceConsumer;
+import tech.ytsaurus.rpcproxy.TRspAdvanceQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
 import tech.ytsaurus.rpcproxy.TRspAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
@@ -290,8 +290,9 @@ public class ApiServiceMethodTable {
     public static final RpcMethodDescriptor<TReqPullQueueConsumer.Builder, TRspPullQueueConsumer> PULL_CONSUMER =
             apiServiceMethod("PullConsumer", TReqPullQueueConsumer::newBuilder, TRspPullQueueConsumer.parser());
 
-    public static final RpcMethodDescriptor<TReqAdvanceConsumer.Builder, TRspAdvanceConsumer> ADVANCE_CONSUMER =
-            apiServiceMethod("AdvanceConsumer", TReqAdvanceConsumer::newBuilder, TRspAdvanceConsumer.parser());
+    public static final RpcMethodDescriptor<TReqAdvanceQueueConsumer.Builder, TRspAdvanceQueueConsumer>
+            ADVANCE_CONSUMER = apiServiceMethod(
+            "AdvanceConsumer", TReqAdvanceQueueConsumer::newBuilder, TRspAdvanceQueueConsumer.parser());
 
     public static final RpcMethodDescriptor<TReqRegisterQueueConsumer.Builder, TRspRegisterQueueConsumer>
             REGISTER_QUEUE_CONSUMER = apiServiceMethod(

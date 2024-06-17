@@ -8,7 +8,7 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.rpcproxy.TReqAdvanceConsumer;
+import tech.ytsaurus.rpcproxy.TReqAdvanceQueueConsumer;
 
 /**
  * Immutable advance consumer request.
@@ -17,7 +17,7 @@ import tech.ytsaurus.rpcproxy.TReqAdvanceConsumer;
  * @see tech.ytsaurus.client.TransactionalClient#advanceConsumer(AdvanceConsumer)
  */
 public class AdvanceConsumer extends RequestBase<AdvanceConsumer.Builder, AdvanceConsumer>
-        implements HighLevelRequest<TReqAdvanceConsumer.Builder> {
+        implements HighLevelRequest<TReqAdvanceQueueConsumer.Builder> {
     @Nullable
     private final GUID transactionId;
     private final YPath consumerPath;
@@ -73,10 +73,10 @@ public class AdvanceConsumer extends RequestBase<AdvanceConsumer.Builder, Advanc
      * Internal method: prepare request to send over network.
      */
     @Override
-    public void writeTo(RpcClientRequestBuilder<TReqAdvanceConsumer.Builder, ?> requestBuilder) {
-        TReqAdvanceConsumer.Builder builder = requestBuilder.body();
+    public void writeTo(RpcClientRequestBuilder<TReqAdvanceQueueConsumer.Builder, ?> requestBuilder) {
+        TReqAdvanceQueueConsumer.Builder builder = requestBuilder.body();
         if (transactionId == null) {
-            throw new RuntimeException("The AdvanceConsumer request requires a transaction ID");
+            throw new RuntimeException("The AdvanceQueueConsumer request requires a transaction ID");
         }
 
         builder.setTransactionId(RpcUtil.toProto(transactionId));

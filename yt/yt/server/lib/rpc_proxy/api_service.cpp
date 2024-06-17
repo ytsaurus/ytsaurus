@@ -717,6 +717,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
@@ -4151,14 +4152,30 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceConsumer)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceQueueConsumer)
+    {
+        AdvanceQueueConsumerImpl(request, response, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(
+        NApi::NRpcProxy::NProto::TReqAdvanceQueueConsumer,
+        NApi::NRpcProxy::NProto::TRspAdvanceQueueConsumer,
+        AdvanceConsumer)
+    {
+        AdvanceQueueConsumerImpl(request, response, context);
+    }
+
+    void AdvanceQueueConsumerImpl(
+        NApi::NRpcProxy::NProto::TReqAdvanceQueueConsumer* request,
+        NApi::NRpcProxy::NProto::TRspAdvanceQueueConsumer* /*response*/,
+        const TCtxAdvanceQueueConsumerPtr& context)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
-        TAdvanceConsumerOptions options;
+        TAdvanceQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         auto oldOffset = YT_PROTO_OPTIONAL(*request, old_offset);
@@ -4182,7 +4199,7 @@ private:
         ExecuteCall(
             context,
             [=, consumerPath = std::move(consumerPath), queuePath = std::move(queuePath)] {
-                return transaction->AdvanceConsumer(
+                return transaction->AdvanceQueueConsumer(
                     consumerPath,
                     queuePath,
                     request->partition_index(),

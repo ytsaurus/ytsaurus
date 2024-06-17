@@ -250,6 +250,33 @@ class YtClient(ClientState):
             client=self,
             client_side=client_side)
 
+    def advance_queue_consumer(
+            self,
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client_side=True):
+        """
+        Advances consumer offset for the given queue.
+        If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param partition_index: tablet index
+        :type partition_index: int
+        :param old_offset: expected current offset
+        :type old_offset: None or int
+        :param new_offset: new offset to set
+        :type new_offset: int
+        :param client_side: use client-side implementation
+        :type client_side: bool
+
+        """
+        return client_api.advance_queue_consumer(
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self,
+            client_side=client_side)
+
     def alter_query(
             self,
             query_id,
