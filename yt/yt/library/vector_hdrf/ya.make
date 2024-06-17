@@ -10,6 +10,7 @@ SRCS(
     # Files below this line, depends on core/
     resource_helpers.cpp
     fair_share_update.cpp
+    base_element.cpp
 )
 
 PEERDIR(
