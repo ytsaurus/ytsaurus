@@ -270,7 +270,7 @@ auto ParDo(F func, const TFnAttributes& attributes)
             using TOutputRow = typename TArg2::TRowType;
 
             if constexpr (std::is_same_v<TOutputRow, TMultiRow>) {
-                static_assert(TDependentFalse<F>, "Creating ParDo's with multiple output from is not supported, create class implementing IDoFn<TInputRow, TMultiRow>");
+                static_assert(TDependentFalse<F>, "Creating ParDo with multiple outputs is not supported, create class implementing IDoFn<TInputRow, TMultiRow>");
             } else {
                 static_assert(std::is_convertible_v<F, void(*)(const TInputRow&, TOutput<TOutputRow>&)>, "Incorrect function signature, or lambda with variable capturing");
 
