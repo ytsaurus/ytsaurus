@@ -86,7 +86,7 @@ private:
     std::optional<NScheduler::TAllocationAttributes> Attributes_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
-    // TODO before commit: maybe strong?
+    // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
     EAllocationState State_ = EAllocationState::Waiting;

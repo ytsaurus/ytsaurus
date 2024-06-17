@@ -103,11 +103,16 @@ public:
         void DoProcessHeartbeatResponse(
             const TRspHeartbeatPtr& response,
             const TAgentHeartbeatContextPtr& context);
+
+        void OnMasterConnected();
+        void OnMasterDisconnected();
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
     TControllerAgentConnectorPool(IBootstrap* bootstrap);
+
+    void Initialize();
 
     void Start();
 
@@ -136,7 +141,12 @@ private:
 
     NTracing::TSamplerPtr TracingSampler_;
 
+    bool MasterConnected_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void OnMasterConnected();
+    void OnMasterDisconnected();
 
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
 

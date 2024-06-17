@@ -40,6 +40,11 @@ class TMasterConnector
     : public IMasterConnector
 {
 public:
+    DEFINE_SIGNAL_OVERRIDE(void(), MasterConnected);
+
+    DEFINE_SIGNAL_OVERRIDE(void(), MasterDisconnected);
+
+public:
     TMasterConnector(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TMasterConnectorDynamicConfig>())
@@ -50,6 +55,7 @@ public:
     void Initialize() override
     {
         Bootstrap_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterConnected, MakeWeak(this)));
+        Bootstrap_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TMasterConnector::OnMasterDisconnected, MakeWeak(this)));
     }
 
     void OnDynamicConfigChanged(
@@ -94,14 +100,6 @@ public:
         return heartbeat;
     }
 
-    void OnHeartbeatResponse(const TRspHeartbeat& response)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        bool disableSchedulerJobs = response.disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
-        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
-    }
-
 private:
     IBootstrap* const Bootstrap_;
 
@@ -142,6 +140,21 @@ private:
 
         YT_LOG_INFO("Starting exec node heartbeats");
         HeartbeatExecutor_->Start();
+
+        MasterConnected_.Fire();
+    }
+
+    void OnMasterDisconnected()
+    {
+        MasterDisconnected_.Fire();
+    }
+
+    void OnHeartbeatResponse(const TRspHeartbeat& response)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        bool disableSchedulerJobs = response.disable_scheduler_jobs() || Bootstrap_->IsDecommissioned();
+        Bootstrap_->GetJobController()->SetJobsDisabledByMaster(disableSchedulerJobs);
     }
 
     TError ReportHeartbeat()

@@ -4,9 +4,11 @@ from yt_commands import (
     authors, ls, get, wait, run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint, vanilla,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
-    interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla)
+    interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
+    set_node_banned)
 
 from yt_helpers import JobCountProfiler, profiler_factory
+
 
 ##################################################################
 
@@ -143,6 +145,39 @@ class TestJobsDisabled(YTEnvSetup):
 
         op1.abort()
         op2.abort()
+
+
+class TestNodeBanned(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        }
+    }
+
+    @authors("pogorelov")
+    def test_job_abort_on_node_banned(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        path = "job_controller/job_final_state"
+        counter = profiler_factory().at_node(node, fixed_tags={"state": "aborted"}).counter(path)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        wait_breakpoint()
+
+        set_node_banned(node, True)
+
+        wait(lambda: counter.get_delta(verbose=True) != 0)
+
+        op.abort()
 
 
 class TestJobProxyCallFailed(YTEnvSetup):

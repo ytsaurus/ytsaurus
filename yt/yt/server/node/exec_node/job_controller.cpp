@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "job.h"
 #include "job_info.h"
+#include "master_connector.h"
 #include "private.h"
 #include "scheduler_connector.h"
 #include "slot_manager.h"
@@ -154,6 +155,10 @@ public:
         JobProxyBuildInfoUpdater_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
             BIND_NO_PROPAGATE(&TJobController::UpdateJobProxyBuildInfo, MakeWeak(this)));
+
+        const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+        masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TJobController::OnMasterConnected, MakeWeak(this)));
+        masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TJobController::OnMasterDisconnected, MakeWeak(this)));
     }
 
     void Start() override
@@ -207,6 +212,32 @@ public:
 
         auto it = RecentlyRemovedJobMap_.find(jobId);
         return it == RecentlyRemovedJobMap_.end() ? nullptr : it->second.Job;
+    }
+
+    void OnMasterConnected() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_INFO("Node connected to master");
+
+        MasterConnected_.store(true);
+    }
+
+    void OnMasterDisconnected() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        MasterConnected_.store(false);
+
+        YT_LOG_INFO("Node disconnected from master");
+
+        YT_UNUSED_FUTURE(BIND(
+            &TJobController::AbortAllJobs,
+            MakeStrong(this),
+            TError("Master disconnected")
+                << TErrorAttribute("abort_reason", EAbortReason::NodeOffline))
+            .AsyncVia(Bootstrap_->GetJobInvoker())
+            .Run());
     }
 
     void SetJobsDisabledByMaster(bool value) override
@@ -294,7 +325,7 @@ public:
 
         const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
 
-        return JobsDisabledByMaster_.load() || slotManager->IsJobSchedulingDisabled();
+        return JobsDisabledByMaster_.load() || !MasterConnected_.load() || slotManager->IsJobSchedulingDisabled();
     }
 
     void ScheduleStartAllocations()
@@ -509,6 +540,7 @@ private:
     bool StartAllocationsScheduled_ = false;
 
     std::atomic<bool> JobsDisabledByMaster_ = false;
+    std::atomic<bool> MasterConnected_ = false;
 
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;

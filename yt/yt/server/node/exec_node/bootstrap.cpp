@@ -183,6 +183,8 @@ public:
         SlotManager_->Initialize();
         JobController_->Initialize();
         MasterConnector_->Initialize();
+        SchedulerConnector_->Initialize();
+        ControllerAgentConnectorPool_->Initialize();
 
         SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TDiskChangeChecker::PopulateAlerts, DiskChangeChecker_));
     }

@@ -33,6 +33,8 @@ class TSchedulerConnector
 public:
     explicit TSchedulerConnector(IBootstrap* bootstrap);
 
+    void Initialize();
+
     void Start();
 
     void OnDynamicConfigChanged(
@@ -78,6 +80,9 @@ private:
     const NTracing::TSamplerPtr TracingSampler_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+    void OnMasterConnected();
+    void OnMasterDisconnected();
 
     TError SendHeartbeat();
 
