@@ -686,6 +686,7 @@ private:
                             dataSource.Keys = MakeSharedRange(prefixKeys, rowBuffer);
                         }
 
+                        subquery->InferRanges = false;
                         // COMPAT(lukyan): Use ordered read without modification of protocol
                         subquery->Limit = std::numeric_limits<i64>::max() - 1;
 
