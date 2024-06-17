@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +33,7 @@ import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
+import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.Atomicity;
@@ -59,6 +59,7 @@ import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
 import tech.ytsaurus.client.request.GetTabletInfos;
@@ -67,6 +68,8 @@ import tech.ytsaurus.client.request.LinkNode;
 import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListNode;
+import tech.ytsaurus.client.request.ListQueries;
+import tech.ytsaurus.client.request.ListQueriesResult;
 import tech.ytsaurus.client.request.LockNode;
 import tech.ytsaurus.client.request.LockNodeResult;
 import tech.ytsaurus.client.request.MapOperation;
@@ -82,8 +85,10 @@ import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
+import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadFile;
+import tech.ytsaurus.client.request.ReadQueryResult;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.ReduceOperation;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
@@ -157,7 +162,6 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
-
 
 /**
  * Implementation of ApiServiceClient
@@ -344,7 +348,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_NODE.createRequestBuilder(rpcOptions)),
-                response -> parseByteString(response.body().getValue()));
+                response -> RpcUtil.parseByteString(response.body().getValue()));
     }
 
     /**
@@ -356,7 +360,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.LIST_NODE.createRequestBuilder(rpcOptions)),
-                response -> parseByteString(response.body().getValue()));
+                response -> RpcUtil.parseByteString(response.body().getValue()));
     }
 
     /**
@@ -944,7 +948,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<YTreeNode> getOperation(GetOperation req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_OPERATION.createRequestBuilder(rpcOptions)),
-                response -> parseByteString(response.body().getMeta())
+                response -> RpcUtil.parseByteString(response.body().getMeta())
         );
     }
 
@@ -989,7 +993,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<YTreeNode> getJob(GetJob req) {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_JOB.createRequestBuilder(rpcOptions)),
-                response -> parseByteString(response.body().getInfo())
+                response -> RpcUtil.parseByteString(response.body().getInfo())
         );
     }
 
@@ -1101,6 +1105,40 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         return RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.GET_QUERY_RESULT.createRequestBuilder(rpcOptions)),
                 response -> new QueryResult(response.body())
+        );
+    }
+
+    @Override
+    public CompletableFuture<UnversionedRowset> readQueryResult(ReadQueryResult req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.READ_QUERY_RESULT.createRequestBuilder(rpcOptions)),
+                response -> ApiServiceUtil.deserializeUnversionedRowset(
+                        response.body().getRowsetDescriptor(), response.attachments()
+                )
+        );
+    }
+
+    @Override
+    public CompletableFuture<Query> getQuery(GetQuery req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.GET_QUERY.createRequestBuilder(rpcOptions)),
+                response -> new Query(response.body().getQuery())
+        );
+    }
+
+    @Override
+    public CompletableFuture<ListQueriesResult> listQueries(ListQueries req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.LIST_QUERIES.createRequestBuilder(rpcOptions)),
+                response -> new ListQueriesResult(response.body())
+        );
+    }
+
+    @Override
+    public CompletableFuture<Void> alterQuery(AlterQuery req) {
+        return RpcUtil.apply(
+                sendRequest(req, ApiServiceMethodTable.ALTER_QUERY.createRequestBuilder(rpcOptions)),
+                response -> null
         );
     }
 
@@ -1449,10 +1487,6 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
             return null;
         }
         return rpcClient.getAddressString();
-    }
-
-    private static YTreeNode parseByteString(ByteString byteString) {
-        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 }
 

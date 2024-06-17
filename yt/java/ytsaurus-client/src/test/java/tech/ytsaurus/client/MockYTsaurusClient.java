@@ -18,6 +18,7 @@ import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.AdvanceConsumer;
+import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.BuildSnapshot;
@@ -41,6 +42,7 @@ import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
 import tech.ytsaurus.client.request.GetTabletInfos;
@@ -48,6 +50,8 @@ import tech.ytsaurus.client.request.LinkNode;
 import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
 import tech.ytsaurus.client.request.ListNode;
+import tech.ytsaurus.client.request.ListQueries;
+import tech.ytsaurus.client.request.ListQueriesResult;
 import tech.ytsaurus.client.request.LockNode;
 import tech.ytsaurus.client.request.LockNodeResult;
 import tech.ytsaurus.client.request.MapOperation;
@@ -61,8 +65,10 @@ import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
+import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
 import tech.ytsaurus.client.request.ReadFile;
+import tech.ytsaurus.client.request.ReadQueryResult;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.ReduceOperation;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
@@ -285,6 +291,26 @@ public class MockYTsaurusClient implements BaseYTsaurusClient {
     @Override
     public CompletableFuture<QueryResult> getQueryResult(GetQueryResult req) {
         return (CompletableFuture<QueryResult>) callMethod("getQueryResult");
+    }
+
+    @Override
+    public CompletableFuture<UnversionedRowset> readQueryResult(ReadQueryResult req) {
+        return (CompletableFuture<UnversionedRowset>) callMethod("readQueryResult");
+    }
+
+    @Override
+    public CompletableFuture<Query> getQuery(GetQuery req) {
+        return (CompletableFuture<Query>) callMethod("getQuery");
+    }
+
+    @Override
+    public CompletableFuture<ListQueriesResult> listQueries(ListQueries req) {
+        return (CompletableFuture<ListQueriesResult>) callMethod("listQueries");
+    }
+
+    @Override
+    public CompletableFuture<Void> alterQuery(AlterQuery req) {
+        return (CompletableFuture<Void>) callMethod("alterQuery");
     }
 
     @Override

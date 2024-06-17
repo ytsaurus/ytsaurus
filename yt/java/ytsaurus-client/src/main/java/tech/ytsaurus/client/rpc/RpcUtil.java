@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
@@ -32,6 +33,8 @@ import tech.ytsaurus.TSerializedMessageEnvelope;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpc.TRequestCancelationHeader;
 import tech.ytsaurus.rpc.TStreamingPayloadHeader;
+import tech.ytsaurus.ysontree.YTreeBinarySerializer;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 public class RpcUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;
@@ -166,7 +169,7 @@ public class RpcUtil {
     }
 
     /**
-     * Добавляет вызов dst.cancel(false) в случае завершения src
+     * Adds a call to dst.cancel(false) in case of completion of src.
      */
     public static <T> void relayCancel(CompletableFuture<T> src, Future<?> dst) {
         if (src.isDone()) {
@@ -183,7 +186,7 @@ public class RpcUtil {
     }
 
     /**
-     * Транслирует результат применения fn.apply(value) в результат для f
+     * Translates the result of fn.apply(value) into the result for f.
      */
     public static <T, U> void relayApply(
             CompletableFuture<U> f,
@@ -205,9 +208,9 @@ public class RpcUtil {
     }
 
     /**
-     * Аналогично f.thenApply(fn), но с дополнениями:
+     * Similar to {@code f.thenApply(fn)}, but with additions:
      * <p>
-     * - Автоматически вызывается cancel(false) на f
+     * - Call {@code cancel(false)} automatically on f.
      */
     public static <T, U> CompletableFuture<U> apply(CompletableFuture<T> f, Function<? super T, ? extends U> fn) {
         CompletableFuture<U> result = new CompletableFuture<>();
@@ -226,9 +229,9 @@ public class RpcUtil {
     }
 
     /**
-     * Аналогично f.thenApplyAsync(fn, executor), но с дополнениями:
+     * Similar to {@code f.thenApplyAsync(fn, executor)}, but with additions:
      * <p>
-     * - Автоматически вызывается cancel(false) на f
+     * - Call {@code cancel(false)} automatically on f.
      */
     public static <T, U> CompletableFuture<U> applyAsync(
             CompletableFuture<T> f,
@@ -264,7 +267,7 @@ public class RpcUtil {
     }
 
     /**
-     * Конвертирует Duration в микросекунды для yt
+     * Converts Duration to microseconds for YTsaurus.
      */
     public static long durationToMicros(Duration duration) {
         long micros = Math.multiplyExact(duration.getSeconds(), MICROS_PER_SECOND);
@@ -273,7 +276,7 @@ public class RpcUtil {
     }
 
     /**
-     * Конвертирует микросекунды yt в Duration
+     * Converts YT microseconds to Duration.
      */
     public static Duration durationFromMicros(long micros) {
         long seconds = micros / MICROS_PER_SECOND;
@@ -282,12 +285,21 @@ public class RpcUtil {
     }
 
     /**
-     * Конвертирует Instant в микросекунды для yt
+     * Converts Instant to microseconds for YTsaurus.
      */
     public static long instantToMicros(Instant instant) {
         long micros = Math.multiplyExact(instant.getEpochSecond(), MICROS_PER_SECOND);
         micros = Math.addExact(micros, instant.getNano() / NANOS_PER_MICROSECOND);
         return micros;
+    }
+
+    /**
+     * Converts YT microseconds to Instant.
+     */
+    public static Instant instantFromMicros(long micros) {
+        long seconds = micros / MICROS_PER_SECOND;
+        long nanos = (micros % MICROS_PER_SECOND) * NANOS_PER_MICROSECOND;
+        return Instant.ofEpochSecond(seconds, nanos);
     }
 
     public static TGuid toProto(GUID guid) {
@@ -296,5 +308,9 @@ public class RpcUtil {
 
     public static GUID fromProto(TGuidOrBuilder guid) {
         return new GUID(guid.getFirst(), guid.getSecond());
+    }
+
+    public static YTreeNode parseByteString(ByteString byteString) {
+        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 }

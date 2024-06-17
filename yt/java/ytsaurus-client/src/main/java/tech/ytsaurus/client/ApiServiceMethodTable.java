@@ -13,6 +13,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortOperation;
 import tech.ytsaurus.rpcproxy.TReqAbortQuery;
 import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
 import tech.ytsaurus.rpcproxy.TReqAdvanceQueueConsumer;
+import tech.ytsaurus.rpcproxy.TReqAlterQuery;
 import tech.ytsaurus.rpcproxy.TReqAlterTable;
 import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
@@ -34,12 +35,14 @@ import tech.ytsaurus.rpcproxy.TReqGetJob;
 import tech.ytsaurus.rpcproxy.TReqGetJobStderr;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
 import tech.ytsaurus.rpcproxy.TReqGetOperation;
+import tech.ytsaurus.rpcproxy.TReqGetQuery;
 import tech.ytsaurus.rpcproxy.TReqGetQueryResult;
 import tech.ytsaurus.rpcproxy.TReqGetTablePivotKeys;
 import tech.ytsaurus.rpcproxy.TReqGetTabletInfos;
 import tech.ytsaurus.rpcproxy.TReqLinkNode;
 import tech.ytsaurus.rpcproxy.TReqListJobs;
 import tech.ytsaurus.rpcproxy.TReqListNode;
+import tech.ytsaurus.rpcproxy.TReqListQueries;
 import tech.ytsaurus.rpcproxy.TReqLockNode;
 import tech.ytsaurus.rpcproxy.TReqLookupRows;
 import tech.ytsaurus.rpcproxy.TReqModifyRows;
@@ -50,6 +53,7 @@ import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqPutFileToCache;
 import tech.ytsaurus.rpcproxy.TReqReadFile;
+import tech.ytsaurus.rpcproxy.TReqReadQueryResult;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
 import tech.ytsaurus.rpcproxy.TReqRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TReqRemountTable;
@@ -74,6 +78,7 @@ import tech.ytsaurus.rpcproxy.TRspAbortOperation;
 import tech.ytsaurus.rpcproxy.TRspAbortQuery;
 import tech.ytsaurus.rpcproxy.TRspAbortTransaction;
 import tech.ytsaurus.rpcproxy.TRspAdvanceQueueConsumer;
+import tech.ytsaurus.rpcproxy.TRspAlterQuery;
 import tech.ytsaurus.rpcproxy.TRspAlterTable;
 import tech.ytsaurus.rpcproxy.TRspAlterTableReplica;
 import tech.ytsaurus.rpcproxy.TRspBuildSnapshot;
@@ -95,12 +100,14 @@ import tech.ytsaurus.rpcproxy.TRspGetJob;
 import tech.ytsaurus.rpcproxy.TRspGetJobStderr;
 import tech.ytsaurus.rpcproxy.TRspGetNode;
 import tech.ytsaurus.rpcproxy.TRspGetOperation;
+import tech.ytsaurus.rpcproxy.TRspGetQuery;
 import tech.ytsaurus.rpcproxy.TRspGetQueryResult;
 import tech.ytsaurus.rpcproxy.TRspGetTablePivotKeys;
 import tech.ytsaurus.rpcproxy.TRspGetTabletInfos;
 import tech.ytsaurus.rpcproxy.TRspLinkNode;
 import tech.ytsaurus.rpcproxy.TRspListJobs;
 import tech.ytsaurus.rpcproxy.TRspListNode;
+import tech.ytsaurus.rpcproxy.TRspListQueries;
 import tech.ytsaurus.rpcproxy.TRspLockNode;
 import tech.ytsaurus.rpcproxy.TRspLookupRows;
 import tech.ytsaurus.rpcproxy.TRspModifyRows;
@@ -111,6 +118,7 @@ import tech.ytsaurus.rpcproxy.TRspPingTransaction;
 import tech.ytsaurus.rpcproxy.TRspPullQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspPutFileToCache;
 import tech.ytsaurus.rpcproxy.TRspReadFile;
+import tech.ytsaurus.rpcproxy.TRspReadQueryResult;
 import tech.ytsaurus.rpcproxy.TRspReadTable;
 import tech.ytsaurus.rpcproxy.TRspRegisterQueueConsumer;
 import tech.ytsaurus.rpcproxy.TRspRemountTable;
@@ -308,6 +316,18 @@ public class ApiServiceMethodTable {
 
     public static final RpcMethodDescriptor<TReqGetQueryResult.Builder, TRspGetQueryResult> GET_QUERY_RESULT =
             apiServiceMethod("GetQueryResult", TReqGetQueryResult::newBuilder, TRspGetQueryResult.parser());
+
+    public static final RpcMethodDescriptor<TReqReadQueryResult.Builder, TRspReadQueryResult> READ_QUERY_RESULT =
+            apiServiceMethod("ReadQueryResult", TReqReadQueryResult::newBuilder, TRspReadQueryResult.parser());
+
+    public static final RpcMethodDescriptor<TReqGetQuery.Builder, TRspGetQuery> GET_QUERY =
+            apiServiceMethod("GetQuery", TReqGetQuery::newBuilder, TRspGetQuery.parser());
+
+    public static final RpcMethodDescriptor<TReqListQueries.Builder, TRspListQueries> LIST_QUERIES =
+            apiServiceMethod("ListQueries", TReqListQueries::newBuilder, TRspListQueries.parser());
+
+    public static final RpcMethodDescriptor<TReqAlterQuery.Builder, TRspAlterQuery> ALTER_QUERY =
+            apiServiceMethod("AlterQuery", TReqAlterQuery::newBuilder, TRspAlterQuery.parser());
 
     public static final RpcMethodDescriptor<TReqReadTable.Builder, TRspReadTable> READ_TABLE =
             apiServiceMethod("ReadTable", TReqReadTable::newBuilder, TRspReadTable.parser());

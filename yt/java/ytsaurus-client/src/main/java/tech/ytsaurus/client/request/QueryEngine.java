@@ -17,6 +17,23 @@ public enum QueryEngine {
         this.stringValue = stringValue;
     }
 
+    public static QueryEngine fromProtoValue(EQueryEngine protoValue) {
+        switch (protoValue) {
+            case QE_QL:
+                return Ql;
+            case QE_YQL:
+                return Yql;
+            case QE_CHYT:
+                return Chyt;
+            case QE_MOCK:
+                return Mock;
+            case QE_SPYT:
+                return Spyt;
+            default:
+                throw new IllegalArgumentException("Illegal query engine value " + protoValue);
+        }
+    }
+
     @Override
     public String toString() {
         return stringValue;

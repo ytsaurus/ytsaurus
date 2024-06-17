@@ -9,6 +9,7 @@ import tech.ytsaurus.client.request.AbortQuery;
 import tech.ytsaurus.client.request.AbortTransaction;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
+import tech.ytsaurus.client.request.AlterQuery;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.AlterTableReplica;
 import tech.ytsaurus.client.request.BuildSnapshot;
@@ -24,15 +25,20 @@ import tech.ytsaurus.client.request.GetJob;
 import tech.ytsaurus.client.request.GetJobStderr;
 import tech.ytsaurus.client.request.GetJobStderrResult;
 import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.GetQuery;
 import tech.ytsaurus.client.request.GetQueryResult;
 import tech.ytsaurus.client.request.GetTablePivotKeys;
 import tech.ytsaurus.client.request.GetTabletInfos;
 import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.client.request.ListJobsResult;
+import tech.ytsaurus.client.request.ListQueries;
+import tech.ytsaurus.client.request.ListQueriesResult;
 import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.PingTransaction;
 import tech.ytsaurus.client.request.PullConsumer;
+import tech.ytsaurus.client.request.Query;
 import tech.ytsaurus.client.request.QueryResult;
+import tech.ytsaurus.client.request.ReadQueryResult;
 import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
@@ -47,6 +53,7 @@ import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
@@ -252,11 +259,31 @@ class SyncApiServiceClientImpl
 
     @Override
     public void abortQuery(AbortQuery req) {
-        client.abortQuery(req);
+        client.abortQuery(req).join();
     }
 
     @Override
     public QueryResult getQueryResult(GetQueryResult req) {
         return client.getQueryResult(req).join();
+    }
+
+    @Override
+    public UnversionedRowset readQueryResult(ReadQueryResult req) {
+        return client.readQueryResult(req).join();
+    }
+
+    @Override
+    public Query getQuery(GetQuery req) {
+        return client.getQuery(req).join();
+    }
+
+    @Override
+    public ListQueriesResult listQueries(ListQueries req) {
+        return client.listQueries(req).join();
+    }
+
+    @Override
+    public void alterQuery(AlterQuery req) {
+        client.alterQuery(req).join();
     }
 }
