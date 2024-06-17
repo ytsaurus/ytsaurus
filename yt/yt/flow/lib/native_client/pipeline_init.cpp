@@ -13,6 +13,7 @@ using namespace NYTree;
 using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -120,6 +121,16 @@ TNodeId CreatePipelineNode(
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("schema", tableSchema);
             attributes->Set("dynamic", true);
+            if (tableName == InputMessagesTableName) {
+                attributes->Set("mount_config", BuildYsonStringFluently(NYson::EYsonFormat::Binary)
+                                                    .BeginMap()
+                                                        .Item("min_data_versions").Value(0)
+                                                        .Item("min_data_ttl").Value(0)
+                                                        .Item("max_data_ttl").Value(1800000)
+                                                        .Item("row_merger_type").Value(NTabletClient::ERowMergerType::Watermark)
+                                                    .EndMap());
+            }
+
             TCreateNodeOptions createOptions;
             createOptions.Attributes = std::move(attributes);
             createTableFutures.push_back(

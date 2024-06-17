@@ -1347,6 +1347,8 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         }
 
         case EInternedAttributeKey::CustomRuntimeData: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->CustomRuntimeData() = {};
 
@@ -1755,6 +1757,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::CustomRuntimeData: {
+            ValidateNoTransaction();
+
             auto* lockedTable = LockThisImpl();
             lockedTable->CustomRuntimeData() = value;
 

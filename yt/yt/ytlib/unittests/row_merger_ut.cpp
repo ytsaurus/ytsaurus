@@ -1792,7 +1792,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkFullClear)
 {
     auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 12;
+    watermarkData.Watermark = 13;
     auto runtimeData = ConvertToYsonString(watermarkData);
     auto merger = GetTypicalMerger(
         nullptr,
@@ -1823,7 +1823,7 @@ TEST_F(TVersionedRowMergerTest, WatermarkBlocksMaxDataTtlRemoval)
 
     auto watermarkData = TWatermarkRuntimeDataConfig();
     watermarkData.ColumnName = "watermark";
-    watermarkData.Watermark = 12;
+    watermarkData.Watermark = 13;
     auto runtimeData = ConvertToYsonString(watermarkData);
     auto merger = GetTypicalMerger(
         config,
