@@ -58,6 +58,7 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/operation_controller_host.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/private.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/scheduling_context.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/snapshot_downloader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/memory_watchdog.cpp

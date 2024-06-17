@@ -201,7 +201,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (ISchedulingContext* context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
+        (const TSchedulingContext& context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
         (context, resourceLimits, treeId),
         true)
 
@@ -270,7 +270,7 @@ public:
 
     bool ShouldSkipRunningJobEvents() const noexcept override;
 
-    void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override;
+    void RecordScheduleAllocationFailure(EScheduleFailReason reason) noexcept override;
 
     void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -668,13 +668,13 @@ protected:
     void CheckMinNeededResourcesSanity();
 
     void DoScheduleAllocation(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
     void TryScheduleJob(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
@@ -1272,7 +1272,7 @@ private:
     //! Schedule job failures that happened outside of controller.
     //! These values are added to corresponding values in ScheduleAllocationStatistics_
     //! on each access in thread-safe manner.
-    mutable TEnumIndexedArray<EScheduleAllocationFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
+    mutable TEnumIndexedArray<EScheduleFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
 
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;

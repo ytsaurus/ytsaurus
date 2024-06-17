@@ -281,9 +281,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("controller_failure", &TThis::ControllerFailure)
         .Default();
-    registrar.Parameter("get_job_spec_delay", &TThis::GetJobSpecDelay)
+    registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
         .Default();
-    registrar.Parameter("fail_get_job_spec", &TThis::FailGetJobSpec)
+    registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
     registrar.Parameter("testing_speculative_launch_mode", &TThis::TestingSpeculativeLaunchMode)
         .Default(ETestingSpeculativeLaunchMode::None);

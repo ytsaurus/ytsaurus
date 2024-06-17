@@ -270,7 +270,7 @@ TScheduleAllocationStatistics::TScheduleAllocationStatistics(int movingAverageWi
 
 void TScheduleAllocationStatistics::RecordJobResult(const TControllerScheduleAllocationResult& scheduleAllocationResult)
 {
-    for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         Failed_[reason] += scheduleAllocationResult.Failed[reason];
     }
     TotalDuration_ += scheduleAllocationResult.Duration;

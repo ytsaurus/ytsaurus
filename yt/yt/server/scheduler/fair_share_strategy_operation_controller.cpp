@@ -255,7 +255,7 @@ TControllerScheduleAllocationResultPtr TFairShareStrategyOperationController::Sc
     if (!scheduleAllocationResultWithTimeoutOrError.IsOK()) {
         auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
         if (scheduleAllocationResultWithTimeoutOrError.GetCode() == NYT::EErrorCode::Timeout) {
-            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::Timeout);
+            scheduleAllocationResult->RecordFail(EScheduleFailReason::Timeout);
             // If ScheduleAllocation was not canceled we need to abort created allocation.
             scheduleAllocationResultFuture.Subscribe(
                 BIND([
@@ -299,7 +299,7 @@ void TFairShareStrategyOperationController::OnScheduleAllocationFailed(
     auto config = GetConfig();
 
     TCpuInstant backoffDeadline = 0;
-    if (scheduleAllocationResult->Failed[EScheduleAllocationFailReason::ControllerThrottling] > 0) {
+    if (scheduleAllocationResult->Failed[EScheduleFailReason::ControllerThrottling] > 0) {
         auto value = ScheduleAllocationControllerThrottlingBackoff_.load();
         backoffDeadline = now + value;
 
@@ -328,7 +328,7 @@ void TFairShareStrategyOperationController::OnScheduleAllocationFailed(
         ScheduleAllocationBackoffObserved_.store(true);
     }
 
-    if (scheduleAllocationResult->Failed[EScheduleAllocationFailReason::TentativeTreeDeclined] > 0) {
+    if (scheduleAllocationResult->Failed[EScheduleFailReason::TentativeTreeDeclined] > 0) {
         auto guard = WriterGuard(SaturatedTentativeTreesLock_);
         TentativeTreeIdToSaturationTime_[treeId] = now;
     }

@@ -1264,7 +1264,7 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
             response.allocation_attributes());
     }
     for (const auto& protoCounter : response.failed()) {
-        result->Failed[static_cast<EScheduleAllocationFailReason>(protoCounter.reason())] = protoCounter.value();
+        result->Failed[static_cast<EScheduleFailReason>(protoCounter.reason())] = protoCounter.value();
     }
     FromProto(&result->Duration, response.duration());
     if (response.has_next_duration_estimate()) {

@@ -283,7 +283,7 @@ public:
         return Underlying_->ShouldSkipRunningJobEvents();
     }
 
-    void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override
+    void RecordScheduleAllocationFailure(EScheduleFailReason reason) noexcept override
     {
         return Underlying_->RecordScheduleAllocationFailure(reason);
     }
@@ -399,7 +399,7 @@ public:
     }
 
     TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const TJobResources& allocationLimits,
         const TString& treeId) override
     {

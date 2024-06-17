@@ -625,7 +625,7 @@ TEST_F(TFairShareStrategyOperationControllerTest, TestScheduleAllocationTimeout)
             /*treeConfig*/ {});
 
         EXPECT_FALSE(result->StartDescriptor);
-        EXPECT_EQ(1, result->Failed[EScheduleAllocationFailReason::Timeout]);
+        EXPECT_EQ(1, result->Failed[EScheduleFailReason::Timeout]);
     }
 
     {

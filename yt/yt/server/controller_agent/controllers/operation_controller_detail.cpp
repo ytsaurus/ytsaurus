@@ -328,7 +328,7 @@ TOperationControllerBase::TOperationControllerBase(
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 
-    for (const auto& reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (const auto& reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         ExternalScheduleAllocationFailureCounts_[reason] = 0;
     }
 
@@ -4455,7 +4455,7 @@ void TOperationControllerBase::CheckMinNeededResourcesSanity()
 }
 
 TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAllocation(
-    ISchedulingContext* context,
+    const TSchedulingContext& context,
     const TJobResources& resourceLimits,
     const TString& treeId)
 {
@@ -4473,9 +4473,9 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
 
     auto allocationIt = EmplaceOrCrash(
         AllocationMap_,
-        context->GetAllocationId(),
+        context.GetAllocationId(),
         TAllocation{
-            .Id = context->GetAllocationId(),
+            .Id = context.GetAllocationId(),
         });
 
     auto removeAllocationOnScheduleAllocationFailureGuard = Finally([&] {
@@ -4513,8 +4513,8 @@ TControllerScheduleAllocationResultPtr TOperationControllerBase::SafeScheduleAll
         removeAllocationOnScheduleAllocationFailureGuard.Release();
 
         Host->RegisterAllocation(TStartedAllocationInfo{
-            .AllocationId = context->GetAllocationId(),
-            .NodeAddress = context->GetNodeDescriptor()->Address,
+            .AllocationId = context.GetAllocationId(),
+            .NodeAddress = context.GetNodeDescriptor()->Address,
         });
     }
 
@@ -4609,7 +4609,7 @@ bool TOperationControllerBase::ShouldSkipRunningJobEvents() const noexcept
     return waitTimeThrottlingActive;
 }
 
-void TOperationControllerBase::RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept
+void TOperationControllerBase::RecordScheduleAllocationFailure(EScheduleFailReason reason) noexcept
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -4736,7 +4736,7 @@ void TOperationControllerBase::ResetTaskLocalityDelays()
 }
 
 void TOperationControllerBase::DoScheduleAllocation(
-    ISchedulingContext* context,
+    const TSchedulingContext& context,
     const TJobResources& resourceLimits,
     const TString& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult)
@@ -4745,19 +4745,19 @@ void TOperationControllerBase::DoScheduleAllocation(
 
     if (!IsRunning()) {
         YT_LOG_TRACE("Operation is not running, scheduling request ignored");
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
         return;
     }
 
     if (GetPendingJobCount().GetJobCountFor(treeId) == 0) {
         YT_LOG_TRACE("No pending jobs left, scheduling request ignored");
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoPendingJobs);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::NoPendingJobs);
         return;
     }
 
-    if (BannedNodeIds_.find(context->GetNodeDescriptor()->Id) != BannedNodeIds_.end()) {
+    if (BannedNodeIds_.find(context.GetNodeDescriptor()->Id) != BannedNodeIds_.end()) {
         YT_LOG_TRACE("Node is banned, scheduling request ignored");
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NodeBanned);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::NodeBanned);
         return;
     }
 
@@ -4770,20 +4770,20 @@ void TOperationControllerBase::DoScheduleAllocation(
 }
 
 void TOperationControllerBase::TryScheduleJob(
-    ISchedulingContext* context,
+    const TSchedulingContext& context,
     const TJobResources& resourceLimits,
     const TString& treeId,
     TControllerScheduleAllocationResult* scheduleAllocationResult,
     bool scheduleLocalJob)
 {
     if (!IsRunning()) {
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::OperationNotRunning);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationNotRunning);
         return;
     }
 
-    const auto& address = context->GetNodeDescriptor()->Address;
-    auto nodeId = context->GetNodeDescriptor()->Id;
-    auto now = NProfiling::CpuInstantToInstant(context->GetNow());
+    const auto& address = context.GetNodeDescriptor()->Address;
+    auto nodeId = context.GetNodeDescriptor()->Id;
+    auto now = NProfiling::CpuInstantToInstant(context.GetNow());
 
     for (const auto& task : Tasks) {
         if (scheduleAllocationResult->IsScheduleStopNeeded()) {
@@ -4794,9 +4794,9 @@ void TOperationControllerBase::TryScheduleJob(
         // current heartbeat. This check would be performed in scheduler.
         auto minNeededResources = task->GetMinNeededResources();
         if (!Dominates(resourceLimits, minNeededResources.ToJobResources()) ||
-            !CanSatisfyDiskQuotaRequest(context->DiskResources(), minNeededResources.DiskQuota()))
+            !CanSatisfyDiskQuotaRequest(context.DiskResources(), minNeededResources.DiskQuota()))
         {
-            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NotEnoughResources);
+            scheduleAllocationResult->RecordFail(EScheduleFailReason::NotEnoughResources);
             continue;
         }
 
@@ -4806,7 +4806,7 @@ void TOperationControllerBase::TryScheduleJob(
             // Make sure that the task has positive locality.
             if (locality <= 0) {
                 // NB: This is one of the possible reasons, hopefully the most probable.
-                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoLocalJobs);
+                scheduleAllocationResult->RecordFail(EScheduleFailReason::NoLocalJobs);
                 continue;
             }
         } else {
@@ -4820,7 +4820,7 @@ void TOperationControllerBase::TryScheduleJob(
                     "Task delayed (Task: %v, Deadline: %v)",
                     task->GetTitle(),
                     deadline);
-                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TaskDelayed);
+                scheduleAllocationResult->RecordFail(EScheduleFailReason::TaskDelayed);
                 continue;
             }
         }
@@ -4843,7 +4843,7 @@ void TOperationControllerBase::TryScheduleJob(
 
         if (!HasEnoughChunkLists(task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
             YT_LOG_DEBUG("Job chunk list demand is not met");
-            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NotEnoughChunkLists);
+            scheduleAllocationResult->RecordFail(EScheduleFailReason::NotEnoughChunkLists);
             break;
         }
 
@@ -4859,7 +4859,7 @@ void TOperationControllerBase::TryScheduleJob(
         }
     }
 
-    scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::NoCandidateTasks);
+    scheduleAllocationResult->RecordFail(EScheduleFailReason::NoCandidateTasks);
 }
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
@@ -8924,11 +8924,11 @@ TJobStartInfo TOperationControllerBase::SettleJob(TAllocationId allocationId)
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(EOperationControllerQueue::GetJobSpec));
 
-    if (auto getJobSpecDelay = Spec_->TestingOperationOptions->GetJobSpecDelay) {
-        Sleep(*getJobSpecDelay);
+    if (auto settleJobDelay = Spec_->TestingOperationOptions->SettleJobDelay) {
+        Sleep(*settleJobDelay);
     }
 
-    if (Spec_->TestingOperationOptions->FailGetJobSpec) {
+    if (Spec_->TestingOperationOptions->FailSettleJobRequests) {
         THROW_ERROR_EXCEPTION("Testing failure");
     }
 
@@ -10664,7 +10664,7 @@ void TOperationControllerBase::AccountExternalScheduleAllocationFailures() const
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    for (const auto& reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (const auto& reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         auto count = ExternalScheduleAllocationFailureCounts_[reason].exchange(0);
         ScheduleAllocationStatistics_->Failed()[reason] += count;
     }

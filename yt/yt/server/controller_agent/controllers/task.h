@@ -150,7 +150,7 @@ public:
     virtual bool ValidateChunkCount(int chunkCount);
 
     void ScheduleJob(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
@@ -276,7 +276,7 @@ protected:
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
 
-    virtual std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* context);
+    virtual std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& context);
 
     virtual void OnTaskCompleted();
 

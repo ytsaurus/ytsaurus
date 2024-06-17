@@ -240,7 +240,7 @@ struct TSchedulingStageProfilingCounters
     NProfiling::TCounter ControllerScheduleAllocationCount;
     NProfiling::TCounter ControllerScheduleAllocationTimedOutCount;
 
-    TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
+    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, NProfiling::TCounter> ControllerScheduleAllocationFail;
     TEnumIndexedArray<EDeactivationReason, NProfiling::TCounter> DeactivationCount;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> SchedulingIndexCounters;
     std::array<NProfiling::TCounter, SchedulingIndexProfilingRangeCount + 1> MaxSchedulingIndexCounters;
@@ -409,7 +409,7 @@ private:
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
         TDuration AnalyzeAllocationsDuration;
-        TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, int> FailedScheduleAllocation;
+        TEnumIndexedArray<NControllerAgent::EScheduleFailReason, int> FailedScheduleAllocation;
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;

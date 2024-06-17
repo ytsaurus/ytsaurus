@@ -627,11 +627,11 @@ public:
 
     std::optional<ECancelationStage> CancelationStage;
 
-    std::optional<TDuration> GetJobSpecDelay;
+    std::optional<TDuration> SettleJobDelay;
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
-    bool FailGetJobSpec;
+    bool FailSettleJobRequests;
 
     ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
 
