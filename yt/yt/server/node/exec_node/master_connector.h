@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/core/actions/signal.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +18,10 @@ namespace NYT::NExecNode {
 struct IMasterConnector
     : public TRefCounted
 {
+    DECLARE_INTERFACE_SIGNAL(void(), MasterConnected);
+
+    DECLARE_INTERFACE_SIGNAL(void(), MasterDisconnected);
+
     //! Initialize master connector.
     virtual void Initialize() = 0;
 

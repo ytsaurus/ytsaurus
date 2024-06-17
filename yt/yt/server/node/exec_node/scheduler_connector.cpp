@@ -3,6 +3,7 @@
 #include "allocation.h"
 #include "bootstrap.h"
 #include "job_controller.h"
+#include "master_connector.h"
 #include "private.h"
 #include "slot_manager.h"
 
@@ -63,14 +64,21 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
-void TSchedulerConnector::Start()
+void TSchedulerConnector::Initialize()
 {
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+
     jobResourceManager->SubscribeResourcesAcquired(BIND_NO_PROPAGATE(
         &TSchedulerConnector::OnResourcesAcquired,
         MakeWeak(this)));
 
-    HeartbeatExecutor_->Start();
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
+    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TSchedulerConnector::OnMasterConnected, MakeWeak(this)));
+    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TSchedulerConnector::OnMasterDisconnected, MakeWeak(this)));
+}
+
+void TSchedulerConnector::Start()
+{
 }
 
 void TSchedulerConnector::OnDynamicConfigChanged(
@@ -259,6 +267,20 @@ TError TSchedulerConnector::DoSendHeartbeat()
     return operationSuccessful
         ? TError()
         : TError("Scheduling skipped");
+}
+
+void TSchedulerConnector::OnMasterConnected()
+{
+    YT_LOG_INFO("Starting heartbeats to scheduler");
+
+    HeartbeatExecutor_->Start();
+}
+
+void TSchedulerConnector::OnMasterDisconnected()
+{
+    YT_LOG_INFO("Stopping heartbeats to scheduler");
+
+    YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
 }
 
 TError TSchedulerConnector::SendHeartbeat()
