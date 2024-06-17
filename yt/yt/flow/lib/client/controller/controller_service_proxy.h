@@ -25,7 +25,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetDynamicSpec);
     DEFINE_RPC_PROXY_METHOD(NProto, SetDynamicSpec);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, GetPipelineStatus);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetPipelineState);
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartPipeline);
     DEFINE_RPC_PROXY_METHOD(NProto, PausePipeline);

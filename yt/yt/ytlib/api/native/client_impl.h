@@ -867,10 +867,15 @@ public: \
         const NYPath::TYPath& pipelinePath,
         const TPausePipelineOptions& options),
         (pipelinePath, options))
-    IMPLEMENT_METHOD(TPipelineStatus, GetPipelineStatus, (
+    IMPLEMENT_METHOD(TPipelineState, GetPipelineState, (
         const NYPath::TYPath& pipelinePath,
-        const TGetPipelineStatusOptions& options),
+        const TGetPipelineStateOptions& options),
         (pipelinePath, options))
+    IMPLEMENT_METHOD(TGetFlowViewResult, GetFlowView, (
+        const NYPath::TYPath& pipelinePath,
+        const NYPath::TYPath& viewPath,
+        const TGetFlowViewOptions& options),
+        (pipelinePath, viewPath, options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD

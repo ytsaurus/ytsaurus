@@ -11,7 +11,7 @@ message TReqGetFlowView
 
 message TRspGetFlowView
 {
-    required bytes flow_view = 1 [(NYT.NYson.NProto.yson_string) = true];
+    required bytes flow_view_part = 1 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,11 +70,11 @@ message TRspSetDynamicSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqGetPipelineStatus
+message TReqGetPipelineState
 {
 }
 
-message TRspGetPipelineStatus
+message TRspGetPipelineState
 {
     required int32 state = 1; // EPipelineState
 }

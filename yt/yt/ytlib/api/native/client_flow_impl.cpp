@@ -163,16 +163,31 @@ void TClient::DoPausePipeline(
         .ThrowOnError();
 }
 
-TPipelineStatus TClient::DoGetPipelineStatus(
+TPipelineState TClient::DoGetPipelineState(
     const TYPath& pipelinePath,
-    const TGetPipelineStatusOptions& /*options*/)
+    const TGetPipelineStateOptions& /*options*/)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
-    auto req = proxy.GetPipelineStatus();
+    auto req = proxy.GetPipelineState();
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
         .State = CheckedEnumCast<EPipelineState>(rsp->state()),
+    };
+}
+
+TGetFlowViewResult TClient::DoGetFlowView(
+    const TYPath& pipelinePath,
+    const TYPath& viewPath,
+    const TGetFlowViewOptions& /*options*/)
+{
+    auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
+    auto req = proxy.GetFlowView();
+    req->set_path(viewPath);
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {
+        .FlowViewPart = TYsonString(rsp->flow_view_part()),
     };
 }
 

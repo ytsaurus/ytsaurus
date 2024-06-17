@@ -186,7 +186,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartPipeline);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StopPipeline);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PausePipeline);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetPipelineStatus);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetPipelineState);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetFlowView);
 
     // Misc
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckClusterLiveness);

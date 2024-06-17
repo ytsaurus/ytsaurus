@@ -2343,20 +2343,40 @@ TFuture<void> TClient::PausePipeline(
     return req->Invoke().AsVoid();
 }
 
-TFuture<TPipelineStatus> TClient::GetPipelineStatus(
+TFuture<TPipelineState> TClient::GetPipelineState(
     const NYPath::TYPath& pipelinePath,
-    const TGetPipelineStatusOptions& options)
+    const TGetPipelineStateOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.GetPipelineStatus();
+    auto req = proxy.GetPipelineState();
     SetTimeoutOptions(*req, options);
 
     req->set_pipeline_path(pipelinePath);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetPipelineStatusPtr& rsp) {
-        return TPipelineStatus{
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetPipelineStatePtr& rsp) {
+        return TPipelineState{
             .State = FromProto<NFlow::EPipelineState>(rsp->state()),
+        };
+    }));
+}
+
+TFuture<TGetFlowViewResult> TClient::GetFlowView(
+    const NYPath::TYPath& pipelinePath,
+    const NYPath::TYPath& viewPath,
+    const TGetFlowViewOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetFlowView();
+    SetTimeoutOptions(*req, options);
+
+    req->set_pipeline_path(pipelinePath);
+    req->set_view_path(viewPath);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetFlowViewPtr& rsp) {
+        return TGetFlowViewResult{
+            .FlowViewPart = TYsonString(rsp->flow_view_part()),
         };
     }));
 }

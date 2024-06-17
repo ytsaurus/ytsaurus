@@ -823,10 +823,16 @@ public:
         const TPausePipelineOptions& options),
         (pipelinePath, options))
 
-    DELEGATE_METHOD(TFuture<TPipelineStatus>, GetPipelineStatus, (
+    DELEGATE_METHOD(TFuture<TPipelineState>, GetPipelineState, (
         const NYPath::TYPath& pipelinePath,
-        const TGetPipelineStatusOptions& options),
+        const TGetPipelineStateOptions& options),
         (pipelinePath, options))
+
+    DELEGATE_METHOD(TFuture<TGetFlowViewResult>, GetFlowView, (
+        const NYPath::TYPath& pipelinePath,
+        const NYPath::TYPath& viewPath,
+        const TGetFlowViewOptions& options),
+        (pipelinePath, viewPath, options))
 
     #undef DELEGATE_METHOD
 

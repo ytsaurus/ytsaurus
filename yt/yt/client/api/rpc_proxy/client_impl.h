@@ -545,9 +545,14 @@ public:
         const NYPath::TYPath& pipelinePath,
         const TPausePipelineOptions& options = {}) override;
 
-    TFuture<TPipelineStatus> GetPipelineStatus(
+    TFuture<TPipelineState> GetPipelineState(
         const NYPath::TYPath& pipelinePath,
-        const TGetPipelineStatusOptions& options) override;
+        const TGetPipelineStateOptions& options) override;
+
+    TFuture<TGetFlowViewResult> GetFlowView(
+        const NYPath::TYPath& pipelinePath,
+        const NYPath::TYPath& viewPath,
+        const TGetFlowViewOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;
