@@ -422,7 +422,7 @@ protected:
             return ::NYT::NRpc::TServiceBase::TLiteHandler(); \
         } \
         return \
-            BIND([=, this] ( \
+            BIND_NO_PROPAGATE([=, this] ( \
                 const ::NYT::NRpc::IServiceContextPtr&, \
                 const ::NYT::NRpc::THandlerInvocationOptions&) \
             { \
