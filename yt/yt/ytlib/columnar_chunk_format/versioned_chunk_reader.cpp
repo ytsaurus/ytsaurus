@@ -698,6 +698,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     auto groupIds = GetGroupsIds(
         *preparedChunkMeta,
+        chunkKeyColumnCount,
         readItemWidth,
         keyColumnIndexes,
         valuesIdMapping);
@@ -724,11 +725,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     };
 
     auto makeKeyColumnBase = [&] (int keyColumnIndex) {
-        const auto& columnInfo = preparedChunkMeta->ColumnInfos[keyColumnIndex];
         if (keyColumnIndex < chunkKeyColumnCount) {
-            makeColumnBase(columnInfo, keyColumnIndex);
+            makeColumnBase(preparedChunkMeta->ColumnInfos[keyColumnIndex], keyColumnIndex);
         } else {
-            *columnBasesData++ = {nullptr, columnInfo.IndexInGroup, ui16(keyColumnIndex)};
+            *columnBasesData++ = {nullptr, 0, ui16(keyColumnIndex)};
         }
     };
 
