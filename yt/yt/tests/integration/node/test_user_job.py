@@ -1464,7 +1464,7 @@ class TestJobStderr(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat > /dev/null; python -c \'print "head" + "0" * 10000000; print "1" * 10000000 + "tail"\' >&2;',
+            command='cat > /dev/null; python -c \'print("head" + "0" * 10000000); print("1" * 10000000 + "tail")\' >&2;',
             spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}},
         )
 
