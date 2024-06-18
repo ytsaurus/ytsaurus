@@ -691,6 +691,7 @@ public:
     void InitPersistentState(NYTree::INodePtr persistentState);
     NYTree::INodePtr BuildPersistentState() const;
 
+    static bool IsGpuTree(const TFairShareStrategyTreeConfigPtr& config);
     bool IsGpuTree() const;
 
     //! Testing.

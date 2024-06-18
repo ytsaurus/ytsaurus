@@ -2539,7 +2539,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->LastRunningAllocationStatisticsUpdateTime = schedulingContext->GetNow();
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
-    if (IsGpuTree()) {
+    if (IsGpuTree(treeConfig)) {
         nodeState->RunningAllocations.clear();
         nodeState->RunningAllocations.reserve(schedulingContext->RunningAllocations().size());
         for (const auto& allocation : schedulingContext->RunningAllocations()) {
@@ -3182,9 +3182,14 @@ INodePtr TFairShareTreeAllocationScheduler::BuildPersistentState() const
     return ConvertToNode(persistentState);
 }
 
+bool TFairShareTreeAllocationScheduler::IsGpuTree(const TFairShareStrategyTreeConfigPtr& config)
+{
+    return config->MainResource == EJobResourceType::Gpu;
+}
+
 bool TFairShareTreeAllocationScheduler::IsGpuTree() const
 {
-    return Config_->MainResource == EJobResourceType::Gpu;
+    return IsGpuTree(Config_);
 }
 
 void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(
