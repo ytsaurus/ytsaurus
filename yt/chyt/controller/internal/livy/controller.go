@@ -79,8 +79,8 @@ func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias s
 		return
 	}
 	masterGroupID := alias
-	if speclet.masterGroupID != nil {
-		masterGroupID = *speclet.masterGroupID
+	if speclet.MasterGroupID != nil {
+		masterGroupID = *speclet.MasterGroupID
 	}
 	envPatch := map[string]string{
 		"LIVY_HOME":                       "$HOME/./livy",

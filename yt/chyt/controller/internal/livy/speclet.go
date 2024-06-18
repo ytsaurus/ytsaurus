@@ -6,7 +6,7 @@ type Speclet struct {
 
 	MaxSessions *uint64 `yson:"max_sessions"`
 
-	masterGroupID *string `yson:"master_group_id"`
+	MasterGroupID *string `yson:"master_group_id"`
 
 	SparkMasterAddress *string `yson:"spark_master_address"`
 
