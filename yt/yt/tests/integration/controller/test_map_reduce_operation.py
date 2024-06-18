@@ -13,6 +13,8 @@ from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, m
 
 from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_renaming_disabled
 
+import yt.yson as yson
+
 from yt.common import YtError
 from yt.environment.helpers import assert_items_equal
 
@@ -3047,6 +3049,106 @@ done
         release_breakpoint()
         op.track()
 
+    @authors("ermolovd")
+    def test_broken_convert_any_to_composite_YTADMINREQ_41748(self):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            pytest.skip()
+
+        schema = [
+            make_column("key", "string"),
+            make_column("value1", list_type("string")),
+            make_column("value2", list_type("string")),
+        ]
+        # Same schema with composite column order inverted.
+        # The order inversion triggers bug in above ticket.
+        inverted_schema = [
+            make_column("key", "string"),
+            make_column("value2", list_type("string")),
+            make_column("value1", list_type("string")),
+        ]
+        create("table", "//tmp/t_in1", attributes={"schema": schema})
+        create("table", "//tmp/t_in2", attributes={"schema": inverted_schema})
+
+        create("table", "//tmp/t_out1", attributes={"schema": schema})
+        create("table", "//tmp/t_out2", attributes={"schema": schema})
+        write_table("//tmp/t_in1", [
+            {"key": "foo", "value1": ["item1"], "value2": ["item2"]}
+        ])
+        write_table("//tmp/t_in2", [
+            {"key": "foo", "value1": ["item3"], "value2": ["item4"]}
+        ])
+
+        format = yson.YsonString(b"protobuf")
+        format.attributes["file_descriptor_set_text"] = """
+            file {
+                name: "google/protobuf/descriptor.proto"
+                package: "google.protobuf"
+                options { optimize_for: SPEED }
+            }
+            file {
+                name: "yt/yt_proto/yt/formats/extension.proto"
+                package: "NYT"
+                dependency: "google/protobuf/descriptor.proto"
+            }
+            file {
+                name: "data.proto"
+                dependency: "yt/yt_proto/yt/formats/extension.proto"
+                message_type {
+                    name: "TRow"
+                    field { name: "key" number: 1 label: LABEL_OPTIONAL type: TYPE_STRING options { } }
+                    field { name: "value1" number: 2 label: LABEL_REPEATED type: TYPE_STRING options { } }
+                    field { name: "value2" number: 3 label: LABEL_REPEATED type: TYPE_STRING options { } }
+                    options { [NYT.default_field_flags]: SERIALIZATION_YT }
+                }
+                options { }
+            }"""
+        format.attributes["type_names"] = ["TRow", "TRow"]
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", b"""
+import os
+import struct
+
+while True:
+    len_proto_bytes = os.read(0, 4)
+    if not len_proto_bytes:
+        break
+    len_proto, = struct.unpack("<i", len_proto_bytes)
+    if len_proto == -1:
+        os.read(0, 4)
+    elif len_proto > 0:
+        proto_bytes = os.read(0, len_proto)
+        assert len(proto_bytes) == len_proto
+        os.write(1, len_proto_bytes)
+        os.write(1, proto_bytes)
+    else:
+        raise RuntimeError("unknown lenval tag: {}".format(len_proto))
+""")
+
+        # It's easier to use same format for input and output.
+        # We need 2 input tables, so we create two output tables,
+        # (since format encodes number of tables).
+        # Second output table is not used.
+        map_reduce(
+            in_=["//tmp/t_in1", "//tmp/t_in2"],
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            reduce_by="key",
+            reducer_command="python reducer.py",
+            reducer_file=["//tmp/reducer.py"],
+            spec={
+                "reducer": {
+                    "format": format,
+                    "enable_input_table_index": True,
+                },
+            },
+        )
+
+        assert sorted(read_table("//tmp/t_out1"), key=lambda x: x["value1"]) == [
+            {"key": "foo", "value1": ["item1"], "value2": ["item2"]},
+            {"key": "foo", "value1": ["item3"], "value2": ["item4"]},
+        ]
+
     @pytest.mark.xfail(reason="YT-19087 is not closed")
     @authors("ermolovd")
     def test_column_filter_intermediate_schema_YT_19087(self):
@@ -3280,9 +3382,6 @@ done
 
     @authors("gritukan")
     def test_empty_input_due_to_sampling(self):
-        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
-            pytest.skip()
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
