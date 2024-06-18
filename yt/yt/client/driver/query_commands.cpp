@@ -35,6 +35,8 @@ TStartQueryCommand::TStartQueryCommand()
         .Optional();
     RegisterParameter("access_control_object", Options.AccessControlObject)
         .Optional();
+    RegisterParameter("access_control_objects", Options.AccessControlObjects)
+        .Optional();
 }
 
 void TStartQueryCommand::DoExecute(ICommandContextPtr context)
@@ -191,6 +193,8 @@ TAlterQueryCommand::TAlterQueryCommand()
     RegisterParameter("annotations", Options.Annotations)
         .Optional();
     RegisterParameter("access_control_object", Options.AccessControlObject)
+        .Optional();
+    RegisterParameter("access_control_objects", Options.AccessControlObjects)
         .Optional();
     RegisterParameter("stage", Options.QueryTrackerStage)
         .Default("production");

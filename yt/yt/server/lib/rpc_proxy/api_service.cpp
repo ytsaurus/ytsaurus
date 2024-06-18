@@ -31,6 +31,7 @@
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
+#include <yt/yt/client/api/query_tracker_client.h>
 
 #include <yt/yt/client/api/rpc_proxy/helpers.h>
 #include <yt/yt/client/api/rpc_proxy/protocol_version.h>
@@ -5610,7 +5611,7 @@ private:
 
         context->SetRequestInfo("QueryTrackerStage: %v, Engine: %v",
             request->query_tracker_stage(),
-            FromProto<EQueryEngine>(request->engine()));
+            ConvertQueryEngineFromProto(request->engine()));
 
         ExecuteCall(
             context,

@@ -7,7 +7,7 @@ from .common import datetime_to_string, set_param, get_value
 from datetime import datetime
 
 
-def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, client=None):
+def start_query(engine, query, settings=None, files=None, stage=None, annotations=None, access_control_object=None, access_control_objects=None, client=None):
     """Start query.
 
     :param engine: one of "ql", "yql".
@@ -24,6 +24,8 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     :type stage: dict or None
     :param access_control_object: access control object name
     :type access_control_object: str or None
+    :param access_control_objects: list access control object names
+    :type access_control_objects: list or None
     """
 
     params = {
@@ -36,6 +38,7 @@ def start_query(engine, query, settings=None, files=None, stage=None, annotation
     }
 
     set_param(params, "access_control_object", access_control_object)
+    set_param(params, "access_control_objects", access_control_objects)
 
     response = make_formatted_request("start_query", params, format=None, client=client)
 
@@ -134,6 +137,29 @@ def get_query(query_id, attributes=None, stage=None, format=None, client=None):
     set_param(params, "attributes", attributes)
 
     return make_formatted_request("get_query", params, format=format, client=client)
+
+
+def alter_query(query_id, stage=None, annotations=None, access_control_objects=None, client=None):
+    """Alter query.
+
+    :param query_id: id of a query to get
+    :type query_id: str
+    :param stage: query tracker stage, defaults to "production"
+    :type stage: str
+    :param annotations: a dictionary of annotations
+    :type stage: dict or None
+    :param access_control_objects: list access control object names
+    :type access_control_objects: list or None
+    """
+
+    params = {
+        "query_id": query_id,
+        "stage": get_value(stage, "production"),
+    }
+    set_param(params, "annotations", annotations)
+    set_param(params, "access_control_objects", access_control_objects)
+
+    return make_request("alter_query", params, client=client)
 
 
 def list_queries(user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,

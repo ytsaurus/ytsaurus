@@ -14,7 +14,7 @@ using namespace NYTree;
 
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
 {
-    static_assert(pfr::tuple_size<TQuery>::value == 15);
+    static_assert(pfr::tuple_size<TQuery>::value == 16);
     BuildYsonFluently(consumer)
         .BeginMap()
             .OptionalItem("id", query.Id)
@@ -26,6 +26,7 @@ void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
             .OptionalItem("settings", query.Settings)
             .OptionalItem("user", query.User)
             .OptionalItem("access_control_object", query.AccessControlObject)
+            .OptionalItem("access_control_objects", query.AccessControlObjects)
             .OptionalItem("state", query.State)
             .OptionalItem("result_count", query.ResultCount)
             .OptionalItem("progress", query.Progress)
