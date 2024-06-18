@@ -343,14 +343,14 @@ public:
         return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
-    using TQueueTransactionMixin::AdvanceConsumer;
-    TFuture<void> AdvanceConsumer(
+    using TQueueTransactionMixin::AdvanceQueueConsumer;
+    TFuture<void> AdvanceQueueConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         int partitionIndex,
         std::optional<i64> oldOffset,
         i64 newOffset,
-        const TAdvanceConsumerOptions& /*options*/) override
+        const TAdvanceQueueConsumerOptions& /*options*/) override
     {
         const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
