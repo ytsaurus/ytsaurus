@@ -287,7 +287,7 @@ private:
     struct TFetchedInfo
     {
         // |nullopt| means that certain transaction is NOT presented on certain
-        // master cell. Of course, it's simplier to use vector<bool> instead but
+        // master cell. Of course, it's simpler to use vector<bool> instead but
         // we want to avoid unnecessary allocations here.
         // Order is a bit complicated:
         // (cell1, ancestor1), (cell1, ancestor2), ...
@@ -823,9 +823,9 @@ private:
             return MakeFuture<std::vector<TTransactionId>>({});
         }
 
-        // Shared read lock prevents concurrent parent trasaction
+        // Shared read lock prevents concurrent parent transaction
         // commit or abort but still allows to start another nested transaction
-        // concurrenctly.
+        // concurrently.
         SequoiaTransaction_->LockRow(
             NRecords::TTransactionKey{.TransactionId = ParentId_},
             ELockType::SharedStrong);
@@ -883,12 +883,12 @@ private:
 /*!
  *  This class is used to implement transaction finishing: when transaction is
  *  committed or aborted, all its dependent (and nested) transactions are aborted
- *  too. To achive this we have to collect all dependent transactions and find
+ *  too. To achieve this we have to collect all dependent transactions and find
  *  topmost ones: it's sufficient to abort only subtree's root because it leads
  *  to abortion of all subtree.
  *
  *  "dependent_transactions" Sequoia table does not contains transitive closure
- *  of all dependent transactions (in opposite to "trasaction_descendants")
+ *  of all dependent transactions (in opposite to "transaction_descendants")
  *  because there is no any sane bound for number of dependent transactions.
  *  So the collection of all dependent transactions is a bit non-trivial:
  *
@@ -930,7 +930,7 @@ public:
     struct TResult
     {
         // Contains topmost dependent transactions.
-        std::vector<TTransactionId> DependenTTransactionubtreeRoots;
+        std::vector<TTransactionId> DependentTransactionSubtreeRoots;
         THashMap<TTransactionId, NRecords::TTransaction> Transactions;
 
         // NB: despite we fetch records from "dependent_transactions" and
@@ -958,7 +958,7 @@ private:
     const NRecords::TTransaction TargetTransaction_;
     const IInvokerPtr Invoker_;
 
-    // This state is shared between different callback invokations.
+    // This state is shared between different callback invocations.
     THashMap<TTransactionId, NRecords::TTransaction> CollectedTransactions_;
     std::vector<TTransactionId> CurrenTTransaction_;
 
@@ -984,7 +984,7 @@ private:
         }
 
         return {
-            .DependenTTransactionubtreeRoots = std::move(roots),
+            .DependentTransactionSubtreeRoots = std::move(roots),
             .Transactions = CollectedTransactions_,
         };
     }
@@ -1098,7 +1098,7 @@ private:
  *          "dependent_transactions" table;
  *     4.5. Remove (ancestor_id, transaction_id) for every its ancestor from
  *          "transaction_descendants" table;
- *     4.6. Remove transaction from "tansactions" table.
+ *     4.6. Remove transaction from "transactions" table.
  */
 class TFinishCypressTransaction
     : public TSequoiaMutation<TSharedRefArray>
@@ -1195,7 +1195,7 @@ private:
         // On transaction coordinator dependent transaction aborts are caused by
         // target transaction finishing. However, this abort has to be
         // replicated to other participants.
-        for (auto transactionId : transactionsInfo.DependenTTransactionubtreeRoots) {
+        for (auto transactionId : transactionsInfo.DependentTransactionSubtreeRoots) {
             AbortTransactionOnParticipants(FindReplicas(replicas, transactionId));
         }
 
@@ -1627,4 +1627,4 @@ TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTrasnactionServer
+} // namespace NYT::NTransactionServer

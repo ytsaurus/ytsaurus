@@ -1526,14 +1526,14 @@ public:
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
         // TODO(kvk1920): optimize.
-        // For mirrorred transactions it's enough to lock some rows in
+        // For mirrored transactions it's enough to lock some rows in
         // "transactions" Sequoia table. Replication isn't necessary here.
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
             auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            const auto& preprequisiteTransactions = prerequisitesExt->transactions();
-            prerequisiteTransactionIds.reserve(preprequisiteTransactions.size());
-            for (const auto& prerequisite : preprequisiteTransactions) {
+            const auto& prerequisiteTransactions = prerequisitesExt->transactions();
+            prerequisiteTransactionIds.reserve(prerequisiteTransactions.size());
+            for (const auto& prerequisite : prerequisiteTransactions) {
                 prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
             }
         }
@@ -1604,9 +1604,9 @@ public:
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
             auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            const auto& preprequisiteTransactions = prerequisitesExt->transactions();
-            prerequisiteTransactionIds.reserve(preprequisiteTransactions.size());
-            for (const auto& prerequisite : preprequisiteTransactions) {
+            const auto& prerequisiteTransactions = prerequisitesExt->transactions();
+            prerequisiteTransactionIds.reserve(prerequisiteTransactions.size());
+            for (const auto& prerequisite : prerequisiteTransactions) {
                 prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
             }
         }
@@ -2670,14 +2670,14 @@ public:
             };
             // Some dependent transactions may be not mirrored to Sequoia
             // Ground so their abort have to be replicated via Hive.
-            bool supressReplicationViaHive =
+            bool suppressReplicationViaHive =
                 IsMirroringToSequoiaEnabled() &&
                 IsMirroredToSequoia(dependentTransaction->GetId());
             AbortTransaction(
                 dependentTransaction,
                 options,
                 /*validatePermissions*/ false,
-                /*replicateViaHive*/ !supressReplicationViaHive);
+                /*replicateViaHive*/ !suppressReplicationViaHive);
         }
         transaction->DependentTransactions().clear();
 
@@ -3155,20 +3155,20 @@ private:
 
             if (transaction->GetTransactionLeasesState() == ETransactionLeasesState::Active) {
                 YT_LOG_ALERT(
-                    "Transaction has unexpected leases state after lease revokation "
+                    "Transaction has unexpected leases state after lease revocation "
                     "(TransactionId: %v, LeasesState: %v)",
                     transaction->GetId(),
                     transaction->GetTransactionLeasesState());
                 return VoidFuture;
             }
 
-            if (GetDynamicConfig()->ThrowOnLeaseRevokation) {
+            if (GetDynamicConfig()->ThrowOnLeaseRevocation) {
                 auto error = TError("Testing error");
                 return MakeFuture<void>(error);
             }
 
-            auto leaseRevokationFuture = transaction->LeasesRevokedPromise().ToFuture();
-            return leaseRevokationFuture.ToUncancelable();
+            auto leaseRevocationFuture = transaction->LeasesRevokedPromise().ToFuture();
+            return leaseRevocationFuture.ToUncancelable();
         }).AsyncVia(EpochAutomatonInvoker_));
     }
 
