@@ -1,5 +1,6 @@
 #include "epoch.h"
 
+#include <yt/yt/core/actions/bind.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
 #include <yt/yt/core/concurrency/fls.h>
