@@ -66,7 +66,40 @@ bool TInputTable::UseReadViaExecNode() const
 
 bool TInputTable::SupportsTeleportation() const
 {
-    return !Dynamic && !Path.GetColumns() && ColumnRenameDescriptors.empty();
+    if (Dynamic || !ColumnRenameDescriptors.empty()) {
+        return false;
+    }
+
+    auto pathColumnNames = Path.GetColumns();
+    if (!pathColumnNames) {
+        return true;
+    }
+
+    // Check if all columns are present in column filter and that schema is strict.
+
+    if (pathColumnNames->size() != Schema->Columns().size()) {
+        return false;
+    }
+
+    if (!Schema->GetStrict()) {
+        return false;
+    }
+
+    for (const auto& pathColumnName : *pathColumnNames) {
+        bool found = false;
+        for (const auto& schemaColumn : Schema->Columns()) {
+            if (pathColumnName == schemaColumn.Name()) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 void TInputTable::Persist(const TPersistenceContext& context)

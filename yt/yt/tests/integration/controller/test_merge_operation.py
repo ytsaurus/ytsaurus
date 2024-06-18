@@ -341,6 +341,49 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == self.v1 + self.v2
         assert get("//tmp/t_out/@chunk_count") == 7
 
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("enable_all_columns_filter", [False, True])
+    def test_ordered_merge_teleport_all_chunks(self, enable_all_columns_filter):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        strict_schema = make_schema([{"name": "key", "type": "string"}], strict=True)
+
+        if enable_all_columns_filter is True:
+            # Add all columns to the filter.
+            t_in = "<columns=[key]>//tmp/t_in"
+        else:
+            t_in = "//tmp/t_in"
+
+        create("table", t_in, attributes={"schema": strict_schema})
+
+        key_values = [{"key": "key1"}, {"key": "key2"}]
+        for kv in key_values:
+            write_table("<append=true>//tmp/t_in", kv)
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        op = merge(
+            mode="ordered",
+            in_=t_in,
+            out=t_out
+        )
+
+        op.track()
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 1
+        assert directions[("ordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 0
+        assert directions[("ordered_merge", "output")]["job_data_statistics"]["row_count"] == 0
+        assert directions[("ordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 2
+        assert directions[("ordered_merge", "output")]["teleport_data_statistics"]["row_count"] == 2
+
     @authors("panin", "ignat")
     def test_ordered_combine(self):
         self._prepare_tables()
