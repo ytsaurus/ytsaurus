@@ -303,6 +303,12 @@ public:
             Config_->OperationHangupCheckPeriod);
         StrategyHungOperationsChecker_->Start();
 
+        ExperimentAssignmentErrorChecker_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::Default),
+            BIND(&TImpl::CheckExperimentAssignmentError, MakeWeak(this)),
+            Config_->ExperimentAssignmentErrorCheckPeriod);
+        ExperimentAssignmentErrorChecker_->Start();
+
         MeteringRecordCountCounter_ = SchedulerProfiler
             .Counter("/metering/record_count");
         MeteringUsageQuantityCounter_ = SchedulerProfiler
@@ -603,7 +609,7 @@ public:
     TFuture<TPreprocessedSpec> AssignExperimentsAndParseSpec(
         EOperationType type,
         const TString& user,
-        TYsonString specString) const
+        TYsonString specString)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -716,6 +722,12 @@ public:
 
         if (operation->Spec()->TestingOperationOptions->DelayBeforeStart) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayBeforeStart);
+        }
+
+        if (!preprocessedSpec.ExperimentAssignmentErrors.empty()) {
+            LastExperimentAssignmentError_ = preprocessedSpec.ExperimentAssignmentErrors.front()
+                << TErrorAttribute("operation_id", operationId);
+            LastExperimentAssignmentErrorTime_ = TInstant::Now();
         }
 
         operation->GetCancelableControlInvoker()->Invoke(
@@ -1783,6 +1795,7 @@ private:
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyHungOperationsChecker_;
+    TPeriodicExecutorPtr ExperimentAssignmentErrorChecker_;
     TPeriodicExecutorPtr OrphanedOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
@@ -1815,6 +1828,8 @@ private:
     THashMap<TString, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
+    TError LastExperimentAssignmentError_;
+    TInstant LastExperimentAssignmentErrorTime_;
 
     std::atomic<bool> EnableFairSharePreUpdateOffloading_ = true;
 
@@ -2351,6 +2366,7 @@ private:
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
+            ExperimentAssignmentErrorChecker_->SetPeriod(Config_->ExperimentAssignmentErrorCheckPeriod);
 
             if (OrphanedOperationQueueScanPeriodExecutor_) {
                 OrphanedOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
@@ -2525,6 +2541,19 @@ private:
             if (auto operation = FindOperation(operationId)) {
                 OnOperationFailed(operation, error);
             }
+        }
+    }
+
+    void CheckExperimentAssignmentError()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!LastExperimentAssignmentError_.IsOK() &&
+            TInstant::Now() - LastExperimentAssignmentErrorTime_ < Config_->ExperimentAssignmentAlertDuration)
+        {
+            SetSchedulerAlert(ESchedulerAlertType::ExperimentAssignmentError, LastExperimentAssignmentError_);
+        } else {
+            SetSchedulerAlert(ESchedulerAlertType::ExperimentAssignmentError, TError());
         }
     }
 
@@ -3967,7 +3996,7 @@ private:
         EOperationType type,
         const TString& user,
         TYsonString specString,
-        NYTree::INodePtr specTemplate) const
+        NYTree::INodePtr specTemplate)
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
@@ -3975,9 +4004,17 @@ private:
         auto providedSpecNode = CloneNode(specNode)->AsMap();
         providedSpecNode->RemoveChild("secure_vault");
 
+        TPreprocessedSpec result;
         auto experimentAssignments = ExperimentsAssigner_.Assign(type, user, specNode);
+        result.ExperimentAssignments.reserve(std::size(experimentAssignments));
 
-        for (const auto& assignment : experimentAssignments) {
+        for (const auto& assignmentOrError : experimentAssignments) {
+            if (!assignmentOrError.IsOK()) {
+                result.ExperimentAssignmentErrors.emplace_back(assignmentOrError);
+                continue;
+            }
+
+            const auto& assignment = assignmentOrError.Value();
             if (const auto& patch = assignment->Effect->SchedulerSpecTemplatePatch) {
                 specTemplate = specTemplate ? PatchNode(specTemplate, patch) : patch;
             }
@@ -3987,11 +4024,10 @@ private:
             if (const auto& controllerAgentTag = assignment->Effect->ControllerAgentTag) {
                 specNode->AddChild("controller_agent_tag", ConvertToNode(*controllerAgentTag));
             }
+            result.ExperimentAssignments.emplace_back(assignment);
         }
 
-        TPreprocessedSpec result;
         ParseSpec(std::move(specNode), specTemplate, type, /*operationId*/ std::nullopt, &result);
-        result.ExperimentAssignments = std::move(experimentAssignments);
         result.ProvidedSpecString = ConvertToYsonString(providedSpecNode);
 
         return result;

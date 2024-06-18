@@ -4,6 +4,8 @@
 
 #include <yt/yt/orm/library/query/public.h>
 
+#include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -153,7 +155,7 @@ public:
 
     //! This method assigns experiments to an operation considering the possible
     //! specification of experiment overrides in operation spec.
-    std::vector<TExperimentAssignmentPtr> Assign(
+    std::vector<TErrorOr<TExperimentAssignmentPtr>> Assign(
         EOperationType operationType,
         const TString& user,
         const NYTree::IMapNodePtr& specNode) const;
@@ -162,7 +164,7 @@ public:
     struct TPreparedExperiment;
     using TPreparedExperimentPtr = TIntrusivePtr<TPreparedExperiment>;
 
-    bool MatchExperiment(
+    TErrorOr<bool> MatchExperiment(
         const TPreparedExperimentPtr& experiment,
         TAssignmentContext& attributes) const;
 

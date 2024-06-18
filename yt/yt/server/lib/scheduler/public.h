@@ -62,6 +62,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((UpdateSsdPriorityPreemptionMedia)             (16))
     ((FoundNodesWithUnsupportedPreemption)          (17))
     ((ArchiveIsOutdated)                            (18))
+    ((ExperimentAssignmentError)                    (19))
 );
 
 DEFINE_ENUM(EOperationAlertType,

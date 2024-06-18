@@ -1135,6 +1135,12 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("experiments", &TThis::Experiments)
         .Default();
 
+    registrar.Parameter("experiment_assignment_check_period", &TThis::ExperimentAssignmentErrorCheckPeriod)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("experiment_assignment_alert_duration", &TThis::ExperimentAssignmentAlertDuration)
+        .Default(TDuration::Seconds(30));
+
     registrar.Parameter("min_spare_allocation_resources_on_node", &TThis::MinSpareAllocationResourcesOnNode)
         .Alias("min_spare_job_resources_on_node")
         .DefaultCtor(&GetDefaultMinSpareAllocationResourcesOnNode)
@@ -1198,6 +1204,12 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         }
 
         ValidateExperiments(config->Experiments);
+
+        if (config->ExperimentAssignmentAlertDuration < 2 * config->ExperimentAssignmentErrorCheckPeriod) {
+            THROW_ERROR_EXCEPTION("Experiment assignment error alert duration should be significantly longer than the corresponding check period")
+                << TErrorAttribute("experiment_assignment_alert_duration", config->ExperimentAssignmentAlertDuration)
+                << TErrorAttribute("experiment_assignment_check_period", config->ExperimentAssignmentErrorCheckPeriod);
+        }
     });
 }
 
