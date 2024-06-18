@@ -48,7 +48,7 @@ public class ListQueries extends QueryTrackerReq<ListQueries.Builder, ListQuerie
         this.stateFilter = builder.stateFilter;
         this.engineFilter = builder.engineFilter;
         this.substrFilter = builder.substrFilter;
-        this.limit = Objects.requireNonNull(builder.limit);
+        this.limit = builder.limit;
         this.attributes = builder.attributes;
     }
 
