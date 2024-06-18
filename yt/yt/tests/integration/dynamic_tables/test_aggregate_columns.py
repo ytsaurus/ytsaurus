@@ -462,7 +462,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         assert_items_equal(row, [])
 
     @authors("hitsedesen")
-    def test_aggreagte_dict_sum(self):
+    def test_aggregate_dict_sum(self):
         sync_create_cells(1)
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
