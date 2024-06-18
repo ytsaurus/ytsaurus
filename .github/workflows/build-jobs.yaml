@@ -52,6 +52,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DREQUIRED_LLVM_TOOLING_VERSION=16 \
             ../ytsaurus/ytsaurus
 
       - name: Configure ytsaurus (relwithdebinfo)
@@ -66,6 +67,7 @@ jobs:
             -DCMAKE_TOOLCHAIN_FILE=../ytsaurus/ytsaurus/clang.toolchain \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DREQUIRED_LLVM_TOOLING_VERSION=16 \
             ../ytsaurus/ytsaurus
 
       - name: Configure query tracker
