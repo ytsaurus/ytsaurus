@@ -46,7 +46,7 @@ def master_exit_read_only(retry=None, client=None):
     if retry is not None:
         params["retry"] = retry
 
-    return make_request("exit_read_only", params=params, client=client)
+    return make_request("master_exit_read_only", params=params, client=client)
 
 
 def discombobulate_nonvoting_peers(cell_id=None, client=None):
