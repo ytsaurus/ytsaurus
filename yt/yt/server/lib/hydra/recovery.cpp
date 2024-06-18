@@ -210,12 +210,11 @@ void TRecovery::DoRun()
         TargetState_.SegmentId);
 
     auto changelogId = initialChangelogId;
-    IChangelogPtr changelog;
     while (changelogId <= TargetState_.SegmentId) {
         YT_LOG_INFO("Opening changelog (ChangelogId: %v)",
             changelogId);
 
-        changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
+        auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
 
         if (changelog) {
@@ -244,6 +243,31 @@ void TRecovery::DoRun()
         ++changelogId;
         WaitFor(changelog->Close())
             .ThrowOnError();
+    }
+
+    if (!IsLeader_ && isPersistenceEnabled) {
+        int latestChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
+        for (int changelogIdToTruncate = latestChangelogId; changelogIdToTruncate > TargetState_.SegmentId; --changelogIdToTruncate) {
+            auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogIdToTruncate));
+            if (!errorOrChangelogToTruncate.IsOK()) {
+                YT_LOG_INFO("Changelog does not exist, skipping (ChangelogId: %v)",
+                    changelogIdToTruncate);
+                continue;
+            }
+            auto changelogToTruncate = errorOrChangelogToTruncate.ValueOrThrow();
+            if (changelogToTruncate->GetRecordCount() > 0) {
+                YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
+                    changelogIdToTruncate,
+                    changelogToTruncate->GetRecordCount());
+                auto result = WaitFor(changelogToTruncate->Truncate(0));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
+            } else {
+                YT_LOG_INFO("Changelog is empty, will not truncate (ChangelogId: %v)",
+                    changelogIdToTruncate);
+            }
+            WaitFor(changelogToTruncate->Close())
+                .ThrowOnError();
+        }
     }
 
     auto automatonState = DecoratedAutomaton_->GetReachableState();
@@ -293,8 +317,6 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
         adjustedRemoteRecordCount);
 
     if (localRecordCount > adjustedRemoteRecordCount) {
-        int latestChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
-
         if (firstRemoteSequenceNumber) {
             auto lastRemoteSequenceNumber = *firstRemoteSequenceNumber + adjustedRemoteRecordCount;
             auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
@@ -311,28 +333,6 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
                 DecoratedAutomaton_->ResetState();
                 THROW_ERROR_EXCEPTION("Truncating a mutation that was already applied");
             }
-        }
-
-        for (int changelogIdToTruncate = latestChangelogId; changelogIdToTruncate > changelog->GetId(); --changelogIdToTruncate) {
-            auto errorOrChangelogToTruncate = WaitFor(ChangelogStore_->TryOpenChangelog(changelogIdToTruncate));
-            if (!errorOrChangelogToTruncate.IsOK()) {
-                YT_LOG_INFO("Changelog does not exist, skipping (ChangelogId: %v)",
-                    changelogIdToTruncate);
-                continue;
-            }
-            auto changelogToTruncate = errorOrChangelogToTruncate.ValueOrThrow();
-            if (changelogToTruncate->GetRecordCount() > 0) {
-                YT_LOG_INFO("Removing all records from changelog (ChangelogId: %v, RecordCount: %v)",
-                    changelogIdToTruncate,
-                    changelogToTruncate->GetRecordCount());
-                auto result = WaitFor(changelogToTruncate->Truncate(0));
-                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error truncating changelog");
-            } else {
-                YT_LOG_INFO("Changelog is empty, will not truncate (ChangelogId: %v)",
-                    changelogIdToTruncate);
-            }
-            WaitFor(changelogToTruncate->Close())
-                .ThrowOnError();
         }
 
         auto result = WaitFor(changelog->Truncate(adjustedRemoteRecordCount));
