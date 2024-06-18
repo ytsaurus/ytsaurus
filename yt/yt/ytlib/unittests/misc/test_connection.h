@@ -162,6 +162,7 @@ public:
     MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
     MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (const TString&), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (const TString&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardId, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));

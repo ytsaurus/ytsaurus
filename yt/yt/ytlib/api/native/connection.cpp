@@ -122,6 +122,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
+using namespace NQueryTrackerClient;
 using namespace NQueueClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
@@ -1070,6 +1071,27 @@ private:
             std::move(endpointAttributes));
     }
 
+    IChannelPtr CreateQueryTrackerChannel(TQueryTrackerChannelConfigPtr config) const
+    {
+        if (!config) {
+            THROW_ERROR_EXCEPTION("Missing \"channel\" parameter in query tracker connection configuration");
+        }
+
+        auto endpointDescription = "QueryTracker";
+        auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("query_tracker").Value(true)
+            .EndMap());
+
+        auto channel = CreateBalancingChannel(
+            config,
+            ChannelFactory_,
+            std::move(endpointDescription),
+            std::move(endpointAttributes));
+
+        return CreateDefaultTimeoutChannel(channel, config->Timeout);
+    }
+
     void SetupTvmIdSynchronization()
     {
         auto config = Config_.Acquire();
@@ -1102,10 +1124,9 @@ private:
             }));
     }
 
-    //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in Cypress.
-    std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
+    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
     {
-        auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TString> {
+        auto findStage = [&stage, this] (const TString& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
             YT_VERIFY(clusterConnection);
 
@@ -1114,13 +1135,13 @@ private:
             if (auto iter = stages.find(stage); iter != stages.end()) {
                 const auto& stage = iter->second;
                 auto client = NNative::CreateClient(clusterConnection, TClientOptions::FromUser(stage->User));
-                return {client, stage->Root};
+                return {client, stage};
             }
 
-            return {nullptr, ""};
+            return {nullptr, nullptr};
         };
 
-        std::pair<IClientPtr, TString> resultStage;
+        std::pair<IClientPtr, TQueryTrackerStageConfigPtr> resultStage;
         TString resultCluster;
         for (const auto& cluster: GetClusterDirectory()->GetClusterNames()) {
             if (auto existingStage = findStage(cluster); existingStage.first) {
@@ -1131,11 +1152,23 @@ private:
                 resultCluster = cluster;
             }
         }
-        if (resultStage.first) {
-            return resultStage;
-        } else {
+
+        if (!resultStage.first) {
             THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
         }
+        return resultStage;
+    }
+
+    //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in Cypress.
+    std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
+    {
+        auto resultStage = FindQueryTrackerStage(stage);
+        return {resultStage.first, resultStage.second->Root};
+    }
+
+    IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) override
+    {
+        return CreateQueryTrackerChannel(FindQueryTrackerStage(stage).second->Channel);
     }
 
     IChannelPtr WrapChaosChannel(IChannelPtr channel)

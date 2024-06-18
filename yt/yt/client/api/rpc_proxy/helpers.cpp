@@ -1443,7 +1443,7 @@ void FromProto(
     } else {
         query->State.reset();
     }
-    if (protoQuery.result_count()) {
+    if (protoQuery.has_result_count()) {
         query->ResultCount = protoQuery.result_count();
     } else {
         query->ResultCount.reset();

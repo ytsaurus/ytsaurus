@@ -30,6 +30,7 @@ target_link_libraries(yt-server-query_tracker PUBLIC
   library-query-row_comparer
   yt-yt-ytlib
   yt-ytlib-query_tracker_client
+  yt-yt-client
 )
 target_sources(yt-server-query_tracker PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/bootstrap.cpp
@@ -37,7 +38,9 @@ target_sources(yt-server-query_tracker PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/config.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/dynamic_config_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/handler_base.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/proxy_service.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/query_tracker_proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/mock_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/ql_engine.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/query_tracker/spyt_engine.cpp
