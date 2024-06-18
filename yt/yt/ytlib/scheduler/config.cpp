@@ -2204,6 +2204,9 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
 
+    registrar.Parameter("redirect_to_cluster", &TThis::RedirectToCluster)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(arkady-e1ppa)
         if (config->InferChildrenWeightsFromHistoricUsage) {

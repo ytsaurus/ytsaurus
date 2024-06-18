@@ -1191,6 +1191,11 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
     return path;
 }
 
+std::optional<TString> TSchedulerCompositeElement::GetRedirectToCluster() const
+{
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id, NObjectClient::TObjectId objectId)
@@ -1723,6 +1728,13 @@ std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
     }
 
     return Parent_->IsIdleCpuPolicyAllowed();
+}
+
+std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
+{
+    return Config_->RedirectToCluster
+        ? Config_->RedirectToCluster
+        : Parent_->GetRedirectToCluster();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

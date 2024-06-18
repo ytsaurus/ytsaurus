@@ -311,6 +311,8 @@ public:
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
+    std::optional<TString> RedirectToCluster;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
