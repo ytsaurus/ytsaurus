@@ -250,6 +250,33 @@ class YtClient(ClientState):
             client=self,
             client_side=client_side)
 
+    def advance_queue_consumer(
+            self,
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client_side=True):
+        """
+        Advances consumer offset for the given queue.
+        If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param partition_index: tablet index
+        :type partition_index: int
+        :param old_offset: expected current offset
+        :type old_offset: None or int
+        :param new_offset: new offset to set
+        :type new_offset: int
+        :param client_side: use client-side implementation
+        :type client_side: bool
+
+        """
+        return client_api.advance_queue_consumer(
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self,
+            client_side=client_side)
+
     def alter_query(
             self,
             query_id,
@@ -361,6 +388,27 @@ class YtClient(ClientState):
         return client_api.batch_apply(
             function, data,
             client=self)
+
+    def build_master_snapshots(
+            self,
+            set_read_only=None, wait_for_snapshot_completion=None, retry=None):
+        """
+        Build snapshots for all master cells.
+        """
+        return client_api.build_master_snapshots(
+            client=self,
+            set_read_only=set_read_only, wait_for_snapshot_completion=wait_for_snapshot_completion,
+            retry=retry)
+
+    def build_snapshot(
+            self,
+            cell_id=None, set_read_only=None, wait_for_snapshot_completion=None):
+        """
+        Builds snapshot of a given cell.
+        """
+        return client_api.build_snapshot(
+            client=self,
+            cell_id=cell_id, set_read_only=set_read_only, wait_for_snapshot_completion=wait_for_snapshot_completion)
 
     def check_permission(
             self,
@@ -706,6 +754,16 @@ class YtClient(ClientState):
             path,
             client=self,
             read_from=read_from, cache_sticky_group_size=cache_sticky_group_size, suppress_transaction_coordinator_sync=suppress_transaction_coordinator_sync)
+
+    def exit_read_only(
+            self,
+            cell_id=None):
+        """
+        Exit read-only at given master cell.
+        """
+        return client_api.exit_read_only(
+            client=self,
+            cell_id=cell_id)
 
     def explain_query(
             self,
@@ -1493,6 +1551,16 @@ class YtClient(ClientState):
             timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows,
             enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format,
             raw=raw, versioned=versioned, retention_timestamp=retention_timestamp)
+
+    def master_exit_read_only(
+            self,
+            retry=None):
+        """
+        Exits read-only mode at all master cells.
+        """
+        return client_api.master_exit_read_only(
+            client=self,
+            retry=retry)
 
     def mkdir(
             self,
