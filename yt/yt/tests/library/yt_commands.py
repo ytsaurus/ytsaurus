@@ -33,17 +33,10 @@ import tempfile
 import time
 import warnings
 import logging
-try:
-    from string import letters as ascii_letters
-except ImportError:
-    from string import ascii_letters
+from string import ascii_letters
 
 from datetime import datetime, timedelta
-try:
-    from cStringIO import StringIO as BytesIO, OutputType
-except ImportError:  # Python 3
-    from io import BytesIO
-    OutputType = BytesIO
+from io import BytesIO
 
 try:
     import yt_tests_settings
@@ -243,7 +236,7 @@ def wait_no_assert(predicate, verbose=False, wait_args=None):
     try:
         wait(wrapper, **wait_args)
     except WaitFailed:
-        if not last_exception:
+        if last_exception is None:
             raise
         raise last_exception
 
@@ -509,7 +502,7 @@ def execute_command(
             print_debug(str(error))
             # NB: we want to see inner errors in teamcity.
         raise error
-    if isinstance(output_stream, OutputType):
+    if isinstance(output_stream, BytesIO):
         result = output_stream.getvalue()
         if verbose:
             print_debug(result)
@@ -1125,7 +1118,7 @@ def restore_table_backup(*args, **kwargs):
     return execute_command("restore_table_backup", kwargs)
 
 
-def write_file(path, data, **kwargs):
+def write_file(path: str, data: bytes | None, **kwargs):
     kwargs["path"] = path
 
     if "input_stream" in kwargs:
@@ -1133,6 +1126,7 @@ def write_file(path, data, **kwargs):
         input_stream = kwargs["input_stream"]
         del kwargs["input_stream"]
     else:
+        assert data is not None
         input_stream = BytesIO(data)
 
     return execute_command("write_file", kwargs, input_stream=input_stream)
@@ -2839,12 +2833,12 @@ def get_cluster_drivers(primary_driver=None):
     for drivers in _clusters_drivers.values():
         if drivers[0][default_api_version] == primary_driver:
             return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
-    raise "Failed to get cluster drivers"
+    raise RuntimeError("Failed to get cluster drivers")
 
 
 class AsyncGet:
     def __init__(self, path, driver):
-        self.output_stream = OutputType()
+        self.output_stream = BytesIO()
         self.response = self.send_request(path, driver=driver, return_response=True, output_stream=self.output_stream)
 
     def send_request(self, path, **kwargs):
