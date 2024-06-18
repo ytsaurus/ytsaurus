@@ -1496,6 +1496,61 @@ protected:
             /*produceAllVersions*/ false);
     }
 
+    void DoAlterExtraKeyColumns()
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto readColumnSchemas = ColumnSchemas_;
+        auto it = readColumnSchemas.begin() + 5;
+        for (int extraKeyIndex = 10; extraKeyIndex >= 0; --extraKeyIndex) {
+            it = readColumnSchemas.insert(
+                it,
+                TColumnSchema(Format("extraKey%v", extraKeyIndex), EValueType::Int64, ESortOrder::Ascending));
+        }
+        auto readSchema = New<TTableSchema>(std::move(readColumnSchemas));
+
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
+
+        TestRangeReader(
+            InitialRows_,
+            memoryChunkReader,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            SyncLastCommittedTimestamp,
+            /*produceAllVersions*/ false);
+    }
+
+    void DoAlterExtraValueColumns()
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto readColumnSchemas = ColumnSchemas_;
+        for (int extraKeyIndex = 0; extraKeyIndex < 10; ++extraKeyIndex) {
+            readColumnSchemas.emplace_back(
+                Format("extraKey%v", extraKeyIndex),
+                EValueType::Int64);
+        }
+        auto readSchema = New<TTableSchema>(std::move(readColumnSchemas));
+
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
+
+        TestRangeReader(
+            InitialRows_,
+            memoryChunkReader,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            SyncLastCommittedTimestamp,
+            /*produceAllVersions*/ false);
+    }
+
     void DoSingleGroup()
     {
         auto writeColumnSchemas = ColumnSchemas_;
@@ -1569,6 +1624,16 @@ TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCom
 TEST_P(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 {
     DoGroupsLimitsAndSchemaChange();
+}
+
+TEST_P(TVersionedChunksHeavyTest, AlterExtraKeyColumns)
+{
+    DoAlterExtraKeyColumns();
+}
+
+TEST_P(TVersionedChunksHeavyTest, AlterExtraValueColumns)
+{
+    DoAlterExtraValueColumns();
 }
 
 TEST_P(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
