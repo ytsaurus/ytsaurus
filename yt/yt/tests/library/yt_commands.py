@@ -992,7 +992,7 @@ def start_transaction(**kwargs):
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    execute_command("commit_tx", kwargs)
+    return execute_command("commit_tx", kwargs, parse_yson=True)
 
 
 def ping_transaction(tx, **kwargs):
