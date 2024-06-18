@@ -198,10 +198,10 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         YqlAgent_));
 
-    YqlAgent_->Start();
-
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
+
+    YqlAgent_->Start();
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
