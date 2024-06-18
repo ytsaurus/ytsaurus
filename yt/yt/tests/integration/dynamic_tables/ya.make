@@ -47,7 +47,7 @@ TEST_SRCS(
 )
 
 IF (NOT OPENSOURCE)
-    SRCS(
+    TEST_SRCS(
         test_query_webassembly.py
     )
 ENDIF()
