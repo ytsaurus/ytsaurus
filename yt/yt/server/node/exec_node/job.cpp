@@ -1771,17 +1771,22 @@ void TJob::ReportJobInterruptionInfo(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    TJobInterruptionInfo interruptionInfo{
+        .InterruptionReason = interruptionReason,
+        .InterruptionTimeout = timeout ? std::optional(timeout) : std::nullopt,
+        .PreemptionReason = preemptionReason,
+    };
+
+    if (preemptedFor) {
+        interruptionInfo.PreemptedFor = TJobInterruptionInfo::TPreemptedFor{
+            .AllocationId = preemptedFor->AllocationId,
+            .OperationId = preemptedFor->OperationId,
+        };
+    }
+
     HandleJobReport(TNodeJobReport()
         .OperationId(OperationId_)
-        .InterruptionInfo(TJobInterruptionInfo{
-            .InterruptionReason = interruptionReason,
-            .InterruptionTimeout = timeout ? std::optional(timeout) : std::nullopt,
-            .PreemptionReason = preemptionReason,
-            .PreemptedFor = TJobInterruptionInfo::TPreemptedFor{
-                .AllocationId = preemptedFor->AllocationId,
-                .OperationId = preemptedFor->OperationId,
-            },
-        }));
+        .InterruptionInfo(std::move(interruptionInfo)));
 }
 
 void TJob::DoSetResult(TError error)
