@@ -3464,6 +3464,10 @@ void TOperationControllerBase::OnJobAborted(std::unique_ptr<TAbortedJobSummary> 
 
     auto error = jobSummary->Error;
 
+    if (joblet->JobSpecProtoFuture) {
+        joblet->JobSpecProtoFuture.Cancel(error ? *error : TError("Job aborted"));
+    }
+
     TJobFinishedResult taskJobResult;
     std::vector<TChunkId> failedChunkIds;
     bool wasScheduled = jobSummary->Scheduled;
