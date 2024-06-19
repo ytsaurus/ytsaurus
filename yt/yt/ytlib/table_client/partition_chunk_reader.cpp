@@ -139,7 +139,9 @@ void TPartitionChunkReader::InitFirstBlock()
         ChunkToReaderIdMapping_,
         SortOrders_,
         SortOrders_.size(),
-        /*keyWideningOptions*/ {});
+        /*keyWideningOptions*/ {},
+        /*extraColumnCount*/ 0,
+        /*decodeInlineHunkValues*/ true);
 
     BlockReaders_.emplace_back(BlockReader_);
 }
@@ -262,4 +264,3 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
-
