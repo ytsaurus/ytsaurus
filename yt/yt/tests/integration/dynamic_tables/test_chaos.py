@@ -3006,6 +3006,67 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values[2:3])
         wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values)
 
+    @authors("osidorkin")
+    def test_ordered_chaos_table_in_transaction(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(
+            cell_id,
+            replicas,
+            sync_replication_era=False,
+            mount_tables=False,
+            ordered=True
+        )
+        primary_driver, remote_driver0, remote_driver1 = self._get_drivers()
+
+        for replica in replicas:
+            path = replica["replica_path"]
+            driver = get_driver(cluster=replica["cluster_name"])
+            reshard_table(path, 1, driver=driver)
+            sync_mount_table(path, driver=driver)
+        self._sync_replication_era(card_id, replicas)
+
+        batch_size = 2
+        data_values = []
+        prev_commit_timestamp = 0
+
+        for idx, tx_driver in enumerate(self._get_drivers()):
+            values = [{"$tablet_index": 0, "key": i + batch_size * idx, "value": str(i)} for i in range(batch_size)]
+            data_values.extend(({"key": i + batch_size * idx, "value": str(i)} for i in range(batch_size)))
+
+            tx = start_transaction(type="tablet", driver=tx_driver)
+            insert_rows("//tmp/t", values, tx=tx, driver=tx_driver)
+            commit_res = commit_transaction(tx, driver=tx_driver)
+            print_debug("Commit results: ", commit_res, ", idx: ", idx)
+            primary_commit_timestamp = commit_res["primary_commit_timestamp"]
+            assert primary_commit_timestamp != 0
+
+            wait(lambda: select_rows("key, value from [//tmp/t] where [$tablet_index] = 0") == data_values)
+            wait(lambda: select_rows("key, value from [//tmp/t] where [$tablet_index] = 0", driver=remote_driver0) == data_values)
+            assert select_rows("key, value from [//tmp/t] where [$tablet_index] = 0", replica_consistency="sync", driver=remote_driver1) == data_values
+
+            rows = pull_rows(
+                "//tmp/t",
+                replication_progress={
+                    "segments": [{"lower_key": [], "timestamp": prev_commit_timestamp}],
+                    "upper_key": MAX_KEY,
+                },
+                upstream_replica_id=replica_ids[0],
+                driver=primary_driver
+            )
+            assert rows == [v | {"$timestamp": primary_commit_timestamp} for v in values]
+            prev_commit_timestamp = primary_commit_timestamp
+
+        sync_unmount_table("//tmp/t")
+        progress = get("//tmp/t/@replication_progress")
+        assert len(progress["segments"]) <= 1
+
     @authors("savrus")
     @pytest.mark.parametrize("with_data", [True, False])
     @pytest.mark.parametrize("write_target", ["t", "q"])
