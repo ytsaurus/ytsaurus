@@ -429,6 +429,43 @@ TRANSFORMS[6] = [
     ),
 ]
 
+TRANSFORMS[7] = [
+    Conversion(
+        "active_queries",
+        table_info=TableInfo(
+            [
+                ("query_id", "string"),
+            ],
+            [
+                ("engine", "string", {"lock": "client"}),
+                ("query", "string", {"lock": "client"}),
+                ("files", "any", {"lock": "client"}),
+                ("settings", "any", {"lock": "client"}),
+                ("user", "string", {"lock": "client"}),
+                ("access_control_object", "string", {"lock": "client"}),
+                ("start_time", "timestamp", {"lock": "client"}),
+                ("filter_factors", "string", {"lock": "client"}),
+                ("state", "string", {"lock": "common"}),
+                ("incarnation", "int64", {"lock": "query_tracker"}),
+                ("ping_time", "timestamp", {"lock": "query_tracker"}),
+                ("lease_transaction_id", "string", {"lock": "query_tracker"}),
+                ("assigned_tracker", "string", {"lock": "query_tracker"}),
+                ("progress", "any", {"lock": "query_tracker_progress"}),
+                ("error", "any", {"lock": "query_tracker"}),
+                ("result_count", "int64", {"lock": "query_tracker"}),
+                ("finish_time", "timestamp", {"lock": "common"}),
+                ("abort_request", "any", {"lock": "client"}),
+                ("annotations", "any", {"lock": "client"}),
+            ],
+            optimize_for="lookup",
+            attributes={
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            },
+        ),
+        use_default_mapper=True,
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
