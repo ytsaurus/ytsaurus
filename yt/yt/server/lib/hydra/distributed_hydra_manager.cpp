@@ -1533,9 +1533,9 @@ private:
 
         auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->Get()->MaxChangelogsToCreateDuringAcquisition);
         for (int id = startChangelogId; id <= changelogId; ++id) {
-            auto changelog = WaitFor(changelogStore->CreateChangelog(id, /*meta*/ {}, {.CreateWriterEagerly = true}))
-                .ValueOrThrow();
-            epochContext->FollowerCommitter->RegisterNextChangelog(id, changelog);
+            auto changelogFuture = changelogStore->CreateChangelog(id, /*meta*/ {}, {.CreateWriterEagerly = true});
+            epochContext->FollowerCommitter->RegisterNextChangelog(id, changelogFuture);
+            WaitFor(changelogFuture).ThrowOnError();
         }
 
         YT_LOG_INFO("Changelog acquired (ChangelogId: %v, Priority: %v, Term: %v)",

@@ -122,10 +122,17 @@ TErrorOr<IChangelogPtr> TCommitterBase::ExtractNextChangelog(TVersion version)
 
     auto it = NextChangelogs_.find(changelogId);
     if (it != NextChangelogs_.end()) {
-        auto changelog = it->second;
         YT_LOG_INFO("Changelog found in next changelogs (Version: %v)", version);
+        auto changelogFuture = it->second;
         NextChangelogs_.erase(it);
-        return changelog;
+
+        auto changelogOrError = WaitFor(changelogFuture);
+        if (!changelogOrError.IsOK()) {
+            LoggingFailed_.Fire(TError("Error opening changelog")
+                << TErrorAttribute("changelog_id", changelogId)
+                << changelogOrError);
+        }
+        return changelogOrError;
     }
 
     YT_LOG_INFO("Cannot find changelog in next changelogs, creating (Version: %v, Term: %v)",
@@ -193,7 +200,7 @@ TError TCommitterBase::PrepareNextChangelog(TVersion version)
     return {};
 }
 
-void TCommitterBase::RegisterNextChangelog(int id, IChangelogPtr changelog)
+void TCommitterBase::RegisterNextChangelog(int id, TFuture<IChangelogPtr> changelog)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -266,7 +273,7 @@ TLeaderCommitter::TLeaderCommitter(
 {
     PeerStates_.assign(CellManager_->GetTotalPeerCount(), {-1, -1});
 
-    RegisterNextChangelog(Changelog_->GetId(), Changelog_);
+    RegisterNextChangelog(Changelog_->GetId(), MakeFuture(Changelog_));
 
     auto selfId = CellManager_->GetSelfPeerId();
     auto& selfState = PeerStates_[selfId];
@@ -448,8 +455,13 @@ void TLeaderCommitter::Stop()
         mutationDraft.Promise.TrySet(error);
     }
 
-    for (const auto& [id, changelog] : NextChangelogs_) {
-        CloseChangelog(changelog);
+    for (const auto& [id, changelogFuture] : NextChangelogs_) {
+        auto changelogOrError = WaitForFast(changelogFuture);
+        if (!changelogOrError.IsOK()) {
+            YT_LOG_ALERT(changelogOrError, "Error opening changelog");
+            continue;
+        }
+        CloseChangelog(changelogOrError.Value());
     }
     CloseChangelog(Changelog_);
 
@@ -1021,7 +1033,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& change
         return;
     }
     auto changelog = changelogsOrError.Value();
-    RegisterNextChangelog(changelog->GetId(), changelog);
+    RegisterNextChangelog(changelog->GetId(), MakeFuture(changelog));
 
     auto changelogId = NextLoggedVersion_.SegmentId + 1;
     YT_VERIFY(Changelog_);
@@ -1556,8 +1568,13 @@ void TFollowerCommitter::Stop()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    for (const auto& [id, changelog] : NextChangelogs_) {
-        CloseChangelog(changelog);
+    for (const auto& [id, changelogFuture] : NextChangelogs_) {
+        auto changelogOrError = WaitForFast(changelogFuture);
+        if (!changelogOrError.IsOK()) {
+            YT_LOG_ALERT(changelogOrError, "Error opening changelog");
+            continue;
+        }
+        CloseChangelog(changelogOrError.Value());
     }
     CloseChangelog(Changelog_);
 
