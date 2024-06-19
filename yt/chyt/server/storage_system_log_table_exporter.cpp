@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    TUnversionedOwningRow Row_;
+    const TUnversionedOwningRow Row_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +305,7 @@ private:
 
     TVersionedTableInfo GetLatestTableInfo()
     {
-        YT_LOG_DEBUG("Getting latest cypress table info");
+        YT_LOG_DEBUG("Getting latest Cypress table info");
 
         TGetNodeOptions options;
         options.Attributes.Keys = {"key", "schema", "tablet_state"};
@@ -323,7 +323,9 @@ private:
         auto schema = result->GetChildValueOrThrow<TTableSchema>("schema");
         bool mounted = (result->GetChildValueOrThrow<ETabletState>("tablet_state") == ETabletState::Mounted);
 
-        YT_LOG_DEBUG("Got latest cypress table info (Version: %v, Mounted: %v)", version, mounted);
+        YT_LOG_DEBUG("Got latest Cypress table info (Version: %v, Mounted: %v)",
+            version,
+            mounted);
 
         return {version, std::move(schema), mounted};
     }
@@ -336,7 +338,7 @@ private:
         TCreateNodeOptions options;
         options.IgnoreExisting = true;
 
-        YT_LOG_DEBUG("Creating cypress table directory");
+        YT_LOG_DEBUG("Creating Cypress table directory");
 
         WaitFor(Client_->CreateNode(CypressTableDirectory_, EObjectType::MapNode, options))
             .ThrowOnError();
@@ -350,7 +352,7 @@ private:
         options.Attributes = attributes;
         options.IgnoreExisting = true;
 
-        YT_LOG_DEBUG("Creating versioned cypress table (Version: %v)", version);
+        YT_LOG_DEBUG("Creating versioned Cypress table (Version: %v)", version);
 
         WaitFor(Client_->CreateNode(GetVersionedTablePath(version), EObjectType::Table, options))
             .ThrowOnError();
