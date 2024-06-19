@@ -228,8 +228,7 @@ private:
     EJobEnvironmentType JobEnvironmentType_;
 
     //! We maintain queue for distributing job logs evenly among slots.
-    NThreading::TReaderWriterSpinLock FreeSlotsSpinLock_;
-    TRingQueue<int> FreeSlots_;
+    TRingQueue<int> FreeSlots_;  // For usage in main thread only, use bootstrap job invoker to run via
     int UsedIdleSlotCount_ = 0;
 
     double IdlePolicyRequestedCpu_ = 0;
