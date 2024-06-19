@@ -12,6 +12,7 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
+from copy import deepcopy
 import pytest
 
 ##################################################################
@@ -734,6 +735,25 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
         self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 456}], tx=tx)
         commit_transaction(tx)
         self._expect_from_index([{"keyA": 0, "keyB": "key", "valueA": 456, "valueB": None}])
+
+    @authors("sabdenovch")
+    def test_secondary_index_forbid_shared_write_locks(self):
+        index_schema = deepcopy(INDEX_ON_VALUE_SCHEMA[:3]) + [{"name": EMPTY_COLUMN_NAME, "type": "int64"}]
+        table_schema = deepcopy(PRIMARY_SCHEMA)
+        table_schema[2]["lock"] = "alpha"
+        table_schema[3]["lock"] = "beta"
+
+        self._create_basic_tables(mount=True, table_schema=table_schema, index_schema=index_schema)
+
+        with raises_yt_error():
+            tx = start_transaction(type="tablet")
+            self._insert_rows([{"keyA": 0, "keyB": "key", "valueA": 123}], update=True, tx=tx, lock_type="shared_write")
+            commit_transaction(tx)
+
+        with raises_yt_error():
+            tx = start_transaction(type="tablet")
+            self._insert_rows([{"keyA": 0, "keyB": "key", "valueB": True}], update=True, tx=tx, lock_type="shared_write")
+            commit_transaction(tx)
 
 
 ##################################################################
