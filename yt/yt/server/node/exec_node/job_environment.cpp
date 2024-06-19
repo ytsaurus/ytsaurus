@@ -87,7 +87,7 @@ public:
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean up processes during initialization")
                 << ex;
-            Disable(error);
+            Disable(std::move(error));
         }
     }
 
@@ -205,13 +205,13 @@ public:
         const TSlotManagerDynamicConfigPtr& /*newConfig*/) override
     { }
 
-    void Disable(const TError& error) override
+    void Disable(TError error) override
     {
         if (!Enabled_.exchange(false)) {
             return;
         }
 
-        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << error;
+        auto alert = TError(EErrorCode::JobEnvironmentDisabled, "Job environment is disabled") << std::move(error);
         YT_LOG_ERROR(alert);
 
         Alert_.Store(alert);
@@ -219,9 +219,7 @@ public:
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         const auto& dynamicConfig = dynamicConfigManager->GetConfig()->ExecNode->SlotManager;
 
-        if (dynamicConfig->AbortOnJobsDisabled) {
-            YT_LOG_FATAL(alert);
-        }
+        YT_LOG_FATAL_IF(dynamicConfig->AbortOnJobsDisabled, alert);
 
         if (dynamicConfig->EnableJobEnvironmentResurrection) {
             YT_UNUSED_FUTURE(BIND(&TSlotManager::OnJobEnvironmentDisabled, Bootstrap_->GetSlotManager())

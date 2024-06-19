@@ -1,7 +1,6 @@
 #include "slot_manager.h"
 
 #include "bootstrap.h"
-#include "chunk_cache.h"
 #include "job.h"
 #include "job_controller.h"
 #include "private.h"
@@ -247,15 +246,18 @@ TFuture<void> TSlotManager::InitializeEnvironment()
     for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
         auto slotInitFuture = JobEnvironment_->InitSlot(slotIndex)
             .WithTimeout(slotInitTimeout);
-        slotInitFuture.Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TError& error) {
-            if (error.IsOK()) {
-                auto guard = WriterGuard(FreeSlotsSpinLock_);
-                FreeSlots_.push(slotIndex);
-            } else {
-                auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
-                JobEnvironment_->Disable(wrappedError);
-            }
-        }));
+        slotInitFuture.Subscribe(
+            BIND([this, this_ = MakeStrong(this), slotIndex] (const TError& error) {
+                VERIFY_THREAD_AFFINITY(JobThread);
+
+                if (error.IsOK()) {
+                    FreeSlots_.push(slotIndex);
+                } else {
+                    auto wrappedError = TError("Failed to initialize slot %v", slotIndex) << error;
+                    JobEnvironment_->Disable(std::move(wrappedError));
+                }
+            })
+            .Via(Bootstrap_->GetJobInvoker()));
     }
 
     if (!JobEnvironment_->IsEnabled()) {
@@ -472,7 +474,6 @@ int TSlotManager::GetUsedSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto guard = ReaderGuard(FreeSlotsSpinLock_);
     return SlotCount_ - std::ssize(FreeSlots_);
 }
 
@@ -624,7 +625,6 @@ TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
         }
     }
 
-    auto guard = ReaderGuard(FreeSlotsSpinLock_);
     return {
         .SlotCount = SlotCount_,
         .FreeSlotCount = static_cast<int>(FreeSlots_.size()),
@@ -1167,7 +1167,6 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto guard = WriterGuard(FreeSlotsSpinLock_);
     YT_VERIFY(!FreeSlots_.empty());
     int slotIndex = FreeSlots_.front();
     FreeSlots_.pop();
@@ -1183,7 +1182,6 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double request
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto guard = WriterGuard(FreeSlotsSpinLock_);
     FreeSlots_.push(slotIndex);
     YT_VERIFY(std::ssize(FreeSlots_) <= SlotCount_);
 

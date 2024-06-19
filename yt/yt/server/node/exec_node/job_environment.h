@@ -35,7 +35,7 @@ struct IJobEnvironment
 
     virtual void CleanProcesses(int slotIndex, ESlotType slotType = ESlotType::Common) = 0;
 
-    virtual void Disable(const TError& error) = 0;
+    virtual void Disable(TError error) = 0;
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) = 0;
 
