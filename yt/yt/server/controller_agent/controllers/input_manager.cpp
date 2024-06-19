@@ -933,6 +933,46 @@ void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+// NB: must preserve order of chunks in the input tables, no shuffling.
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned) const
+{
+    std::vector<TInputChunkPtr> result;
+    for (const auto& table : InputTables_) {
+        if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
+            for (const auto& chunk : table->Chunks) {
+                if (IsUnavailable(chunk, Host_->GetChunkAvailabilityPolicy())) {
+                    switch (Host_->GetSpec()->UnavailableChunkStrategy) {
+                        case EUnavailableChunkAction::Skip:
+                            continue;
+
+                        case EUnavailableChunkAction::Wait:
+                            // Do nothing.
+                            break;
+
+                        default:
+                            YT_ABORT();
+                    }
+                }
+                result.push_back(chunk);
+            }
+        }
+    }
+    return result;
+}
+
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryUnversionedChunks() const
+{
+    return CollectPrimaryChunks(false);
+}
+
+std::vector<TInputChunkPtr> TInputManager::CollectPrimaryVersionedChunks() const
+{
+    return CollectPrimaryChunks(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TNodeDirectoryPtr& TInputManager::GetInputNodeDirectory() const
 {
     return InputNodeDirectory_;

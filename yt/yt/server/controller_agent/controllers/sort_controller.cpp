@@ -2656,7 +2656,7 @@ protected:
         int unversionedSlices = 0;
         int versionedSlices = 0;
         // TODO(max42): use CollectPrimaryInputDataSlices() here?
-        for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+        for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
             const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
@@ -3550,12 +3550,12 @@ private:
                 Host->GetClient(),
                 Logger);
 
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+            for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
                 if (!chunk->IsDynamicStore()) {
                     SamplesFetcher->AddChunk(chunk);
                 }
             }
-            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+            for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
                 if (!chunk->IsDynamicStore()) {
                     SamplesFetcher->AddChunk(chunk);
                 }

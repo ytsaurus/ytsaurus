@@ -960,10 +960,6 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.

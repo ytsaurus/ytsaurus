@@ -7467,43 +7467,6 @@ void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResu
         .Finish();
 }
 
-// NB: must preserve order of chunks in the input tables, no shuffling.
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryChunks(bool versioned) const
-{
-    std::vector<TInputChunkPtr> result;
-    for (const auto& table : InputManager->GetInputTables()) {
-        if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
-            for (const auto& chunk : table->Chunks) {
-                if (IsUnavailable(chunk, GetChunkAvailabilityPolicy())) {
-                    switch (Spec_->UnavailableChunkStrategy) {
-                        case EUnavailableChunkAction::Skip:
-                            continue;
-
-                        case EUnavailableChunkAction::Wait:
-                            // Do nothing.
-                            break;
-
-                        default:
-                            YT_ABORT();
-                    }
-                }
-                result.push_back(chunk);
-            }
-        }
-    }
-    return result;
-}
-
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryUnversionedChunks() const
-{
-    return CollectPrimaryChunks(false);
-}
-
-std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChunks() const
-{
-    return CollectPrimaryChunks(true);
-}
-
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
     auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
@@ -7616,7 +7579,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputManager->GetInputTables().size());
-    for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+    for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
@@ -7627,7 +7590,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     }
 
     if (OperationType == EOperationType::RemoteCopy) {
-        for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+        for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 

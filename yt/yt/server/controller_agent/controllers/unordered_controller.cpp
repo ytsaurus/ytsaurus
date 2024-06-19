@@ -380,7 +380,7 @@ protected:
             int unversionedSlices = 0;
             int versionedSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+            for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
                 const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
