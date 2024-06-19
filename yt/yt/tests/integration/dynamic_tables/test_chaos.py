@@ -3930,6 +3930,72 @@ class TestChaos(ChaosTestBase):
 
         assert select_rows("* from [//tmp/t1.crt] join [//tmp/t2.crt] using key") == [{"key": 0, "value": str(0), "value1": str(1)}]
 
+    @authors("akozhikhov")
+    def test_cumulative_data_weight_computation(self):
+        self._init_replicated_table_tracker()
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "value", "type": "string"},
+            {"name": "$timestamp", "type": "uint64"},
+            {"name": "$cumulative_data_weight", "type": "int64"},
+        ])
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "schema": schema,
+        })
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q"},
+        ]
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, ordered=True, schema=schema)
+
+        self._sync_replication_era(card_id)
+
+        values = [{"$tablet_index": 0, "value": str(i)} for i in range(1)]
+        insert_rows("//tmp/t", values)
+
+        def _check(replica, expected):
+            driver = get_driver(cluster=replica["cluster_name"])
+            select_result = select_rows("[$cumulative_data_weight] from [{0}]".format(
+                replica["replica_path"]),
+                driver=driver)
+            if not select_result:
+                return False
+            return select_result[-1]["$cumulative_data_weight"] == expected
+
+        for replica in replicas:
+            wait(lambda: _check(replica, 18))
+
+        replicas.append({
+            "cluster_name": "remote_1", "content_type": "data", "mode": "async", "enabled": True, "replica_path": "//tmp/q1",
+        })
+        replicas.append({
+            "cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2",
+        })
+
+        new_replica_ids = [
+            self._create_chaos_table_replica(replicas[-2], table_path="//tmp/crt", catchup=False),
+            self._create_chaos_table_replica(replicas[-1], table_path="//tmp/crt", catchup=False),
+        ]
+        self._create_replica_tables(replicas[-2:], new_replica_ids, ordered=True, schema=schema)
+
+        self._sync_replication_era(card_id)
+
+        values = [{"$tablet_index": 0, "value": str(i)} for i in range(1, 2)]
+        insert_rows("//tmp/t", values)
+
+        for replica in replicas[:-2]:
+            wait(lambda: _check(replica, 36))
+        for replica in replicas[-2:]:
+            wait(lambda: _check(replica, 18))
+
 
 ##################################################################
 
