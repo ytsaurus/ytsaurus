@@ -18,7 +18,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.22.5")
+    api("com.google.protobuf:protobuf-java:3.25.3")
 
     protobuf(files(File(buildProtoDir, "yt/java/ytsaurus-testlib/src/main/proto")))
 }
@@ -26,7 +26,7 @@ dependencies {
 protobuf {
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.22.5"
+        artifact = "com.google.protobuf:protoc:3.25.3"
     }
 
 }
