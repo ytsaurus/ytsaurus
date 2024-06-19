@@ -86,6 +86,7 @@ public:
     void LoadInputChunkMap(const TPersistenceContext& context);
     void LoadPathToInputTables(const TPersistenceContext& context);
     void LoadInputTables(const TPersistenceContext& context);
+    void LoadInputHasOrderedDynamicStores(const TPersistenceContext& context);
 
     void RegisterUnavailableInputChunks(bool reportIfFound = false);
     void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;

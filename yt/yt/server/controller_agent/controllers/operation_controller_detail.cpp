@@ -10074,8 +10074,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeEnabled_);
     if (context.GetVersion() < ESnapshotVersion::InputManagerIntroduction) {
         YT_VERIFY(context.IsLoad());
-        int inputHasOrderedDynamicStores;
-        Persist(context, inputHasOrderedDynamicStores);
+        InputManager->LoadInputHasOrderedDynamicStores(context);
     }
     Persist(context, StandardStreamDescriptors_);
     Persist(context, MainResourceConsumptionPerTree_);

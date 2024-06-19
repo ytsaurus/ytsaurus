@@ -979,6 +979,12 @@ void TInputManager::LoadInputTables(const TPersistenceContext& context)
     NYT::Persist(context, InputTables_);
 }
 
+void TInputManager::LoadInputHasOrderedDynamicStores(const TPersistenceContext& context)
+{
+    YT_VERIFY(context.IsLoad() && context.GetVersion() < ESnapshotVersion::InputManagerIntroduction);
+    NYT::Persist(context, InputHasOrderedDynamicStores_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
