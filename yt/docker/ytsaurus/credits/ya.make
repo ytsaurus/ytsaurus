@@ -1,7 +1,6 @@
-UNION()
-
-FILES(
-    ytserver-all.CREDITS
+RECURSE(
+    chyt
+    query-tracker
+    strawberry
+    ytsaurus
 )
-
-END()
