@@ -1,7 +1,7 @@
 from yt_commands import (
     create, create_access_control_object_namespace, create_access_control_object, create_user,
     remove_user, remove, add_member, sync_create_cells, sync_remove_tablet_cells, ls,
-    set, wait, get)
+    make_ace, set, wait, get)
 
 from yt_queries import get_query_tracker_info
 
@@ -79,6 +79,15 @@ def query_tracker_environment():
     create("document", "//sys/query_tracker/config", recursive=True, force=True, attributes={"value": {}})
     create_access_control_object_namespace("queries")
     create_access_control_object("nobody", "queries")
+    create_access_control_object(
+        "everyone-share",
+        "queries",
+        attributes={
+            "principal_acl": [
+                make_ace("allow", "everyone", "read"),
+                make_ace("allow", "everyone", "use"),
+            ]
+        })
     yield
     remove("//sys/access_control_object_namespaces/queries/nobody")
     remove("//sys/access_control_object_namespaces/queries")
