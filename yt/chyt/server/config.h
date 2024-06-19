@@ -95,7 +95,7 @@ public:
     //! If |value| > 0, clique nodes are replaced with |value| virtual local nodes.
     int LocalCliqueSize;
 
-    bool CheckCHYTBanned;
+    bool CheckChytBanned;
 
     std::optional<NYPath::TYPath> ChunkSpecFetcherBreakpoint;
     std::optional<NYPath::TYPath> InputStreamFactoryBreakpoint;

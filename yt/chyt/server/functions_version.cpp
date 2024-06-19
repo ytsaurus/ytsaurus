@@ -65,7 +65,7 @@ public:
     DB::ColumnPtr executeImpl(const DB::ColumnsWithTypeAndName& /*arguments*/, const DB::DataTypePtr& /*resultType*/, size_t inputRowsCount) const override
     {
         if (strcmp(name, "chytVersion") == 0) {
-            return DB::DataTypeString().createColumnConst(inputRowsCount, String(GetCHYTVersion()));
+            return DB::DataTypeString().createColumnConst(inputRowsCount, String(GetChytVersion()));
         } else if (strcmp(name, "ytVersion") == 0) {
             return DB::DataTypeString().createColumnConst(inputRowsCount, String(GetVersion()));
         } else {
@@ -79,19 +79,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNameFunctionCHYTVersion { static constexpr auto Name = "chytVersion"; };
+struct TNameFunctionChytVersion { static constexpr auto Name = "chytVersion"; };
 struct TNameFunctionYTVersion { static constexpr auto Name = "ytVersion"; };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionCHYTVersion = TFunctionVersion<TNameFunctionCHYTVersion>;
+using TFunctionChytVersion = TFunctionVersion<TNameFunctionChytVersion>;
 using TFunctionYTVersion = TFunctionVersion<TNameFunctionYTVersion>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_FUNCTION(CHYT_Version)
 {
-    factory.registerFunction<TFunctionCHYTVersion>();
+    factory.registerFunction<TFunctionChytVersion>();
     factory.registerFunction<TFunctionYTVersion>();
 }
 
