@@ -178,6 +178,12 @@ void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClie
             case EWireProtocolCommand::WriteRow:
                 if (!alteredRow) {
                     alteredRow = RowBuffer_->AllocateUnversioned(PositionToIdMapping_.size());
+                    for (int index = 0; index < std::ssize(PositionToIdMapping_); ++index) {
+                        alteredRow[index] = {
+                            .Id=static_cast<ui16>(PositionToIdMapping_[index]),
+                            .Type=EValueType::Null,
+                        };
+                    }
                 }
 
                 for (auto value : modification.Row) {

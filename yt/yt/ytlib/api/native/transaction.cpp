@@ -1026,6 +1026,13 @@ private:
 
                         auto modificationType = modification.Type;
                         auto locks = modification.Locks;
+                        if (!tableInfo->Indices.empty()) {
+                            for (int index = 0; index < locks.GetSize(); ++index) {
+                                THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
+                                    "Unsupported lock type %Qlv for a table with a secondary index",
+                                    ELockType::SharedWrite);
+                            }
+                        }
                         if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
                             if (tableInfo->IsChaosReplica() &&
                                 capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
@@ -1808,6 +1815,7 @@ private:
 
             auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
+
             auto indexModifier = std::make_unique<TSecondaryIndexModifier>(
                 mountInfo,
                 std::move(indexTableInfos),
