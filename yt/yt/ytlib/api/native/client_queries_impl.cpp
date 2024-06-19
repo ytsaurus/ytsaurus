@@ -50,6 +50,13 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
     }
 
+    if (options.AccessControlObjects) {
+        auto* protoAccessControlObjects = rpcRequest->mutable_access_control_objects();
+        for (const auto& aco : *options.AccessControlObjects) {
+            protoAccessControlObjects->add_items(aco);
+        }
+    }
+
     rpcRequest->set_engine(NProto::ConvertQueryEngineToProto(engine));
     rpcRequest->set_query(query);
 
@@ -251,6 +258,12 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     }
     if (options.AccessControlObject) {
         rpcRequest->set_access_control_object(*options.AccessControlObject);
+    }
+    if (options.AccessControlObjects) {
+        auto* protoAccessControlObjects = rpcRequest->mutable_access_control_objects();
+        for (const auto& aco : *options.AccessControlObjects) {
+            protoAccessControlObjects->add_items(aco);
+        }
     }
 
     WaitFor(req->Invoke())

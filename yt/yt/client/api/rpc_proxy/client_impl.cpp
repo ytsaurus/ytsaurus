@@ -2134,6 +2134,12 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     if (options.AccessControlObject) {
         req->set_access_control_object(*options.AccessControlObject);
     }
+    if (options.AccessControlObjects) {
+        auto* protoAccessControlObjects = req->mutable_access_control_objects();
+        for (const auto& aco : *options.AccessControlObjects) {
+            protoAccessControlObjects->add_items(aco);
+        }
+    }
 
     for (const auto& file : options.Files) {
         auto* protoFile = req->add_files();
@@ -2316,6 +2322,12 @@ TFuture<void> TClient::AlterQuery(
     }
     if (options.AccessControlObject) {
         req->set_access_control_object(*options.AccessControlObject);
+    }
+    if (options.AccessControlObjects) {
+        auto* protoAccessControlObjects = req->mutable_access_control_objects();
+        for (const auto& aco : *options.AccessControlObjects) {
+            protoAccessControlObjects->add_items(aco);
+        }
     }
 
     return req->Invoke().AsVoid();
