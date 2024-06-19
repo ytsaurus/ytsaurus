@@ -60,6 +60,7 @@ struct TSchedulableAttributes
     TResourceVector DemandShare;
     TResourceVector LimitsShare;
     TResourceVector StrongGuaranteeShare;
+    TEnumIndexedArray<EStrongGuaranteeTier, TResourceVector> StrongGuaranteeShareByTier;
     TResourceVector ProposedIntegralShare;
     // TODO(eshcherbin): Remove this attribute.
     TResourceVector PromisedFairShare;
@@ -165,7 +166,10 @@ private:
 
     virtual void ValidatePoolConfigs(TFairShareUpdateContext* context);
 
+    virtual void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context) = 0;
     virtual void AdjustStrongGuarantees(const TFairShareUpdateContext* context);
+    virtual void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context);
+
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context);
     virtual void DistributeFreeVolume();
 
@@ -215,7 +219,12 @@ private:
 
     void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
+    virtual bool IsPriorityStrongGuaranteeAdjustmentEnabled() const = 0;
+    virtual bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const = 0;
+    void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context) override;
     void AdjustStrongGuarantees(const TFairShareUpdateContext* context) override;
+    void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context) override;
+
     void InitIntegralPoolLists(TFairShareUpdateContext* context) override;
     void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     void DetermineImplicitEffectiveStrongGuaranteeResources(
@@ -296,6 +305,7 @@ private:
     void ValidatePoolConfigs(TFairShareUpdateContext* context) override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
+    void ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context) override;
 
     friend class TElement;
     friend class TCompositeElement;
@@ -327,6 +337,8 @@ private:
 
     TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const override;
 
+    void ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context) override;
+
     friend class TFairShareUpdateExecutor;
 };
 
@@ -355,7 +367,11 @@ struct TFairShareUpdateContext
     const TInstant Now;
     const std::optional<TInstant> PreviousUpdateTime;
 
+    // Pool config validation context.
     std::vector<TCompositeElement*> NestedPromisedGuaranteeFairSharePools;
+    bool HasPriorityStrongGuaranteeAdjustmentDonorAncestor = false;
+    THashSet<TCompositeElement*> PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor;
+
     std::vector<TError> Errors;
 
     NProfiling::TCpuDuration PrepareFairShareByFitFactorTotalTime = {};

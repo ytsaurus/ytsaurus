@@ -313,6 +313,9 @@ public:
 
     std::optional<TString> RedirectToCluster;
 
+    bool EnablePriorityStrongGuaranteeAdjustment;
+    bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

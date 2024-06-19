@@ -27,4 +27,5 @@ target_sources(yt-library-vector_hdrf PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/vector_hdrf/base_element.cpp
 )
