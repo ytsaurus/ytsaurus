@@ -2330,7 +2330,7 @@ void TJobTracker::RequestJobAbortion(TJobId jobId, TOperationId operationId, EAb
                 if (auto allocationInfo = EraseAllocationIfNeeded(nodeJobs, allocationIt);
                     allocationInfo && allocationInfo->GetPostponedEvent())
                 {
-                    YT_LOG_INFO("Processing postponed allocation event (AllocationId: %v)", allocation.AllocationId);
+                    YT_LOG_INFO("Processing postponed allocation event (AllocationId: %v)", allocationInfo->AllocationId);
 
                     context.AddAllocationEvent(allocationInfo->ConsumePostponedEventOrCrash());
                 }
