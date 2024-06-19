@@ -1,5 +1,6 @@
 #include "query_optimizer.h"
 
+#include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/helpers.h>
 
 #include <library/cpp/yt/assert/assert.h>
@@ -36,254 +37,281 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBaseOptimizer
+    : public TBaseAstVisitor<bool, TBaseOptimizer>
 {
-protected:
+public:
     bool OptimizeQuery(TQuery* query)
     {
         TOptimizeResultCollector collector;
         if (query->GroupExprs) {
-            collector(Optimize(*query->GroupExprs));
+            collector(Visit(*query->GroupExprs));
         }
 
-        collector(Optimize(query->SelectExprs));
-        collector(Optimize(query->WherePredicate));
-        collector(Optimize(query->HavingPredicate));
-        collector(Optimize(query->OrderExpressions));
+        collector(Visit(query->SelectExprs));
+        collector(Visit(query->WherePredicate));
+        collector(Visit(query->HavingPredicate));
+        collector(Visit(query->OrderExpressions));
         return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool Optimize(TExpressionPtr& expr)
-    {
-        NQueryClient::CheckStackDepth();
-
-        if (auto* typedExpr = expr->As<TLiteralExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TAliasExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TFunctionExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TUnaryOpExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TBinaryOpExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TInExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TBetweenExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TCaseExpression>()) {
-            return Optimize(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
-            return Optimize(*typedExpr);
-        } else {
-            THROW_ERROR_EXCEPTION("Unsupported expression %Qv in user query",
-                FormatExpression(*expr));
-        }
-    }
-
-    virtual bool Optimize(TExpressionList& list)
-    {
-        TOptimizeResultCollector collector;
-        for (auto& expr : list) {
-            collector(Optimize(expr));
-        }
-
-        return std::move(collector).OptimizedAnything();
-    }
-
-    virtual bool Optimize(TNullableExpressionList& list)
-    {
-        if (list) {
-            return Optimize(*list);
-        }
-
-        return false;
-    }
-
-    virtual bool Optimize(TOrderExpressionList& list)
-    {
-        TOptimizeResultCollector collector;
-        for (auto& expr : list) {
-            collector(Optimize(expr.first));
-        }
-
-        return std::move(collector).OptimizedAnything();
-    }
-
-    virtual bool Optimize(TReferenceExpression& /*expression*/)
+    virtual bool OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
     {
         return false;
     }
 
-    virtual bool Optimize(TLiteralExpression& /*expression*/)
+    virtual bool OnReference(TReferenceExpressionPtr /*referenceExpr*/)
     {
         return false;
     }
 
-    virtual bool Optimize(TFunctionExpression& expression)
+    virtual bool OnAlias(TAliasExpressionPtr aliasExpr)
     {
-        return Optimize(expression.Arguments);
+        return Visit(aliasExpr->Expression);
     }
 
-    virtual bool Optimize(TAliasExpression& expression)
+    virtual bool OnUnary(TUnaryOpExpressionPtr unaryExpr)
     {
-        return Optimize(expression.Expression);
+        return Visit(unaryExpr->Operand);
     }
 
-    virtual bool Optimize(TBinaryOpExpression& expression)
+    virtual bool OnBinary(TBinaryOpExpressionPtr binaryExpr)
     {
         TOptimizeResultCollector collector;
-        collector(Optimize(expression.Lhs));
-        collector(Optimize(expression.Rhs));
+        collector(Visit(binaryExpr->Lhs));
+        collector(Visit(binaryExpr->Rhs));
         return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool Optimize(TUnaryOpExpression& expression)
+    virtual bool OnFunction(TFunctionExpressionPtr functionExpr)
     {
-        return Optimize(expression.Operand);
+        return Visit(functionExpr->Arguments);
     }
 
-    virtual bool Optimize(TInExpression& expression)
+    virtual bool OnIn(TInExpressionPtr inExpr)
     {
-        return Optimize(expression.Expr);
+        return Visit(inExpr->Expr);
     }
 
-    virtual bool Optimize(TTransformExpression& expression)
+    virtual bool OnBetween(TBetweenExpressionPtr betweenExpr)
+    {
+        return Visit(betweenExpr->Expr);
+    }
+
+    virtual bool OnTransform(TTransformExpressionPtr transformExpr)
     {
         TOptimizeResultCollector collector;
-        collector(Optimize(expression.Expr));
-        collector(Optimize(expression.DefaultExpr));
+        collector(Visit(transformExpr->Expr));
+        collector(Visit(transformExpr->DefaultExpr));
         return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool Optimize(TBetweenExpression& expression)
+    virtual bool OnCase(TCaseExpressionPtr caseExpr)
     {
-        return Optimize(expression.Expr);
+        TOptimizeResultCollector collector;
+        collector(Visit(caseExpr->DefaultExpression));
+        collector(Visit(caseExpr->OptionalOperand));
+        collector(Visit(caseExpr->WhenThenExpressions));
+        return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool Optimize(TWhenThenExpressionList& list)
+    virtual bool OnLike(TLikeExpressionPtr likeExpr)
+    {
+        TOptimizeResultCollector collector;
+        collector(Visit(likeExpr->Pattern));
+        collector(Visit(likeExpr->Text));
+        collector(Visit(likeExpr->EscapeCharacter));
+        return std::move(collector).OptimizedAnything();
+    }
+
+protected:
+    using TBaseAstVisitor<bool, TBaseOptimizer>::Visit;
+
+    bool Visit(TExpressionList& list)
     {
         TOptimizeResultCollector collector;
         for (auto& expr : list) {
-            collector(Optimize(expr.first));
-            collector(Optimize(expr.second));
+            collector(Visit(expr));
         }
 
         return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool Optimize(TCaseExpression& expression)
+    bool Visit(TNullableExpressionList& list)
     {
-        TOptimizeResultCollector collector;
-        collector(Optimize(expression.DefaultExpression));
-        collector(Optimize(expression.OptionalOperand));
-        collector(Optimize(expression.WhenThenExpressions));
-        return std::move(collector).OptimizedAnything();
+        return list ? Visit(*list) : false;
     }
 
-    virtual bool Optimize(TLikeExpression& expression)
+    bool Visit(TOrderExpressionList& list)
     {
         TOptimizeResultCollector collector;
-        collector(Optimize(expression.Pattern));
-        collector(Optimize(expression.Text));
-        collector(Optimize(expression.EscapeCharacter));
-        return std::move(collector).OptimizedAnything();
-    }
-
-    virtual bool IsOptimizationAllowed(const TExpressionPtr& expr) const
-    {
-        NQueryClient::CheckStackDepth();
-
-        if (expr->As<TLiteralExpression>()) {
-            return true;
-        } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
-            return IsOptimizationAllowed(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TAliasExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Expression);
-        } else if (auto* typedExpr = expr->As<TFunctionExpression>()) {
-            return IsOptimizationAllowed(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TUnaryOpExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Operand);
-        } else if (auto* typedExpr = expr->As<TBinaryOpExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Lhs) && IsOptimizationAllowed(typedExpr->Rhs);
-        } else if (auto* typedExpr = expr->As<TInExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Expr);
-        } else if (auto* typedExpr = expr->As<TBetweenExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Expr);
-        } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
-            return IsOptimizationAllowed(typedExpr->Expr) && IsOptimizationAllowed(typedExpr->DefaultExpr);
-        } else if (auto* typedExpr = expr->As<TCaseExpression>()) {
-            return IsOptimizationAllowed(*typedExpr);
-        } else if (auto* typedExpr = expr->As<TLikeExpression>()) {
-            return IsOptimizationAllowed(*typedExpr);
-        } else {
-            THROW_ERROR_EXCEPTION("Unsupported expression %Qv in user query",
-                FormatExpression(*expr));
+        for (auto& expr : list) {
+            collector(Visit(expr.first));
         }
+
+        return std::move(collector).OptimizedAnything();
     }
 
-    virtual bool IsOptimizationAllowed(const TNullableExpressionList& list) const
+    bool Visit(TWhenThenExpressionList& list)
     {
-        return list ? IsOptimizationAllowed(*list) : true;
+        TOptimizeResultCollector collector;
+        for (auto& expr : list) {
+            collector(Visit(expr.first));
+            collector(Visit(expr.second));
+        }
+
+        return std::move(collector).OptimizedAnything();
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBaseOptimizationChecker
+    : public TBaseAstVisitor<bool, TBaseOptimizationChecker>
+{
+public:
+    virtual bool OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    {
+        return true;
     }
 
-    virtual bool IsOptimizationAllowed(const TExpressionList& list) const
+    virtual bool OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return true;
+    }
+
+    virtual bool OnAlias(TAliasExpressionPtr aliasExpr)
+    {
+        return Visit(aliasExpr->Expression);
+    }
+
+    virtual bool OnUnary(TUnaryOpExpressionPtr unaryExpr)
+    {
+        return Visit(unaryExpr->Operand);
+    }
+
+    virtual bool OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    {
+        return Visit(binaryExpr->Lhs) && Visit(binaryExpr->Rhs);
+    }
+
+    virtual bool OnFunction(TFunctionExpressionPtr functionExpr)
+    {
+        return Visit(functionExpr->Arguments);
+    }
+
+    virtual bool OnIn(TInExpressionPtr inExpr)
+    {
+        return Visit(inExpr->Expr);
+    }
+
+    virtual bool OnBetween(TBetweenExpressionPtr betweenExpr)
+    {
+        return Visit(betweenExpr->Expr);
+    }
+
+    virtual bool OnTransform(TTransformExpressionPtr transformExpr)
+    {
+        return Visit(transformExpr->Expr) && Visit(transformExpr->DefaultExpr);
+    }
+
+    virtual bool OnCase(TCaseExpressionPtr caseExpr)
+    {
+        return Visit(caseExpr->DefaultExpression) &&
+            Visit(caseExpr->WhenThenExpressions) &&
+            Visit(caseExpr->OptionalOperand);
+    }
+
+    virtual bool OnLike(TLikeExpressionPtr likeExpr)
+    {
+        return Visit(likeExpr->EscapeCharacter) &&
+            Visit(likeExpr->Pattern) &&
+            Visit(likeExpr->Text);
+    }
+
+protected:
+    using TBaseAstVisitor<bool, TBaseOptimizationChecker>::Visit;
+
+    bool Visit(const TNullableExpressionList& list)
+    {
+        return list ? Visit(*list) : true;
+    }
+
+    bool Visit(const TExpressionList& list)
     {
         for (const auto& expr : list) {
-            if (!IsOptimizationAllowed(expr)) {
+            if (!Visit(expr)) {
                 return false;
             }
         }
         return true;
     }
 
-    virtual bool IsOptimizationAllowed(const TOrderExpressionList& list) const
+    bool Visit(const TOrderExpressionList& list)
     {
         for (const auto& expr : list) {
-            if (!IsOptimizationAllowed(expr.first)) {
+            if (!Visit(expr.first)) {
                 return false;
             }
         }
         return true;
     }
 
-    virtual bool IsOptimizationAllowed(const TReferenceExpression& /*expression*/) const
-    {
-        return true;
-    }
-
-    virtual bool IsOptimizationAllowed(const TFunctionExpression& expression) const
-    {
-        return IsOptimizationAllowed(expression.Arguments);
-    }
-
-    virtual bool IsOptimizationAllowed(const TWhenThenExpressionList& list) const
+    bool Visit(const TWhenThenExpressionList& list)
     {
         for (auto& expr : list) {
-            if (!IsOptimizationAllowed(expr.first) || !IsOptimizationAllowed(expr.second)) {
+            if (!Visit(expr.first) || !Visit(expr.second)) {
                 return false;
             }
         }
 
         return true;
     }
+};
 
-    virtual bool IsOptimizationAllowed(const TCaseExpression& expression) const
+////////////////////////////////////////////////////////////////////////////////
+
+class TJoinOptimizationChecker
+    : public TBaseOptimizationChecker
+{
+public:
+    explicit TJoinOptimizationChecker(
+        TQuery* query,
+        THashMap<TReference, TReference, TReferenceHasher, TReferenceEqComparer>& columnsMapping)
+        : Query_(query)
+        , ColumnsMapping_(columnsMapping)
+    { }
+
+
+    bool OnReference(TReferenceExpressionPtr expression) override
     {
-        return IsOptimizationAllowed(expression.DefaultExpression) &&
-            IsOptimizationAllowed(expression.WhenThenExpressions) &&
-            IsOptimizationAllowed(expression.OptionalOperand);
+        return expression->Reference.TableName == Query_->Table.Alias || ColumnsMapping_.contains(expression->Reference);
     }
 
-    virtual bool IsOptimizationAllowed(const TLikeExpression& expression) const
+    bool IsOptimizationAllowed(const TNullableExpressionList& list)
     {
-        return IsOptimizationAllowed(expression.EscapeCharacter) &&
-            IsOptimizationAllowed(expression.Pattern) &&
-            IsOptimizationAllowed(expression.Text);
+        return Visit(list);
     }
+
+    bool IsOptimizationAllowed(const TExpressionList& list)
+    {
+        return Visit(list);
+    }
+
+    bool IsOptimizationAllowed(const TOrderExpressionList& list)
+    {
+        return Visit(list);
+    }
+
+    bool IsOptimizationAllowed(const TWhenThenExpressionList& list)
+    {
+        return Visit(list);
+    }
+
+private:
+    TQuery* const Query_;
+    THashMap<TReference, TReference, TReferenceHasher, TReferenceEqComparer>& ColumnsMapping_;
+
+    using TBaseOptimizationChecker::Visit;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,8 +320,10 @@ class TJoinOptimizer
     : public TBaseOptimizer
 {
 public:
+
     explicit TJoinOptimizer(TQuery* query)
         : Query_(query)
+        , OptimizationChecker_(Query_, ColumnsMapping_)
     { }
 
     bool Run()
@@ -307,12 +337,22 @@ public:
         return true;
     }
 
+    bool OnReference(TReferenceExpressionPtr expression) override
+    {
+        if (expression->Reference.TableName != Query_->Table.Alias) {
+            expression->Reference = GetOrCrash(ColumnsMapping_, expression->Reference);
+            return true;
+        }
+
+        return false;
+    }
+
 private:
     TQuery* const Query_;
     THashMap<TReference, TReference, TReferenceHasher, TReferenceEqComparer> ColumnsMapping_;
+    TJoinOptimizationChecker OptimizationChecker_;
 
-    using TBaseOptimizer::IsOptimizationAllowed;
-    using TBaseOptimizer::Optimize;
+    using TBaseOptimizer::Visit;
 
     bool CanOptimize()
     {
@@ -342,13 +382,13 @@ private:
             }
         }
         if (Query_->GroupExprs) {
-            if (!IsOptimizationAllowed(*Query_->GroupExprs)) {
+            if (!OptimizationChecker_.IsOptimizationAllowed(*Query_->GroupExprs)) {
                 return false;
             }
         }
         if (Query_->SelectExprs) {
             for (const auto& expr : *Query_->SelectExprs) {
-                if (!IsOptimizationAllowed(Query_->SelectExprs)) {
+                if (!OptimizationChecker_.IsOptimizationAllowed(Query_->SelectExprs)) {
                     return false;
                 }
                 if (const auto* typeExpr = expr->As<TAliasExpression>()) {
@@ -361,105 +401,9 @@ private:
                 }
             }
         }
-        return IsOptimizationAllowed(Query_->WherePredicate)
-            && IsOptimizationAllowed(Query_->HavingPredicate)
-            && IsOptimizationAllowed(Query_->OrderExpressions);
-    }
-
-    bool IsOptimizationAllowed(const TReferenceExpression& expression) const override
-    {
-        return expression.Reference.TableName == Query_->Table.Alias || ColumnsMapping_.contains(expression.Reference);
-    }
-
-    bool Optimize(TReferenceExpression& expression) override
-    {
-        if (expression.Reference.TableName != Query_->Table.Alias) {
-            expression.Reference = GetOrCrash(ColumnsMapping_, expression.Reference);
-            return true;
-        }
-
-        return false;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TGroupByOptimizer
-{
-public:
-    TGroupByOptimizer(const std::vector<TString>& prefixReferences, const TString& tableName)
-        : PrefixReferences_(prefixReferences)
-        , TableName_(tableName)
-    { }
-
-    bool Run(TExpressionPtr expr)
-    {
-        // Composite prefix references are currently not supported.
-        if (PrefixReferences_.size() != 1) {
-            return false;
-        }
-        return InferPrefixRanges(expr) == 1;
-    }
-
-private:
-    const std::vector<TString>& PrefixReferences_;
-    const TString& TableName_;
-
-    bool IsTargetReference(const TExpressionList& exprs)
-    {
-        if (exprs.size() != 1) {
-            return false;
-        }
-        if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
-            return refExpr->Reference.ColumnName == PrefixReferences_[0] &&
-                refExpr->Reference.TableName == TableName_;
-        }
-        return false;
-    }
-
-    // 0 -- unbound prefix.
-    std::optional<size_t> InferPrefixRanges(TExpressionPtr expr)
-    {
-        if (auto* binaryExpr = expr->As<TBinaryOpExpression>()) {
-            if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
-                YT_VERIFY(binaryExpr->Lhs.size() == 1);
-                YT_VERIFY(binaryExpr->Rhs.size() == 1);
-                auto prefixRangesLeft = InferPrefixRanges(binaryExpr->Lhs[0]);
-                auto prefixRangesRight = InferPrefixRanges(binaryExpr->Rhs[0]);
-                if (!prefixRangesLeft || !prefixRangesRight) {
-                    return std::max(prefixRangesLeft, prefixRangesRight);
-                }
-                if (binaryExpr->Opcode == NQueryClient::EBinaryOp::Or) {
-                    return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
-                        ? 0
-                        : *prefixRangesLeft + *prefixRangesRight;
-                } else {
-                    return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
-                        ? std::max(prefixRangesLeft, prefixRangesRight)
-                        : std::min(prefixRangesLeft, prefixRangesRight);
-                }
-            } else if (NQueryClient::IsRelationalBinaryOp(binaryExpr->Opcode)) {
-                if (IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs)) {
-                    // 1 for equals operator, 0 for others.
-                    return binaryExpr->Opcode == NQueryClient::EBinaryOp::Equal;
-                }
-            }
-        } else if (auto* typedExpr = expr->As<TInExpression>()) {
-            if (IsTargetReference(typedExpr->Expr)) {
-                return typedExpr->Values.size();
-            }
-        } else if (auto* typedExpr = expr->As<TBetweenExpression>()) {
-            if (IsTargetReference(typedExpr->Expr)) {
-                return 0;
-            }
-        } else if (auto* typedExpr = expr->As<TUnaryOpExpression>()) {
-            if (typedExpr->Opcode == NQueryClient::EUnaryOp::Not && IsTargetReference(typedExpr->Operand)) {
-                YT_VERIFY(typedExpr->Operand.size() == 1);
-                auto prefixRanges = InferPrefixRanges(typedExpr->Operand[0]);
-                return std::min(prefixRanges, std::make_optional<size_t>(0));
-            }
-        }
-        return std::nullopt;
+        return OptimizationChecker_.IsOptimizationAllowed(Query_->WherePredicate) &&
+                OptimizationChecker_.IsOptimizationAllowed(Query_->HavingPredicate) &&
+                OptimizationChecker_.IsOptimizationAllowed(Query_->OrderExpressions);
     }
 };
 
@@ -474,31 +418,168 @@ public:
         return OptimizeQuery(query);
     }
 
-private:
-    using TBaseOptimizer::Optimize;
-
-    bool Optimize(TFunctionExpression& expression) override
+    bool OnFunction(TFunctionExpressionPtr expression) override
     {
-        if (expression.FunctionName == "string" && expression.Arguments.size() == 1) {
-            auto argumentFunction = expression.Arguments[0]->As<TFunctionExpression>();
+        if (expression->FunctionName == "string" && expression->Arguments.size() == 1) {
+            auto argumentFunction = expression->Arguments[0]->As<TFunctionExpression>();
             if (argumentFunction && argumentFunction->FunctionName == "try_get_string") {
-                expression.FunctionName = "try_get_string";
-                expression.Arguments = argumentFunction->Arguments;
+                expression->FunctionName = "try_get_string";
+                expression->Arguments = argumentFunction->Arguments;
                 return true;
             }
         }
 
         return false;
     }
+
+private:
+    using TBaseOptimizer::Visit;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGroupByOptimizer
+    : public TBaseAstVisitor<std::optional<size_t>, TGroupByOptimizer>
+{
+public:
+    TGroupByOptimizer(const std::vector<TString>& prefixReferences, const TString& tableName)
+        : PrefixReferences_(prefixReferences)
+        , TableName_(tableName)
+    { }
+
+    bool Run(TExpressionPtr expr)
+    {
+        // Composite prefix references are currently not supported.
+        if (PrefixReferences_.size() != 1) {
+            return false;
+        }
+        return Visit(expr) == 1;
+    }
+
+    std::optional<size_t> OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnUnary(TUnaryOpExpressionPtr unaryExpr)
+    {
+        if (unaryExpr->Opcode == NQueryClient::EUnaryOp::Not && IsTargetReference(unaryExpr->Operand)) {
+            YT_VERIFY(unaryExpr->Operand.size() == 1);
+            auto prefixRanges = Visit(unaryExpr->Operand[0]);
+            return std::min(prefixRanges, std::make_optional<size_t>(0));
+        }
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    {
+        if (IsLogicalBinaryOp(binaryExpr->Opcode)) {
+            YT_VERIFY(binaryExpr->Lhs.size() == 1);
+            YT_VERIFY(binaryExpr->Rhs.size() == 1);
+            auto prefixRangesLeft = Visit(binaryExpr->Lhs[0]);
+            auto prefixRangesRight = Visit(binaryExpr->Rhs[0]);
+            if (!prefixRangesLeft || !prefixRangesRight) {
+                return std::max(prefixRangesLeft, prefixRangesRight);
+            }
+            if (binaryExpr->Opcode == NQueryClient::EBinaryOp::Or) {
+                return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
+                    ? 0
+                    : *prefixRangesLeft + *prefixRangesRight;
+            } else {
+                return (*prefixRangesLeft == 0 || *prefixRangesRight == 0)
+                    ? std::max(prefixRangesLeft, prefixRangesRight)
+                    : std::min(prefixRangesLeft, prefixRangesRight);
+            }
+        } else if (NQueryClient::IsRelationalBinaryOp(binaryExpr->Opcode)) {
+            if (IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs)) {
+                // 1 for equals operator, 0 for others.
+                return binaryExpr->Opcode == NQueryClient::EBinaryOp::Equal;
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnIn(TInExpressionPtr inExpr)
+    {
+        if (IsTargetReference(inExpr->Expr)) {
+            return inExpr->Values.size();
+        }
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnBetween(TBetweenExpressionPtr betweenExpr)
+    {
+        if (IsTargetReference(betweenExpr->Expr)) {
+            return 0;
+        }
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnCase(TCaseExpressionPtr /*caseExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    std::optional<size_t> OnLike(TLikeExpressionPtr /*likeExpr*/)
+    {
+        return std::nullopt;
+    }
+
+private:
+    const std::vector<TString>& PrefixReferences_;
+    const TString& TableName_;
+
+    using TBaseAstVisitor<std::optional<size_t>, TGroupByOptimizer>::Visit;
+
+    bool IsTargetReference(const TExpressionList& exprs)
+    {
+        if (exprs.size() != 1) {
+            return false;
+        }
+        if (auto* refExpr = exprs[0]->As<TReferenceExpression>()) {
+            return refExpr->Reference.ColumnName == PrefixReferences_[0] &&
+                refExpr->Reference.TableName == TableName_;
+        }
+        return false;
+    }
 };
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
 
 bool TryOptimizeJoin(TQuery* query)
 {
     THROW_ERROR_EXCEPTION_UNLESS(query, "TryOptimizeJoin() received a nullptr query");
     TJoinOptimizer optimizer(query);
     return optimizer.Run();
+}
+
+bool TryOptimizeTryGetString(TQuery* query)
+{
+    TTryGetStringOptimizer optimizer;
+    YT_VERIFY(query);
+    return optimizer.Run(query);
 }
 
 bool TryOptimizeGroupByWithUniquePrefix(
@@ -508,13 +589,6 @@ bool TryOptimizeGroupByWithUniquePrefix(
 {
     TGroupByOptimizer optimizer(prefixReferences, tableName);
     return optimizer.Run(filterExpression);
-}
-
-bool TryOptimizeTryGetString(TQuery* query)
-{
-    TTryGetStringOptimizer optimizer;
-    YT_VERIFY(query);
-    return optimizer.Run(query);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

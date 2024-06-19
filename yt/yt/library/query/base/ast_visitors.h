@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ast.h"
+#include "helpers.h"
 
 namespace NYT::NQueryClient::NAst {
 
@@ -16,6 +17,7 @@ struct TAbstractAstVisitor
 
     TResult Visit(TNode node)
     {
+        CheckStackDepth();
         auto* expr = Derived()->GetExpression(node);
 
         if (auto* literalExpr = expr->template As<TLiteralExpression>()) {
@@ -55,6 +57,7 @@ struct TAbstractAstVisitor<void, TDerived, TNode>
 
     void Visit(TNode node)
     {
+        CheckStackDepth();
         auto* expr = Derived()->GetExpression(node);
 
         if (auto* literalExpr = expr->template As<TLiteralExpression>()) {
@@ -194,9 +197,9 @@ struct TRewriter
 {
     using TBaseAstVisitor<TExpressionPtr, TDerived>::Visit;
 
-    TAstHead* Head;
+    TObjectsHolder* Head;
 
-    explicit TRewriter(TAstHead* head)
+    explicit TRewriter(TObjectsHolder* head)
         : Head(head)
     { }
 
