@@ -36,6 +36,10 @@ public:
     bool ShouldDistributeFreeVolumeAmongChildren() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
+
+    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override;
+
+    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

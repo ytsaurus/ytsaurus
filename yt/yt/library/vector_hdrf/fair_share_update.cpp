@@ -119,10 +119,13 @@ TOperationElement* TElement::AsOperation()
     return dynamic_cast<TOperationElement*>(this);
 }
 
-void TElement::AdjustStrongGuarantees(const TFairShareUpdateContext* /* context */)
+void TElement::AdjustStrongGuarantees(const TFairShareUpdateContext* /*context*/)
 { }
 
-void TElement::InitIntegralPoolLists(TFairShareUpdateContext* /* context */)
+void TElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* /*context*/)
+{ }
+
+void TElement::InitIntegralPoolLists(TFairShareUpdateContext* /*context*/)
 { }
 
 void TElement::UpdateAttributes(const TFairShareUpdateContext* context)
@@ -441,68 +444,118 @@ void TCompositeElement::PrepareFifoPool()
     }
 }
 
+//! Element's strong guarantee can be split into several priority tiers which impact the guarantee adjustment process.
+//! Currently, there are three tiers: operations, regular pools and priority pools.
+//!
+//! The two pools tiers are regulated by two pool config options: any pool can be marked as a priority pool and as a donor pool.
+//! Semantics are as follows:
+//! - Each operation's guarantee fully belongs to the operations tier.
+//! - Each priority pool's guarantee fully belongs to the priority pools tier.
+//! - For each priority pool, we propagate its guarantee to all ancestor up to the nearest donor pool (excluding this donor).
+//!   This propagated guarantee is added to the priority tier of these ancestors.
+//! - For each pool, its regular tier guarantee is the difference between its total guarantee and priority tier guarantee.
+void TCompositeElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* context)
+{
+    TResourceVector childPriorityStrongGuaranteeShare;
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        auto* child = GetChild(childIndex);
+        child->ComputeStrongGuaranteeShareByTier(context);
+
+        childPriorityStrongGuaranteeShare += child->Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::PriorityPools];
+    }
+
+    // NB(eshcherbin): Pool can be both a priority pool and a donor root for priority subpools.
+    bool priorityStrongGuaranteeAdjustmentEnabled = IsPriorityStrongGuaranteeAdjustmentEnabled() &&
+        !context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor.contains(this);
+    if (priorityStrongGuaranteeAdjustmentEnabled) {
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::PriorityPools] = Attributes().StrongGuaranteeShare;
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::RegularPools] = {};
+    } else if (IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled()) {
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::PriorityPools] = {};
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::RegularPools] = Attributes().StrongGuaranteeShare;
+    } else {
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::PriorityPools] = childPriorityStrongGuaranteeShare;
+        Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::RegularPools] =
+            Attributes().StrongGuaranteeShare - childPriorityStrongGuaranteeShare;
+    }
+
+}
+
 void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* context)
 {
     const auto& Logger = GetLogger();
 
-    TResourceVector totalPoolChildrenStrongGuaranteeShare;
-    TResourceVector totalChildrenStrongGuaranteeShare;
-    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        const auto* child = GetChild(childIndex);
-        totalChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
+    //! We adjust strong guarantees of children, when their sum is greater than the parent's.
+    //! This process starts at the root, when total resource limits are not big enough, and proceeds recursively.
+    //! In the simple case, adjustment is done by decreasing children's guarantees proportionally until their sum becomes feasible.
+    //!
+    //! However, strong guarantees can be split into several tiers by priority. In this case, we go iterate through tiers the following way:
+    //! - If total guarantees from the tiers up to current are greater than the parent's, we adjust current tier's guarantees proportionally,
+    //!   and set guarantees from the tiers above to zero.
+    //! - Otherwise, we fix current tier's guarantees so that they would not be changed later.
+    //!
+    //! Using this mechanism we can prioritize some pools so that their guarantees are decreased in the last place.
 
-        if (!child->IsOperation()) {
-            totalPoolChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
-        }
-    }
+    TResourceVector totalFixedChildrenStrongGuaranteeShare;
+    int tierIndex = 0;
+    while (tierIndex < std::ssize(TEnumTraits<EStrongGuaranteeTier>::GetDomainValues())) {
+        auto tier = TEnumTraits<EStrongGuaranteeTier>::GetDomainValues()[tierIndex];
 
-    if (!Dominates(Attributes().StrongGuaranteeShare, totalPoolChildrenStrongGuaranteeShare)) {
-        // Drop strong guarantee shares of operations, adjust strong guarantee shares of pools.
+        TResourceVector currentTierTotalChildrenStrongGuaranteeShare;
         for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
-            if (child->IsOperation()) {
-                child->Attributes().StrongGuaranteeShare = TResourceVector::Zero();
-            }
+            currentTierTotalChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShareByTier[tier];
         }
 
-        // Use binary search instead of division to avoid problems with precision.
-        ComputeByFitting(
-            /* getter */ [&] (double fitFactor, const TElement* child) -> TResourceVector {
-                return child->Attributes().StrongGuaranteeShare * fitFactor;
-            },
-            /* setter */ [&] (TElement* child, const TResourceVector& value) {
-                YT_LOG_DEBUG("Adjusting strong guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v)",
-                    child->GetId(),
-                    child->Attributes().StrongGuaranteeShare,
-                    value);
-                child->Attributes().StrongGuaranteeShare = value;
-            },
-            /* maxSum */ Attributes().StrongGuaranteeShare);
-    } else if (!Dominates(Attributes().StrongGuaranteeShare, totalChildrenStrongGuaranteeShare)) {
-        // Adjust strong guarantee shares of operations, preserve strong guarantee shares of pools.
-        ComputeByFitting(
-            /* getter */ [&] (double fitFactor, const TElement* child) -> TResourceVector {
-                if (child->IsOperation()) {
-                    return child->Attributes().StrongGuaranteeShare * fitFactor;
-                } else {
-                    return child->Attributes().StrongGuaranteeShare;
-                }
-            },
-            /* setter */ [&] (TElement* child, const TResourceVector& value) {
-                YT_LOG_DEBUG("Adjusting string guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v)",
-                    child->GetId(),
-                    child->Attributes().StrongGuaranteeShare,
-                    value);
-                child->Attributes().StrongGuaranteeShare = value;
-            },
-            /* maxSum */ Attributes().StrongGuaranteeShare);
+        auto maxAvailableStrongGuaranteeShare = Attributes().StrongGuaranteeShare - totalFixedChildrenStrongGuaranteeShare;
+        if (!Dominates(maxAvailableStrongGuaranteeShare, currentTierTotalChildrenStrongGuaranteeShare)) {
+            // Use binary search instead of division to avoid problems with precision.
+            ComputeByFitting(
+                /*getter*/ [&] (double fitFactor, const TElement* child) -> TResourceVector {
+                    return child->Attributes().StrongGuaranteeShareByTier[tier] * fitFactor;
+                },
+                /*setter*/ [&] (TElement* child, const TResourceVector& value) {
+                    YT_LOG_DEBUG("Adjusting strong guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v, StrongGuaranteeTier: %v)",
+                        child->GetId(),
+                        child->Attributes().StrongGuaranteeShareByTier[tier],
+                        value,
+                        tier);
+                    child->Attributes().StrongGuaranteeShareByTier[tier] = value;
+                },
+                /*maxSum*/ maxAvailableStrongGuaranteeShare);
+            break;
+        }
+
+        totalFixedChildrenStrongGuaranteeShare += currentTierTotalChildrenStrongGuaranteeShare;
+        ++tierIndex;
     }
 
-    if (IsRoot()) {
-        Attributes().PromisedFairShare = TResourceVector::FromJobResources(context->TotalResourceLimits, context->TotalResourceLimits);
-        Attributes().EstimatedGuaranteeShare = Attributes().StrongGuaranteeShare;
+    ++tierIndex;
+    while (tierIndex < std::ssize(TEnumTraits<EStrongGuaranteeTier>::GetDomainValues())) {
+        auto tier = TEnumTraits<EStrongGuaranteeTier>::GetDomainValues()[tierIndex];
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+            auto* child = GetChild(childIndex);
+            child->Attributes().StrongGuaranteeShareByTier[tier] = {};
+        }
+
+        ++tierIndex;
     }
 
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        auto* child = GetChild(childIndex);
+        child->Attributes().StrongGuaranteeShare = {};
+        for (auto tier : TEnumTraits<EStrongGuaranteeTier>::GetDomainValues()) {
+            child->Attributes().StrongGuaranteeShare += child->Attributes().StrongGuaranteeShareByTier[tier];
+        }
+    }
+
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
+        GetChild(childIndex)->AdjustStrongGuarantees(context);
+    }
+}
+
+void TCompositeElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context)
+{
     auto computeGuaranteeFairShare = [&] (TResourceVector TSchedulableAttributes::* estimatedGuaranteeFairShare) {
         double weightSum = 0.0;
         auto undistributedEstimatedGuaranteeFairShare = Attributes().*estimatedGuaranteeFairShare;
@@ -530,7 +583,7 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
     computeGuaranteeFairShare(/*estimatedGuaranteeFairShare*/ &TSchedulableAttributes::EstimatedGuaranteeShare);
 
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
-        GetChild(childIndex)->AdjustStrongGuarantees(context);
+        GetChild(childIndex)->ComputeEstimatedGuaranteeShare(context);
     }
 }
 
@@ -902,9 +955,23 @@ void TCompositeElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContex
 
 void TCompositeElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
 {
+    bool hasDonorAncestor = context->HasPriorityStrongGuaranteeAdjustmentDonorAncestor;
+
+    if (IsPriorityStrongGuaranteeAdjustmentEnabled() && !hasDonorAncestor)
+    {
+        context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor.insert(this);
+    }
+
+    // Compute flag for children.
+    context->HasPriorityStrongGuaranteeAdjustmentDonorAncestor = IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() ||
+        (hasDonorAncestor && !IsPriorityStrongGuaranteeAdjustmentEnabled());
+
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->ValidatePoolConfigs(context);
     }
+
+    // Restore flag.
+    context->HasPriorityStrongGuaranteeAdjustmentDonorAncestor = hasDonorAncestor;
 
     if (ShouldComputePromisedGuaranteeFairShare()) {
         TCompositeElement* element = this;
@@ -1154,13 +1221,18 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
 {
     TCompositeElement::ValidatePoolConfigs(context);
 
-    if (!context->NestedPromisedGuaranteeFairSharePools.empty()) {
+    auto collectPoolIds = [] (const auto& poolCollection) {
         std::vector<TString> poolIds;
-        poolIds.reserve(std::ssize(context->NestedPromisedGuaranteeFairSharePools));
-        for (auto* pool : context->NestedPromisedGuaranteeFairSharePools) {
+        poolIds.reserve(std::ssize(poolCollection));
+        for (auto* pool : poolCollection) {
             poolIds.push_back(pool->GetId());
         }
+        return poolIds;
+    };
 
+    // TODO(eshcherbin): Add validation for integral pools as well?
+    if (!context->NestedPromisedGuaranteeFairSharePools.empty()) {
+        auto poolIds = collectPoolIds(context->NestedPromisedGuaranteeFairSharePools);
         context->Errors.push_back(
             TError(
                 EErrorCode::NestedPromisedGuaranteeFairSharePools,
@@ -1168,7 +1240,14 @@ void TRootElement::ValidatePoolConfigs(TFairShareUpdateContext* context)
             << TErrorAttribute("nested_promised_fair_share_pools", poolIds));
     }
 
-    // TODO(eshcherbin): Add validation for integral pools as well?
+    if (!context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor.empty()) {
+        auto poolIds = collectPoolIds(context->PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor);
+        context->Errors.push_back(
+            TError(
+                EErrorCode::PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor,
+                "Found pools with enabled priority strong guarantee adjustment which do not have a donor")
+            << TErrorAttribute("priority_pools_without_donors", poolIds));
+    }
 }
 
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context)
@@ -1213,7 +1292,17 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
         }
     }
 
+    ComputeStrongGuaranteeShareByTier(context);
     AdjustStrongGuarantees(context);
+    ComputeEstimatedGuaranteeShare(context);
+}
+
+void TRootElement::ComputeEstimatedGuaranteeShare(const TFairShareUpdateContext* context)
+{
+    Attributes().PromisedFairShare = TResourceVector::FromJobResources(context->TotalResourceLimits, context->TotalResourceLimits);
+    Attributes().EstimatedGuaranteeShare = Attributes().StrongGuaranteeShare;
+
+    TCompositeElement::ComputeEstimatedGuaranteeShare(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1304,6 +1393,11 @@ void TOperationElement::ComputePromisedGuaranteeFairShare(TFairShareUpdateContex
 TResourceVector TOperationElement::ComputeLimitsShare(const TFairShareUpdateContext* context) const
 {
     return TResourceVector::Min(TElement::ComputeLimitsShare(context), GetBestAllocationShare());
+}
+
+void TOperationElement::ComputeStrongGuaranteeShareByTier(const TFairShareUpdateContext* /*context*/)
+{
+    Attributes().StrongGuaranteeShareByTier[EStrongGuaranteeTier::Operations] = Attributes().StrongGuaranteeShare;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

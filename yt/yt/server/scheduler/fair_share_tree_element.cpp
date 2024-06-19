@@ -1437,6 +1437,16 @@ int TSchedulerPoolElement::GetMaxOperationCount() const
     return Config_->MaxOperationCount.value_or(TreeConfig_->MaxOperationCountPerPool);
 }
 
+bool TSchedulerPoolElement::IsPriorityStrongGuaranteeAdjustmentEnabled() const
+{
+    return Config_->EnablePriorityStrongGuaranteeAdjustment;
+}
+
+bool TSchedulerPoolElement::IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const
+{
+    return Config_->EnablePriorityStrongGuaranteeAdjustmentDonorship;
+}
+
 TPoolIntegralGuaranteesConfigPtr TSchedulerPoolElement::GetIntegralGuaranteesConfig() const
 {
     return Config_->IntegralGuarantees;
@@ -2617,6 +2627,16 @@ bool TSchedulerRootElement::IsFairShareTruncationInFifoPoolEnabled() const
 }
 
 bool TSchedulerRootElement::ShouldComputePromisedGuaranteeFairShare() const
+{
+    return false;
+}
+
+bool TSchedulerRootElement::IsPriorityStrongGuaranteeAdjustmentEnabled() const
+{
+    return false;
+}
+
+bool TSchedulerRootElement::IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const
 {
     return false;
 }

@@ -57,3 +57,4 @@ InvalidRowSequenceNumbers = 3103
 class Scheduler(object):
     NoSuchOperation = 200
     PoolTreeGuaranteesOvercommit = 29000
+    PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002

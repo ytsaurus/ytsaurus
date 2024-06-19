@@ -4102,6 +4102,260 @@ class TestVectorStrongGuarantees(YTEnvSetup):
 ##################################################################
 
 
+class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+            "watchers_update_period": 100,  # Update pools configuration period.
+            "alerts_update_period": 100,
+            "nodes_attributes_update_period": 100,
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestPriorityStrongGuaranteeAdjustment, self).setup_method(method)
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
+    def _check(self, pools, expected_shares):
+        for pool, expected_share in zip(pools, expected_shares):
+            wait(lambda: are_almost_equal(expected_share, get(scheduler_orchid_pool_path(pool) + "/strong_guarantee_share/cpu")))
+
+    def _remove_node(self, node):
+        set(f"//sys/exec_nodes/{node}/@user_tags/end", "other")
+
+    @authors("eshcherbin")
+    def test_one_priority_pool(self):
+        create_pool("root", attributes={"strong_guarantee_resources": {"cpu": 30.0}})
+        pools = [
+            "poolA",
+            "poolB",
+            "poolC",
+        ]
+        for pool in pools:
+            create_pool(pool, parent_name="root", attributes={"strong_guarantee_resources": {"cpu": 10.0}})
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0])
+
+        set("//sys/pool_trees/default/root/@enable_priority_strong_guarantee_adjustment_donorship", True)
+        set("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment", True)
+
+        self._check(pools, [0.5, 0.25, 0.25])
+
+        self._remove_node(nodes[1])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 10.0))
+
+        self._check(pools, [1.0, 0.0, 0.0])
+
+    @authors("eshcherbin")
+    def test_two_priority_pools_same_root(self):
+        create_pool("root", attributes={
+            "strong_guarantee_resources": {"cpu": 30.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        pool_to_guarantee = {
+            "poolA": 10.0,
+            "poolB": 5.0,
+            "poolC": 10.0,
+            "poolD": 5.0,
+        }
+        pools = list(pool_to_guarantee)
+        for pool, guarantee in pool_to_guarantee.items():
+            create_pool(pool, parent_name="root", attributes={"strong_guarantee_resources": {"cpu": guarantee}})
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 6.0, 1.0 / 3.0, 1.0 / 6.0])
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 6.0, 1.0 / 3.0, 1.0 / 6.0])
+
+        set("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment", True)
+        set("//sys/pool_trees/default/root/poolC/@enable_priority_strong_guarantee_adjustment", True)
+
+        self._check(pools, [0.5, 0.0, 0.5, 0.0])
+
+        self._remove_node(nodes[1])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 10.0))
+
+        self._check(pools, [0.5, 0.0, 0.5, 0.0])
+
+    @authors("eshcherbin")
+    def test_two_priority_pools_different_roots(self):
+        create_pool("rootA", attributes={
+            "strong_guarantee_resources": {"cpu": 15.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        create_pool("rootB", attributes={
+            "strong_guarantee_resources": {"cpu": 15.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        pool_to_parent_and_guarantee = {
+            "poolA": ("rootA", 10.0),
+            "poolB": ("rootA", 5.0),
+            "poolC": ("rootB", 10.0),
+            "poolD": ("rootB", 5.0),
+        }
+        pools = list(pool_to_parent_and_guarantee)
+        for pool, (root, guarantee) in pool_to_parent_and_guarantee.items():
+            create_pool(pool, parent_name=root, attributes={"strong_guarantee_resources": {"cpu": guarantee}})
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 6.0, 1.0 / 3.0, 1.0 / 6.0])
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        self._check(pools, [1.0 / 3.0, 1.0 / 6.0, 1.0 / 3.0, 1.0 / 6.0])
+
+        set("//sys/pool_trees/default/rootA/poolA/@enable_priority_strong_guarantee_adjustment", True)
+        set("//sys/pool_trees/default/rootB/poolC/@enable_priority_strong_guarantee_adjustment", True)
+
+        self._check(pools, [0.5, 0.0, 0.5, 0.0])
+
+        self._remove_node(nodes[1])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 10.0))
+
+        self._check(pools, [0.5, 0.0, 0.5, 0.0])
+
+    @authors("eshcherbin")
+    def test_nested_donors(self):
+        create_pool("root", attributes={
+            "strong_guarantee_resources": {"cpu": 30.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        create_pool("subroot", parent_name="root", attributes={
+            "strong_guarantee_resources": {"cpu": 15.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        pool_to_parent_and_guarantee = {
+            "poolA": ("root", 15.0),
+            "poolB": ("subroot", 5.0),
+            "poolC": ("subroot", 10.0),
+        }
+        pools = list(pool_to_parent_and_guarantee)
+        for pool, (root, guarantee) in pool_to_parent_and_guarantee.items():
+            create_pool(pool, parent_name=root, attributes={"strong_guarantee_resources": {"cpu": guarantee}})
+
+        set("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment", True)
+        set("//sys/pool_trees/default/root/subroot/poolC/@enable_priority_strong_guarantee_adjustment", True)
+
+        self._check(pools, [0.5, 1.0 / 6.0, 1.0 / 3.0])
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        self._check(pools, [0.75, 0.0, 0.25])
+
+    @authors("eshcherbin")
+    def test_priority_pool_is_donor(self):
+        create_pool("root", attributes={
+            "strong_guarantee_resources": {"cpu": 30.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        create_pool("subroot", parent_name="root", attributes={
+            "strong_guarantee_resources": {"cpu": 15.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+            "enable_priority_strong_guarantee_adjustment": True,
+        })
+        create_pool("poolA", parent_name="subroot", attributes={
+            "strong_guarantee_resources": {"cpu": 10.0},
+            "enable_priority_strong_guarantee_adjustment": True,
+        })
+        create_pool("poolB", parent_name="subroot", attributes={
+            "strong_guarantee_resources": {"cpu": 5.0},
+        })
+
+        pools = ["subroot", "poolA", "poolB"]
+
+        self._check(pools, [0.5, 1.0 / 3.0, 1.0 / 6.0])
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        self._check(pools, [0.75, 0.5, 0.25])
+
+        self._remove_node(nodes[1])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 10.0))
+
+        self._check(pools, [1.0, 1.0, 0.0])
+
+    def _get_pool_without_donor_error(self):
+        for alert in get("//sys/scheduler/@alerts"):
+            if "Found pool configuration issues during fair share update" not in alert["message"]:
+                continue
+            for error in alert["inner_errors"][0]["inner_errors"]:
+                if error["code"] == yt_error_codes.Scheduler.PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor:
+                    return error
+        return None
+
+    @authors("eshcherbin")
+    def test_config_validation(self):
+        create_pool("root", attributes={
+            "strong_guarantee_resources": {"cpu": 30.0},
+            "enable_priority_strong_guarantee_adjustment_donorship": True,
+        })
+        pool_to_guarantee = {
+            "poolA": 20.0,
+            "poolB": 10.0,
+        }
+        pools = list(pool_to_guarantee)
+        for pool, guarantee in pool_to_guarantee.items():
+            create_pool(pool, parent_name="root", attributes={"strong_guarantee_resources": {"cpu": guarantee}})
+
+        self._check(pools, [2.0 / 3.0, 1.0 / 3.0])
+
+        set("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment", True)
+
+        nodes = ls("//sys/exec_nodes")
+        self._remove_node(nodes[0])
+        wait(lambda: are_almost_equal(get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/cpu"), 20.0))
+
+        wait(lambda: self._get_pool_without_donor_error() is None)
+
+        self._check(pools, [1.0, 0.0])
+
+        remove("//sys/pool_trees/default/root/@enable_priority_strong_guarantee_adjustment_donorship")
+
+        def check_pool():
+            error = self._get_pool_without_donor_error()
+            return error is not None and "poolA" in error["attributes"]["priority_pools_without_donors"]
+        wait(check_pool)
+
+        self._check(pools, [2.0 / 3.0, 1.0 / 3.0])
+
+        remove("//sys/pool_trees/default/root/poolA/@enable_priority_strong_guarantee_adjustment")
+
+        wait(lambda: self._get_pool_without_donor_error() is None)
+
+        self._check(pools, [2.0 / 3.0, 1.0 / 3.0])
+
+
+##################################################################
+
+
 class TestFifoPools(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1

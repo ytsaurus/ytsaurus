@@ -2225,6 +2225,12 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("redirect_to_cluster", &TThis::RedirectToCluster)
         .Default();
 
+    registrar.Parameter("enable_priority_strong_guarantee_adjustment", &TThis::EnablePriorityStrongGuaranteeAdjustment)
+        .Default(false);
+
+    registrar.Parameter("enable_priority_strong_guarantee_adjustment_donorship", &TThis::EnablePriorityStrongGuaranteeAdjustmentDonorship)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(arkady-e1ppa)
         if (config->InferChildrenWeightsFromHistoricUsage) {

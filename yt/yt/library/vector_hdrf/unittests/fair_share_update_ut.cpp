@@ -234,6 +234,16 @@ public:
         return PromisedGuaranteeFairShareComputationEnabled_;
     }
 
+    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override
+    {
+        return false;
+    }
+
+    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override
+    {
+        return false;
+    }
+
     void AddChild(TElementMock* child)
     {
         Children_.push_back(child);

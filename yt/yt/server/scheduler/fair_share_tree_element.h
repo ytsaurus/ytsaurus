@@ -678,6 +678,9 @@ public:
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
 
+    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override;
+    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override;
+
     //! Post fair share update methods.
     void UpdateRecursiveAttributes() override;
 
@@ -1018,6 +1021,9 @@ public:
     bool IsFairShareTruncationInFifoPoolEnabled() const override;
 
     bool ShouldComputePromisedGuaranteeFairShare() const override;
+
+    bool IsPriorityStrongGuaranteeAdjustmentEnabled() const override;
+    bool IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const override;
 
     //! Post update methods.
     void PostUpdate(TFairSharePostUpdateContext* postUpdateContext);

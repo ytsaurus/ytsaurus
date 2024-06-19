@@ -25,9 +25,17 @@ DEFINE_ENUM(EIntegralGuaranteeType,
     (Relaxed)
 );
 
+// NB(eshcherbin): Lower tier index means higher priority.
+DEFINE_ENUM(EStrongGuaranteeTier,
+    ((PriorityPools) (0))
+    ((RegularPools)  (1))
+    ((Operations)    (2))
+);
+
 YT_DEFINE_ERROR_ENUM(
-    ((PoolTreeGuaranteesOvercommit) (29000))
-    ((NestedPromisedGuaranteeFairSharePools) (29001))
+    ((PoolTreeGuaranteesOvercommit)                       (29000))
+    ((NestedPromisedGuaranteeFairSharePools)              (29001))
+    ((PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor) (29002))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

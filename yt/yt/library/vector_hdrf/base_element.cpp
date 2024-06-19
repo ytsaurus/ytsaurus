@@ -49,6 +49,16 @@ bool TBaseCompositeElement::ShouldComputePromisedGuaranteeFairShare() const
     return false;
 }
 
+bool TBaseCompositeElement::IsPriorityStrongGuaranteeAdjustmentEnabled() const
+{
+    return false;
+}
+
+bool TBaseCompositeElement::IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceVector TBasePool::GetIntegralShareLimitForRelaxedPool() const
