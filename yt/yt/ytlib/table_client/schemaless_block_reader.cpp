@@ -64,7 +64,8 @@ THorizontalBlockReader::THorizontalBlockReader(
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
     const TKeyWideningOptions& keyWideningOptions,
-    int extraColumnCount)
+    int extraColumnCount,
+    bool decodeInlineHunkValues)
     : Block_(block)
     , Meta_(meta)
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
@@ -76,6 +77,7 @@ THorizontalBlockReader::THorizontalBlockReader(
     , SortOrders_(sortOrders.begin(), sortOrders.end())
     , CommonKeyPrefix_(commonKeyPrefix)
     , ExtraColumnCount_(extraColumnCount)
+    , DecodeInlineHunkValues_(decodeInlineHunkValues)
 {
     YT_VERIFY(GetKeyColumnCount() >= GetChunkKeyColumnCount());
     YT_VERIFY(Meta_.row_count() > 0);
@@ -196,11 +198,18 @@ TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memory
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         if (IsHunkValue(value)) {
+            YT_VERIFY(GetChunkKeyColumnCount() <= value.Id);
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
                 HunkChunkRefs_,
                 HunkChunkMetas_,
                 &value);
+            if (DecodeInlineHunkValues_) {
+                if (!TryDecodeInlineHunkValue(&value)) {
+                    THROW_ERROR_EXCEPTION("Expected an inline hunk value for decoding, got %v",
+                        value);
+                }
+            }
         }
 
         auto remappedId = ChunkToReaderIdMapping_[value.Id];
@@ -273,11 +282,18 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
         CurrentPointer_ += ReadRowValue(CurrentPointer_, &value);
 
         if (IsHunkValue(value)) {
+            YT_VERIFY(GetKeyColumnCount() <= value.Id);
             GlobalizeHunkValueAndSetHunkFlag(
                 memoryPool,
                 HunkChunkRefs_,
                 HunkChunkMetas_,
                 &value);
+            if (DecodeInlineHunkValues_) {
+                if (!TryDecodeInlineHunkValue(&value)) {
+                    THROW_ERROR_EXCEPTION("Expected an inline hunk value for decoding, got %v",
+                        value);
+                }
+            }
         }
 
         int id = ChunkToReaderIdMapping_[value.Id];
@@ -325,6 +341,7 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
         {
             currentKeyValue->Type = EValueType::Composite;
         }
+        YT_VERIFY(None(currentKeyValue->Flags & EValueFlags::Hunk));
     }
 
     return true;

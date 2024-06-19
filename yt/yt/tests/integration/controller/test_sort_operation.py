@@ -2015,6 +2015,68 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/out")
         sort_func(in_="//tmp/in", out="//tmp/out", sort_by="key")
 
+    @authors("akozhikhov", "ermolovd")
+    @pytest.mark.parametrize(
+        "sort_func",
+        [
+            simple_sort_1_phase,
+            simple_sort_2_phase,
+            sort_2_phase,
+        ],
+    )
+    @pytest.mark.parametrize("sorted", [True, False])
+    def test_hunks_in_partition_sort(self, sort_func, sorted):
+        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat:
+            return
+
+        schema = \
+            make_schema(
+                [
+                    {"name": "key", "type": "int64" , "sort_order": "ascending"},
+                    {"name": "value", "type": "any", "max_inline_hunk_size": 10},
+                ],
+                unique_keys=True) \
+            if sorted else \
+            [
+                {"name": "key", "type": "int64"},
+                {"name": "value", "type": "any", "max_inline_hunk_size": 10},
+            ]
+        create("table",
+               "//tmp/t",
+               attributes={
+                   "schema": schema,
+                   "enable_dynamic_store_read": False,
+                   "hunk_chunk_reader": {
+                       "max_hunk_count_per_read": 2,
+                       "max_total_hunk_length_per_read": 60,
+                       "fragment_read_hedging_delay": 1,
+                       "max_inflight_fragment_length": 60,
+                       "max_inflight_fragment_count": 2,
+                   },
+                   "hunk_chunk_writer": {
+                       "desired_block_size": 50,
+                   },
+                   "max_hunk_compaction_garbage_ratio": 0.5,
+                   "enable_lsm_verbose_logging": True,
+                   "chunk_format": "table_unversioned_schemaless_horizontal"})
+
+        rows = [{"key": i, "value": ["x"] * 10 + [str(9 - i)]} for i in range(10)]
+        write_table("//tmp/t", rows)
+
+        sort_func(
+            in_="//tmp/t",
+            out="//tmp/t",
+            sort_by="key")
+        assert read_table("//tmp/t") == rows
+
+        create("table", "//tmp/t_out")
+        sort_func(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            sort_by="value")
+        assert read_table("//tmp/t_out") == rows[::-1]
+
     def run_test_complex_sort(self, sort_func, type_v3, data, expected_data, spec=None):
         create(
             "table",
