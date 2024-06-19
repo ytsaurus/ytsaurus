@@ -636,3 +636,21 @@ def is_of_iterable_type(obj):
 
 def get_arg_spec(func):
     return inspect.getfullargspec(func)
+
+
+# XXX(asaitgalin): Used in get_attribute function for `default` argument
+# instead of None value to distinguish case when default argument
+# is passed and is None from case when default is not passed.
+# XXX(dmifedorov): Also is used in config for values which the user 
+# has not set a value for.
+class _KwargSentinelClass(object):
+    __instance = None
+
+    def __new__(cls):
+        if cls.__instance is None:
+            cls.__instance = object.__new__(cls)
+            cls.__instance.name = "_KwargSentinelClassInstance"
+        return cls.__instance
+
+
+_KWARG_SENTINEL = _KwargSentinelClass()

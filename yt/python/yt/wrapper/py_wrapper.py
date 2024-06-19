@@ -4,7 +4,7 @@ from . import config
 from .config import get_config
 from .pickling import Pickler
 from .common import (get_python_version, YtError, chunk_iter_stream, get_value, which,
-                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job)
+                     get_disk_size, is_arcadia_python, get_arg_spec, is_inside_job, _KWARG_SENTINEL)
 from .file_commands import LocalFile
 from .py_runner_helpers import process_rows
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
@@ -519,15 +519,18 @@ def build_function_and_config_arguments(function, create_temp_file, file_argumen
                                         is_local_mode, params, client):
     function_filename = create_temp_file(prefix=get_function_name(function) + ".pickle")
 
-    pickler_name = get_config(client)["pickling"]["framework"]
+    pickling_config = get_config(client)["pickling"]
+    pickler_name = pickling_config["framework"]
     pickler = Pickler(pickler_name)
     dump_kwargs = {}
     if pickler_name == "dill":
-        if get_config(client)["pickling"]["load_additional_dill_types"]:
+        if pickling_config["load_additional_dill_types"]:
             pickler.load_types()
         if is_running_interactively():
             dump_kwargs["recurse"] = True
             dump_kwargs["byref"] = False
+
+        dump_kwargs.update({k: v for k, v in pickling_config["dill_kwargs"].items() if v is not _KWARG_SENTINEL})
 
     with open(function_filename, "wb") as fout:
         params.attributes = function.attributes if hasattr(function, "attributes") else {}

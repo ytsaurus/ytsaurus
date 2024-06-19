@@ -12,6 +12,7 @@ from yt.yson import YsonEntity, YsonMap
 
 import os
 import sys
+import enum
 from copy import deepcopy
 from datetime import timedelta
 
@@ -286,6 +287,10 @@ default_config = {
         # Forces dill to load additional types (e.g. numpy.ndarray) for better pickling
         # (has no effect if framework is not "dill")
         "load_additional_dill_types": False,
+        "dill_kwargs": {
+            "byref": common._KWARG_SENTINEL,
+            "recurse": common._KWARG_SENTINEL,
+        },
         # Check that python version on local machine is the same as on cluster nodes.
         # Turn it off at your own risk.
         "check_python_version": False,

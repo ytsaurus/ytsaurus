@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import flatten, get_value, YtError, set_param, deprecated
+from .common import flatten, get_value, YtError, set_param, deprecated, _KWARG_SENTINEL
 from .errors import YtResponseError
 from .driver import make_request, make_formatted_request, set_master_read_params, get_api_version, get_structured_format
 from .transaction import Transaction
@@ -17,22 +17,6 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
-
-
-# XXX(asaitgalin): Used in get_attribute function for `default` argument
-# instead of None value to distinguish case when default argument
-# is passed and is None from case when default is not passed.
-class _KwargSentinelClass(object):
-    __instance = None
-
-    def __new__(cls):
-        if cls.__instance is None:
-            cls.__instance = object.__new__(cls)
-            cls.__instance.name = "_KwargSentinelClassInstance"
-        return cls.__instance
-
-
-_KWARG_SENTINEL = _KwargSentinelClass()
 
 
 class _MapOrderSorted(object):
