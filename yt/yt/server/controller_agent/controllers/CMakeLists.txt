@@ -37,6 +37,8 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_memory.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/job_splitter.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/helpers.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_transactions_manager.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/input_manager.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/live_preview.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/operation_controller_detail.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/ordered_controller.cpp

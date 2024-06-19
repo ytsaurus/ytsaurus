@@ -271,7 +271,7 @@ protected:
 
             config->EnableJobSplitting &=
                 (IsJobInterruptible() &&
-                std::ssize(Controller_->InputTables_) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+                std::ssize(Controller_->InputManager->GetInputTables()) <= Controller_->Options_->JobSplitter->MaxInputTableCount);
 
             return config;
         }
@@ -437,10 +437,11 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            for (int index = 0; index < std::ssize(InputTables_); ++index) {
-                if (InputTables_[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
-                    InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
-                        *InputTables_[index]->Schema,
+            const auto& inputTables = InputManager->GetInputTables();
+            for (int index = 0; index < std::ssize(inputTables); ++index) {
+                if (inputTables[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
+                    inputTables[index]->Teleportable = CheckTableSchemaCompatibility(
+                        *inputTables[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
                         false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                 }
@@ -595,7 +596,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputTables_));
+            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -812,7 +813,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputTables_));
+            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -974,8 +975,8 @@ private:
     {
         TOrderedControllerBase::CustomPrepare();
 
-        auto& path = InputTables_[0]->Path;
-        auto ranges = path.GetNewRanges(InputTables_[0]->Comparator, InputTables_[0]->Schema->GetKeyColumnTypes());
+        auto& path = InputManager->GetInputTables()[0]->Path;
+        auto ranges = path.GetNewRanges(InputManager->GetInputTables()[0]->Comparator, InputManager->GetInputTables()[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }
@@ -1027,9 +1028,9 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    if (InputTables_[0]->SchemaMode == ETableSchemaMode::Strong) {
+                    if (InputManager->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
-                            *InputTables_[0]->Schema,
+                            *InputManager->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
                             /* ignoreSortOrder */ false);
                         if (compatibility != ESchemaCompatibility::FullyCompatible) {
@@ -1059,7 +1060,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputTables_));
+            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -1155,8 +1156,8 @@ private:
     void ValidateInputTablesTypes() const override
     {
         // NB(coteeq): remote_copy always has one input table.
-        YT_VERIFY(InputTables_.size() == 1);
-        ValidateTableType(InputTables_[0]);
+        YT_VERIFY(InputManager->GetInputTables().size() == 1);
+        ValidateTableType(InputManager->GetInputTables()[0]);
     }
 
     void ValidateUpdatingTablesTypes() const override
@@ -1165,11 +1166,13 @@ private:
         YT_VERIFY(OutputTables_.size() == 1);
         ValidateTableType(OutputTables_[0]);
 
+        const auto& inputTables = InputManager->GetInputTables();
+
         THROW_ERROR_EXCEPTION_UNLESS(
-            OutputTables_[0]->Type == InputTables_[0]->Type,
+            OutputTables_[0]->Type == inputTables[0]->Type,
             "Output object type does not match that of the input object %v: expected %Qlv, found %Qlv",
-            InputTables_[0]->GetPath(),
-            InputTables_[0]->Type,
+            inputTables[0]->GetPath(),
+            inputTables[0]->Type,
             OutputTables_[0]->Type);
 
         YT_VERIFY(!StderrTable_ && !CoreTable_);
@@ -1177,8 +1180,8 @@ private:
 
     EObjectType GetOutputTableDesiredType() const override
     {
-        YT_VERIFY(InputTables_.size() == 1);
-        return InputTables_[0]->Type;
+        YT_VERIFY(InputManager->GetInputTables().size() == 1);
+        return InputManager->GetInputTables()[0]->Type;
     }
 
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
@@ -1216,6 +1219,7 @@ private:
 
         InputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
         SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
+        InputManager->InitializeClient(InputClient);
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override
@@ -1247,7 +1251,7 @@ private:
 
                 // Since remote copy doesn't unpack blocks and validate schema, we must ensure
                 // that schemas are identical.
-                for (const auto& inputTable : InputTables_) {
+                for (const auto& inputTable : InputManager->GetInputTables()) {
                     if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
                         *inputTable->Schema->ToCanonical() != *table->TableUploadOptions.TableSchema->ToCanonical())
                     {
@@ -1277,7 +1281,7 @@ private:
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
         {
             TString message = "Remote copy operation does not support non-trivial table limits";
-            if (InputTables_[0]->Dynamic) {
+            if (InputManager->GetInputTables()[0]->Dynamic) {
                 message += " and chunks crossing tablet boundaries";
             }
             THROW_ERROR_EXCEPTION(errorCode, message);
@@ -1304,11 +1308,11 @@ private:
     void CustomMaterialize() override
     {
         if (Spec_->CopyAttributes) {
-            if (InputTables_.size() != 1) {
+            if (InputManager->GetInputTables().size() != 1) {
                 THROW_ERROR_EXCEPTION("Attributes can be copied only in case of one input table");
             }
 
-            const auto& table = InputTables_[0];
+            const auto& table = InputManager->GetInputTables()[0];
 
             auto proxy = CreateObjectServiceReadProxy(InputClient, EMasterChannelKind::Follower);
 
@@ -1325,7 +1329,7 @@ private:
 
         bool hasDynamicInputTable = false;
         bool hasDynamicOutputTable = false;
-        for (const auto& table : InputTables_) {
+        for (const auto& table : InputManager->GetInputTables()) {
             hasDynamicInputTable |= table->Dynamic;
         }
         for (const auto& table : OutputTables_) {
@@ -1336,7 +1340,7 @@ private:
             if (!hasDynamicOutputTable) {
                 THROW_ERROR_EXCEPTION("Dynamic table can be copied only to another dynamic table");
             }
-            if (InputTables_.size() != 1 || OutputTables_.size() != 1) {
+            if (InputManager->GetInputTables().size() != 1 || OutputTables_.size() != 1) {
                 THROW_ERROR_EXCEPTION("Only one dynamic table can be copied at a time");
             }
             if (OutputTables_[0]->TableUploadOptions.UpdateMode != EUpdateMode::Overwrite) {
@@ -1391,7 +1395,7 @@ private:
         jobSpecExt->set_table_reader_options("");
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputTables_));
+            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));

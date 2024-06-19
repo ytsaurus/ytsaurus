@@ -65,6 +65,7 @@ target_sources(server-lib-scheduler PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/job_metrics.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/resource_metering.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/server/lib/scheduler/transactions.cpp
 )
 target_proto_addincls(server-lib-scheduler
   ./yt

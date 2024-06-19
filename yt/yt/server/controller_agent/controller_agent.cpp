@@ -762,7 +762,7 @@ public:
 
     TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
-        const std::optional<TControllerTransactionIds>& transactions)
+        const std::optional<NScheduler::TControllerTransactionIds>& transactions)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);

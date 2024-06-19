@@ -81,7 +81,6 @@ DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig)
 DECLARE_REFCOUNTED_CLASS(TOperation)
 using TOperationIdToOperationMap = THashMap<TOperationId, TOperationPtr>;
 
-struct TControllerTransactionIds;
 struct TOperationControllerInitializeResult;
 struct TOperationControllerReviveResult;
 struct TOperationControllerPrepareResult;

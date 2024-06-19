@@ -78,7 +78,6 @@ void ToProto(
 
 struct TOperationControllerInitializeAttributes
 {
-    NYson::TYsonString Mutable;
     NYson::TYsonString BriefSpec;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;

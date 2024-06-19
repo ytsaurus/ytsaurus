@@ -18,6 +18,7 @@ from yt_commands import (
 from yt_helpers import get_current_time, parse_yt_time
 
 from yt.common import YtError
+import yt.yson as yson
 
 import pytest
 from flaky import flaky
@@ -761,6 +762,42 @@ class OperationReviveBase(YTEnvSetup):
         op.track()
 
         assert op.get_state() == "completed"
+
+    @authors("coteeq")
+    def test_revive_before_controller_agent_assigned(self):
+        custom_tx = start_transaction(timeout=60000)
+
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        op = None
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            # time.sleep(1)
+            op = map(
+                track=False,
+                command="cat",
+                in_=['<transaction_id="{}">//tmp/in'.format(custom_tx)] * 2,
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "format": yson.loads(b"<enable_table_index=%false>dsv"),
+                    },
+                },
+            )
+
+            # Wait for scheduler to fail to assign controller agent.
+            time.sleep(0.5)
+
+            assert op.get_state() == "waiting_for_agent"
+
+            # NB: Scheduler's restart is essential. Otherwise, operation will not be revived - just started from scratch
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                pass
+
+        op.track()
+        assert read_table("//tmp/out") == [{"foo": "bar"}] * 2
 
     # NB: we hope that we check aborting state before operation comes to aborted state but
     # we cannot guarantee that this happen.

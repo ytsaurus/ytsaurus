@@ -820,6 +820,7 @@ class TestSchedulerCommon(YTEnvSetup):
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
+        assert get(f"#{new_nested_input_transaction_ids[0]}/@parent_id") == custom_tx
 
     @authors("ignat")
     def test_nested_input_transaction_duplicates(self):

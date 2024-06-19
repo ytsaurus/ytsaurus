@@ -146,7 +146,7 @@ public:
         NScheduler::TOperationRuntimeParametersUpdatePtr update);
     TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
-        const std::optional<TControllerTransactionIds>& transactions);
+        const std::optional<NScheduler::TControllerTransactionIds>& transactions);
     TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation);
     TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation);
     TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation);

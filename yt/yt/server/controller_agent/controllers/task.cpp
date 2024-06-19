@@ -332,7 +332,7 @@ void TTask::AddInput(TChunkStripePtr stripe)
         // legacy sorted chunk pool or not.
     }
 
-    TaskHost_->RegisterInputStripe(stripe, this);
+    TaskHost_->GetInputManager()->RegisterInputStripe(stripe, this);
 
     UpdateTask();
 }

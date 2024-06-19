@@ -904,6 +904,18 @@ get_built_tool_path(
   contrib/tools/protoc/plugins/cpp_styleguide
   cpp_styleguide
 )
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
 
 add_library(yt-yt-ytlib)
 target_compile_options(yt-yt-ytlib PRIVATE
@@ -1007,6 +1019,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/allocation.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/resources.proto
+  ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.proto
   ${CMAKE_SOURCE_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.proto
@@ -1100,6 +1113,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/replicated_table_tracker_client/proto/replicated_table_tracker_client.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/allocation.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/resources.pb.h
+  ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/rich_transaction_id.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/pool_ypath.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/scheduler/proto/scheduler_service.pb.h
   ${CMAKE_BINARY_DIR}/yt/yt/ytlib/security_client/proto/account_ypath.pb.h

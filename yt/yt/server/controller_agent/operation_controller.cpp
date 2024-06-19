@@ -43,33 +43,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TControllerTransactionIds* transactionIdsProto, const NControllerAgent::TControllerTransactionIds& transactionIds)
-{
-    ToProto(transactionIdsProto->mutable_async_id(), transactionIds.AsyncId);
-    ToProto(transactionIdsProto->mutable_input_id(), transactionIds.InputId);
-    ToProto(transactionIdsProto->mutable_output_id(), transactionIds.OutputId);
-    ToProto(transactionIdsProto->mutable_debug_id(), transactionIds.DebugId);
-    ToProto(transactionIdsProto->mutable_output_completion_id(), transactionIds.OutputCompletionId);
-    ToProto(transactionIdsProto->mutable_debug_completion_id(), transactionIds.DebugCompletionId);
-    ToProto(transactionIdsProto->mutable_nested_input_ids(), transactionIds.NestedInputIds);
-}
-
-void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, const NProto::TControllerTransactionIds& transactionIdsProto)
-{
-    transactionIds->AsyncId = FromProto<TTransactionId>(transactionIdsProto.async_id());
-    transactionIds->InputId = FromProto<TTransactionId>(transactionIdsProto.input_id());
-    transactionIds->OutputId = FromProto<TTransactionId>(transactionIdsProto.output_id());
-    transactionIds->DebugId  = FromProto<TTransactionId>(transactionIdsProto.debug_id());
-    transactionIds->OutputCompletionId = FromProto<TTransactionId>(transactionIdsProto.output_completion_id());
-    transactionIds->DebugCompletionId = FromProto<TTransactionId>(transactionIdsProto.debug_completion_id());
-    transactionIds->NestedInputIds = FromProto<std::vector<TTransactionId>>(transactionIdsProto.nested_input_ids());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result)
 {
-    resultProto->set_mutable_attributes(result.Attributes.Mutable.ToString());
     resultProto->set_brief_spec(result.Attributes.BriefSpec.ToString());
     resultProto->set_full_spec(result.Attributes.FullSpec.ToString());
     resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.ToString());

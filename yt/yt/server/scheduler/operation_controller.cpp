@@ -68,7 +68,6 @@ void FromProto(
     }
 
     result->Attributes = TOperationControllerInitializeAttributes{
-        TYsonString(resultProto.mutable_attributes(), EYsonType::MapFragment),
         TYsonString(resultProto.brief_spec(), EYsonType::MapFragment),
         TYsonString(resultProto.full_spec(), EYsonType::Node),
         TYsonString(resultProto.unrecognized_spec(), EYsonType::Node)

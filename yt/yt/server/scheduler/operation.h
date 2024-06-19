@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/server/lib/scheduler/structs.h>
+#include <yt/yt/server/lib/scheduler/transactions.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
@@ -50,30 +51,6 @@ struct TControllerAttributes
     std::optional<TOperationControllerInitializeAttributes> InitializeAttributes;
     NYson::TYsonString PrepareAttributes;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-// NB: Keep sync with NControllerAgent::TControllerTransactionIds.
-struct TOperationTransactions
-{
-    NApi::ITransactionPtr AsyncTransaction;
-    NApi::ITransactionPtr InputTransaction;
-    NApi::ITransactionPtr OutputTransaction;
-    NApi::ITransactionPtr DebugTransaction;
-    NApi::ITransactionPtr OutputCompletionTransaction;
-    NApi::ITransactionPtr DebugCompletionTransaction;
-    std::vector<NApi::ITransactionPtr> NestedInputTransactions;
-};
-
-void ToProto(
-    NControllerAgent::NProto::TControllerTransactionIds* transactionIdsProto,
-    const TOperationTransactions& transactions);
-
-void FromProto(
-    TOperationTransactions* transactions,
-    const NControllerAgent::NProto::TControllerTransactionIds& transactionIdsProto,
-    std::function<NApi::NNative::IClientPtr(NObjectClient::TCellTag)> getClient,
-    TDuration pingPeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,6 +373,9 @@ public:
     std::vector<TString> GetExperimentAssignmentNames() const;
 
     std::vector<TString> GetJobShellOwners(const TString& jobShellName);
+
+    // Aborts all transactions except user and "completion" transactions.
+    TFuture<void> AbortCommonTransactions();
 
     TOperation(
         TOperationId operationId,
