@@ -4040,6 +4040,20 @@ class TestChaos(ChaosTestBase):
         for replica in replicas[-2:]:
             wait(lambda: _check(replica, 18))
 
+    @authors("osidorkin")
+    def test_crt_creation_under_transaction(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        data_schema = self._get_schemas_by_name(["sorted_simple"])[0]
+
+        tx = start_transaction(type="master")
+        with pytest.raises(YtError, match="Replicated table cannot be created inside a transaction"):
+            create("chaos_replicated_table", "//tmp/t1.crt", attributes={"chaos_cell_bundle": "c", "schema": data_schema}, tx=tx)
+        abort_transaction(tx)
+
+        create("chaos_replicated_table", "//tmp/t1.crt", attributes={"chaos_cell_bundle": "c", "schema": data_schema})
+
 
 ##################################################################
 
