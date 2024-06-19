@@ -10,7 +10,7 @@ from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
 from .flow_commands import (  # noqa
     start_pipeline, stop_pipeline, pause_pipeline, get_pipeline_spec, set_pipeline_spec, remove_pipeline_spec,
-    get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec)
+    get_pipeline_dynamic_spec, set_pipeline_dynamic_spec, remove_pipeline_dynamic_spec, get_pipeline_state, get_flow_view)
 from .queue_commands import (  # noqa
     register_queue_consumer, unregister_queue_consumer, list_queue_consumer_registrations, pull_queue, pull_consumer, pull_queue_consumer, advance_consumer, advance_queue_consumer)
 from .query_commands import start_query, abort_query, alter_query, read_query_result, get_query, get_query_result, list_queries  # noqa

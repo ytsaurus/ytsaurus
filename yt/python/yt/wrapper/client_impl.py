@@ -896,6 +896,22 @@ class YtClient(ClientState):
             client=self,
             cache_path=cache_path)
 
+    def get_flow_view(
+            self,
+            pipeline_path,
+            view_path=None, format=None):
+        """
+        Get YT Flow flow view
+
+        :param pipeline_path: path to pipeline
+        :param view_path: path to part of the view
+
+        """
+        return client_api.get_flow_view(
+            pipeline_path,
+            client=self,
+            view_path=view_path, format=format)
+
     def get_in_sync_replicas(
             self,
             path, timestamp, input_stream,
@@ -1075,6 +1091,19 @@ class YtClient(ClientState):
             pipeline_path,
             client=self,
             spec_path=spec_path, format=format)
+
+    def get_pipeline_state(
+            self,
+            pipeline_path):
+        """
+        Get YT Flow pipeline state
+
+        :param pipeline_path: path to pipeline
+
+        """
+        return client_api.get_pipeline_state(
+            pipeline_path,
+            client=self)
 
     def get_query(
             self,
@@ -2557,7 +2586,7 @@ class YtClient(ClientState):
     def set_pipeline_dynamic_spec(
             self,
             pipeline_path, value,
-            format=None, spec_path=None, expected_version=None):
+            spec_path=None, expected_version=None, format=None):
         """
         Set YT Flow pipeline dynamic spec.
 
@@ -2570,12 +2599,12 @@ class YtClient(ClientState):
         return client_api.set_pipeline_dynamic_spec(
             pipeline_path, value,
             client=self,
-            format=format, spec_path=spec_path, expected_version=expected_version)
+            spec_path=spec_path, expected_version=expected_version, format=format)
 
     def set_pipeline_spec(
             self,
             pipeline_path, value,
-            format=None, spec_path=None, expected_version=None, force=None):
+            spec_path=None, expected_version=None, force=None, format=None):
         """
         Set YT Flow pipeline spec.
 
@@ -2589,7 +2618,7 @@ class YtClient(ClientState):
         return client_api.set_pipeline_spec(
             pipeline_path, value,
             client=self,
-            format=format, spec_path=spec_path, expected_version=expected_version, force=force)
+            spec_path=spec_path, expected_version=expected_version, force=force, format=format)
 
     def set_user_password(
             self,
