@@ -34,8 +34,7 @@ const (
 	DefaultCHYTVersion       = "ytserver-clickhouse"
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
-	DefaultEnableGeoData = true
-	DefaultGeoDataPath   = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
+	DefaultGeoDataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
 	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
 )
@@ -54,11 +53,11 @@ func (speclet *Speclet) TrampolineVersionOrDefault() string {
 	return DefaultTrampolineVersion
 }
 
-func (speclet *Speclet) EnableGeoDataOrDefault() bool {
+func (speclet *Speclet) EnableGeoDataOrDefault(defaultValue bool) bool {
 	if speclet.EnableGeoData != nil {
 		return *speclet.EnableGeoData
 	}
-	return DefaultEnableGeoData
+	return defaultValue
 }
 
 func (speclet *Speclet) GeoDataPathOrDefault() ypath.Path {
