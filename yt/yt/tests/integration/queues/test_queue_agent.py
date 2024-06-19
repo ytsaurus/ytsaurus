@@ -114,12 +114,23 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
             if wrong_schema[i]["name"] == "cluster":
                 wrong_schema.pop(i)
                 break
-        self._prepare_tables(queue_table_schema=wrong_schema)
+        self._prepare_tables()
+        create("table", "//sys/queue_agents/queues", force=True, attributes={
+            "dynamic": True,
+            "schema": wrong_schema,
+            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+        })
+        sync_mount_table("//sys/queue_agents/queues")
 
         orchid.wait_fresh_pass()
         assert_yt_error(orchid.get_pass_error(), "No such column")
 
-        self._prepare_tables(force=True)
+        create("table", "//sys/queue_agents/queues", force=True, attributes={
+            "dynamic": True,
+            "schema": init_queue_agent_state.QUEUE_TABLE_SCHEMA,
+            **init_queue_agent_state.DEFAULT_TABLE_ATTRIBUTES
+        })
+        sync_mount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_pass()
         orchid.validate_no_pass_error()
 

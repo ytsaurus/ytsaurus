@@ -108,6 +108,16 @@ class TestMigration(YTEnvSetup):
         check_table_schema(table, self.TRANSFORMS[2][0].table_info)
         check_table_rows(table, self.DATA[2])
 
+    @authors("apachee")
+    def test_get_schemas(self):
+        def _check_schema(schema_mapping, table, table_info):
+            assert schema_mapping == {table: table_info.schema}
+
+        _check_schema(self.MIGRATION.get_schemas(self.INITIAL_VERSION), "test_table", self.INITIAL_TABLE_INFOS["test_table"])
+        _check_schema(self.MIGRATION.get_schemas(1), "test_table", self.TRANSFORMS[1][0].table_info)
+        _check_schema(self.MIGRATION.get_schemas(2), "test_table2", self.TRANSFORMS[2][0].table_info)
+        _check_schema(self.MIGRATION.get_schemas(), "test_table2", self.TRANSFORMS[2][0].table_info)
+
 
 class TestConversionFilterCallback(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
