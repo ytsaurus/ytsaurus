@@ -32,13 +32,13 @@ type Config struct {
 	AddressResolver           map[string]any       `yson:"address_resolver"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
-	DefaultEnableGeoData      *bool                `yson:"default_enable_geo_data"`
+	EnableGeoData             *bool                `yson:"enable_geo_data"`
 }
 
 const (
 	DefaultEnableYandexSpecificLinks = false
 	DefaultExportSystemLogTables     = false
-	DefaultEnableGeoData             = true
+	DefaultEnableGeoData             = false
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -63,8 +63,8 @@ func (c *Config) ExportSystemLogTablesOrDefault() bool {
 }
 
 func (c *Config) EnableGeoDataOrDefault() bool {
-	if c.DefaultEnableGeoData != nil {
-		return *c.DefaultEnableGeoData
+	if c.EnableGeoData != nil {
+		return *c.EnableGeoData
 	}
 	return DefaultEnableGeoData
 }
