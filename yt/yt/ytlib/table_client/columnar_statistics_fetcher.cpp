@@ -90,7 +90,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
     for (int chunkIndex : chunkIndexes) {
         auto* subrequest = req->add_subrequests();
         for (const auto& columnName : GetColumnStableNames(chunkIndex)) {
-            auto columnId = nameTable->GetIdOrRegisterName(columnName.Get());
+            auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
             subrequest->add_column_ids(columnId);
         }
 
@@ -234,7 +234,7 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
     }
 }
 
-void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStableName> columnStableNames)
+void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TColumnStableName> columnStableNames)
 {
     if (!NeedFetchFromNode_.emplace(chunk, true).second) {
         // We already know about this chunk.
@@ -287,7 +287,7 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TSta
     ChunkColumnFilterIds_.emplace_back(ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(columnStableNames));
 }
 
-const std::vector<TStableName>& TColumnarStatisticsFetcher::GetColumnStableNames(int chunkIndex) const
+const std::vector<TColumnStableName>& TColumnarStatisticsFetcher::GetColumnStableNames(int chunkIndex) const
 {
     return ColumnFilterDictionary_.GetAdmittedColumns(ChunkColumnFilterIds_[chunkIndex]);
 }

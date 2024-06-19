@@ -117,7 +117,7 @@ TTableSchemaPtr RenameColumnsInSchema(
             if (it != columnMapping.end()) {
                 column.SetName(TString(it->second));
                 if (changeStableName) {
-                    column.SetStableName(TStableName(column.Name()));
+                    column.SetStableName(TColumnStableName(column.Name()));
                 }
                 ValidateColumnSchema(column, schema->IsSorted(), isDynamic);
                 columnMapping.erase(it);

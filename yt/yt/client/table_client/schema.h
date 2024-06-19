@@ -112,33 +112,11 @@ void FromProto(TLockMask* lockMask, const NTabletClient::NProto::TLockMask& prot
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//
-// Strong typedef to avoid mixing stable names and names.
-class TStableName
-{
-public:
-    explicit TStableName(TString stableName = "");
-    const TString& Get() const;
-
-private:
-    TString Name_;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TStableName& stableName, TStringBuf spec);
-
-bool operator == (const TStableName& lhs, const TStableName& rhs);
-bool operator < (const TStableName& lhs, const TStableName& rhs);
-
-void ToProto(TString* protoStableName, const TStableName& stableName);
-void FromProto(TStableName* stableName, const TString& protoStableName);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TColumnSchema
 {
 public:
     // Keep in sync with hasher below.
-    DEFINE_BYREF_RO_PROPERTY(TStableName, StableName);
+    DEFINE_BYREF_RO_PROPERTY(TColumnStableName, StableName);
     DEFINE_BYREF_RO_PROPERTY(TString, Name);
     DEFINE_BYREF_RO_PROPERTY(TLogicalTypePtr, LogicalType);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ESortOrder>, SortOrder);
@@ -171,7 +149,7 @@ public:
     TColumnSchema& operator=(const TColumnSchema&) = default;
     TColumnSchema& operator=(TColumnSchema&&) = default;
 
-    TColumnSchema& SetStableName(TStableName stableName);
+    TColumnSchema& SetStableName(TColumnStableName stableName);
     TColumnSchema& SetName(TString name);
     TColumnSchema& SetLogicalType(TLogicalTypePtr valueType);
     TColumnSchema& SetSimpleLogicalType(ESimpleLogicalValueType type);
@@ -210,10 +188,10 @@ class TDeletedColumn
 {
 public:
     TDeletedColumn();
-    explicit TDeletedColumn(TStableName stableName);
+    explicit TDeletedColumn(TColumnStableName stableName);
 
-    DEFINE_BYREF_RO_PROPERTY(TStableName, StableName);
-    TDeletedColumn& SetStableName(TStableName stableName);
+    DEFINE_BYREF_RO_PROPERTY(TColumnStableName, StableName);
+    TDeletedColumn& SetStableName(TColumnStableName stableName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -240,9 +218,9 @@ public:
     public:
         explicit TNameMapping(const TTableSchema& schema);
 
-        bool IsDeleted(const TStableName& stableName) const;
-        TString StableNameToName(const TStableName& stableName) const;
-        TStableName NameToStableName(TStringBuf name) const;
+        bool IsDeleted(const TColumnStableName& stableName) const;
+        TString StableNameToName(const TColumnStableName& stableName) const;
+        TColumnStableName NameToStableName(TStringBuf name) const;
 
     private:
         const TTableSchema& Schema_;
@@ -269,8 +247,8 @@ public:
         ETableSchemaModification schemaModification = ETableSchemaModification::None,
         std::vector<TDeletedColumn> deletedColumns = {});
 
-    const TColumnSchema* FindColumnByStableName(const TStableName& stableName) const;
-    const TDeletedColumn* FindDeletedColumn(const TStableName& stableName) const;
+    const TColumnSchema* FindColumnByStableName(const TColumnStableName& stableName) const;
+    const TDeletedColumn* FindDeletedColumn(const TColumnStableName& stableName) const;
 
     int GetColumnIndex(const TColumnSchema& column) const;
 
@@ -307,14 +285,14 @@ public:
 
     std::optional<int> GetTtlColumnIndex() const;
 
-    std::vector<TStableName> GetKeyColumnStableNames() const;
+    std::vector<TColumnStableName> GetKeyColumnStableNames() const;
     TKeyColumns GetKeyColumnNames() const;
     TKeyColumns GetKeyColumns() const;
 
     int GetColumnCount() const;
     int GetKeyColumnCount() const;
     int GetValueColumnCount() const;
-    std::vector<TStableName> GetColumnStableNames() const;
+    std::vector<TColumnStableName> GetColumnStableNames() const;
     const THunkColumnIds& GetHunkColumnIds() const;
 
     TSortColumns GetSortColumns(const std::optional<TNameMapping>& nameMapping = std::nullopt) const;
@@ -425,6 +403,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TTableSchema)
 
+////////////////////////////////////////////////////////////////////////////////
+
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);
 void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TStringBuf spec);
 
@@ -475,7 +455,7 @@ bool IsEqualIgnoringRequiredness(const TTableSchema& lhs, const TTableSchema& rh
 
 static constexpr TStringBuf NonexistentColumnName = "$__YT_NONEXISTENT_COLUMN_NAME__";
 
-std::vector<TStableName> MapNamesToStableNames(
+std::vector<TColumnStableName> MapNamesToStableNames(
     const TTableSchema& schema,
     std::vector<TString> names,
     const std::optional<TStringBuf>& missingColumnReplacement = std::nullopt);
@@ -483,6 +463,8 @@ std::vector<TStableName> MapNamesToStableNames(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateKeyColumns(const TKeyColumns& keyColumns);
+
+void ValidateColumnName(const TString& name);
 
 void ValidateColumnSchema(
     const TColumnSchema& columnSchema,
@@ -595,9 +577,9 @@ struct TCellTaggedTableSchemaEquals
 ////////////////////////////////////////////////////////////////////////////////
 
 template <>
-struct THash<NYT::NTableClient::TStableName>
+struct THash<NYT::NTableClient::TColumnStableName>
 {
-    size_t operator()(const NYT::NTableClient::TStableName& stableName) const;
+    size_t operator()(const NYT::NTableClient::TColumnStableName& stableName) const;
 };
 
 template <>

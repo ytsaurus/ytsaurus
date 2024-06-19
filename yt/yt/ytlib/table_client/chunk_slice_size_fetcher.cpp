@@ -5,6 +5,8 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/table_client/name_table.h>
+
 #include <yt/yt/client/rpc/helpers.h>
 
 #include <yt/yt/core/rpc/channel.h>
@@ -41,6 +43,12 @@ TChunkSliceSizeFetcher::TChunkSliceSizeFetcher(
         logger)
 { }
 
+void TChunkSliceSizeFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TColumnStableName> columnStableNames)
+{
+    ChunkColumnFilterIds_[Chunks_.size()] = ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(std::move(columnStableNames));
+    TFetcherBase::AddChunk(std::move(chunk));
+}
+
 TFuture<void> TChunkSliceSizeFetcher::FetchFromNode(
     NNodeTrackerClient::TNodeId nodeId,
     std::vector<int> chunkIndexes)
@@ -63,6 +71,9 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
     req->SetResponseHeavy(true);
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
 
+    // We use this name table to replace all column names with their ids across the whole rpc request message.
+    auto nameTable = New<TNameTable>();
+
     for (int index : chunkIndexes) {
         const auto& chunk = Chunks_[index];
         auto chunkId = EncodeChunkId(chunk, nodeId);
@@ -75,7 +86,16 @@ TFuture<void> TChunkSliceSizeFetcher::DoFetchFromNode(
         if (chunk->UpperLimit()) {
             ToProto(weightedChunkRequest->mutable_upper_limit(), *chunk->UpperLimit());
         }
+
+        if (auto columnStableNames = GetColumnStableNames(index)) {
+            for (const auto& columnName : *columnStableNames) {
+                auto columnId = nameTable->GetIdOrRegisterName(columnName.Underlying());
+                weightedChunkRequest->mutable_column_filter()->add_indexes(columnId);
+            }
+        }
     }
+
+    ToProto(req->mutable_name_table(), nameTable);
 
     if (req->chunk_requests_size() == 0) {
         return VoidFuture;
@@ -131,6 +151,24 @@ void TChunkSliceSizeFetcher::OnResponse(
 void TChunkSliceSizeFetcher::OnFetchingStarted()
 {
     WeightedChunks_.resize(Chunks_.size());
+}
+
+const std::optional<std::vector<TColumnStableName>> TChunkSliceSizeFetcher::GetColumnStableNames(int chunkIndex) const
+{
+    if (auto columnFilterIdIt = ChunkColumnFilterIds_.find(chunkIndex); columnFilterIdIt != ChunkColumnFilterIds_.end()) {
+        return ColumnFilterDictionary_.GetAdmittedColumns(columnFilterIdIt->second);
+    }
+
+    return {};
+}
+
+void TChunkSliceSizeFetcher::ApplyBlockSelectivityFactors() const
+{
+    for (const auto& weightedChunk : WeightedChunks_) {
+        auto totalDataWeight = weightedChunk->GetInputChunk()->GetTotalDataWeight();
+        auto blockSelectivityFactor = std::min(static_cast<double>(weightedChunk->GetDataWeight()) / totalDataWeight, 1.0);
+        weightedChunk->GetInputChunk()->SetBlockSelectivityFactor(blockSelectivityFactor);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

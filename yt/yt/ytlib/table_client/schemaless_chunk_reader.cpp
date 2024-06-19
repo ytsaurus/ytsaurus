@@ -113,10 +113,10 @@ std::vector<int> BuildColumnIdMapping(
     if (columnFilter.IsUniversal()) {
         for (int chunkColumnId = 0; chunkColumnId < chunkNamesCount; ++chunkColumnId) {
             auto stableName = chunkNameTable->GetName(chunkColumnId);
-            if (readerSchema->GetNameMapping().IsDeleted(TStableName(TString(stableName)))) {
+            if (readerSchema->GetNameMapping().IsDeleted(TColumnStableName(TString(stableName)))) {
                 continue;
             }
-            auto name = readerSchema->GetNameMapping().StableNameToName(TStableName(TString(stableName)));
+            auto name = readerSchema->GetNameMapping().StableNameToName(TColumnStableName(TString(stableName)));
 
             if (omittedInaccessibleColumnSet.contains(name)) {
                 continue;
@@ -135,8 +135,8 @@ std::vector<int> BuildColumnIdMapping(
             TStringBuf stableName = name;
             if (readerSchema) {
                 if (auto* column = readerSchema->FindColumn(name)) {
-                    stableName = column->StableName().Get();
-                } else if (readerSchema->FindColumnByStableName(TStableName{TString{name}})) {
+                    stableName = column->StableName().Underlying();
+                } else if (readerSchema->FindColumnByStableName(TColumnStableName{TString{name}})) {
                     // Column was renamed. We don't want to fetch it by old name.
                     continue;
                 }
@@ -2285,7 +2285,7 @@ struct TReaderParams
 
         const auto& columns = chunkMeta->ChunkSchema()->Columns();
         for (int index = 0; index < std::ssize(columns); ++index) {
-            auto id = chunkMeta->ChunkNameTable()->FindId(columns[index].StableName().Get());
+            auto id = chunkMeta->ChunkNameTable()->FindId(columns[index].StableName().Underlying());
             YT_VERIFY(id);
             YT_VERIFY(*id == index);
         }

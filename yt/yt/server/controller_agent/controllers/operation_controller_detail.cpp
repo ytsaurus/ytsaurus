@@ -70,6 +70,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/schema.h>
@@ -7349,6 +7350,11 @@ TError TOperationControllerBase::GetAutoMergeError() const
     return TError("Automatic output merge is not supported for %lv operations", OperationType);
 }
 
+TError TOperationControllerBase::GetUseChunkSliceStatisticsError() const
+{
+    return TError("Fetching chunk slice statistics is not supported for %lv operations", OperationType);
+}
+
 void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResult* result)
 {
     result->Attributes = BuildYsonStringFluently<EYsonType::MapFragment>()
@@ -9684,7 +9690,7 @@ void TOperationControllerBase::InferSchemaFromInput(const TSortColumns& sortColu
     auto replaceStableNamesWithNames = [] (const TTableSchemaPtr& schema) {
         auto newColumns = schema->Columns();
         for (auto& newColumn : newColumns) {
-            newColumn.SetStableName(TStableName(newColumn.Name()));
+            newColumn.SetStableName(TColumnStableName(newColumn.Name()));
         }
         return New<TTableSchema>(std::move(newColumns), schema->GetStrict(), schema->IsUniqueKeys());
     };

@@ -54,6 +54,11 @@ bool TInputTable::IsPrimary() const
     return !IsForeign();
 }
 
+bool TInputTable::IsVersioned() const
+{
+    return Dynamic && Schema->IsSorted();
+}
+
 bool TInputTable::UseReadViaExecNode() const
 {
     return Path.GetReadViaExecNode();

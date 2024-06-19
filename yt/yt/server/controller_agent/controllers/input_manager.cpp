@@ -17,6 +17,7 @@
 #include <yt/yt/ytlib/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -276,6 +277,19 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
 
     TFetchInputTablesStatistics fetchStatistics;
 
+    auto chunkSliceSizeFetcher = New<TChunkSliceSizeFetcher>(
+        Host_->GetConfig()->Fetcher,
+        InputNodeDirectory_,
+        Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
+        /*chunkScraper*/ CreateFetcherChunkScraper(),
+        Client_,
+        Logger);
+
+    if (auto error = Host_->GetUseChunkSliceStatisticsError(); Host_->GetSpec()->UseChunkSliceStatistics && !error.IsOK()) {
+        Host_->SetOperationAlert(EOperationAlertType::UseChunkSliceStatisticsDisabled, error);
+        chunkSliceSizeFetcher = nullptr;
+    }
+
     auto chunkSpecFetcher = MakeChunkSpecFetcher();
 
     auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
@@ -329,10 +343,36 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             }
             RegisterInputChunk(table->Chunks.back());
 
+            bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+
+            // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
+            // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
+            // To be more exact, we do not fetch slice sizes in operations that use any of the two sorted controllers.
+            bool willFetchChunkSliceStatistics =
+                !shouldSkipChunkInFetchers &&
+                chunkSliceSizeFetcher &&
+                !table->IsVersioned() &&
+                !inputChunk->IsCompleteChunk() &&
+                Host_->GetSpec()->UseChunkSliceStatistics;
+            if (willFetchChunkSliceStatistics) {
+                YT_VERIFY(!inputChunk->IsFile());
+
+                if (auto columns = table->Path.GetColumns()) {
+                    chunkSliceSizeFetcher->AddChunk(inputChunk, MapNamesToStableNames(*table->Schema, *columns, NonexistentColumnName));
+                } else {
+                    chunkSliceSizeFetcher->AddChunk(inputChunk);
+                }
+            }
+
             // We fetch columnar statistics only for the tables that have column selectors specified.
+            // NB: We do not fetch columnar statistics for chunks for which chunk slice statistics are fetched
+            // because chunk slice statistics already take columns into consideration.
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
-            bool shouldSkip = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
-            if (hasColumnSelectors && Host_->GetSpec()->InputTableColumnarStatistics->Enabled.value_or(Host_->GetConfig()->UseColumnarStatisticsDefault) && !shouldSkip) {
+            if (!shouldSkipChunkInFetchers &&
+                !willFetchChunkSliceStatistics &&
+                hasColumnSelectors &&
+                Host_->GetSpec()->InputTableColumnarStatistics->Enabled.value_or(Host_->GetConfig()->UseColumnarStatisticsDefault))
+            {
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
                     *table->Path.GetColumns(),
@@ -357,6 +397,16 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
             .ThrowOnError();
         YT_LOG_INFO("Columnar statistics fetched");
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+    }
+
+    if (chunkSliceSizeFetcher && chunkSliceSizeFetcher->GetChunkCount() > 0) {
+        YT_LOG_INFO("Fetching input chunk slice statistics for input tables (ChunkCount: %v)",
+            chunkSliceSizeFetcher->GetChunkCount());
+        chunkSliceSizeFetcher->SetCancelableContext(Host_->GetCancelableContext());
+        WaitFor(chunkSliceSizeFetcher->Fetch())
+            .ThrowOnError();
+        YT_LOG_INFO("Input chunk slice statistics fetched");
+        chunkSliceSizeFetcher->ApplyBlockSelectivityFactors();
     }
 
     // TODO(galtsev): remove after YT-20281 is fixed

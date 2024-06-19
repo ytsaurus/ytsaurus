@@ -20,13 +20,13 @@ static NTableClient::TTableSchema ToSchema(const TTable& table)
         }
         NTableClient::TColumnSchema columnSchema(column.Name, GetType(column.Type), sortOrder);
         if (column.StableName) {
-            columnSchema.SetStableName(NTableClient::TStableName(*column.StableName));
+            columnSchema.SetStableName(NTableClient::TColumnStableName(*column.StableName));
         }
         columns.push_back(columnSchema);
     }
 
     for (const auto& deletedColumnName : table.DeletedColumnNames) {
-        deletedColumns.push_back(NTableClient::TDeletedColumn(NTableClient::TStableName(deletedColumnName)));
+        deletedColumns.push_back(NTableClient::TDeletedColumn(NTableClient::TColumnStableName(deletedColumnName)));
     }
 
     return NTableClient::TTableSchema(columns, true, false, NTableClient::ETableSchemaModification::None, deletedColumns);

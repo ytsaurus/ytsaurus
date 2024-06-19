@@ -249,7 +249,7 @@ private:
     {
         struct TColumnInfo
         {
-            const TString StableName;
+            const NTableClient::TColumnStableName StableName;
 
             std::vector<TSharedRef> Samples;
             int ProcessedNonNullSampleCount = 0;
@@ -335,7 +335,7 @@ private:
                     SamplerInfo_.ColumnIdToInfo,
                     index,
                     TSamplerInfo::TColumnInfo{
-                        .StableName = schema->Columns()[index].StableName().Get(),
+                        .StableName = schema->Columns()[index].StableName(),
                     });
             }
         }
