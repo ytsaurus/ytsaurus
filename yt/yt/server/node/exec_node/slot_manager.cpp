@@ -286,11 +286,7 @@ TFuture<void> TSlotManager::InitializeEnvironment()
         .Apply(BIND(&TSlotManager::InitMedia, MakeStrong(this), Bootstrap_->GetClient()->GetNativeConnection()->GetMediumDirectory())
             .AsyncVia(Bootstrap_->GetJobInvoker()))
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-            if (error.IsOK()) {
-                CompleteInitialization();
-            } else {
-                FailInitialization(error);
-            }
+            FinishInitialization(error);
         })
             .Via(Bootstrap_->GetJobInvoker()))
         .ToUncancelable();
@@ -1061,35 +1057,30 @@ bool TSlotManager::ShouldSetUserId() const
     return !StaticConfig_->DoNotSetUserId;
 }
 
-void TSlotManager::CompleteInitialization()
+void TSlotManager::FinishInitialization(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     VerifyCurrentState(ESlotManagerState::Initializing);
 
-    YT_LOG_INFO("Slot manager async initialization finished");
-    State_.store(ESlotManagerState::Initialized);
-}
+    if (error.IsOK()) {
+        YT_LOG_INFO("Slot manager async initialization finished");
+        State_.store(ESlotManagerState::Initialized);
+    } else {
+        auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
+            << error;
 
-void TSlotManager::FailInitialization(TError error)
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
+        YT_LOG_WARNING(wrappedError, "Initialization failed");
 
-    VerifyCurrentState(ESlotManagerState::Initializing);
+        {
+            auto guard = WriterGuard(AlertsLock_);
+            // Could be either porto failure (volume manager -> can resurrect?)
+            // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
+            Alerts_.SetAlertError(std::move(wrappedError));
+        }
 
-    auto wrappedError = TError(EErrorCode::SchedulerJobsDisabled, "Initialization failed")
-        << std::move(error);
-
-    YT_LOG_WARNING(wrappedError, "Initialization failed");
-
-    {
-        auto guard = WriterGuard(AlertsLock_);
-        // Could be either porto failure (volume manager -> can resurrect?)
-        // or we are in the middle of a shutdown (world broken -> no reason to ever resurrect).
-        Alerts_.SetAlertError(std::move(wrappedError));
+        SetDisableState();
     }
-
-    SetDisableState();
 }
 
 void TSlotManager::AsyncInitialize()

@@ -407,7 +407,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterConnected
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG(
+    YT_LOG_INFO(
         "Starting heartbeats to controller agent (AgentDescriptor: %v)",
         ControllerAgentDescriptor_);
 
@@ -418,7 +418,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterDisconnec
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
 
-    YT_LOG_DEBUG(
+    YT_LOG_INFO(
         "Stopping heartbeats to controller agent (AgentDescriptor: %v)",
         ControllerAgentDescriptor_);
 
