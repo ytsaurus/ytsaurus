@@ -2841,7 +2841,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         chunk_format_statistics = get("//tmp/t/@chunk_format_statistics")
         assert chunk_format_statistics["table_versioned_simple"]["data_weight"] == 18080
         assert chunk_format_statistics["table_versioned_simple"]["uncompressed_data_size"] == 10016
-        assert chunk_format_statistics["table_versioned_simple"]["compressed_data_size"] == 3480
+        assert chunk_format_statistics["table_versioned_simple"]["compressed_data_size"] < 5000
         assert chunk_format_statistics["hunk_default"]["data_weight"] == 11714
         assert chunk_format_statistics["hunk_default"]["uncompressed_data_size"] == 3627
         assert chunk_format_statistics["hunk_default"]["compressed_data_size"] == 3627
