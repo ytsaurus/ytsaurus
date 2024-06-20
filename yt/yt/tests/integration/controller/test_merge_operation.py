@@ -4,7 +4,7 @@ from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
     get_operation, get_singular_chunk_id, get_chunk_replication_factor,
     create_dynamic_table, get_driver, alter_table)
 
@@ -473,6 +473,37 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             # Rows should be the same, but none of the chunks should have been teleported!
             assert get(f"#{in_chunk}/@row_count") == get(f"#{out_chunk}/@row_count")
             assert in_chunk != out_chunk
+
+    @authors("achulkov2")
+    def test_new_ordered_slicing_works_with_versioned_unversioned_mix(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create_dynamic_table("//tmp/t_dynamic", schema=schema, enable_dynamic_store_read=False)
+        sync_mount_table("//tmp/t_dynamic")
+        dynamic_table_rows = [{"key": i, "value": "some large value"} for i in range(1)]
+        insert_rows("//tmp/t_dynamic", dynamic_table_rows)
+        sync_flush_table("//tmp/t_dynamic")
+
+        create("table", "//tmp/t_static", attributes={"schema": schema})
+        static_table_rows = [{"key": i, "value": "some other large value"} for i in range(1)]
+        write_table("//tmp/t_static", static_table_rows)
+
+        create("table", "//tmp/t_out")
+
+        merge(
+            combine_chunks=False,
+            mode="ordered",
+            in_=["//tmp/t_dynamic", "//tmp/t_static"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 10, "force_transform": True}
+        )
+
+        assert read_table("//tmp/t_out") == dynamic_table_rows + static_table_rows
 
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
