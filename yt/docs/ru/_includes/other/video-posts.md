@@ -10,10 +10,10 @@
 - **Автор:** Руслан Савченко
 - **Язык:** русский
 
-### 2024: Улучшаем динамические таблицы YTsaurus с помощью алгоритмов. 
+### 2024: Улучшаем динамические таблицы YTsaurus с помощью алгоритмов 
 - **Мероприятие:** {% if lang == "ru" %}[Публикация на Хабре](https://habr.com/ru/companies/yandex/articles/785994/) {% else %}[Publication on Medium](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5){% endif %}
 - **Автор:** Руслан Савченко
-- **Язык:** русский
+- **Язык:** {% if lang == "ru" %}русский{% else %}английский{% endif %}
 
 ### 2023: Как мы адаптировали динамические таблицы YTsaurus для хранения блобов
 - **Мероприятие:** SmartData 2023
