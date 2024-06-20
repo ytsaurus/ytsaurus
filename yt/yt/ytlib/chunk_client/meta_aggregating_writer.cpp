@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/public.h>
 
+#include <yt/yt/ytlib/table_chunk_format/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_chunk_format/column_meta.h>
 
 #include <yt/yt/client/table_client/public.h>
