@@ -52,6 +52,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((InputManagerIntroduction)             (301506))
     ((ChunkSliceStatistics)                 (301507))
     ((AllocationMap)                        (301508))
+    ((SingleChunkTeleportStrategy)          (301509))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

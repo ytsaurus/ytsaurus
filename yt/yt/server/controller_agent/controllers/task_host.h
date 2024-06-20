@@ -74,6 +74,9 @@ struct ITaskHost
     virtual const TOperationSpecBasePtr& GetSpec() const = 0;
     virtual const TOperationOptionsPtr& GetOptions() const = 0;
 
+    virtual bool IsCompleted() const = 0;
+
+    virtual void OnOperationCompleted(bool interrupted) = 0;
     virtual void OnOperationFailed(const TError& error, bool flush = true, bool abortAllJoblets = true) = 0;
 
     //! If |true| then all jobs started within the operation must

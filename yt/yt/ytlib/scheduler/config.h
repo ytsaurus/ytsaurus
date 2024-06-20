@@ -677,6 +677,11 @@ DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESingleChunkTeleportStrategy,
+    (Disabled)
+    (Enabled)
+);
+
 class TAutoMergeConfig
     : public NYTree::TYsonStruct
 {
@@ -706,6 +711,8 @@ public:
     //! Minimum data weight per chunk for shallow merge job. Useful only when EnableShallowMerge
     //! is set to true.
     i64 ShallowMergeMinDataWeightPerChunk;
+
+    ESingleChunkTeleportStrategy SingleChunkTeleportStrategy;
 
     REGISTER_YSON_STRUCT(TAutoMergeConfig);
 

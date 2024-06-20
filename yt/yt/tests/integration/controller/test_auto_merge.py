@@ -477,6 +477,73 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         assert directions[(merge_vertex, "output")]["job_data_statistics"]["chunk_count"] == 2
         assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["chunk_count"] == 8
 
+    @authors("yuryalekseev", "psushin")
+    @pytest.mark.timeout(60)
+    @pytest.mark.parametrize("single_chunk_teleport_strategy", ["enabled", "disabled"])
+    def test_teleport_single_chunk(self, single_chunk_teleport_strategy):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+
+        write_table("<append=%true>//tmp/t_in", [{"a": 1}])
+
+        op = map(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            command="(head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n') >&4",
+            spec={
+                "auto_merge": {
+                    "mode": "manual",
+                    "max_intermediate_chunk_count": 5,
+                    "chunk_count_per_merge_job": 5,
+                    "single_chunk_teleport_strategy": single_chunk_teleport_strategy,
+                },
+                "data_size_per_job": 1,
+                "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
+            },
+        )
+
+        assert get("//tmp/t_out1/@chunk_count") == 0
+        assert get("//tmp/t_out2/@chunk_count") == 1
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+        merge_vertex = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
+
+        assert len(directions) == 3
+
+        if single_chunk_teleport_strategy == "enabled":
+            assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
+            assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 1
+            assert directions[("map", merge_vertex)]["job_data_statistics"]["chunk_count"] == 1
+            assert directions[("map", merge_vertex)]["teleport_data_statistics"]["chunk_count"] == 0
+            assert directions[(merge_vertex, "output")]["job_data_statistics"]["chunk_count"] == 0
+            assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["chunk_count"] == 1
+
+            assert directions[("input", "map")]["job_data_statistics"]["row_count"] == 0
+            assert directions[("input", "map")]["teleport_data_statistics"]["row_count"] == 1
+            assert directions[("map", merge_vertex)]["job_data_statistics"]["row_count"] == 1
+            assert directions[("map", merge_vertex)]["teleport_data_statistics"]["row_count"] == 0
+            assert directions[(merge_vertex, "output")]["job_data_statistics"]["row_count"] == 0
+            assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["row_count"] == 1
+        else:
+            assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
+            assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 1
+            assert directions[("map", merge_vertex)]["job_data_statistics"]["chunk_count"] == 1
+            assert directions[("map", merge_vertex)]["teleport_data_statistics"]["chunk_count"] == 0
+            assert directions[(merge_vertex, "output")]["job_data_statistics"]["chunk_count"] == 1
+            assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["chunk_count"] == 0
+
+            assert directions[("input", "map")]["job_data_statistics"]["row_count"] == 0
+            assert directions[("input", "map")]["teleport_data_statistics"]["row_count"] == 1
+            assert directions[("map", merge_vertex)]["job_data_statistics"]["row_count"] == 1
+            assert directions[("map", merge_vertex)]["teleport_data_statistics"]["row_count"] == 0
+            assert directions[(merge_vertex, "output")]["job_data_statistics"]["row_count"] == 1
+            assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["row_count"] == 0
+
     @authors("max42")
     @pytest.mark.timeout(60)
     def test_erasure_output(self):
