@@ -12,6 +12,27 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(grpc)
-add_subdirectory(http)
-add_subdirectory(unittests)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(core-rpc-http)
+
+target_compile_options(core-rpc-http PRIVATE
+  -Wdeprecated-this-capture
+)
+
+target_link_libraries(core-rpc-http PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+  yt-yt-core
+  yt-core-http
+  yt-core-https
+  core-rpc-grpc
+)
+
+target_sources(core-rpc-http PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/channel.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/http/server.cpp
+)
+

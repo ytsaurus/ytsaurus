@@ -54,6 +54,8 @@ target_link_libraries(rpc-unittests-lib PUBLIC
   yutil
   yt-yt-core
   core-rpc-grpc
+  core-rpc-http
+  yt-core-https
   cpp-testing-gtest
   contrib-libs-protobuf
 )

@@ -868,6 +868,7 @@
   "yt/yt/core/profiling/unittests/CMakeLists.txt":"",
   "yt/yt/core/rpc/CMakeLists.txt":"",
   "yt/yt/core/rpc/grpc/CMakeLists.txt":"",
+  "yt/yt/core/rpc/http/CMakeLists.txt":"",
   "yt/yt/core/rpc/unittests/CMakeLists.txt":"",
   "yt/yt/core/rpc/unittests/allocation_tags/CMakeLists.txt":"",
   "yt/yt/core/rpc/unittests/bin/CMakeLists.txt":"",
