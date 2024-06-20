@@ -12,7 +12,6 @@ from yt.yson import YsonEntity, YsonMap
 
 import os
 import sys
-import enum
 from copy import deepcopy
 from datetime import timedelta
 
