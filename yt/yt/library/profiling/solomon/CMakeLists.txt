@@ -6,6 +6,7 @@
 # original buildsystem will not be accepted.
 
 
+add_subdirectory(proxy_example)
 get_built_tool_path(
   TOOL_protoc_bin
   TOOL_protoc_dependency
@@ -45,8 +46,10 @@ target_sources(library-profiling-solomon PRIVATE
   ${CMAKE_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/helpers.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/percpu.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/producer.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/proxy.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/registry.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/remote.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp

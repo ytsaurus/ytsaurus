@@ -940,6 +940,7 @@
   "yt/yt/library/profiling/perf/CMakeLists.txt":"",
   "yt/yt/library/profiling/resource_tracker/CMakeLists.txt":"",
   "yt/yt/library/profiling/solomon/CMakeLists.txt":"",
+  "yt/yt/library/profiling/solomon/proxy_example/CMakeLists.txt":"",
   "yt/yt/library/profiling/tcmalloc/CMakeLists.txt":"",
   "yt/yt/library/profiling/unittests/CMakeLists.txt":"",
   "yt/yt/library/profiling/unittests/deps/CMakeLists.txt":"",
