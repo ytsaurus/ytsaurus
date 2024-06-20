@@ -3515,6 +3515,8 @@ private:
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             AddConfirmReplicas(chunk, replicas);
+        } else {
+            ScheduleChunkRefresh(chunk);
         }
     }
 
@@ -3539,13 +3541,28 @@ private:
             node->ValidateRegistered();
         }
 
+        auto refreshSequoiaChunks = [&] (const auto& chunkInfos) {
+            for (const auto& chunkInfo : chunkInfos) {
+                auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                if (IsObjectAlive(chunk)) {
+                    ScheduleChunkRefresh(chunk);
+                }
+            }
+        };
+
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
         }
+        // This could be under 'else', but it is not.
+        refreshSequoiaChunks(request->added_chunks());
+
         if (config->ProcessRemovedSequoiaReplicasOnMaster) {
             ProcessRemovedReplicas(locationDirectory, node, request->removed_chunks());
         }
+        // ProcessRemovedReplicas will only refresh chunks that were actually removed,
+        // which is not the case if Sequoia replicas are no longer stored on master.
+        refreshSequoiaChunks(request->removed_chunks());
     }
     static void BuildReplicasListYson(
         IYsonConsumer* consumer,
