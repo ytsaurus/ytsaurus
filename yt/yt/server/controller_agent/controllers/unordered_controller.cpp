@@ -759,6 +759,17 @@ protected:
         return {EJobType::UnorderedMerge};
     }
 
+    TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
+    {
+        auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
+        if (Spec->ForceTransform) {
+            options.SingleChunkTeleportStrategy = ESingleChunkTeleportStrategy::Disabled;
+        } else {
+            options.SingleChunkTeleportStrategy = Spec->SingleChunkTeleportStrategy;
+        }
+        return options;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
 
