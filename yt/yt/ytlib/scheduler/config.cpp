@@ -826,7 +826,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("batch_row_count", &TThis::BatchRowCount)
-        .Default();
+        .Default()
+        .GreaterThan(0);
 
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
@@ -882,9 +883,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             spec->UserFileColumnarStatistics->Enabled = true;
         }
 
-        if (spec->BatchRowCount) {
-            THROW_ERROR_EXCEPTION_IF(*spec->BatchRowCount <= 0, "Value of \"batch_row_count\" of must be positive");
-            THROW_ERROR_EXCEPTION_IF(spec->Sampling && spec->Sampling->SamplingRate, "Option \"batch_row_count\" cannot be used with input sampling");
+        if (spec->BatchRowCount && spec->Sampling && spec->Sampling->SamplingRate) {
+            THROW_ERROR_EXCEPTION("Option \"batch_row_count\" cannot be used with input sampling");
         }
     });
 }

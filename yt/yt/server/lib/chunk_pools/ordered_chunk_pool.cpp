@@ -440,7 +440,8 @@ private:
 
         // Unbounded dynamic store cannot be split.
         if (dataSlice->GetSingleUnversionedChunkSlice()->GetInputChunk()->IsOrderedDynamicStore() &&
-            !dataSlice->GetSingleUnversionedChunkSlice()->UpperLimit().RowIndex) {
+            !dataSlice->GetSingleUnversionedChunkSlice()->UpperLimit().RowIndex)
+        {
             return false;
         }
 
