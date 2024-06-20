@@ -1304,6 +1304,10 @@ class TestJobRevival(TestJobRevivalBase):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
+                "testing": {
+                    "delay_inside_operation_commit": 2000,
+                    "delay_inside_operation_commit_stage": "start",
+                },
                 "data_size_per_job": 1,
                 "resource_limits": {"user_slots": user_slots_limit},
                 "auto_merge": {

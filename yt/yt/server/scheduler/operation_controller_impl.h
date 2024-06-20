@@ -47,6 +47,8 @@ public:
         const TError& error,
         bool scheduled,
         EAbortReason abortReason) override;
+    void OnAllocationFinished(
+        const TAllocationPtr& allocation) override;
 
     void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override;
     void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override;
@@ -94,7 +96,7 @@ private:
 
     std::atomic<TControllerEpoch> Epoch_;
 
-    TSchedulerToAgentAbortedAllocationEventOutboxPtr AbortedAllocationEventsOutbox_;
+    TSchedulerToAgentAllocationEventOutboxPtr AllocationEventsOutbox_;
     TSchedulerToAgentOperationEventOutboxPtr OperationEventsOutbox_;
     TScheduleAllocationRequestOutboxPtr ScheduleAllocationRequestsOutbox_;
 
@@ -108,7 +110,7 @@ private:
 
     bool ShouldSkipAllocationAbortEvent(TAllocationId allocationId, TControllerEpoch allocationEpoch) const;
 
-    bool EnqueueAbortedAllocationEvent(TAbortedAllocationSummary&& summary);
+    bool EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent&& event);
     void EnqueueOperationEvent(TSchedulerToAgentOperationEvent&& event);
     void EnqueueScheduleAllocationRequest(TScheduleAllocationRequestPtr&& event);
 

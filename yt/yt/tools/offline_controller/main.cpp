@@ -109,12 +109,17 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    void RegisterAllocation(TStartedAllocationInfo) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     void RegisterJob(TStartedJobInfo) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    void ReviveJobs(std::vector<TStartedJobInfo>) override
+    void Revive(std::vector<TStartedAllocationInfo>) override
     {
         YT_UNIMPLEMENTED();
     }

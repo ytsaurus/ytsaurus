@@ -23,8 +23,6 @@ class TAllocationToAbort;
 
 class TAllocationStatus;
 
-class TSchedulerToAgentAllocationEvent;
-
 class TReqScheduleAllocationHeartbeat;
 class TRspScheduleAllocationHeartbeat;
 

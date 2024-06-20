@@ -6,6 +6,7 @@
 #include "auto_merge_director.h"
 #include "input_manager.h"
 #include "job_memory.h"
+#include "job_info.h"
 #include "job_splitter.h"
 #include "live_preview.h"
 #include "task_host.h"
@@ -168,6 +169,12 @@ private: \
         (TAbortedAllocationSummary&& abortedAllocationSummary),
         (std::move(abortedAllocationSummary)),
         true)
+    IMPLEMENT_SAFE_METHOD(
+        void,
+        OnAllocationFinished,
+        (TFinishedAllocationSummary&& finishedAllocationSummary),
+        (std::move(finishedAllocationSummary)),
+        true);
 
     IMPLEMENT_SAFE_METHOD(
         void,
@@ -674,6 +681,7 @@ protected:
     TJobletPtr FindJoblet(TAllocationId allocationId) const;
     TJobletPtr FindJoblet(TJobId jobId) const;
     TJobletPtr GetJoblet(TJobId jobId) const;
+    TJobletPtr GetJoblet(TAllocationId allocationId) const;
     TJobletPtr GetJobletOrThrow(TJobId jobId) const;
 
     void UnregisterJoblet(const TJobletPtr& joblet);
@@ -1106,8 +1114,8 @@ private:
 
     TIntermediateChunkScraperPtr IntermediateChunkScraper;
 
-    //! Maps scheduler's job ids to controller's joblets.
-    THashMap<TAllocationId, TJobletPtr> JobletMap;
+    THashMap<TAllocationId, TAllocation> AllocationMap_;
+    int RunningJobCount_ = 0;
 
     //! Scrapes chunks of dynamic tables during data slice fetching.
     std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers;
@@ -1475,6 +1483,8 @@ private:
     bool ShouldProcessJobEvents() const;
 
     void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
+
+    void ClearEmptyAllocationsInRevive();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -78,7 +78,7 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TCo
 
     Epoch_.store(epoch);
 
-    AbortedAllocationEventsOutbox_ = agent->GetAbortedAllocationEventsOutbox();
+    AllocationEventsOutbox_ = agent->GetAllocationEventsOutbox();
     OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
     ScheduleAllocationRequestsOutbox_ = agent->GetScheduleAllocationRequestsOutbox();
 }
@@ -470,7 +470,7 @@ void TOperationControllerImpl::OnAllocationAborted(
         .Scheduled = scheduled,
     };
 
-    auto result = EnqueueAbortedAllocationEvent(std::move(eventSummary));
+    auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent(std::move(eventSummary)));
     YT_LOG_TRACE(
         "%v abort notification %v (AllocationId: %v)",
         scheduled ? "Allocation" : "Nonscheduled allocation",
@@ -487,6 +487,29 @@ void TOperationControllerImpl::OnAllocationAborted(
     VERIFY_THREAD_AFFINITY_ANY();
 
     OnAllocationAborted(allocation->GetId(), error, scheduled, abortReason, allocation->GetControllerEpoch());
+}
+
+void TOperationControllerImpl::OnAllocationFinished(const TAllocationPtr& allocation)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto allocationId = allocation->GetId();
+
+    if (ShouldSkipAllocationAbortEvent(allocationId, allocation->GetControllerEpoch())) {
+        return;
+    }
+
+    TFinishedAllocationSummary summary{
+        .OperationId = allocation->GetOperationId(),
+        .Id = allocationId,
+        .FinishTime = TInstant::Now(),
+    };
+
+    auto result = EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent{std::move(summary)});
+    YT_LOG_TRACE(
+        "Allocation finish notification %v (AllocationId: %v)",
+        result ? "enqueued" : "dropped",
+        allocationId);
 }
 
 void TOperationControllerImpl::OnNonscheduledAllocationAborted(
@@ -747,11 +770,11 @@ bool TOperationControllerImpl::ShouldSkipAllocationAbortEvent(
     return false;
 }
 
-bool TOperationControllerImpl::EnqueueAbortedAllocationEvent(TAbortedAllocationSummary&& summary)
+bool TOperationControllerImpl::EnqueueAllocationEvent(TSchedulerToAgentAllocationEvent&& event)
 {
     auto guard = Guard(SpinLock_);
     if (IncarnationId_) {
-        AbortedAllocationEventsOutbox_->Enqueue(std::move(summary));
+        AllocationEventsOutbox_->Enqueue(std::move(event));
         return true;
     } else {
         // All allocation notifications must be dropped after agent disconnection.

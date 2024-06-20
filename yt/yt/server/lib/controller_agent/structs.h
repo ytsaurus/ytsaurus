@@ -106,12 +106,6 @@ struct TCompletedJobSummary
 
 std::unique_ptr<TCompletedJobSummary> CreateAbandonedJobSummary(TJobId jobId);
 
-DEFINE_ENUM(EJobAbortInitiator,
-    (Scheduler)
-    (ControllerAgent)
-    (Node)
-);
-
 struct TAbortedJobSummary
     : public TJobSummary
 {
@@ -122,8 +116,6 @@ struct TAbortedJobSummary
     EAbortReason AbortReason = EAbortReason::None;
 
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
-
-    EJobAbortInitiator AbortInitiator = EJobAbortInitiator::Node;
 
     bool Scheduled = true;
 
@@ -172,7 +164,37 @@ struct TAbortedAllocationSummary
 };
 
 void ToProto(NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* proto, const TAbortedAllocationSummary& summary);
-void FromProto(TAbortedAllocationSummary* summary, NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* protoEvent);
+void FromProto(TAbortedAllocationSummary* summary, const NScheduler::NProto::TSchedulerToAgentAbortedAllocationEvent* protoEvent);
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TAbortedAllocationSummary& abortedAllocationSummary,
+    TStringBuf spec);
+
+struct TFinishedAllocationSummary
+{
+    TOperationId OperationId;
+    TAllocationId Id;
+    TInstant FinishTime;
+};
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentFinishedAllocationEvent* proto, const TFinishedAllocationSummary& summary);
+void FromProto(TFinishedAllocationSummary* summary, const NScheduler::NProto::TSchedulerToAgentFinishedAllocationEvent* protoEvent);
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TFinishedAllocationSummary& finishedAllocationSummary,
+    TStringBuf spec);
+
+struct TSchedulerToAgentAllocationEvent
+{
+    std::variant<TFinishedAllocationSummary, TAbortedAllocationSummary> EventSummary;
+};
+
+void ToProto(NScheduler::NProto::TSchedulerToAgentAllocationEvent* proto, const TSchedulerToAgentAllocationEvent& event);
+void FromProto(TSchedulerToAgentAllocationEvent* event, const NScheduler::NProto::TSchedulerToAgentAllocationEvent* protoEvent);
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TSchedulerToAgentAllocationEvent& allocationEvent,
+    TStringBuf spec);
 
 std::unique_ptr<TJobSummary> ParseJobSummary(
     NProto::TJobStatus* const status,

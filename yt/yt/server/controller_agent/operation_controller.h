@@ -165,8 +165,9 @@ struct IOperationControllerHost
     virtual void UpdateRunningAllocationsStatistics(
         std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationsStatisticsUpdates) = 0;
 
+    virtual void RegisterAllocation(TStartedAllocationInfo allocationInfo) = 0;
     virtual void RegisterJob(TStartedJobInfo jobInfo) = 0;
-    virtual void ReviveJobs(std::vector<TStartedJobInfo> jobs) = 0;
+    virtual void Revive(std::vector<TStartedAllocationInfo> allocations) = 0;
     virtual void ReleaseJobs(std::vector<TJobToRelease> jobs) = 0;
     virtual void AbortJob(
         TJobId jobId,
@@ -325,6 +326,11 @@ struct IOperationControllerSchedulerHost
      *  \note Invoker affinity: cancellable Controller invoker
      */
     virtual void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) = 0;
+
+    /*!
+     *  \note Invoker affinity: cancellable Controller invoker
+     */
+    virtual void OnAllocationFinished(TFinishedAllocationSummary&& finishedAllocationSummary) = 0;
 
     //! Method that is called after operation results are committed and before
     //! controller is disposed.

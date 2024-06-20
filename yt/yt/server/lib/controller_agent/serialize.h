@@ -51,6 +51,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BatchRowCount_24_1)                   (301505))
     ((InputManagerIntroduction)             (301506))
     ((ChunkSliceStatistics)                 (301507))
+    ((AllocationMap)                        (301508))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

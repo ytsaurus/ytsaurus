@@ -207,6 +207,13 @@ struct IOperationController
         bool scheduled,
         EAbortReason abortReason) = 0;
 
+    //! Called to notify the controller that an allocation has been finished.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void OnAllocationFinished(
+        const TAllocationPtr& allocation) = 0;
+
     // These methods should be called only by controller agent tracker.
 
     //! Called to notify the controller that the operation initialization has finished.

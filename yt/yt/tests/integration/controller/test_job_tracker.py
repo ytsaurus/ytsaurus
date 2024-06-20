@@ -12,7 +12,7 @@ from yt_commands import (
     run_test_vanilla, with_breakpoint,
     wait_breakpoint, release_breakpoint,
     update_controller_agent_config, update_nodes_dynamic_config,
-    update_scheduler_config
+    update_scheduler_config, get_allocation_id_from_job_id,
 )
 from yt_helpers import read_structured_log, write_log_barrier, JobCountProfiler, profiler_factory
 
@@ -64,10 +64,21 @@ class TestJobTracker(YTEnvSetup):
             self._get_job_tracker_orchid_path(self._get_controller_agent(op)) + "/jobs/{}".format(
                 job_id))
 
+    def _list_jobs(self, op):
+        return ls(self._get_job_tracker_orchid_path(self._get_controller_agent(op)) + "/jobs")
+
     def _does_job_exists(self, op, job_id):
         return exists(
             self._get_job_tracker_orchid_path(self._get_controller_agent(op)) + "/jobs/{}".format(
                 job_id))
+
+    def _list_allocations(self, op):
+        return ls(self._get_job_tracker_orchid_path(self._get_controller_agent(op)) + "/allocations")
+
+    def _get_allocation_info(self, op, allocation_id):
+        return get(
+            self._get_job_tracker_orchid_path(self._get_controller_agent(op)) + "/allocations/{}".format(
+                allocation_id))
 
     def _get_operation_info(self, op):
         return get(
@@ -112,17 +123,35 @@ class TestJobTracker(YTEnvSetup):
             ) == 1
         )
 
-        wait(lambda: len(self._get_operation_info(op)["jobs"]) != 0)
+        wait(lambda: len(self._get_operation_info(op)["allocations"]) != 0)
 
         operation_info = self._get_operation_info(op)
-        assert len(operation_info["jobs"]) == 1
+        assert len(operation_info["allocations"]) == 1
 
-        job_id = operation_info["jobs"][0]
+        wait(lambda: len(self._list_jobs(op)) != 0)
+
+        job_ids = self._list_jobs(op)
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+
+        assert get_allocation_id_from_job_id(job_id) == operation_info["allocations"][0]
 
         job_info = self._get_job_info(op, job_id)
 
         node_address = job_info["node_address"]
         assert op.get_node(job_id) == node_address
+
+        assert len(self._list_allocations(op)) == 1
+        allocation_info = self._get_allocation_info(op, get_allocation_id_from_job_id(job_id))
+        assert allocation_info["allocation_id"] == get_allocation_id_from_job_id(job_id)
+        assert allocation_info["operation_id"] == op.id
+        assert allocation_info["node_address"] == node_address
+        assert "jobs" in allocation_info
+        allocation_jobs = allocation_info["jobs"]
+        assert len(allocation_jobs) == 1
+        assert job_id in allocation_jobs
+        assert allocation_jobs[job_id]["stage"] == "running"
 
         node_jobs = self._get_node_jobs(op, node_address)
 
@@ -143,10 +172,6 @@ class TestJobTracker(YTEnvSetup):
             "operation_id": op.id,
         }.items() <= job_info.items()
 
-        assert len(ls(
-            self._get_job_tracker_orchid_path(controller_agent_address) + "/jobs")
-        ) == 1
-
         op.abort()
 
         wait(
@@ -165,7 +190,7 @@ class TestJobTracker(YTEnvSetup):
 
         op.ensure_running()
 
-        wait(lambda: len(self._get_operation_info(op)["jobs"]) != 0)
+        wait(lambda: len(self._get_operation_info(op)["allocations"]) != 0)
 
         controller_agent_address = self._get_controller_agent(op)
 
@@ -173,8 +198,9 @@ class TestJobTracker(YTEnvSetup):
             self._get_job_tracker_orchid_path(controller_agent_address) + "/nodes")
         ) == self.NUM_NODES
 
-        operation_info = self._get_operation_info(op)
-        job_id = operation_info["jobs"][0]
+        job_ids = self._list_jobs(op)
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
 
         job_info = self._get_job_info(op, job_id)
 
@@ -188,9 +214,7 @@ class TestJobTracker(YTEnvSetup):
             )
         )
 
-        assert job_id not in ls(
-            self._get_job_tracker_orchid_path(controller_agent_address) + "/jobs"
-        )
+        assert job_id not in self._list_jobs(op)
 
         events = self._get_job_events_from_event_log(op.id, controller_agent_address)
         aborted_job_events = {event["job_id"]: event for event in events if event["event_type"] == "job_aborted"}

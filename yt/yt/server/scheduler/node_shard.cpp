@@ -1226,9 +1226,18 @@ void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse
     auto it = AllocationIdToScheduleEntry_.find(allocationId);
     if (it == std::end(AllocationIdToScheduleEntry_)) {
         YT_LOG_WARNING(
-            "No schedule entry for allocation, probably allocation was scheduled by controller too late (OperationId: %v, AllocationId: %v)",
+            "No schedule entry for allocation, probably allocation was scheduled by controller too late; aborting allocation in controller "
+            "(OperationId: %v, AllocationId: %v)",
             operationId,
             allocationId);
+
+        if (auto* operation = FindOperationState(operationId)) {
+            const auto& controller = operation->Controller;
+            controller->OnNonscheduledAllocationAborted(
+                allocationId,
+                EAbortReason::SchedulingTimeout,
+                operation->ControllerEpoch);
+        }
         return;
     }
 
@@ -1801,11 +1810,13 @@ TAllocationPtr TNodeShard::ProcessAllocationHeartbeat(
     switch (allocationState) {
         case EAllocationState::Finished: {
             if (auto error = FromProto<TError>(allocationStatus->result().error());
-                ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler) == EAbortReason::GetSpecFailed)
+                !error.IsOK())
             {
-                YT_LOG_DEBUG("Node has failed to get allocation spec, abort allocation");
+                YT_LOG_DEBUG("Allocation aborted, storage scheduled");
 
-                OnAllocationAborted(allocation, error, EAbortReason::GetSpecFailed);
+                auto abortReason = ParseAbortReason(error, allocationId, Logger).value_or(EAbortReason::Scheduler);
+
+                OnAllocationAborted(allocation, error, abortReason);
             } else {
                 YT_LOG_DEBUG("Allocation finished, storage scheduled");
 
@@ -2124,6 +2135,11 @@ void TNodeShard::OnAllocationFinished(const TAllocationPtr& allocation)
     }
 
     SetFinishedState(allocation);
+
+    if (auto* operationState = FindOperationState(allocation->GetOperationId())) {
+        const auto& controller = operationState->Controller;
+        controller->OnAllocationFinished(allocation);
+    }
 
     UnregisterAllocation(allocation);
 }
