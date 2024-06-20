@@ -2732,13 +2732,28 @@ void TJobTracker::UnregisterNode(TNodeId nodeId, const TString& nodeAddress, TGu
             }
 
             if (allocation.GetPostponedEvent()) {
+                YT_LOG_INFO(
+                    "Processing postponed allocation event since node unregistered (AllocationId: %v, Event: %v, NodeId: %v, NodeAddress: %v)",
+                    allocationId,
+                    allocation.GetPostponedEvent(),
+                    nodeId,
+                    nodeAddress);
                 context.AddAllocationEvent(allocation.ConsumePostponedEventOrCrash());
             } else {
-                context.FinishedAllocations.push_back(
-                    TFinishedAllocationSummary{
+                YT_LOG_INFO(
+                    "Aborting allocation since node unregistered (AllocationId: %v, Event: %v, NodeId: %v, NodeAddress: %v)",
+                    allocationId,
+                    allocation.GetPostponedEvent(),
+                    nodeId,
+                    nodeAddress);
+                context.AbortedAllocations.push_back(
+                    TAbortedAllocationSummary{
                         .OperationId = allocation.OperationId,
                         .Id = allocationId,
                         .FinishTime = TInstant::Now(),
+                        .AbortReason = EAbortReason::NodeOffline,
+                        .Error = TError("Node unregistered"),
+                        .Scheduled = true,
                     });
             }
 
@@ -2889,10 +2904,10 @@ void TJobTracker::ProcessAllocationEvent(
     YT_LOG_INFO(
         "Event happened to allocation on online node; postpone event processing until node heartbeat"
         " (AllocationId: %v, NodeId: %v, NodeAddress: %v, Event: %v)",
-        allocationEvent.Id,
+        allocation.AllocationId,
         nodeId,
         GetNodeAddressForLogging(nodeId),
-        allocationEvent);
+        allocation.GetPostponedEvent());
 }
 
 void TJobTracker::ProcessFinishedAllocations(
@@ -2918,7 +2933,7 @@ void TJobTracker::ProcessFinishedAllocations(
                 "%v; send finished allocation event to operation controller"
                 " (AllocationId: %v, NodeId: %v, NodeAddress: %v)",
                 message,
-                finishedAllocationSummary.Id,
+                event.Id,
                 nodeId,
                 GetNodeAddressForLogging(nodeId));
             operationUpdatesProcessingContext.FinishedAllocations.push_back(std::move(event));
@@ -2959,11 +2974,11 @@ void TJobTracker::ProcessAbortedAllocations(
                 "%v; send aborted allocation event to operation controller"
                 " (AllocationId: %v, NodeId: %v, NodeAddress: %v, AbortReason: %v, AbortionError: %v)",
                 message,
-                abortedAllocationSummary.Id,
+                event.Id,
                 nodeId,
                 GetNodeAddressForLogging(nodeId),
-                abortedAllocationSummary.AbortReason,
-                abortedAllocationSummary.Error);
+                event.AbortReason,
+                event.Error);
 
             operationUpdatesProcessingContext.AbortedAllocations.push_back(std::move(event));
 
