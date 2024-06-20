@@ -834,11 +834,9 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
 
     ControllerAgentDescriptor_ = std::move(descriptor);
 
-    ControllerAgentConnector_ = ControllerAgentDescriptor_
-        ? ControllerAgentConnector_ = Bootstrap_
+    ControllerAgentConnector_ = Bootstrap_
             ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_)
-        : nullptr;
+            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
 }
 
 EJobType TJob::GetType() const

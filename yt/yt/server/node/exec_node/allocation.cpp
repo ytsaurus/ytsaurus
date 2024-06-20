@@ -204,13 +204,10 @@ void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor des
         descriptor.IncarnationId);
 
     ControllerAgentDescriptor_ = std::move(descriptor);
-    if (!ControllerAgentDescriptor_) {
-        ControllerAgentConnector_ = nullptr;
-    } else {
-        ControllerAgentConnector_ = Bootstrap_
-            ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
-    }
+
+    ControllerAgentConnector_ = Bootstrap_
+        ->GetControllerAgentConnectorPool()
+        ->GetControllerAgentConnector(ControllerAgentDescriptor_);
 
     if (Job_) {
         Job_->UpdateControllerAgentDescriptor(ControllerAgentDescriptor_);
