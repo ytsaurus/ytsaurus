@@ -15,6 +15,7 @@ class SystemFields(Enum):
     Axis = auto()
     LeftAxis = auto()
     RightAxis = auto()
+    Unit = auto()
 
 
 ContainerTemplate = "{{container}}"
@@ -89,6 +90,9 @@ class Taggable(ABC):
 
     def max(self, max):
         return self.range(None, max)
+
+    def unit(self, unit, axis=SystemFields.LeftAxis):
+        return self.value(SystemFields.Unit, (unit, axis))
 
     def legend_format(self, value):
         return self.value(SystemFields.LegendFormat, value)

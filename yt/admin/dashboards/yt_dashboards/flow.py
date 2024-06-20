@@ -27,52 +27,60 @@ def build_resource_usage():
         .all("host")
         .row()
             .cell("Total CPU (Controller)", FlowController("yt.resource_tracker.total_cpu")
-                .aggr("thread"))
+                .aggr("thread")
+                .unit("UNIT_PERCENT"))
             .cell(
                 "Busiest thread",
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
+                    .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
-            .cell("Memory (Controller)", FlowController("yt.resource_tracker.memory_usage.rss"))
+            .cell("Memory (Controller)", FlowController("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
         .row()
             .cell("Total CPU (Worker)", FlowWorker("yt.resource_tracker.total_cpu")
-                .aggr("thread"))
+                .aggr("thread")
+                .unit("UNIT_PERCENT"))
             .cell(
                 "Busiest thread",
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
+                    .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
                     .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
-            .cell("Memory (Worker)", FlowWorker("yt.resource_tracker.memory_usage.rss"))
+            .cell("Memory (Worker)", FlowWorker("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
     ).owner
 
 def build_flow_layout():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("Registered workers count", FlowController("yt.flow.controller.worker_count"))
-            .cell("Computations count", FlowController("yt.flow.controller.computation_count"))
-            .cell("Partitions count", FlowController("yt.flow.controller.partition_count"))
+            .cell("Registered workers count", FlowController("yt.flow.controller.worker_count").unit("UNIT_COUNT"))
+            .cell("Computations count", FlowController("yt.flow.controller.computation_count").unit("UNIT_COUNT"))
+            .cell("Partitions count", FlowController("yt.flow.controller.partition_count").unit("UNIT_COUNT"))
     ).owner
 
 def build_flow_layout_mutations():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("Job statuses", FlowController("yt.flow.controller.job_status.*"))
-            .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate"))
-            .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate"))
+            .cell("Job statuses", FlowController("yt.flow.controller.job_status.*").unit("UNIT_COUNT"))
+            .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
+            .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
     ).owner
 
 def build_watermarks():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("System watermark", FlowController("yt.flow.controller.watermark_lag.system_timestamp"))
+            .cell(
+                "System watermark",
+                FlowController("yt.flow.controller.watermark_lag.system_timestamp")
+                    .unit("UNIT_SECONDS"))
             .cell(
                 "User watermarks",
                 MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.user_timestamp"))
                     .all("user_timestamp_id")
-                    .alias("{{user_timestamp_id}}"))
+                    .alias("{{user_timestamp_id}}")
+                    .unit("UNIT_SECONDS"))
     ).owner
 
 def build_lags():
@@ -84,15 +92,18 @@ def build_lags():
             .cell(
                 "Stream lags",
                 MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.lag"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_COUNT"))
             .cell(
                 "Stream time lags",
                 MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.time_lag"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_SECONDS"))
             .cell(
                 "Stream size lags",
                 MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.byte_size_lag"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_BYTES_SI"))
     )
 
 def build_streams():
@@ -105,19 +116,23 @@ def build_streams():
             .cell(
                 "Input messages rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_messages_count.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_COUNTS_PER_SECOND"))
             .cell(
                 "Input messages bytes rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_messages_size.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_BYTES_SI_PER_SECOND"))
             .cell(
                 "Output messages rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_messages_count.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_COUNTS_PER_SECOND"))
             .cell(
                 "Output messages bytes rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_messages_size.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}"))
+                    .alias("{{computation_id}}/{{stream_id}}")
+                    .unit("UNIT_BYTES_SI_PER_SECOND"))
     )
 
 def build_buffers():
@@ -129,11 +144,13 @@ def build_buffers():
             .cell(
                 "Input buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input_buffer_message_size"))
-                    .alias("{{computation_id}}"))
+                    .alias("{{computation_id}}")
+                    .unit("UNIT_BYTES_SI"))
             .cell(
                 "Output buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.output_buffer_message_size"))
-                    .alias("{{computation_id}}"))
+                    .alias("{{computation_id}}")
+                    .unit("UNIT_BYTES_SI"))
     )
 
 def build_partition_store_commits():
@@ -144,21 +161,25 @@ def build_partition_store_commits():
             .cell(
                 "Partition store commit rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_total.rate"))
-                    .aggr("host"))
+                    .aggr("host")
+                    .unit("UNIT_REQUESTS_PER_SECOND"))
             .cell(
                 "Partition store failed commit rate",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_failed.rate"))
-                    .aggr("host"))
+                    .aggr("host")
+                    .unit("UNIT_REQUESTS_PER_SECOND"))
             .cell(
                 "Partition store commit time",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_time.max"))
                     .all("host")
-                    .top())
+                    .top()
+                    .unit("UNIT_SECONDS"))
             .cell(
                 "Input messages lookup time",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
                     .all("host")
-                    .top())
+                    .top()
+                    .unit("UNIT_SECONDS"))
     )
 
 def build_pipeline():
