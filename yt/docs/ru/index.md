@@ -1,8 +1,5 @@
 ---
-title: documentation
-links:
-  - title: documentation
-    href: documentation/
+title: Документация {{product-name}}
 ---
 
 # {{product-name}}
