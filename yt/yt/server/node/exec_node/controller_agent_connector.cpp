@@ -660,6 +660,10 @@ TControllerAgentConnectorPool::GetControllerAgentConnector(
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
+    if (!agentDescriptor) {
+        return nullptr;
+    }
+
     return GetOrCrash(ControllerAgentConnectors_, agentDescriptor);
 }
 
