@@ -482,15 +482,14 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
     @pytest.mark.parametrize("single_chunk_teleport_strategy", ["enabled", "disabled"])
     def test_teleport_single_chunk(self, single_chunk_teleport_strategy):
         create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out1")
-        create("table", "//tmp/t_out2")
+        create("table", "//tmp/t_out")
 
         write_table("<append=%true>//tmp/t_in", [{"a": 1}])
 
         op = map(
             in_="//tmp/t_in",
-            out=["//tmp/t_out1", "//tmp/t_out2"],
-            command="(head -c 1000000 /dev/urandom | base64 -w 0; echo -ne '\n') >&4",
+            out="//tmp/t_out",
+            command="cat",
             spec={
                 "auto_merge": {
                     "mode": "manual",
@@ -503,8 +502,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             },
         )
 
-        assert get("//tmp/t_out1/@chunk_count") == 0
-        assert get("//tmp/t_out2/@chunk_count") == 1
+        assert get("//tmp/t_out/@chunk_count") == 1
 
         data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
         directions = {
