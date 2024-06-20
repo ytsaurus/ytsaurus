@@ -312,8 +312,7 @@ private:
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
         const TExecNodePtr& node,
         const INodeHeartbeatStrategyProxyPtr& strategyProxy,
-        std::vector<TAllocationPtr>* runningAllocations,
-        bool* hasWaitingAllocations);
+        std::vector<TAllocationPtr>* runningAllocations);
 
     TAllocationPtr ProcessAllocationHeartbeat(
         const TExecNodePtr& node,

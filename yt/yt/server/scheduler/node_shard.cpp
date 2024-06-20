@@ -585,29 +585,20 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     std::vector<TAllocationPtr> runningAllocations;
-    bool hasWaitingAllocations = false;
     YT_PROFILE_TIMING("/scheduler/analysis_time") {
         ProcessHeartbeatAllocations(
             request,
             response,
             node,
             strategyProxy,
-            &runningAllocations,
-            &hasWaitingAllocations);
+            &runningAllocations);
     }
 
     bool skipScheduleAllocations = false;
-    if (hasWaitingAllocations || isThrottlingActive) {
-        if (hasWaitingAllocations) {
-            YT_LOG_DEBUG(
-                "Waiting allocations found, suppressing new allocations scheduling (NodeAddress: %v)",
-                node->GetDefaultAddress());
-        }
-        if (isThrottlingActive) {
-            YT_LOG_DEBUG(
-                "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
-                node->GetDefaultAddress());
-        }
+    if (isThrottlingActive) {
+        YT_LOG_DEBUG(
+            "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
+            node->GetDefaultAddress());
         skipScheduleAllocations = true;
     }
 
@@ -1580,8 +1571,7 @@ void TNodeShard::ProcessHeartbeatAllocations(
     TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
     const TExecNodePtr& node,
     const INodeHeartbeatStrategyProxyPtr& strategyProxy,
-    std::vector<TAllocationPtr>* runningAllocations,
-    bool* hasWaitingAllocations)
+    std::vector<TAllocationPtr>* runningAllocations)
 {
     YT_VERIFY(runningAllocations->empty());
 
@@ -1641,7 +1631,6 @@ void TNodeShard::ProcessHeartbeatAllocations(
                     break;
                 }
                 case EAllocationState::Waiting:
-                    *hasWaitingAllocations = true;
                     ongoingAllocationsByState[allocation->GetState()].push_back(allocation);
                     break;
                 default:
