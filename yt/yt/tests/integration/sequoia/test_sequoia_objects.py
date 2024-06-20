@@ -246,6 +246,34 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         remove("//tmp/t")
 
+    @authors("aleksandra-zh")
+    def test_refresh(self):
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+
+        write_table("//tmp/t", [{"x": 1}])
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master", False)
+
+        wait(lambda: chunk_id not in get("//sys/lost_chunks"))
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/processed_removed_sequoia_replicas_on_master", False)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+
+        remove("//tmp/t")
+
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     DELTA_DYNAMIC_MASTER_CONFIG = {
