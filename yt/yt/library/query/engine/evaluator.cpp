@@ -72,7 +72,9 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
-        const TQueryBaseOptions& options) override
+        const TQueryBaseOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        TFuture<TFeatureFlags> responseFeatureFlags) override
     {
         auto queryFingerprint = InferName(query, {.OmitValues = true});
 
@@ -116,19 +118,22 @@ public:
                 fragmentParams.Clear();
             });
 
-            TExecutionContext executionContext;
-            executionContext.Reader = reader;
-            executionContext.Writer = writer;
-            executionContext.Statistics = &statistics;
-            executionContext.InputRowLimit = options.InputRowLimit;
-            executionContext.OutputRowLimit = options.OutputRowLimit;
-            executionContext.GroupRowLimit = options.OutputRowLimit;
-            executionContext.JoinRowLimit = options.OutputRowLimit;
-            executionContext.Offset = query->Offset;
-            executionContext.Limit = query->Limit;
-            executionContext.Ordered = query->IsOrdered();
-            executionContext.IsMerge = dynamic_cast<const TFrontQuery*>(query.Get());
-            executionContext.MemoryChunkProvider = memoryChunkProvider;
+            auto executionContext = TExecutionContext{
+                .Reader = reader,
+                .Writer = writer,
+                .Statistics = &statistics,
+                .InputRowLimit = options.InputRowLimit,
+                .OutputRowLimit = options.OutputRowLimit,
+                .GroupRowLimit = options.OutputRowLimit,
+                .JoinRowLimit = options.OutputRowLimit,
+                .Offset = query->Offset,
+                .Limit = query->Limit,
+                .Ordered = query->IsOrdered(),
+                .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
+                .MemoryChunkProvider = memoryChunkProvider,
+                .RequestFeatureFlags = &requestFeatureFlags,
+                .ResponseFeatureFlags = responseFeatureFlags,
+            };
 
             YT_LOG_DEBUG("Evaluating query");
 

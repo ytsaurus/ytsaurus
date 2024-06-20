@@ -229,6 +229,9 @@ struct TExecutionContext
     bool IsMerge = false;
 
     IMemoryChunkProviderPtr MemoryChunkProvider;
+
+    const TFeatureFlags* const RequestFeatureFlags;
+    TFuture<TFeatureFlags> ResponseFeatureFlags;
 };
 
 struct TRowSchemaInformation

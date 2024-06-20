@@ -407,7 +407,8 @@ public:
         IUnversionedRowsetWriterPtr writer,
         IMemoryChunkProviderPtr memoryChunkProvider,
         IInvokerPtr invoker,
-        TQueryOptions queryOptions)
+        TQueryOptions queryOptions,
+        TFeatureFlags requestFeatureFlags)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
@@ -423,6 +424,7 @@ public:
         , MemoryChunkProvider_(std::move(memoryChunkProvider))
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
+        , RequestFeatureFlags_(std::move(requestFeatureFlags))
         , Logger(MakeQueryLogger(Query_))
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
@@ -501,6 +503,7 @@ private:
 
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
+    const TFeatureFlags RequestFeatureFlags_;
 
     const NLogging::TLogger Logger;
 
@@ -591,6 +594,8 @@ private:
                     auto remoteOptions = QueryOptions_;
                     remoteOptions.MaxSubqueries = 1;
                     remoteOptions.MergeVersionedRows = true;
+
+                    auto remoteFeatureFlags = RequestFeatureFlags_;
 
                     size_t minKeyWidth = std::numeric_limits<size_t>::max();
                     for (const auto& split : dataSplits) {
@@ -701,7 +706,8 @@ private:
                             ExternalCGInfo_,
                             std::move(dataSource),
                             writer,
-                            remoteOptions)
+                            remoteOptions,
+                            remoteFeatureFlags)
                             .AsyncVia(Invoker_)
                             .Run();
 
@@ -731,6 +737,7 @@ private:
                             subquery,
                             joinClause,
                             remoteOptions,
+                            remoteFeatureFlags,
                             this,
                             this_ = MakeStrong(this)
                         ] (std::vector<TRow> keys, TRowBufferPtr permanentBuffer) {
@@ -756,7 +763,8 @@ private:
                                 ExternalCGInfo_,
                                 std::move(dataSource),
                                 pipe->GetWriter(),
-                                remoteOptions)
+                                remoteOptions,
+                                remoteFeatureFlags)
                                 .AsyncVia(Invoker_)
                                 .Run();
 
@@ -779,6 +787,11 @@ private:
 
                 auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
 
+                // This refers to the Node execution level.
+                // There is only NodeThread execution level below,
+                // so we can set the most recent feature flags.
+                auto responseFeatureFlags = MakeFuture(MostFreshFeatureFlags());
+
                 auto asyncStatistics = BIND(&IEvaluator::Run, Evaluator_)
                     .AsyncVia(Invoker_)
                     .Run(
@@ -789,7 +802,9 @@ private:
                         functionGenerators,
                         aggregateGenerators,
                         MemoryChunkProvider_,
-                        QueryOptions_);
+                        QueryOptions_,
+                        RequestFeatureFlags_,
+                        responseFeatureFlags);
 
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
@@ -822,9 +837,12 @@ private:
                     }
                 }));
 
-                return std::pair(pipe->GetReader(), asyncStatistics);
+                return {pipe->GetReader(), asyncStatistics, responseFeatureFlags};
             },
-            [&, frontQuery = frontQuery] (const ISchemafulUnversionedReaderPtr& reader) {
+            [&, frontQuery = frontQuery] (
+                const ISchemafulUnversionedReaderPtr& reader,
+                TFuture<TFeatureFlags> responseFeatureFlags
+            ) -> TQueryStatistics {
                 YT_LOG_DEBUG("Evaluating front query (FrontQueryId: %v)", frontQuery->Id);
                 auto result = Evaluator_->Run(
                     frontQuery,
@@ -834,7 +852,9 @@ private:
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,
-                    QueryOptions_);
+                    QueryOptions_,
+                    RequestFeatureFlags_,
+                    responseFeatureFlags);
                 YT_LOG_DEBUG("Finished evaluating front query (FrontQueryId: %v)", frontQuery->Id);
                 return result;
             });
@@ -1193,6 +1213,7 @@ TQueryStatistics ExecuteSubquery(
     IMemoryChunkProviderPtr memoryChunkProvider,
     IInvokerPtr invoker,
     TQueryOptions queryOptions,
+    TFeatureFlags requestFeatureFlags,
     TServiceProfilerGuard& profilerGuard)
 {
     ValidateReadTimestamp(queryOptions.TimestampRange.Timestamp);
@@ -1208,7 +1229,8 @@ TQueryStatistics ExecuteSubquery(
         std::move(writer),
         std::move(memoryChunkProvider),
         invoker,
-        std::move(queryOptions));
+        std::move(queryOptions),
+        std::move(requestFeatureFlags));
 
     return execution->Execute(profilerGuard);
 }

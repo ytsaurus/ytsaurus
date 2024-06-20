@@ -1437,7 +1437,9 @@ TQueryStatistics DoExecuteQuery(
         functionProfilers,
         aggregateProfilers,
         GetDefaultMemoryChunkProvider(),
-        options);
+        options,
+        MostFreshFeatureFlags(),
+        MakeFuture(MostFreshFeatureFlags()));
 }
 
 std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<TString>& columns, const TTableSchema& tableSchema)
@@ -2044,7 +2046,9 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions{.ExecutionBackend = executionBackend});
+                TQueryBaseOptions{.ExecutionBackend = executionBackend},
+                MostFreshFeatureFlags(),
+                MakeFuture(MostFreshFeatureFlags()));
 
             return pipe->GetReader();
         };
@@ -2065,7 +2069,9 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            MostFreshFeatureFlags(),
+            MakeFuture(MostFreshFeatureFlags()));
 
         auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
         resultMatcher(rows, *frontQuery->GetTableSchema());
@@ -2133,7 +2139,9 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            MostFreshFeatureFlags(),
+            MakeFuture(MostFreshFeatureFlags()));
 
         return pipe;
     }
@@ -2178,7 +2186,9 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            MostFreshFeatureFlags(),
+            MakeFuture(MostFreshFeatureFlags()));
 
         return pipe;
     }
@@ -2220,7 +2230,9 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend});
+            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            MostFreshFeatureFlags(),
+            MakeFuture(MostFreshFeatureFlags()));
 
         auto rows = WaitFor(asyncResultRowset).ValueOrThrow()->GetRows();
 

@@ -79,7 +79,9 @@ void RunQuery(
         functionGenerators,
         aggregateGenerators,
         GetDefaultMemoryChunkProvider(),
-        TQueryBaseOptions());
+        TQueryBaseOptions(),
+        MostFreshFeatureFlags(),
+        MakeFuture(MostFreshFeatureFlags()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

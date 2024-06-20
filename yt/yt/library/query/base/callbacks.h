@@ -28,7 +28,8 @@ struct IExecutor
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const TQueryOptions& options) = 0;
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags) = 0;
 
 };
 

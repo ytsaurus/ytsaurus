@@ -22,7 +22,9 @@ struct IEvaluator
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
-        const TQueryBaseOptions& options) = 0;
+        const TQueryBaseOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
+        TFuture<TFeatureFlags> responseFeatureFlags) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IEvaluator)

@@ -1713,6 +1713,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.UseCanonicalNullRelations = options.UseCanonicalNullRelations;
     queryOptions.MergeVersionedRows = options.MergeVersionedRows;
 
+    auto requestFeatureFlags = MostFreshFeatureFlags();
+
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
     std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
@@ -1722,7 +1724,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         externalCGInfo,
         dataSource,
         writer,
-        queryOptions);
+        queryOptions,
+        requestFeatureFlags);
 
     auto rowset = WaitFor(asyncRowset)
         .ValueOrThrow();

@@ -280,6 +280,11 @@ message TQueryOptions
     optional int32 execution_backend = 18; // EExecutionBackend
 }
 
+message TFeatureFlags
+{
+    optional bool with_totals_finalizes_aggregated_on_coordinator = 1 [default = false];
+}
+
 message TDataSource
 {
     required NYT.NProto.TGuid object_id = 1;
