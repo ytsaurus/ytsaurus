@@ -1,6 +1,8 @@
+import inspect
+
 from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
-                    _is_py_type_optional, _get_py_time_types)
+                    _is_py_type_optional, _get_py_time_types, _get_default_ti_types)
 from .types import typing  # noqa
 from . import types
 from .helpers import check_schema_module_available, is_schema_module_available
@@ -198,8 +200,12 @@ def _get_args(py_type):
 
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
-    for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
-        if py_type is type_ or _get_origin(py_type) is type_:
+    py_type_origin = _get_origin(py_type)
+    for type_ in (bool, int, str, bytes, float) + _get_py_time_types():
+        if (
+            (inspect.isclass(py_type) and issubclass(py_type, type_))
+            or (inspect.isclass(py_type_origin) and issubclass(py_type_origin, type_))
+        ):
             origin = type_
             break
     annotation = None
@@ -288,16 +294,7 @@ def _get_time_types_converters():
 def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, field_name=None, schema_runtime_context=None):
     effective_field_name = field_name if field_name is not None else "<unknown>"
     if not hasattr(_create_primitive_schema, "_default_ti_type"):
-        _create_primitive_schema._default_ti_type = {
-            int: ti.Int64,
-            str: ti.Utf8,
-            bytes: ti.String,
-            float: ti.Double,
-            bool: ti.Bool,
-            datetime.date: ti.Date,
-            datetime.datetime: ti.Timestamp,
-            datetime.timedelta: ti.Interval,
-        }
+        _create_primitive_schema._default_ti_type = _get_default_ti_types()
 
     if not hasattr(_create_primitive_schema, "_default_middleware_converters"):
         default_converters = _get_time_types_converters().copy()

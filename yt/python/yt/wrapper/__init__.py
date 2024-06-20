@@ -38,7 +38,7 @@ from .py_wrapper import (  # noqa
     aggregator, raw, raw_io, reduce_aggregator,
     enable_python_job_processing_for_standalone_binary, initialize_python_job_processing,
     with_context, with_skiff_schemas, respawn_in_docker)
-from .schema import yt_dataclass, OutputRow  # noqa
+from .schema import yt_dataclass, create_yt_enum, OutputRow  # noqa
 from .string_iter_io import StringIterIO  # noqa
 from .user_statistics import write_statistics  # noqa
 from .yamr_mode import set_yamr_mode  # noqa
