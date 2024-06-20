@@ -38,6 +38,9 @@ const (
 
 	NodeAccessControlObject          NodeType = "access_control_object"
 	NodeAccessControlObjectNamespace NodeType = "access_control_object_namespace"
+
+	NodeNetworkProject    NodeType = "network_project"
+	NodeNetworkProjectMap NodeType = "network_project_map"
 )
 
 func (n NodeType) String() string {
