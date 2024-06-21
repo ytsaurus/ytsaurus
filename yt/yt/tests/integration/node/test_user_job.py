@@ -3034,7 +3034,7 @@ class TestIdleSlots(YTEnvSetup):
             spec={"allow_idle_cpu_policy": True}
         )
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_schedule_in_idle_container(self):
         self._update_cpu_fraction()
 
@@ -3062,7 +3062,7 @@ class TestIdleSlots(YTEnvSetup):
 
         self._check_slot_count(node, 0, 0)
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_update_idle_cpu_fraction(self):
         self._update_cpu_fraction(fraction=0.1)
         op = self._run_idle_operation(cpu_limit=1, breakpoint_id="1")
@@ -3081,7 +3081,7 @@ class TestIdleSlots(YTEnvSetup):
         op.track()
         assert self._get_actual_cpu_policy(op, job_id) == "normal"
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_common_in_common_container(self):
         self._update_cpu_fraction()
 
@@ -3199,7 +3199,7 @@ class TestCpuSet(YTEnvSetup):
     def _get_numa_node_free_cpu_count(self, node, numa_node_id):
         return get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/numa_node_states/node_{numa_node_id}/free_cpu_count")
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_greedy(self):
         self._enable_numa_node_scheduling(True)
         node = ""
@@ -3235,7 +3235,7 @@ class TestCpuSet(YTEnvSetup):
         wait(lambda: self._get_numa_node_free_cpu_count(node, 0) == 4.0)
         wait(lambda: self._get_numa_node_free_cpu_count(node, 1) == 3.0)
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_release_numa_nodes_cpu(self):
         self._enable_numa_node_scheduling(True)
 
@@ -3293,7 +3293,7 @@ class TestCpuSet(YTEnvSetup):
         op_with_numa_node.track()
         assert self._get_actual_cpu_set(op_with_numa_node, job_id_with_numa_node) == "1-3,7"
 
-    @authors("nadya73")
+    @authors("pogorelov", "nadya73")
     def test_disable_by_config(self):
         self._enable_numa_node_scheduling(False)
         op = run_test_vanilla(
