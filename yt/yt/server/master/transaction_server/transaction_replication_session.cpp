@@ -364,7 +364,9 @@ TTransactionReplicationSessionBase::DoInvokeReplicationRequests()
         .NonMirrored = asyncResults,
         .Mirrored = ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(
             Bootstrap_,
-            MirroredTransactionIds_),
+            std::vector<TTransactionId>(
+                MirroredTransactionIds_.begin(),
+                MirroredTransactionIds_.end())),
     };
 }
 

@@ -1,6 +1,7 @@
 #include "transaction_manager.h"
 
 #include "private.h"
+
 #include "config.h"
 #include "boomerang_tracker.h"
 #include "helpers.h"
@@ -1036,7 +1037,7 @@ public:
             // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
             // And it *is* coordinated by this cell, even though there's no corresponding 'native' object.
 
-            NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
+            NProto::TReqStartForeignTransaction startRequest;
             ToProto(startRequest.mutable_id(), effectiveTransactionId);
             if (effectiveParentTransactionId) {
                 ToProto(startRequest.mutable_parent_id(), effectiveParentTransactionId);
@@ -2011,7 +2012,7 @@ private:
     void HydraStartCypressTransaction(
         const TCtxStartCypressTransactionPtr& context,
         NTransactionServer::NProto::TReqStartCypressTransaction* request,
-        NTransactionServer::NProto::TRspStartCypressTransaction* response)
+        NProto::TRspStartCypressTransaction* response)
     {
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
 
@@ -2079,7 +2080,7 @@ private:
         HydraStartForeignTransaction(request);
     }
 
-    void HydraStartForeignTransaction(NTransactionServer::NProto::TReqStartForeignTransaction* request)
+    void HydraStartForeignTransaction(NProto::TReqStartForeignTransaction* request)
     {
         auto hintId = FromProto<TTransactionId>(request->id());
 
@@ -3250,7 +3251,7 @@ private:
 
     std::unique_ptr<NHydra::TMutation> CreateStartCypressTransactionMutation(
         TCtxStartCypressTransactionPtr context,
-        const NTransactionServer::NProto::TReqStartCypressTransaction& request)
+        const NProto::TReqStartCypressTransaction& request)
     {
         return CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),

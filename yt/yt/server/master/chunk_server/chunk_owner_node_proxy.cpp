@@ -60,12 +60,10 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
-
-#include <type_traits>
 
 namespace NYT::NChunkServer {
 
