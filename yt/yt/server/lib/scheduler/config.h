@@ -971,6 +971,8 @@ public:
 
     bool CrashOnAllocationHeartbeatProcessingException;
 
+    bool DisableSchedulingOnNodeWithWaitingAllocations;
+
     int MinRequiredArchiveVersion;
 
     NRpc::TServerDynamicConfigPtr RpcServer;

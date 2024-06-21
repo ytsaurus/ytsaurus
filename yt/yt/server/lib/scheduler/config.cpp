@@ -1177,6 +1177,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Alias("crash_on_job_heartbeat_processing_exception")
         .Default(false);
 
+    registrar.Parameter("disable_scheduling_on_node_with_waiting_allocations", &TThis::DisableSchedulingOnNodeWithWaitingAllocations)
+        .Default(false);
+
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(50);
 
