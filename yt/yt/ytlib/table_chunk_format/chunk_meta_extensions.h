@@ -1,8 +1,6 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/ytlib/table_chunk_format/column_meta.h>
+#include "column_meta.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 

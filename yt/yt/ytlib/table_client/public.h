@@ -44,6 +44,11 @@ struct THunkChunkMeta;
 struct TTableReadSpec;
 struct TFetchSingleTableReadSpecOptions;
 
+struct TBoundaryKeysExtension;
+struct TColumnMetaExtension;
+struct TKeyColumnsExtension;
+struct TSamplesExtension;
+
 DECLARE_REFCOUNTED_STRUCT(TOffloadingReaderOptions)
 DECLARE_REFCOUNTED_STRUCT(IOffloadingReader)
 

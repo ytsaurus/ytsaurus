@@ -7,7 +7,6 @@
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/column_sort_schema.h>
-#include <yt/yt/client/table_client/chunk_meta_extensions.h>
 #include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/row_batch.h>
 

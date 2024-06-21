@@ -19,6 +19,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
 
+#include <yt/yt/ytlib/table_chunk_format/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 
 #include <yt/yt/client/api/table_reader.h>
