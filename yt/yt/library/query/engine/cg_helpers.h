@@ -544,9 +544,9 @@ public:
 
     TCGBaseContext(
         const TCGIRBuilderPtr& base,
-        const TCGModulePtr& module)
+        const TCGModulePtr& cgModule)
         : TCGIRBuilderPtr(base)
-        , Module(module)
+        , Module(cgModule)
     { }
 
     TCGBaseContext(
@@ -887,15 +887,15 @@ struct TClosureFunctionDefiner<TResult(TArgs...)>
     using TIndexesPack = typename std::make_integer_sequence<unsigned, sizeof...(TArgs)>;
 
     template <class TBody>
-    static TLlvmClosure Do(const TCGModulePtr& module, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
+    static TLlvmClosure Do(const TCGModulePtr& cgModule, TCGOperatorContext& parentBuilder, TBody&& body, llvm::Twine name)
     {
         Function* function = Function::Create(
-            TTypeBuilder<TResult(void**, TArgs...)>::Get(module->GetModule()->getContext()),
+            TTypeBuilder<TResult(void**, TArgs...)>::Get(cgModule->GetModule()->getContext()),
             Function::ExternalLinkage,
             name,
-            module->GetModule());
+            cgModule->GetModule());
 
-        function->addFnAttr(BuildUnwindTableAttribute(module->GetModule()->getContext()));
+        function->addFnAttr(BuildUnwindTableAttribute(cgModule->GetModule()->getContext()));
         function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
         auto args = function->arg_begin();
@@ -941,9 +941,9 @@ struct TFunctionDefiner<TResult(TArgs...)>
     using TIndexesPack = typename std::make_integer_sequence<unsigned, sizeof...(TArgs)>;
 
     template <class TBody>
-    static Function* Do(const TCGModulePtr& module, TBody&& body, llvm::Twine name)
+    static Function* Do(const TCGModulePtr& cgModule, TBody&& body, llvm::Twine name)
     {
-        auto& llvmContext = module->GetModule()->getContext();
+        auto& llvmContext = cgModule->GetModule()->getContext();
         Function* function = Function::Create(
             FunctionType::get(
                 TTypeBuilder<TResult>::Get(llvmContext),
@@ -953,7 +953,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
                 false),
             Function::ExternalLinkage,
             name,
-            module->GetModule());
+            cgModule->GetModule());
 
         function->addFnAttr(BuildUnwindTableAttribute(llvmContext));
         function->addFnAttr(llvm::Attribute::OptimizeForSize);
@@ -967,7 +967,7 @@ struct TFunctionDefiner<TResult(TArgs...)>
         YT_VERIFY(index == sizeof...(TArgs));
 
         TCGIRBuilder builder(function);
-        TCGBaseContext context(TCGIRBuilderPtr(&builder), module);
+        TCGBaseContext context(TCGIRBuilderPtr(&builder), cgModule);
 
         TApplyCallback<TIndexesPack>::template Do(std::forward<TBody>(body), context, argsArray);
 
@@ -976,10 +976,10 @@ struct TFunctionDefiner<TResult(TArgs...)>
 };
 
 template <class TSignature, class TBody>
-Function* MakeFunction(const TCGModulePtr& module, llvm::Twine name, TBody&& body)
+Function* MakeFunction(const TCGModulePtr& cgModule, llvm::Twine name, TBody&& body)
 {
     auto function = TFunctionDefiner<TSignature>::Do(
-        module,
+        cgModule,
         std::forward<TBody>(body),
         name);
 

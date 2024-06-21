@@ -143,17 +143,17 @@ BasicBlock* TCGIRBuilder::CreateBBHere(const Twine& name)
 
 Value* TCGIRBuilder::CreateStackSave(const Twine& name)
 {
-    Module* module = GetInsertBlock()->getParent()->getParent();
+    Module* cgModule = GetInsertBlock()->getParent()->getParent();
     return CreateCall(
-        llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::stacksave),
+        llvm::Intrinsic::getDeclaration(cgModule, llvm::Intrinsic::stacksave),
         {},
         name);
 }
 
 void TCGIRBuilder::CreateStackRestore(Value* ptr)
 {
-    Module* module = GetInsertBlock()->getParent()->getParent();
-    CreateCall(llvm::Intrinsic::getDeclaration(module, llvm::Intrinsic::stackrestore), ptr);
+    Module* cgModule = GetInsertBlock()->getParent()->getParent();
+    CreateCall(llvm::Intrinsic::getDeclaration(cgModule, llvm::Intrinsic::stackrestore), ptr);
 }
 
 Type* TCGIRBuilder::getSizeType() const

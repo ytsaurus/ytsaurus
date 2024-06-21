@@ -559,7 +559,7 @@ void LoadLlvmBitcode(
         }
     }
 
-    auto module = builder.Module->GetModule();
+    auto cgModule = builder.Module->GetModule();
 
     std::string what;
     bool linkerFailed;
@@ -583,7 +583,7 @@ void LoadLlvmBitcode(
             info.print(printer);
         };
 
-        auto dest = module;
+        auto dest = cgModule;
         auto& context = dest->getContext();
 #if !LLVM_VERSION_GE(6, 0)
         auto oldDiagnosticHandler = context.getDiagnosticHandler();
@@ -639,11 +639,11 @@ void LoadLlvmFunctions(
         requiredSymbols,
         implementationFile);
 
-    auto module = builder.Module->GetModule();
+    auto cgModule = builder.Module->GetModule();
 
     builder.Module->AddLoadedFunction(functionName);
     for (const auto& function : functions) {
-        auto callee = module->getFunction(ToStringRef(function.first));
+        auto callee = cgModule->getFunction(ToStringRef(function.first));
         CheckCallee(
             function.first,
             callee,

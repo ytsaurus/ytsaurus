@@ -710,11 +710,11 @@ struct TComparerManager
         const TValueTypeLabels& valueTypeLabels);
 
 
-    void GetUniversalComparer(const TCGModulePtr& module)
+    void GetUniversalComparer(const TCGModulePtr& cgModule)
     {
         if (!UniversalComparer) {
             UniversalComparer = MakeFunction<i64(TPIValue*, TPIValue*, size_t, size_t, char**)>(
-                module,
+                cgModule,
                 "UniversalComparerImpl",
             [&] (
                 TCGBaseContext& builder,
@@ -744,47 +744,47 @@ struct TComparerManager
 
     Function* GetHasher(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
+        const TCGModulePtr& cgModule,
         size_t start,
         size_t finish);
 
     Function* GetHasher(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module);
+        const TCGModulePtr& cgModule);
 
     Function* GetEqComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
+        const TCGModulePtr& cgModule,
         size_t start,
         size_t finish);
 
     Function* GetEqComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module);
+        const TCGModulePtr& cgModule);
 
     Function* GetLessComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
+        const TCGModulePtr& cgModule,
         size_t start,
         size_t finish);
 
     Function* GetLessComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module);
+        const TCGModulePtr& cgModule);
 
     Function* GetTernaryComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
+        const TCGModulePtr& cgModule,
         size_t start,
         size_t finish);
 
     Function* GetTernaryComparer(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module);
+        const TCGModulePtr& cgModule);
 
     Function* CodegenOrderByComparerFunction(
         const std::vector<EValueType>& types,
-        const TCGModulePtr& module,
+        const TCGModulePtr& cgModule,
         size_t offset,
         const std::vector<bool>& isDesc);
 };
@@ -861,7 +861,7 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
 
 Function* TComparerManager::GetHasher(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     size_t start,
     size_t finish)
 {
@@ -875,7 +875,7 @@ Function* TComparerManager::GetHasher(
     auto emplaced = Hashers.emplace(id, nullptr);
     if (emplaced.second) {
         if (!Hasher) {
-            Hasher = MakeFunction<ui64(TPIValue*, size_t, size_t, char**)>(module, "HasherImpl", [&] (
+            Hasher = MakeFunction<ui64(TPIValue*, size_t, size_t, char**)>(cgModule, "HasherImpl", [&] (
                 TCGBaseContext& builder,
                 Value* values,
                 Value* startIndex,
@@ -890,7 +890,7 @@ Function* TComparerManager::GetHasher(
             });
         }
 
-        emplaced.first->second = MakeFunction<THasherFunction>(module, "Hasher", [&] (
+        emplaced.first->second = MakeFunction<THasherFunction>(cgModule, "Hasher", [&] (
             TCGBaseContext& builder,
             Value* row) {
             Value* result;
@@ -918,16 +918,16 @@ Function* TComparerManager::GetHasher(
 
 Function* TComparerManager::GetHasher(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
+    const TCGModulePtr& cgModule)
 {
-    return GetHasher(types, module, 0, types.size());
+    return GetHasher(types, cgModule, 0, types.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Function* TComparerManager::GetEqComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     size_t start,
     size_t finish)
 {
@@ -942,9 +942,9 @@ Function* TComparerManager::GetEqComparer(
 
     auto emplaced = EqComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        GetUniversalComparer(module);
+        GetUniversalComparer(cgModule);
 
-        emplaced.first->second = MakeFunction<TComparerFunction>(module, "EqComparer", [&] (
+        emplaced.first->second = MakeFunction<TComparerFunction>(cgModule, "EqComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
             Value* rhsRow) {
@@ -977,16 +977,16 @@ Function* TComparerManager::GetEqComparer(
 
 Function* TComparerManager::GetEqComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
+    const TCGModulePtr& cgModule)
 {
-    return GetEqComparer(types, module, 0, types.size());
+    return GetEqComparer(types, cgModule, 0, types.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Function* TComparerManager::GetLessComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     size_t start,
     size_t finish)
 {
@@ -1001,9 +1001,9 @@ Function* TComparerManager::GetLessComparer(
 
     auto emplaced = LessComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        GetUniversalComparer(module);
+        GetUniversalComparer(cgModule);
 
-        emplaced.first->second = MakeFunction<TComparerFunction>(module, "LessComparer", [&] (
+        emplaced.first->second = MakeFunction<TComparerFunction>(cgModule, "LessComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
             Value* rhsRow) {
@@ -1036,16 +1036,16 @@ Function* TComparerManager::GetLessComparer(
 
 Function* TComparerManager::GetLessComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
+    const TCGModulePtr& cgModule)
 {
-    return GetLessComparer(types, module, 0, types.size());
+    return GetLessComparer(types, cgModule, 0, types.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Function* TComparerManager::GetTernaryComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     size_t start,
     size_t finish)
 {
@@ -1060,9 +1060,9 @@ Function* TComparerManager::GetTernaryComparer(
 
     auto emplaced = TernaryComparers.emplace(id, nullptr);
     if (emplaced.second) {
-        GetUniversalComparer(module);
+        GetUniversalComparer(cgModule);
 
-        emplaced.first->second = MakeFunction<TTernaryComparerFunction>(module, "TernaryComparer", [&] (
+        emplaced.first->second = MakeFunction<TTernaryComparerFunction>(cgModule, "TernaryComparer", [&] (
             TCGBaseContext& builder,
             Value* lhsRow,
             Value* rhsRow) {
@@ -1092,22 +1092,22 @@ Function* TComparerManager::GetTernaryComparer(
 
 Function* TComparerManager::GetTernaryComparer(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module)
+    const TCGModulePtr& cgModule)
 {
-    return GetTernaryComparer(types, module, 0, types.size());
+    return GetTernaryComparer(types, cgModule, 0, types.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Function* TComparerManager::CodegenOrderByComparerFunction(
     const std::vector<EValueType>& types,
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     size_t offset,
     const std::vector<bool>& isDesc)
 {
-    GetUniversalComparer(module);
+    GetUniversalComparer(cgModule);
 
-    return MakeFunction<char(TPIValue*, TPIValue*)>(module, "OrderByComparer", [&] (
+    return MakeFunction<char(TPIValue*, TPIValue*)>(cgModule, "OrderByComparer", [&] (
         TCGBaseContext& builder,
         Value* lhsValues,
         Value* rhsValues) {
@@ -1271,7 +1271,7 @@ TCGValue CodegenFragment(
 }
 
 void CodegenFragmentBodies(
-    const TCGModulePtr& module,
+    const TCGModulePtr& cgModule,
     TCodegenFragmentInfos& fragmentInfos)
 {
     const auto& namePrefix = fragmentInfos.NamePrefix;
@@ -1281,14 +1281,14 @@ void CodegenFragmentBodies(
             auto name = Format("%v#%v", namePrefix, id);
 
             FunctionType* functionType = FunctionType::get(
-                TTypeBuilder<void>::Get(module->GetModule()->getContext()),
+                TTypeBuilder<void>::Get(cgModule->GetModule()->getContext()),
                 {
                     llvm::PointerType::getUnqual(
                         TTypeBuilder<TExpressionClosure>::Get(
-                            module->GetModule()->getContext(),
+                            cgModule->GetModule()->getContext(),
                             fragmentInfos.Functions.size())),
-                    TTypeBuilder<TPIValue*>::Get(module->GetModule()->getContext()),
-                    TTypeBuilder<TPIValue*>::Get(module->GetModule()->getContext())
+                    TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext()),
+                    TTypeBuilder<TPIValue*>::Get(cgModule->GetModule()->getContext())
                 },
                 true);
 
@@ -1296,9 +1296,9 @@ void CodegenFragmentBodies(
                 functionType,
                 Function::ExternalLinkage,
                 name.c_str(),
-                module->GetModule());
+                cgModule->GetModule());
 
-            function->addFnAttr(BuildUnwindTableAttribute(module->GetModule()->getContext()));
+            function->addFnAttr(BuildUnwindTableAttribute(cgModule->GetModule()->getContext()));
             function->addFnAttr(llvm::Attribute::AttrKind::NoInline);
             function->addFnAttr(llvm::Attribute::OptimizeForSize);
 
@@ -1309,7 +1309,7 @@ void CodegenFragmentBodies(
             {
                 TCGIRBuilder irBuilder(function);
                 auto innerBuilder = TCGExprContext::Make(
-                    TCGBaseContext(TCGIRBuilderPtr(&irBuilder), module),
+                    TCGBaseContext(TCGIRBuilderPtr(&irBuilder), cgModule),
                     fragmentInfos,
                     expressionClosure,
                     literals,
@@ -2693,7 +2693,7 @@ size_t MakeCodegenMultiJoinOp(
 
         auto consumeJoinedRows = MakeConsumer(builder, "ConsumeJoinedRows", consumerSlot);
 
-        const auto& module = builder.Module;
+        const auto& cgModule = builder.Module;
 
         Type* joinComparersType = TTypeBuilder<TJoinComparers>::Get(builder->getContext());
 
@@ -2709,36 +2709,36 @@ size_t MakeCodegenMultiJoinOp(
             const auto& foreignKeyPrefix = parameters[index].ForeignKeyPrefix;
 
             builder->CreateStore(
-                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
+                comparerManager->GetEqComparer(lookupKeyTypes, cgModule, 0, commonKeyPrefix),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::PrefixEqComparer));
 
             builder->CreateStore(
-                comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetHasher(lookupKeyTypes, cgModule, commonKeyPrefix, lookupKeyTypes.size()),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixHasher));
 
             builder->CreateStore(
-                comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetEqComparer(lookupKeyTypes, cgModule, commonKeyPrefix, lookupKeyTypes.size()),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixEqComparer));
 
             builder->CreateStore(
-                comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetLessComparer(lookupKeyTypes, cgModule, commonKeyPrefix, lookupKeyTypes.size()),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::SuffixLessComparer));
 
             builder->CreateStore(
-                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
+                comparerManager->GetEqComparer(lookupKeyTypes, cgModule, 0, foreignKeyPrefix),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::ForeignPrefixEqComparer));
 
             builder->CreateStore(
-                comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
+                comparerManager->GetLessComparer(lookupKeyTypes, cgModule, foreignKeyPrefix, lookupKeyTypes.size()),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::ForeignSuffixLessComparer));
 
             builder->CreateStore(
-                comparerManager->GetTernaryComparer(lookupKeyTypes, module),
+                comparerManager->GetTernaryComparer(lookupKeyTypes, cgModule),
                 builder->CreateConstGEP2_32(joinComparersType, joinComparers, index, TFields::FullTernaryComparer));
         }
 
         builder->CreateCall(
-            module->GetRoutine("MultiJoinOpHelper"),
+            cgModule->GetRoutine("MultiJoinOpHelper"),
             {
                 builder.GetExecutionContext(),
                 builder.GetOpaqueValue(index),
@@ -3778,21 +3778,21 @@ void MakeCodegenWriteOp(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TSignature, typename TPISignature>
-TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entryFunctionName, EExecutionBackend executionBackend)
+TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& entryFunctionName, EExecutionBackend executionBackend)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(
     #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             FROM_HERE,
     #endif
-            module,
+            cgModule,
             entryFunctionName);
 
         auto* staticInvoke = &TCGWebAssemblyCaller<TSignature, TPISignature>::StaticInvoke;
         return TCallback<TSignature>(caller, staticInvoke);
     }
 
-    auto piFunction = module->GetCompiledFunction<TPISignature>(entryFunctionName);
+    auto piFunction = cgModule->GetCompiledFunction<TPISignature>(entryFunctionName);
     auto caller = New<TCGPICaller<TSignature, TPISignature>>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
         FROM_HERE,
@@ -3803,11 +3803,11 @@ TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr module, const TString& entr
     return TCallback<TSignature>(caller, staticInvoke);
 }
 
-std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& module, EExecutionBackend executionBackend)
+std::unique_ptr<NWebAssembly::IWebAssemblyCompartment> BuildImage(const TCGModulePtr& cgModule, EExecutionBackend executionBackend)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
-        module->BuildWebAssembly();
-        auto bytecode = module->GetWebAssemblyBytecode();
+        cgModule->BuildWebAssembly();
+        auto bytecode = cgModule->GetWebAssemblyBytecode();
         auto compartment = NWebAssembly::CreateQueryLanguageImage();
         compartment->AddModule(bytecode);
         compartment->Strip();

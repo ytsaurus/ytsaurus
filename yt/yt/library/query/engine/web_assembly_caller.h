@@ -23,14 +23,14 @@ public:
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
        const NYT::TSourceLocation& location,
 #endif
-        NCodegen::TCGModulePtr module,
+        NCodegen::TCGModulePtr cgModule,
         const TString& function)
         : NYT::NDetail::TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
             location
 #endif
     )
-        , Module_(std::move(module))
+        , Module_(std::move(cgModule))
         , FunctionName_(function)
         , RuntimeType_(NWebAssembly::TFunctionTypeBuilder</*IsIntrinsic*/ false, TPIResult(TPIArgs...)>::Get())
     { }

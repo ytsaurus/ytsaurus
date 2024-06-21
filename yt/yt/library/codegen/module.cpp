@@ -174,16 +174,16 @@ public:
         }
 
         // Create module.
-        auto module = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
-        module->setTargetTriple(triple);
-        Module_ = module.get();
+        auto cgModule = std::make_unique<llvm::Module>(moduleName.c_str(), Context_);
+        cgModule->setTargetTriple(triple);
+        Module_ = cgModule.get();
 
         llvm::TargetOptions targetOptions;
         targetOptions.EnableFastISel = true;
 
         // Create engine.
         std::string what;
-        llvm::EngineBuilder builder(std::move(module));
+        llvm::EngineBuilder builder(std::move(cgModule));
         builder
             .setEngineKind(llvm::EngineKind::JIT)
             .setOptLevel(llvm::CodeGenOpt::Default)

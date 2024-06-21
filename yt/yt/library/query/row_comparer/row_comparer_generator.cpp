@@ -582,13 +582,13 @@ TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType
     // FIXME: Use 256-bit null mask and validate key column count against correct table type.
     ValidateDynamicTableKeyColumnCount(keyColumnTypes.Size());
 
-    auto module = TCGModule::Create(GetComparerRoutineRegistry());
-    auto builder = TComparerBuilder(module, keyColumnTypes);
+    auto cgModule = TCGModule::Create(GetComparerRoutineRegistry());
+    auto builder = TComparerBuilder(cgModule, keyColumnTypes);
 
     auto uuComparerName = TString("UUCompare");
     builder.BuildUUComparer(uuComparerName);
-    module->ExportSymbol(uuComparerName);
-    return module->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
+    cgModule->ExportSymbol(uuComparerName);
+    return cgModule->GetCompiledFunction<TUUComparerSignature>(uuComparerName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
