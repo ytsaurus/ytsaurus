@@ -44,6 +44,7 @@ TTableSchema GetOutputMessagesTableSchema()
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message", EValueType::String),
             TColumnSchema("system_timestamp", EValueType::Uint64),
+            TColumnSchema("codec", EValueType::Int64),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true);
@@ -71,6 +72,7 @@ TTableSchema GetInternalMessagesTableSchema()
             TColumnSchema("message_id", EValueType::String, ESortOrder::Ascending),
             TColumnSchema("message", EValueType::String),
             TColumnSchema("system_timestamp", EValueType::Uint64),
+            TColumnSchema("codec", EValueType::Int64),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true);
