@@ -1,12 +1,17 @@
 from __future__ import print_function
 
+import contextlib
+import copy
+import stat
+from typing import List, Dict, Generator
+
 from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
-from yt.wrapper.errors import YtRetriableError
+from yt.wrapper.errors import YtRetriableError, YtConfigError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
 from yt.wrapper.response_stream import ResponseStream, EmptyResponseStream
@@ -14,7 +19,8 @@ from yt.wrapper.driver import get_api_version
 from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split, YPath
 from yt.wrapper.stream import _ChunkStream
-from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config
+from yt.wrapper.default_config import retries_config as get_default_retries_config, get_default_config, \
+    _ConfigFSLoader, _update_from_file, default_config
 from yt.wrapper.format import SkiffFormat
 
 import yt.environment.arcadia_interop as arcadia_interop
@@ -1731,3 +1737,282 @@ class TestClientConfigFromCluster(object):
         config["proxy"]["url"] = str(original_client.get("//sys/@cluster_name"))
         env_alias_client = yt.YtClient(config=config)
         assert env_alias_client.get(node_path) == "value"
+
+
+class _ConfigFile:
+    def __init__(self, content: bytes, is_readable: bool, file_name: str):
+        self.content = content
+        self.is_readable = is_readable
+        self.file_name = file_name
+
+
+class TestFileConfig:
+    @contextlib.contextmanager
+    def _prepare_fs(self, files: List[_ConfigFile]) -> Generator[Dict[str, str], None, None]:
+        mapping = {}
+        with tempfile.TemporaryDirectory() as tmp_path:
+            for file_ in files:
+                path = tmp_path + os.path.sep + file_.file_name
+                self._files = {file_.file_name: path}
+                with open(path, "bw") as f:
+                    f.write(file_.content)
+                if not file_.is_readable:
+                    old_perm = os.stat(path).st_mode
+                    new_perm = old_perm & ~stat.S_IRUSR
+                    os.chmod(path, new_perm)
+                mapping[file_.file_name] = path
+            yield mapping
+
+    TEST_GET_CONFIG_PATH_CASES_ROOT = [
+        (
+            "All configs",
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="current_config",
+            ),
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="user_config",
+            ),
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="global_config",
+            ),
+            "current_config",
+        ),
+        (
+            "User and Global configs",
+            None,
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="user_config",
+            ),
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="global_config",
+            ),
+            "user_config",
+        ),
+        (
+            "Only Global config",
+            None,
+            None,
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="global_config",
+            ),
+            "global_config",
+        ),
+    ]
+
+    TEST_GET_CONFIG_PATH_CASES_ALL = TEST_GET_CONFIG_PATH_CASES_ROOT + [
+        (
+            # We try to use user config even if we can't read it.
+            "User (no read) and Global configs",
+            None,
+            _ConfigFile(
+                content=b"{}",
+                is_readable=False,
+                file_name="user_config",
+            ),
+            _ConfigFile(
+                content=b"{}",
+                is_readable=True,
+                file_name="global_config",
+            ),
+            None,
+        ),
+        (
+            "Only Global (no read) config",
+            None,
+            None,
+            _ConfigFile(
+                content=b"{}",
+                is_readable=False,
+                file_name="global_config",
+            ),
+            None,
+        ),
+    ]
+
+    @authors("nedenvr")
+    @pytest.mark.parametrize(
+        "test_name,current_config,user_config,global_config,result",
+        TEST_GET_CONFIG_PATH_CASES_ROOT if os.environ.get("USER") == "root" else TEST_GET_CONFIG_PATH_CASES_ALL
+    )
+    def test_get_config_path(self, test_name, current_config, global_config, user_config, result):
+        files = filter(lambda x: x is not None, [current_config, global_config, user_config])
+
+        with self._prepare_fs(files) as fs_mapping:
+            loader = _ConfigFSLoader(
+                current_path=fs_mapping.get(current_config.file_name if current_config else None, None),
+                user_path=fs_mapping.get(user_config.file_name if user_config else None, None),
+                global_path=fs_mapping.get(global_config.file_name if global_config else None, None),
+            )
+            path = loader._get_config_path()
+            assert path == fs_mapping.get(result)
+
+    @authors("nedenvr")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", lambda x: json.dumps(x).encode("utf-8")),
+            ("yson", yson.dumps),
+        ],
+    )
+    def test_update_from_file_v1(self, config_format, dumper):
+        config_file_name = "config"
+        current_config = _ConfigFile(
+            file_name=config_file_name,
+            is_readable=True,
+            content=dumper({"token": "bla"}),
+        )
+        with self._prepare_fs([current_config]) as fs_mapping:
+            yt_config = copy.deepcopy(default_config)
+            yt_config["config_format"] = config_format
+
+            _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+            assert yt_config["token"] == "bla"
+
+            yt_config["token"] = default_config["token"]
+            yt_config["config_format"] = default_config["config_format"]
+            assert yt_config == default_config
+
+    @authors("nedenvr")
+    def test_unknown_version(self):
+        config_file_name = "config"
+        current_config = _ConfigFile(
+            file_name=config_file_name,
+            is_readable=True,
+            content=yson.dumps({"config_version": "bla"}),
+        )
+        with self._prepare_fs([current_config]) as fs_mapping:
+            yt_config = copy.deepcopy(default_config)
+            yt_config["config_format"] = "yson"
+
+            with pytest.raises(yt.YtError, match="Unknown config's version"):
+                _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+
+    @authors("nedenvr")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", lambda x: json.dumps(x).encode("utf-8")),
+            ("yson", yson.dumps),
+        ]
+    )
+    @pytest.mark.parametrize(
+        "profile,config_content,error",
+        [
+            ("profile_name", {"config_version": 2}, "Missing profiles key in YT config"),
+            ("profile_name", {"config_version": 2, "profiles": []}, "Profiles should be dict, not"),
+            ("profile_name", {"config_version": 2, "profiles": {"bla": {}}}, r"Unknown profile.*Known profiles: bla"),
+            (None, {"config_version": 2, "profiles": {"bla": {}}}, "Profile has not been set and there is no default profile in the config"),
+        ]
+    )
+    def test_invalid_config_v2(self, profile, config_format, dumper, config_content, error):
+        config_file_name = "config"
+        current_config = _ConfigFile(
+            file_name=config_file_name,
+            is_readable=True,
+            content=dumper(config_content),
+        )
+        with self._prepare_fs([current_config]) as fs_mapping:
+            yt_config = copy.deepcopy(default_config)
+            yt_config["config_format"] = config_format
+            yt_config["config_profile"] = profile
+
+            with pytest.raises(YtConfigError, match=error):
+                _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+
+    @authors("nedenvr")
+    @pytest.mark.parametrize(
+        "config_format,dumper",
+        [
+            ("json", lambda x: json.dumps(x).encode("utf-8")),
+            ("yson", yson.dumps),
+        ],
+    )
+    def test_update_from_file_v2(self, config_format, dumper):
+        config_content = {
+            "config_version": 2,
+            "profiles": {
+                "profile1": {
+                    "token": "token1",
+                },
+                "profile2": {
+                    "token": "token2",
+                },
+            },
+            "default_profile": "profile1",
+        }
+        config_file_name = "config"
+        current_config = _ConfigFile(
+            file_name=config_file_name,
+            is_readable=True,
+            content=dumper(config_content),
+        )
+        with self._prepare_fs([current_config]) as fs_mapping:
+            yt_config = copy.deepcopy(default_config)
+            yt_config["config_format"] = config_format
+
+            # Check default_profile.
+            yt_config["config_profile"] = None
+            _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+            assert yt_config["token"] == "token1"
+
+            yt_config["config_profile"] = "profile2"
+
+            _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+            assert yt_config["token"] == "token2"
+
+            yt_config["token"] = default_config["token"]
+            yt_config["config_format"] = default_config["config_format"]
+            yt_config["config_profile"] = default_config["config_profile"]
+            assert yt_config == default_config
+
+    @authors("nedenvr")
+    @pytest.mark.parametrize(
+        "profile,expected_token",
+        [
+            ("profile1", "token1"),
+            (None, "token2"),
+        ],
+    )
+    def test_profile_from_env_v2(self, profile, expected_token, monkeypatch):
+        if profile:
+            monkeypatch.setenv("YT_CONFIG_PROFILE", profile)
+        else:
+            assert os.environ.get("YT_CONFIG_PROFILE") is None
+
+        config_content = {
+            "config_version": 2,
+            "default_profile": "profile2",
+            "profiles": {
+                "profile1": {
+                    "token": "token1",
+                },
+                "profile2": {
+                    "token": "token2",
+                },
+            },
+        }
+
+        config_file_name = "config"
+        current_config = _ConfigFile(
+            file_name=config_file_name,
+            is_readable=True,
+            content=yson.dumps(config_content),
+        )
+        with self._prepare_fs([current_config]) as fs_mapping:
+            yt_config = copy.deepcopy(default_config)
+            yt_config["config_format"] = "yson"
+
+            _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
+            assert yt_config["token"] == expected_token

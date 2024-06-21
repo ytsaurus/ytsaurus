@@ -292,3 +292,7 @@ class YtNoInSyncReplicas(YtResponseError):
 class YtSequoiaRetriableError(YtResponseError):
     """Transient error in Sequoia request, usually caused by lock conflict"""
     pass
+
+
+class YtConfigError(YtError):
+    pass
