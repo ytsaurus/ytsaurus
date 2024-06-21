@@ -24,6 +24,7 @@ from flaky import flaky
 import pytest
 
 from time import sleep
+import time
 from copy import deepcopy
 
 import builtins
@@ -812,7 +813,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
 
     @authors("gridem")
-    @flaky(max_runs=5)
     def test_async_replication_bandwidth_limit(self):
         class Inserter:
             def __init__(self, replica_driver):
@@ -844,19 +844,25 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
+        start_time = time.time()
         inserter = Inserter(self.replica_driver)
         for _ in range(50):
             inserter.insert()
 
-        sync_enable_table_replica(replica_id)
+        last_result = -1
 
-        counter_start = inserter.get_inserted_counter()
-        assert counter_start <= 7
+        def check_progress():
+            inserted_count = inserter.get_inserted_counter()
+            expected_count = (time.time() - start_time) * 5
+            assert last_result < inserted_count <= expected_count + 5
+            return inserted_count
+
+        sync_enable_table_replica(replica_id)
+        check_progress()
+
         for i in range(20):
-            sleep(1.0)
-            inserted = inserter.get_inserted_counter()
-            counter = (inserted - counter_start) // 5
-            assert counter - 3 <= i <= counter + 3
+            sleep(2.0)
+            inserted = check_progress()
             if inserted == inserter.counter:
                 break
 

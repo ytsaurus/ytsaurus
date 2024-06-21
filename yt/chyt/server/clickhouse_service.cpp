@@ -23,7 +23,7 @@ public:
         : TServiceBase(
             host->GetControlInvoker(),
             TClickHouseServiceProxy::GetDescriptor(),
-            ClickHouseYtLogger)
+            ClickHouseYtLogger())
         , Host_(host)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));

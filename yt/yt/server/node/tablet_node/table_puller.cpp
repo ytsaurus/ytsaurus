@@ -465,7 +465,7 @@ private:
                 auto upperTimestamp = NullTimestamp;
                 if (historyItemIndex + 1 < std::ssize(replicaInfo.History)) {
                     upperTimestamp = replicaInfo.History[historyItemIndex + 1].Timestamp;
-                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State, selfReplica->History.back())) {
+                } else if (IsReplicaReallySync(selfReplica->Mode, selfReplica->State, selfReplica->History)) {
                     upperTimestamp = selfReplica->History.back().Timestamp;
                 }
 

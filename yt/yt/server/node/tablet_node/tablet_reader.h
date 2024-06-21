@@ -45,6 +45,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
     std::optional<EWorkloadCategory> workloadCategory,
+    NTableClient::TTimestampReadOptions timestampReadOptions,
     bool mergeVersionedRows = true);
 
 //! Creates a range reader that handles ordered stores.
@@ -88,7 +89,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulLookupTabletReader(
     NTransactionClient::TReadTimestampRange timestampRange,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     std::optional<ETabletDistributedThrottlerKind> tabletThrottlerKind,
-    std::optional<EWorkloadCategory> workloadCategory);
+    std::optional<EWorkloadCategory> workloadCategory,
+    NTableClient::TTimestampReadOptions timestampReadOptions);
 
 //! Creates a range reader that merges data from all given #stores and
 //! returns all versions of each value.

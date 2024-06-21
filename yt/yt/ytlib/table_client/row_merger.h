@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "timestamped_schema_utils.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -26,7 +26,8 @@ public:
         int keyColumnCount,
         const TColumnFilter& columnFilter,
         NQueryClient::TColumnEvaluatorPtr columnEvaluator,
-        TTimestamp retentionTimestamp = NullTimestamp);
+        TTimestamp retentionTimestamp = NullTimestamp,
+        const TTimestampColumnMapping& timestampColumnMapping = {});
 
     void AddPartialRow(TVersionedRow row);
     void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
@@ -35,7 +36,6 @@ public:
 
 private:
     const TRowBufferPtr RowBuffer_;
-    const int ColumnCount_;
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
     const TTimestamp RetentionTimestamp_;
@@ -45,11 +45,13 @@ private:
 
     TCompactVector<int, TypicalColumnCount> ColumnIds_;
     TCompactVector<int, TypicalColumnCount> ColumnIdToIndex_;
+    TCompactVector<int, TypicalColumnCount> ColumnIdToTimestampColumnId_;
 
     TCompactVector<TVersionedValue, TypicalColumnCount> AggregateValues_;
 
     TTimestamp LatestWrite_;
     TTimestamp LatestDelete_;
+
     bool Started_ = false;
 
     void Cleanup();

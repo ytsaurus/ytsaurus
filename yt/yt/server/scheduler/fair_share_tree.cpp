@@ -3044,6 +3044,7 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "abc", pool->GetConfig()->Abc)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "full_path", pool->GetFullPath(/*explicitOnly*/ false, /*withTreeId*/ false))
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "child_pool_count", pool->GetChildPoolCount())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "redirect_to_cluster", pool->GetRedirectToCluster())
             .Do(std::bind(&TFairShareTree::BuildCompositeElementInfo, std::cref(treeSnapshot), pool, std::cref(filter), std::placeholders::_1));
     }
 

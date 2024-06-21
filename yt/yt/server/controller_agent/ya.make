@@ -23,6 +23,7 @@ SRCS(
     operation_controller.cpp
     operation_controller_host.cpp
     private.cpp
+    scheduling_context.cpp
     snapshot_builder.cpp
     snapshot_downloader.cpp
     memory_watchdog.cpp

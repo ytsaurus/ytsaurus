@@ -454,12 +454,18 @@ private:
         auto resultFuture = chunkStore->RemoveChunk(chunk, DynamicConfig_->DelayBeforeStartRemoveChunk);
 
         if (DynamicConfig_->WaitForIncrementalHeartbeatBarrier) {
-            // Wait for the removal notification to be delivered to master.
-            // Cf. YT-6532.
-            YT_LOG_INFO("Waiting for heartbeat barrier");
-            const auto& masterConnector = Bootstrap_->GetMasterConnector();
             return resultFuture
-                .Apply(BIND(&IMasterConnector::GetHeartbeatBarrier, masterConnector, CellTagFromId(ChunkId_)));
+                .Apply(BIND([
+                    this,
+                    this_ = MakeStrong(this),
+                    masterConnector = Bootstrap_->GetMasterConnector(),
+                    chunkId = ChunkId_
+                    ] {
+                    // Wait for the removal notification to be delivered to master.
+                    // Cf. YT-6532.
+                    YT_LOG_INFO("Waiting for heartbeat barrier");
+                    return masterConnector->GetHeartbeatBarrier(CellTagFromId(chunkId));
+                }));
         } else {
             return resultFuture;
         }

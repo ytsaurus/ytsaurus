@@ -44,6 +44,11 @@ struct THunkChunkMeta;
 struct TTableReadSpec;
 struct TFetchSingleTableReadSpecOptions;
 
+struct TBoundaryKeysExtension;
+struct TColumnMetaExtension;
+struct TKeyColumnsExtension;
+struct TSamplesExtension;
+
 DECLARE_REFCOUNTED_STRUCT(TOffloadingReaderOptions)
 DECLARE_REFCOUNTED_STRUCT(IOffloadingReader)
 
@@ -159,6 +164,8 @@ struct TVersionedRowDigest;
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionFactory)
+
+struct TTimestampReadOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,7 @@ def get_pipeline_spec(pipeline_path, spec_path=None, format=None, client=None):
     return result
 
 
-def set_pipeline_spec(pipeline_path, value, format=None, spec_path=None, expected_version=None, force=None, client=None):
+def set_pipeline_spec(pipeline_path, value, spec_path=None, expected_version=None, force=None, format=None, client=None):
     """Set YT Flow pipeline spec.
 
     :param pipeline_path: path to pipeline.
@@ -119,7 +119,7 @@ def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, format=None, client
     return result
 
 
-def set_pipeline_dynamic_spec(pipeline_path, value, format=None, spec_path=None, expected_version=None, client=None):
+def set_pipeline_dynamic_spec(pipeline_path, value, spec_path=None, expected_version=None, format=None, client=None):
     """Set YT Flow pipeline dynamic spec.
 
     :param pipeline_path: path to pipeline.
@@ -160,3 +160,35 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
         "remove_pipeline_dynamic_spec",
         params,
         client=client)
+
+
+def get_pipeline_state(pipeline_path, client=None):
+    """Get YT Flow pipeline state
+
+    :param pipeline_path: path to pipeline
+    """
+
+    params = {"pipeline_path": YPath(pipeline_path, client=client)}
+
+    return make_request(
+        "get_pipeline_state",
+        params,
+        client=client)
+
+
+def get_flow_view(pipeline_path, view_path=None, format=None, client=None):
+    """Get YT Flow flow view
+
+    :param pipeline_path: path to pipeline
+    :param view_path: path to part of the view
+    """
+
+    params = {"pipeline_path": YPath(pipeline_path, client=client)}
+    set_param(params, "view_path", view_path)
+
+    result = make_formatted_request(
+        "get_flow_view",
+        params=params,
+        format=format,
+        client=client)
+    return result

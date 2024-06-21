@@ -54,7 +54,8 @@ public:
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
-        int extraColumnCount = 0);
+        int extraColumnCount = 0,
+        bool decodeInlineHunkValues = false);
 
     bool NextRow();
 
@@ -96,6 +97,8 @@ private:
     // Count of extra row values, that are allocated and reserved
     // to be filled by upper levels (e.g. table_index).
     const int ExtraColumnCount_;
+
+    const bool DecodeInlineHunkValues_;
 
     TRef Data_;
     TRef Offsets_;

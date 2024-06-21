@@ -141,7 +141,7 @@ message TScheduleAllocationResponse
 {
     message TFailedCounter
     {
-        required int32 reason = 1; // EScheduleAllocationFailReason
+        required int32 reason = 1; // EScheduleFailReason
         required int32 value = 2;
     }
 

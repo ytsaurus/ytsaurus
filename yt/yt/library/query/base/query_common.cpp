@@ -193,4 +193,27 @@ TValue CastValueWithCheck(TValue value, EValueType targetType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFeatureFlags MostFreshFeatureFlags()
+{
+    return {
+        .WithTotalsFinalizesAggregatedOnCoordinator = true,
+    };
+}
+
+TFeatureFlags MostArchaicFeatureFlags()
+{
+    return {
+        .WithTotalsFinalizesAggregatedOnCoordinator = false,
+    };
+}
+
+TString ToString(const TFeatureFlags& featureFlags)
+{
+    return Format(
+        "[WithTotalsFinalizesAggregatedOnCoordinator: %v]",
+        featureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

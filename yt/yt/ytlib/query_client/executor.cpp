@@ -19,16 +19,17 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
-#include <yt/yt/ytlib/node_tracker_client/channel.h>
-
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
@@ -67,6 +68,38 @@ using NObjectClient::TObjectId;
 using NObjectClient::FromObjectId;
 
 using NHiveClient::TCellDescriptorPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
+{
+    if (original.GetStrict() != query.GetStrict() ||
+        original.GetUniqueKeys() != query.GetUniqueKeys() ||
+        original.GetSchemaModification() != query.GetSchemaModification() ||
+        original.DeletedColumns() != query.DeletedColumns())
+    {
+        return false;
+    }
+
+    auto queryColumnIt = query.Columns().begin();
+    for (const auto& column : original.Columns()) {
+        if (!GetTimestampColumnOriginalNameOrNull(column.Name()) &&
+            (queryColumnIt == query.Columns().end() || *queryColumnIt++ != column))
+        {
+            return false;
+        }
+    }
+
+    if (queryColumnIt != query.Columns().end()) {
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,8 +218,7 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
 
 void ValidateTableInfo(const TTableMountInfoPtr& tableInfo, TTableSchemaPtr expectedQuerySchema)
 {
-
-    if (*expectedQuerySchema != *tableInfo->Schemas[ETableSchemaKind::Query]) {
+    if (!ValidateSchema(*expectedQuerySchema, *tableInfo->Schemas[ETableSchemaKind::Query])) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid revision for table info; schema has changed")
@@ -298,6 +330,14 @@ public:
         QueryResult_ = asyncResponse.Apply(BIND(
             &TQueryResponseReader::OnResponse,
             MakeStrong(this)));
+
+        ResponseFeatureFlags_ = asyncResponse.Apply(BIND([] (const TQueryServiceProxy::TRspExecutePtr& response) {
+            auto flags = MostArchaicFeatureFlags();
+            if (response->has_feature_flags()) {
+                FromProto(&flags, response->feature_flags());
+            }
+            return flags;
+        }));
     }
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -319,6 +359,11 @@ public:
     TFuture<TQueryStatistics> GetQueryResult() const
     {
         return QueryResult_;
+    }
+
+    TFuture<TFeatureFlags> GetResponseFeatureFlags() const
+    {
+        return ResponseFeatureFlags_;
     }
 
     TDataStatistics GetDataStatistics() const override
@@ -348,6 +393,7 @@ private:
     const NLogging::TLogger Logger;
 
     TFuture<TQueryStatistics> QueryResult_;
+    TFuture<TFeatureFlags> ResponseFeatureFlags_;
     TAtomicIntrusivePtr<ISchemafulUnversionedReader> RowsetReader_;
 
     TErrorOr<TQueryStatistics> OnResponse(const TErrorOr<TQueryServiceProxy::TRspExecutePtr>& responseOrError)
@@ -405,7 +451,8 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         TDataSource dataSource,
         IUnversionedRowsetWriterPtr writer,
-        const TQueryOptions& options) override
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags) override
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
 
@@ -498,6 +545,7 @@ public:
             coordinatedQuery,
             externalCGInfo,
             options,
+            requestFeatureFlags,
             writer,
             sortedDataSource,
             std::move(groupedDataSplits));
@@ -516,6 +564,7 @@ private:
         const TConstQueryPtr& query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
         const IUnversionedRowsetWriterPtr& writer,
         bool sortedDataSource,
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits)
@@ -573,11 +622,15 @@ private:
                     bottomQuery,
                     externalCGInfo,
                     options,
+                    requestFeatureFlags,
                     std::move(dataSources),
                     sortedDataSource,
                     address);
             },
-            [&, frontQuery = frontQuery] (const ISchemafulUnversionedReaderPtr& reader) {
+            [&, frontQuery = frontQuery] (
+                const ISchemafulUnversionedReaderPtr& reader,
+                TFuture<TFeatureFlags> responseFeatureFlags
+            ) -> TQueryStatistics {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", frontQuery->Id);
                 return Evaluator_->Run(
                     std::move(frontQuery),
@@ -587,14 +640,17 @@ private:
                     functionGenerators,
                     aggregateGenerators,
                     MemoryChunkProvider_,
-                    options);
+                    options,
+                    requestFeatureFlags,
+                    responseFeatureFlags);
             });
     }
 
-    std::pair<ISchemafulUnversionedReaderPtr, TFuture<TQueryStatistics>> Delegate(
+    TEvaluateResult Delegate(
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags,
         std::vector<TDataSource> dataSources,
         bool sortedDataSource,
         const TString& address)
@@ -658,6 +714,8 @@ private:
             req->set_response_codec(static_cast<int>(config->SelectRowsResponseCodec));
         }
 
+        ToProto(req->mutable_feature_flags(), requestFeatureFlags);
+
         auto queryFingerprint = InferName(query, {.OmitValues = true});
         YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
             "RequestSize: %v)",
@@ -677,7 +735,8 @@ private:
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
             Logger);
-        return std::pair(resultReader, resultReader->GetQueryResult());
+
+        return {resultReader, resultReader->GetQueryResult(), resultReader->GetResponseFeatureFlags()};
     }
 };
 

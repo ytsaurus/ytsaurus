@@ -46,6 +46,7 @@ target_link_options(unittester-tablet-balancer-lib PRIVATE
 
 target_sources(unittester-tablet-balancer-lib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/balancing_helpers_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/unittests/bounded_priority_queue_ut.cpp
 )
 
 add_test(

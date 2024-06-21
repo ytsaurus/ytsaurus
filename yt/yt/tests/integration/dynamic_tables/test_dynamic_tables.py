@@ -40,6 +40,8 @@ import pytest
 from flaky import flaky
 from collections import Counter
 import time
+import random
+import string
 import builtins
 from random import shuffle, randrange
 
@@ -2643,6 +2645,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//sys/cluster_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
             .format(node, category))
 
+    def _get_random_string(self, length):
+        return ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(length))
+
     @authors("capone212")
     def test_changelog_write_throttler(self):
         sync_create_cells(1)
@@ -2660,13 +2665,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         def _get_insert_time(rows_count):
             start_time = time.time()
             for i in range(rows_count):
-                insert_rows("//tmp/t", [{"key": i, "value": str(i)}])
+                insert_rows("//tmp/t", [{"key": i, "value": self._get_random_string(100)}])
             return time.time() - start_time
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         node_address = get_tablet_leader_address(tablet_id)
         old_tablet_static = self._get_orchid_memory_limits(node_address, "tablet_static")
         new_tablet_static = old_tablet_static + 1024
+
+        expected_max_time = 9
 
         bundle_dynamic_config = {
             "%true": {
@@ -2676,7 +2683,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 },
                 "medium_throughput_limits" : {
                     "default" : {
-                        "write_byte_rate" : 10
+                        "write_byte_rate" : 50
                     }
                 }
             }
@@ -2685,10 +2692,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == new_tablet_static)
 
         # Wait while changes actually take place
-        wait(lambda: _get_insert_time(10) > 5)
+        wait(lambda: _get_insert_time(5) > expected_max_time)
 
         # Verify that timings are consistent
-        assert _get_insert_time(10) > 5
+        assert _get_insert_time(5) > expected_max_time
 
         bundle_dynamic_config = {
             "%true": {
@@ -2702,9 +2709,9 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: self._get_orchid_memory_limits(node_address, "tablet_static") == old_tablet_static)
 
         # Wait while changes actually take place
-        wait(lambda: _get_insert_time(10) < 5)
+        wait(lambda: _get_insert_time(5) < expected_max_time)
         # Verify that timings are consistent
-        assert _get_insert_time(10) < 5
+        assert _get_insert_time(5) < expected_max_time
 
         update_nodes_dynamic_config({})
 

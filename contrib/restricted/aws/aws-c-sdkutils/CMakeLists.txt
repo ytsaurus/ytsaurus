@@ -20,6 +20,7 @@ target_compile_options(restricted-aws-aws-c-sdkutils PRIVATE
   -DAWS_COMMON_USE_IMPORT_EXPORT
   -DAWS_SDKUTILS_USE_IMPORT_EXPORT
   -DHAVE_SYSCONF
+  -DINTEL_NO_ITTNOTIFY_API
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 

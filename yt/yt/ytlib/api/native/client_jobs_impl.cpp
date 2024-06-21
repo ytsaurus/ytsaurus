@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
+#include <yt/yt/client/api/transaction.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYson;
@@ -210,6 +212,44 @@ void TClient::DoAbortJob(
             allocationBriefInfo.NodeDescriptor));
         RequestJobAbort(proxy, jobId, Options_.GetAuthenticatedUser());
     }
+}
+
+void TClient::DoDumpJobProxyLog(
+    TJobId jobId,
+    TOperationId operationId,
+    const TYPath& path,
+    const TDumpJobProxyLogOptions& /*options*/)
+{
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
+
+    auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read))
+        .ValueOrThrow();
+
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+
+    auto transaction = [&] {
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Dump JobProxy logs of job %v of operation %v", jobId, operationId));
+
+        NApi::TTransactionStartOptions options{
+            .Attributes = std::move(attributes)
+        };
+
+        return WaitFor(StartTransaction(NTransactionClient::ETransactionType::Master, options))
+            .ValueOrThrow();
+    }();
+
+    auto req = jobProberServiceProxy.DumpJobProxyLog();
+    ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_path(), path);
+    ToProto(req->mutable_transaction_id(), transaction->GetId());
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+
+    WaitFor(transaction->Commit())
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -497,7 +497,7 @@ protected:
             int primaryVersionedSlices = 0;
             int foreignSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+            for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
                 const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
                 YT_VERIFY(comparator);
 
@@ -582,7 +582,7 @@ protected:
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema.Get(),
-                        false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
+                        {.IgnoreSortOrder=false}).first == ESchemaCompatibility::FullyCompatible;
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
                     }
@@ -906,7 +906,7 @@ public:
                     InferSchemaFromInput(PrimarySortColumns_);
                 } else {
                     prepareOutputSortColumns();
-                    ValidateOutputSchemaCompatibility(true);
+                    ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
                 }
                 break;
 

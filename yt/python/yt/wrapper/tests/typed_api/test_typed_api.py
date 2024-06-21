@@ -1,5 +1,8 @@
+import enum
+
 from yt.common import YtError
 from yt.testlib import authors
+from yt.type_info.type_base import Primitive
 
 from yt.wrapper.schema import (
     yt_dataclass,
@@ -27,7 +30,7 @@ from yt.wrapper.schema import (
     FormattedPyDatetime,
 )
 
-from yt.wrapper.schema.internal_schema import _get_annotation
+from yt.wrapper.schema.internal_schema import _get_annotation, _get_primitive_type_origin_and_annotation
 
 from yt.wrapper.prepare_operation import TypedJob
 from yt.testlib.helpers import set_config_option, check_rows_equality
@@ -1339,6 +1342,108 @@ class TestTypedApi(object):
         row = typed_rows[0]
         assert row.tuple_str_int == ("a", 10,)
         assert row.tuple_int_bytes == (1, b"\x01",)
+
+    class CustomIntEnum(enum.IntEnum):
+        A = 1
+        B = 2
+
+    class CustomStrEnum(enum.StrEnum):
+        A = "a"
+        B = "b"
+
+    class CustomBytesEnum(bytes, enum.Enum):
+        A = b"a"
+        B = b"b"
+
+    class CustomFloatEnum(float, enum.Enum):
+        A = 0.1
+        B = 0.2
+
+    @authors("denvr")
+    @pytest.mark.parametrize(
+        "enum_type,to_ti_type",
+        [
+            (CustomIntEnum, ti.Int16),
+            (CustomStrEnum, ti.Utf8),
+            (CustomBytesEnum, ti.String),
+            (CustomFloatEnum, ti.Float),
+        ],
+    )
+    def test_enum(self, enum_type: typing.Type[enum.Enum], to_ti_type: Primitive):
+        YtEnum = yt.create_yt_enum(enum_type, ti_type=to_ti_type)
+
+        @yt_dataclass
+        class RowWithEnum:
+            # int
+            field: YtEnum
+            field_optional: typing.Optional[YtEnum]
+            field_list: typing.List[YtEnum]
+            field_optional_list: typing.Optional[typing.List[YtEnum]]
+
+        expected_schema = TableSchema() \
+            .add_column("field", to_ti_type) \
+            .add_column("field_optional", ti.Optional[to_ti_type]) \
+            .add_column("field_list", ti.List[to_ti_type]) \
+            .add_column("field_optional_list", ti.Optional[ti.List[to_ti_type]])
+        schema = TableSchema.from_row_type(RowWithEnum)
+
+        assert schema == expected_schema
+
+        table = "//tmp/table"
+        yt.write_table_structured(
+            table,
+            RowWithEnum,
+            [
+                RowWithEnum(
+                    field=enum_type.A,
+                    field_optional=enum_type.B,
+                    field_list=[enum_type.B],
+                    field_optional_list=[enum_type.A],
+                )
+            ])
+
+        typed_rows = list(yt.read_table_structured(table, RowWithEnum))
+
+        assert len(typed_rows) == 1
+        assert TableSchema.from_yson_type(yt.get(table + "/@schema")) == expected_schema
+
+        row = typed_rows[0]
+
+        assert row.field == enum_type.A
+        assert type(row.field) is type(enum_type.A)  # noqa: E721
+        assert row.field_optional == enum_type.B
+        assert type(row.field_optional) is type(enum_type.B)  # noqa: E721
+        assert row.field_list == [enum_type.B]
+        assert type(row.field_list[0]) is type(enum_type.B)  # noqa: E721
+        assert row.field_optional_list == [enum_type.A]
+        assert type(row.field_optional_list[0]) is type(enum_type.A)  # noqa: E721
+
+    @authors("denvr")
+    def test_enum_default_ti_type(self):
+        class IntEnum(enum.IntEnum):
+            A = 1
+            B = 2
+
+        class RegularEnum(enum.Enum):
+            A = 1
+            B = 2
+
+        annotated_type = yt.create_yt_enum(IntEnum)
+        origin, annotation = _get_primitive_type_origin_and_annotation(annotated_type)
+        assert origin is int
+        assert annotation._ti_type == ti.Int64
+
+        with pytest.raises(YtError, match="doesn't have default ti_type representation. Set the ti_type param explicitly"):
+            yt.create_yt_enum(RegularEnum)
+
+    @authors("denvr")
+    def test_enum_regular(self):
+        class RegularEnum(enum.Enum):
+            A = "a"
+            B = "b"
+
+        with pytest.raises(AssertionError, match="Unsupported python type"):
+            yt.create_yt_enum(RegularEnum, ti_type=ti.Int64)
 
     class SimpleIdentityMapper(TypedJob):
         def __call__(self, input_row: TheRow) -> typing.Iterable[TheRow]:

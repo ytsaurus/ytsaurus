@@ -18,7 +18,6 @@ RECURSE(
     util
     util/ut
     tests
-    tests_core_http
 )
 
 IF (NOT OPENSOURCE)

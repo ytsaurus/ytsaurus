@@ -944,6 +944,13 @@ public:
     //! All registered scheduler experiments keyed by experiment names.
     THashMap<TString, TExperimentConfigPtr> Experiments;
 
+    //! How often to check for errors on matching operations against experiment filters.
+    TDuration ExperimentAssignmentErrorCheckPeriod;
+
+    //! How long the alert will remain on after an error occured when matching operations against experiment filters.
+    //! Should be significantly longer than the #ExperimentAssignmentErrorCheckPeriod.
+    TDuration ExperimentAssignmentAlertDuration;
+
     //! Minimum amount of resources to continue schedule allocation attempts.
     std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 

@@ -1262,6 +1262,9 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized);
 void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
 
+void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original);
+void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized);
+
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,

@@ -85,19 +85,19 @@ public:
     bool FindJobToSchedule(
         const TJobResources& nodeLimits,
         TJobDescription* jobToScheduleOutput,
-        EScheduleAllocationFailReason* failReasonOutput)
+        EScheduleFailReason* failReasonOutput)
     {
         YT_VERIFY(InitializationFinished_);
 
         if (PendingJobs_.empty()) {
-            *failReasonOutput = EScheduleAllocationFailReason::NoPendingJobs;
+            *failReasonOutput = EScheduleFailReason::NoPendingJobs;
             return false;
         }
         auto jobDescription = PendingJobs_.front();
 
         // TODO(ignat, antonkikh): support disk quota in scheduler simulator (YT-9009)
         if (!Dominates(nodeLimits, jobDescription.ResourceLimits)) {
-            *failReasonOutput = EScheduleAllocationFailReason::NotEnoughResources;
+            *failReasonOutput = EScheduleFailReason::NotEnoughResources;
             return false;
         }
 
@@ -246,7 +246,7 @@ private:
     bool FindJobToSchedule(
         const TJobResourcesWithQuota& nodeLimits,
         TJobDescription* jobToScheduleOutput,
-        EScheduleAllocationFailReason* failReasonOutput);
+        EScheduleFailReason* failReasonOutput);
 
     TJobBuckets InitializeJobBuckets(const TOperationDescription* operationDescription);
 };
@@ -416,22 +416,22 @@ bool TSimulatorOperationController::IsOperationCompleted() const
 bool TSimulatorOperationController::FindJobToSchedule(
     const TJobResourcesWithQuota& nodeLimits,
     TJobDescription* jobToScheduleOutput,
-    EScheduleAllocationFailReason* failReasonOutput)
+    EScheduleFailReason* failReasonOutput)
 {
-    EScheduleAllocationFailReason commonFailReason = EScheduleAllocationFailReason::NoPendingJobs;
+    EScheduleFailReason commonFailReason = EScheduleFailReason::NoPendingJobs;
 
     for (auto& activeBucket : ActiveBuckets_) {
-        EScheduleAllocationFailReason lastFailReason;
+        EScheduleFailReason lastFailReason;
         if (activeBucket->FindJobToSchedule(nodeLimits, jobToScheduleOutput, &lastFailReason)) {
             return true;
         }
 
         switch (lastFailReason) {
-            case EScheduleAllocationFailReason::NotEnoughResources: {
+            case EScheduleFailReason::NotEnoughResources: {
                 commonFailReason = lastFailReason;
                 break;
             }
-            case EScheduleAllocationFailReason::NoPendingJobs: {
+            case EScheduleFailReason::NoPendingJobs: {
                 // Nothing to do.
                 break;
             }
@@ -460,7 +460,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     auto scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
 
     TJobDescription jobToSchedule;
-    EScheduleAllocationFailReason failReason;
+    EScheduleFailReason failReason;
     if (!FindJobToSchedule(nodeLimits, &jobToSchedule, &failReason)) {
         scheduleAllocationResult->RecordFail(failReason);
         return MakeFuture(scheduleAllocationResult);

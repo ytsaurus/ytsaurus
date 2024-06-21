@@ -281,9 +281,9 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("controller_failure", &TThis::ControllerFailure)
         .Default();
-    registrar.Parameter("get_job_spec_delay", &TThis::GetJobSpecDelay)
+    registrar.Parameter("settle_job_delay", &TThis::SettleJobDelay)
         .Default();
-    registrar.Parameter("fail_get_job_spec", &TThis::FailGetJobSpec)
+    registrar.Parameter("fail_settle_job_requests", &TThis::FailSettleJobRequests)
         .Default(false);
     registrar.Parameter("testing_speculative_launch_mode", &TThis::TestingSpeculativeLaunchMode)
         .Default(ETestingSpeculativeLaunchMode::None);
@@ -826,7 +826,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("batch_row_count", &TThis::BatchRowCount)
-        .Default();
+        .Default()
+        .GreaterThan(0);
 
     registrar.Parameter("bypass_hunk_remote_copy_prohibition", &TThis::BypassHunkRemoteCopyProhibition)
         .Default();
@@ -882,9 +883,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             spec->UserFileColumnarStatistics->Enabled = true;
         }
 
-        if (spec->BatchRowCount) {
-            THROW_ERROR_EXCEPTION_IF(*spec->BatchRowCount <= 0, "Value of \"batch_row_count\" of must be positive");
-            THROW_ERROR_EXCEPTION_IF(spec->Sampling && spec->Sampling->SamplingRate, "Option \"batch_row_count\" cannot be used with input sampling");
+        if (spec->BatchRowCount && spec->Sampling && spec->Sampling->SamplingRate) {
+            THROW_ERROR_EXCEPTION("Option \"batch_row_count\" cannot be used with input sampling");
         }
     });
 }
@@ -1389,6 +1389,14 @@ void TMergeOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("schema_inference_mode", &TThis::SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedMergeOperationSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("single_chunk_teleport_strategy", &TThis::SingleChunkTeleportStrategy)
+        .Default(ESingleChunkTeleportStrategy::Disabled);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2213,6 +2221,15 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_priority_scheduling_segment_module_assignment", &TThis::EnablePrioritySchedulingSegmentModuleAssignment)
         .Default();
+
+    registrar.Parameter("redirect_to_cluster", &TThis::RedirectToCluster)
+        .Default();
+
+    registrar.Parameter("enable_priority_strong_guarantee_adjustment", &TThis::EnablePriorityStrongGuaranteeAdjustment)
+        .Default(false);
+
+    registrar.Parameter("enable_priority_strong_guarantee_adjustment_donorship", &TThis::EnablePriorityStrongGuaranteeAdjustmentDonorship)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         // COMPAT(arkady-e1ppa)

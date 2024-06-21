@@ -48,7 +48,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = YqlAgentLogger;
+static constexpr auto& Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -220,7 +220,7 @@ TYqlRowset BuildRowset(
 
     const auto& typeNode = writeNode->GetChildOrThrow("Type");
     auto schema = NYT::NYTree::ConvertTo<NYT::NTableClient::TTableSchemaPtr>(typeNode);
-    TBuildingValueConsumer consumer(schema, YqlAgentLogger, true);
+    TBuildingValueConsumer consumer(schema, YqlAgentLogger(), true);
 
     const auto& columnsPtr = writeNode->FindChild("Columns");
     THashMap<TString, ui32> columns;

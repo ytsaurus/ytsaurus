@@ -33,17 +33,10 @@ import tempfile
 import time
 import warnings
 import logging
-try:
-    from string import letters as ascii_letters
-except ImportError:
-    from string import ascii_letters
+from string import ascii_letters
 
 from datetime import datetime, timedelta
-try:
-    from cStringIO import StringIO as BytesIO, OutputType
-except ImportError:  # Python 3
-    from io import BytesIO
-    OutputType = BytesIO
+from io import BytesIO
 
 try:
     import yt_tests_settings
@@ -243,7 +236,7 @@ def wait_no_assert(predicate, verbose=False, wait_args=None):
     try:
         wait(wrapper, **wait_args)
     except WaitFailed:
-        if not last_exception:
+        if last_exception is None:
             raise
         raise last_exception
 
@@ -509,7 +502,7 @@ def execute_command(
             print_debug(str(error))
             # NB: we want to see inner errors in teamcity.
         raise error
-    if isinstance(output_stream, OutputType):
+    if isinstance(output_stream, BytesIO):
         result = output_stream.getvalue()
         if verbose:
             print_debug(result)
@@ -661,6 +654,13 @@ def poll_job_shell(job_id, authenticated_user=None, shell_name=None, **kwargs):
 def abort_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command("abort_job", kwargs)
+
+
+def dump_job_proxy_log(job_id, operation_id, path, **kwargs):
+    kwargs["job_id"] = job_id
+    kwargs["operation_id"] = operation_id
+    kwargs["path"] = path
+    execute_command("dump_job_proxy_log", kwargs)
 
 
 def interrupt_job(job_id, interrupt_timeout=10000, **kwargs):
@@ -828,6 +828,12 @@ def locate_skynet_share(path, **kwargs):
 def select_rows(query, **kwargs):
     kwargs["query"] = query
     kwargs["verbose_logging"] = True
+    if "with_timestamps" in kwargs:
+        if "versioned_read_options" in kwargs:
+            raise YtError('At most one of "versioned_read_options" or "with_timestamps" can be specified')
+
+        kwargs["versioned_read_options"] = {"read_mode": "latest_timestamp" if kwargs["with_timestamps"] else "default"}
+
     return execute_command_with_output_format("select_rows", kwargs)
 
 
@@ -985,7 +991,7 @@ def start_transaction(**kwargs):
 
 def commit_transaction(tx, **kwargs):
     kwargs["transaction_id"] = tx
-    execute_command("commit_tx", kwargs)
+    return execute_command("commit_tx", kwargs, parse_yson=True)
 
 
 def ping_transaction(tx, **kwargs):
@@ -1118,7 +1124,7 @@ def restore_table_backup(*args, **kwargs):
     return execute_command("restore_table_backup", kwargs)
 
 
-def write_file(path, data, **kwargs):
+def write_file(path: str, data: bytes | None, **kwargs):
     kwargs["path"] = path
 
     if "input_stream" in kwargs:
@@ -1126,6 +1132,7 @@ def write_file(path, data, **kwargs):
         input_stream = kwargs["input_stream"]
         del kwargs["input_stream"]
     else:
+        assert data is not None
         input_stream = BytesIO(data)
 
     return execute_command("write_file", kwargs, input_stream=input_stream)
@@ -2832,12 +2839,12 @@ def get_cluster_drivers(primary_driver=None):
     for drivers in _clusters_drivers.values():
         if drivers[0][default_api_version] == primary_driver:
             return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
-    raise "Failed to get cluster drivers"
+    raise RuntimeError("Failed to get cluster drivers")
 
 
 class AsyncGet:
     def __init__(self, path, driver):
-        self.output_stream = OutputType()
+        self.output_stream = BytesIO()
         self.response = self.send_request(path, driver=driver, return_response=True, output_stream=self.output_stream)
 
     def send_request(self, path, **kwargs):

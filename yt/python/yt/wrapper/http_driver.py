@@ -278,10 +278,10 @@ def make_request(command_name,
 
         headers["Content-Encoding"] = content_encoding
 
-        require(content_encoding in ["gzip", "identity", "br"],
+        require(content_encoding in ["gzip", "identity", "br", "z-lz4"],
                 lambda: YtError("Content encoding '{0}' is not supported".format(content_encoding)))
 
-        if content_encoding in ["br", "gzip"] and not is_data_compressed:
+        if content_encoding != "identity" and not is_data_compressed:
             data = get_compressor(content_encoding)(data)
 
     stream = use_framing or (command.output_type in ["binary", "tabular"])

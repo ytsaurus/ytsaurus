@@ -1066,6 +1066,10 @@ func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
 		w.MapKeyString("annotations")
 		w.Any(o.Annotations)
 	}
+	if o.AccessControlObjects != nil {
+		w.MapKeyString("access_control_objects")
+		w.Any(o.AccessControlObjects)
+	}
 	if o.AccessControlObject != nil {
 		w.MapKeyString("access_control_object")
 		w.Any(o.AccessControlObject)
@@ -1179,6 +1183,10 @@ func writeAlterQueryOptions(w *yson.Writer, o *yt.AlterQueryOptions) {
 	if o.Annotations != nil {
 		w.MapKeyString("annotations")
 		w.Any(o.Annotations)
+	}
+	if o.AccessControlObjects != nil {
+		w.MapKeyString("access_control_objects")
+		w.Any(o.AccessControlObjects)
 	}
 	if o.AccessControlObject != nil {
 		w.MapKeyString("access_control_object")

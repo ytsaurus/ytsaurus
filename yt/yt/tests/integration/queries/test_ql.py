@@ -154,3 +154,4 @@ class TestQueriesQL(YTEnvSetup):
 class TestQueriesQLRpcProxy(TestQueriesQL):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1

@@ -304,7 +304,7 @@ protected:
                     InputManager->GetInputTables()[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputManager->GetInputTables()[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema.Get(),
-                        false /*ignoreSortOrder*/).first == ESchemaCompatibility::FullyCompatible;
+                        {.IgnoreSortOrder=false}).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -380,7 +380,7 @@ protected:
             int unversionedSlices = 0;
             int versionedSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+            for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
                 const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
@@ -762,6 +762,17 @@ protected:
         return {EJobType::UnorderedMerge};
     }
 
+    TUnorderedChunkPoolOptions GetUnorderedChunkPoolOptions() const override
+    {
+        auto options = TUnorderedControllerBase::GetUnorderedChunkPoolOptions();
+        if (Spec->ForceTransform) {
+            options.SingleChunkTeleportStrategy = ESingleChunkTeleportStrategy::Disabled;
+        } else {
+            options.SingleChunkTeleportStrategy = Spec->SingleChunkTeleportStrategy;
+        }
+        return options;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
 
@@ -838,7 +849,7 @@ private:
                     validateOutputNotSorted();
 
                     if (!Spec->InputQuery) {
-                        ValidateOutputSchemaCompatibility(true);
+                        ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
                     }
                 }
                 break;

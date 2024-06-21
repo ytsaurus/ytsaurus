@@ -61,7 +61,7 @@ public:
         , Host_(host)
         , Server_(server)
     {
-        TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
+        TraceContext_ = SetupTraceContext(ClickHouseYtLogger(), request);
         TraceContext_->AddTag("chyt.instance_cookie", Host_->GetInstanceCookie());
         TraceContext_->AddTag("chyt.instance_address", Host_->GetConfig()->Address);
 

@@ -34,9 +34,7 @@ def sequoia_tables_empty():
 class TestSequoiaReplicas(YTEnvSetup):
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
-    MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
-    }
+
     NUM_NODES = 9
 
     TABLE_MEDIUM_1 = "table_medium_1"
@@ -49,9 +47,16 @@ class TestSequoiaReplicas(YTEnvSetup):
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            # Making sure we do not use it for replicas.
+            "enable": False
+        },
         "chunk_manager": {
-            "sequoia_chunk_replicas_percentage": 100,
-            "fetch_replicas_from_sequoia": True
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True
+            }
         }
     }
 
@@ -165,7 +170,7 @@ class TestSequoiaReplicas(YTEnvSetup):
             total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
             return total_purgatory_size == 0
 
-        set("//sys/@config/chunk_manager/enable_chunk_purgatory", False)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", False)
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(chunk_id)))
         wait(lambda: not is_purgatory_empty())
@@ -188,7 +193,7 @@ class TestSequoiaReplicas(YTEnvSetup):
             return True
         wait(no_sequoia_chunk_replicas)
 
-        set("//sys/@config/chunk_manager/enable_chunk_purgatory", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
 
         wait(is_purgatory_empty)
         wait(no_destroyed_replicas)
@@ -241,14 +246,49 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         remove("//tmp/t")
 
+    @authors("aleksandra-zh")
+    def test_refresh(self):
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+
+        write_table("//tmp/t", [{"x": 1}])
+        assert read_table("//tmp/t") == [{"x": 1}]
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        assert len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) > 0
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+            set("//sys/@config/chunk_manager/sequoia_chunk_replicas/store_sequoia_replicas_on_master", False)
+
+        wait(lambda: chunk_id not in get("//sys/lost_chunks"))
+
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/processed_removed_sequoia_replicas_on_master", False)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+
+        remove("//tmp/t")
+
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
     DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            # Making sure we do not use it for replicas.
+            "enable": False
+        },
         "chunk_manager": {
-            "sequoia_chunk_replicas_percentage": 100,
-            "fetch_replicas_from_sequoia": True,
-            "store_sequoia_replicas_on_master": False,
-            "processed_removed_sequoia_replicas_on_master": False
+            "sequoia_chunk_replicas": {
+                "enable": True,
+                "replicas_percentage": 100,
+                "fetch_replicas_from_sequoia": True,
+                "store_sequoia_replicas_on_master": False,
+                "processed_removed_sequoia_replicas_on_master": False
+            }
         }
     }
 
@@ -342,13 +382,6 @@ class TestSequoiaQueues(YTEnvSetup):
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "sequoia_chunk_replicas_percentage": 100,
-            "fetch_replicas_from_sequoia": True
-        }
     }
 
     @authors("aleksandra-zh")

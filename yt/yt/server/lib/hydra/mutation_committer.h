@@ -53,7 +53,7 @@ public:
 
     TFuture<void> GetLastLoggedMutationFuture();
     TFuture<void> GetLastOffloadedMutationsFuture();
-    void RegisterNextChangelog(int id, IChangelogPtr changelog);
+    void RegisterNextChangelog(int id, TFuture<IChangelogPtr> changelog);
 
 protected:
     const TConfigWrapperPtr Config_;
@@ -69,7 +69,7 @@ protected:
 
     TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
 
-    TCompactFlatMap<int, IChangelogPtr, 4> NextChangelogs_;
+    TCompactFlatMap<int, TFuture<IChangelogPtr>, 4> NextChangelogs_;
     IChangelogPtr Changelog_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

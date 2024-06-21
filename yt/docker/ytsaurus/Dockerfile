@@ -1,13 +1,65 @@
-FROM mirror.gcr.io/ubuntu:focal
+FROM mirror.gcr.io/ubuntu:focal AS base
 
 USER root
 
 WORKDIR /tmp
 
-# Main binary.
-COPY ./ytserver-all /usr/bin/ytserver-all
+RUN apt-get update && apt-get install -y software-properties-common
+RUN add-apt-repository ppa:deadsnakes/ppa
 
-# If this list changes, also update yt_nightly/Dockerfile
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  curl \
+  dnsutils \
+  gdb \
+  iputils-ping \
+  less \
+  libidn11-dev \
+  lsb-release \
+  lsof \
+  python3-pip \
+  python3.8  \
+  python3.8-distutils \
+  strace \
+  telnet \
+  tini \
+  unzip \
+  zstd
+
+##########################################################################################
+
+FROM base AS base_ytsaurus_python_packages
+
+COPY ./ytsaurus_python /tmp/ytsaurus_python
+RUN for package in client yson local native_driver; \
+  do \
+    dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
+    wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
+    python3.8 -m pip install ${wheel_path}; \
+  done
+
+RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+
+##########################################################################################
+
+FROM base_ytsaurus_python_packages AS base_exec
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  containerd \
+  openjdk-11-jdk
+
+RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
+
+# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
+RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
+# Force lsb_release to use python it was born to use.
+RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
+
+##########################################################################################
+
+FROM base_exec AS ytsaurus
+
+# YTsaurus binary.
+COPY ./ytserver-all /usr/bin/ytserver-all
 RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master-cache && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-clock && \
@@ -23,49 +75,76 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-queue-agent && \
     ln -s /usr/bin/ytserver-all /usr/bin/ytserver-tcp-proxy
 
+# YTsaurus credits files.
+COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+
+# Scripts for init jobs.
 COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
 COPY ./init_operations_archive.py /usr/bin/init_operations_archive
 RUN ln -s /usr/bin/init_operations_archive /usr/bin/init_operation_archive
 
-# CREDITS files with licenses for all binaries.
+##########################################################################################
+
+FROM base AS chyt
+
+# CHYT binaries.
+COPY ./clickhouse-trampoline.py /usr/bin/clickhouse-trampoline
+COPY ./ytserver-clickhouse /usr/bin/ytserver-clickhouse
+
+# CHYT credits files.
+COPY ./credits/ytserver-clickhouse.CREDITS /usr/bin/ytserver-clickhouse.CREDITS
+
+# Setup script.
+COPY ./setup_cluster_for_chyt.sh /setup_cluster_for_chyt.sh
+RUN chmod 755 /setup_cluster_for_chyt.sh
+
+##########################################################################################
+
+FROM base_ytsaurus_python_packages AS query-tracker
+
+# Query tracker binaries.
+COPY ./ytserver-all /usr/bin/ytserver-all
+RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-query-tracker
+
+COPY ./ytserver-yql-agent /usr/bin/ytserver-yql-agent
+COPY ./mrjob /usr/bin/mrjob
+COPY ./dq_vanilla_job /usr/bin/dq_vanilla_job
+COPY ./dq_vanilla_job.lite /usr/bin/dq_vanilla_job.lite
+COPY ./yql /usr/lib/yql
+
+# Scripts for init jobs.
+COPY ./init_query_tracker_state.py /usr/bin/init_query_tracker_state
+
+# Query tracker credits files.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 
-RUN apt-get update && apt-get install -y software-properties-common
-RUN add-apt-repository ppa:deadsnakes/ppa
+##########################################################################################
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
-  containerd \
-  curl \
-  less \
-  gdb \
-  lsof \
-  strace \
-  telnet \
-  tini \
-  zstd \
-  unzip \
-  dnsutils \
-  iputils-ping \
-  lsb-release \
-  openjdk-11-jdk \
-  python3.8 \
-  python3-pip \
-  libidn11-dev \
-  python3.8-distutils
+FROM base AS strawberry
 
-COPY ./ytsaurus_python /tmp/ytsaurus_python
-RUN for package in client yson local native_driver; \
-  do \
-    dist_dir="/tmp/ytsaurus_python/ytsaurus_${package}_dist"; \
-    wheel_path="${dist_dir}/$(ls ${dist_dir} | grep "^ytsaurus_$package.*whl$")"; \
-    python3.8 -m pip install ${wheel_path}; \
-  done
+# Strawberry binary.
+COPY ./chyt-controller /usr/bin/strawberry-controller
+RUN ln -s /usr/bin/strawberry-controller /usr/bin/chyt-controller
 
-RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
+# Strawberry credits files.
+COPY ./credits/chyt-controller.CREDITS /usr/bin/strawberry-controller.CREDITS
 
-# Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
-RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f
-# Force lsb_release to use python it was born to use.
-RUN sed -i 's/python3/python3.8/' /usr/bin/lsb_release
+##########################################################################################
 
-RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
+FROM base_exec AS local
+
+COPY ./ytserver-all /usr/bin/ytserver-all
+COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
+
+COPY ./configure.sh .
+RUN ./configure.sh /var/lib/yt/local-cypress
+RUN rm /tmp/configure.sh
+
+COPY ./start.sh /usr/bin/start.sh
+
+VOLUME /var/lib/yt/local-cypress
+EXPOSE 80
+
+ENTRYPOINT ["bash", "/usr/bin/start.sh"]
+
+##########################################################################################

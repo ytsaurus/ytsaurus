@@ -1060,7 +1060,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         }
     } else {
         incomplete = options.Limit < queries.size();
-        result = std::vector(queries.begin(), queries.end() + std::min(options.Limit, queries.size()));
+        result = std::vector(queries.begin(), queries.begin() + std::min(options.Limit, queries.size()));
     }
 
     if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {

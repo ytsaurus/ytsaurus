@@ -81,14 +81,14 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override;
 
-    using TQueueTransactionMixin::AdvanceConsumer;
-    TFuture<void> AdvanceConsumer(
+    using TQueueTransactionMixin::AdvanceQueueConsumer;
+    TFuture<void> AdvanceQueueConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         int partitionIndex,
         std::optional<i64> oldOffset,
         i64 newOffset,
-        const TAdvanceConsumerOptions& options) override;
+        const TAdvanceQueueConsumerOptions& options) override;
 
     TFuture<TPushQueueProducerResult> PushQueueProducer(
         const NYPath::TRichYPath& producerPath,
@@ -394,6 +394,7 @@ public:
     UNIMPLEMENTED_METHOD(TFuture<void>, AbandonJob, (NJobTrackerClient::TJobId, const TAbandonJobOptions&));
     UNIMPLEMENTED_METHOD(TFuture<TPollJobShellResponse>, PollJobShell, (NJobTrackerClient::TJobId, const std::optional<TString>&, const NYson::TYsonString&, const TPollJobShellOptions&));
     UNIMPLEMENTED_METHOD(TFuture<void>, AbortJob, (NJobTrackerClient::TJobId, const TAbortJobOptions&));
+    UNIMPLEMENTED_METHOD(TFuture<void>, DumpJobProxyLog, (NJobTrackerClient::TJobId, NJobTrackerClient::TOperationId, const NYPath::TYPath&, const TDumpJobProxyLogOptions&));
     UNIMPLEMENTED_METHOD(TFuture<TClusterMeta>, GetClusterMeta, (const TGetClusterMetaOptions&));
     UNIMPLEMENTED_METHOD(TFuture<void>, CheckClusterLiveness, (const TCheckClusterLivenessOptions&));
     UNIMPLEMENTED_METHOD(TFuture<int>, BuildSnapshot, (const TBuildSnapshotOptions&));
@@ -515,7 +516,7 @@ TRANSACTION_METHOD_IMPL(void, Abort, (const TTransactionAbortOptions&));
 TRANSACTION_METHOD_IMPL(TVersionedLookupRowsResult, VersionedLookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TVersionedLookupRowsOptions&));
 TRANSACTION_METHOD_IMPL(std::vector<TUnversionedLookupRowsResult>, MultiLookupRows, (const std::vector<TMultiLookupSubrequest>&, const TMultiLookupOptions&));
 TRANSACTION_METHOD_IMPL(TPullRowsResult, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
-TRANSACTION_METHOD_IMPL(void, AdvanceConsumer, (const NYPath::TRichYPath&, const NYPath::TRichYPath&, int, std::optional<i64>, i64, const TAdvanceConsumerOptions&));
+TRANSACTION_METHOD_IMPL(void, AdvanceQueueConsumer, (const NYPath::TRichYPath&, const NYPath::TRichYPath&, int, std::optional<i64>, i64, const TAdvanceQueueConsumerOptions&));
 TRANSACTION_METHOD_IMPL(TPushQueueProducerResult, PushQueueProducer, (const NYPath::TRichYPath&, const NYPath::TRichYPath&, const TString&, i64, NTableClient::TNameTablePtr, TSharedRange<NTableClient::TUnversionedRow>, const TPushQueueProducerOptions&));
 TRANSACTION_METHOD_IMPL(NYson::TYsonString, ExplainQuery, (const TString&, const TExplainQueryOptions&));
 TRANSACTION_METHOD_IMPL(NYson::TYsonString, GetNode, (const NYPath::TYPath&, const TGetNodeOptions&));

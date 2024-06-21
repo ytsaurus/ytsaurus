@@ -250,6 +250,33 @@ class YtClient(ClientState):
             client=self,
             client_side=client_side)
 
+    def advance_queue_consumer(
+            self,
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client_side=True):
+        """
+        Advances consumer offset for the given queue.
+        If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param partition_index: tablet index
+        :type partition_index: int
+        :param old_offset: expected current offset
+        :type old_offset: None or int
+        :param new_offset: new offset to set
+        :type new_offset: int
+        :param client_side: use client-side implementation
+        :type client_side: bool
+
+        """
+        return client_api.advance_queue_consumer(
+            consumer_path, queue_path, partition_index, old_offset, new_offset,
+            client=self,
+            client_side=client_side)
+
     def alter_query(
             self,
             query_id,
@@ -869,6 +896,22 @@ class YtClient(ClientState):
             client=self,
             cache_path=cache_path)
 
+    def get_flow_view(
+            self,
+            pipeline_path,
+            view_path=None, format=None):
+        """
+        Get YT Flow flow view
+
+        :param pipeline_path: path to pipeline
+        :param view_path: path to part of the view
+
+        """
+        return client_api.get_flow_view(
+            pipeline_path,
+            client=self,
+            view_path=view_path, format=format)
+
     def get_in_sync_replicas(
             self,
             path, timestamp, input_stream,
@@ -1048,6 +1091,19 @@ class YtClient(ClientState):
             pipeline_path,
             client=self,
             spec_path=spec_path, format=format)
+
+    def get_pipeline_state(
+            self,
+            pipeline_path):
+        """
+        Get YT Flow pipeline state
+
+        :param pipeline_path: path to pipeline
+
+        """
+        return client_api.get_pipeline_state(
+            pipeline_path,
+            client=self)
 
     def get_query(
             self,
@@ -2465,7 +2521,8 @@ class YtClient(ClientState):
             fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
             raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None,
-            use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None):
+            use_canonical_null_relations=None, merge_versioned_rows=None, syntax_version=None, versioned_read_options=None,
+            with_timestamps=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2487,7 +2544,8 @@ class YtClient(ClientState):
             workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index,
             format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters,
             retention_timestamp=retention_timestamp, placeholder_values=placeholder_values, use_canonical_null_relations=use_canonical_null_relations,
-            merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version)
+            merge_versioned_rows=merge_versioned_rows, syntax_version=syntax_version, versioned_read_options=versioned_read_options,
+            with_timestamps=with_timestamps)
 
     def set(
             self,
@@ -2530,7 +2588,7 @@ class YtClient(ClientState):
     def set_pipeline_dynamic_spec(
             self,
             pipeline_path, value,
-            format=None, spec_path=None, expected_version=None):
+            spec_path=None, expected_version=None, format=None):
         """
         Set YT Flow pipeline dynamic spec.
 
@@ -2543,12 +2601,12 @@ class YtClient(ClientState):
         return client_api.set_pipeline_dynamic_spec(
             pipeline_path, value,
             client=self,
-            format=format, spec_path=spec_path, expected_version=expected_version)
+            spec_path=spec_path, expected_version=expected_version, format=format)
 
     def set_pipeline_spec(
             self,
             pipeline_path, value,
-            format=None, spec_path=None, expected_version=None, force=None):
+            spec_path=None, expected_version=None, force=None, format=None):
         """
         Set YT Flow pipeline spec.
 
@@ -2562,7 +2620,7 @@ class YtClient(ClientState):
         return client_api.set_pipeline_spec(
             pipeline_path, value,
             client=self,
-            format=format, spec_path=spec_path, expected_version=expected_version, force=force)
+            spec_path=spec_path, expected_version=expected_version, force=force, format=format)
 
     def set_user_password(
             self,

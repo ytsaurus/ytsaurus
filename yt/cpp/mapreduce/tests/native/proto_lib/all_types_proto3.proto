@@ -16,34 +16,34 @@ enum EEnumProto3
 
 message TEmbeddedMessageProto3
 {
-    string Key = 1;
-    string Value = 2;
+    string key = 1;
+    string value = 2;
 }
 
 message TAllTypesMessageProto3
 {
-    double DoubleField = 1;
-    float FloatField = 2;
+    double double_field = 1;
+    float float_field = 2;
 
-    int64 Int64Field = 3;
-    uint64 Uint64Field = 4;
-    sint64 Sint64Field = 5;
-    fixed64 Fixed64Field = 6;
-    sfixed64 Sfixed64Field = 7;
+    int64 int64_field = 3;
+    uint64 uint64_field = 4;
+    sint64 sint64_field = 5;
+    fixed64 fixed64_field = 6;
+    sfixed64 sfixed64_field = 7;
 
-    int32 Int32Field = 8;
-    uint32 Uint32Field = 9;
-    sint32 Sint32Field = 10;
-    fixed32 Fixed32Field = 11;
-    sfixed32 Sfixed32Field = 12;
-    bool BoolField = 13;
-    string StringField = 14;
-    bytes BytesField = 15;
+    int32 int32_field = 8;
+    uint32 uint32_field = 9;
+    sint32 sint32_field = 10;
+    fixed32 fixed32_field = 11;
+    sfixed32 sfixed32_field = 12;
+    bool bool_field = 13;
+    string string_field = 14;
+    bytes bytes_field = 15;
 
-    EEnumProto3 EnumField = 16;
-    TEmbeddedMessageProto3 MessageField = 17;
+    EEnumProto3 enum_field = 16;
+    TEmbeddedMessageProto3 message_field = 17;
 
-    int64 OmittedInt64Field = 18;
+    int64 omitted_int64_field = 18;
 }
 
 message TWithOptional
@@ -53,14 +53,14 @@ message TWithOptional
 
     message TEmbedded
     {
-        optional int64 OptionalField = 1;
+        optional int64 optional_field = 1;
     }
 
-    optional int64 OptionalField = 1;
+    optional int64 optional_field = 1;
     oneof Dummy {
         option (NYT.oneof_flags) = VARIANT;
-        int64 FieldInsideOneof = 2;
+        int64 _fieldInsideOneof = 2;
     }
-    optional TEmbedded EmbeddedField = 3;
-    int64 NonOptionalField = 4;
+    optional TEmbedded embedded_field = 3;
+    int64 non_optional_field = 4;
 }

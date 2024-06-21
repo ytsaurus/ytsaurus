@@ -170,6 +170,8 @@
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
+    XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \
+    XX(EnablePriorityStrongGuaranteeAdjustmentDonorship, enable_priority_strong_guarantee_adjustment_donorship) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSequoiaReplicas, enable_sequoia_replicas) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
@@ -420,6 +422,7 @@
     XX(RecursiveResourceUsage, recursive_resource_usage) \
     XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
     XX(RecursiveLockCount, recursive_lock_count) \
+    XX(RedirectToCluster, redirect_to_cluster) \
     XX(RefCounter, ref_counter) \
     XX(ReferencingAccounts, referencing_accounts) \
     XX(RegisterTime, register_time) \

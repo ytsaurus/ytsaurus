@@ -208,24 +208,7 @@ def pull_consumer(consumer_path, queue_path, offset, partition_index,
                                      format=format, raw=raw, client=client, method_name="pull_consumer")
 
 
-def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None):
-    """Advances consumer offset for the given queue.
-    If the old offset is specified, the command fails if it is not equal to the current stored offset.
-
-    :param consumer_path: path to consumer table.
-    :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param queue_path: path to queue table.
-    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-    :param partition_index: tablet index
-    :type partition_index: int
-    :param old_offset: expected current offset
-    :type old_offset: None or int
-    :param new_offset: new offset to set
-    :type new_offset: int
-    :param client_side: use client-side implementation
-    :type client_side: bool
-    """
-
+def _advance_queue_consumer_impl(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None, method_name="advance_consumer"):
     params = {
         "consumer_path": TablePath(consumer_path, client=client),
         "queue_path": TablePath(queue_path, client=client),
@@ -244,6 +227,46 @@ def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new
 
     DynamicTableRequestRetrier(
         retry_config,
-        "advance_consumer",
+        method_name,
         params,
         client=client).run()
+
+
+def advance_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None):
+    """Advances consumer offset for the given queue.
+    If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+    :param consumer_path: path to consumer table.
+    :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param partition_index: tablet index
+    :type partition_index: int
+    :param old_offset: expected current offset
+    :type old_offset: None or int
+    :param new_offset: new offset to set
+    :type new_offset: int
+    :param client_side: use client-side implementation
+    :type client_side: bool
+    """
+    _advance_queue_consumer_impl(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=client_side, client=client, method_name="advance_consumer")
+
+
+def advance_queue_consumer(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=True, client=None):
+    """Advances consumer offset for the given queue.
+    If the old offset is specified, the command fails if it is not equal to the current stored offset.
+
+    :param consumer_path: path to consumer table.
+    :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param queue_path: path to queue table.
+    :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param partition_index: tablet index
+    :type partition_index: int
+    :param old_offset: expected current offset
+    :type old_offset: None or int
+    :param new_offset: new offset to set
+    :type new_offset: int
+    :param client_side: use client-side implementation
+    :type client_side: bool
+    """
+    _advance_queue_consumer_impl(consumer_path, queue_path, partition_index, old_offset, new_offset, client_side=client_side, client=client, method_name="advance_queue_consumer")

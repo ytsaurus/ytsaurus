@@ -51,8 +51,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger().WithTag("ChunkReincarnator");
-inline constexpr int SampleChunkIdCount = 10;
+static constexpr auto& Logger = ChunkServerLogger;
+static constexpr int SampleChunkIdCount = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 

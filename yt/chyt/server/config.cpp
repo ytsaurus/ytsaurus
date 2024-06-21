@@ -71,7 +71,7 @@ void TTestingSettings::Register(TRegistrar registrar)
     registrar.Parameter("local_clique_size", &TThis::LocalCliqueSize)
         .Default(0);
 
-    registrar.Parameter("check_chyt_banned", &TThis::CheckCHYTBanned)
+    registrar.Parameter("check_chyt_banned", &TThis::CheckChytBanned)
         .Default(true);
 
     registrar.Parameter("chunk_spec_fetcher_breakpoint", &TThis::ChunkSpecFetcherBreakpoint)

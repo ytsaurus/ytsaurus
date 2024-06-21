@@ -440,6 +440,33 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicSequoiaChunkReplicasConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    TDuration RemovalPeriod;
+    int RemovalBatchSize;
+
+    //! Probability (in percents) that chunk replicas will be Sequoia.
+    int ReplicasPercentage;
+
+    bool FetchReplicasFromSequoia;
+    bool StoreSequoiaReplicasOnMaster;
+    bool ProcessRemovedSequoiaReplicasOnMaster;
+
+    bool EnableChunkPurgatory;
+
+    REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicConsistentReplicaPlacementConfig
     : public NYTree::TYsonStruct
 {
@@ -623,6 +650,8 @@ public:
 
     TDynamicChunkAutotomizerConfigPtr ChunkAutotomizer;
 
+    TDynamicSequoiaChunkReplicasConfigPtr SequoiaChunkReplicas;
+
     TDynamicChunkManagerTestingConfigPtr Testing;
 
     //! If true, replicator is aware of data centers when placing replicas.
@@ -635,21 +664,6 @@ public:
     THashSet<TString> BannedStorageDataCenters;
 
     TDuration ProfilingPeriod;
-
-    //! Probability (in percents) that newly created chunk will be Sequoia.
-    int SequoiaChunkProbability;
-
-    //! Probability (in percents) that chunk replicas will be Sequoia.
-    int SequoiaChunkReplicasPercentage;
-
-    TDuration SequoiaReplicaRemovalPeriod;
-    int SequoiaReplicaRemovalBatchSize;
-
-    bool FetchReplicasFromSequoia;
-    bool StoreSequoiaReplicasOnMaster;
-    bool ProcessRemovedSequoiaReplicasOnMaster;
-
-    bool EnableChunkPurgatory;
 
     //! When set of active chunk replicator shards is changed, no removal jobs
     //! will be scheduled within this period.

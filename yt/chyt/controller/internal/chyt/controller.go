@@ -32,11 +32,13 @@ type Config struct {
 	AddressResolver           map[string]any       `yson:"address_resolver"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
+	EnableGeoData             *bool                `yson:"enable_geo_data"`
 }
 
 const (
 	DefaultEnableYandexSpecificLinks = false
 	DefaultExportSystemLogTables     = false
+	DefaultEnableGeoData             = false
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -58,6 +60,13 @@ func (c *Config) ExportSystemLogTablesOrDefault() bool {
 		return *c.ExportSystemLogTables
 	}
 	return DefaultExportSystemLogTables
+}
+
+func (c *Config) EnableGeoDataOrDefault() bool {
+	if c.EnableGeoData != nil {
+		return *c.EnableGeoData
+	}
+	return DefaultEnableGeoData
 }
 
 type Controller struct {
@@ -140,7 +149,7 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 
 	var args []string
 	args = append(args, trampolinePath, chytPath)
-	if speclet.EnableGeoDataOrDefault() {
+	if speclet.EnableGeoDataOrDefault(c.config.EnableGeoDataOrDefault()) {
 		args = append(args, "--prepare-geodata")
 	}
 	return strings.Join(args, " ")
@@ -299,7 +308,7 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Name:         "enable_geodata",
 					Type:         strawberry.TypeBool,
 					CurrentValue: speclet.EnableGeoData,
-					DefaultValue: DefaultEnableGeoData,
+					DefaultValue: c.config.EnableGeoDataOrDefault(),
 					Description:  "If true, system dictionaries for geo-functions are set up automatically.",
 				},
 				{

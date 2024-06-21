@@ -102,8 +102,8 @@ Bundles are identified by string names. The list of bundles in the system is ava
 
 Each table, including a static one, has the `tablet_cell_bundle` attribute where the name of the bundle to which cells this table will be mounted is stored. For more information about mounting, see [Table mounting](../../../user-guide/dynamic-tables/operations.md#mount_table).
 
-Each bundle has the `node_tag_filter` attribute which is used to select the cluster nodes for tablet cells in the given bundle. The filter is a logical expression with the operators: `&` — logical "and", `|` — logical "or", `!` — logical "no" and round brackets.
-For example, `%foo | (bar & !baz)`.
+Each bundle has the `node_tag_filter` attribute which is used to select the cluster nodes for tablet cells in the given bundle. The filter is a logical expression with the operators: `&` — logical "and", `|` — logical "or", `!` — logical "no" and round brackets. For example, `foo | (bar & !baz)`.
+
 The variables in the expression are the possible tag values. If the cluster node has the specified tag, the variable in the formula takes the `true` value; if not, it takes the `false` value. Tablet cells will only fall onto those cluster nodes for which the entire expression takes the `true` value.
 
 Tablet cell bundles have the attributes indicated in the table:

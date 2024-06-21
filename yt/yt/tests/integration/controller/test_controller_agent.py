@@ -454,7 +454,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
-                "testing": {"fail_get_job_spec": True},
+                "testing": {"fail_settle_job_requests": True},
             },
             track=False,
         )
@@ -472,7 +472,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
     def test_get_job_spec_failed_with_fail_on_job_restart(self):
         op = run_sleeping_vanilla(
             spec={
-                "testing": {"fail_get_job_spec": True},
+                "testing": {"fail_settle_job_requests": True},
                 "fail_on_job_restart": True,
             },
         )

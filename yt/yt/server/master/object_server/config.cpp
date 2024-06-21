@@ -44,6 +44,9 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
         .InRange(DefaultYsonStringInternLengthThreshold, 1_GB);
     registrar.Parameter("profiling_period", &TThis::ProfilingPeriod)
         .Default(DefaultProfilingPeriod);
+    registrar.Parameter("reset_hunk_storage_in_table_destroy", &TThis::ResetHunkStorageInTableDestroy)
+        .Default(true)
+        .DontSerializeDefault();
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)

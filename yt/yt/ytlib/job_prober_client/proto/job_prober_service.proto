@@ -101,4 +101,14 @@ message TReqDumpSensors
 message TRspDumpSensors
 { }
 
+message TReqDumpJobProxyLog
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required string path = 2; // YPath
+    required NYT.NProto.TGuid transaction_id = 3;
+}
+
+message TRspDumpJobProxyLog
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

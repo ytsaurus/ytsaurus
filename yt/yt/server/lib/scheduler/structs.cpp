@@ -74,7 +74,7 @@ void FromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TControllerScheduleAllocationResult::RecordFail(EScheduleAllocationFailReason reason)
+void TControllerScheduleAllocationResult::RecordFail(EScheduleFailReason reason)
 {
     ++Failed[reason];
 }
@@ -83,17 +83,17 @@ bool TControllerScheduleAllocationResult::IsBackoffNeeded() const
 {
     return
         !StartDescriptor &&
-        Failed[EScheduleAllocationFailReason::NotEnoughResources] == 0 &&
-        Failed[EScheduleAllocationFailReason::NoLocalJobs] == 0 &&
-        Failed[EScheduleAllocationFailReason::NodeBanned] == 0 &&
-        Failed[EScheduleAllocationFailReason::DataBalancingViolation] == 0;
+        Failed[EScheduleFailReason::NotEnoughResources] == 0 &&
+        Failed[EScheduleFailReason::NoLocalJobs] == 0 &&
+        Failed[EScheduleFailReason::NodeBanned] == 0 &&
+        Failed[EScheduleFailReason::DataBalancingViolation] == 0;
 }
 
 bool TControllerScheduleAllocationResult::IsScheduleStopNeeded() const
 {
     return
-        Failed[EScheduleAllocationFailReason::NotEnoughChunkLists] > 0 ||
-        Failed[EScheduleAllocationFailReason::JobSpecThrottling] > 0;
+        Failed[EScheduleFailReason::NotEnoughChunkLists] > 0 ||
+        Failed[EScheduleFailReason::JobSpecThrottling] > 0;
 }
 
 void ToProto(
@@ -116,7 +116,7 @@ void ToProto(
     if (scheduleJobResult.NextDurationEstimate) {
         protoResponse->set_next_duration_estimate(ToProto<i64>(*scheduleJobResult.NextDurationEstimate));
     }
-    for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         if (scheduleJobResult.Failed[reason] > 0) {
             auto* protoCounter = protoResponse->add_failed();
             protoCounter->set_reason(static_cast<int>(reason));

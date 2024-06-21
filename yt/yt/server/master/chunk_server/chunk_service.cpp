@@ -920,15 +920,15 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& configManager = Bootstrap_->GetConfigManager();
-
+        const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
         // COMPAT(kvk1920)
-        if (!configManager->GetConfig()->ChunkManager->EnableChunkConfirmationWithoutLocationUuid) {
+        if (!chunkManagerConfig->EnableChunkConfirmationWithoutLocationUuid) {
             YT_LOG_ALERT_UNLESS(
                 request->location_uuids_supported(),
                 "Chunk confirmation request without location uuids is received");
         }
 
-        if (configManager->GetConfig()->SequoiaManager->Enable && request->location_uuids_supported()) {
+        if (chunkManagerConfig->SequoiaChunkReplicas->Enable && request->location_uuids_supported()) {
             auto allReplicas = request->replicas();
             context->Request().mutable_replicas()->Clear();
             context->Request().mutable_legacy_replicas()->Clear();

@@ -866,7 +866,7 @@ TSchedulingStageProfilingCounters::TSchedulingStageProfilingCounters(
     , ActiveTreeSize(profiler.Summary("/active_tree_size"))
     , ActiveOperationCount(profiler.Summary("/active_operation_count"))
 {
-    for (auto reason : TEnumTraits<NControllerAgent::EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (auto reason : TEnumTraits<NControllerAgent::EScheduleFailReason>::GetDomainValues()) {
         ControllerScheduleAllocationFail[reason] = profiler
             .WithTag("reason", FormatEnum(reason))
             .Counter("/controller_schedule_job_fail");
@@ -1803,7 +1803,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
     }
 
     if (!scheduleAllocationResult->StartDescriptor) {
-        for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+        for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
             StageState_->FailedScheduleAllocation[reason] += scheduleAllocationResult->Failed[reason];
         }
 
@@ -1986,7 +1986,7 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
 
                 // Reset result.
                 scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
-                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::ResourceOvercommit);
+                scheduleAllocationResult->RecordFail(EScheduleFailReason::ResourceOvercommit);
                 break;
             }
             case EResourceTreeIncreaseResult::ElementIsNotAlive: {
@@ -1999,13 +1999,13 @@ TControllerScheduleAllocationResultPtr TScheduleAllocationsContext::DoScheduleAl
                     scheduleAllocationResult->ControllerEpoch);
 
                 scheduleAllocationResult = New<TControllerScheduleAllocationResult>();
-                scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::OperationIsNotAlive);
+                scheduleAllocationResult->RecordFail(EScheduleFailReason::OperationIsNotAlive);
                 break;
             }
             default:
                 YT_ABORT();
         }
-    } else if (scheduleAllocationResult->Failed[EScheduleAllocationFailReason::Timeout] > 0) {
+    } else if (scheduleAllocationResult->Failed[EScheduleFailReason::Timeout] > 0) {
         YT_LOG_WARNING("Allocation scheduling timed out");
 
         ++SchedulingStatistics_.ControllerScheduleAllocationTimedOutCount;
@@ -2365,7 +2365,7 @@ void TScheduleAllocationsContext::ProfileStageStatistics()
         profilingCounters->ControllerScheduleAllocationTime.Update(scheduleAllocationDuration);
     }
 
-    for (auto reason : TEnumTraits<EScheduleAllocationFailReason>::GetDomainValues()) {
+    for (auto reason : TEnumTraits<EScheduleFailReason>::GetDomainValues()) {
         profilingCounters->ControllerScheduleAllocationFail[reason].Increment(StageState_->FailedScheduleAllocation[reason]);
     }
     for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
@@ -2539,7 +2539,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         nodeState->LastRunningAllocationStatisticsUpdateTime = schedulingContext->GetNow();
         nodeState->ForceRunningAllocationStatisticsUpdate = false;
     }
-    if (IsGpuTree()) {
+    if (IsGpuTree(treeConfig)) {
         nodeState->RunningAllocations.clear();
         nodeState->RunningAllocations.reserve(schedulingContext->RunningAllocations().size());
         for (const auto& allocation : schedulingContext->RunningAllocations()) {
@@ -3182,9 +3182,14 @@ INodePtr TFairShareTreeAllocationScheduler::BuildPersistentState() const
     return ConvertToNode(persistentState);
 }
 
+bool TFairShareTreeAllocationScheduler::IsGpuTree(const TFairShareStrategyTreeConfigPtr& config)
+{
+    return config->MainResource == EJobResourceType::Gpu;
+}
+
 bool TFairShareTreeAllocationScheduler::IsGpuTree() const
 {
-    return Config_->MainResource == EJobResourceType::Gpu;
+    return IsGpuTree(Config_);
 }
 
 void TFairShareTreeAllocationScheduler::OnAllocationStartedInTest(

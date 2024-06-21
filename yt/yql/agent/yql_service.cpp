@@ -24,7 +24,7 @@ public:
         : TServiceBase(
             std::move(controlInvoker),
             TYqlServiceProxy::GetDescriptor(),
-            YqlAgentLogger)
+            YqlAgentLogger())
         , YqlAgent_(std::move(yqlAgent))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartQuery)

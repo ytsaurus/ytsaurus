@@ -185,6 +185,8 @@ DEFINE_ENUM(EMasterReign,
     ((RemovedRedundantStatisticsFromChunkOwnerBase)                 (2577))  // cherepashka
     ((SerializationOfDataStatistics)                                (2578))  // cherepashka
     ((ReturnedHandleOfInvalidDataWeight)                            (2579))  // cherepashka
+    ((SequoiaReplicasConfig)                                        (2580))  // aleksandra-zh
+    ((HunkStorageRemovalInTableZombify)                             (2581))  // akozhikhov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

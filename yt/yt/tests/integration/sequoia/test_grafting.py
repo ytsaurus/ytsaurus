@@ -102,6 +102,11 @@ class TestGrafting(YTEnvSetup):
         with raises_yt_error("is internal type and should not be used directly"):
             create("sequoia_map_node", "//tmp/sequoia/m")
 
+    @authors("kvk1920")
+    def test_create_rootstock_in_unexisting_map_node(self):
+        with raises_yt_error("Node //tmp has no child with key \"unexisting\""):
+            create("rootstock", "//tmp/unexisting/r")
+
 
 ##################################################################
 

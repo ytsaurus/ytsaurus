@@ -1004,6 +1004,8 @@ public:
 
     TSlruCacheDynamicConfigPtr CompressionDictionaryCache;
 
+    bool EnableChangelogNetworkUsageAccounting;
+
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);

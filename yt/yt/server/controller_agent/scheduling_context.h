@@ -2,26 +2,45 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/scheduler/public.h>
+#include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+
+#include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(pogorelov): Remove this and use actual type.
-struct ISchedulingContext
+class TSchedulingContext
 {
-    virtual ~ISchedulingContext() = default;
+public:
+    // TODO(pogorelov): Accept cpp types, not proto.
+    TSchedulingContext(
+        const NScheduler::NProto::TScheduleAllocationRequest* request,
+        const NScheduler::TExecNodeDescriptorPtr& nodeDescriptor,
+        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec);
 
-    virtual const NScheduler::TExecNodeDescriptorPtr& GetNodeDescriptor() const = 0;
-    virtual const NScheduler::TDiskResources& DiskResources() const = 0;
-    virtual const NScheduler::NProto::TScheduleAllocationSpec& GetScheduleAllocationSpec() const = 0;
-    virtual const std::optional<TString>& GetPoolPath() const = 0;
+    const std::optional<TString>& GetPoolPath() const;
 
-    virtual TAllocationId GetAllocationId() const = 0;
-    virtual NProfiling::TCpuInstant GetNow() const = 0;
+    const NScheduler::TExecNodeDescriptorPtr& GetNodeDescriptor() const;
+
+    const NScheduler::TDiskResources& DiskResources() const;
+
+    TAllocationId GetAllocationId() const;
+
+    NProfiling::TCpuInstant GetNow() const;
+
+    const NScheduler::NProto::TScheduleAllocationSpec& GetScheduleAllocationSpec() const;
+
+private:
+    const NScheduler::TDiskResources DiskResources_;
+    const TAllocationId AllocationId_;
+    const NScheduler::TExecNodeDescriptorPtr NodeDescriptor_;
+    const NScheduler::NProto::TScheduleAllocationSpec ScheduleAllocationSpec_;
+    const std::optional<TString> PoolPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

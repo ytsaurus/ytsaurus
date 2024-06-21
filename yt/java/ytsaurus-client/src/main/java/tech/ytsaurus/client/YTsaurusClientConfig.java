@@ -180,7 +180,7 @@ public class YTsaurusClientConfig {
         private JavaOptions javaOptions = JavaOptions.empty();
         private Duration jarsUploadTimeout = Duration.ofMinutes(10);
         private int fileCacheReplicationFactor = 10;
-        private String version = "YTsaurusClient@";
+        private String version = "java-ytsaurus-client@";
         private Duration operationPingPeriod = Duration.ofSeconds(30);
 
         @Nullable

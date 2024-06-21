@@ -347,14 +347,14 @@ public:
         return StartNativeTransaction(type, options).As<NApi::ITransactionPtr>();
     }
 
-    using TQueueTransactionMixin::AdvanceConsumer;
-    TFuture<void> AdvanceConsumer(
+    using TQueueTransactionMixin::AdvanceQueueConsumer;
+    TFuture<void> AdvanceQueueConsumer(
         const NYPath::TRichYPath& consumerPath,
         const NYPath::TRichYPath& queuePath,
         int partitionIndex,
         std::optional<i64> oldOffset,
         i64 newOffset,
-        const TAdvanceConsumerOptions& /*options*/) override
+        const TAdvanceQueueConsumerOptions& /*options*/) override
     {
         const auto& tableMountCache = Client_->GetNativeConnection()->GetTableMountCache();
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
@@ -1147,6 +1147,13 @@ private:
 
                         auto modificationType = modification.Type;
                         auto locks = modification.Locks;
+                        if (!tableInfo->Indices.empty()) {
+                            for (int index = 0; index < locks.GetSize(); ++index) {
+                                THROW_ERROR_EXCEPTION_IF(locks.Get(index) == ELockType::SharedWrite,
+                                    "Unsupported lock type %Qlv for a table with a secondary index",
+                                    ELockType::SharedWrite);
+                            }
+                        }
                         if (tableInfo->IsPhysicallyLog() && modificationType == ERowModificationType::WriteAndLock) {
                             if (tableInfo->IsChaosReplica() &&
                                 capturedRow.GetCount() == static_cast<ui32>(modificationSchema->GetKeyColumnCount()))
@@ -1631,9 +1638,7 @@ private:
                 }
             } else if (HasChaosReplicas()) {
                 for (const auto& [chaosReplicaId, chaosReplicaInfo] : ReplicationCard_->Replicas) {
-                    if (IsReplicaReallySync(chaosReplicaInfo.Mode, chaosReplicaInfo.State,
-                        chaosReplicaInfo.History.back()))
-                    {
+                    if (IsReplicaReallySync(chaosReplicaInfo.Mode, chaosReplicaInfo.State, chaosReplicaInfo.History)) {
                         auto replicaInfo = New<TTableReplicaInfo>();
                         replicaInfo->ReplicaId = chaosReplicaId;
                         replicaInfo->ClusterName = chaosReplicaInfo.ClusterName;
@@ -1931,6 +1936,7 @@ private:
 
             auto indexTableInfos = WaitForUnique(AllSucceeded(indexTableInfoFutures))
                 .ValueOrThrow();
+
             auto indexModifier = std::make_unique<TSecondaryIndexModifier>(
                 mountInfo,
                 std::move(indexTableInfos),

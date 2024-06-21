@@ -743,7 +743,7 @@ private:
 
     void AnalyzeScheduleJobStatistics()
     {
-        auto jobSpecThrottlerActivationCount = Host_->GetScheduleAllocationStatistics()->Failed()[EScheduleAllocationFailReason::JobSpecThrottling];
+        auto jobSpecThrottlerActivationCount = Host_->GetScheduleAllocationStatistics()->Failed()[EScheduleFailReason::JobSpecThrottling];
         auto activationCountThreshold = Config_->JobSpecThrottlingAlertActivationCountThreshold;
 
         TError error;

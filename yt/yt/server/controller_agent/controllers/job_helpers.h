@@ -70,7 +70,7 @@ class TScheduleAllocationStatistics
 {
 public:
     //! Persistent statistics.
-    using TScheduleAllocationFailReasonCounter = TEnumIndexedArray<EScheduleAllocationFailReason, int>;
+    using TScheduleAllocationFailReasonCounter = TEnumIndexedArray<EScheduleFailReason, int>;
     DEFINE_BYREF_RW_PROPERTY(TScheduleAllocationFailReasonCounter, Failed);
 
     DEFINE_BYVAL_RO_PROPERTY(TDuration, TotalDuration);

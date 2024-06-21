@@ -2408,6 +2408,8 @@ def add_flow_parser(root_subparsers):
     add_flow_get_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_set_pipeline_dynamic_spec_parser(add_flow_subparser)
     add_flow_remove_pipeline_dynamic_spec_parser(add_flow_subparser)
+    add_flow_get_pipeline_state_parser(add_flow_subparser)
+    add_flow_get_flow_view_parser(add_flow_subparser)
 
 
 def add_flow_start_pipeline_parser(add_parser):
@@ -2490,6 +2492,25 @@ def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
     parser.add_argument("--spec-path", help="Path to part of the spec")
+
+
+@copy_docstring_from(yt.get_pipeline_state)
+def get_pipeline_state(**kwargs):
+    print_to_output(yt.get_pipeline_state(**kwargs))
+
+
+def add_flow_get_pipeline_state_parser(add_parser):
+    parser = add_parser("get-pipeline-state", get_pipeline_state,
+                        help="Get YT Flow pipeline state")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+
+
+def add_flow_get_flow_view_parser(add_parser):
+    parser = add_parser("get-flow-view", get_helper(yt.get_flow_view),
+                        help="Get YT Flow flow view")
+    add_ypath_argument(parser, "pipeline_path", hybrid=True)
+    add_structured_format_argument(parser, default=output_format)
+    parser.add_argument("--view-path", help="Path to part of the view")
 
 
 @copy_docstring_from(yt.run_command_with_lock)

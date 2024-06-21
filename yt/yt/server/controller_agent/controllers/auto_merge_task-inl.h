@@ -31,9 +31,9 @@ public:
         return result;
     }
 
-    virtual std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* /*context*/) override
+    virtual std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& /*context*/) override
     {
-        return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleAllocationFailReason::TaskRefusal);
+        return CanScheduleJob_ ? std::nullopt : std::make_optional(EScheduleFailReason::TaskRefusal);
     }
 
     virtual void OnTaskCompleted() override

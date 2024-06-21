@@ -999,6 +999,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
         .DefaultNew();
+
+    registrar.Parameter("enable_changelog_network_usage_accounting", &TThis::EnableChangelogNetworkUsageAccounting)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

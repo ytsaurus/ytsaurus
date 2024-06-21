@@ -56,14 +56,15 @@ struct TAllocationStartDescriptor
 struct TControllerScheduleAllocationResult
     : public TRefCounted
 {
-    void RecordFail(NControllerAgent::EScheduleAllocationFailReason reason);
+    void RecordFail(NControllerAgent::EScheduleFailReason reason);
     bool IsBackoffNeeded() const;
     bool IsScheduleStopNeeded() const;
 
     std::optional<TAllocationStartDescriptor> StartDescriptor;
-    TEnumIndexedArray<NControllerAgent::EScheduleAllocationFailReason, int> Failed;
+    TEnumIndexedArray<NControllerAgent::EScheduleFailReason, int> Failed;
     TDuration Duration;
     std::optional<TDuration> NextDurationEstimate;
+    // TODO(pogorelov): Remove IncarnationId and ControllerEpoch from here.
     TIncarnationId IncarnationId;
     TControllerEpoch ControllerEpoch;
 };

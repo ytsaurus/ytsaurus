@@ -967,7 +967,12 @@ def _build_node_configs(node_dirs,
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/log_manager_template",
-            _init_logging(logs_dir, log_name, yt_config)
+            _init_logging(
+                logs_dir,
+                log_name,
+                yt_config,
+                enable_log_compression=(yt_config.job_proxy_logging["mode"] == "simple"),
+            ),
         )
 
         # COMPAT
@@ -1005,6 +1010,12 @@ def _build_node_configs(node_dirs,
                 config,
                 "exec_node/job_proxy_log_manager/directory_traversal_concurrency",
                 yt_config.job_proxy_log_manager["directory_traversal_concurrency"]
+            )
+        if "dump_job_proxy_log_buffer_size" in yt_config.job_proxy_log_manager:
+            set_at(
+                config,
+                "exec_node/job_proxy_log_manager/dump_job_proxy_log_buffer_size",
+                yt_config.job_proxy_log_manager["dump_job_proxy_log_buffer_size"]
             )
 
         set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
@@ -1682,12 +1693,17 @@ def _build_cypress_proxy_configs(yt_config,
     return configs
 
 
-def _init_logging(path, name, yt_config, log_errors_to_stderr=False, has_structured_logs=False):
+def _init_logging(path, name, yt_config,
+                  log_errors_to_stderr=False,
+                  has_structured_logs=False,
+                  enable_log_compression=None):
+    if enable_log_compression is None:
+        enable_log_compression = yt_config.enable_log_compression
     return init_logging(
         path,
         name,
         enable_debug_logging=yt_config.enable_debug_logging,
-        enable_log_compression=yt_config.enable_log_compression,
+        enable_log_compression=enable_log_compression,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
         log_errors_to_stderr=log_errors_to_stderr)

@@ -30,6 +30,7 @@ class TWhenThenExpression;
 class TJoinClause;
 class TQuery;
 class TQueryOptions;
+class TFeatureFlags;
 class TDataSource;
 
 } // namespace NProto

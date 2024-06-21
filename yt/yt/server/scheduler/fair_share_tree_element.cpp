@@ -1191,6 +1191,11 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
     return path;
 }
 
+std::optional<TString> TSchedulerCompositeElement::GetRedirectToCluster() const
+{
+    return std::nullopt;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id, NObjectClient::TObjectId objectId)
@@ -1430,6 +1435,16 @@ bool TSchedulerPoolElement::AreLightweightOperationsEnabled() const
 int TSchedulerPoolElement::GetMaxOperationCount() const
 {
     return Config_->MaxOperationCount.value_or(TreeConfig_->MaxOperationCountPerPool);
+}
+
+bool TSchedulerPoolElement::IsPriorityStrongGuaranteeAdjustmentEnabled() const
+{
+    return Config_->EnablePriorityStrongGuaranteeAdjustment;
+}
+
+bool TSchedulerPoolElement::IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const
+{
+    return Config_->EnablePriorityStrongGuaranteeAdjustmentDonorship;
 }
 
 TPoolIntegralGuaranteesConfigPtr TSchedulerPoolElement::GetIntegralGuaranteesConfig() const
@@ -1723,6 +1738,13 @@ std::optional<bool> TSchedulerPoolElement::IsIdleCpuPolicyAllowed() const
     }
 
     return Parent_->IsIdleCpuPolicyAllowed();
+}
+
+std::optional<TString> TSchedulerPoolElement::GetRedirectToCluster() const
+{
+    return Config_->RedirectToCluster
+        ? Config_->RedirectToCluster
+        : Parent_->GetRedirectToCluster();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2605,6 +2627,16 @@ bool TSchedulerRootElement::IsFairShareTruncationInFifoPoolEnabled() const
 }
 
 bool TSchedulerRootElement::ShouldComputePromisedGuaranteeFairShare() const
+{
+    return false;
+}
+
+bool TSchedulerRootElement::IsPriorityStrongGuaranteeAdjustmentEnabled() const
+{
+    return false;
+}
+
+bool TSchedulerRootElement::IsPriorityStrongGuaranteeAdjustmentDonorshipEnabled() const
 {
     return false;
 }

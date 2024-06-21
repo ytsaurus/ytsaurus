@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "job.h"
 #include "job_controller.h"
+#include "master_connector.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/master_connector.h>
@@ -57,10 +58,16 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
 {
-    YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
-    HeartbeatExecutor_->Start();
+    if (ControllerAgentConnectorPool_->MasterConnected_) {
+        HeartbeatExecutor_->Start();
+        YT_LOG_DEBUG("Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v)",
+            ControllerAgentDescriptor_.Address,
+            ControllerAgentDescriptor_.IncarnationId);
+    } else {
+        YT_LOG_DEBUG("Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v)",
+            ControllerAgentDescriptor_.Address,
+            ControllerAgentDescriptor_.IncarnationId);
+    }
 }
 
 NRpc::IChannelPtr TControllerAgentConnectorPool::TControllerAgentConnector::GetChannel() const noexcept
@@ -399,6 +406,28 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::DoProcessHeartbea
     }
 }
 
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterConnected()
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    YT_LOG_INFO(
+        "Starting heartbeats to controller agent (AgentDescriptor: %v)",
+        ControllerAgentDescriptor_);
+
+    HeartbeatExecutor_->Start();
+}
+
+void TControllerAgentConnectorPool::TControllerAgentConnector::OnMasterDisconnected()
+{
+    VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
+
+    YT_LOG_INFO(
+        "Stopping heartbeats to controller agent (AgentDescriptor: %v)",
+        ControllerAgentDescriptor_);
+
+    YT_UNUSED_FUTURE(HeartbeatExecutor_->Stop());
+}
+
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept
 {
     VERIFY_INVOKER_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker());
@@ -434,16 +463,26 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPool(
     , TracingSampler_(New<TSampler>(DynamicConfig_.Acquire()->TracingSampler))
 { }
 
-void TControllerAgentConnectorPool::Start()
+void TControllerAgentConnectorPool::Initialize()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-
     const auto& jobController = Bootstrap_->GetJobController();
 
     jobController->SubscribeJobFinished(BIND_NO_PROPAGATE(
             &TControllerAgentConnectorPool::OnJobFinished,
             MakeWeak(this))
         .Via(Bootstrap_->GetJobInvoker()));
+
+    const auto& masterConnector = Bootstrap_->GetMasterConnector();
+    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(
+        &TControllerAgentConnectorPool::OnMasterConnected,
+        MakeWeak(this)));
+    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(
+        &TControllerAgentConnectorPool::OnMasterDisconnected,
+        MakeWeak(this)));
+}
+
+void TControllerAgentConnectorPool::Start()
+{
 }
 
 void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
@@ -530,6 +569,30 @@ TControllerAgentDescriptor TControllerAgentConnectorPool::GetDescriptorByIncarna
     return *result;
 }
 
+void TControllerAgentConnectorPool::OnMasterConnected()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this)] {
+        MasterConnected_ = true;
+        for (const auto& [descriptor, connector] : ControllerAgentConnectors_) {
+            connector->OnMasterConnected();
+        }
+    }));
+}
+
+void TControllerAgentConnectorPool::OnMasterDisconnected()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this)] {
+        MasterConnected_ = false;
+        for (const auto& [descriptor, connector] : ControllerAgentConnectors_) {
+            connector->OnMasterDisconnected();
+        }
+    }));
+}
+
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
 {
     const auto& client = Bootstrap_->GetClient();
@@ -595,6 +658,10 @@ TControllerAgentConnectorPool::GetControllerAgentConnector(
     const TControllerAgentDescriptor& agentDescriptor)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (!agentDescriptor) {
+        return nullptr;
+    }
 
     return GetOrCrash(ControllerAgentConnectors_, agentDescriptor);
 }

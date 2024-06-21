@@ -1,3 +1,6 @@
+import enum
+import inspect
+
 from .helpers import check_schema_module_available, is_schema_module_available
 
 from ..errors import YtError
@@ -8,6 +11,7 @@ import copy
 import datetime
 import types
 
+from ...type_info.type_base import Primitive
 
 try:
     import typing
@@ -109,6 +113,78 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     return Annotated[py_type, Annotation(ti_type, to_yt_type=to_yt_type, from_yt_type=from_yt_type)]
 
 
+_Enum = typing.TypeVar('_Enum', bound=enum.Enum)
+
+
+def create_yt_enum(
+    py_type: typing.Type[_Enum],
+    ti_type: typing.Optional[Primitive] = None,
+    to_yt_type: typing.Optional[typing.Callable[[_Enum], typing.Any]] = None,
+    from_yt_type: typing.Optional[typing.Callable[[typing.Any], _Enum]] = None,
+) -> typing.Type[_Enum]:
+    """
+    Create enum for yt_dataclass.
+    yt_enum supports only typed enums
+    (e.g. enum.StrEnum, enum.IntEnum or descendant of enum.Enum along with another simple type).
+
+    Example:
+        class CustomEnum(enum.IntEnum):
+            a = 1
+            b = 2
+
+        class AnotherEnum(bytes, enum.Enum):
+            a = "example1"
+            b = "example2"
+
+        YtCustomEnum = create_yt_enum(CustomEnum, ti.Int32)
+        YtAnotherCustomEnum = create_yt_enum(AnotherEnum, ti.Utf8)
+
+        @yt_dataclass
+        class TableRow:
+            a: CustomEnum
+            b: Optional[YtCustomEnum]
+            c: List[YtCustomEnum]
+            d: YtAnotherCustomEnum
+    """
+
+    if ti_type is None:
+        default_ti_types = _get_default_ti_types()
+        for base_type in py_type.mro():
+            ti_type = default_ti_types.get(base_type)
+            if ti_type is not None:
+                break
+        if ti_type is None:
+            raise YtError(f"Enum {py_type} doesn't have default ti_type representation. Set the ti_type param explicitly")
+
+    def _default_from_yt_type(value: typing.Any) -> _Enum:
+        return py_type(value)
+
+    def _default_unicode_from_yt_type(value: bytes) -> _Enum:
+        return py_type(value.decode("utf-8"))
+
+    def get_converter() -> typing.Callable[[typing.Any], _Enum]:
+        if from_yt_type is not None:
+            return from_yt_type
+        elif issubclass(py_type, str):
+            # from_yt_type is called from Skiff parser with a value as wire type.
+            # https://github.com/ytsaurus/ytsaurus/blob/6009fefee1fce6cd0fdec8e75cefb46e76e749be/yt/yt/python/yson/skiff/converter_skiff_to_python.cpp#L281
+            # Wire type for string is bytes.
+            # (unlike the case when we do not pass from_yt_type and Skiff parser converts the value to simple python type string).
+            # https://github.com/ytsaurus/ytsaurus/blob/39a22474a028d0eee543f8d4b3cc32f9f0ae36bd/yt/python/yt/wrapper/schema/internal_schema.py#L636
+            # Thus we have to convert bytes to unicode string in the python code.
+            return _default_unicode_from_yt_type
+        else:
+            return _default_from_yt_type
+
+    annotated_enum = create_annotated_type(
+        py_type,
+        ti_type=ti_type,
+        to_yt_type=to_yt_type,
+        from_yt_type=get_converter(),
+    )
+    return annotated_enum
+
+
 def _is_py_type_optional(py_type):
     return _is_py_type_optional_old_style(py_type) or _is_py_type_optional_new_style(py_type)
 
@@ -174,31 +250,47 @@ def _get_py_time_types():
     if hasattr(_get_py_time_types, "_info"):
         return _get_py_time_types._info
     check_schema_module_available()
-    _get_py_time_types._info = {
-        datetime.date,
+    # Sorted in order of inheritance.
+    _get_py_time_types._info = (
         datetime.datetime,
+        datetime.date,
         datetime.timedelta,
-    }
+    )
     return _get_py_time_types._info
+
+
+def _get_default_ti_types() -> typing.Dict[type, Primitive]:
+    return {
+        int: ti.Int64,
+        str: ti.Utf8,
+        bytes: ti.String,
+        float: ti.Double,
+        bool: ti.Bool,
+        datetime.date: ti.Date,
+        datetime.datetime: ti.Timestamp,
+        datetime.timedelta: ti.Interval,
+    }
 
 
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     check_schema_module_available()
-    if py_type is int:
-        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
-    elif py_type is str:
-        return ti_type in (ti.Utf8, ti.String)
-    elif py_type is bytes:
-        return ti_type in (ti.String, ti.Yson, ti.Utf8)
-    elif py_type is bool:
+    if not inspect.isclass(py_type):
+        assert False, "py_type should be a type, not {}".format(type(py_type))
+    if issubclass(py_type, bool):
         return ti_type == ti.Bool
-    elif py_type is float:
+    elif issubclass(py_type, int):
+        return ti_type in _get_integer_info()["all"] or ti_type in _get_time_types()
+    elif issubclass(py_type, str):
+        return ti_type in (ti.Utf8, ti.String)
+    elif issubclass(py_type, bytes):
+        return ti_type in (ti.String, ti.Yson, ti.Utf8)
+    elif issubclass(py_type, float):
         return ti_type in (ti.Float, ti.Double)
-    elif py_type is datetime.date:
-        return ti_type == ti.Date
-    elif py_type is datetime.datetime:
+    elif issubclass(py_type, datetime.datetime):
         return ti_type in (ti.Datetime, ti.Timestamp)
-    elif py_type is datetime.timedelta:
+    elif issubclass(py_type, datetime.date):
+        return ti_type == ti.Date
+    elif issubclass(py_type, datetime.timedelta):
         return ti_type == ti.Interval
     else:
         assert False, "Unsupported python type {}".format(py_type)

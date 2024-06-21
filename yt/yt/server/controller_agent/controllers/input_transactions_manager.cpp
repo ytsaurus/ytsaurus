@@ -100,7 +100,12 @@ TFuture<void> TInputTransactionsManager::Start(
 std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTransactions(
     const TControllerTransactionIds& transactionIds) const
 {
-    YT_VERIFY(transactionIds.NestedInputIds.size() == OldNonTrivialInputTransactionParents_.size());
+    if (transactionIds.NestedInputIds.size() != OldNonTrivialInputTransactionParents_.size()) {
+        THROW_ERROR_EXCEPTION(
+            "Transaction count from Cypress differs from internal transaction count, will use clean start")
+            << TErrorAttribute("cypress_count", transactionIds.NestedInputIds.size())
+            << TErrorAttribute("internal_count", OldNonTrivialInputTransactionParents_.size());
+    }
 
     std::vector<TRichTransactionId> flatTransactionIds(ParentToTransaction_.size());
     THashMap<TTransactionId, int> parentToIndex;
@@ -114,7 +119,12 @@ std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTran
         auto& flatTxId = flatTransactionIds[parentToIndex[parent]];
         auto richTxId = TRichTransactionId { .Id = txId, .ParentId = parent};
         if (flatTxId.Id) {
-            YT_VERIFY(flatTxId == richTxId);
+            if (flatTxId != richTxId) {
+                THROW_ERROR_EXCEPTION("Expected transactions with same parent to be equal")
+                    << TErrorAttribute("index", i)
+                    << TErrorAttribute("transaction_id_left", flatTxId)
+                    << TErrorAttribute("transaction_id_right", richTxId);
+            }
         } else {
             flatTxId = richTxId;
         }
@@ -135,7 +145,11 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
     // COMPAT(coteeq)
     if (transactionIds.InputIds.empty()) {
         YT_LOG_DEBUG("Received input transactions in old format, trying to restore into new format");
-        transactionIds.InputIds = RestoreFromNestedTransactions(transactionIds);
+        try {
+            transactionIds.InputIds = RestoreFromNestedTransactions(transactionIds);
+        } catch (const std::exception& ex) {
+            return MakeFuture(TError(ex).Wrap("Failed to restore transactions from old format"));
+        }
     }
 
     if (auto error = ValidateSchedulerTransactions(transactionIds); !error.IsOK()) {

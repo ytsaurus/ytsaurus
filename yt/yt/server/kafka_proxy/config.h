@@ -16,11 +16,13 @@ class TKafkaProxyConfig
     : public TNativeServerConfig
 {
 public:
+    //! Kafka proxy will listen on this port.
     int Port;
+
     bool AbortOnUnrecognizedOptions;
 
-    NAuth::TAuthenticationManagerConfigPtr Auth;
-
+    //! Listener will try to bind a socket with
+    //! provided number of retries and backoff.
     int BindRetryCount;
     TDuration BindRetryBackoff;
 
@@ -38,7 +40,10 @@ public:
     //! packets is used.
     TDuration WriteIdleTimeout;
 
+    NAuth::TAuthenticationManagerConfigPtr Auth;
+
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    TString DynamicConfigPath;
 
     TCypressRegistrarConfigPtr CypressRegistrar;
 

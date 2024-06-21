@@ -810,7 +810,7 @@ protected:
             return Controller_->Spec->EnableIntermediateOutputRecalculation;
         }
 
-        std::optional<EScheduleAllocationFailReason> GetScheduleFailReason(ISchedulingContext* context) override
+        std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& context) override
         {
             // We don't have a job at hand here, let's make a guess.
             auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
@@ -818,10 +818,10 @@ protected:
                 return std::nullopt;
             }
 
-            const auto& node = context->GetNodeDescriptor();
+            const auto& node = context.GetNodeDescriptor();
 
             if (DataBalancer_ && !DataBalancer_->CanScheduleJob(node, approximateStatistics.front().DataWeight)) {
-                return EScheduleAllocationFailReason::DataBalancingViolation;
+                return EScheduleFailReason::DataBalancingViolation;
             }
 
             return std::nullopt;
@@ -2656,7 +2656,7 @@ protected:
         int unversionedSlices = 0;
         int versionedSlices = 0;
         // TODO(max42): use CollectPrimaryInputDataSlices() here?
-        for (auto& chunk : CollectPrimaryUnversionedChunks()) {
+        for (auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
             const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
 
             const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
@@ -3239,7 +3239,7 @@ private:
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
-                    ValidateOutputSchemaCompatibility(/*ignoreSortOrder*/ true, /*forbidExtraComputedColumns*/ false);
+                    ValidateOutputSchemaCompatibility({.IgnoreSortOrder=true, .ForbidExtraComputedColumns=false});
                     ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
@@ -3550,12 +3550,12 @@ private:
                 Host->GetClient(),
                 Logger);
 
-            for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
+            for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
                 if (!chunk->IsDynamicStore()) {
                     SamplesFetcher->AddChunk(chunk);
                 }
             }
-            for (const auto& chunk : CollectPrimaryVersionedChunks()) {
+            for (const auto& chunk : InputManager->CollectPrimaryVersionedChunks()) {
                 if (!chunk->IsDynamicStore()) {
                     SamplesFetcher->AddChunk(chunk);
                 }

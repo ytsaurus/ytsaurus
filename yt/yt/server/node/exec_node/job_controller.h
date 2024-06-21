@@ -51,6 +51,9 @@ struct IJobController
     //! Returns dynamic config of job proxy.
     virtual NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const = 0;
 
+    virtual void OnMasterConnected() = 0;
+    virtual void OnMasterDisconnected() = 0;
+
     //! Set value of flag disabling all jobs.
     virtual void SetJobsDisabledByMaster(bool value) = 0;
 
@@ -95,6 +98,8 @@ struct IJobController
     virtual TJobControllerDynamicConfigPtr GetDynamicConfig() const = 0;
 
     virtual void OnJobProxyProcessFinished(const TError& error, std::optional<TDuration> delay) = 0;
+
+    virtual IJobProxyLogManagerPtr GetJobProxyLogManager() const = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);

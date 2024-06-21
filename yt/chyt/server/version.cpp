@@ -6,7 +6,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetCHYTVersion()
+TString GetChytVersion()
 {
     TString branch = ::GetBranch();
     auto pos = branch.find("chyt/");

@@ -86,7 +86,7 @@ using namespace NCypressClient;
 
 namespace {
 
-static const auto Logger = CypressServerLogger;
+static constexpr auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -883,6 +883,7 @@ void TNontemplateCypressNodeProxyBase::ValidateMethodWhitelistedForTransaction(c
             method,
             transactionType,
             TypeFromId(Transaction_->GetId()));
+
         THROW_ERROR_EXCEPTION("Method %Qv is not supported for type %Qlv",
             method,
             transactionType)

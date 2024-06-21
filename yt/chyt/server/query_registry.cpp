@@ -26,7 +26,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 
-static const auto& Logger = ClickHouseYtLogger;
+static constexpr auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,7 +245,7 @@ public:
         , OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this)))->Via(invoker))
         , Config_(std::move(config))
         , Invoker_(std::move(invoker))
-        , QueryRegistryProfiler_(ClickHouseYtProfiler.WithPrefix("/query_registry"))
+        , QueryRegistryProfiler_(ClickHouseYtProfiler().WithPrefix("/query_registry"))
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
             Invoker_,
@@ -257,7 +257,7 @@ public:
             PhaseDurationTimer_[queryPhase] = QueryRegistryProfiler_.Timer("/phase_duration");
         }
 
-        ClickHouseProfiler
+        ClickHouseProfiler()
             .WithSparse()
             .AddProducer("", MakeStrong(this));
     }

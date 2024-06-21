@@ -5,7 +5,7 @@ from yt_commands import (
     create_pool, create_pool_tree, get_driver, raises_yt_error)
 
 from yt_scheduler_helpers import (
-    scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path,
+    scheduler_orchid_operations_by_pool_path, scheduler_orchid_operation_path, scheduler_orchid_pool_path,
     scheduler_orchid_operation_by_pool_path, scheduler_new_orchid_pool_tree_path, scheduler_orchid_pool_tree_path)
 
 from yt.wrapper.client import create_client_with_command_params
@@ -269,3 +269,18 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
         finally:
             set("//sys/scheduler/config/testing_options", {})
             time.sleep(2)
+
+
+@authors("renadeen")
+class TestRedirectToClusterAttribute(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+
+    def test_simple(self):
+        create_pool("pool")
+        create_pool("child_pool", parent_name="pool")
+
+        set("//sys/pool_trees/default/pool/@redirect_to_cluster", "watt")
+
+        wait(lambda: get(scheduler_orchid_pool_path("pool"))["redirect_to_cluster"] == "watt")
+        wait(lambda: get(scheduler_orchid_pool_path("child_pool"))["redirect_to_cluster"] == "watt")

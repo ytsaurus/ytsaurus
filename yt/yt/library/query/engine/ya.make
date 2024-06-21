@@ -64,7 +64,7 @@ PEERDIR(
     contrib/libs/sparsehash
 )
 
-USE_LLVM_BC14()
+USE_LLVM_BC16()
 
 LLVM_BC(
     udf/hyperloglog.cpp

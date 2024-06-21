@@ -1,6 +1,8 @@
 RECURSE(
     misc
+    misc_core_http
     operations
+    operations_core_http
 )
 
 IF (NOT OPENSOURCE)

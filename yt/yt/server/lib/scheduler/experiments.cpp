@@ -166,7 +166,7 @@ TExperimentAssigner::TExperimentAssigner(THashMap<TString, TExperimentConfigPtr>
     UpdateExperimentConfigs(std::move(experiments));
 }
 
-bool TExperimentAssigner::MatchExperiment(
+TErrorOr<bool> TExperimentAssigner::MatchExperiment(
     const TPreparedExperimentPtr& experiment,
     TAssignmentContext& attributes) const
 {
@@ -176,8 +176,7 @@ bool TExperimentAssigner::MatchExperiment(
         return true;
     }
 
-    return experiment->FilterMatcher->Match(attributes.GetAttributesAsYson())
-        .ValueOrThrow();
+    return experiment->FilterMatcher->Match(attributes.GetAttributesAsYson());
 }
 
 void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments)
@@ -199,14 +198,14 @@ void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExper
     PreparedExperiments_.Store(preparedExperiments);
 }
 
-std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
+std::vector<TErrorOr<TExperimentAssignmentPtr>> TExperimentAssigner::Assign(
     EOperationType type,
     const TString& user,
     const IMapNodePtr& specNode) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    std::vector<TExperimentAssignmentPtr> assignments;
+    std::vector<TErrorOr<TExperimentAssignmentPtr>> assignments;
 
     auto preparedExperiments = PreparedExperiments_.Acquire();
 
@@ -222,7 +221,19 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
         const auto& [experimentName, experiment] = *experimentIt;
         const auto& [groupName, group] = *groupIt;
 
-        if (!MatchExperiment(experiment, assignmentContext)) {
+        auto isMatchedOrError = MatchExperiment(experiment, assignmentContext);
+
+        if (!isMatchedOrError.IsOK()) {
+            auto error = TError("Error matching filter of experiment")
+                << TErrorAttribute("experiment", experimentName)
+                << TErrorAttribute("operation_type", type)
+                << TErrorAttribute("user", user)
+                << isMatchedOrError;
+            assignments.emplace_back(error);
+            continue;
+        }
+
+        if (!isMatchedOrError.Value()) {
             if (experimentOverridesNode) {
                 THROW_ERROR_EXCEPTION("Operation does not match filter of experiment %Qv",
                     experimentName)
@@ -234,7 +245,7 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
         }
 
         assignments.emplace_back(New<TExperimentAssignment>());
-        assignments.back()->SetFields(
+        assignments.back().Value()->SetFields(
             experimentName,
             groupName,
             experiment->Config->Ticket,
@@ -248,8 +259,8 @@ std::vector<TExperimentAssignmentPtr> TExperimentAssigner::Assign(
         // Discard those experiments which define controller agent tags.
         // If someone asked for a certain controller agent tag, he probably knows
         // what he's doing.
-        auto it = std::remove_if(assignments.begin(), assignments.end(), [&] (const TExperimentAssignmentPtr& assignment) {
-            return static_cast<bool>(assignment->Effect->ControllerAgentTag);
+        auto it = std::remove_if(assignments.begin(), assignments.end(), [&] (const TErrorOr<TExperimentAssignmentPtr>& assignment) {
+            return assignment.IsOK() && static_cast<bool>(assignment.Value()->Effect->ControllerAgentTag);
         });
 
         if (it != assignments.end() && experimentOverridesNode) {
@@ -293,11 +304,11 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
             THROW_ERROR_EXCEPTION("Group %Qv is not known in experiment %Qv", groupName, experimentName);
         }
 
-        result.emplace_back(TSelectedExperimentGroup{
+        result.push_back(TSelectedExperimentGroup{
             .Experiment = experimentIt,
             .Group = groupIt,
             .ExperimentUniformSample = 0.0,
-            .GroupUniformSample = 0.0
+            .GroupUniformSample = 0.0,
         });
     }
 
@@ -373,11 +384,11 @@ std::vector<TExperimentAssigner::TSelectedExperimentGroup> TExperimentAssigner::
                 return experiment->Fraction;
             });
 
-        result.emplace_back(TSelectedExperimentGroup{
+        result.push_back(TSelectedExperimentGroup{
             .Experiment = GetIteratorOrCrash(preparedExperiments.Experiments, experimentName),
             .Group = groupIt,
             .ExperimentUniformSample = experimentUniformSample,
-            .GroupUniformSample = groupUniformSample
+            .GroupUniformSample = groupUniformSample,
         });
     }
 

@@ -311,6 +311,11 @@ public:
 
     std::optional<bool> EnablePrioritySchedulingSegmentModuleAssignment;
 
+    std::optional<TString> RedirectToCluster;
+
+    bool EnablePriorityStrongGuaranteeAdjustment;
+    bool EnablePriorityStrongGuaranteeAdjustmentDonorship;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);
@@ -627,11 +632,11 @@ public:
 
     std::optional<ECancelationStage> CancelationStage;
 
-    std::optional<TDuration> GetJobSpecDelay;
+    std::optional<TDuration> SettleJobDelay;
 
     std::optional<TDuration> BuildJobSpecProtoDelay;
 
-    bool FailGetJobSpec;
+    bool FailSettleJobRequests;
 
     ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
 
@@ -1552,10 +1557,11 @@ class TUnorderedMergeOperationSpec
     , public TMergeOperationSpec
 {
 public:
+    ESingleChunkTeleportStrategy SingleChunkTeleportStrategy;
+
     REGISTER_YSON_STRUCT(TUnorderedMergeOperationSpec);
 
-    static void Register(TRegistrar /*registrar*/)
-    { }
+    static void Register(TRegistrar registrar);
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec, 0x969d7fbc);

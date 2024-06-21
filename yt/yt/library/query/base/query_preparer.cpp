@@ -34,6 +34,8 @@ struct TQueryPreparerBufferTag
 { };
 
 constexpr ssize_t MaxQueryLimit = 10000000;
+constexpr ssize_t MaxJoinNumber = 200;
+constexpr ssize_t MaxMultiJoinGroupNumber = 15;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1237,14 +1239,14 @@ private:
     };
 
     // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-    std::vector<TTable> Tables;
+    std::vector<TTable> Tables_;
 
 protected:
     // TODO: Combine in Structure? Move out?
-    const TNamedItemList* GroupItems = nullptr;
-    TAggregateItemList* AggregateItems = nullptr;
+    const TNamedItemList* GroupItems_ = nullptr;
+    TAggregateItemList* AggregateItems_ = nullptr;
 
-    bool AfterGroupBy = false;
+    bool AfterGroupBy_ = false;
 
 public:
     struct TColumnEntry
@@ -1267,7 +1269,7 @@ public:
         std::optional<TString> alias,
         std::vector<TColumnDescriptor>* mapping)
     {
-        Tables.push_back(TTable{schema, alias, mapping});
+        Tables_.push_back(TTable{schema, alias, mapping});
     }
 
     // Columns already presented in Lookup are shared.
@@ -1275,11 +1277,11 @@ public:
     // SelfJoinedColumns and ForeignJoinedColumns are built from Lookup using OriginTableIndex and LastTableIndex.
     void Merge(TBuilderCtxBase& other)
     {
-        size_t otherTablesCount = other.Tables.size();
-        size_t tablesCount = Tables.size();
+        size_t otherTablesCount = other.Tables_.size();
+        size_t tablesCount = Tables_.size();
         size_t lastTableIndex = tablesCount + otherTablesCount - 1;
 
-        std::move(other.Tables.begin(), other.Tables.end(), std::back_inserter(Tables));
+        std::move(other.Tables_.begin(), other.Tables_.end(), std::back_inserter(Tables_));
 
         for (const auto& [reference, entry] : other.Lookup) {
             auto [it, emplaced] = Lookup.emplace(
@@ -1298,7 +1300,7 @@ public:
 
     void PopulateAllColumns()
     {
-        for (const auto& table : Tables) {
+        for (const auto& table : Tables_) {
             for (const auto& column : table.Schema.Columns()) {
                 GetColumnPtr(NAst::TReference(column.Name(), table.Alias));
             }
@@ -1307,17 +1309,17 @@ public:
 
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems)
     {
-        YT_VERIFY(!GroupItems && !AggregateItems);
+        YT_VERIFY(!GroupItems_ && !AggregateItems_);
 
-        GroupItems = groupItems;
-        AggregateItems = aggregateItems;
-        AfterGroupBy = true;
+        GroupItems_ = groupItems;
+        AggregateItems_ = aggregateItems;
+        AfterGroupBy_ = true;
     }
 
     void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const
     {
-        for (int index = startTableIndex; index < std::ssize(Tables); ++index) {
-            auto& [schema, alias, mapping] = Tables[index];
+        for (int index = startTableIndex; index < std::ssize(Tables_); ++index) {
+            auto& [schema, alias, mapping] = Tables_[index];
 
             if (alias == reference.TableName && schema.FindColumn(reference.ColumnName)) {
                 THROW_ERROR_EXCEPTION("Ambiguous resolution for column %Qv",
@@ -1332,8 +1334,8 @@ public:
         TLogicalTypePtr type;
 
         int index = 0;
-        for (; index < std::ssize(Tables); ++index) {
-            auto& [schema, alias, mapping] = Tables[index];
+        for (; index < std::ssize(Tables_); ++index) {
+            auto& [schema, alias, mapping] = Tables_[index];
 
             if (alias != reference.TableName) {
                 continue;
@@ -1348,7 +1350,7 @@ public:
                         schema.GetColumnIndex(*column)
                     });
                 }
-                result = &Tables[index];
+                result = &Tables_[index];
                 type = column->LogicalType();
                 ++index;
                 break;
@@ -1372,16 +1374,16 @@ public:
 
     std::optional<TBaseColumn> GetColumnPtr(const NAst::TReference& reference)
     {
-        if (AfterGroupBy) {
+        if (AfterGroupBy_) {
             // Search other way after group by.
             if (reference.TableName) {
                 return std::nullopt;
             }
 
-            return FindColumn(*GroupItems, reference.ColumnName);
+            return FindColumn(*GroupItems_, reference.ColumnName);
         }
 
-        size_t lastTableIndex = Tables.size() - 1;
+        size_t lastTableIndex = Tables_.size() - 1;
 
         auto found = Lookup.find(reference);
         if (found != Lookup.end()) {
@@ -1404,7 +1406,7 @@ public:
                 TColumnEntry{
                     column,
                     lastTableIndex,
-                    size_t(table - Tables.data())});
+                    size_t(table - Tables_.data())});
 
             YT_VERIFY(emplaced.second);
             return column;
@@ -1432,10 +1434,10 @@ public:
     const NAst::TAliasMap& AliasMap;
 
 private:
-    std::set<TString> UsedAliases;
-    size_t Depth = 0;
+    std::set<TString> UsedAliases_;
+    size_t Depth_ = 0;
 
-    THashMap<std::pair<TString, EValueType>, TConstAggregateFunctionExpressionPtr> AggregateLookup;
+    THashMap<std::pair<TString, EValueType>, TConstAggregateFunctionExpressionPtr> AggregateLookup_;
 
 public:
     TBuilderCtx(
@@ -1460,12 +1462,12 @@ public:
         const NAst::TExpression* argument,
         const TString& subexpressionName)
     {
-        YT_VERIFY(AfterGroupBy);
+        YT_VERIFY(AfterGroupBy_);
 
         // TODO: Use guard.
-        AfterGroupBy = false;
+        AfterGroupBy_ = false;
         auto untypedOperand = OnExpression(argument);
-        AfterGroupBy = true;
+        AfterGroupBy_ = true;
 
         TTypeSet constraint;
         std::optional<EValueType> stateType;
@@ -1512,7 +1514,7 @@ public:
             typedOperand = TExpressionSimplifier().Visit(typedOperand);
             typedOperand = TNotExpressionPropagator().Visit(typedOperand);
 
-            AggregateItems->emplace_back(
+            AggregateItems_->emplace_back(
                 std::vector<TConstExpressionPtr>{typedOperand},
                 name,
                 subexpressionName,
@@ -1529,7 +1531,7 @@ public:
         const NAst::TExpression* argument,
         const TString& subexpressionName)
     {
-        if (!AfterGroupBy) {
+        if (!AfterGroupBy_) {
             THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
         }
 
@@ -1541,8 +1543,8 @@ public:
 
         TExpressionGenerator generator = [=, this] (EValueType type) {
             auto key = std::pair(subexpressionName, type);
-            auto found = AggregateLookup.find(key);
-            if (found != AggregateLookup.end()) {
+            auto found = AggregateLookup_.find(key);
+            if (found != AggregateLookup_.end()) {
                 return found->second;
             } else {
                 auto argExpression = typer.second(type);
@@ -1553,7 +1555,7 @@ public:
                     type,
                     type,
                     functionName);
-                YT_VERIFY(AggregateLookup.emplace(key, expr).second);
+                YT_VERIFY(AggregateLookup_.emplace(key, expr).second);
                 return expr;
             }
         };
@@ -1667,12 +1669,12 @@ TUntypedExpression TBuilderCtx::OnExpression(
 {
     CheckStackDepth();
 
-    ++Depth;
+    ++Depth_;
     auto depthGuard = Finally([&] {
-        --Depth;
+        --Depth_;
     });
 
-    if (Depth > MaxExpressionDepth) {
+    if (Depth_ > MaxExpressionDepth) {
         THROW_ERROR_EXCEPTION("Maximum expression depth exceeded")
             << TErrorAttribute("max_expression_depth", MaxExpressionDepth);
     }
@@ -1856,7 +1858,7 @@ TUntypedExpression TBuilderCtx::UnwrapCompositeMemberAccessor(
 
 TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 {
-    if (AfterGroupBy) {
+    if (AfterGroupBy_) {
         if (auto column = GetColumnPtr(reference)) {
             return UnwrapCompositeMemberAccessor(reference, *column);
         }
@@ -1869,15 +1871,15 @@ TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
         if (found != AliasMap.end()) {
             // try InferName(found, expand aliases = true)
 
-            if (UsedAliases.insert(columnName).second) {
+            if (UsedAliases_.insert(columnName).second) {
                 auto aliasExpr = OnExpression(found->second);
-                UsedAliases.erase(columnName);
+                UsedAliases_.erase(columnName);
                 return aliasExpr;
             }
         }
     }
 
-    if (!AfterGroupBy) {
+    if (!AfterGroupBy_) {
         if (auto column = GetColumnPtr(reference)) {
             return UnwrapCompositeMemberAccessor(reference, *column);
         }
@@ -1904,15 +1906,15 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
         operandTypers.reserve(functionExpr->Arguments.size());
         std::vector<int> formalArguments;
 
-        YT_VERIFY(AfterGroupBy);
+        YT_VERIFY(AfterGroupBy_);
 
-        AfterGroupBy = false;
+        AfterGroupBy_ = false;
         for (const auto& argument : functionExpr->Arguments) {
             auto untypedArgument = OnExpression(argument);
             argTypes.push_back(untypedArgument.FeasibleTypes);
             operandTypers.push_back(untypedArgument.Generator);
         }
-        AfterGroupBy = true;
+        AfterGroupBy_ = true;
 
         int stateConstraintIndex;
         int resultConstraintIndex;
@@ -1941,8 +1943,8 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             source = functionExpr->GetSource(Source)
         ] (EValueType type) mutable {
             auto key = std::pair(subexpressionName, type);
-            auto foundCached = AggregateLookup.find(key);
-            if (foundCached != AggregateLookup.end()) {
+            auto foundCached = AggregateLookup_.find(key);
+            if (foundCached != AggregateLookup_.end()) {
                 return foundCached->second;
             }
 
@@ -1964,7 +1966,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 typedOperands.back() = TNotExpressionPropagator().Visit(typedOperands.back());
             }
 
-            AggregateItems->emplace_back(
+            AggregateItems_->emplace_back(
                 typedOperands,
                 functionName,
                 subexpressionName,
@@ -1978,7 +1980,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
                 stateType,
                 type,
                 functionName);
-            AggregateLookup.emplace(key, expr);
+            AggregateLookup_.emplace(key, expr);
 
             return expr;
         };
@@ -3503,6 +3505,19 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
     // Why after PrepareQuery? GetTableSchema is called inside PrepareQuery?
     query->JoinClauses.assign(joinClauses.begin(), joinClauses.end());
+
+    if (std::ssize(query->JoinClauses) > MaxJoinNumber) {
+        THROW_ERROR_EXCEPTION("The number of joins exceeds the allowed maximum. Consider rewriting the query.")
+            << TErrorAttribute("join_number", std::ssize(query->JoinClauses))
+            << TErrorAttribute("max_join_number", MaxMultiJoinGroupNumber);
+    }
+
+    auto joinGroups = GetJoinGroups(query->JoinClauses, query->GetRenamedSchema());
+    if (std::ssize(joinGroups) > MaxMultiJoinGroupNumber) {
+        THROW_ERROR_EXCEPTION("The number of multi-join groups exceeds the allowed maximum. Consider rewriting the query.")
+            << TErrorAttribute("multi_join_group_number", std::ssize(joinGroups))
+            << TErrorAttribute("max_multi_join_group_number", MaxMultiJoinGroupNumber);
+    }
 
     if (ast.Limit) {
         if (*ast.Limit > MaxQueryLimit) {

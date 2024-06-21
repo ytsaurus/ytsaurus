@@ -2,6 +2,7 @@
 
 #include <yt/yt/orm/library/attributes/attribute_path.h>
 
+#include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/query_preparer.h>
 
 namespace NYT::NOrm::NQuery {
@@ -28,34 +29,56 @@ TOptionalLiteralValueWrapper TryCastToLiteralValue(const TExpressionList& exprLi
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryVisitorForDefinedAttributeValue
+    : public TBaseAstVisitor<TOptionalLiteralValueWrapper, TQueryVisitorForDefinedAttributeValue>
 {
 public:
     explicit TQueryVisitorForDefinedAttributeValue(const TYPath& attributePath)
         : AttributePath_(attributePath)
     { }
 
-    TOptionalLiteralValueWrapper Visit(TExpressionPtr expr) const
+    TOptionalLiteralValueWrapper Run(TExpressionPtr expression)
     {
-        auto* typedExpr = expr->As<TBinaryOpExpression>();
-        if (!typedExpr) {
-            return std::nullopt;
-        }
-        switch (typedExpr->Opcode) {
+        return Visit(expression);
+    }
+
+    TOptionalLiteralValueWrapper OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    {
+        switch (binaryExpr->Opcode) {
             case EBinaryOp::Equal: {
-                if (IsAttributeReference(typedExpr->Lhs, AttributePath_)) {
-                    if (auto value = TryCastToLiteralValue(typedExpr->Rhs)) {
+                if (IsAttributeReference(binaryExpr->Lhs, AttributePath_)) {
+                    if (auto value = TryCastToLiteralValue(binaryExpr->Rhs)) {
                         return value;
                     }
-                } else if (IsAttributeReference(typedExpr->Rhs, AttributePath_)) {
-                    if (auto value = TryCastToLiteralValue(typedExpr->Lhs)) {
+                } else if (IsAttributeReference(binaryExpr->Rhs, AttributePath_)) {
+                    if (auto value = TryCastToLiteralValue(binaryExpr->Lhs)) {
                         return value;
                     }
                 }
                 return std::nullopt;
             }
             case EBinaryOp::Or: {
-                auto lhs = Visit(typedExpr->Lhs);
-                auto rhs = Visit(typedExpr->Rhs);
+                auto lhs = Visit(binaryExpr->Lhs);
+                auto rhs = Visit(binaryExpr->Rhs);
                 if (lhs == rhs) {
                     return lhs;
                 } else {
@@ -63,8 +86,8 @@ public:
                 }
             }
             case EBinaryOp::And: {
-                auto lhs = Visit(typedExpr->Lhs);
-                auto rhs = Visit(typedExpr->Rhs);
+                auto lhs = Visit(binaryExpr->Lhs);
+                auto rhs = Visit(binaryExpr->Rhs);
                 if (lhs) {
                     return lhs;
                 }
@@ -78,10 +101,42 @@ public:
         }
     }
 
+    TOptionalLiteralValueWrapper OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnIn(TInExpressionPtr /*inExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnBetween(TBetweenExpressionPtr /*betweenExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnCase(TCaseExpressionPtr /*caseExpr*/)
+    {
+        return std::nullopt;
+    }
+
+    TOptionalLiteralValueWrapper OnLike(TLikeExpressionPtr /*likeExpr*/)
+    {
+        return std::nullopt;
+    }
+
 private:
     const TYPath& AttributePath_;
 
-    TOptionalLiteralValueWrapper Visit(const TExpressionList& exprList) const
+    using TBaseAstVisitor<TOptionalLiteralValueWrapper, TQueryVisitorForDefinedAttributeValue>::Visit;
+
+    TOptionalLiteralValueWrapper Visit(const TExpressionList& exprList)
     {
         if (exprList.size() == 1) {
             return Visit(exprList[0]);
@@ -93,6 +148,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryVisitorForDefinedReference
+    : public TBaseAstVisitor<bool, TQueryVisitorForDefinedReference>
 {
 public:
     explicit TQueryVisitorForDefinedReference(
@@ -104,31 +160,81 @@ public:
         , AllowValueRange_(allowValueRange)
     { }
 
-    bool Visit(TExpressionPtr expr)
+    bool Run(TExpressionPtr expression)
     {
-        if (auto* binaryExpr = expr->As<TBinaryOpExpression>()) {
-            switch (binaryExpr->Opcode) {
-                case EBinaryOp::Or:
-                    return Visit(binaryExpr->Lhs) && Visit(binaryExpr->Rhs);
-                case EBinaryOp::And:
-                    return Visit(binaryExpr->Lhs) || Visit(binaryExpr->Rhs);
-                case EBinaryOp::NotEqual:
-                case EBinaryOp::Less:
-                case EBinaryOp::LessOrEqual:
-                case EBinaryOp::Greater:
-                case EBinaryOp::GreaterOrEqual:
-                    if (!AllowValueRange_) {
-                        return false;
-                    }
-                    [[fallthrough]];
-                case EBinaryOp::Equal:
-                    return IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs);
-                default:
+        return Visit(expression);
+    }
+
+    bool OnLiteral(TLiteralExpressionPtr /*literalExpr*/)
+    {
+        return false;
+    }
+
+    bool OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    {
+        return false;
+    }
+
+    bool OnAlias(TAliasExpressionPtr /*aliasExpr*/)
+    {
+        return false;
+    }
+
+    bool OnUnary(TUnaryOpExpressionPtr /*unaryExpr*/)
+    {
+        return false;
+    }
+
+    bool OnBinary(TBinaryOpExpressionPtr binaryExpr)
+    {
+        switch (binaryExpr->Opcode) {
+            case EBinaryOp::Or:
+                return Visit(binaryExpr->Lhs) && Visit(binaryExpr->Rhs);
+            case EBinaryOp::And:
+                return Visit(binaryExpr->Lhs) || Visit(binaryExpr->Rhs);
+            case EBinaryOp::NotEqual:
+            case EBinaryOp::Less:
+            case EBinaryOp::LessOrEqual:
+            case EBinaryOp::Greater:
+            case EBinaryOp::GreaterOrEqual:
+                if (!AllowValueRange_) {
                     return false;
-            }
-        } else if (auto* inExpr = expr->As<TInExpression>()) {
-            return IsTargetReference(inExpr->Expr);
+                }
+                [[fallthrough]];
+            case EBinaryOp::Equal:
+                return IsTargetReference(binaryExpr->Lhs) || IsTargetReference(binaryExpr->Rhs);
+            default:
+                return false;
         }
+    }
+
+    bool OnFunction(TFunctionExpressionPtr /*functionExpr*/)
+    {
+        return false;
+    }
+
+    bool OnIn(TInExpressionPtr inExpr)
+    {
+        return IsTargetReference(inExpr->Expr);
+    }
+
+    bool OnBetween(TBetweenExpressionPtr /*betweenExpr*/)
+    {
+        return false;
+    }
+
+    bool OnTransform(TTransformExpressionPtr /*transformExpr*/)
+    {
+        return false;
+    }
+
+    bool OnCase(TCaseExpressionPtr /*caseExpr*/)
+    {
+        return false;
+    }
+
+    bool OnLike(TLikeExpressionPtr /*likeExpr*/)
+    {
         return false;
     }
 
@@ -136,6 +242,8 @@ private:
     const TYPath& ReferenceName_;
     const std::optional<TString>& TableName_;
     const bool AllowValueRange_;
+
+    using TBaseAstVisitor<bool, TQueryVisitorForDefinedReference>::Visit;
 
     bool Visit(const TExpressionList& exprs)
     {
@@ -161,50 +269,41 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryVisitorForAttributeReferences
+    : public TAstVisitor<TQueryVisitorForAttributeReferences>
 {
 public:
     explicit TQueryVisitorForAttributeReferences(std::function<void(TString)> inserter)
         : Inserter_(std::move(inserter))
     { }
 
-    void Visit(TExpressionPtr expr)
+    void Run(TExpressionPtr expression)
     {
-        if (auto* typedExpr = expr->As<TLiteralExpression>()) {
-        } else if (auto* typedExpr = expr->As<TReferenceExpression>()) {
-            YT_VERIFY(!typedExpr->Reference.TableName);
-            Inserter_(typedExpr->Reference.ColumnName);
-        } else if (auto* typedExpr = expr->As<TAliasExpression>()) {
-            Visit(typedExpr->Expression);
-        } else if (auto* typedExpr = expr->As<TFunctionExpression>()) {
-            Visit(typedExpr->Arguments);
-        } else if (auto* typedExpr = expr->As<TUnaryOpExpression>()) {
-            Visit(typedExpr->Operand);
-        } else if (auto* typedExpr = expr->As<TBinaryOpExpression>()) {
-            Visit(typedExpr->Lhs);
-            Visit(typedExpr->Rhs);
-        } else if (auto* typedExpr = expr->As<TInExpression>()) {
-            Visit(typedExpr->Expr);
-        } else if (auto* typedExpr = expr->As<TBetweenExpression>()) {
-            Visit(typedExpr->Expr);
-        } else if (auto* typedExpr = expr->As<TTransformExpression>()) {
-            Visit(typedExpr->Expr);
-            if (auto defaultExpr = typedExpr->DefaultExpr) {
-                Visit(*defaultExpr);
-            }
-        } else {
-            THROW_ERROR_EXCEPTION("Unsupported expression type");
+        Visit(expression);
+    }
+
+    void OnReference(TReferenceExpressionPtr referenceExpr)
+    {
+        YT_VERIFY(!referenceExpr->Reference.TableName);
+        Inserter_(referenceExpr->Reference.ColumnName);
+    }
+
+    void OnAlias(TAliasExpressionPtr aliasExpr)
+    {
+        Visit(aliasExpr->Expression);
+    }
+
+    void OnTransform(TTransformExpressionPtr transformExpr)
+    {
+        Visit(transformExpr->Expr);
+        if (auto defaultExpr = transformExpr->DefaultExpr) {
+            Visit(*defaultExpr);
         }
     }
 
 private:
     std::function<void(TString)> Inserter_;
 
-    void Visit(const TExpressionList& exprList)
-    {
-        for (auto* expr : exprList) {
-            Visit(expr);
-        }
-    }
+    using TAstVisitor<TQueryVisitorForAttributeReferences>::Visit;
 };
 
 } // namespace
@@ -224,7 +323,7 @@ TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
-    return TQueryVisitorForDefinedAttributeValue(attributePath).Visit(queryExpression);
+    return TQueryVisitorForDefinedAttributeValue(attributePath).Run(queryExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,7 +335,7 @@ bool IntrospectFilterForDefinedReference(
     bool allowValueRange)
 {
     return TQueryVisitorForDefinedReference(referenceName, tableName, allowValueRange)
-        .Visit(filterExpression);
+        .Run(filterExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -249,7 +348,7 @@ void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
     auto* queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
 
-    TQueryVisitorForAttributeReferences(std::move(inserter)).Visit(queryExpression);
+    TQueryVisitorForAttributeReferences(std::move(inserter)).Run(queryExpression);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

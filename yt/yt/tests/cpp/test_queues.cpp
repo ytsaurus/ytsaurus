@@ -1028,7 +1028,7 @@ void TConsumerApiTest::SetUpTestCase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
+TEST_F(TConsumerApiTest, TestAdvanceQueueConsumerViaProxy)
 {
     TRichYPath consumerPath;
     consumerPath.SetPath("//tmp/test_consumer");
@@ -1059,7 +1059,7 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
-    WaitFor(transaction->AdvanceConsumer(consumerPath, queueLinkPath, 0, {}, 1, {}))
+    WaitFor(transaction->AdvanceQueueConsumer(consumerPath, queueLinkPath, 0, {}, 1, {}))
         .ThrowOnError();
     WaitFor(transaction->Commit())
         .ThrowOnError();
@@ -1073,7 +1073,7 @@ TEST_F(TConsumerApiTest, TestAdvanceConsumerViaProxy)
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
-    WaitFor(transaction->AdvanceConsumer(consumerPath, queueLinkPath, 0, {}, 10, {}))
+    WaitFor(transaction->AdvanceQueueConsumer(consumerPath, queueLinkPath, 0, {}, 10, {}))
         .ThrowOnError();
 
     WaitFor(transaction->Commit())

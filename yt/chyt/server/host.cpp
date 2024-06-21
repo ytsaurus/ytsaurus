@@ -78,9 +78,9 @@ using namespace NYPath;
 
 using NYT::FromProto;
 
-static const auto& Logger = ClickHouseYtLogger;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = ClickHouseYtLogger;
 
 static const std::vector<TString> DiscoveryAttributes{
     "host",
@@ -146,7 +146,7 @@ public:
                     RootClient_,
                     ControlInvoker_,
                     DiscoveryAttributes,
-                    Logger);
+                    Logger());
                 break;
             }
             case 2: {
@@ -158,15 +158,15 @@ public:
                     ChannelFactory_,
                     ControlInvoker_,
                     DiscoveryAttributes,
-                    Logger,
-                    ClickHouseYtProfiler.WithPrefix("/discovery"));
+                    Logger(),
+                    ClickHouseYtProfiler().WithPrefix("/discovery"));
                 break;
             }
             default:
                 YT_ABORT();
         }
 
-        ClickHouseYtProfiler.AddFuncGauge(
+        ClickHouseYtProfiler().AddFuncGauge(
             "/clique_instance_count",
             MakeStrong(this),
             [this] {
@@ -174,7 +174,7 @@ public:
             });
 
         if (Config_->CpuLimit) {
-            ClickHouseYtProfiler.AddFuncGauge(
+            ClickHouseYtProfiler().AddFuncGauge(
                 "/cpu_limit",
                 MakeStrong(this),
                 [this] {
@@ -182,14 +182,14 @@ public:
                 });
         }
 
-        ClickHouseYtProfiler.AddFuncGauge(
+        ClickHouseYtProfiler().AddFuncGauge(
             "/memory_limit/watchdog",
             MakeStrong(this),
             [this] {
                 return Config_->MemoryWatchdog->MemoryLimit - Config_->MemoryWatchdog->CodicilWatermark;
             });
 
-        ClickHouseYtProfiler.AddFuncGauge(
+        ClickHouseYtProfiler().AddFuncGauge(
             "/memory_limit/oom",
             MakeStrong(this),
             [this] {
@@ -280,7 +280,7 @@ public:
                 .Object = path.GetPath(),
                 .User = user,
                 .Permission = EPermission::Read,
-                .Columns = path.GetColumns()
+                .Columns = path.GetColumns(),
             });
         }
         auto validationResults = WaitFor(PermissionCache_->GetMany(permissionCacheKeys))
@@ -338,7 +338,7 @@ public:
             client,
             GetCurrentInvoker(),
             TableAttributesToFetch,
-            Logger,
+            Logger(),
             *Config_->TableAttributeCache->MasterReadOptions))
             .ValueOrThrow();
 
@@ -741,22 +741,22 @@ private:
         PermissionCache_ = New<TPermissionCache>(
             Config_->PermissionCache,
             Connection_,
-            ClickHouseYtProfiler.WithPrefix("/permission_cache"));
+            ClickHouseYtProfiler().WithPrefix("/permission_cache"));
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
             TableAttributesToFetch,
             CacheClient_,
             ControlInvoker_,
-            Logger,
-            ClickHouseYtProfiler.WithPrefix("/object_attribute_cache"));
+            Logger(),
+            ClickHouseYtProfiler().WithPrefix("/object_attribute_cache"));
 
         TableColumnarStatisticsCache_ = New<NTableClient::TTableColumnarStatisticsCache>(
             Config_->TableColumnarStatisticsCache,
             CacheClient_,
             FetcherInvoker_,
-            Logger,
-            ClickHouseYtProfiler.WithPrefix("/table_columnar_statistics_cache"));
+            Logger(),
+            ClickHouseYtProfiler().WithPrefix("/table_columnar_statistics_cache"));
     }
 
     void InitializeReaderMemoryManager()

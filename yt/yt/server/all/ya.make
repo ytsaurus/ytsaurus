@@ -1,5 +1,7 @@
 PROGRAM(ytserver-all)
 
+INCLUDE(${ARCADIA_ROOT}/yt/yt/ya_check_dependencies.inc)
+
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

@@ -58,6 +58,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_with_quota.h>
 
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
@@ -200,7 +201,7 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         NScheduler::TControllerScheduleAllocationResultPtr,
         ScheduleAllocation,
-        (ISchedulingContext* context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
+        (const TSchedulingContext& context, const NScheduler::TJobResources& resourceLimits, const TString& treeId),
         (context, resourceLimits, treeId),
         true)
 
@@ -269,7 +270,7 @@ public:
 
     bool ShouldSkipRunningJobEvents() const noexcept override;
 
-    void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) noexcept override;
+    void RecordScheduleAllocationFailure(EScheduleFailReason reason) noexcept override;
 
     void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
@@ -667,13 +668,13 @@ protected:
     void CheckMinNeededResourcesSanity();
 
     void DoScheduleAllocation(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult);
 
     void TryScheduleJob(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& resourceLimits,
         const TString& treeId,
         NScheduler::TControllerScheduleAllocationResult* scheduleJobResult,
@@ -959,10 +960,6 @@ protected:
 
     bool HasEnoughChunkLists(bool isWritingStderrTable, bool isWritingCoreTable);
 
-    //! Returns the list of all input chunks collected from all primary input tables.
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
-    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
     std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
@@ -1002,7 +999,7 @@ protected:
     void InferSchemaFromInputOrdered();
     void FilterOutputSchemaByInputColumnSelectors(const NTableClient::TSortColumns& sortColumns);
     void ValidateOutputSchemaOrdered() const;
-    void ValidateOutputSchemaCompatibility(bool ignoreSortOrder, bool forbidExtraComputedColumns = false) const;
+    void ValidateOutputSchemaCompatibility(NTableClient::TTableSchemaCompatibilityOptions options) const;
     // Validate that ESchemaInferenceMode::Auto is used when output table is dynamic.
     void ValidateSchemaInferenceMode(NScheduler::ESchemaInferenceMode schemaInferenceMode) const;
     void ValidateOutputSchemaComputedColumnsCompatibility() const;
@@ -1271,7 +1268,7 @@ private:
     //! Schedule job failures that happened outside of controller.
     //! These values are added to corresponding values in ScheduleAllocationStatistics_
     //! on each access in thread-safe manner.
-    mutable TEnumIndexedArray<EScheduleAllocationFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
+    mutable TEnumIndexedArray<EScheduleFailReason, std::atomic<int>> ExternalScheduleAllocationFailureCounts_;
 
     TInstant FinishTime_;
     std::vector<NScheduler::TExperimentAssignmentPtr> ExperimentAssignments_;

@@ -1,8 +1,5 @@
 RECURSE(
-    chyt
     local
-    query-tracker
-    strawberry
     systest
     ya-build
     ytsaurus

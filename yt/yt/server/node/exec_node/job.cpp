@@ -834,11 +834,9 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
 
     ControllerAgentDescriptor_ = std::move(descriptor);
 
-    ControllerAgentConnector_ = ControllerAgentDescriptor_
-        ? ControllerAgentConnector_ = Bootstrap_
+    ControllerAgentConnector_ = Bootstrap_
             ->GetControllerAgentConnectorPool()
-            ->GetControllerAgentConnector(ControllerAgentDescriptor_)
-        : nullptr;
+            ->GetControllerAgentConnector(ControllerAgentDescriptor_);
 }
 
 EJobType TJob::GetType() const
@@ -1199,10 +1197,14 @@ TBriefJobInfo TJob::GetBriefInfo() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto [
-        baseResourceUsage,
-        additionalResourceUsage
-    ] = ResourceHolder_->GetDetailedResourceUsage();
+    NClusterNode::TJobResources baseResourceUsage{};
+    NClusterNode::TJobResources additionalResourceUsage{};
+    std::vector<int> jobPorts;
+
+    if (ResourceHolder_) {
+        std::tie(baseResourceUsage, additionalResourceUsage) = ResourceHolder_->GetDetailedResourceUsage();
+        jobPorts = GetPorts();
+    }
 
     return TBriefJobInfo(
         GetId(),
@@ -1218,7 +1220,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         GetOperationId(),
         baseResourceUsage,
         additionalResourceUsage,
-        GetPorts(),
+        std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
         ExecAttributes_);
@@ -1767,17 +1769,22 @@ void TJob::ReportJobInterruptionInfo(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    TJobInterruptionInfo interruptionInfo{
+        .InterruptionReason = interruptionReason,
+        .InterruptionTimeout = timeout ? std::optional(timeout) : std::nullopt,
+        .PreemptionReason = preemptionReason,
+    };
+
+    if (preemptedFor) {
+        interruptionInfo.PreemptedFor = TJobInterruptionInfo::TPreemptedFor{
+            .AllocationId = preemptedFor->AllocationId,
+            .OperationId = preemptedFor->OperationId,
+        };
+    }
+
     HandleJobReport(TNodeJobReport()
         .OperationId(OperationId_)
-        .InterruptionInfo(TJobInterruptionInfo{
-            .InterruptionReason = interruptionReason,
-            .InterruptionTimeout = timeout ? std::optional(timeout) : std::nullopt,
-            .PreemptionReason = preemptionReason,
-            .PreemptedFor = TJobInterruptionInfo::TPreemptedFor{
-                .AllocationId = preemptedFor->AllocationId,
-                .OperationId = preemptedFor->OperationId,
-            },
-        }));
+        .InterruptionInfo(std::move(interruptionInfo)));
 }
 
 void TJob::DoSetResult(TError error)
@@ -2205,6 +2212,10 @@ IUserSlotPtr TJob::GetUserSlot() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (!ResourceHolder_) {
+        return nullptr;
+    }
+
     const auto& userSlot = ResourceHolder_->GetUserSlot();
 
     return StaticPointerCast<IUserSlot>(userSlot);
@@ -2413,9 +2424,9 @@ void TJob::Cleanup()
 
     if (!Allocation_) {
         ResourceHolder_->ReleaseBaseResources();
-    } else {
-        ResourceHolder_.Reset();
     }
+
+    ResourceHolder_.Reset();
 
     if (UseJobInputCache_.load()) {
         JobInputCache_->UnregisterJobChunks(Id_);

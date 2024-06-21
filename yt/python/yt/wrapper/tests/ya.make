@@ -42,6 +42,9 @@ PEERDIR(
 
     library/python/resource
 
+    # To test z-lz4 codec.
+    library/python/codecs
+
     contrib/python/flaky
     contrib/python/mock
     contrib/python/requests-mock

@@ -12,7 +12,7 @@ using namespace NYPath;
 TDynamicConfigManager::TDynamicConfigManager(IBootstrap* bootstrap)
     : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
-            .ConfigPath = TYPath(KafkaProxiesRootPath) + "/@config",
+            .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
             .Name = "KafkaProxy",
         },
         bootstrap->GetConfig()->DynamicConfigManager,

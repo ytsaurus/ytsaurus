@@ -6,7 +6,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
-    insert_rows, raises_yt_error, select_rows, sorted_dicts, generate_uuid,
+    insert_rows, raises_yt_error, select_rows, delete_rows, sorted_dicts, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed)
 
@@ -1830,22 +1830,55 @@ class TestQuery(DynamicTablesBase):
             {"key1": 2, "value1": 2},
         ], update=True, aggregate=True)
 
+        ts2 = "$timestamp:value2"
+
+        def find(rows, key1, value2):
+            return list(filter(lambda x: x["key1"] == key1 and x["value2"] == value2, rows))[0]
+
         assert_items_equal(
             select_rows("key1, value2 from [//tmp/t]", merge_versioned_rows=False),
-            [{"key1": 1, "value2": "value"}, {"key1": 2, "value2": None}])
+            [{"key1": 1, "value2": "value"}, {"key1": 2, "value2": None}],
+        )
+
+        timestamped_rows = select_rows(
+            f"key1, value2, [{ts2}] from [//tmp/t]",
+            merge_versioned_rows=False,
+            with_timestamps=True,
+        )
+        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
+        ts_value2 = find(timestamped_rows, 2, None)[ts2]
+        assert not isinstance(ts_value1, yson.YsonEntity)
+        assert isinstance(ts_value2, yson.YsonEntity)
 
         sync_flush_table("//tmp/t")
-        insert_rows("//tmp/t", [
-            {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 1},
-            {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 2},
-        ], aggregate=True)
+        insert_rows(
+            "//tmp/t",
+            [
+                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 1},
+                {"key1": 1, "key2": "2", "value1": 2, "value2": "new_value", "aggr": 2},
+            ],
+            aggregate=True,
+        )
 
         assert_items_equal(
             select_rows("key1, value2, aggr from [//tmp/t]", merge_versioned_rows=False),
             [
                 {"key1": 1, "value2": "value", "aggr": 0},
                 {"key1": 1, "value2": "new_value", "aggr": 3},
-                {"key1": 2, "value2": None, "aggr": None}])
+                {"key1": 2, "value2": None, "aggr": None}
+            ],
+        )
+
+        timestamped_rows = select_rows(
+            f"key1, value2, aggr, [{ts2}] from [//tmp/t]",
+            merge_versioned_rows=False,
+            with_timestamps=True,
+        )
+        ts_value1 = find(timestamped_rows, 1, "value")[ts2]
+        ts_value2 = find(timestamped_rows, 1, "new_value")[ts2]
+        ts_value3 = find(timestamped_rows, 2, None)[ts2]
+        assert ts_value1 < ts_value2
+        assert isinstance(ts_value3, yson.YsonEntity)
 
     @authors("sabdenovch")
     def test_array_join(self):
@@ -2021,6 +2054,156 @@ class TestQuery(DynamicTablesBase):
 
         actual = select_rows(f"t.key as k, t.value.a as v from `{path}` as t limit 100", syntax_version=2)
         assert expected == actual
+
+    @authors("dave11ar")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_versioned_select(self, optimize_for):
+        path = "//tmp/t"
+
+        sync_create_cells(1)
+
+        self._create_table(
+            path=path,
+            optimize_for=optimize_for,
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "string"},
+                {"name": "v2", "type": "string"},
+                {"name": "v3", "type": "string"},
+                {"name": "v4", "type": "int64", "aggregate": "sum"},
+                {"name": "v5", "type": "string"},
+            ],
+            data=[{"k": 1, "v1": "a", "v2": "a", "v3": "a", "v4": 1, "v5": "a"}],
+        )
+
+        insert_rows(
+            path=path,
+            data=[{"k": 1, "v1": "b", "v3": "b"}],
+            update=True,
+        )
+        insert_rows(
+            path=path,
+            data=[{"k": 1, "v2": "c", "v5": "c"}],
+            update=True,
+        )
+
+        def check_vs(row, v1=None, v2=None, v3=None, v4=None, v5=None):
+            def check(name, value):
+                if value:
+                    assert row[name] == value
+                else:
+                    assert name not in row
+
+            assert row["k"] == 1
+            check("v1", v1)
+            check("v2", v2)
+            check("v3", v3)
+            check("v4", v4)
+            check("v5", v5)
+
+        def check_timestamps(row, order):
+            previous_ts = 0
+            for columns in order:
+                current_ts = row[f"$timestamp:{columns[0]}"]
+                assert previous_ts < current_ts
+
+                for i in range(1, len(columns)):
+                    assert row[f"$timestamp:{columns[i]}"] == current_ts
+
+                previous_ts = current_ts
+
+        row = select_rows("* from [//tmp/t]", with_timestamps=True)[0]
+        check_vs(row, "b", "c", "b", 1, "c")
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v2", "v5"]])
+
+        first_timestamp = row["$timestamp:v4"]
+        row = select_rows("* from [//tmp/t]", timestamp=first_timestamp, with_timestamps=True)[0]
+        check_vs(row, "a", "a", "a", 1, "a")
+        check_timestamps(row, [["v1", "v2", "v3", "v4", "v5"]])
+        assert row["$timestamp:v1"] == first_timestamp
+
+        row = select_rows(f"k, v1, [$timestamp:v1], v2, v3, [$timestamp:v5], v4, v5, [$timestamp:v4], [$timestamp:v3] from [{path}]", with_timestamps=True)[0]
+        check_vs(row, "b", "c", "b", 1, "c")
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v5"]])
+
+        row = select_rows(f"k, [$timestamp:v2], [$timestamp:v1], [$timestamp:v5], [$timestamp:v3], [$timestamp:v4] from [{path}]", with_timestamps=True)[0]
+        check_vs(row)
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v2", "v5"]])
+
+        row = select_rows(f"k, [$timestamp:v2], v1, v4, [$timestamp:v3], [$timestamp:v4] from [{path}]", with_timestamps=True)[0]
+        check_vs(row, v1="b", v4=1)
+        check_timestamps(row, [["v4"], ["v3"], ["v2"]])
+
+        with raises_yt_error('Undefined reference "$timestamp:v3"'):
+            select_rows(f"k, v1, v2, [$timestamp:v3], v4 from [{path}]")
+
+        with raises_yt_error('Undefined reference "$timestamp:v42"'):
+            select_rows(f"k, v1, v2, [$timestamp:v42], v4 from [{path}]", with_timestamps=True)
+
+        renamed = select_rows(
+            f"[$timestamp:v4] as tv4_2, [$timestamp:v4] as tv4_1, k as key, v4 as vv4, [$timestamp:v2] as tv2 from [{path}]",
+            with_timestamps=True,
+        )[0]
+        assert len(renamed) == 5
+        assert renamed["key"] == 1
+        assert renamed["vv4"] == 1
+        assert renamed["tv2"] > renamed["tv4_1"]
+        assert renamed["tv4_1"] == renamed["tv4_2"]
+
+        old_timestamp = renamed["tv2"]
+
+        lookup = select_rows(f"[$timestamp:v2] from [{path}] where k = 1", with_timestamps=True)
+        assert len(lookup) == 1
+        assert lookup[0]["$timestamp:v2"] == old_timestamp
+
+        insert_rows(
+            path=path,
+            data=[{"k": 2, "v1": "i", "v2": "i", "v3": "i", "v4": 10, "v5": "i"}])
+
+        selected_with_where = select_rows(f"* from [{path}] where [$timestamp:v1] > {old_timestamp}", with_timestamps=True)
+        assert len(selected_with_where) == 1
+        assert selected_with_where[0]["k"] == 2
+
+        delete_rows(path, [{"k": 2}])
+
+        def check_aggregate(aggregate, v1, v4, expected_v4, last_value):
+            insert_rows(
+                path=path,
+                data=[{"k": 1, "v1": v1, "v4": v4}],
+                update=True,
+                aggregate=aggregate,
+            )
+
+            row = select_rows(
+                f"k, [$timestamp:v2], v1, v4, v3, v2, v5, [$timestamp:v3], [$timestamp:v4], [$timestamp:v1], [$timestamp:v5] from [{path}]",
+                with_timestamps=True,
+            )[0]
+            check_vs(row, v1, "c", "b", expected_v4, "c")
+            check_timestamps(row, [["v3"], ["v2", "v5"], ["v1", "v4"]])
+
+            new_last_value = row["$timestamp:v4"]
+            assert new_last_value > last_value
+            return new_last_value
+
+        check_aggregate(
+            aggregate=True,
+            v1="e",
+            v4=4,
+            expected_v4=7,
+            last_value=check_aggregate(
+                aggregate=False,
+                v1="d",
+                v4=3,
+                expected_v4=3,
+                last_value=row["$timestamp:v4"],
+            ),
+        )
+
+        delete_rows(path, [{"k": 1}])
+        assert select_rows(
+            f"k, [$timestamp:v2], v1, v4, v3, v2, v5, [$timestamp:v3], [$timestamp:v4], [$timestamp:v1], [$timestamp:v5] from [{path}]",
+            with_timestamps=True,
+        ) == []
 
 
 class TestQueryRpcProxy(TestQuery):

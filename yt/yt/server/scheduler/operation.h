@@ -455,6 +455,7 @@ struct TPreprocessedSpec
     NYson::TYsonString TrimmedAnnotations;
     THashMap<TString, TStrategyOperationSpecPtr> CustomSpecPerTree;
     std::vector<TExperimentAssignmentPtr> ExperimentAssignments;
+    std::vector<TError> ExperimentAssignmentErrors;
     std::vector<TString> VanillaTaskNames;
 };
 

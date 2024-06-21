@@ -403,7 +403,7 @@ class TestMedia(YTEnvSetup):
         create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         data = [{"payload": "payload" + str(i)} for i in range(0, 10)]
-        write_journal("//tmp/j", data)
+        write_journal("//tmp/j", data, enable_chunk_preallocation=False)
         wait_until_sealed("//tmp/j")
         chunk_id = get_singular_chunk_id("//tmp/j")
         for replica in get("#{0}/@stored_replicas".format(chunk_id)):

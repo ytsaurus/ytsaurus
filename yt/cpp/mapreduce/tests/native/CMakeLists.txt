@@ -13,5 +13,7 @@
 # changes in this file.
 
 add_subdirectory(misc)
+add_subdirectory(misc_core_http)
 add_subdirectory(operations)
+add_subdirectory(operations_core_http)
 add_subdirectory(proto_lib)

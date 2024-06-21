@@ -1718,7 +1718,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
 
         query = "* from [//tmp/t] order by key limit 100"
-        for i, watermark in enumerate([9, 10, 11, 12]):
+        for i, watermark in enumerate([10, 11, 12, 13]):
             self._sync_set_watermark(watermark)
             wait(lambda: select_rows(query) == rows[i:])
 

@@ -101,61 +101,6 @@ using TAgentToSchedulerScheduleAllocationResponseOutboxPtr = TIntrusivePtr<NSche
 
 ////////////////////////////////////////////////////////////////////
 
-class TSchedulingContext
-    : public ISchedulingContext
-{
-public:
-    TSchedulingContext(
-        const NScheduler::NProto::TScheduleAllocationRequest* request,
-        const TExecNodeDescriptorPtr& nodeDescriptor,
-        const NScheduler::NProto::TScheduleAllocationSpec& scheduleAllocationSpec)
-        : DiskResources_(FromProto<TDiskResources>(request->node_disk_resources()))
-        , AllocationId_(FromProto<TAllocationId>(request->allocation_id()))
-        , NodeDescriptor_(nodeDescriptor)
-        , ScheduleAllocationSpec_(scheduleAllocationSpec)
-        , PoolPath_(YT_PROTO_OPTIONAL(*request, pool_path))
-    { }
-
-    const std::optional<TString>& GetPoolPath() const override
-    {
-        return PoolPath_;
-    }
-
-    const TExecNodeDescriptorPtr& GetNodeDescriptor() const override
-    {
-        return NodeDescriptor_;
-    }
-
-    const TDiskResources& DiskResources() const override
-    {
-        return DiskResources_;
-    }
-
-    TAllocationId GetAllocationId() const override
-    {
-        return AllocationId_;
-    }
-
-    NProfiling::TCpuInstant GetNow() const override
-    {
-        return NProfiling::GetCpuInstant();
-    }
-
-    const NScheduler::NProto::TScheduleAllocationSpec& GetScheduleAllocationSpec() const override
-    {
-        return ScheduleAllocationSpec_;
-    }
-
-private:
-    const NScheduler::TDiskResources DiskResources_;
-    const TAllocationId AllocationId_;
-    const TExecNodeDescriptorPtr& NodeDescriptor_;
-    const NScheduler::NProto::TScheduleAllocationSpec ScheduleAllocationSpec_;
-    const std::optional<TString> PoolPath_;
-};
-
-////////////////////////////////////////////////////////////////////
-
 class TZombieOperationOrchids
     : public TRefCounted
 {
@@ -1725,7 +1670,7 @@ private:
     {
         auto outbox = ScheduleAllocationResponsesOutbox_;
 
-        auto replyWithFailure = [=] (TOperationId operationId, TAllocationId allocationId, EScheduleAllocationFailReason reason) {
+        auto replyWithFailure = [=] (TOperationId operationId, TAllocationId allocationId, EScheduleFailReason reason) {
             TAgentToSchedulerScheduleAllocationResponse response;
             response.AllocationId = allocationId;
             response.OperationId = operationId;
@@ -1740,7 +1685,7 @@ private:
         auto replyWithFailureAndRecordInController = [=] (
             TOperationId operationId,
             TAllocationId allocationId,
-            EScheduleAllocationFailReason reason,
+            EScheduleFailReason reason,
             IOperationControllerPtr controller)
         {
             replyWithFailure(operationId, allocationId, reason);
@@ -1768,7 +1713,7 @@ private:
 
                 auto operation = this->FindOperation(operationId);
                 if (!operation) {
-                    replyWithFailure(operationId, allocationId, EScheduleAllocationFailReason::UnknownOperation);
+                    replyWithFailure(operationId, allocationId, EScheduleFailReason::UnknownOperation);
                     YT_LOG_DEBUG(
                         "Failed to schedule allocation due to unknown operation (OperationId: %v, AllocationId: %v)",
                         operationId,
@@ -1787,7 +1732,7 @@ private:
                     replyWithFailureAndRecordInController(
                         operationId,
                         allocationId,
-                        EScheduleAllocationFailReason::ControllerThrottling,
+                        EScheduleFailReason::ControllerThrottling,
                         controller);
                     return;
                 }
@@ -1815,7 +1760,7 @@ private:
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,
-                                EScheduleAllocationFailReason::ControllerThrottling,
+                                EScheduleFailReason::ControllerThrottling,
                                 controller);
                             return;
                         }
@@ -1831,7 +1776,7 @@ private:
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,
-                                EScheduleAllocationFailReason::UnknownNode,
+                                EScheduleFailReason::UnknownNode,
                                 controller);
                             return;
                         }
@@ -1846,7 +1791,7 @@ private:
                             replyWithFailureAndRecordInController(
                                 operationId,
                                 allocationId,
-                                EScheduleAllocationFailReason::NodeOffline,
+                                EScheduleFailReason::NodeOffline,
                                 controller);
                             return;
                         }
@@ -1855,12 +1800,12 @@ private:
                         const auto& treeId = protoRequest->tree_id();
 
                         TAgentToSchedulerScheduleAllocationResponse response;
-                        TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
+                        const TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
 
                         response.OperationId = operationId;
                         response.AllocationId = allocationId;
                         response.Result = controller->ScheduleAllocation(
-                            &context,
+                            context,
                             allocationLimits,
                             treeId);
                         auto scheduleAllocationFinishInstant = TInstant::Now();
@@ -1888,7 +1833,7 @@ private:
                         replyWithFailure(
                             operationId,
                             allocationId,
-                            EScheduleAllocationFailReason::UnknownOperation);
+                            EScheduleFailReason::UnknownOperation);
                     }));
             });
     }

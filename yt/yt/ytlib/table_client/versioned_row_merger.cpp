@@ -23,7 +23,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TableClientLogger;
+static constexpr auto& Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -474,7 +474,7 @@ private:
                 continue;
             }
 
-            if (value.Type != EValueType::Null && FromUnversionedValue<ui64>(value) <= WatermarkRuntimeData_->Watermark) {
+            if (value.Type != EValueType::Null && FromUnversionedValue<ui64>(value) < WatermarkRuntimeData_->Watermark) {
                 watermarkTimestamp = std::max(watermarkTimestamp, value.Timestamp);
             }
         }

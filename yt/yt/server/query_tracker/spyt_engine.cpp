@@ -51,6 +51,8 @@ public:
 
     std::optional<TString> SparkConf;
 
+    THashMap<TString, TString> Params;
+
     bool SessionReuse;
 
     REGISTER_YSON_STRUCT(TSpytSettings);
@@ -64,6 +66,8 @@ public:
         registrar.Parameter("discovery_group", &TThis::DiscoveryGroup)
             .Default();
         registrar.Parameter("spark_conf", &TThis::SparkConf)
+            .Default();
+        registrar.Parameter("params", &TThis::Params)
             .Default();
         registrar.Parameter("session_reuse", &TThis::SessionReuse)
             .Default(true);
@@ -397,7 +401,7 @@ private:
         YT_LOG_DEBUG("Raw result received (LineCount: %v)", encodedChunks.size());
 
         std::vector<TString> tableChunks;
-        for (size_t i = 0; i + 3 < encodedChunks.size(); i++) { // We must ignore last 3 lines, they don't contain result info
+        for (size_t i = 0; i < encodedChunks.size(); i++) {
             tableChunks.push_back(Base64StrictDecode(encodedChunks[i]));
         }
 
@@ -422,10 +426,18 @@ private:
 
     TString MakeStatementSubmitQueryData(const TString& sqlQuery) const
     {
+        TString paramsSetting;
+        for (const auto &[name, value] : Settings_->Params) {
+            paramsSetting.append(Format("spark.sql(\"set %v=%v\");", name, value));
+        }
         auto code = Format(
-            "import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
-            "val df = spark.sql(\"%v\").limit(%v);"
-            "println(GenericRowSerializer.dfToYTFormatWithBase64(df).mkString(\"\\n\"))",
+            "{"
+            " import tech.ytsaurus.spyt.serializers.GenericRowSerializer;"
+            " %v"
+            " val df = spark.sql(\"%v\").limit(%v);"
+            " println(GenericRowSerializer.dfToYTFormatWithBase64(df).mkString(\"\\n\"))"
+            "}",
+            paramsSetting,
             EscapeC(sqlQuery),
             Config_->RowCountLimit);
         auto dataNode = BuildYsonNodeFluently()

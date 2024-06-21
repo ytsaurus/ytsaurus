@@ -86,6 +86,7 @@ public:
     void LoadInputChunkMap(const TPersistenceContext& context);
     void LoadPathToInputTables(const TPersistenceContext& context);
     void LoadInputTables(const TPersistenceContext& context);
+    void LoadInputHasOrderedDynamicStores(const TPersistenceContext& context);
 
     void RegisterUnavailableInputChunks(bool reportIfFound = false);
     void BuildUnavailableInputChunksYson(NYTree::TFluentAny fluent) const;
@@ -99,6 +100,11 @@ public:
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
     const NNodeTrackerClient::TNodeDirectoryPtr& GetInputNodeDirectory() const;
+
+    //! Returns the list of all input chunks collected from all primary input tables.
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
+    std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
 
 private:
     // NB: InputManager does not outlive its host.

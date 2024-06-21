@@ -478,7 +478,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
         assert directions[(merge_vertex, "output")]["job_data_statistics"]["chunk_count"] == 2
         assert directions[(merge_vertex, "output")]["teleport_data_statistics"]["chunk_count"] == 8
 
-    @authors("yuryalekseev", "psushin")
+    @authors("yuryalekseev")
     @pytest.mark.timeout(60)
     @pytest.mark.parametrize("single_chunk_teleport_strategy", ["enabled", "disabled"])
     def test_teleport_single_chunk(self, single_chunk_teleport_strategy):
@@ -502,6 +502,8 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
                 "mapper": {"format": yson.loads(b"<columns=[a]>schemaful_dsv")},
             },
         )
+
+        op.track()
 
         assert get("//tmp/t_out/@chunk_count") == 1
 

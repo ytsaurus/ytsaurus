@@ -206,3 +206,22 @@ class TestFileCommands(object):
                         yt.write_file(file_path, chunks_generator)
 
                     assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
+
+    @authors("ignat")
+    def test_lz4_content_encoding(self):
+        with set_config_option("proxy/content_encoding", "z-lz4"):
+            string_length = 4 * MB
+            chunks = [
+                b"1" * string_length,
+                b"2" * string_length,
+                b"3" * string_length,
+                b"4" * string_length,
+                b"5" * string_length,
+            ]
+            chunks_generator = (chunk for chunk in chunks)
+
+            file_path = TEST_DIR + "/file"
+
+            yt.write_file(file_path, chunks_generator)
+
+            assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]

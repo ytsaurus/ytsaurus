@@ -446,7 +446,7 @@ struct IOperationController
      *  \note Invoker affinity: cancelable controller invoker
      */
     virtual NScheduler::TControllerScheduleAllocationResultPtr ScheduleAllocation(
-        ISchedulingContext* context,
+        const TSchedulingContext& context,
         const NScheduler::TJobResources& allocationLimits,
         const TString& treeId) = 0;
 
@@ -455,7 +455,7 @@ struct IOperationController
     /*!
      *  \note Thread affinity: any
      */
-    virtual void RecordScheduleAllocationFailure(EScheduleAllocationFailReason reason) = 0;
+    virtual void RecordScheduleAllocationFailure(EScheduleFailReason reason) = 0;
 
     //! A mean for backpressuring #ScheduleAllocation requests.
     //! Returns |true| iff amount of already ongoing work by controller is

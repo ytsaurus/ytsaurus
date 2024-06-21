@@ -664,7 +664,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
             allocationId);
 
         auto result = New<TControllerScheduleAllocationResult>();
-        result->RecordFail(NControllerAgent::EScheduleAllocationFailReason::OperationNotRunning);
+        result->RecordFail(NControllerAgent::EScheduleFailReason::OperationNotRunning);
         return MakeFuture(std::move(result));
     }
 
@@ -674,7 +674,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
             allocationId);
 
         auto result = New<TControllerScheduleAllocationResult>();
-        result->RecordFail(NControllerAgent::EScheduleAllocationFailReason::NewJobsForbidden);
+        result->RecordFail(NControllerAgent::EScheduleFailReason::NewJobsForbidden);
         return MakeFuture(std::move(result));
     }
 
@@ -700,7 +700,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
                 allocationId);
 
             auto result = New<TControllerScheduleAllocationResult>();
-            result->RecordFail(EScheduleAllocationFailReason::NoAgentAssigned);
+            result->RecordFail(EScheduleFailReason::NoAgentAssigned);
 
             return MakeFuture(result);
         }

@@ -53,7 +53,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ClickHouseYtLogger;
+static constexpr auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +68,7 @@ TBootstrap::TBootstrap(
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    WarnForUnrecognizedOptions(Logger(), Config_);
 }
 
 void TBootstrap::Run()

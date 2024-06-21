@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/library/query/base/ast.h>
+#include <yt/yt/library/query/base/ast_visitors.h>
 
 namespace NYT::NOrm::NQuery {
 
@@ -15,23 +16,25 @@ using TFunctionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
 
 NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(NQueryClient::NAst::TFunctionExpression*);
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryRewriter
+    : public NQueryClient::NAst::TRewriter<TQueryRewriter>
 {
 public:
     explicit TQueryRewriter(
+        TObjectsHolder* holder,
         TReferenceMapping referenceMapping,
         TFunctionRewriter functionRewriter = DummyFunctionRewriter);
 
     NQueryClient::NAst::TExpressionPtr Run(const NQueryClient::NAst::TExpressionPtr& expr);
 
+    NQueryClient::NAst::TExpressionPtr OnReference(NQueryClient::NAst::TReferenceExpressionPtr referenceExpr);
+    NQueryClient::NAst::TExpressionPtr OnFunction(NQueryClient::NAst::TFunctionExpressionPtr functionExpr);
+
 private:
     const TReferenceMapping ReferenceMapping_;
     const TFunctionRewriter FunctionRewriter_;
-
-    void Visit(NQueryClient::NAst::TExpressionPtr* expr);
-    void Visit(NQueryClient::NAst::TNullableExpressionList& list);
-    void Visit(NQueryClient::NAst::TExpressionList& list);
-    void Visit(NQueryClient::NAst::TWhenThenExpressionList& list);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

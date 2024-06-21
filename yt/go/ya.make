@@ -19,6 +19,7 @@ RECURSE(
     compression
     crc64
     deps
+    dockertest
     examples
     # genproto
     guid

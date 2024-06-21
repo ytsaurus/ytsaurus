@@ -418,19 +418,18 @@ private:
         RowCountUntilJobSplit_ = 0;
         JobCarryOverDataWeight_ = 0;
 
-        IChunkPoolOutput::TCookie result = IChunkPoolOutput::NullCookie;
+        auto dataSliceCopy = CreateInputDataSlice(dataSlice);
+        dataSliceCopy->Tag = cookie;
+        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, /*isPrimary*/ true);
 
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
             GetCurrentJobDataWeight() >= dataSizePerJob;
         if (jobIsLargeEnough && !SingleJob_) {
-            result = EndJob();
+            return EndJob();
         }
 
-        auto dataSliceCopy = CreateInputDataSlice(dataSlice);
-        dataSliceCopy->Tag = cookie;
-        CurrentJob()->AddDataSlice(dataSliceCopy, cookie, /*isPrimary*/ true);
-        return result;
+        return IChunkPoolOutput::NullCookie;
     }
 
     bool IsDataSliceSplittable(const TLegacyDataSlicePtr& dataSlice) const
@@ -441,7 +440,8 @@ private:
 
         // Unbounded dynamic store cannot be split.
         if (dataSlice->GetSingleUnversionedChunkSlice()->GetInputChunk()->IsOrderedDynamicStore() &&
-            !dataSlice->GetSingleUnversionedChunkSlice()->UpperLimit().RowIndex) {
+            !dataSlice->GetSingleUnversionedChunkSlice()->UpperLimit().RowIndex)
+        {
             return false;
         }
 
@@ -483,11 +483,20 @@ private:
         TInputChunkSlicePtr pocket;
         int chunkSliceIndex = 0;
         while (chunkSliceIndex < std::ssize(chunkSlices) || pocket) {
+            // The pocket holds the slice that should be handled before handling the next chunk slice index.
+            // It is used to store the suffix of the current slice when we only add a prefix of it to the current job.
             auto chunkSlice = pocket ? pocket : chunkSlices[chunkSliceIndex];
             pocket = nullptr;
 
+            // If the pocket is empty, we can handle the next slice in our input order.
+            // Note the continuation statements below that will lead to the execution of this code.
+            auto nextIteration = Finally([&] () {
+                if (!pocket) {
+                    ++chunkSliceIndex;
+                }
+            });
+
             if (!chunkSlice->GetRowCount()) {
-                ++chunkSliceIndex;
                 continue;
             }
 
@@ -512,16 +521,27 @@ private:
                 // NB: We use splitting here in order to get the exact same data weight we would get later on in the process.
                 JobCarryOverDataWeight_ = RowCountUntilJobSplit_ ? -chunkSlice->SplitByRowIndex(RowCountUntilJobSplit_).first->GetDataWeight() : 0;
 
-                // If batch row count is zero, there should never be any carry-over data weight,
-                // so the second value cannot be zero for non-empty slices.
-                YT_VERIFY(batchRowCount || RowCountUntilJobSplit_ > 0);
-
                 if (batchRowCount) {
                     YT_VERIFY(*batchRowCount > 0);
                     // Zero rows until split force us to look for the next acceptable split (even when batchRowCountRemainder = 0) since it usually means that a job just ended.
                     if (auto batchRowCountRemainder = (CurrentJob()->GetRowCount() + RowCountUntilJobSplit_) % *batchRowCount; !RowCountUntilJobSplit_ || batchRowCountRemainder) {
                         RowCountUntilJobSplit_ += *batchRowCount - batchRowCountRemainder;
                     }
+                } else if (RowCountUntilJobSplit_ == 0) {
+                    // We should not actually end up here, since both slice addition implementations finish jobs
+                    // as soon as the limit is hit when batch row count is not set.
+                    // However, if we do, let's reset the carry-over data weight, end the job and reprocess the current slice.
+                    YT_LOG_WARNING(
+                        "Creating ordered job prematurely (CurrentJobDataWeight: %v, JobCarryOverDataWeight: %v, ActiveSliceDataWeight: %v, ActiveSliceRowCount: %v)",
+                        GetCurrentJobDataWeight(),
+                        JobCarryOverDataWeight_,
+                        chunkSlice->GetDataWeight(),
+                        chunkSlice->GetRowCount());
+                    JobCarryOverDataWeight_ = 0;
+                    EndJob();
+                    // Current job data weight should be zero now, so we can handle the whole slice again.
+                    pocket = chunkSlice;
+                    continue;
                 }
             }
 
@@ -545,10 +565,6 @@ private:
             if (endJob && !SingleJob_) {
                 YT_VERIFY(RowCountUntilJobSplit_ == 0);
                 EndJob();
-            }
-
-            if (!pocket) {
-                ++chunkSliceIndex;
             }
         }
     }

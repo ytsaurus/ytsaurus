@@ -21,7 +21,7 @@ enum EClashingEnum
 
 message TClashingEnumMessage
 {
-    optional TClashingEnumMessage1.EClashingEnum Enum1 = 1;
-    optional TClashingEnumMessage2.EClashingEnum Enum2 = 2;
-    optional EClashingEnum Enum3 = 3;
+    optional TClashingEnumMessage1.EClashingEnum enum1 = 1;
+    optional TClashingEnumMessage2.EClashingEnum enum2 = 2;
+    optional EClashingEnum enum3 = 3;
 }

@@ -120,7 +120,7 @@ protected:
             Options_,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, /*tag*/ std::any) {
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/ ) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
             }));
     }
@@ -198,7 +198,7 @@ protected:
         TLoadContext loadContext(&input, RowBuffer_, GetCurrentSnapshotVersion());
         Load(loadContext, ChunkPool_);
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, /*tag*/ std::any) {
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
             }));
     }

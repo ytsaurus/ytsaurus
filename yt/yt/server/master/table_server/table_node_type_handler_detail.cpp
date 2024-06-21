@@ -373,8 +373,13 @@ void TTableNodeTypeHandlerBase<TImpl>::DoDestroy(TImpl* table)
     TTabletOwnerTypeHandler::DoDestroy(table);
     TSchemafulNodeTypeHandler::DoDestroy(table);
 
-    // TODO(aleksandra-zh, gritukan): consider moving that to Zombify.
-    table->ResetHunkStorageNode();
+    // COMPAT(akozhikhov): We do this as we move reset from destroy to zombify
+    // to guarantee that reset will be called.
+    const auto& configManager = this->GetBootstrap()->GetConfigManager();
+    const auto& config = configManager->GetConfig()->ObjectManager;
+    if (config->ResetHunkStorageInTableDestroy) {
+        table->ResetHunkStorageNode();
+    }
 }
 
 template <class TImpl>
@@ -421,6 +426,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
     {
         this->GetBootstrap()->GetTabletManager()->GetReplicatedTableDestroyedSignal()->Fire(table->GetId());
     }
+
+    table->ResetHunkStorageNode();
 }
 
 template <class TImpl>

@@ -6,6 +6,8 @@
 #include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/config.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 using ::google::protobuf::Message;
@@ -60,7 +62,7 @@ public:
     {
         for (; reader->IsValid(); reader->Next()) {
             TUrlRow out = GetRow<TUrlRow>(reader);
-            out.SetHttpCode(-out.GetHttpCode());
+            out.set_http_code(-out.http_code());
             writer->AddRow(out);
         }
     }
@@ -73,15 +75,15 @@ class TReduceCombiner
 public:
     void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer) override
     {
-        const TString host = GetRow<TUrlRow>(reader).GetHost();
+        const TString host = FromProto<TString>(GetRow<TUrlRow>(reader).host());
         ui64 httpCodeTotal = 0;
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = GetRow<TUrlRow>(reader);
-            httpCodeTotal += row.GetHttpCode();
+            httpCodeTotal += row.http_code();
         }
         TUrlRow urlRow;
-        urlRow.SetHost(host);
-        urlRow.SetHttpCode(httpCodeTotal);
+        urlRow.set_host(host);
+        urlRow.set_http_code(httpCodeTotal);
         writer->AddRow(urlRow);
     }
 };
@@ -93,15 +95,15 @@ public:
 
     void Do(TTableReader<TInputRow>* reader, TTableWriter<TOutputRow>* writer) override
     {
-        const TString host = GetRow<TUrlRow>(reader).GetHost();
+        const TString host = FromProto<TString>(GetRow<TUrlRow>(reader).host());
         ui64 httpCodeTotal = 0;
         for (; reader->IsValid(); reader->Next()) {
             const auto& row = GetRow<TUrlRow>(reader);
-            httpCodeTotal += row.GetHttpCode();
+            httpCodeTotal += row.http_code();
         }
         THostRow hostRow;
-        hostRow.SetHost(host);
-        hostRow.SetHttpCodeTotal(httpCodeTotal);
+        hostRow.set_host(host);
+        hostRow.set_http_code_total(httpCodeTotal);
         writer->AddRow(hostRow);
     }
 };

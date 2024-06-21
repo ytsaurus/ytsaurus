@@ -73,7 +73,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = YqlAgentLogger;
+static constexpr auto& Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,9 +82,9 @@ TBootstrap::TBootstrap(TYqlAgentServerConfigPtr config, INodePtr configNode)
     , ConfigNode_(std::move(configNode))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger, Config_);
+        AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
-        WarnForUnrecognizedOptions(Logger, Config_);
+        WarnForUnrecognizedOptions(Logger(), Config_);
     }
 }
 
@@ -198,10 +198,10 @@ void TBootstrap::DoRun()
         ControlInvoker_,
         YqlAgent_));
 
-    YqlAgent_->Start();
-
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
+
+    YqlAgent_->Start();
 
     YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);

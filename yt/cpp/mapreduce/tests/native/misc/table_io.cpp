@@ -2,16 +2,17 @@
 
 #include <yt/cpp/mapreduce/tests/native/proto_lib/row.pb.h>
 
-#include <yt/cpp/mapreduce/interface/config.h>
+#include <yt/cpp/mapreduce/http/abortable_http_response.h>
+#include <yt/cpp/mapreduce/http/host_manager.h>
 
+#include <yt/cpp/mapreduce/interface/config.h>
 #include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/io.h>
 #include <yt/cpp/mapreduce/interface/serialize.h>
 
-#include <yt/cpp/mapreduce/http/abortable_http_response.h>
-#include <yt/cpp/mapreduce/http/host_manager.h>
-
 #include <yt/cpp/mapreduce/io/proto_table_reader.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 
@@ -20,6 +21,8 @@
 #include <util/generic/scope.h>
 
 #include <util/random/fast.h>
+
+#include <util/system/env.h>
 
 #include <type_traits>
 
@@ -510,17 +513,17 @@ void TestTableReaders()
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
     }
     EXPECT_NO_THROW(reader->GetRow());
     {
         TRow row;
         reader->MoveRow(&row);
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
     }
     EXPECT_THROW(reader->GetRow(), yexception);
     {
@@ -533,17 +536,17 @@ void TestTableReaders()
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/index.php");
-        EXPECT_EQ(row.GetHttpCode(), 200);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/index.php");
+        EXPECT_EQ(row.http_code(), 200);
     }
     EXPECT_NO_THROW(reader->GetRow());
     {
         TRow row;
         reader->MoveRow(&row);
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/index.php");
-        EXPECT_EQ(row.GetHttpCode(), 200);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/index.php");
+        EXPECT_EQ(row.http_code(), 200);
     }
     EXPECT_THROW(reader->GetRow(), yexception);
     {
@@ -1033,16 +1036,28 @@ TEST(TableIo, CompressionCodecIdentity)
 
 TEST(TableIo, CompressionCodecGzip)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_GZIP);
 }
 
 TEST(TableIo, CompressionCodecBrotli)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_BROTLI);
 }
 
 TEST(TableIo, CompressionCodecZLz4)
 {
+    if (!GetEnv("YT_TESTS_USE_CORE_HTTP_CLIENT").empty()) {
+        // Compression is not supported.
+        return;
+    }
     TestCompressionCodec(E_Z_LZ4);
 }
 
@@ -1102,7 +1117,7 @@ void WriteAutoFlush()
     EXPECT_EQ(client->Get(workingDir + "/table/@row_count").AsInt64(), 0);
     TRow row;
     for (size_t i = 0; i != 128; ++i) {
-        row.SetHost(TString(1024 * 1024, 'a'));
+        row.set_host(TString(1024 * 1024, 'a'));
         writer->AddRow(row);
     }
 
@@ -1630,20 +1645,19 @@ TEST(TableIoEnableTypeConversion, AllNode)
 
 TString SerializeProto(const Message& row)
 {
-    TString data;
-    Y_PROTOBUF_SUPPRESS_NODISCARD row.SerializeToString(&data);
+    TString data = SerializeProtoToString(row);
     auto len = static_cast<ui32>(data.size());
     auto lenStr = TString(reinterpret_cast<char*>(&len), sizeof(len));
-    auto dataWithLen = lenStr + data;
+    auto dataWithLen = lenStr + TString(data);
     return dataWithLen;
 }
 
 TEST(StreamReaders, Protobuf)
 {
     TUrlRow row;
-    row.SetHost("http://www.example.com");
-    row.SetPath("/");
-    row.SetHttpCode(302);
+    row.set_host("http://www.example.com");
+    row.set_path("/");
+    row.set_http_code(302);
 
     auto data = SerializeProto(row);
     auto stream = TMemoryInput(data);
@@ -1652,9 +1666,9 @@ TEST(StreamReaders, Protobuf)
     EXPECT_TRUE(reader->IsValid());
     {
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
     }
     reader->Next();
     EXPECT_TRUE(!reader->IsValid());
@@ -1663,18 +1677,18 @@ TEST(StreamReaders, Protobuf)
 TEST(StreamReaders, ProtobufMultiTableHetero)
 {
     TUrlRow row1;
-    row1.SetHost("http://www.example.com");
-    row1.SetPath("/");
-    row1.SetHttpCode(302);
+    row1.set_host("http://www.example.com");
+    row1.set_path("/");
+    row1.set_http_code(302);
 
     TRowVer1 row2;
-    row2.SetString_1("String");
-    row2.SetUint32_2(32);
+    row2.set_string_1("String");
+    row2.set_uint32_2(32);
 
     TUrlRow row3;
-    row3.SetHost("http://www.example.com");
-    row3.SetPath("/");
-    row3.SetHttpCode(302);
+    row3.set_host("http://www.example.com");
+    row3.set_path("/");
+    row3.set_http_code(302);
 
     auto data = SerializeProto(row1) +
         "\xFF\xFF\xFF\xFF" + TString("\x01\x00\x00\x00", 4) + // Table index
@@ -1695,9 +1709,9 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
     {
         EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 0);
         const auto& row = reader->GetRow<TUrlRow>();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
     }
     reader->Next();
 
@@ -1705,8 +1719,8 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
     {
         EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 1);
         const auto& row = reader->GetRow<TRowVer1>();
-        EXPECT_EQ(row.GetString_1(), "String");
-        EXPECT_EQ(row.GetUint32_2(), static_cast<ui32>(32));
+        EXPECT_EQ(row.string_1(), "String");
+        EXPECT_EQ(row.uint32_2(), static_cast<ui32>(32));
     }
     reader->Next();
 
@@ -1714,8 +1728,8 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
     {
         EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 1);
         const auto& row = reader->GetRow<TRowVer1>();
-        EXPECT_EQ(row.GetString_1(), "String");
-        EXPECT_EQ(row.GetUint32_2(), static_cast<ui32>(32));
+        EXPECT_EQ(row.string_1(), "String");
+        EXPECT_EQ(row.uint32_2(), static_cast<ui32>(32));
     }
     reader->Next();
 
@@ -1723,9 +1737,9 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
     {
         EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), 2);
         const auto& row = reader->GetRow<TUrlRow>();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
     }
     reader->Next();
 
@@ -1735,9 +1749,9 @@ TEST(StreamReaders, ProtobufMultiTableHetero)
 TEST(StreamReaders, ProtobufMultiTableHomo)
 {
     TUrlRow row;
-    row.SetHost("http://www.example.com");
-    row.SetPath("/");
-    row.SetHttpCode(302);
+    row.set_host("http://www.example.com");
+    row.set_path("/");
+    row.set_http_code(302);
 
     auto data = SerializeProto(row) +
         "\xFF\xFF\xFF\xFF" + TString("\x01\x00\x00\x00", 4) + // Table index
@@ -1753,9 +1767,9 @@ TEST(StreamReaders, ProtobufMultiTableHomo)
         EXPECT_TRUE(reader->IsValid());
         EXPECT_EQ(static_cast<int>(reader->GetTableIndex()), expectedIndex);
         const auto& row = reader->GetRow();
-        EXPECT_EQ(row.GetHost(), "http://www.example.com");
-        EXPECT_EQ(row.GetPath(), "/");
-        EXPECT_EQ(row.GetHttpCode(), 302);
+        EXPECT_EQ(row.host(), "http://www.example.com");
+        EXPECT_EQ(row.path(), "/");
+        EXPECT_EQ(row.http_code(), 302);
         reader->Next();
     }
 }

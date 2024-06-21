@@ -632,6 +632,7 @@ message TReqSelectRows
     optional bool merge_versioned_rows = 21;
     optional int32 syntax_version = 22 [default = 1];
     optional int32 execution_backend = 23; // EExecutionBackend
+    optional bytes versioned_read_options = 24; // YSON
 
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }
@@ -644,7 +645,7 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqAdvanceConsumer
+message TReqAdvanceQueueConsumer
 {
     optional NYT.NProto.TGuid transaction_id = 1;
     optional string consumer_path = 2;
@@ -654,7 +655,7 @@ message TReqAdvanceConsumer
     optional int64 new_offset = 6;
 }
 
-message TRspAdvanceConsumer
+message TRspAdvanceQueueConsumer
 {
 }
 
@@ -2523,6 +2524,19 @@ message TReqAbortJob
 }
 
 message TRspAbortJob
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDumpJobProxyLog
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+    required string path = 3; // YPath
+}
+
+message TRspDumpJobProxyLog
 {
 }
 

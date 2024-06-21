@@ -4,8 +4,8 @@ from yt_commands import (
     authors, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
-    sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table,
-    get_singular_chunk_id, get_chunk_replication_factor,
+    sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
+    get_operation, get_singular_chunk_id, get_chunk_replication_factor,
     create_dynamic_table, get_driver, alter_table)
 
 from yt_type_helpers import (
@@ -116,6 +116,50 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert_items_equal(read_table("//tmp/t_out"), self.v1 + self.v2)
         assert get("//tmp/t_out/@chunk_count") == 7
+
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("single_chunk_teleport_strategy", ["disabled", "enabled"])
+    @pytest.mark.parametrize("force_transform", [False, True])
+    def test_unordered_merge_teleport_single_input_chunk(self, single_chunk_teleport_strategy, force_transform):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        t_in = "//tmp/t_in"
+        create("table", t_in)
+
+        key_values = [{"key" + str(i): "value" + str(i)} for i in range(1)]
+        for kv in key_values:
+            write_table("<append=true>" + t_in, kv)
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        op = merge(
+            mode="unordered",
+            combine_chunks=True,
+            in_=t_in,
+            out=t_out,
+            spec={
+                "single_chunk_teleport_strategy": single_chunk_teleport_strategy,
+                "force_transform": force_transform,
+            },
+        )
+
+        op.track()
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 2
+        if single_chunk_teleport_strategy == "enabled" and force_transform is False:
+            assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 0
+            assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 1
+        else:
+            assert directions[("unordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
+            assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 0
 
     @authors("panin", "ignat")
     def test_unordered_combine(self):
@@ -297,6 +341,49 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert read_table("//tmp/t_out") == self.v1 + self.v2
         assert get("//tmp/t_out/@chunk_count") == 7
 
+    @authors("yuryalekseev")
+    @pytest.mark.parametrize("enable_all_columns_filter", [False, True])
+    def test_ordered_merge_teleport_all_chunks(self, enable_all_columns_filter):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (23, 2):
+            pytest.skip()
+
+        strict_schema = make_schema([{"name": "key", "type": "string"}], strict=True)
+
+        if enable_all_columns_filter is True:
+            # Add all columns to the filter.
+            t_in = "<columns=[key]>//tmp/t_in"
+        else:
+            t_in = "//tmp/t_in"
+
+        create("table", t_in, attributes={"schema": strict_schema})
+
+        key_values = [{"key": "key1"}, {"key": "key2"}]
+        for kv in key_values:
+            write_table("<append=true>//tmp/t_in", kv)
+
+        t_out = "//tmp/t_out"
+        create("table", t_out)
+
+        op = merge(
+            mode="ordered",
+            in_=t_in,
+            out=t_out
+        )
+
+        op.track()
+
+        data_flow = get_operation(op.id, attributes=["progress"])["progress"]["data_flow"]
+        directions = {
+            (direction["source_name"], direction["target_name"]) : direction
+            for direction in data_flow
+        }
+
+        assert len(directions) == 1
+        assert directions[("ordered_merge", "output")]["job_data_statistics"]["chunk_count"] == 0
+        assert directions[("ordered_merge", "output")]["job_data_statistics"]["row_count"] == 0
+        assert directions[("ordered_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 2
+        assert directions[("ordered_merge", "output")]["teleport_data_statistics"]["row_count"] == 2
+
     @authors("panin", "ignat")
     def test_ordered_combine(self):
         self._prepare_tables()
@@ -386,6 +473,37 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             # Rows should be the same, but none of the chunks should have been teleported!
             assert get(f"#{in_chunk}/@row_count") == get(f"#{out_chunk}/@row_count")
             assert in_chunk != out_chunk
+
+    @authors("achulkov2")
+    def test_new_ordered_slicing_works_with_versioned_unversioned_mix(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+
+        create_dynamic_table("//tmp/t_dynamic", schema=schema, enable_dynamic_store_read=False)
+        sync_mount_table("//tmp/t_dynamic")
+        dynamic_table_rows = [{"key": i, "value": "some large value"} for i in range(1)]
+        insert_rows("//tmp/t_dynamic", dynamic_table_rows)
+        sync_flush_table("//tmp/t_dynamic")
+
+        create("table", "//tmp/t_static", attributes={"schema": schema})
+        static_table_rows = [{"key": i, "value": "some other large value"} for i in range(1)]
+        write_table("//tmp/t_static", static_table_rows)
+
+        create("table", "//tmp/t_out")
+
+        merge(
+            combine_chunks=False,
+            mode="ordered",
+            in_=["//tmp/t_dynamic", "//tmp/t_static"],
+            out="//tmp/t_out",
+            spec={"data_size_per_job": 10, "force_transform": True}
+        )
+
+        assert read_table("//tmp/t_out") == dynamic_table_rows + static_table_rows
 
     @authors("ignat")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

@@ -260,6 +260,8 @@ class YTEnvSetup(object):
     ENABLE_DYNAMIC_DROP_COLUMN = True
     ENABLE_TLS = False
 
+    JOB_PROXY_LOGGING = {"mode": "simple"}
+
     DELTA_NODE_FLAVORS = []
 
     DELTA_DRIVER_CONFIG = {}
@@ -529,6 +531,7 @@ class YTEnvSetup(object):
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
+            job_proxy_logging=cls.get_param("JOB_PROXY_LOGGING", index),
             controller_agent_count=(
                 cls.get_param("NUM_CONTROLLER_AGENTS", index)
                 if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None

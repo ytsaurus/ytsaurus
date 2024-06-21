@@ -778,7 +778,7 @@ TFuture<IQueueRowsetPtr> TClient::PullQueueConsumer(
 {
     auto proxy = CreateApiServiceProxy();
 
-    // Use PullConsumer (not PullQueueConsumer) for backward compatibility.
+    // COMPAT(nadya73): Use PullConsumer (not PullQueueConsumer) for compatibility with old clusters.
     auto req = proxy.PullConsumer();
     req->SetResponseHeavy(true);
     SetTimeoutOptions(*req, options);
@@ -1509,6 +1509,24 @@ TFuture<void> TClient::AbortJob(
     if (options.InterruptTimeout) {
         req->set_interrupt_timeout(NYT::ToProto<i64>(*options.InterruptTimeout));
     }
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::DumpJobProxyLog(
+    NJobTrackerClient::TJobId jobId,
+    NJobTrackerClient::TOperationId operationId,
+    const NYPath::TYPath& path,
+    const TDumpJobProxyLogOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.DumpJobProxyLog();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_operation_id(), operationId);
+    ToProto(req->mutable_path(), path);
 
     return req->Invoke().As<void>();
 }

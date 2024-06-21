@@ -4,12 +4,13 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, exists,
-    reduce, map_reduce, sort, erase, remote_copy, get_driver, vanilla,
+    reduce, map_reduce, sort, erase, remote_copy, get_driver, run_test_vanilla, vanilla,
     write_table, map, merge, get_operation, list_operations, sync_create_cells, raises_yt_error)
 
 import yt.environment.init_operations_archive as init_operations_archive
 
 from flaky import flaky
+import datetime
 import math
 
 ##################################################################
@@ -303,6 +304,76 @@ class TestSchedulerExperiments(YTEnvSetup):
             merge(in_=["//tmp/t_in"],
                   out="//tmp/t_out",
                   spec={"experiment_overrides": ["exp_b2.treatment"]})
+
+
+class TestExperimentAssignmentError(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 2
+
+    EXPERIMENT_ASSIGNMENT_CHECK_PERIOD = datetime.timedelta(seconds=0.1)
+    EXPERIMENT_ASSIGNMENT_ALERT_DURATION = datetime.timedelta(seconds=10)
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "experiments": {
+                "bad_filter": {
+                    "fraction": 1.0,
+                    "ticket": "YTEXP-5",
+                    "dimension": "bad_filter_dimension",
+                    "filter": "try_get_any([/spec], '/description') != 'b'",
+                    "ab_treatment_group": {
+                        "fraction": 1.0,
+                        "scheduler_spec_patch": {
+                            "foo_spec": "bad_filter.treatment",
+                        },
+                    },
+                },
+            },
+            "experiment_assignment_check_period": int(EXPERIMENT_ASSIGNMENT_CHECK_PERIOD.total_seconds() * 1000),
+            "experiment_assignment_alert_duration": int(EXPERIMENT_ASSIGNMENT_ALERT_DURATION.total_seconds() * 1000),
+        },
+    }
+
+    controller_agent_tag_to_address = dict()
+    controller_agent_counter = 0
+
+    @staticmethod
+    def _alert_is_off():
+        return not get("//sys/scheduler/@alerts")
+
+    @staticmethod
+    def _wait_alert(message, attributes=None):
+        attributes = attributes or {}
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alert = get("//sys/scheduler/@alerts")[0]
+        for attribute, value in attributes.items():
+            assert alert["attributes"][attribute] == value
+        assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
+
+    @authors("galtsev")
+    def test_experiment_assignment_error(self):
+        start = datetime.datetime.now()
+
+        op = run_test_vanilla(
+            command="true",
+            spec={"description": {"a": 1}},
+        )
+
+        self._wait_alert(
+            "Error evaluating query",
+            attributes={
+                "alert_type": "experiment_assignment_error",
+                "experiment": "bad_filter",
+                "operation_id": op.id,
+            },
+        )
+
+        wait(self._alert_is_off)
+
+        alert_switched_off = datetime.datetime.now()
+
+        assert (alert_switched_off - start) >= self.EXPERIMENT_ASSIGNMENT_ALERT_DURATION
 
 
 class TestSchedulerExperimentsArchivation(YTEnvSetup):

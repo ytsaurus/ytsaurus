@@ -349,6 +349,8 @@ private:
     void ForceInitialize();
     void AsyncInitialize();
 
+    void FinishInitialization(const TError& error);
+
     int DoAcquireSlot(ESlotType slotType);
     void ReleaseSlot(
         ESlotType slotType,

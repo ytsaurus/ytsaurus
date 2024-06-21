@@ -314,7 +314,7 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
             NQueryClient::NullSourceLocation,
             reference.ColumnName);
     };
-    TQueryRewriter rewriter(std::move(referenceMapping));
+    TQueryRewriter rewriter(&objectsHolder, std::move(referenceMapping));
     objectsHolder.Ast = rewriter.Run(queryExpression);
 
     return New<TExpressionEvaluator>(
@@ -340,7 +340,7 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
         }
         return CreateFakeTableAttributeSelector(reference.ColumnName, typedAttributePaths, &objectsHolder);
     };
-    TQueryRewriter rewriter(std::move(referenceMapping));
+    TQueryRewriter rewriter(&objectsHolder, std::move(referenceMapping));
     objectsHolder.Ast = rewriter.Run(queryExpression);
 
     return New<TExpressionEvaluator>(

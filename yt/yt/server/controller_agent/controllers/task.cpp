@@ -495,7 +495,7 @@ bool TTask::ValidateChunkCount(int /*chunkCount*/)
 }
 
 void TTask::ScheduleJob(
-    ISchedulingContext* context,
+    const TSchedulingContext& context,
     const TJobResources& jobLimits,
     const TString& treeId,
     bool treeIsTentative,
@@ -508,14 +508,14 @@ void TTask::ScheduleJob(
     }
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(treeId, treeIsTentative)) {
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TentativeTreeDeclined);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::TentativeTreeDeclined);
         return;
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
-        scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::TentativeSpeculativeForbidden);
+        scheduleAllocationResult->RecordFail(EScheduleFailReason::TentativeSpeculativeForbidden);
         return;
     }
 
@@ -523,10 +523,10 @@ void TTask::ScheduleJob(
     int taskJobIndex = TaskJobIndexGenerator_.Next();
     auto joblet = New<TJoblet>(this, jobIndex, taskJobIndex, treeId, treeIsTentative);
     joblet->StartTime = TInstant::Now();
-    joblet->PoolPath = context->GetPoolPath();
+    joblet->PoolPath = context.GetPoolPath();
 
-    auto nodeId = context->GetNodeDescriptor()->Id;
-    const auto& address = context->GetNodeDescriptor()->Address;
+    auto nodeId = context.GetNodeDescriptor()->Id;
+    const auto& address = context.GetNodeDescriptor()->Address;
 
     if (treeIsProbing) {
         joblet->CompetitionType = EJobCompetitionType::Probing;
@@ -549,12 +549,12 @@ void TTask::ScheduleJob(
                 YT_LOG_DEBUG("Completed operation while trying to schedule a job");
             }
 
-            scheduleAllocationResult->RecordFail(EScheduleAllocationFailReason::EmptyInput);
+            scheduleAllocationResult->RecordFail(EScheduleFailReason::EmptyInput);
             return;
         }
     }
 
-    auto abortJob = [&] (EScheduleAllocationFailReason allocationFailReason, EAbortReason abortReason) {
+    auto abortJob = [&] (EScheduleFailReason allocationFailReason, EAbortReason abortReason) {
         if (!joblet->CompetitionType) {
             chunkPoolOutput->Aborted(joblet->OutputCookie, abortReason);
         }
@@ -564,7 +564,7 @@ void TTask::ScheduleJob(
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
 
     if (!ValidateChunkCount(sliceCount)) {
-        abortJob(EScheduleAllocationFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
+        abortJob(EScheduleFailReason::IntermediateChunkLimitExceeded, EAbortReason::IntermediateChunkLimitExceeded);
         return;
     }
 
@@ -574,7 +574,7 @@ void TTask::ScheduleJob(
             YT_LOG_DEBUG(
                 "Job spec throttling is active (SliceCount: %v)",
                 sliceCount);
-            abortJob(EScheduleAllocationFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
+            abortJob(EScheduleFailReason::JobSpecThrottling, EAbortReason::SchedulingJobSpecThrottling);
             return;
         }
     } else {
@@ -640,21 +640,21 @@ void TTask::ScheduleJob(
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources.ToJobResources()) ||
-        !CanSatisfyDiskQuotaRequests(context->DiskResources(), {neededResources.DiskQuota()}))
+        !CanSatisfyDiskQuotaRequests(context.DiskResources(), {neededResources.DiskQuota()}))
     {
         YT_LOG_DEBUG(
             "Actual resource demand is not met (AvailableJobResources: %v, AvailableDiskResources: %v, NeededResources: %v)",
             jobLimits,
-            NScheduler::ToString(context->DiskResources(), TaskHost_->GetMediumDirectory()),
+            NScheduler::ToString(context.DiskResources(), TaskHost_->GetMediumDirectory()),
             FormatResources(neededResources));
         CheckResourceDemandSanity(neededResources);
-        abortJob(EScheduleAllocationFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
+        abortJob(EScheduleFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
         return;
     }
 
-    joblet->JobId = TaskHost_->GenerateJobId(context->GetAllocationId());
+    joblet->JobId = TaskHost_->GenerateJobId(context.GetAllocationId());
 
     for (auto* jobManager : JobManagers_) {
         jobManager->OnJobScheduled(joblet);
@@ -686,7 +686,7 @@ void TTask::ScheduleJob(
         .ResourceLimits = neededResources,
         .AllocationAttributes = TAllocationAttributes{
             .WaitingForResourcesOnNodeTimeout = InferWaitingForResourcesTimeout(
-                context->GetScheduleAllocationSpec()),
+                context.GetScheduleAllocationSpec()),
         },
     };
 
@@ -705,7 +705,7 @@ void TTask::ScheduleJob(
     scheduleAllocationResult->StartDescriptor.emplace(std::move(startDescriptor));
 
     joblet->Restarted = restarted;
-    joblet->NodeDescriptor = context->GetNodeDescriptor();
+    joblet->NodeDescriptor = context.GetNodeDescriptor();
 
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
@@ -786,7 +786,7 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
-        scheduleAllocationSpec = context->GetScheduleAllocationSpec(),
+        scheduleAllocationSpec = context.GetScheduleAllocationSpec(),
         discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
         Logger = Logger
     ] {
@@ -1341,7 +1341,7 @@ void TTask::StopTiming()
     CompletionTime_ = TInstant::Now();
 }
 
-std::optional<EScheduleAllocationFailReason> TTask::GetScheduleFailReason(ISchedulingContext* /*context*/)
+std::optional<EScheduleFailReason> TTask::GetScheduleFailReason(const TSchedulingContext& /*context*/)
 {
     return std::nullopt;
 }

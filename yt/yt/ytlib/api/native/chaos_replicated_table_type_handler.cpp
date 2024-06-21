@@ -41,6 +41,10 @@ public:
             return {};
         }
 
+        if (options.TransactionId) {
+            THROW_ERROR_EXCEPTION("Replicated table cannot be created inside a transaction");
+        }
+
         auto attributes = options.Attributes ? options.Attributes->Clone() : EmptyAttributes().Clone();
         if (attributes->Contains("replication_card_id")) {
             return Client_->CreateNodeImpl(type, tablePath, *attributes, options);

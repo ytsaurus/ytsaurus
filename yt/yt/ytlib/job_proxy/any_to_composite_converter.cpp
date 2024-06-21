@@ -26,7 +26,9 @@ TAnyToCompositeConverter::TAnyToCompositeConverter(
         for (const auto& column : schema->Columns()) {
             if (IsV3Composite(column.LogicalType())) {
                 auto index = nameTable->GetIdOrRegisterName(column.Name());
-                isComposite.resize(index + 1, false);
+                if (std::ssize(isComposite) < index + 1) {
+                    isComposite.resize(index + 1, false);
+                }
                 isComposite[index] = true;
             }
         }

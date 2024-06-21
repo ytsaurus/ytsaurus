@@ -1101,13 +1101,13 @@ private:
 
     template <class TErrorOrRsp>
     TErrorOr<TTransactionCommitResult> OnAtomicTransactionCommitted(
-        TCellId cellId,
+        TCellId coordinatorCellId,
         const TErrorOrRsp& rspOrError)
     {
         if (!rspOrError.IsOK()) {
             auto error = TError("Error committing transaction %v at cell %v",
                 Id_,
-                cellId)
+                coordinatorCellId)
                 << rspOrError;
             UpdateDownedParticipants();
             OnFailure(error);
@@ -1117,7 +1117,7 @@ private:
         const auto& rsp = rspOrError.Value();
         TTransactionCommitResult result;
         result.CommitTimestamps = FromProto<TTimestampMap>(rsp->commit_timestamps());
-        if (auto primaryTimestamp = result.CommitTimestamps.FindTimestamp(Owner_->PrimaryCellTag_)) {
+        if (auto primaryTimestamp = result.CommitTimestamps.FindTimestamp(CellTagFromId(coordinatorCellId))) {
             result.PrimaryCommitTimestamp = *primaryTimestamp;
         }
         auto error = SetCommitted(result);

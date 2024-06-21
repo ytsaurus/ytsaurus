@@ -701,6 +701,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
@@ -716,6 +717,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletErrors));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AdvanceQueueConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueueConsumer));
@@ -3328,6 +3330,26 @@ private:
             });
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DumpJobProxyLog)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto operationId = FromProto<TOperationId>(request->operation_id());
+        auto path = FromProto<TYPath>(request->path());
+
+        TDumpJobProxyLogOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("JobId: %v, Path: %v", jobId, path);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->DumpJobProxyLog(jobId, operationId, path, options);
+            });
+    }
+
     ////////////////////////////////////////////////////////////////////////////////
     // TABLES (TRANSACTIONAL)
     ////////////////////////////////////////////////////////////////////////////////
@@ -3797,6 +3819,9 @@ private:
         if (request->has_execution_backend()) {
             options.ExecutionBackend = static_cast<NApi::EExecutionBackend>(request->execution_backend());
         }
+        if (request->has_versioned_read_options()) {
+            options.VersionedReadOptions = ConvertTo<TVersionedReadOptions>(TYsonString(request->versioned_read_options()));
+        }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
@@ -4130,14 +4155,30 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceConsumer)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AdvanceQueueConsumer)
+    {
+        AdvanceQueueConsumerImpl(request, response, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD_VIA_MESSAGES(
+        NApi::NRpcProxy::NProto::TReqAdvanceQueueConsumer,
+        NApi::NRpcProxy::NProto::TRspAdvanceQueueConsumer,
+        AdvanceConsumer)
+    {
+        AdvanceQueueConsumerImpl(request, response, context);
+    }
+
+    void AdvanceQueueConsumerImpl(
+        NApi::NRpcProxy::NProto::TReqAdvanceQueueConsumer* request,
+        NApi::NRpcProxy::NProto::TRspAdvanceQueueConsumer* /*response*/,
+        const TCtxAdvanceQueueConsumerPtr& context)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
         auto queuePath = FromProto<TRichYPath>(request->queue_path());
 
-        TAdvanceConsumerOptions options;
+        TAdvanceQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         auto oldOffset = YT_PROTO_OPTIONAL(*request, old_offset);
@@ -4161,7 +4202,7 @@ private:
         ExecuteCall(
             context,
             [=, consumerPath = std::move(consumerPath), queuePath = std::move(queuePath)] {
-                return transaction->AdvanceConsumer(
+                return transaction->AdvanceQueueConsumer(
                     consumerPath,
                     queuePath,
                     request->partition_index(),

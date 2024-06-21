@@ -71,7 +71,7 @@ public:
     bool ForbidTransactionActionsForCypressTransactions;
 
     // Testing option.
-    bool ThrowOnLeaseRevokation;
+    bool ThrowOnLeaseRevocation;
 
     REGISTER_YSON_STRUCT(TDynamicTransactionManagerConfig);
 

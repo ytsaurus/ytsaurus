@@ -246,7 +246,9 @@ class Conversion(object):
                 _unmount_table(client, source_table)
 
                 logging.info("Run mapper '%s': %s -> %s", mapper.__name__, source_table, target_table)
-                client.run_map(mapper, source_table, target_table, spec={"data_size_per_job": 2 * 2**30})
+                # If need_sort == False, we already created target table sorted and we need to run ordered map
+                # to avoid sort order violation error during map.
+                client.run_map(mapper, source_table, target_table, spec={"data_size_per_job": 2 * 2**30}, ordered=not need_sort)
                 table_info.to_dynamic_table(client, target_table)
                 client.set(target_table + "/@forced_compaction_revision", 1)
         else:

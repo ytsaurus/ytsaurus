@@ -1519,6 +1519,18 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original)
+{
+    serialized->set_with_totals_finalizes_aggregated_on_coordinator(original.WithTotalsFinalizesAggregatedOnCoordinator);
+}
+
+void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
+{
+    original->WithTotalsFinalizesAggregatedOnCoordinator = serialized.with_totals_finalizes_aggregated_on_coordinator();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,

@@ -62,7 +62,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = KafkaProxyLogger;
+static constexpr auto& Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -667,8 +667,8 @@ private:
         for (const auto& topic : request.Topics) {
             auto queuePath = TRichYPath::Parse(topic.Name);
             for (const auto& partition : topic.Partitions) {
-                auto advanceResultOrError = WaitFor(transaction->AdvanceConsumer(
-                    consumerPath, queuePath, partition.PartitionIndex, /*oldOffset*/ std::nullopt, partition.CommittedOffset, TAdvanceConsumerOptions{}));
+                auto advanceResultOrError = WaitFor(transaction->AdvanceQueueConsumer(
+                    consumerPath, queuePath, partition.PartitionIndex, /*oldOffset*/ std::nullopt, partition.CommittedOffset, TAdvanceQueueConsumerOptions{}));
                 if (!advanceResultOrError.IsOK()) {
                     YT_LOG_DEBUG(advanceResultOrError,
                         "Failed to advance consumer (ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, Offset: %v)",

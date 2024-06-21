@@ -6,6 +6,7 @@ ALLOCATOR(YT)
 
 SRCS(
     balancing_helpers_ut.cpp
+    bounded_priority_queue_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

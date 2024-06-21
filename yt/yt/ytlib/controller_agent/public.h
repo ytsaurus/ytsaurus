@@ -101,7 +101,7 @@ DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EScheduleAllocationFailReason,
+DEFINE_ENUM(EScheduleFailReason,
     ((Unknown)                       ( 0))
     ((OperationNotRunning)           ( 1))
     ((NoPendingJobs)                 ( 2))

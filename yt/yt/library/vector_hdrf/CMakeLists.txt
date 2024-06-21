@@ -37,5 +37,6 @@ target_sources(yt-library-vector_hdrf PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_volume.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/resource_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/fair_share_update.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/vector_hdrf/base_element.cpp
 )
 
