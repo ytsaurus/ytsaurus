@@ -215,7 +215,7 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     }
 
     // COMPAT(achulkov2): This is ESnpashotVersion::ChunkSliceStatistics.
-    if (context.GetVersion() >= 301505) {
+    if (context.GetVersion() >= 301507) {
         Persist(context, BlockSelectivityFactor_);
     }
 }
