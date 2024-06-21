@@ -58,12 +58,15 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(
         GetConfig()->StatisticsThrottler))
 {
-    YT_LOG_DEBUG("Controller agent connector created (AgentAddress: %v, IncarnationId: %v)",
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
-
     if (ControllerAgentConnectorPool_->MasterConnected_) {
         HeartbeatExecutor_->Start();
+        YT_LOG_DEBUG("Controller agent connector created, starting heartbeats (AgentAddress: %v, IncarnationId: %v)",
+            ControllerAgentDescriptor_.Address,
+            ControllerAgentDescriptor_.IncarnationId);
+    } else {
+        YT_LOG_DEBUG("Controller agent connector created, waiting for connecting to master (AgentAddress: %v, IncarnationId: %v)",
+            ControllerAgentDescriptor_.Address,
+            ControllerAgentDescriptor_.IncarnationId);
     }
 }
 

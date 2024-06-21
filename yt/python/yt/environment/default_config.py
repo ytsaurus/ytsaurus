@@ -722,6 +722,7 @@ def get_dynamic_node_config():
                 heartbeats = {
                     periodic = {
                         period = 100;
+                        splay = 100;
                     };
                 };
                 heartbeat_executor = {
