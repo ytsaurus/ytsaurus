@@ -374,7 +374,6 @@ public:
 
         for (const auto& [_, allocation] : IdToAllocations_) {
             if (allocation->GetControllerAgentDescriptor() == outdatedAgentDescriptor) {
-                YT_VERIFY(allocation->IsEmpty());
                 allocation->UpdateControllerAgentDescriptor({});
             }
         }
