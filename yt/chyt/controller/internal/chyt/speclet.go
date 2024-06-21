@@ -10,8 +10,8 @@ type Speclet struct {
 	CHYTVersion       *string `yson:"chyt_version"`
 	TrampolineVersion *string `yson:"trampoline_version"`
 
-	EnableGeoData *bool       `yson:"enable_geodata"`
-	GeoDataPath   *ypath.Path `yson:"geodata_path"`
+	EnableGeodata *bool       `yson:"enable_geodata"`
+	GeodataPath   *ypath.Path `yson:"geodata_path"`
 
 	// RuntimeDataPath defines where all clique table belongings reside (e.g. stderr/core-tables, log dyntables, etc).
 	RuntimeDataPath *ypath.Path `yson:"runtime_data_path"`
@@ -34,7 +34,7 @@ const (
 	DefaultCHYTVersion       = "ytserver-clickhouse"
 	DefaultTrampolineVersion = "clickhouse-trampoline"
 
-	DefaultGeoDataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
+	DefaultGeodataPath = ypath.Path("//sys/clickhouse/geodata/geodata.tgz")
 
 	DefaultRuntimeDataPath = ypath.Path("//sys/clickhouse/kolkhoz")
 )
@@ -53,18 +53,18 @@ func (speclet *Speclet) TrampolineVersionOrDefault() string {
 	return DefaultTrampolineVersion
 }
 
-func (speclet *Speclet) EnableGeoDataOrDefault(defaultValue bool) bool {
-	if speclet.EnableGeoData != nil {
-		return *speclet.EnableGeoData
+func (speclet *Speclet) EnableGeodataOrDefault(defaultValue bool) bool {
+	if speclet.EnableGeodata != nil {
+		return *speclet.EnableGeodata
 	}
 	return defaultValue
 }
 
-func (speclet *Speclet) GeoDataPathOrDefault() ypath.Path {
-	if speclet.GeoDataPath != nil {
-		return *speclet.GeoDataPath
+func (speclet *Speclet) GeodataPathOrDefault() ypath.Path {
+	if speclet.GeodataPath != nil {
+		return *speclet.GeodataPath
 	}
-	return DefaultGeoDataPath
+	return DefaultGeodataPath
 }
 
 func (speclet *Speclet) RuntimeDataPathOrDefault() ypath.Path {

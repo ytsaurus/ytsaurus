@@ -32,13 +32,13 @@ type Config struct {
 	AddressResolver           map[string]any       `yson:"address_resolver"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
-	EnableGeoData             *bool                `yson:"enable_geo_data"`
+	EnableGeodata             *bool                `yson:"enable_geodata"`
 }
 
 const (
 	DefaultEnableYandexSpecificLinks = false
 	DefaultExportSystemLogTables     = false
-	DefaultEnableGeoData             = false
+	DefaultEnableGeodata             = false
 )
 
 func (c *Config) LogRotationModeOrDefault() LogRotationModeType {
@@ -62,11 +62,11 @@ func (c *Config) ExportSystemLogTablesOrDefault() bool {
 	return DefaultExportSystemLogTables
 }
 
-func (c *Config) EnableGeoDataOrDefault() bool {
-	if c.EnableGeoData != nil {
-		return *c.EnableGeoData
+func (c *Config) EnableGeodataOrDefault() bool {
+	if c.EnableGeodata != nil {
+		return *c.EnableGeodata
 	}
-	return DefaultEnableGeoData
+	return DefaultEnableGeodata
 }
 
 type Controller struct {
@@ -149,7 +149,7 @@ func (c *Controller) buildCommand(speclet *Speclet) string {
 
 	var args []string
 	args = append(args, trampolinePath, chytPath)
-	if speclet.EnableGeoDataOrDefault(c.config.EnableGeoDataOrDefault()) {
+	if speclet.EnableGeodataOrDefault(c.config.EnableGeodataOrDefault()) {
 		args = append(args, "--prepare-geodata")
 	}
 	return strings.Join(args, " ")
@@ -307,16 +307,16 @@ func (c *Controller) DescribeOptions(parsedSpeclet any) []strawberry.OptionGroup
 					Title:        "Enable geodata",
 					Name:         "enable_geodata",
 					Type:         strawberry.TypeBool,
-					CurrentValue: speclet.EnableGeoData,
-					DefaultValue: c.config.EnableGeoDataOrDefault(),
+					CurrentValue: speclet.EnableGeodata,
+					DefaultValue: c.config.EnableGeodataOrDefault(),
 					Description:  "If true, system dictionaries for geo-functions are set up automatically.",
 				},
 				{
 					Title:        "Geodata path",
 					Name:         "geodata_path",
 					Type:         strawberry.TypePath,
-					CurrentValue: speclet.GeoDataPath,
-					DefaultValue: DefaultGeoDataPath,
+					CurrentValue: speclet.GeodataPath,
+					DefaultValue: DefaultGeodataPath,
 				},
 				{
 					Title:        "Export system log tables",

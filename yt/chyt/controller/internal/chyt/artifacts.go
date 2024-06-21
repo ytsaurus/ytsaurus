@@ -47,8 +47,8 @@ func (c *Controller) appendOpArtifacts(ctx context.Context, speclet *Speclet, fi
 		{"clickhouse-trampoline", TrampolineBinaryDirectory.Child(speclet.TrampolineVersionOrDefault())},
 	}
 
-	if speclet.EnableGeoDataOrDefault(c.config.EnableGeoDataOrDefault()) {
-		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeoDataPathOrDefault()})
+	if speclet.EnableGeodataOrDefault(c.config.EnableGeodataOrDefault()) {
+		artifacts = append(artifacts, artifact{"geodata.tgz", speclet.GeodataPathOrDefault()})
 	}
 
 	var artifactDescription = map[string]yson.RawValue{}
