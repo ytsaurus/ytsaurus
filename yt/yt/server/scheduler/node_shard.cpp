@@ -585,21 +585,34 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     }
 
     std::vector<TAllocationPtr> runningAllocations;
+    bool hasWaitingAllocations = false;
     YT_PROFILE_TIMING("/scheduler/analysis_time") {
         ProcessHeartbeatAllocations(
             request,
             response,
             node,
             strategyProxy,
-            &runningAllocations);
+            &runningAllocations,
+            &hasWaitingAllocations);
     }
 
     bool skipScheduleAllocations = false;
-    if (isThrottlingActive) {
-        YT_LOG_DEBUG(
-            "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
-            node->GetDefaultAddress());
-        skipScheduleAllocations = true;
+    if (hasWaitingAllocations || isThrottlingActive) {
+        if (hasWaitingAllocations) {
+            YT_LOG_DEBUG(
+                "Waiting allocations found (NodeAddress: %v, SuppressingScheduling: %v)",
+                node->GetDefaultAddress(),
+                Config_->DisableSchedulingOnNodeWithWaitingAllocations);
+            if (Config_->DisableSchedulingOnNodeWithWaitingAllocations) {
+                skipScheduleAllocations = true;
+            }
+        }
+        if (isThrottlingActive) {
+            YT_LOG_DEBUG(
+                "Throttling is active, suppressing new allocations scheduling (NodeAddress: %v)",
+                node->GetDefaultAddress());
+            skipScheduleAllocations = true;
+        }
     }
 
     response->set_scheduling_skipped(skipScheduleAllocations);
@@ -1571,7 +1584,8 @@ void TNodeShard::ProcessHeartbeatAllocations(
     TScheduler::TCtxNodeHeartbeat::TTypedResponse* response,
     const TExecNodePtr& node,
     const INodeHeartbeatStrategyProxyPtr& strategyProxy,
-    std::vector<TAllocationPtr>* runningAllocations)
+    std::vector<TAllocationPtr>* runningAllocations,
+    bool* hasWaitingAllocations)
 {
     YT_VERIFY(runningAllocations->empty());
 
@@ -1631,6 +1645,7 @@ void TNodeShard::ProcessHeartbeatAllocations(
                     break;
                 }
                 case EAllocationState::Waiting:
+                    *hasWaitingAllocations = true;
                     ongoingAllocationsByState[allocation->GetState()].push_back(allocation);
                     break;
                 default:
