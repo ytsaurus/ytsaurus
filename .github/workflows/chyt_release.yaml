@@ -29,6 +29,9 @@ jobs:
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
           disk-size: 93GB
+          public-ip: false
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
 
   checkout:
     name: Checkout
