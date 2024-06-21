@@ -40,7 +40,7 @@ def make_random_secondary_index_schema(table_schema: Schema):
             index_value_columns.append(column)
 
     if len(index_value_columns) == 0:
-        index_value_columns.append(Column(TInt64(), SYSTEM_EMPTY_COLUMN_NAME))
+        index_value_columns.append(Column(TInt64, SYSTEM_EMPTY_COLUMN_NAME))
 
     index_key_columns += table_schema.get_key_columns()
     random.shuffle(index_key_columns)

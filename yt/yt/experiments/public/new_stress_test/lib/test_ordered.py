@@ -251,7 +251,7 @@ def test_ordered_tables(base_path, spec, attributes, args):
     current_tablet_count = spec.size.tablet_count
 
     data_table_schema = schema.with_named_columns(
-        ["tablet_index", "row_index"], [TInt64(), TInt64()], sort_order="ascending",
+        ["tablet_index", "row_index"], [TInt64, TInt64], sort_order="ascending",
     )
     if not spec.testing.skip_generation:
         yt.create("table", registry.data, attributes={"schema": data_table_schema.yson()})

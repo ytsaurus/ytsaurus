@@ -44,6 +44,7 @@ PY_SRCS(
     ql_base.py
     ql_checks.py
     ql_engine.py
+    ql_expression_generator.py
     ql_generator.py
     ql_printer.py
     ql_util.py

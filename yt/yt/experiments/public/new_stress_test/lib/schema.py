@@ -20,18 +20,18 @@ def make_comparable_key(key):
     return [ComparableYsonEntity() if x is None else x for x in key]
 
 
-class TInt64():
-    def random(self):
+class TInt64:
+    def random():
         return yson.YsonInt64(random.randint(1, 1000000))
         return yson.YsonInt64(random.randint(-2**63, 2**63 - 1))
-    def str(self):
+    def str():
         return "int64"
-    def comparable(self):
+    def comparable():
         return True
-    def aggregatable(self):
+    def aggregatable():
         #return ["sum", "min", "max"]
         return ["min", "max"]
-    def aggregate(self, function, lhs, rhs):
+    def aggregate(function, lhs, rhs):
         if function == "sum":
             r = lhs + rhs
             if r < -2**63:
@@ -43,59 +43,59 @@ class TInt64():
             return max(lhs, rhs)
         elif function == "min":
             return min(lhs, rhs)
-    def data_weight(self):
+    def data_weight():
         return 8
-    def is_string_like(self):
+    def is_string_like():
         return False
 
-class TUint64():
-    def random(self):
+class TUint64:
+    def random():
         return yson.YsonUint64(random.randint(0, 2**64 - 1))
-    def str(self):
+    def str():
         return "uint64"
-    def comparable(self):
+    def comparable():
         return True
-    def aggregatable(self):
+    def aggregatable():
         #return ["sum", "min", "max"]
         return ["min", "max"]
-    def aggregate(self, function, lhs, rhs):
+    def aggregate(function, lhs, rhs):
         if function == "sum":
             return (lhs + rhs) % 2**64
         elif function == "max":
             return max(lhs, rhs)
         elif function == "min":
             return min(lhs, rhs)
-    def data_weight(self):
+    def data_weight():
         return 8
-    def is_string_like(self):
+    def is_string_like():
         return False
 
-class TBoolean():
-    def random(self):
+class TBoolean:
+    def random():
         return yson.YsonBoolean(random.randint(0,1))
-    def str(self):
+    def str():
         return "boolean"
-    def comparable(self):
+    def comparable():
         return True
-    def aggregatable(self):
+    def aggregatable():
         return None
-    def data_weight(self):
+    def data_weight():
         return 8
-    def is_string_like(self):
+    def is_string_like():
         return False
 
-class TDouble():
-    def random(self):
+class TDouble:
+    def random():
         return yson.YsonDouble(random.uniform(-2**100,2**100))
-    def str(self):
+    def str():
         return "double"
-    def comparable(self):
+    def comparable():
         return True
-    def aggregatable(self):
-        return None
-    def data_weight(self):
+    def aggregatable():
+        return []
+    def data_weight():
         return 8
-    def is_string_like(self):
+    def is_string_like():
         return False
 
 class RandomStringGenerator():
@@ -114,50 +114,48 @@ class RandomStringGenerator():
         self.data = self.data[self.ptr:] + random_string(100000)
         self.ptr = 0
 
-class TString():
+class TString:
     rsg = RandomStringGenerator()
 
-    def random(self):
+    def random():
         length = random.randint(1,100)
-        string = "start_{}_end".format(self.rsg.generate(length))
+        string = "start_{}_end".format(TString.rsg.generate(length))
         return yson.YsonString(string.encode())
-    def str(self):
+    def str():
         return "string"
-    def comparable(self):
+    def comparable():
         return True
-    def aggregatable(self):
+    def aggregatable():
         return ["min", "max"]
-    def aggregate(self, function, lhs, rhs):
+    def aggregate(function, lhs, rhs):
         if function == "max":
             return max(lhs, rhs)
         elif function == "min":
             return min(lhs, rhs)
-    def data_weight(self):
+    def data_weight():
         return (100 + 1) // 2 + 10 + 1
-    def is_string_like(self):
+    def is_string_like():
         return True
 
-class TAny():
-    def __init__(self, scalar_types):
-        self.scalar_types = scalar_types
+class TAny:
+    scalar_types = [TInt64, TUint64, TBoolean, TString]
 
-    def random(self):
-        if random.randint(0, len(self.scalar_types)) == 0:
+    def random():
+        if random.randint(0, len(TAny.scalar_types)) == 0:
             return [{},{}]
-        return random.choice(self.scalar_types).random()
-    def str(self):
+        return random.choice(TAny.scalar_types).random()
+    def str():
         return "any"
-    def comparable(self):
+    def comparable():
         return False
-    def aggregatable(self):
-        return None
-    def data_weight(self):
+    def aggregatable():
+        return []
+    def data_weight():
         return 20
-    def is_string_like(self):
+    def is_string_like():
         return True
 
-scalar_types = [TInt64(), TUint64(), TBoolean(), TString()]
-types = scalar_types + [TAny(scalar_types)]
+types = TAny.scalar_types + [TAny]
 
 key_types = [t for t in types if t.comparable()]
 types_map = {t.str(): t for t in types + key_types}

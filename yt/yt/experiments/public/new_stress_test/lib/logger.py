@@ -41,7 +41,7 @@ def setup_logger():
 
     def record_factory(name, *args, **kwargs):
         record = old_factory(name, *args, **kwargs)
-        record.msg = logger.get_prefix() + record.msg
+        record.msg = logger.get_prefix() + str(record.msg)
         return record
 
     logging.setLogRecordFactory(record_factory)
