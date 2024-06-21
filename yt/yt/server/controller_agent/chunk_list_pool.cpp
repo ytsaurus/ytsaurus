@@ -117,39 +117,36 @@ void TChunkListPool::AllocateMore(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TChunkServiceProxy proxy(channel);
 
-    auto batchReq = proxy.ExecuteBatch();
-    GenerateMutationId(batchReq);
+    auto req = proxy.CreateChunkLists();
+    GenerateMutationId(req);
 
-    auto req = batchReq->add_create_chunk_lists_subrequests();
     ToProto(req->mutable_transaction_id(), TransactionId_);
     req->set_count(count);
 
     data.RequestInProgress = true;
 
-    batchReq->Invoke().Subscribe(
+    req->Invoke().Subscribe(
         BIND(&TChunkListPool::OnChunkListsCreated, MakeWeak(this), cellTag)
             .Via(ControllerInvokerPool_->GetInvoker(EOperationControllerQueue::Default)));
 }
 
 void TChunkListPool::OnChunkListsCreated(
     TCellTag cellTag,
-    const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+    const TChunkServiceProxy::TErrorOrRspCreateChunkListsPtr& rspOrError)
 {
     auto& data = CellMap_[cellTag];
 
     YT_VERIFY(data.RequestInProgress);
     data.RequestInProgress = false;
 
-    auto error = GetCumulativeError(batchRspOrError);
-    if (!error.IsOK()) {
-        YT_LOG_ERROR(error, "Error allocating chunk lists for pool (CellTag: %v)",
+    if (!rspOrError.IsOK()) {
+        YT_LOG_ERROR(rspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
             cellTag);
         return;
     }
 
-    const auto& batchRsp = batchRspOrError.Value();
-    const auto& rsp = batchRsp->create_chunk_lists_subresponses(0);
-    auto ids = FromProto<std::vector<TChunkListId>>(rsp.chunk_list_ids());
+    const auto& rsp = rspOrError.Value();
+    auto ids = FromProto<std::vector<TChunkListId>>(rsp->chunk_list_ids());
     data.Ids.insert(data.Ids.end(), ids.begin(), ids.end());
     data.LastSuccessCount = ids.size();
 

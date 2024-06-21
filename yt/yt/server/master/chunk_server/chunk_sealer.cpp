@@ -650,19 +650,15 @@ private:
         {
             TChunkServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
 
-            auto batchReq = proxy.ExecuteBatch();
-            GenerateMutationId(batchReq);
-            SetSuppressUpstreamSync(&batchReq->Header(), true);
-            // COMPAT(shakurov): prefer proto ext (above).
-            batchReq->set_suppress_upstream_sync(true);
+            auto req = proxy.SealChunk();
+            GenerateMutationId(req);
 
-            auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);
             req->mutable_info()->Swap(&chunkSealInfo);
 
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            auto rspOrError = WaitFor(req->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
+                rspOrError,
                 "Failed to seal chunk %v",
                 chunkId);
         }

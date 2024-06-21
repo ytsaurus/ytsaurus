@@ -52,7 +52,7 @@ private:
 
     void OnChunkListsCreated(
         NObjectClient::TCellTag cellTag,
-        const NChunkClient::TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError);
+        const NChunkClient::TChunkServiceProxy::TErrorOrRspCreateChunkListsPtr& batchRspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkListPool)

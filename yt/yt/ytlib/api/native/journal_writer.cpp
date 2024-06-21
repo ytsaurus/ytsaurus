@@ -1191,15 +1191,20 @@ private:
                     sessionId,
                     session->QuorumFlushedRowCount);
 
-                auto batchReq = CreateExecuteBatchRequest();
-                auto* req = batchReq->add_seal_chunk_subrequests();
+                TChunkServiceProxy proxy(UploadMasterChannel_);
+
+                auto req = proxy.SealChunk();
+                GenerateMutationId(req);
+                SetSuppressUpstreamSync(&req->Header(), true);
+
                 ToProto(req->mutable_chunk_id(), sessionId.ChunkId);
                 req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+                auto rspOrError = WaitFor(req->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
-                    GetCumulativeError(batchRspOrError),
+                    rspOrError,
                     "Error sealing chunk %v",
                     sessionId);
 
@@ -1878,10 +1883,10 @@ private:
                 session->QuorumFlushedRowCount,
                 session->QuorumFlushedDataSize);
 
-            MaybeSealChunks();
+            MaybeSealChunk();
         }
 
-        void MaybeSealChunks()
+        void MaybeSealChunk()
         {
             if (SealInProgress_) {
                 return;
@@ -1894,50 +1899,46 @@ private:
             if (IndexToChunkSessionToSeal_.begin()->first != FirstUnsealedSessionIndex_) {
                 return;
             }
+            TChunkServiceProxy proxy(UploadMasterChannel_);
 
-            auto batchReq = CreateExecuteBatchRequest();
-            std::vector<TSessionId> sessionIds;
-            while (!IndexToChunkSessionToSeal_.empty() && IndexToChunkSessionToSeal_.begin()->first == FirstUnsealedSessionIndex_) {
-                ++FirstUnsealedSessionIndex_;
-                auto session = std::move(IndexToChunkSessionToSeal_.begin()->second);
-                IndexToChunkSessionToSeal_.erase(IndexToChunkSessionToSeal_.begin());
-                sessionIds.push_back(session->Id);
+            ++FirstUnsealedSessionIndex_;
+            auto session = std::move(IndexToChunkSessionToSeal_.begin()->second);
+            IndexToChunkSessionToSeal_.erase(IndexToChunkSessionToSeal_.begin());
 
-                auto* req = batchReq->add_seal_chunk_subrequests();
-                ToProto(req->mutable_chunk_id(), session->Id.ChunkId);
-                if (session->FirstRowIndex) {
-                    req->mutable_info()->set_first_overlayed_row_index(*session->FirstRowIndex);
-                }
-                req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
-                req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
-                req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
+            auto req = proxy.SealChunk();
+            GenerateMutationId(req);
+            ToProto(req->mutable_chunk_id(), session->Id.ChunkId);
+            if (session->FirstRowIndex) {
+                req->mutable_info()->set_first_overlayed_row_index(*session->FirstRowIndex);
             }
+            req->mutable_info()->set_row_count(session->QuorumFlushedRowCount);
+            req->mutable_info()->set_uncompressed_data_size(session->QuorumFlushedDataSize);
+            req->mutable_info()->set_compressed_data_size(session->QuorumFlushedDataSize);
 
             SealInProgress_ = true;
 
-            YT_LOG_DEBUG("Sealing chunks (SessionIds: %v)",
-                sessionIds);
+            YT_LOG_DEBUG("Sealing chunk (SessionIds: %v)",
+                session->Id);
 
-            batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnChunksSealed, MakeStrong(this))
+            req->Invoke().Subscribe(
+                BIND(&TImpl::OnChunkSealed, MakeStrong(this))
                     .Via(Invoker_));
         }
 
-        void OnChunksSealed(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+        void OnChunkSealed(const TChunkServiceProxy::TErrorOrRspSealChunkPtr& rspOrError)
         {
-            auto error = GetCumulativeError(batchRspOrError);
-            if (!error.IsOK()) {
-                auto wrappedError = TError("Error sealing chunks")
-                    << error;
-                EnqueueCommand(TFailCommand{error});
+            if (!rspOrError.IsOK()) {
+                auto wrappedError = TError("Error sealing chunk")
+                    << rspOrError;
+                EnqueueCommand(TFailCommand{rspOrError});
                 // SealInProgress_ is left stuck.
                 return;
             }
 
-            YT_LOG_DEBUG("Chunks sealed successfully");
+            YT_LOG_DEBUG("Chunk sealed successfully");
 
             SealInProgress_ = false;
-            MaybeSealChunks();
+            MaybeSealChunk();
         }
 
         bool IsCompleted() const
