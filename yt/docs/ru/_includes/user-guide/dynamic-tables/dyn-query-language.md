@@ -157,7 +157,6 @@ LIMIT <m>
 ```
 Битовые операторы:
 ```sql
-<expr> ~ <expr>
 <expr> | <expr>
 <expr> & <expr>
 <expr> >> <expr>
