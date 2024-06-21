@@ -33,9 +33,3 @@ This directory is mounted in read-write mode, so any changes made to the local c
 * --ui-version -- web interface docker image version, stable tag is used by default. Do not change this value unless you have a good reason to do so.
 * --yt-version -- cluster docker image version, latest tag is used by default. Do not change this value unless you have a good reason to do so.
 
-Rebuild docker image
---------------------------
-If you want to rebuild the docker image, you need to:
-1. Build `ytserver-all` binary, see [instruction](https://github.com/ytsaurus/ytsaurus/blob/main/BUILD.md);
-2. Run `./build.sh` --ytserver-all <YTSERVER_ALL_PATH>
-3. Run `./run_local_cluster.sh` --yt-skip-pull true

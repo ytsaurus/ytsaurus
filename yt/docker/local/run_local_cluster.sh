@@ -21,7 +21,10 @@ app_installation=''
 local_cypress_dir=''
 rpc_proxy_count=0
 rpc_proxy_port=8002
+node_count=1
+queue_agent_count=1
 enable_debug_logging=false
+extra_yt_docker_opts=''
 yt_fqdn=''
 
 network_name=yt_local_cluster_network
@@ -47,7 +50,10 @@ Usage: $script_name [-h|--help]
                     [--local-cypress-dir dir]
                     [--rpc-proxy-count count]
                     [--rpc-proxy-port port]
+                    [--node-count count]
+                    [--queue-agent-count count]
                     [--enable-debug-logging true|false]
+                    [--extra-yt-docker-opts opts]
                     [--stop]
 
   --proxy-port: Sets the proxy port on docker host (default: $proxy_port)
@@ -63,7 +69,10 @@ Usage: $script_name [-h|--help]
   --local-cypress-dir: Sets the directory on the docker host to be mapped into local cypress dir inside yt local cluster container (default: $local_cypress_dir)
   --rpc-proxy-count: Sets the number of rpc proxies to start in yt local cluster (default: $rpc_proxy_count)
   --rpc-proxy-port: Sets ports for rpc proxies; number of values should be equal to rpc-proxy-count
+  --node-count: Sets the number of cluster nodes to start in yt local cluster (default: $node_count)
+  --queue-agent-count: Sets the number of queue agents to start in yt local cluster (default: $queue_agent_count)
   --enable-debug-logging: Enable debug logging in backend container (default: $enable_debug_logging)
+  --extra-yt-docker-opts: Any extra configuration for backend docker container (default: $extra_yt_docker_opts)
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -125,14 +134,27 @@ while [[ $# -gt 0 ]]; do
         rpc_proxy_port="$2"
         shift 2
         ;;
+        --node-count)
+        node_count="$2"
+        shift 2
+        ;;
+        --queue-agent-count)
+        queue_agent_count="$2"
+        shift 2
+        ;;
         --enable-debug-logging)
         enable_debug_logging="$2"
+        shift 2
+        ;;
+        --extra-yt-docker-opts)
+        extra_yt_docker_opts="$2"
         shift 2
         ;;
         --fqdn)
         yt_fqdn="$2"
         shift 2
         ;;
+
         -h|--help)
         print_usage
         shift
@@ -160,8 +182,8 @@ if [ -z "$(which docker)" ]; then
 refer to the instructions at URL $url"
 fi
 
-yt_image=ytsaurus/local:$yt_version
-ui_image=ytsaurus/ui:$ui_version
+yt_image=ghcr.io/ytsaurus/local:$yt_version
+ui_image=ghcr.io/ytsaurus/ui:$ui_version
 
 if [ -n "$local_cypress_dir" ]; then
     if [ ! -d "$local_cypress_dir" ]; then
@@ -199,11 +221,14 @@ cluster_container=$(
         -p ${rpc_proxy_port}:${rpc_proxy_port} \
         --rm \
         $local_cypress_dir \
+        $extra_yt_docker_opts \
         $yt_image \
         --fqdn "${yt_fqdn:-${docker_hostname}}" \
         --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" \
         --rpc-proxy-count ${rpc_proxy_count} \
         --rpc-proxy-port ${rpc_proxy_port} \
+        --node-count ${node_count} \
+        --queue-agent-count ${queue_agent_count} \
         ${params} \
 )
 

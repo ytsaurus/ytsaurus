@@ -30,6 +30,9 @@ jobs:
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
           disk-size: 279GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
 
   checkout:
     name: Checkout sources
@@ -45,7 +48,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: ydb-platform/ydb
-          ref: cc871496ef02852bf6ca96470fa61c253940ddf4
+          ref: 9602cbe953310f3b833b7b99cf5ced4021cdd63b
           path: ydb
 
   build:
@@ -55,10 +58,10 @@ jobs:
       - checkout
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-      build-strawberry: true
+      build-strawberry: ${{ github.ref_name == 'main' }}
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
-      build-chyt: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      build-query-tracker: false
+      build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
     uses: ./.github/workflows/build-jobs.yaml
 
@@ -70,6 +73,7 @@ jobs:
     runs-on: ${{ needs.start-vm.outputs.label }}
     outputs:
       image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+      nightly-image-tag: ${{ steps.tag.outputs.NIGHTLY_IMAGE_TAG }}
     steps:
       - name: Calculate docker tag
         id: tag
@@ -86,7 +90,11 @@ jobs:
           else
             IMAGE_TAG=dev-test
           fi
+
+          NIGHTLY_IMAGE_TAG=${IMAGE_TAG}-$(git -C ytsaurus show -s --pretty=%cs)-${GITHUB_SHA}
+
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_OUTPUT
+          echo "NIGHTLY_IMAGE_TAG=$NIGHTLY_IMAGE_TAG" >> $GITHUB_OUTPUT
 
   docker:
     name: Docker images
@@ -96,11 +104,12 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       publish-ytsaurus: true
-      publish-query-tracker: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
-      publish-chyt: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      publish-query-tracker: false
+      publish-chyt: ${{ github.ref_name == 'main' }}
       publish-local: true
-      publish-strawberry: ${{ github.ref_name == 'main' || contains(github.ref_name, 'test') }}
+      publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
@@ -113,8 +122,6 @@ jobs:
       - docker
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
-    secrets:
-      NEBIUS_TESTMO_TOKEN: ${{ secrets.NEBIUS_TESTMO_TOKEN }}
     uses: ./.github/workflows/check-jobs.yaml
 
   systest:
@@ -130,7 +137,8 @@ jobs:
         run: |
           if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
           then
-            docker tag ghcr.io/ytsaurus/ytsaurus-nightly:dev-${GITHUB_SHA} ghcr.io/ytsaurus/ytsaurus-nightly:latest
+            NIGHTLY_IMAGE_TAG=${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
+            docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:latest
             docker push ghcr.io/ytsaurus/ytsaurus-nightly:latest
           fi
 
@@ -144,7 +152,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus  --ytsaurus-build-path ../build --benchmarks-path benchmark-0.0.1.tgz --output-path ../docker-systest-build --image-tag latest
+          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest --image-cr ghcr.io/
           docker push ghcr.io/ytsaurus/ytsaurus-systest:latest
 
   stop-vm:

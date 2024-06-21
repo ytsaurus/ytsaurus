@@ -5,19 +5,19 @@ set -x
 
 script_name=$0
 output_path="."
-benchmarks_path=""
 ytsaurus_source_path="."
 ytsaurus_build_path="."
 image_tag="latest"
+image_cr=""
 
 print_usage() {
     cat << EOF
 Usage: $script_name [-h|--help]
                     [--ytsaurus-source-path /path/to/ytsaurus.repo (default: $ytsaurus_source_path)]
                     [--ytsaurus-build-path /path/to/ytsaurus.build (default: $ytsaurus_build_path)]
-                    [--benchmarks-path /path/to/benchmarks.tgz]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
+                    [--image-cr some-cr/ (default: $image_cr)]
 EOF
     exit 1
 }
@@ -38,12 +38,12 @@ while [[ $# -gt 0 ]]; do
         output_path="$2"
         shift 2
         ;;
-        --benchmarks-path)
-        benchmarks_path=$2
-        shift 2
-        ;;
         --image-tag)
         image_tag="$2"
+        shift 2
+        ;;
+        --image-cr)
+        image_cr="$2"
         shift 2
         ;;
         -h|--help)
@@ -58,15 +58,15 @@ while [[ $# -gt 0 ]]; do
 done
 
 
-systest="${ytsaurus_build_path}/yt/systest/tester/systest"
+systest="${ytsaurus_build_path}/yt/systest/bin/systest"
 dockerfile="${ytsaurus_source_path}/yt/docker/systest/Dockerfile"
 
 cp ${systest} ${output_path}
 cp ${dockerfile} ${output_path}
 cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
-cp -r ${ytsaurus_source_path}/yt/yt/experiments/new_stress_test/ ${output_path}
-cp ${benchmarks_path} ${output_path}
+cp -r ${ytsaurus_source_path}/yt/yt/experiments/public/new_stress_test/ ${output_path}
+cp ${ytsaurus_source_path}/yt/systest/scripts/init.sh ${output_path}
 
 cd ${output_path}
 
-docker build -t ghcr.io/ytsaurus/ytsaurus-systest:${image_tag} .
+docker build -t ${image_cr}ytsaurus/ytsaurus-systest:${image_tag} .
