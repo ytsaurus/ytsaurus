@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/actions/callback.h>
 
+#include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
@@ -21,7 +22,7 @@ using NTabletClient::TDynamicValueData;
 
 using TDDComparerSignature = int(TDynamicTableKeyMask, const TDynamicValueData*, TDynamicTableKeyMask, const TDynamicValueData*);
 using TDUComparerSignature = int(TDynamicTableKeyMask, const TDynamicValueData*, const TUnversionedValue*, int);
-using TUUComparerSignature = int(const TUnversionedValue*, const TUnversionedValue*, i32);
+using TUUComparerSignature = NYT::NTableClient::TUUComparerSignature;
 
 struct TCGKeyComparers
 {
@@ -33,6 +34,10 @@ struct TCGKeyComparers
 ////////////////////////////////////////////////////////////////////////////////
 
 TCGKeyComparers GenerateComparers(TRange<EValueType> keyColumnTypes);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCallback<TUUComparerSignature> GenerateStaticTableKeyComparer(TRange<EValueType> keyColumnTypes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

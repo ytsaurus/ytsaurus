@@ -298,6 +298,7 @@ public:
     bool IsUniqueKeys() const;
     bool HasRenamedColumns() const;
     bool IsEmpty() const;
+    bool IsCGCompatarorApplicable() const;
 
     std::vector<TStableName> GetKeyColumnStableNames() const;
     TKeyColumns GetKeyColumnNames() const;
@@ -390,7 +391,7 @@ public:
 
     TTableSchemaPtr ToModifiedSchema(ETableSchemaModification schemaModification) const;
 
-    TComparator ToComparator() const;
+    TComparator ToComparator(TCallback<TUUComparerSignature> CGComparator = {}) const;
 
     TKeyColumnTypes GetKeyColumnTypes() const;
 

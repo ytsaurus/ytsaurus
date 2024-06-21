@@ -772,6 +772,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_prefetching_job_throttler", &TThis::EnablePrefetchingJobThrottler)
         .Default(false);
 
+    registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
+        .Default(false);
+
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 

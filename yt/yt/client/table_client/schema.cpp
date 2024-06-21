@@ -741,6 +741,14 @@ bool TTableSchema::IsEmpty() const
     return Columns().empty();
 }
 
+bool TTableSchema::IsCGCompatarorApplicable() const
+{
+    auto keyTypes = GetKeyColumnTypes();
+    return std::none_of(keyTypes.begin(), keyTypes.end(), [] (auto type) {
+        return type == EValueType::Any;
+    });
+}
+
 TKeyColumns TTableSchema::GetKeyColumnNames() const
 {
     TKeyColumns keyColumns;
@@ -1203,14 +1211,15 @@ TTableSchemaPtr TTableSchema::ToModifiedSchema(ETableSchemaModification schemaMo
     }
 }
 
-TComparator TTableSchema::ToComparator() const
+TComparator TTableSchema::ToComparator(TCallback<TUUComparerSignature> CGComparator) const
 {
     std::vector<ESortOrder> sortOrders(KeyColumnCount_);
     for (int index = 0; index < KeyColumnCount_; ++index) {
         YT_VERIFY(Columns()[index].SortOrder());
         sortOrders[index] = *Columns()[index].SortOrder();
     }
-    return TComparator(std::move(sortOrders));
+
+    return TComparator(std::move(sortOrders), std::move(CGComparator));
 }
 
 void TTableSchema::Save(TStreamSaveContext& context) const
