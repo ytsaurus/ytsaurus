@@ -506,8 +506,8 @@ class Mapper(object):
         class OutputRow:
             str: str
 
-        dynamic_dataclass = yt_dataclass(make_dataclass('Row', fields=[('str', str)]))
-        rows = [dynamic_dataclass(str='a')]
+        dynamic_dataclass = yt_dataclass(make_dataclass("Row", fields=[("str", str)]))
+        rows = [dynamic_dataclass(str="a")]
 
         yt.write_table_structured("//tmp/test_dynamic_dataclass_pickling", dynamic_dataclass, rows)
 
@@ -520,4 +520,3 @@ class Mapper(object):
 
         with set_config_option("pickling/dill_kwargs/byref", False):
             yt.run_map(Mapper(), "//tmp/test_dynamic_dataclass_pickling", "//tmp/test_dynamic_dataclass_pickling")
-
