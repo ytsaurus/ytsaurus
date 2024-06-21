@@ -5,48 +5,35 @@
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
-#include <yt/yt/server/lib/hydra/hydra_manager.h>
-
-#include <yt/yt/server/lib/misc/profiling_helpers.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
-
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
 #include <yt/yt/server/node/tablet_node/error_manager.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_manager.h>
+#include <yt/yt/server/node/tablet_node/tablet_profiling.h>
 #include <yt/yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
-#include <yt/yt/server/node/tablet_node/tablet_profiling.h>
 #include <yt/yt/server/node/tablet_node/tablet_snapshot_store.h>
 
-#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/server/lib/hydra/hydra_manager.h>
+
+#include <yt/yt/server/lib/misc/profiling_helpers.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/replication_reader.h>
 
+#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
-#include <yt/yt/client/node_tracker_client/node_directory.h>
-
-#include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/client/query_client/query_statistics.h>
-
-#include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/private.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-#include <yt/yt/library/query/engine_api/coordinator.h>
-#include <yt/yt/library/query/engine_api/evaluator.h>
 
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
@@ -56,24 +43,42 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/key_filter.h>
+#include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
+
+#include <yt/yt/ytlib/tablet_client/public.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 
-#include <yt/yt/ytlib/tablet_client/public.h>
-
-#include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/tls_cache.h>
 #include <yt/yt/core/misc/range_formatters.h>
+#include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
+
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/private.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/evaluator.h>
 
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 
@@ -124,22 +129,41 @@ using NTabletNode::TTabletSnapshotPtr;
 
 namespace {
 
-TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSchema& tabletSchema)
+std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
+    const NTableClient::TTableSchema& desiredSchema,
+    const NTableClient::TTableSchema& tabletSchema)
 {
     // Infer column filter.
-    TColumnFilter::TIndexes columnFilterIndexes;
+    TColumnFilter::TIndexes indexes;
+    TTimestampReadOptions timestampReadOptions;
+
     for (const auto& column : desiredSchema.Columns()) {
-        const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
-        if (tabletColumn.GetWireType() != column.GetWireType()) {
-            THROW_ERROR_EXCEPTION("Mismatched type of column %v in schema: expected %Qlv, found %Qlv",
-                column.GetDiagnosticNameString(),
-                tabletColumn.GetWireType(),
-                column.GetWireType());
+        if (auto columnWithTimestamp = GetTimestampColumnOriginalNameOrNull(column.Name())) {
+            bool isTimestampOnlyColumn = !desiredSchema.FindColumn(columnWithTimestamp.value());
+            int columnIndex = tabletSchema.GetColumnIndexOrThrow(columnWithTimestamp.value());
+
+            timestampReadOptions.TimestampColumnMapping.push_back({
+                .ColumnIndex = columnIndex,
+                .TimestampColumnIndex = columnIndex + tabletSchema.GetValueColumnCount(),
+            });
+
+            if (isTimestampOnlyColumn) {
+                indexes.push_back(columnIndex);
+                timestampReadOptions.TimestampOnlyColumns.push_back(columnIndex);
+            }
+        } else {
+            const auto& tabletColumn = tabletSchema.GetColumnOrThrow(column.Name());
+            if (tabletColumn.GetWireType() != column.GetWireType()) {
+                THROW_ERROR_EXCEPTION("Mismatched type of column %v in schema: expected %Qlv, found %Qlv",
+                    column.GetDiagnosticNameString(),
+                    tabletColumn.GetWireType(),
+                    column.GetWireType());
+            }
+            indexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
         }
-        columnFilterIndexes.push_back(tabletSchema.GetColumnIndex(tabletColumn));
     }
 
-    return TColumnFilter(std::move(columnFilterIndexes));
+    return {TColumnFilter(std::move(indexes)), std::move(timestampReadOptions)};
 }
 
 class TProfilingReaderWrapper
@@ -1134,7 +1158,7 @@ private:
             const auto& dataSplit = dataSplits[dataSplitIndex++];
 
             auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(dataSplit.ObjectId);
-            auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
+            auto [columnFilter, timestampReadOptions] = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
 
             try {
                 ISchemafulUnversionedReaderPtr reader;
@@ -1148,6 +1172,7 @@ private:
                             ChunkReadOptions_,
                             ETabletDistributedThrottlerKind::Select,
                             ChunkReadOptions_.WorkloadDescriptor.Category,
+                            std::move(timestampReadOptions),
                             QueryOptions_.MergeVersionedRows);
                     } else {
                         auto orderedRangeReaderGenerator = [
@@ -1183,7 +1208,8 @@ private:
                         QueryOptions_.TimestampRange,
                         ChunkReadOptions_,
                         ETabletDistributedThrottlerKind::Select,
-                        ChunkReadOptions_.WorkloadDescriptor.Category);
+                        ChunkReadOptions_.WorkloadDescriptor.Category,
+                        std::move(timestampReadOptions));
                 }
 
                 return New<TProfilingReaderWrapper>(

@@ -828,6 +828,12 @@ def locate_skynet_share(path, **kwargs):
 def select_rows(query, **kwargs):
     kwargs["query"] = query
     kwargs["verbose_logging"] = True
+    if "with_timestamps" in kwargs:
+        if "versioned_read_options" in kwargs:
+            raise YtError('At most one of "versioned_read_options" or "with_timestamps" can be specified')
+
+        kwargs["versioned_read_options"] = {"read_mode": "latest_timestamp" if kwargs["with_timestamps"] else "default"}
+
     return execute_command_with_output_format("select_rows", kwargs)
 
 

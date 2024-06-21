@@ -56,6 +56,7 @@
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/ytlib/table_client/timestamped_schema_utils.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -78,6 +79,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/helpers.h>
@@ -285,9 +287,9 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
 
 TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
 {
-    return TSchemaUpdateEnabledFeatures {
-        true,  /*EnableStaticTableDropColumn*/
-        true  /*EnableDynamicTableDropColumn*/
+    return TSchemaUpdateEnabledFeatures{
+        .EnableStaticTableDropColumn = true,
+        .EnableDynamicTableDropColumn = true,
     };
 }
 
@@ -466,11 +468,13 @@ public:
         const TStickyTableMountInfoCachePtr& tableMountCache,
         IInvokerPtr invoker,
         TDetailedProfilingInfoPtr detailedProfilingInfo = nullptr,
-        TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {})
+        TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas = {},
+        TVersionedReadOptions versionedReadOptions = {})
         : TableMountCache_(std::move(tableMountCache))
         , Invoker_(std::move(invoker))
         , DetailedProfilingInfo_(std::move(detailedProfilingInfo))
         , ExpectedTableSchemas_(std::move(expectedTableSchemas))
+        , VersionedReadOptions_(std::move(versionedReadOptions))
     { }
 
     // IPrepareCallbacks implementation.
@@ -486,6 +490,7 @@ private:
     const IInvokerPtr Invoker_;
     const TDetailedProfilingInfoPtr DetailedProfilingInfo_;
     const TSelectRowsOptions::TExpectedTableSchemas ExpectedTableSchemas_;
+    const TVersionedReadOptions VersionedReadOptions_;
 
     static TTableSchemaPtr GetTableSchema(
         const TRichYPath& path,
@@ -532,9 +537,12 @@ private:
             }
         }
 
+        auto tableSchema = GetTableSchema(path, tableInfo);
         return TDataSplit{
             .ObjectId = tableInfo->TableId,
-            .TableSchema = GetTableSchema(path, tableInfo),
+            .TableSchema = VersionedReadOptions_.ReadMode == EVersionedIoMode::LatestTimestamp
+                ? ToLatestTimestampSchema(tableSchema)
+                : std::move(tableSchema),
             .MountRevision = tableInfo->PrimaryRevision,
         };
     }
@@ -1591,7 +1599,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         cache,
         Connection_->GetInvoker(),
         options.DetailedProfilingInfo,
-        options.ExpectedTableSchemas);
+        options.ExpectedTableSchemas,
+        options.VersionedReadOptions);
 
     auto readSessionId = TReadSessionId::Create();
 

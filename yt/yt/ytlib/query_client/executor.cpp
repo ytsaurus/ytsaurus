@@ -19,16 +19,17 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
-#include <yt/yt/ytlib/node_tracker_client/channel.h>
-
 #include <yt/yt/ytlib/hive/cell_directory.h>
+
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/unversioned_reader.h>
+#include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
@@ -67,6 +68,38 @@ using NObjectClient::TObjectId;
 using NObjectClient::FromObjectId;
 
 using NHiveClient::TCellDescriptorPtr;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool ValidateSchema(const TTableSchema& original, const TTableSchema& query)
+{
+    if (original.GetStrict() != query.GetStrict() ||
+        original.GetUniqueKeys() != query.GetUniqueKeys() ||
+        original.GetSchemaModification() != query.GetSchemaModification() ||
+        original.DeletedColumns() != query.DeletedColumns())
+    {
+        return false;
+    }
+
+    auto queryColumnIt = query.Columns().begin();
+    for (const auto& column : original.Columns()) {
+        if (!GetTimestampColumnOriginalNameOrNull(column.Name()) &&
+            (queryColumnIt == query.Columns().end() || *queryColumnIt++ != column))
+        {
+            return false;
+        }
+    }
+
+    if (queryColumnIt != query.Columns().end()) {
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,8 +218,7 @@ std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(
 
 void ValidateTableInfo(const TTableMountInfoPtr& tableInfo, TTableSchemaPtr expectedQuerySchema)
 {
-
-    if (*expectedQuerySchema != *tableInfo->Schemas[ETableSchemaKind::Query]) {
+    if (!ValidateSchema(*expectedQuerySchema, *tableInfo->Schemas[ETableSchemaKind::Query])) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::InvalidMountRevision,
             "Invalid revision for table info; schema has changed")

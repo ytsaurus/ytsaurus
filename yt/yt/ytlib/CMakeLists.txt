@@ -1621,6 +1621,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_columnar_statistics_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_read_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/table_upload_options.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/timestamped_schema_utils.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/timing_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/table_client/versioned_block_reader.cpp

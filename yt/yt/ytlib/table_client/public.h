@@ -165,6 +165,8 @@ DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryDecompressionSession)
 DECLARE_REFCOUNTED_STRUCT(IDictionaryCompressionFactory)
 
+struct TTimestampReadOptions;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

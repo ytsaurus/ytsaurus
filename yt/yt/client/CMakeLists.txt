@@ -186,6 +186,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/schemaless_row_reorderer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/unordered_schemaful_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/validate_logical_type.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/versioned_io_options.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/composite_compare.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/columnar.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/table_client/record_codegen_cpp.cpp
