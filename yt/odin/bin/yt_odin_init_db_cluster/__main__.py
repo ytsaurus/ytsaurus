@@ -17,7 +17,7 @@ def main():
     args = parser.parse_args()
 
     client = yt.YtClient(proxy=args.proxy, token=args.token)
-    init_yt_table(args.table, client, bundle=args.tablet_cell_bundle)
+    init_yt_table(args.table, client, bundle=args.tablet_cell_bundle, primary_medium=args.primary_medium)
 
 
 if __name__ == "__main__":
