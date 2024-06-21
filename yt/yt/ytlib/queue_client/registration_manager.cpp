@@ -176,8 +176,8 @@ TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
     THROW_ERROR_EXCEPTION(
         NYT::NSecurityClient::EErrorCode::AuthorizationError,
         "Consumer %v is not registered for queue %v",
-        queue,
-        consumer)
+        consumer,
+        queue)
         << TErrorAttribute("raw_queue", rawQueue)
         << TErrorAttribute("raw_consumer", rawConsumer);
 }
