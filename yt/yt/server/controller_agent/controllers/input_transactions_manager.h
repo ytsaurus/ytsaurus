@@ -37,7 +37,7 @@ public:
         //             may happen if all the inputs are taken from different
         //             transactions, but there is a request for disk space
         //             for a job.
-        bool forceStartNativeTransaction,
+        bool forceStartLocalTransaction,
         NTransactionClient::TTransactionId userTransactionId,
         TControllerAgentConfigPtr config,
         NLogging::TLogger logger);
@@ -52,7 +52,7 @@ public:
     void FillSchedulerTransactionIds(
         NScheduler::TControllerTransactionIds* transactionIds) const;
 
-    NTransactionClient::TTransactionId GetNativeInputTransactionId() const;
+    NTransactionClient::TTransactionId GetLocalInputTransactionId() const;
 
 private:
     const NScheduler::TOperationId OperationId_;
@@ -69,7 +69,7 @@ private:
 
     // Points to child of UserTransaction, if such transaction exists
     // among #ParentToTransaction_'s values, null otherwise.
-    NApi::ITransactionPtr NativeInputTransaction_;
+    NApi::ITransactionPtr LocalInputTransaction_;
 
     NTransactionClient::TTransactionId GetTransactionParentFromPath(
         const NYPath::TRichYPath& path) const;

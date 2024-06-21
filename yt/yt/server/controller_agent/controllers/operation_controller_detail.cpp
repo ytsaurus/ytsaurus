@@ -821,7 +821,7 @@ void TOperationControllerBase::InitializeStructures()
         if (path.GetTransactionId()) {
             THROW_ERROR_EXCEPTION("Transaction id is not supported for \"probing_base_layer_path\"");
         }
-        BaseLayer_ = TUserFile(path, InputTransactions->GetNativeInputTransactionId(), true);
+        BaseLayer_ = TUserFile(path, InputTransactions->GetLocalInputTransactionId(), true);
     }
 
     auto maxInputTableCount = std::min(Config->MaxInputTableCount, Options->MaxInputTableCount);
@@ -6865,7 +6865,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         GetUserObjectBasicAttributes(
             Client,
             MakeUserObjectList(files),
-            InputTransactions->GetNativeInputTransactionId(),
+            InputTransactions->GetLocalInputTransactionId(),
             Logger().WithTag("TaskTitle: %v", userJobSpec->TaskTitle),
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -6879,7 +6879,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
         GetUserObjectBasicAttributes(
             Client,
             layers,
-            InputTransactions->GetNativeInputTransactionId(),
+            InputTransactions->GetLocalInputTransactionId(),
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
@@ -7343,14 +7343,14 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
 
                 auto req = TMasterYPathProxy::CreateObject();
                 SetPrerequisites(req, TPrerequisiteOptions{
-                    .PrerequisiteTransactionIds = {InputTransactions->GetNativeInputTransactionId()},
+                    .PrerequisiteTransactionIds = {InputTransactions->GetLocalInputTransactionId()},
                 });
 
                 req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
 
                 auto attributes = CreateEphemeralAttributes();
                 attributes->Set("account", account);
-                attributes->Set("transaction_id", InputTransactions->GetNativeInputTransactionId());
+                attributes->Set("transaction_id", InputTransactions->GetLocalInputTransactionId());
                 ToProto(req->mutable_object_attributes(), *attributes);
 
                 auto rsp = WaitFor(proxy.Execute(req))
@@ -8757,7 +8757,7 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             }))
             .Item("build_time").Value(TInstant::Now())
             .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
-            .Item("input_transaction_id").Value(InputTransactions->GetNativeInputTransactionId())
+            .Item("input_transaction_id").Value(InputTransactions->GetLocalInputTransactionId())
             .Item("output_transaction_id").Value(OutputTransaction ? OutputTransaction->GetId() : NullTransactionId);
     }
 }
@@ -9512,7 +9512,7 @@ void TOperationControllerBase::InitUserJobSpec(
 
     ToProto(
         jobSpec->mutable_input_transaction_id(),
-        InputTransactions->GetNativeInputTransactionId());
+        InputTransactions->GetLocalInputTransactionId());
 
     jobSpec->set_memory_reserve(joblet->UserJobMemoryReserve);
     jobSpec->set_job_proxy_memory_reserve(

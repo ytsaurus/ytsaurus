@@ -453,7 +453,7 @@ void TInputManager::FetchInputTablesAttributes()
     GetUserObjectBasicAttributes(
         Client_,
         MakeUserObjectList(InputTables_),
-        InputTransactions_->GetNativeInputTransactionId(),
+        InputTransactions_->GetLocalInputTransactionId(),
         Logger,
         EPermission::Read,
         TGetUserObjectBasicAttributesOptions{

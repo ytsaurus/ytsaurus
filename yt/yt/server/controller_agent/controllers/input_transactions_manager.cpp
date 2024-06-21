@@ -27,7 +27,7 @@ TInputTransactionsManager::TInputTransactionsManager(
     TInputClients clients,
     TOperationId operationId,
     const std::vector<TRichYPath>& filesAndTables,
-    bool forceStartNativeTransaction,
+    bool forceStartLocalTransaction,
     TTransactionId userTransactionId,
     TControllerAgentConfigPtr config,
     TLogger logger)
@@ -45,7 +45,7 @@ TInputTransactionsManager::TInputTransactionsManager(
         }
     }
 
-    if (forceStartNativeTransaction) {
+    if (forceStartLocalTransaction) {
         ParentToTransaction_[UserTransactionId_] = nullptr;
     }
 }
@@ -88,7 +88,7 @@ TFuture<void> TInputTransactionsManager::Start(
                         // NB: Assignments are not racy, because invoker of this "Apply" is serialized.
                         ParentToTransaction_[parentTransactionId] = transaction;
                         if (parentTransactionId == UserTransactionId_) {
-                            NativeInputTransaction_ = transaction;
+                            LocalInputTransaction_ = transaction;
                         }
                     })
                         .AsyncVia(GetCurrentInvoker())));
@@ -100,6 +100,17 @@ TFuture<void> TInputTransactionsManager::Start(
 std::vector<TRichTransactionId> TInputTransactionsManager::RestoreFromNestedTransactions(
     const TControllerTransactionIds& transactionIds) const
 {
+    /// Old (aka NonTrivial) transactions come in a fixed layout, which is hopefully the same as in
+    /// OldNonTrivialInputTransactionParents.
+    ///
+    /// OldNonTrivialInputTransactionParents: [p1,  p2,  p1 ]
+    /// transactionIds.NestedInputIds:        [tx1, tx2, tx1]
+    ///
+    /// We need to restore a mapping parent_transaction -> transaction, given transactions from
+    /// cypress and parents from snapshot. The tricky part is that transactionIds.NestedInputIds is
+    /// kind of a mapping table -> transaction, so transactions may be duplicated there. The
+    /// following code also does a little sanity check: it verifies that each parent has exactly one
+    /// unique child.
     if (transactionIds.NestedInputIds.size() != OldNonTrivialInputTransactionParents_.size()) {
         THROW_ERROR_EXCEPTION(
             "Transaction count from Cypress differs from internal transaction count, will use clean start")
@@ -205,7 +216,7 @@ TFuture<void> TInputTransactionsManager::Revive(TControllerTransactionIds transa
             for (const auto& [parent, transaction] : ParentToTransaction_) {
                 YT_VERIFY(transaction);
                 if (parent == UserTransactionId_) {
-                    NativeInputTransaction_ = transaction;
+                    LocalInputTransaction_ = transaction;
                 }
             }
         })
@@ -241,7 +252,7 @@ void TInputTransactionsManager::FillSchedulerTransactionIds(
     }
 
     // COMPAT(coteeq)
-    auto nativeId = GetNativeInputTransactionId();
+    auto nativeId = GetLocalInputTransactionId();
     transactionIds->InputId = nativeId;
     transactionIds->NestedInputIds = GetCompatDuplicatedNestedTransactionIds();
 }
@@ -258,9 +269,9 @@ TFuture<void> TInputTransactionsManager::Abort()
     return AllSet(abortFutures).AsVoid();
 }
 
-TTransactionId TInputTransactionsManager::GetNativeInputTransactionId() const
+TTransactionId TInputTransactionsManager::GetLocalInputTransactionId() const
 {
-    return NativeInputTransaction_ ? NativeInputTransaction_->GetId() : NullTransactionId;
+    return LocalInputTransaction_ ? LocalInputTransaction_->GetId() : NullTransactionId;
 }
 
 TTransactionId TInputTransactionsManager::GetTransactionParentFromPath(const TRichYPath& path) const
