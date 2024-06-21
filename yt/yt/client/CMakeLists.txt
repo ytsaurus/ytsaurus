@@ -169,6 +169,7 @@ target_sources(yt-yt-client PRIVATE
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/schemaless_row_reorderer.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/unordered_schemaful_reader.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/validate_logical_type.cpp
+  ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/versioned_io_options.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/composite_compare.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/columnar.cpp
   ${CMAKE_SOURCE_DIR}/yt/yt/client/table_client/record_codegen_cpp.cpp
