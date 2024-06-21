@@ -603,6 +603,9 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AnnotationPath)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TouchTime)
+        .SetPresent(node && node->IsTrunk() && node->GetTouchTime())
+        .SetOpaque(true));
 }
 
 bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
@@ -839,6 +842,15 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             }
             return true;
         }
+
+        case EInternedAttributeKey::TouchTime:
+            if (!node->GetTouchTime()) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(node->GetTouchTime());
+            return true;
 
         default:
             break;

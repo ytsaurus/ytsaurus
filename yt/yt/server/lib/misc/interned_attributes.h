@@ -540,6 +540,7 @@
     XX(TotalResourceLimits, total_resource_limits) \
     XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
+    XX(TouchTime, touch_time) \
     XX(TransactionId, transaction_id) \
     XX(Transient, transient) \
     XX(TransientMasterMemoryUsage, transient_master_memory_usage) \

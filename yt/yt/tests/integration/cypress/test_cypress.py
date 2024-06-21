@@ -3969,6 +3969,25 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("No such transaction"):
             get("#{}".format(object_id), tx=tx)
 
+    @authors("kivedernikov")
+    @not_implemented_in_sequoia
+    def test_touch_time_without_expiration_timeout(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            get("//tmp/t/@touch_time")
+
+    @authors("kivedernikov")
+    @not_implemented_in_sequoia
+    @pytest.mark.parametrize(
+        "suppress_access_tracking",
+        [True, False]
+    )
+    def test_touch_time(self, suppress_access_tracking):
+        create("table", "//tmp/t", attributes={"expiration_timeout": 2000})
+        time_0 = get("//tmp/t/@touch_time", suppress_access_tracking=suppress_access_tracking)
+
+        wait(lambda: get("//tmp/t/@touch_time", suppress_access_tracking=suppress_access_tracking) > time_0)
+
 
 ##################################################################
 
