@@ -34,7 +34,7 @@ class TJobProxyLogManager
     : public IJobProxyLogManager
 {
 public:
-    TJobProxyLogManager(IBootstrap* bootstrap)
+    explicit TJobProxyLogManager(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->ExecNode->JobProxyLogManager)
         , Directory_(Config_->Directory)
@@ -57,7 +57,7 @@ public:
     void OnJobUnregistered(TJobId jobId) override
     {
         NConcurrency::TDelayedExecutor::Submit(
-            BIND(&TJobProxyLogManager::RemoveJobLog, MakeStrong(this), jobId),
+            BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), JobIdToLogsPath(jobId)),
             LogsStoragePeriod_,
             Bootstrap_->GetStorageHeavyInvoker());
     }
@@ -121,7 +121,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    TJobProxyLogManagerConfigPtr Config_;
+    const TJobProxyLogManagerConfigPtr Config_;
 
     TString Directory_;
     int ShardingKeyLength_;
@@ -132,22 +132,26 @@ private:
 
     i64 DumpJobProxyLogBufferSize_;
 
-    void CreateShardingDirectories()
+    void CreateShardingDirectories() noexcept
     {
         YT_LOG_INFO("Start creating job proxy sharding key directories");
 
-        TRuntimeFormat formatString{Format("%%0%dx", ShardingKeyLength_)};
-        for (int i = 0; i < Power(16, ShardingKeyLength_); i++) {
-            auto dirName = Format(formatString, i);
+        try {
+            TRuntimeFormat formatString{Format("%%0%dx", ShardingKeyLength_)};
+            for (int i = 0; i < Power(16, ShardingKeyLength_); i++) {
+                auto dirName = Format(formatString, i);
 
-            auto dirPath = NFS::CombinePaths(Directory_, dirName);
-            NFS::MakeDirRecursive(dirPath);
+                auto dirPath = NFS::CombinePaths(Directory_, dirName);
+                NFS::MakeDirRecursive(dirPath);
+            }
+
+            YT_LOG_INFO("Finish creating job proxy sharding key directories");
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to create sharding key directories");
         }
-
-        YT_LOG_INFO("Finish creating job proxy sharding key directories");
     }
 
-    void TraverseJobDirectoriesAndScheduleRemovals()
+    void TraverseJobDirectoriesAndScheduleRemovals() noexcept
     {
         auto currentTime = Now();
 
@@ -161,7 +165,7 @@ private:
         }
     }
 
-    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, TString shardingDirPath)
+    void TraverseShardingDirectoryAndScheduleRemovals(TInstant currentTime, TString shardingDirPath) noexcept
     {
         auto Logger = ExecNodeLogger()
             .WithTag("ShardingDirPath: %v", shardingDirPath);
@@ -177,14 +181,12 @@ private:
         for (const auto& jobDirName : NFS::EnumerateDirectories(shardingDirPath)) {
             auto jobDirPath = NFS::CombinePaths(shardingDirPath, jobDirName);
             auto jobLogsDirModificationTime = TInstant::Seconds(TFileStat(jobDirPath).MTime);
-            auto removeLogsAction = BIND([path = std::move(jobDirPath)] {
-                NFS::RemoveRecursive(path);
-            });
+            auto removeJobDirectory = BIND(&TJobProxyLogManager::RemoveJobDirectory, MakeStrong(this), Passed(std::move(jobDirPath)));
             if (jobLogsDirModificationTime + LogsStoragePeriod_ <= currentTime) {
-                Bootstrap_->GetStorageHeavyInvoker()->Invoke(removeLogsAction);
+                Bootstrap_->GetStorageHeavyInvoker()->Invoke(removeJobDirectory);
             } else {
                 NConcurrency::TDelayedExecutor::Submit(
-                    removeLogsAction,
+                    removeJobDirectory,
                     jobLogsDirModificationTime + LogsStoragePeriod_,
                     Bootstrap_->GetStorageHeavyInvoker());
             }
@@ -193,11 +195,14 @@ private:
         YT_LOG_INFO("Finish traversing job directory");
     }
 
-    void RemoveJobLog(TJobId jobId)
+    void RemoveJobDirectory(const TString& path) noexcept
     {
-        auto logsPath = JobIdToLogsPath(jobId);
-        YT_LOG_INFO("Removing job directory (Path: %v)", logsPath);
-        NFS::RemoveRecursive(logsPath);
+        try {
+            NFS::RemoveRecursive(path);
+            YT_LOG_INFO("Job directory removed (Path: %v)", path);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to remove job directory (Path: %v)", path);
+        }
     }
 
     TString JobIdToLogsPath(TJobId jobId)
@@ -207,8 +212,6 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TJobProxyLogManager);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockJobProxyLogManager
@@ -216,10 +219,10 @@ class TMockJobProxyLogManager
 {
 public:
     void Start() override
-    {}
+    { }
 
     void OnJobUnregistered(TJobId /*jobId*/) override
-    {}
+    { }
 
     TString GetShardingKey(TJobId /*jobId*/) override
     {
@@ -229,7 +232,7 @@ public:
     void OnDynamicConfigChanged(
         TJobProxyLogManagerDynamicConfigPtr /*oldConfig*/,
         TJobProxyLogManagerDynamicConfigPtr /*newConfig*/) override
-    {}
+    { }
 
     void DumpJobProxyLog(
         TJobId /*jobId*/,
@@ -240,16 +243,16 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMockJobProxyLogManager);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyLogManagerPtr CreateJobProxyLogManager(IBootstrap* bootstrap)
 {
-    if (bootstrap->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode == EJobProxyLoggingMode::Simple) {
-        return New<TMockJobProxyLogManager>();
+    switch (bootstrap->GetConfig()->ExecNode->JobProxy->JobProxyLogging->Mode) {
+        case EJobProxyLoggingMode::Simple:
+            return New<TMockJobProxyLogManager>();
+        case EJobProxyLoggingMode::PerJobDirectory:
+            return New<TJobProxyLogManager>(bootstrap);
     }
-    return New<TJobProxyLogManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
