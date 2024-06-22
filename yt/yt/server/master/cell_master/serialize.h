@@ -189,6 +189,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunkStorageRemovalInTableZombify)                             (2581))  // akozhikhov
     ((DeltaStatisticsPointer)                                       (2582))  // cherepashka
     ((InheritChunkMergerModeWhenCopy_24_1)                          (2583))  // cherepashka
+    ((ForbidExportChunkWithHunks)                                   (2584))  // kivedernikov
     // 24.2 starts here.
     ((DropLegacyClusterNodeMap)                                     (2600))  // babenko
     ((ErasureHunkStorage)                                           (2601))  // akozhikhov

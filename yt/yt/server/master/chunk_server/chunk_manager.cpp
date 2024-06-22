@@ -4507,6 +4507,10 @@ private:
                 THROW_ERROR_EXCEPTION("Cell %v is not registered");
             }
 
+            if (chunk->ChunkMeta() && chunk->ChunkMeta()->FindExtension<NTableClient::NProto::THunkChunkRefsExt>()) {
+                THROW_ERROR_EXCEPTION("Chunk %v can not be exported because it has hunk links", chunk->GetId());
+            }
+
             parsedRequest.emplace_back(chunk, cellTag);
         }
 

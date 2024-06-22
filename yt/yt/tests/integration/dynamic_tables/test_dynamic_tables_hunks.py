@@ -8,7 +8,7 @@ from yt_commands import (
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy)
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, concatenate)
 
 from yt_type_helpers import make_schema
 
@@ -3018,3 +3018,38 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._perform_forced_compaction("//tmp/t", "compaction")
 
         assert_items_equal(lookup_rows("//tmp/t", keys + [{"key": 100}]), rows + [{"key": 100, "value": ""}])
+
+
+################################################################################
+
+
+class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("kivedernikov")
+    def test_forbid_export_chunk_with_hunk_links(self):
+        schema = [
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t",
+                                  schema=schema,
+                                  external_cell_tag=11)
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={"external_cell_tag": 11})
+        sync_mount_table("//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        remove("//tmp/t/@hunk_storage_id")
+
+        alter_table("//tmp/t", dynamic=False)
+
+        self._create_simple_static_table("//tmp/t2", external_cell_tag=12, schema=schema)
+
+        # COMPAT(kivedernikov): should throw an error, because chunk has hunk links
+        concatenate(["//tmp/t"], "//tmp/t2")
