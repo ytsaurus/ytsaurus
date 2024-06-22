@@ -354,7 +354,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
 
-constexpr int MaxRowsPerTransactionHardLimit = 2000000;
+constexpr int MaxRowsPerTransactionHardLimit = 1000000000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
